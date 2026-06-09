@@ -2030,6 +2030,10 @@ def _manifest_checks(
         if isinstance(row, dict)
     }
     reuse_targets = set(_str_tuple(manifest.get("portable_reuse_targets", [])))
+    evaluation_summary_errors = _bundle_evaluation_summary_errors(
+        bundle_dir,
+        manifest,
+    )
     checks = [
         _check(
             "bundle_manifest_exists",
@@ -2083,6 +2087,16 @@ def _manifest_checks(
             set(REQUIRED_REUSE_TARGETS).issubset(reuse_targets),
         ),
         _check(
+            "bundle_evaluation_summary_consistent",
+            "manifest",
+            "evaluation_summary matches packaged evaluation artifacts",
+            "ok" if not evaluation_summary_errors else "; ".join(
+                evaluation_summary_errors[:3]
+            ),
+            not evaluation_summary_errors,
+            errors=evaluation_summary_errors,
+        ),
+        _check(
             "bundle_root_is_directory",
             "manifest",
             "bundle directory exists",
@@ -2091,6 +2105,182 @@ def _manifest_checks(
         ),
     ]
     return checks
+
+
+def _bundle_evaluation_summary_errors(
+    bundle_dir: Path,
+    manifest: dict[str, Any],
+) -> tuple[str, ...]:
+    observed = manifest.get("evaluation_summary", {})
+    if not isinstance(observed, dict):
+        return ("evaluation_summary missing or not an object",)
+    expected = _expected_bundle_evaluation_summary(bundle_dir)
+    errors: list[str] = []
+    for field_name, expected_value in expected.items():
+        if field_name not in observed:
+            errors.append(f"evaluation_summary.{field_name} missing")
+            continue
+        observed_value = observed.get(field_name)
+        if isinstance(expected_value, bool):
+            if bool(observed_value) != expected_value:
+                errors.append(
+                    f"evaluation_summary.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, int):
+            if int(observed_value or 0) != expected_value:
+                errors.append(
+                    f"evaluation_summary.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, tuple):
+            observed_tuple = _str_tuple(observed_value)
+            if observed_tuple != expected_value:
+                errors.append(
+                    f"evaluation_summary.{field_name} mismatch: "
+                    f"observed={sorted(observed_tuple)} expected={sorted(expected_value)}"
+                )
+        elif isinstance(expected_value, dict):
+            observed_dict = observed_value if isinstance(observed_value, dict) else {}
+            normalized_observed = {
+                str(key): int(value or 0) for key, value in observed_dict.items()
+            }
+            if normalized_observed != expected_value:
+                errors.append(
+                    f"evaluation_summary.{field_name} mismatch: "
+                    f"observed={normalized_observed} expected={expected_value}"
+                )
+        elif str(observed_value) != str(expected_value):
+            errors.append(
+                f"evaluation_summary.{field_name} mismatch: "
+                f"observed={observed_value} expected={expected_value}"
+            )
+    return tuple(errors)
+
+
+def _expected_bundle_evaluation_summary(bundle_dir: Path) -> dict[str, object]:
+    evaluation_manifest_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_evaluation"
+        / "formalization_gap_planner_evaluation_manifest.json"
+    )
+    evaluation_manifest = _read_json_no_error(evaluation_manifest_path)
+    rows = _optional_evaluation_rows_for_summary(bundle_dir)
+    route_adoption_counts = _evaluation_route_adoption_status_counts_from_rows(rows)
+    return {
+        "requested": evaluation_manifest_path.exists(),
+        "n_evaluation_rows": int(
+            evaluation_manifest.get("n_evaluation_rows", len(rows)) or 0
+        ),
+        "n_evaluation_row_schema_valid": int(
+            evaluation_manifest.get("n_evaluation_row_schema_valid", 0) or 0
+        ),
+        "n_evaluation_row_schema_invalid": int(
+            evaluation_manifest.get("n_evaluation_row_schema_invalid", 0) or 0
+        ),
+        "n_matched_ground_truth": int(
+            evaluation_manifest.get("n_matched_ground_truth", 0) or 0
+        ),
+        "n_missing_ground_truth": int(
+            evaluation_manifest.get("n_missing_ground_truth", 0) or 0
+        ),
+        "n_alignment_contract_ok": int(
+            evaluation_manifest.get("n_alignment_contract_ok", 0) or 0
+        ),
+        "n_feedback_loop_ready": int(
+            evaluation_manifest.get("n_feedback_loop_ready", 0) or 0
+        ),
+        "n_unaligned_primitives": int(
+            evaluation_manifest.get("n_unaligned_primitives", 0) or 0
+        ),
+        "n_realization_missing_selected_formal_primitives": sum(
+            len(_str_tuple(row.get("realization_missing_selected_formal_primitives", [])))
+            for row in rows
+        ),
+        "n_realization_missing_delta_alignment_primitives": sum(
+            len(_str_tuple(row.get("realization_missing_delta_alignment_primitives", [])))
+            for row in rows
+        ),
+        "n_rows_with_incomplete_cost_hint_baseline_coverage": sum(
+            1
+            for row in rows
+            if row.get("realization_cost_hint_baseline_coverage_complete") is False
+        ),
+        "n_realization_cost_hint_baseline_primitives": sum(
+            len(_str_tuple(row.get("realization_cost_hint_baseline_primitives", [])))
+            for row in rows
+        ),
+        "n_realization_omitted_cost_hint_primitives": sum(
+            len(_str_tuple(row.get("realization_omitted_cost_hint_primitives", [])))
+            for row in rows
+        ),
+        "realization_missing_selected_formal_primitives": (
+            _evaluation_realization_missing_selected_from_rows(rows)
+        ),
+        "realization_missing_delta_alignment_primitives": (
+            _evaluation_realization_missing_delta_from_rows(rows)
+        ),
+        "realization_cost_hint_baseline_primitives": (
+            _evaluation_realization_cost_hint_baseline_from_rows(rows)
+        ),
+        "realization_omitted_cost_hint_primitives": (
+            _evaluation_realization_omitted_cost_hint_from_rows(rows)
+        ),
+        "n_rows_with_llm_route_planner_route_adoption_status": sum(
+            1
+            for row in rows
+            if str(row.get("llm_route_planner_route_adoption_status", "")).strip()
+        ),
+        "n_rows_ready_for_route_adoption": route_adoption_counts.get(
+            "READY_FOR_STANDALONE_REPLAY",
+            0,
+        ),
+        "n_rows_pending_refinement_before_route_adoption": route_adoption_counts.get(
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION",
+            0,
+        ),
+        "n_rows_awaiting_llm_route_planner_response": route_adoption_counts.get(
+            "AWAITING_LLM_ROUTE_PLANNER_RESPONSE",
+            0,
+        ),
+        "n_rows_rejected_llm_route_plan": route_adoption_counts.get(
+            "REJECTED_LLM_ROUTE_PLAN",
+            0,
+        ),
+        "n_llm_route_adoption_blockers": sum(
+            len(_str_tuple(row.get("llm_route_planner_route_adoption_blockers", [])))
+            for row in rows
+        ),
+        "llm_route_adoption_blockers": _evaluation_route_adoption_blockers_from_rows(
+            rows
+        ),
+        "llm_route_adoption_status_counts": dict(route_adoption_counts),
+        "n_rows_with_quality_controls": sum(
+            1 for row in rows if _quality_controls_from_evaluation_row(row)
+        ),
+        "n_quality_control_fields": sum(
+            len(_quality_controls_from_evaluation_row(row)) for row in rows
+        ),
+        "quality_control_fields": _evaluation_quality_control_fields_from_rows(rows),
+        "quality_control_resource_contract_ids": (
+            _evaluation_quality_control_values_from_rows(
+                rows,
+                "resource_contract_ids",
+            )
+        ),
+        "quality_control_response_validation_signals": (
+            _evaluation_quality_control_values_from_rows(
+                rows,
+                "response_validation_signals",
+            )
+        ),
+        "quality_control_stop_conditions": _evaluation_quality_control_values_from_rows(
+            rows,
+            "stop_conditions",
+        ),
+        "all_ok": bool(evaluation_manifest.get("all_ok", False)),
+    }
 
 
 def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicationBundleAuditCheck]:

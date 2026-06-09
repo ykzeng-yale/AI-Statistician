@@ -275,7 +275,8 @@ evaluation manifest drops or mutates them.
 The publication-bundle manifest itself includes an `evaluation_summary` with
 the same realization, cost-hint, route-adoption, and quality-control counters,
 so public bundles expose semantic route weakening and readiness blockers before
-a consumer runs the separate audit command.
+a consumer runs the separate audit command; the audit also recomputes and
+checks this top-level summary against the packaged evaluation artifacts.
 The one-command reuse-smoke manifest also promotes LLM route-planner
 realization-coverage counters for both primary and feedback planner passes, so
 a public artifact consumer can distinguish staged prompt-only requests from

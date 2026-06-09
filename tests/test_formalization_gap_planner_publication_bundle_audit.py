@@ -2971,6 +2971,10 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "bundle_evaluation_summary_consistent" and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "optional_evaluation_ground_truth_parse" and row["ok"]
         for row in audit_payload["checks"]
     )
@@ -4042,6 +4046,39 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     evaluation_manifest_path.write_text(
         json.dumps(evaluation_manifest_payload, indent=2),
+        encoding="utf-8",
+    )
+
+    bundle_manifest_path = (
+        bundle_dir / "formalization_gap_planner_publication_bundle_manifest.json"
+    )
+    bundle_manifest_payload = json.loads(
+        bundle_manifest_path.read_text(encoding="utf-8")
+    )
+    corrupted_bundle_manifest = json.loads(json.dumps(bundle_manifest_payload))
+    corrupted_bundle_manifest["evaluation_summary"][
+        "n_realization_omitted_cost_hint_primitives"
+    ] = 0
+    corrupted_bundle_manifest["evaluation_summary"][
+        "realization_omitted_cost_hint_primitives"
+    ] = []
+    bundle_manifest_path.write_text(
+        json.dumps(corrupted_bundle_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_bundle_summary_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_bundle_evaluation_summary_loss",
+    )
+    bundle_summary_failed_names = {
+        row["check_name"]
+        for row in rejected_bundle_summary_payload["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_bundle_summary_payload["all_ok"]
+    assert "bundle_evaluation_summary_consistent" in bundle_summary_failed_names
+    bundle_manifest_path.write_text(
+        json.dumps(bundle_manifest_payload, indent=2),
         encoding="utf-8",
     )
 
