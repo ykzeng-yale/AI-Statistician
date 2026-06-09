@@ -429,3 +429,237 @@ def test_route_stability_audit_uses_resource_response_overlay_status() -> None:
     assert by_route["route:residual"]["formal_declaration_hits"] == (
         {"primitive": "score_definition", "declaration": "Fixture.score"},
     )
+
+
+def test_route_stability_audit_keeps_rocq_declaration_hits_portable() -> None:
+    root = Path("runs/test_formalization_gap_planner_route_stability_rocq_hits")
+    plan_dir = root / "plan"
+    evidence_dir = root / "evidence"
+    overlay_dir = root / "overlay"
+    out_dir = root / "stability"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    plan_row = {
+        "goal_plan_id": "goal:rocq",
+        "route_id": "route:rocq",
+        "display_name": "rocq route",
+        "target_prover_family": "rocq",
+        "selected_primitives": ["rank_bridge"],
+        "minimal_additional_formalization_nodes": [
+            {"primitive": "rank_bridge", "action_class": "bridge_needed"}
+        ],
+    }
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": "library_aware_formalization_gap_planner",
+                "portable_schema_id": "urn:ai-statistician:schemas:library-aware-formalization-gap-plan:1",
+                "rows": [plan_row],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        evidence_dir / "formalization_gap_planner_refinement_evidence_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:rocq",
+                        "route_id": "route:rocq",
+                        "display_name": "rocq route",
+                        "hook_kind": "formal_library_grounding",
+                        "response_present": True,
+                        "response_contract_ok": True,
+                        "acceptance_status": "REFINEMENT_EVIDENCE_RECORDED_NOT_PROOF_EVIDENCE",
+                        "target_prover_family": "rocq",
+                        "formal_declaration_hits": [
+                            {
+                                "primitive": "rank_bridge",
+                                "declaration": "Rocq.Conformal.rank_bridge",
+                                "target_prover_family": "rocq",
+                                "source_field": "formal_declaration_hits",
+                            }
+                        ],
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        overlay_dir / "formalization_gap_planner_route_revision_overlay_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:rocq",
+                        "route_id": "route:rocq",
+                        "display_name": "rocq route",
+                        "revision_status": "NO_ROUTE_REVISION_PROPOSAL",
+                        "target_prover_families": ["rocq"],
+                        "original_selected_primitives": ["rank_bridge"],
+                        "revised_selected_primitives": ["rank_bridge"],
+                        "added_primitives": [],
+                        "removed_primitives": [],
+                        "original_delta_primitives": ["rank_bridge"],
+                        "revised_delta_primitives": ["rank_bridge"],
+                        "added_delta_primitives": [],
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = audit_formalization_gap_planner_route_stability(
+        plan_dir,
+        evidence_dir,
+        overlay_dir,
+        out_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["target_prover_families"] == ("rocq",)
+    assert row["stability_decision"] == "ROUTE_STABILIZED_FOR_CURRENT_EVIDENCE_BOUND"
+    assert row["formal_declaration_hits"] == (
+        {
+            "primitive": "rank_bridge",
+            "declaration": "Rocq.Conformal.rank_bridge",
+            "target_prover_family": "rocq",
+            "source_field": "formal_declaration_hits",
+        },
+    )
+    assert row["lean_declaration_hits"] == ()
+    bad_legacy_alias_row = dict(row)
+    bad_legacy_alias_row["lean_declaration_hits"] = [
+        {
+            "primitive": "rank_bridge",
+            "declaration": "Rocq.Conformal.rank_bridge",
+            "target_prover_family": "rocq",
+        }
+    ]
+    assert (
+        "lean_declaration_hits is a Lean-only legacy alias; non-Lean route "
+        "stability audit rows must use formal_declaration_hits only"
+        in validate_route_stability_audit_row(
+            bad_legacy_alias_row,
+            route_stability_audit_row_json_schema(),
+        )
+    )
+
+
+def test_route_stability_audit_rejects_rocq_legacy_lean_alias_input() -> None:
+    root = Path("runs/test_formalization_gap_planner_route_stability_rocq_lean_alias")
+    plan_dir = root / "plan"
+    evidence_dir = root / "evidence"
+    overlay_dir = root / "overlay"
+    out_dir = root / "stability"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": "library_aware_formalization_gap_planner",
+                "portable_schema_id": "urn:ai-statistician:schemas:library-aware-formalization-gap-plan:1",
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:rocq_alias",
+                        "route_id": "route:rocq_alias",
+                        "display_name": "rocq alias route",
+                        "target_prover_family": "rocq",
+                        "selected_primitives": ["rank_bridge"],
+                        "minimal_additional_formalization_nodes": [
+                            {
+                                "primitive": "rank_bridge",
+                                "action_class": "bridge_needed",
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        evidence_dir / "formalization_gap_planner_refinement_evidence_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:rocq_alias",
+                        "route_id": "route:rocq_alias",
+                        "display_name": "rocq alias route",
+                        "hook_kind": "formal_library_grounding",
+                        "response_present": True,
+                        "response_contract_ok": True,
+                        "acceptance_status": "REFINEMENT_EVIDENCE_RECORDED_NOT_PROOF_EVIDENCE",
+                        "lean_declaration_hits": [
+                            {
+                                "primitive": "rank_bridge",
+                                "declaration": "Rocq.Conformal.rank_bridge",
+                                "target_prover_family": "rocq",
+                            }
+                        ],
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        overlay_dir / "formalization_gap_planner_route_revision_overlay_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:rocq_alias",
+                        "route_id": "route:rocq_alias",
+                        "display_name": "rocq alias route",
+                        "revision_status": "NO_ROUTE_REVISION_PROPOSAL",
+                        "target_prover_families": ["rocq"],
+                        "original_selected_primitives": ["rank_bridge"],
+                        "revised_selected_primitives": ["rank_bridge"],
+                        "added_primitives": [],
+                        "removed_primitives": [],
+                        "original_delta_primitives": ["rank_bridge"],
+                        "revised_delta_primitives": ["rank_bridge"],
+                        "added_delta_primitives": [],
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = audit_formalization_gap_planner_route_stability(
+        plan_dir,
+        evidence_dir,
+        overlay_dir,
+        out_dir,
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["stability_decision"] == "BLOCKED_ROUTE_STABILITY_INPUT"
+    assert row["formal_declaration_hits"] == ()
+    assert row["lean_declaration_hits"] == ()
+    assert any(
+        "uses lean_declaration_hits for non-Lean route stability target" in error
+        for error in row["errors"]
+    )

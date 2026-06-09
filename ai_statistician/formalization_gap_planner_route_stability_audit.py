@@ -403,6 +403,7 @@ def validate_route_stability_audit_row(
     for field_name in row:
         if field_name not in allowed:
             errors.append(f"{field_name} unexpected")
+    errors.extend(_declaration_hit_scope_errors(row))
     return errors
 
 
@@ -481,28 +482,32 @@ def _audit_row(
             *overlay_row.get("source_refs", []),
         ]
     )
-    formal_hits = _dict_tuple(
-        [
-            *(
-                hit
-                for row in evidence_rows
-                for hit in row.get(
-                    "formal_declaration_hits",
-                    row.get("lean_declaration_hits", []),
-                )
-            ),
-            *overlay_row.get(
-                "formal_declaration_hits",
-                overlay_row.get("lean_declaration_hits", []),
-            ),
-        ]
+    target_prover_families = _target_prover_families_for_audit(
+        plan_row,
+        evidence_rows,
+        overlay_row,
     )
-    lean_hits = _dict_tuple(
-        [
-            *(hit for row in evidence_rows for hit in row.get("lean_declaration_hits", [])),
-            *overlay_row.get("lean_declaration_hits", []),
-        ]
-    ) or formal_hits
+    route_target_prover_family = _primary_target_prover_family(target_prover_families)
+    errors.extend(
+        _input_declaration_hit_scope_errors(
+            [*evidence_rows, overlay_row],
+            route_target_prover_family,
+        )
+    )
+    formal_hits = _merge_dicts(
+        *(
+            _formal_declaration_hits_for_target(row, route_target_prover_family)
+            for row in evidence_rows
+        ),
+        _formal_declaration_hits_for_target(overlay_row, route_target_prover_family),
+    )
+    lean_hits = _merge_dicts(
+        *(
+            _lean_declaration_hits_for_target(row, route_target_prover_family)
+            for row in evidence_rows
+        ),
+        _lean_declaration_hits_for_target(overlay_row, route_target_prover_family),
+    )
     residual_goals = _str_tuple(
         [
             *(
@@ -537,12 +542,6 @@ def _audit_row(
                     )
                 ],
             ),
-        ]
-    )
-    target_prover_families = _str_tuple(
-        [
-            *(row.get("target_prover_family", "") for row in evidence_rows),
-            *overlay_row.get("target_prover_families", []),
         ]
     )
     revision_status = str(overlay_row.get("revision_status", ""))
@@ -592,7 +591,7 @@ def _audit_row(
         prover_statuses=prover_statuses,
         prover_classes=prover_classes,
         source_refs=source_refs,
-        lean_hits=lean_hits,
+        formal_hits=formal_hits,
     )
     return FormalizationGapPlannerRouteStabilityAuditRow(
         schema_version=FORMALIZATION_GAP_PLANNER_ROUTE_STABILITY_AUDIT_SCHEMA_VERSION,
@@ -649,6 +648,8 @@ def _orphan_audit_row(
     route_id = str(overlay_row.get("route_id", ""))
     display_name = str(overlay_row.get("display_name", ""))
     errors = ("orphan route-revision overlay must be matched before stability replay",)
+    target_prover_families = _str_tuple(overlay_row.get("target_prover_families", []))
+    target_prover_family = _primary_target_prover_family(target_prover_families)
     return FormalizationGapPlannerRouteStabilityAuditRow(
         schema_version=FORMALIZATION_GAP_PLANNER_ROUTE_STABILITY_AUDIT_SCHEMA_VERSION,
         route_stability_audit_id="formalization_gap_planner_route_stability_audit:"
@@ -690,17 +691,13 @@ def _orphan_audit_row(
             ]
         ),
         source_refs=_str_tuple(overlay_row.get("source_refs", [])),
-        formal_declaration_hits=_dict_tuple(
-            overlay_row.get(
-                "formal_declaration_hits",
-                overlay_row.get("lean_declaration_hits", []),
-            )
+        formal_declaration_hits=_formal_declaration_hits_for_target(
+            overlay_row,
+            target_prover_family,
         ),
-        lean_declaration_hits=_dict_tuple(
-            overlay_row.get(
-                "lean_declaration_hits",
-                overlay_row.get("formal_declaration_hits", []),
-            )
+        lean_declaration_hits=_lean_declaration_hits_for_target(
+            overlay_row,
+            target_prover_family,
         ),
         residual_goals=_str_tuple(overlay_row.get("residual_goals", [])),
         prover_attempt_statuses=_str_tuple(
@@ -717,7 +714,7 @@ def _orphan_audit_row(
                 ],
             )
         ),
-        target_prover_families=_str_tuple(overlay_row.get("target_prover_families", [])),
+        target_prover_families=target_prover_families,
         route_revision_reasons=_str_tuple(overlay_row.get("route_revision_reasons", [])),
         stopping_rule_evidence=("orphan route revision cannot be accepted as stable",),
         next_actions=("match the orphan proposal to an active route before replanning",),
@@ -726,6 +723,169 @@ def _orphan_audit_row(
         ok=False,
         errors=errors,
     )
+
+
+def _target_prover_families_for_audit(
+    plan_row: dict[str, Any],
+    evidence_rows: list[dict[str, Any]],
+    overlay_row: dict[str, Any],
+) -> tuple[str, ...]:
+    values: list[object] = [
+        plan_row.get("target_prover_family", ""),
+        overlay_row.get("target_prover_family", ""),
+        *overlay_row.get("target_prover_families", []),
+    ]
+    for container_name in ("standalone_input_trace", "replan_metadata", "route_summary"):
+        container = plan_row.get(container_name, {})
+        if isinstance(container, dict):
+            values.append(container.get("target_prover_family", ""))
+    for row in evidence_rows:
+        values.append(row.get("target_prover_family", ""))
+        values.extend(_target_prover_family_values_from_declaration_hits(row))
+    values.extend(_target_prover_family_values_from_declaration_hits(overlay_row))
+    if not any(str(value or "").strip() for value in values):
+        if any(
+            _dict_tuple(row.get("lean_declaration_hits", []))
+            for row in [*evidence_rows, overlay_row]
+        ):
+            values.append("lean4")
+    return _str_tuple(values)
+
+
+def _target_prover_family_values_from_declaration_hits(
+    row: dict[str, Any],
+) -> tuple[object, ...]:
+    values: list[object] = []
+    for field_name in ("formal_declaration_hits", "lean_declaration_hits"):
+        values.extend(
+            hit.get("target_prover_family", "")
+            for hit in _dict_tuple(row.get(field_name, []))
+        )
+    return tuple(values)
+
+
+def _primary_target_prover_family(target_prover_families: tuple[str, ...]) -> str:
+    for family in target_prover_families:
+        text = str(family or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _formal_declaration_hits_for_target(
+    row: dict[str, Any],
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    if "formal_declaration_hits" in row:
+        return _dict_tuple(row.get("formal_declaration_hits", []))
+    if _is_lean_target_prover(target_prover_family):
+        return _dict_tuple(row.get("lean_declaration_hits", []))
+    return tuple()
+
+
+def _lean_declaration_hits_for_target(
+    row: dict[str, Any],
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    if not _is_lean_target_prover(target_prover_family):
+        return tuple()
+    if "lean_declaration_hits" in row:
+        return _dict_tuple(row.get("lean_declaration_hits", []))
+    return _dict_tuple(row.get("formal_declaration_hits", []))
+
+
+def _declaration_hit_scope_errors(row: dict[str, object]) -> list[str]:
+    errors: list[str] = []
+    target_families = _str_tuple(row.get("target_prover_families", []))
+    target_family = _primary_target_prover_family(target_families)
+    target_key = _target_prover_key(target_family)
+    if (
+        target_key
+        and not _is_lean_target_prover(target_family)
+        and _dict_tuple(row.get("lean_declaration_hits", []))
+    ):
+        errors.append(
+            "lean_declaration_hits is a Lean-only legacy alias; non-Lean "
+            "route stability audit rows must use formal_declaration_hits only"
+        )
+    errors.extend(
+        _declaration_hit_target_mismatch_errors(
+            row,
+            target_key=target_key,
+            target_label="row target_prover_families",
+        )
+    )
+    return errors
+
+
+def _input_declaration_hit_scope_errors(
+    rows: list[dict[str, Any]],
+    route_target_prover_family: str,
+) -> list[str]:
+    errors: list[str] = []
+    target_key = _target_prover_key(route_target_prover_family)
+    for index, row in enumerate(rows):
+        if not row:
+            continue
+        if (
+            target_key
+            and not _is_lean_target_prover(route_target_prover_family)
+            and _dict_tuple(row.get("lean_declaration_hits", []))
+        ):
+            errors.append(
+                f"input row {index} uses lean_declaration_hits for non-Lean "
+                "route stability target"
+            )
+        errors.extend(
+            f"input row {index} {error}"
+            for error in _declaration_hit_target_mismatch_errors(
+                row,
+                target_key=target_key,
+                target_label="route target_prover_family",
+            )
+        )
+    return errors
+
+
+def _declaration_hit_target_mismatch_errors(
+    row: dict[str, object],
+    *,
+    target_key: str,
+    target_label: str,
+) -> list[str]:
+    if not target_key:
+        return []
+    errors: list[str] = []
+    for field_name in ("formal_declaration_hits", "lean_declaration_hits"):
+        for index, hit in enumerate(_dict_tuple(row.get(field_name, []))):
+            hit_family = str(hit.get("target_prover_family", "") or "").strip()
+            if hit_family and _target_prover_key(hit_family) != target_key:
+                errors.append(
+                    f"{field_name}[{index}].target_prover_family must match "
+                    f"{target_label}"
+                )
+    return errors
+
+
+def _merge_dicts(
+    *groups: tuple[dict[str, object], ...],
+) -> tuple[dict[str, object], ...]:
+    return _dict_tuple(item for group in groups for item in group)
+
+
+def _is_lean_target_prover(target_prover_family: str) -> bool:
+    key = _target_prover_key(target_prover_family)
+    return key in {"lean", "lean4", "lean_4"} or key.startswith(
+        ("lean4_", "lean_4_", "lean_")
+    )
+
+
+def _target_prover_key(target_prover_family: object) -> str:
+    return re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        str(target_prover_family).strip().lower(),
+    ).strip("_")
 
 
 def _stability_decision(
@@ -742,7 +902,7 @@ def _stability_decision(
     prover_statuses: tuple[str, ...],
     prover_classes: tuple[str, ...],
     source_refs: tuple[str, ...],
-    lean_hits: tuple[dict[str, object], ...],
+    formal_hits: tuple[dict[str, object], ...],
 ) -> str:
     if errors:
         return "BLOCKED_ROUTE_STABILITY_INPUT"
@@ -760,7 +920,7 @@ def _stability_decision(
         return "EXPAND_PROOF_STATE_FEEDBACK"
     if has_literature_hook and not source_refs:
         return "EXPAND_LITERATURE_EVIDENCE"
-    if has_lean_grounding_hook and not lean_hits:
+    if has_lean_grounding_hook and not formal_hits:
         return "EXPAND_FORMAL_LIBRARY_GROUNDING"
     return "ROUTE_STABILIZED_FOR_CURRENT_EVIDENCE_BOUND"
 
