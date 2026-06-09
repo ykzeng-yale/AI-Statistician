@@ -1801,6 +1801,18 @@ def run_formalization_gap_planner_reuse_smoke(
                 [],
             )
         ),
+        "n_llm_route_planner_generation_preflight_blocked": (
+            llm_route_planner_payload.get(
+                "n_generation_preflight_blocked",
+                0,
+            )
+        ),
+        "llm_route_planner_generation_preflight_errors": (
+            llm_route_planner_payload.get(
+                "generation_preflight_errors",
+                [],
+            )
+        ),
         "llm_route_planner_max_repair_attempts": llm_route_planner_payload.get(
             "max_repair_attempts",
             0,
@@ -2076,6 +2088,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "feedback_llm_route_planner_request_model_tier_mismatches": (
             feedback_llm_route_planner_payload.get(
                 "request_model_tier_mismatches",
+                [],
+            )
+        ),
+        "n_feedback_llm_route_planner_generation_preflight_blocked": (
+            feedback_llm_route_planner_payload.get(
+                "n_generation_preflight_blocked",
+                0,
+            )
+        ),
+        "feedback_llm_route_planner_generation_preflight_errors": (
+            feedback_llm_route_planner_payload.get(
+                "generation_preflight_errors",
                 [],
             )
         ),
@@ -2379,6 +2403,14 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_optional_llm_route_planner_request_model_tier_mismatch_valid",
             0,
         ),
+        "n_publication_bundle_optional_llm_route_planner_generation_preflight_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_generation_preflight_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_generation_preflight_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_generation_preflight_valid",
+            0,
+        ),
         "n_publication_bundle_optional_llm_route_planner_row_schema_checked": publication_bundle_audit_payload.get(
             "n_optional_llm_route_planner_row_schema_checked",
             0,
@@ -2433,6 +2465,14 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_publication_bundle_optional_feedback_llm_route_planner_request_model_tier_mismatch_valid": publication_bundle_audit_payload.get(
             "n_optional_feedback_llm_route_planner_request_model_tier_mismatch_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_feedback_llm_route_planner_generation_preflight_checked": publication_bundle_audit_payload.get(
+            "n_optional_feedback_llm_route_planner_generation_preflight_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_feedback_llm_route_planner_generation_preflight_valid": publication_bundle_audit_payload.get(
+            "n_optional_feedback_llm_route_planner_generation_preflight_valid",
             0,
         ),
         "n_publication_bundle_optional_feedback_llm_route_planner_row_schema_checked": publication_bundle_audit_payload.get(
@@ -5332,6 +5372,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"awaiting={payload.get('n_llm_route_planner_awaiting')} "
             f"provider_failures={payload.get('n_llm_route_planner_provider_failures')} "
             f"model_tier_mismatches={payload.get('n_llm_route_planner_request_model_tier_mismatches')} "
+            f"preflight_blocks={payload.get('n_llm_route_planner_generation_preflight_blocked')} "
             f"generator_metadata_rows={payload.get('n_llm_route_planner_rows_with_generator_metadata')}"
         ),
         (
@@ -5411,6 +5452,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked')}"
         ),
         (
+            f"- Bundle LLM route planner generation preflight policy valid: "
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_generation_preflight_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_generation_preflight_checked')} "
+            f"feedback={payload.get('n_publication_bundle_optional_feedback_llm_route_planner_generation_preflight_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_generation_preflight_checked')}"
+        ),
+        (
             f"- LLM route payload validation payloads valid/invalid: "
             f"{payload.get('n_llm_route_planner_response_payload_validation_valid_payloads')}/"
             f"{payload.get('n_llm_route_planner_response_payload_validation_invalid_payloads')} "
@@ -5438,6 +5486,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"awaiting={payload.get('n_feedback_llm_route_planner_awaiting')} "
             f"provider_failures={payload.get('n_feedback_llm_route_planner_provider_failures')} "
             f"model_tier_mismatches={payload.get('n_feedback_llm_route_planner_request_model_tier_mismatches')} "
+            f"preflight_blocks={payload.get('n_feedback_llm_route_planner_generation_preflight_blocked')} "
             f"generator_metadata_rows={payload.get('n_feedback_llm_route_planner_rows_with_generator_metadata')} "
             f"accepted={payload.get('n_feedback_llm_route_planner_accepted_route_plans')} "
             f"residual_goals={payload.get('n_feedback_llm_route_planner_request_residual_goals')}"

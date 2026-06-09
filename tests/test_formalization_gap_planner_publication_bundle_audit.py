@@ -6201,6 +6201,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert (
         audit_payload[
+            "n_optional_llm_route_planner_generation_preflight_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_generation_preflight_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
             "n_optional_feedback_llm_route_planner_seed_provenance_checked"
         ]
         == 1
@@ -6345,6 +6357,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         ]
         == 1
     )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_generation_preflight_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_generation_preflight_valid"
+        ]
+        == 1
+    )
     assert any(
         row["check_name"] == "optional_llm_route_planner_row_0_seed_provenance"
         and row["ok"]
@@ -6467,6 +6491,46 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         / "formalization_gap_planner_llm_route_planner_manifest.json"
     )
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    preflight_manifest = json.loads(json.dumps(manifest))
+    preflight_manifest["n_request_schema_invalid"] = 1
+    preflight_manifest["n_generation_preflight_blocked"] = 1
+    preflight_manifest["generation_preflight_errors"] = [
+        {
+            "request_id": "formalization_gap_planner_llm_route_request:bad",
+            "route_id": "rank_route",
+            "provider_name": "anthropic",
+            "model": "claude-sonnet-4-6",
+            "model_tier": "haiku",
+            "errors": [
+                "request rank_route expected Claude haiku tier but is configured with claude-sonnet-4-6"
+            ],
+        }
+    ]
+    manifest_path.write_text(json.dumps(preflight_manifest, indent=2), encoding="utf-8")
+    rejected_preflight_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_route_planner_generation_preflight",
+    )
+    preflight_checks = [
+        row
+        for row in rejected_preflight_payload["checks"]
+        if row["check_name"]
+        == "optional_llm_route_planner_generation_preflight_policy"
+    ]
+    assert preflight_checks
+    assert not preflight_checks[0]["ok"]
+    assert any(
+        "generation preflight block" in error
+        for error in preflight_checks[0]["errors"]
+    )
+    assert (
+        rejected_preflight_payload[
+            "n_optional_llm_route_planner_generation_preflight_valid"
+        ]
+        == 0
+    )
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
     mismatch_manifest = json.loads(json.dumps(manifest))
     mismatch_manifest["n_request_model_tier_mismatches"] = 1
     mismatch_manifest["request_model_tier_mismatches"] = [

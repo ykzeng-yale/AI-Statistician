@@ -1177,6 +1177,19 @@ def audit_formalization_gap_planner_publication_bundle(
             == "optional_llm_route_planner_request_model_tier_mismatch_policy"
             and check.ok
         ),
+        "n_optional_llm_route_planner_generation_preflight_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_generation_preflight_policy"
+        ),
+        "n_optional_llm_route_planner_generation_preflight_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_generation_preflight_policy"
+            and check.ok
+        ),
         "n_optional_llm_route_planner_response_payload_validation_manifest_contract_checked": sum(
             1
             for check in checks
@@ -1439,6 +1452,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name
             == "optional_feedback_llm_route_planner_request_model_tier_mismatch_policy"
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_generation_preflight_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_generation_preflight_policy"
+        ),
+        "n_optional_feedback_llm_route_planner_generation_preflight_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_generation_preflight_policy"
             and check.ok
         ),
         "n_optional_adapter_registry_audit_check_contract_checked": sum(
@@ -6066,6 +6092,14 @@ def _llm_route_planner_optional_checks(
             errors=_llm_request_model_tier_mismatch_errors(manifest),
         ),
         _check(
+            f"{check_prefix}_generation_preflight_policy",
+            "optional_artifacts",
+            "LLM route-planner manifest reports no generation preflight blocks",
+            _llm_generation_preflight_observed(manifest),
+            not _llm_generation_preflight_errors(manifest),
+            errors=_llm_generation_preflight_errors(manifest),
+        ),
+        _check(
             f"{check_prefix}_row_count",
             "optional_artifacts",
             "LLM route-planner rows match manifest count",
@@ -6267,6 +6301,53 @@ def _llm_request_model_tier_mismatch_observed(manifest: dict[str, Any]) -> str:
     return (
         f"count={manifest.get('n_request_model_tier_mismatches', 0)}; "
         f"rows={len(mismatch_rows)}"
+    )
+
+
+def _llm_generation_preflight_errors(
+    manifest: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    raw_count = manifest.get("n_generation_preflight_blocked", 0)
+    try:
+        blocked_count = int(raw_count or 0)
+    except (TypeError, ValueError):
+        errors.append("n_generation_preflight_blocked is not an integer")
+        blocked_count = -1
+    preflight_rows = manifest.get("generation_preflight_errors", [])
+    if not isinstance(preflight_rows, list):
+        errors.append("generation_preflight_errors is not a list")
+        preflight_rows = []
+    if blocked_count != len(preflight_rows):
+        errors.append(
+            "generation_preflight_errors count/list length mismatch: "
+            f"count={blocked_count} rows={len(preflight_rows)}"
+        )
+    raw_invalid = manifest.get("n_request_schema_invalid", 0)
+    try:
+        invalid_count = int(raw_invalid or 0)
+    except (TypeError, ValueError):
+        errors.append("n_request_schema_invalid is not an integer")
+        invalid_count = -1
+    if invalid_count != blocked_count:
+        errors.append(
+            "generation preflight count must match invalid request-schema count: "
+            f"preflight={blocked_count} request_schema_invalid={invalid_count}"
+        )
+    if blocked_count:
+        errors.append(
+            f"manifest reports {blocked_count} generation preflight block(s)"
+        )
+    return tuple(errors)
+
+
+def _llm_generation_preflight_observed(manifest: dict[str, Any]) -> str:
+    preflight_rows = manifest.get("generation_preflight_errors", [])
+    preflight_rows = preflight_rows if isinstance(preflight_rows, list) else []
+    return (
+        f"preflight={manifest.get('n_generation_preflight_blocked', 0)}; "
+        f"rows={len(preflight_rows)}; "
+        f"request_schema_invalid={manifest.get('n_request_schema_invalid', 0)}"
     )
 
 
@@ -15011,6 +15092,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional LLM route-planner request registry context valid: {payload.get('n_optional_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_llm_route_planner_request_registry_context_checked')}",
         f"- Optional LLM route-planner request target-intake context valid: {payload.get('n_optional_llm_route_planner_request_target_intake_context_valid')}/{payload.get('n_optional_llm_route_planner_request_target_intake_context_checked')}",
         f"- Optional LLM route-planner request model-tier mismatch policy valid: {payload.get('n_optional_llm_route_planner_request_model_tier_mismatch_valid')}/{payload.get('n_optional_llm_route_planner_request_model_tier_mismatch_checked')}",
+        f"- Optional LLM route-planner generation preflight policy valid: {payload.get('n_optional_llm_route_planner_generation_preflight_valid')}/{payload.get('n_optional_llm_route_planner_generation_preflight_checked')}",
         f"- Optional feedback LLM route-planner requests valid: {payload.get('n_optional_feedback_llm_route_planner_request_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_schema_checked')}",
         f"- Optional feedback LLM route-planner rows valid: {payload.get('n_optional_feedback_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_row_schema_checked')}",
         f"- Optional feedback LLM route-planner seed provenance preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_provenance_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_provenance_checked')}",
@@ -15023,6 +15105,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional feedback LLM route-planner request registry context valid: {payload.get('n_optional_feedback_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_registry_context_checked')}",
         f"- Optional feedback LLM route-planner request target-intake context valid: {payload.get('n_optional_feedback_llm_route_planner_request_target_intake_context_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_target_intake_context_checked')}",
         f"- Optional feedback LLM route-planner request model-tier mismatch policy valid: {payload.get('n_optional_feedback_llm_route_planner_request_model_tier_mismatch_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked')}",
+        f"- Optional feedback LLM route-planner generation preflight policy valid: {payload.get('n_optional_feedback_llm_route_planner_generation_preflight_valid')}/{payload.get('n_optional_feedback_llm_route_planner_generation_preflight_checked')}",
         f"- Optional interactive-session schema valid: {payload.get('n_optional_interactive_session_row_schema_valid')}/{payload.get('n_optional_interactive_session_row_schema_checked')}",
         f"- Optional interactive-session resource-response status consistent: {payload.get('n_optional_interactive_session_resource_response_status_valid')}/{payload.get('n_optional_interactive_session_resource_response_status_checked')}",
         f"- Optional interactive-session generic prover fields valid: {payload.get('n_optional_interactive_session_generic_prover_fields_valid')}/{payload.get('n_optional_interactive_session_generic_prover_fields_checked')}",
