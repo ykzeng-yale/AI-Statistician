@@ -261,13 +261,17 @@ Evaluation rows then surface `minimal_delta_cost_graph_present`,
 `minimal_delta_selected_route_cost`, `realization_coverage_witness_present`,
 `realization_coverage_complete`,
 `realization_missing_selected_formal_primitives`, and
-`realization_missing_delta_alignment_primitives`, plus compact
+`realization_missing_delta_alignment_primitives`,
+`realization_cost_hint_baseline_primitives`,
+`realization_omitted_cost_hint_primitives`, and
+`realization_cost_hint_baseline_coverage_complete`, plus compact
 `quality_controls` fields and aggregate counts for resource contracts, response
 validation signals, and stop conditions. Benchmark and publication artifacts can
 therefore inspect minimal-route, realization-coverage, and bounded-tool-policy
 evidence without depending on Lean-specific internals. The publication-bundle
 audit recomputes these quality-control aggregates from packaged evaluation JSONL
-rows and rejects bundles whose evaluation manifest drops or mutates them.
+rows, and also recomputes omitted cost-hint counters, rejecting bundles whose
+evaluation manifest drops or mutates them.
 The one-command reuse-smoke manifest also promotes LLM route-planner
 realization-coverage counters for both primary and feedback planner passes, so
 a public artifact consumer can distinguish staged prompt-only requests from

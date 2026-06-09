@@ -90,6 +90,9 @@ class FormalizationGapPlannerEvaluationRow:
     realization_coverage_complete: bool
     realization_missing_selected_formal_primitives: tuple[str, ...]
     realization_missing_delta_alignment_primitives: tuple[str, ...]
+    realization_cost_hint_baseline_primitives: tuple[str, ...]
+    realization_omitted_cost_hint_primitives: tuple[str, ...]
+    realization_cost_hint_baseline_coverage_complete: bool
     llm_route_planner_trace_present: bool
     llm_route_planner_row_id: str
     llm_route_planner_provider: str
@@ -198,6 +201,14 @@ def evaluate_formalization_gap_planner(
         evaluation_rows,
         "realization_missing_delta_alignment_primitives",
     )
+    realization_cost_hint_baseline = _unique_row_attr_strings(
+        evaluation_rows,
+        "realization_cost_hint_baseline_primitives",
+    )
+    realization_omitted_cost_hint = _unique_row_attr_strings(
+        evaluation_rows,
+        "realization_omitted_cost_hint_primitives",
+    )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_EVALUATION_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -245,6 +256,11 @@ def evaluate_formalization_gap_planner(
         ),
         "n_rows_with_complete_realization_coverage": sum(
             1 for row in evaluation_rows if row.realization_coverage_complete
+        ),
+        "n_rows_with_incomplete_cost_hint_baseline_coverage": sum(
+            1
+            for row in evaluation_rows
+            if not row.realization_cost_hint_baseline_coverage_complete
         ),
         "n_rows_with_llm_route_planner_trace": sum(
             1 for row in evaluation_rows if row.llm_route_planner_trace_present
@@ -318,6 +334,16 @@ def evaluate_formalization_gap_planner(
             for row in evaluation_rows
         ),
         "realization_missing_delta_alignment_primitives": realization_missing_delta,
+        "n_realization_cost_hint_baseline_primitives": sum(
+            len(row.realization_cost_hint_baseline_primitives)
+            for row in evaluation_rows
+        ),
+        "realization_cost_hint_baseline_primitives": realization_cost_hint_baseline,
+        "n_realization_omitted_cost_hint_primitives": sum(
+            len(row.realization_omitted_cost_hint_primitives)
+            for row in evaluation_rows
+        ),
+        "realization_omitted_cost_hint_primitives": realization_omitted_cost_hint,
         "realization_missing_primitives_by_route": (
             _realization_missing_primitives_by_route(evaluation_rows)
         ),
@@ -486,6 +512,9 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "realization_coverage_complete",
             "realization_missing_selected_formal_primitives",
             "realization_missing_delta_alignment_primitives",
+            "realization_cost_hint_baseline_primitives",
+            "realization_omitted_cost_hint_primitives",
+            "realization_cost_hint_baseline_coverage_complete",
             "llm_route_planner_trace_present",
             "llm_route_planner_row_id",
             "llm_route_planner_provider",
@@ -565,6 +594,9 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "realization_coverage_complete": {"type": "boolean"},
             "realization_missing_selected_formal_primitives": string_array,
             "realization_missing_delta_alignment_primitives": string_array,
+            "realization_cost_hint_baseline_primitives": string_array,
+            "realization_omitted_cost_hint_primitives": string_array,
+            "realization_cost_hint_baseline_coverage_complete": {"type": "boolean"},
             "llm_route_planner_trace_present": {"type": "boolean"},
             "llm_route_planner_row_id": {"type": "string"},
             "llm_route_planner_provider": {"type": "string"},
@@ -761,6 +793,15 @@ def _evaluate_row(
         ),
         realization_missing_delta_alignment_primitives=_str_tuple(
             realization_trace["missing_delta_alignment_primitives"]
+        ),
+        realization_cost_hint_baseline_primitives=_str_tuple(
+            realization_trace["cost_hint_baseline_primitives"]
+        ),
+        realization_omitted_cost_hint_primitives=_str_tuple(
+            realization_trace["omitted_cost_hint_primitives"]
+        ),
+        realization_cost_hint_baseline_coverage_complete=bool(
+            realization_trace["cost_hint_baseline_coverage_complete"]
         ),
         llm_route_planner_trace_present=bool(llm_trace["trace_present"]),
         llm_route_planner_row_id=str(llm_trace["row_id"]),
@@ -1081,6 +1122,18 @@ def _realization_coverage_witness_trace(row: dict[str, Any]) -> dict[str, object
         ),
         "missing_selected_formal_primitives": missing_selected,
         "missing_delta_alignment_primitives": missing_delta,
+        "cost_hint_baseline_primitives": _str_tuple(
+            witness.get("cost_hint_baseline_primitives", [])
+        ),
+        "omitted_cost_hint_primitives": _str_tuple(
+            witness.get("omitted_cost_hint_primitives", [])
+        ),
+        "cost_hint_baseline_coverage_complete": bool(
+            witness.get(
+                "cost_hint_baseline_coverage_complete",
+                not _str_tuple(witness.get("omitted_cost_hint_primitives", [])),
+            )
+        ),
     }
 
 
@@ -1315,7 +1368,8 @@ def _realization_missing_primitives_by_route(
             row.realization_missing_selected_formal_primitives
         )
         missing_delta = _str_tuple(row.realization_missing_delta_alignment_primitives)
-        if not missing_selected and not missing_delta:
+        omitted_cost_hint = _str_tuple(row.realization_omitted_cost_hint_primitives)
+        if not missing_selected and not missing_delta and not omitted_cost_hint:
             continue
         diagnostics.append(
             {
@@ -1324,6 +1378,7 @@ def _realization_missing_primitives_by_route(
                 "goal_plan_id": row.goal_plan_id,
                 "missing_selected_formal_primitives": missing_selected,
                 "missing_delta_alignment_primitives": missing_delta,
+                "omitted_cost_hint_primitives": omitted_cost_hint,
                 "llm_route_planner_row_id": row.llm_route_planner_row_id,
                 "llm_route_planner_model_tier": row.llm_route_planner_model_tier,
             }
@@ -1568,6 +1623,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Rows with complete realization coverage: {payload.get('n_rows_with_complete_realization_coverage')}",
         f"- Missing selected formal primitives: {payload.get('realization_missing_selected_formal_primitives')}",
         f"- Missing delta alignment primitives: {payload.get('realization_missing_delta_alignment_primitives')}",
+        f"- Omitted cost-hint primitives: {payload.get('realization_omitted_cost_hint_primitives')}",
         f"- Rows with LLM route-planner trace: {payload.get('n_rows_with_llm_route_planner_trace')}",
         f"- Evaluation by LLM model tier: {payload.get('evaluation_by_llm_model_tier')}",
         f"- Evaluation by LLM route adoption status: {payload.get('evaluation_by_llm_route_adoption_status')}",

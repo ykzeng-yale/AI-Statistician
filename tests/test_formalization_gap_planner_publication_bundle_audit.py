@@ -436,6 +436,25 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
                                 "route_cost": 7,
                                 "cost_rationale": "A source port is broader than this route.",
                             },
+                            {
+                                "route_option_id": (
+                                    "route_option:current_route_min_delta_baseline"
+                                ),
+                                "selected": False,
+                                "selected_primitives": [
+                                    (
+                                        "a_source_backed_rank_uniformity_bridge_"
+                                        "closes_the"
+                                    ),
+                                    "rank_uniformity",
+                                    "uniform_bound",
+                                ],
+                                "route_cost": 44,
+                                "cost_rationale": (
+                                    "Request-bound baseline preserving all cost hints "
+                                    "before the LLM route omits any primitive."
+                                ),
+                            },
                         ],
                         "or_nodes": [
                             {
@@ -443,6 +462,7 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
                                 "choices": [
                                     "route_option:rank_bridge",
                                     "route_option:rank_source_port",
+                                    "route_option:current_route_min_delta_baseline",
                                 ],
                                 "selection_rationale": "The bridge route has lower route cost.",
                             }
@@ -831,6 +851,9 @@ def _fixture_evaluation_row() -> dict[str, object]:
         "realization_coverage_complete": False,
         "realization_missing_selected_formal_primitives": ["rank_uniformity"],
         "realization_missing_delta_alignment_primitives": ["rank_uniformity"],
+        "realization_cost_hint_baseline_primitives": ["rank_uniformity"],
+        "realization_omitted_cost_hint_primitives": ["rank_uniformity"],
+        "realization_cost_hint_baseline_coverage_complete": False,
         "llm_route_planner_trace_present": True,
         "llm_route_planner_row_id": "llm-route-row:evaluation-fixture",
         "llm_route_planner_provider": "anthropic",
@@ -1529,6 +1552,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "display_name": "fixture route",
             "missing_selected_formal_primitives": ["rank_uniformity"],
             "missing_delta_alignment_primitives": ["rank_uniformity"],
+            "omitted_cost_hint_primitives": ["rank_uniformity"],
         }
     ]
     (evaluation_dir / "formalization_gap_planner_evaluation_manifest.json").write_text(
@@ -1544,6 +1568,15 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 ],
                 "n_realization_missing_delta_alignment_primitives": 1,
                 "realization_missing_delta_alignment_primitives": [
+                    "rank_uniformity"
+                ],
+                "n_rows_with_incomplete_cost_hint_baseline_coverage": 1,
+                "n_realization_cost_hint_baseline_primitives": 1,
+                "realization_cost_hint_baseline_primitives": [
+                    "rank_uniformity"
+                ],
+                "n_realization_omitted_cost_hint_primitives": 1,
+                "realization_omitted_cost_hint_primitives": [
                     "rank_uniformity"
                 ],
                 "realization_missing_primitives_by_route": (
@@ -2900,6 +2933,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "display_name": "fixture route",
             "missing_selected_formal_primitives": ("rank_uniformity",),
             "missing_delta_alignment_primitives": ("rank_uniformity",),
+            "omitted_cost_hint_primitives": ("rank_uniformity",),
         },
     )
     assert any(

@@ -176,6 +176,9 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         "selected_primitives_missing_formal_realization_node": [],
         "delta_primitives_missing_route_alignment_edge": [],
         "introduced_primitives_missing_route_alignment_edge": [],
+        "cost_hint_baseline_primitives": ["exchangeability", "rank_uniformity"],
+        "omitted_cost_hint_primitives": [],
+        "cost_hint_baseline_coverage_complete": True,
         "realization_coverage_complete": True,
     }
     route_quality_controls = {
@@ -357,6 +360,14 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert payload["n_realization_missing_delta_alignment_primitives"] == 0
     assert payload["realization_missing_selected_formal_primitives"] == ()
     assert payload["realization_missing_delta_alignment_primitives"] == ()
+    assert payload["n_rows_with_incomplete_cost_hint_baseline_coverage"] == 0
+    assert payload["n_realization_cost_hint_baseline_primitives"] == 2
+    assert payload["realization_cost_hint_baseline_primitives"] == (
+        "exchangeability",
+        "rank_uniformity",
+    )
+    assert payload["n_realization_omitted_cost_hint_primitives"] == 0
+    assert payload["realization_omitted_cost_hint_primitives"] == ()
     assert payload["realization_missing_primitives_by_route"] == ()
     assert payload["n_minimal_delta_route_options"] == 2
     assert payload["mean_minimal_delta_selected_route_cost"] == 4.0
@@ -369,6 +380,12 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert row["realization_coverage_complete"] is True
     assert row["realization_missing_selected_formal_primitives"] == ()
     assert row["realization_missing_delta_alignment_primitives"] == ()
+    assert row["realization_cost_hint_baseline_primitives"] == (
+        "exchangeability",
+        "rank_uniformity",
+    )
+    assert row["realization_omitted_cost_hint_primitives"] == ()
+    assert row["realization_cost_hint_baseline_coverage_complete"] is True
     assert row["llm_route_planner_trace_present"] is True
     assert row["llm_route_planner_row_id"] == "llm-route-row:rank"
     assert row["llm_route_planner_provider"] == "anthropic"
@@ -418,6 +435,9 @@ def test_evaluation_surfaces_realization_missing_primitives_by_route() -> None:
         ],
         "delta_primitives_missing_route_alignment_edge": ["rank_uniformity"],
         "introduced_primitives_missing_route_alignment_edge": [],
+        "cost_hint_baseline_primitives": ["exchangeability", "rank_uniformity"],
+        "omitted_cost_hint_primitives": ["rank_uniformity"],
+        "cost_hint_baseline_coverage_complete": False,
         "realization_coverage_complete": False,
     }
     input_json.write_text(
@@ -483,6 +503,16 @@ def test_evaluation_surfaces_realization_missing_primitives_by_route() -> None:
     assert payload["realization_missing_delta_alignment_primitives"] == (
         "rank_uniformity",
     )
+    assert payload["n_rows_with_incomplete_cost_hint_baseline_coverage"] == 1
+    assert payload["n_realization_cost_hint_baseline_primitives"] == 2
+    assert payload["realization_cost_hint_baseline_primitives"] == (
+        "exchangeability",
+        "rank_uniformity",
+    )
+    assert payload["n_realization_omitted_cost_hint_primitives"] == 1
+    assert payload["realization_omitted_cost_hint_primitives"] == (
+        "rank_uniformity",
+    )
     assert payload["realization_missing_primitives_by_route"] == (
         {
             "route_id": "rank_route",
@@ -490,6 +520,7 @@ def test_evaluation_surfaces_realization_missing_primitives_by_route() -> None:
             "goal_plan_id": payload["rows"][0]["goal_plan_id"],
             "missing_selected_formal_primitives": ("rank_uniformity",),
             "missing_delta_alignment_primitives": ("rank_uniformity",),
+            "omitted_cost_hint_primitives": ("rank_uniformity",),
             "llm_route_planner_row_id": "llm-route-row:rank",
             "llm_route_planner_model_tier": "sonnet",
         },
@@ -498,6 +529,7 @@ def test_evaluation_surfaces_realization_missing_primitives_by_route() -> None:
         out_dir / "formalization_gap_planner_evaluation.md"
     ).read_text(encoding="utf-8")
     assert "Missing selected formal primitives" in report
+    assert "Omitted cost-hint primitives" in report
     assert "rank_uniformity" in report
 
 

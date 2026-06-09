@@ -11832,6 +11832,8 @@ def _evaluation_realization_missing_row_errors(
     for field_name in (
         "realization_missing_selected_formal_primitives",
         "realization_missing_delta_alignment_primitives",
+        "realization_cost_hint_baseline_primitives",
+        "realization_omitted_cost_hint_primitives",
     ):
         if field_name not in row:
             errors.append(f"{field_name} missing")
@@ -11845,11 +11847,28 @@ def _evaluation_realization_missing_row_errors(
     missing_delta = _str_tuple(
         row.get("realization_missing_delta_alignment_primitives", [])
     )
+    omitted_cost_hint = _str_tuple(
+        row.get("realization_omitted_cost_hint_primitives", [])
+    )
+    if "realization_cost_hint_baseline_coverage_complete" not in row:
+        errors.append("realization_cost_hint_baseline_coverage_complete missing")
+    elif not isinstance(
+        row.get("realization_cost_hint_baseline_coverage_complete"),
+        bool,
+    ):
+        errors.append("realization_cost_hint_baseline_coverage_complete is not a boolean")
     if bool(row.get("realization_coverage_complete", False)) and (
         missing_selected or missing_delta
     ):
         errors.append(
             "realization_coverage_complete is true but missing primitives are nonempty"
+        )
+    if (
+        bool(row.get("realization_cost_hint_baseline_coverage_complete", True))
+        and omitted_cost_hint
+    ):
+        errors.append(
+            "realization_cost_hint_baseline_coverage_complete is true but omitted cost-hint primitives are nonempty"
         )
     return tuple(errors)
 
@@ -11959,8 +11978,23 @@ def _evaluation_realization_missing_manifest_errors(
         len(_str_tuple(row.get("realization_missing_delta_alignment_primitives", [])))
         for row in rows
     )
+    expected_cost_hint_baseline_total = sum(
+        len(_str_tuple(row.get("realization_cost_hint_baseline_primitives", [])))
+        for row in rows
+    )
+    expected_omitted_cost_hint_total = sum(
+        len(_str_tuple(row.get("realization_omitted_cost_hint_primitives", [])))
+        for row in rows
+    )
+    expected_incomplete_cost_hint_rows = sum(
+        1
+        for row in _dict_tuple(rows)
+        if row.get("realization_cost_hint_baseline_coverage_complete") is False
+    )
     expected_selected = _evaluation_realization_missing_selected_from_rows(rows)
     expected_delta = _evaluation_realization_missing_delta_from_rows(rows)
+    expected_cost_hint_baseline = _evaluation_realization_cost_hint_baseline_from_rows(rows)
+    expected_omitted_cost_hint = _evaluation_realization_omitted_cost_hint_from_rows(rows)
     expected_by_route = _evaluation_realization_missing_route_keys(
         _evaluation_realization_missing_by_route_from_rows(rows)
     )
@@ -11973,11 +12007,26 @@ def _evaluation_realization_missing_manifest_errors(
     observed_delta_total = int(
         manifest.get("n_realization_missing_delta_alignment_primitives", -1) or 0
     )
+    observed_cost_hint_baseline_total = int(
+        manifest.get("n_realization_cost_hint_baseline_primitives", -1) or 0
+    )
+    observed_omitted_cost_hint_total = int(
+        manifest.get("n_realization_omitted_cost_hint_primitives", -1) or 0
+    )
+    observed_incomplete_cost_hint_rows = int(
+        manifest.get("n_rows_with_incomplete_cost_hint_baseline_coverage", -1) or 0
+    )
     observed_selected = set(
         _str_tuple(manifest.get("realization_missing_selected_formal_primitives", []))
     )
     observed_delta = set(
         _str_tuple(manifest.get("realization_missing_delta_alignment_primitives", []))
+    )
+    observed_cost_hint_baseline = set(
+        _str_tuple(manifest.get("realization_cost_hint_baseline_primitives", []))
+    )
+    observed_omitted_cost_hint = set(
+        _str_tuple(manifest.get("realization_omitted_cost_hint_primitives", []))
     )
     if observed_selected_total != expected_selected_total:
         errors.append(
@@ -11989,6 +12038,21 @@ def _evaluation_realization_missing_manifest_errors(
             "n_realization_missing_delta_alignment_primitives mismatch: "
             f"observed={observed_delta_total} expected={expected_delta_total}"
         )
+    if observed_cost_hint_baseline_total != expected_cost_hint_baseline_total:
+        errors.append(
+            "n_realization_cost_hint_baseline_primitives mismatch: "
+            f"observed={observed_cost_hint_baseline_total} expected={expected_cost_hint_baseline_total}"
+        )
+    if observed_omitted_cost_hint_total != expected_omitted_cost_hint_total:
+        errors.append(
+            "n_realization_omitted_cost_hint_primitives mismatch: "
+            f"observed={observed_omitted_cost_hint_total} expected={expected_omitted_cost_hint_total}"
+        )
+    if observed_incomplete_cost_hint_rows != expected_incomplete_cost_hint_rows:
+        errors.append(
+            "n_rows_with_incomplete_cost_hint_baseline_coverage mismatch: "
+            f"observed={observed_incomplete_cost_hint_rows} expected={expected_incomplete_cost_hint_rows}"
+        )
     if observed_selected != set(expected_selected):
         errors.append(
             "realization_missing_selected_formal_primitives mismatch: "
@@ -11998,6 +12062,16 @@ def _evaluation_realization_missing_manifest_errors(
         errors.append(
             "realization_missing_delta_alignment_primitives mismatch: "
             f"observed={sorted(observed_delta)} expected={sorted(expected_delta)}"
+        )
+    if observed_cost_hint_baseline != set(expected_cost_hint_baseline):
+        errors.append(
+            "realization_cost_hint_baseline_primitives mismatch: "
+            f"observed={sorted(observed_cost_hint_baseline)} expected={sorted(expected_cost_hint_baseline)}"
+        )
+    if observed_omitted_cost_hint != set(expected_omitted_cost_hint):
+        errors.append(
+            "realization_omitted_cost_hint_primitives mismatch: "
+            f"observed={sorted(observed_omitted_cost_hint)} expected={sorted(expected_omitted_cost_hint)}"
         )
     if observed_by_route != expected_by_route:
         errors.append(
@@ -12388,6 +12462,24 @@ def _evaluation_realization_missing_delta_from_rows(
     return tuple(dict.fromkeys(values))
 
 
+def _evaluation_realization_cost_hint_baseline_from_rows(
+    rows: Any,
+) -> tuple[str, ...]:
+    values: list[str] = []
+    for row in _dict_tuple(rows):
+        values.extend(_str_tuple(row.get("realization_cost_hint_baseline_primitives", [])))
+    return tuple(dict.fromkeys(values))
+
+
+def _evaluation_realization_omitted_cost_hint_from_rows(
+    rows: Any,
+) -> tuple[str, ...]:
+    values: list[str] = []
+    for row in _dict_tuple(rows):
+        values.extend(_str_tuple(row.get("realization_omitted_cost_hint_primitives", [])))
+    return tuple(dict.fromkeys(values))
+
+
 def _evaluation_realization_missing_by_route_from_rows(
     rows: Any,
 ) -> tuple[dict[str, Any], ...]:
@@ -12399,7 +12491,10 @@ def _evaluation_realization_missing_by_route_from_rows(
         missing_delta = _str_tuple(
             row.get("realization_missing_delta_alignment_primitives", [])
         )
-        if not missing_selected and not missing_delta:
+        omitted_cost_hint = _str_tuple(
+            row.get("realization_omitted_cost_hint_primitives", [])
+        )
+        if not missing_selected and not missing_delta and not omitted_cost_hint:
             continue
         by_route.append(
             {
@@ -12408,6 +12503,7 @@ def _evaluation_realization_missing_by_route_from_rows(
                 "display_name": str(row.get("display_name", "")),
                 "missing_selected_formal_primitives": missing_selected,
                 "missing_delta_alignment_primitives": missing_delta,
+                "omitted_cost_hint_primitives": omitted_cost_hint,
             }
         )
     return tuple(by_route)
@@ -12420,7 +12516,7 @@ def _evaluation_realization_missing_route_keys(
     for row in _dict_tuple(rows):
         keys.add(
             "route_id={route_id}|goal_plan_id={goal_plan_id}|display_name={display}|"
-            "selected={selected}|delta={delta}".format(
+            "selected={selected}|delta={delta}|omitted={omitted}".format(
                 route_id=str(row.get("route_id", "")),
                 goal_plan_id=str(row.get("goal_plan_id", "")),
                 display=str(row.get("display_name", "")),
@@ -12429,6 +12525,9 @@ def _evaluation_realization_missing_route_keys(
                 ),
                 delta=",".join(
                     sorted(_str_tuple(row.get("missing_delta_alignment_primitives", [])))
+                ),
+                omitted=",".join(
+                    sorted(_str_tuple(row.get("omitted_cost_hint_primitives", [])))
                 ),
             )
         )
