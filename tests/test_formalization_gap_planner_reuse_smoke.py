@@ -14,6 +14,18 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
 
 
 def _reviewed_llm_route_response_payload() -> dict[str, object]:
+    current_route_baseline_primitives = [
+        "calibration_scores",
+        "coverage_inequality",
+        "exchangeability",
+        "exchangeable_calibration_and_test_scores",
+        "finite_calibration_sample",
+        "finite_sample_bound",
+        "finite_sample_marginal_coverage_inequality",
+        "rank_uniformity",
+        "split_conformal_prediction_set",
+        "test_score",
+    ]
     return {
         "informal_knowledge_dag_nodes": [
             {
@@ -119,6 +131,16 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                         "route_cost": 7,
                         "cost_rationale": "A source port is broader than the selected bridge.",
                     },
+                    {
+                        "route_option_id": "route_option:current_route_min_delta_baseline",
+                        "selected": False,
+                        "selected_primitives": current_route_baseline_primitives,
+                        "route_cost": 164,
+                        "cost_rationale": (
+                            "Request-bound baseline preserving the full current "
+                            "target route is broader than the selected rank bridge."
+                        ),
+                    },
                 ],
                 "or_nodes": [
                     {
@@ -126,6 +148,7 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                         "choices": [
                             "route_option:reuse_exchangeability_bridge_rank",
                             "route_option:source_port_rank_theory",
+                            "route_option:current_route_min_delta_baseline",
                         ],
                         "selection_rationale": "The selected bridge route has lower cost.",
                     }
@@ -134,6 +157,10 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                     {
                         "route_option_id": "route_option:reuse_exchangeability_bridge_rank",
                         "requires": ["exchangeability", "rank_uniformity"],
+                    },
+                    {
+                        "route_option_id": "route_option:current_route_min_delta_baseline",
+                        "requires": current_route_baseline_primitives,
                     }
                 ],
             },
@@ -335,6 +362,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         out_dir / "formalization_gap_planner_reuse_smoke.md"
     ).read_text(encoding="utf-8")
     assert "Source prover targets: `lean4` families=1 by={'lean4': 1}" in report_text
+    assert "cost-hint-incomplete" in report_text
 
     assert (
         payload["n_llm_route_planner_rows_with_realization_coverage_witness"]
@@ -353,6 +381,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_llm_route_planner_feedback_loop_incomplete_cost_hint_baseline_coverage"
+        ]
+        == 0
+    )
+    assert (
+        payload[
             "n_llm_route_planner_feedback_loop_missing_selected_formal_primitives"
         ]
         == 0
@@ -361,6 +395,10 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         payload[
             "n_llm_route_planner_feedback_loop_missing_delta_alignment_primitives"
         ]
+        == 0
+    )
+    assert (
+        payload["n_llm_route_planner_feedback_loop_omitted_cost_hint_primitives"]
         == 0
     )
     assert (
@@ -460,6 +498,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_feedback_llm_route_planner_feedback_loop_incomplete_cost_hint_baseline_coverage"
+        ]
+        == 0
+    )
+    assert (
+        payload[
             "n_feedback_llm_route_planner_feedback_loop_missing_selected_formal_primitives"
         ]
         == 0
@@ -467,6 +511,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert (
         payload[
             "n_feedback_llm_route_planner_feedback_loop_missing_delta_alignment_primitives"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_feedback_loop_omitted_cost_hint_primitives"
         ]
         == 0
     )
@@ -2117,8 +2167,9 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         payload["n_evaluation_rows_pending_refinement_before_route_adoption"]
         == 1
     )
-    assert payload["n_evaluation_llm_route_adoption_blockers"] == 4
+    assert payload["n_evaluation_llm_route_adoption_blockers"] == 5
     assert set(payload["evaluation_llm_route_adoption_blockers"]) == {
+        "omitted_cost_hint_primitives_require_review",
         "planner_next_actions_pending_evidence",
         "search_requests_pending_evidence",
         "semantic_alignment_risks_require_review",
@@ -2129,7 +2180,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "n_rows": 1,
             "n_ok": 0,
             "n_matched_ground_truth": 1,
-            "n_route_adoption_blockers": 4,
+            "n_route_adoption_blockers": 5,
             "mean_route_recall": 1.0,
             "mean_delta_precision": 1.0,
         }
@@ -2165,6 +2216,13 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert payload["n_llm_route_planner_route_adoption_pending_feedback_replan_blockers"] == 0
     assert payload["n_llm_route_planner_route_adoption_pending_realization_coverage_blockers"] == 0
+    assert (
+        payload[
+            "n_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers"
+        ]
+        == 1
+    )
+    assert payload["n_llm_route_planner_route_adoption_omitted_cost_hint_primitives"] > 0
     assert payload["n_llm_route_planner_awaiting"] == 0
     assert payload["n_llm_route_planner_search_requests"] == 1
     assert payload["n_feedback_llm_route_planner_response_present"] == 1
@@ -2213,6 +2271,18 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert (
         payload[
             "n_feedback_llm_route_planner_route_adoption_pending_realization_coverage_blockers"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_route_adoption_omitted_cost_hint_primitives"
         ]
         == 0
     )
@@ -2267,6 +2337,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_feedback_llm_route_planner_feedback_loop_incomplete_cost_hint_baseline_coverage"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_feedback_llm_route_planner_feedback_loop_missing_selected_formal_primitives"
         ]
         == 0
@@ -2276,6 +2352,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "n_feedback_llm_route_planner_feedback_loop_missing_delta_alignment_primitives"
         ]
         == 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_feedback_loop_omitted_cost_hint_primitives"
+        ]
+        == 8
     )
     assert payload["feedback_llm_route_planner_provider"] == "static"
     reproduction_command = payload["reproduction_commands"][0]

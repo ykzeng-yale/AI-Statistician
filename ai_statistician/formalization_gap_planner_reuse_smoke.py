@@ -1909,6 +1909,18 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_pending_omitted_cost_hint_primitive_blockers",
+                0,
+            )
+        ),
+        "n_llm_route_planner_route_adoption_omitted_cost_hint_primitives": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_omitted_cost_hint_primitives",
+                0,
+            )
+        ),
         "n_llm_route_planner_row_schema_valid": llm_route_planner_payload.get(
             "n_row_schema_valid",
             0,
@@ -1957,6 +1969,12 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_llm_route_planner_feedback_loop_incomplete_cost_hint_baseline_coverage": (
+            llm_route_planner_payload.get(
+                "n_feedback_loop_summary_incomplete_cost_hint_baseline_coverage",
+                0,
+            )
+        ),
         "n_llm_route_planner_feedback_loop_missing_selected_formal_primitives": (
             llm_route_planner_payload.get(
                 "n_feedback_loop_summary_missing_selected_formal_primitives",
@@ -1966,6 +1984,12 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_llm_route_planner_feedback_loop_missing_delta_alignment_primitives": (
             llm_route_planner_payload.get(
                 "n_feedback_loop_summary_missing_delta_alignment_primitives",
+                0,
+            )
+        ),
+        "n_llm_route_planner_feedback_loop_omitted_cost_hint_primitives": (
+            llm_route_planner_payload.get(
+                "n_feedback_loop_summary_omitted_cost_hint_primitives",
                 0,
             )
         ),
@@ -2163,6 +2187,18 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_feedback_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_omitted_cost_hint_primitive_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_omitted_cost_hint_primitives": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_omitted_cost_hint_primitives",
+                0,
+            )
+        ),
         "n_feedback_llm_route_planner_row_schema_valid": feedback_llm_route_planner_payload.get(
             "n_row_schema_valid",
             0,
@@ -2211,6 +2247,12 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_feedback_llm_route_planner_feedback_loop_incomplete_cost_hint_baseline_coverage": (
+            feedback_llm_route_planner_payload.get(
+                "n_feedback_loop_summary_incomplete_cost_hint_baseline_coverage",
+                0,
+            )
+        ),
         "n_feedback_llm_route_planner_feedback_loop_missing_selected_formal_primitives": (
             feedback_llm_route_planner_payload.get(
                 "n_feedback_loop_summary_missing_selected_formal_primitives",
@@ -2220,6 +2262,12 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_feedback_loop_missing_delta_alignment_primitives": (
             feedback_llm_route_planner_payload.get(
                 "n_feedback_loop_summary_missing_delta_alignment_primitives",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_feedback_loop_omitted_cost_hint_primitives": (
+            feedback_llm_route_planner_payload.get(
+                "n_feedback_loop_summary_omitted_cost_hint_primitives",
                 0,
             )
         ),
@@ -5242,7 +5290,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"playbook_redispatch={payload.get('n_llm_route_planner_route_adoption_pending_resource_playbook_redispatch_blockers')} "
             f"resource_queue={payload.get('n_llm_route_planner_route_adoption_pending_resource_request_queue_blockers')} "
             f"replan={payload.get('n_llm_route_planner_route_adoption_pending_feedback_replan_blockers')} "
-            f"realization={payload.get('n_llm_route_planner_route_adoption_pending_realization_coverage_blockers')}"
+            f"realization={payload.get('n_llm_route_planner_route_adoption_pending_realization_coverage_blockers')} "
+            f"omitted_cost_hint={payload.get('n_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers')}/"
+            f"{payload.get('n_llm_route_planner_route_adoption_omitted_cost_hint_primitives')}"
         ),
         (
             f"- LLM route planner resource registry context/resources/contracts: "
@@ -5251,11 +5301,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_llm_route_planner_component_resource_registry_contracts_in_prompt')}"
         ),
         (
-            f"- LLM route planner feedback realization witnesses/incomplete/missing-selected/missing-alignment: "
+            f"- LLM route planner feedback realization witnesses/incomplete/cost-hint-incomplete/missing-selected/missing-alignment/omitted-cost-hints: "
             f"{payload.get('n_llm_route_planner_feedback_loop_realization_witnesses')}/"
             f"{payload.get('n_llm_route_planner_feedback_loop_incomplete_realization_coverage')}/"
+            f"{payload.get('n_llm_route_planner_feedback_loop_incomplete_cost_hint_baseline_coverage')}/"
             f"{payload.get('n_llm_route_planner_feedback_loop_missing_selected_formal_primitives')}/"
-            f"{payload.get('n_llm_route_planner_feedback_loop_missing_delta_alignment_primitives')}"
+            f"{payload.get('n_llm_route_planner_feedback_loop_missing_delta_alignment_primitives')}/"
+            f"{payload.get('n_llm_route_planner_feedback_loop_omitted_cost_hint_primitives')}"
         ),
         (
             f"- Bundle LLM route planner rows valid: "
@@ -5346,7 +5398,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"playbook_redispatch={payload.get('n_feedback_llm_route_planner_route_adoption_pending_resource_playbook_redispatch_blockers')} "
             f"resource_queue={payload.get('n_feedback_llm_route_planner_route_adoption_pending_resource_request_queue_blockers')} "
             f"replan={payload.get('n_feedback_llm_route_planner_route_adoption_pending_feedback_replan_blockers')} "
-            f"realization={payload.get('n_feedback_llm_route_planner_route_adoption_pending_realization_coverage_blockers')}"
+            f"realization={payload.get('n_feedback_llm_route_planner_route_adoption_pending_realization_coverage_blockers')} "
+            f"omitted_cost_hint={payload.get('n_feedback_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers')}/"
+            f"{payload.get('n_feedback_llm_route_planner_route_adoption_omitted_cost_hint_primitives')}"
         ),
         (
             f"- Feedback LLM route planner context coverage/source/request_queue/response_ledger/refinement/overlay/session/policy: "
@@ -5360,11 +5414,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_feedback_llm_route_planner_requests_with_interactive_decision_policy_rows')}"
         ),
         (
-            f"- Feedback LLM route planner realization feedback witnesses/incomplete/missing-selected/missing-alignment: "
+            f"- Feedback LLM route planner realization feedback witnesses/incomplete/cost-hint-incomplete/missing-selected/missing-alignment/omitted-cost-hints: "
             f"{payload.get('n_feedback_llm_route_planner_feedback_loop_realization_witnesses')}/"
             f"{payload.get('n_feedback_llm_route_planner_feedback_loop_incomplete_realization_coverage')}/"
+            f"{payload.get('n_feedback_llm_route_planner_feedback_loop_incomplete_cost_hint_baseline_coverage')}/"
             f"{payload.get('n_feedback_llm_route_planner_feedback_loop_missing_selected_formal_primitives')}/"
-            f"{payload.get('n_feedback_llm_route_planner_feedback_loop_missing_delta_alignment_primitives')}"
+            f"{payload.get('n_feedback_llm_route_planner_feedback_loop_missing_delta_alignment_primitives')}/"
+            f"{payload.get('n_feedback_llm_route_planner_feedback_loop_omitted_cost_hint_primitives')}"
         ),
         (
             f"- Feedback LLM route planner resource registry context/resources/contracts: "
