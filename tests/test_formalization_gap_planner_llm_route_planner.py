@@ -3249,6 +3249,32 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert minimal_delta_schema["properties"]["primitive_costs"]["items"] == {
         "$ref": "#/$defs/primitive_cost"
     }
+    residual_schema = response_payload_schema["properties"]["residual_interpretations"][
+        "items"
+    ]
+    assert residual_schema["properties"]["target_primitives"] == {
+        "type": "array",
+        "items": {"type": "string"},
+    }
+    search_schema = response_payload_schema["properties"]["search_requests"]["items"]
+    assert search_schema["properties"]["target_primitives"] == {
+        "type": "array",
+        "items": {"type": "string"},
+    }
+    assert "resource_request_id" in search_schema["properties"]
+    action_schema = response_payload_schema["properties"]["planner_next_actions"][
+        "items"
+    ]
+    assert action_schema["properties"]["target_primitives"] == {
+        "type": "array",
+        "items": {"type": "string"},
+    }
+    assert "resource_request_id" in action_schema["properties"]
+    contract = payload["request_packets"][0]["required_output_contract"]
+    assert "target_primitives" in contract["search_requests"][0]
+    assert "resource_contract_ids" in contract["search_requests"][0]
+    assert "target_primitives" in contract["planner_next_actions"][0]
+    assert "resource_contract_ids" in contract["planner_next_actions"][0]
     assert validate_llm_route_planner_response_payload(_llm_response_payload()) == []
     assert payload["row_schema"]["$id"] == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID
     assert (

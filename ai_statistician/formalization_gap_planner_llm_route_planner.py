@@ -448,7 +448,15 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
             "residual_goal": "prover residual or diagnostic",
             "interpretation": "missing assumption, typeclass, lemma, or wrong formulation",
             "route_repair": "how the route should change",
+            "target_primitives": ["primitive ids affected by this residual"],
             "source_refs": ["source ids supporting the repair"],
+            "source_snippets": [
+                {
+                    "source_ref": "paper/book/local source id",
+                    "excerpt": "bounded evidence excerpt supporting the repair",
+                    "target_primitives": ["primitive ids"],
+                }
+            ],
             "source_search_status": "SOURCE_BACKED|SEARCH_REQUESTED|FORMAL_GAP_BOUNDARY",
             "formal_gap_boundary": "explicit blocker if this repair is only a formal boundary",
         }
@@ -458,12 +466,31 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
             "request_kind": "literature|formal_library|prover_feedback|route_revision",
             "query": "bounded next query",
             "reason": "why more evidence is needed before route adoption",
+            "target_primitives": ["primitive ids bounded by this request"],
+            "resource_request_id": "optional queued request id",
+            "resource_id": "optional registry or queued resource id",
+            "resource_contract_ids": ["optional grounded resource contract ids"],
+            "required_quality_signals": ["optional grounded quality signals"],
+            "quality_gates": ["optional grounded quality gates"],
+            "response_validation_signals": ["optional grounded response checks"],
+            "stop_conditions": ["optional grounded stop conditions"],
         }
     ],
     "uncertainty_flags": ["semantic risks and missing evidence"],
     "semantic_alignment_risks": ["risks in matching informal and formal meanings"],
     "planner_next_actions": [
-        {"owner": "resource or prover adapter", "action": "bounded next action"}
+        {
+            "owner": "resource or prover adapter",
+            "action": "bounded next action",
+            "target_primitives": ["primitive ids bounded by this action"],
+            "resource_request_id": "optional queued request id",
+            "resource_id": "optional registry or queued resource id",
+            "resource_contract_ids": ["optional grounded resource contract ids"],
+            "required_quality_signals": ["optional grounded quality signals"],
+            "quality_gates": ["optional grounded quality gates"],
+            "response_validation_signals": ["optional grounded response checks"],
+            "stop_conditions": ["optional grounded stop conditions"],
+        }
     ],
     "standalone_route": {
         "display_name": "route name",
@@ -2722,6 +2749,7 @@ def llm_route_planner_response_payload_schema(
                         "interpretation": {"type": "string", "minLength": 1},
                         "route_repair": {"type": "string"},
                         "repair_action": {"type": "string"},
+                        "target_primitives": string_array,
                         "source_refs": string_array,
                         "source_snippets": {
                             "type": "array",
@@ -2742,6 +2770,7 @@ def llm_route_planner_response_payload_schema(
                         "request_kind": {"type": "string", "minLength": 1},
                         "query": {"type": "string", "minLength": 1},
                         "reason": {"type": "string", "minLength": 1},
+                        "target_primitives": string_array,
                         "resource_request_id": {"type": "string"},
                         "resource_id": {"type": "string"},
                         "resource_contract_ids": string_array,
@@ -2763,6 +2792,7 @@ def llm_route_planner_response_payload_schema(
                     "properties": {
                         "owner": {"type": "string", "minLength": 1},
                         "action": {"type": "string", "minLength": 1},
+                        "target_primitives": string_array,
                         "resource_request_id": {"type": "string"},
                         "resource_id": {"type": "string"},
                         "resource_contract_ids": string_array,
