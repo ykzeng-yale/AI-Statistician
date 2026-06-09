@@ -13865,10 +13865,9 @@ def _handoff_seed_provenance_ok(
     for row in rows:
         seed_route_id = str(row.get("standalone_route_id", ""))
         seed_route = seed_routes.get(seed_route_id, {})
+        seed_route = seed_route if isinstance(seed_route, dict) else {}
         metadata = (
             seed_route.get("replan_metadata", {})
-            if isinstance(seed_route, dict)
-            else {}
         )
         if not isinstance(metadata, dict):
             return False
@@ -13877,13 +13876,27 @@ def _handoff_seed_provenance_ok(
                 metadata.get(field_name, [])
             ):
                 return False
+        target_prover_family = _handoff_seed_target_prover_family(
+            row,
+            seed_route,
+            metadata,
+        )
+        if _is_non_lean_target_prover(target_prover_family) and (
+            _dict_tuple(row.get("lean_declaration_hits", []))
+            or _dict_tuple(seed_route.get("lean_declaration_hits", []))
+            or _dict_tuple(metadata.get("lean_declaration_hits", []))
+        ):
+            return False
         if _declaration_set(
-            row.get("formal_declaration_hits", row.get("lean_declaration_hits", []))
+            _formal_declaration_hits_for_target(row, target_prover_family)
         ) != _declaration_set(
-            metadata.get(
-                "formal_declaration_hits",
-                metadata.get("lean_declaration_hits", []),
-            )
+            _formal_declaration_hits_for_target(metadata, target_prover_family)
+        ):
+            return False
+        if _declaration_set(
+            _lean_declaration_hits_for_target(row, target_prover_family)
+        ) != _declaration_set(
+            _lean_declaration_hits_for_target(metadata, target_prover_family)
         ):
             return False
         if _object_hashes(row.get("applied_resource_response_traces", [])) != _object_hashes(
@@ -13906,11 +13919,98 @@ def _handoff_seed_provenance_observed(
         for row in rows
         if "resource_response_ledger" in _str_tuple(row.get("applied_hook_kinds", []))
     )
+    non_lean_legacy_hits = 0
+    for row in rows:
+        seed_route = seed_routes.get(str(row.get("standalone_route_id", "")), {})
+        if not isinstance(seed_route, dict):
+            continue
+        metadata = seed_route.get("replan_metadata", {})
+        metadata = metadata if isinstance(metadata, dict) else {}
+        target_prover_family = _handoff_seed_target_prover_family(
+            row,
+            seed_route,
+            metadata,
+        )
+        if _is_non_lean_target_prover(target_prover_family):
+            non_lean_legacy_hits += len(_dict_tuple(row.get("lean_declaration_hits", [])))
+            non_lean_legacy_hits += len(
+                _dict_tuple(seed_route.get("lean_declaration_hits", []))
+            )
+            non_lean_legacy_hits += len(
+                _dict_tuple(metadata.get("lean_declaration_hits", []))
+            )
     return (
         f"matched_seed_routes={matched}/{len(rows)}; "
         f"resource_feedback_rows={resource_rows}; "
-        f"diagnostic_signatures={len(_distinct_row_signatures(rows))}"
+        f"diagnostic_signatures={len(_distinct_row_signatures(rows))}; "
+        f"non_lean_legacy_lean_declaration_hits={non_lean_legacy_hits}"
     )
+
+
+def _handoff_seed_target_prover_family(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+    metadata: dict[str, Any],
+) -> str:
+    standalone_route = row.get("standalone_route", {})
+    standalone_route = standalone_route if isinstance(standalone_route, dict) else {}
+    standalone_metadata = standalone_route.get("replan_metadata", {})
+    standalone_metadata = (
+        standalone_metadata if isinstance(standalone_metadata, dict) else {}
+    )
+    values: list[object] = [
+        row.get("target_prover_family", ""),
+        standalone_route.get("target_prover_family", ""),
+        standalone_metadata.get("target_prover_family", ""),
+        seed_route.get("target_prover_family", ""),
+        metadata.get("target_prover_family", ""),
+    ]
+    for container in (row, seed_route, metadata, standalone_route, standalone_metadata):
+        values.extend(_target_prover_family_values_from_declaration_hits(container))
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _target_prover_family_values_from_declaration_hits(
+    row: dict[str, Any],
+) -> tuple[object, ...]:
+    values: list[object] = []
+    for field_name in ("formal_declaration_hits", "lean_declaration_hits"):
+        values.extend(
+            hit.get("target_prover_family", "")
+            for hit in _dict_tuple(row.get(field_name, []))
+        )
+    return tuple(values)
+
+
+def _formal_declaration_hits_for_target(
+    row: dict[str, Any],
+    target_prover_family: str,
+) -> tuple[dict[str, Any], ...]:
+    if "formal_declaration_hits" in row:
+        return _dict_tuple(row.get("formal_declaration_hits", []))
+    if not _is_non_lean_target_prover(target_prover_family):
+        return _dict_tuple(row.get("lean_declaration_hits", []))
+    return tuple()
+
+
+def _lean_declaration_hits_for_target(
+    row: dict[str, Any],
+    target_prover_family: str,
+) -> tuple[dict[str, Any], ...]:
+    if _is_non_lean_target_prover(target_prover_family):
+        return tuple()
+    if "lean_declaration_hits" in row:
+        return _dict_tuple(row.get("lean_declaration_hits", []))
+    return _dict_tuple(row.get("formal_declaration_hits", []))
+
+
+def _is_non_lean_target_prover(target_prover_family: str) -> bool:
+    target_key = _target_prover_key(target_prover_family)
+    return bool(target_key) and target_key != "lean4"
 
 
 def _standalone_seed_schema_replan_metadata_ok(schema: dict[str, Any]) -> bool:

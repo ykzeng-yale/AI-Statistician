@@ -67,6 +67,8 @@ from ai_statistician.formalization_gap_planner_publication_bundle import (
     schema_catalog_json_schema,
 )
 from ai_statistician.formalization_gap_planner_publication_bundle_audit import (
+    _handoff_seed_provenance_observed,
+    _handoff_seed_provenance_ok,
     _runtime_handoff_audit_optional_checks,
     audit_formalization_gap_planner_publication_bundle,
 )
@@ -116,6 +118,58 @@ from ai_statistician.formalization_gap_planner_interactive_session import (
 from ai_statistician.formalization_gap_planner_proof_state_triage import (
     proof_state_triage_row_json_schema,
 )
+
+
+def test_handoff_seed_provenance_rejects_non_lean_legacy_declaration_alias() -> None:
+    row = {
+        "standalone_route_id": "replan_route:rocq_rank",
+        "standalone_route": {
+            "target_prover_family": "rocq",
+            "replan_metadata": {"target_prover_family": "rocq"},
+        },
+        "formal_declaration_hits": [
+            {
+                "primitive": "rank_bridge",
+                "declaration": "Rocq.Conformal.rank_bridge",
+                "target_prover_family": "rocq",
+            }
+        ],
+    }
+    seed = {
+        "routes": [
+            {
+                "route_id": "replan_route:rocq_rank",
+                "target_prover_family": "rocq",
+                "replan_metadata": {
+                    "target_prover_family": "rocq",
+                    "formal_declaration_hits": [
+                        {
+                            "primitive": "rank_bridge",
+                            "declaration": "Rocq.Conformal.rank_bridge",
+                            "target_prover_family": "rocq",
+                        }
+                    ],
+                },
+            }
+        ]
+    }
+
+    assert _handoff_seed_provenance_ok([row], seed)
+    observed = _handoff_seed_provenance_observed([row], seed)
+    assert "non_lean_legacy_lean_declaration_hits=0" in observed
+
+    bad_seed = json.loads(json.dumps(seed))
+    bad_seed["routes"][0]["replan_metadata"]["lean_declaration_hits"] = [
+        {
+            "primitive": "rank_bridge",
+            "declaration": "Rocq.Conformal.rank_bridge",
+            "target_prover_family": "rocq",
+        }
+    ]
+
+    assert not _handoff_seed_provenance_ok([row], bad_seed)
+    bad_observed = _handoff_seed_provenance_observed([row], bad_seed)
+    assert "non_lean_legacy_lean_declaration_hits=1" in bad_observed
 
 
 def test_publication_bundle_audit_checks_runtime_handoff_registry_context() -> None:
