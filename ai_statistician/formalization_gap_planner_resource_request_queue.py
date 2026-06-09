@@ -18,10 +18,10 @@ from .formalization_gap_planner_action_resource_plan import (
 from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
-FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_SCHEMA_VERSION = 3
+FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_SCHEMA_VERSION = 4
 RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
-    "formalization-gap-planner-resource-request-queue-row:3"
+    "formalization-gap-planner-resource-request-queue-row:4"
 )
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_NOT_PROOF_EVIDENCE"
@@ -47,6 +47,7 @@ class FormalizationGapPlannerResourceRequestQueueRow:
     route_id: str
     display_name: str
     primitive: str
+    target_primitives: tuple[str, ...]
     coverage_bucket: str
     queue_action_kind: str
     target_prover_family: str
@@ -243,6 +244,7 @@ def resource_request_queue_row_json_schema() -> dict[str, object]:
         "route_id",
         "display_name",
         "primitive",
+        "target_primitives",
         "coverage_bucket",
         "queue_action_kind",
         "target_prover_family",
@@ -295,6 +297,7 @@ def resource_request_queue_row_json_schema() -> dict[str, object]:
             "route_id": {"type": "string", "minLength": 1},
             "display_name": {"type": "string", "minLength": 1},
             "primitive": {"type": "string", "minLength": 1},
+            "target_primitives": string_array,
             "coverage_bucket": {"type": "string", "minLength": 1},
             "queue_action_kind": {"type": "string", "minLength": 1},
             "target_prover_family": {"type": "string", "minLength": 1},
@@ -466,6 +469,7 @@ def _resource_request_rows(
             row_errors.append(f"request contract fields missing for {resource_id}")
         if not response_contract_fields:
             row_errors.append(f"response contract fields missing for {resource_id}")
+        target_primitives = _target_primitives_from_action_row(action_row)
         resource_request_id = (
             "formalization_gap_planner_resource_request:"
             + stable_hash(
@@ -528,6 +532,7 @@ def _resource_request_rows(
                 route_id=str(action_row.get("route_id", "")),
                 display_name=str(action_row.get("display_name", "")),
                 primitive=str(action_row.get("primitive", "")),
+                target_primitives=target_primitives,
                 coverage_bucket=str(action_row.get("coverage_bucket", "")),
                 queue_action_kind=str(action_row.get("queue_action_kind", "")),
                 target_prover_family=str(action_row.get("target_prover_family", "")),
@@ -601,6 +606,7 @@ def _request_payload(
         "goal_plan_id": str(action_row.get("goal_plan_id", "")),
         "route_id": str(action_row.get("route_id", "")),
         "primitive": str(action_row.get("primitive", "")),
+        "target_primitives": _target_primitives_from_action_row(action_row),
         "coverage_bucket": str(action_row.get("coverage_bucket", "")),
         "queue_action_kind": str(action_row.get("queue_action_kind", "")),
         "target_prover_family": str(action_row.get("target_prover_family", "")),
@@ -675,6 +681,7 @@ def _request_playbook(
             "route_id": str(action_row.get("route_id", "")),
             "display_name": str(action_row.get("display_name", "")),
             "primitive": str(action_row.get("primitive", "")),
+            "target_primitives": _target_primitives_from_action_row(action_row),
             "coverage_bucket": str(action_row.get("coverage_bucket", "")),
             "queue_action_kind": str(action_row.get("queue_action_kind", "")),
             "candidate_declarations": candidate_declarations,
@@ -765,6 +772,7 @@ def _request_payload_identity_errors(row: dict[str, Any]) -> list[str]:
         "goal_plan_id",
         "route_id",
         "primitive",
+        "target_primitives",
         "coverage_bucket",
         "queue_action_kind",
         "target_prover_family",
@@ -823,6 +831,12 @@ def _request_playbook_identity_errors(row: dict[str, Any]) -> list[str]:
         errors.append("request_playbook.operator_prompt must be non-empty")
     if not isinstance(request_playbook.get("input_summary"), dict):
         errors.append("request_playbook.input_summary must be object")
+    elif _str_tuple(
+        request_playbook.get("input_summary", {}).get("target_primitives", [])
+    ) != _str_tuple(row.get("target_primitives", [])):
+        errors.append(
+            "request_playbook.input_summary.target_primitives must match row.target_primitives"
+        )
     if not _str_tuple(request_playbook.get("acceptance_checklist", [])):
         errors.append("request_playbook.acceptance_checklist must be non-empty")
     request_payload = row.get("request_payload")
@@ -893,6 +907,12 @@ def _resource_specific_tuple(
         if mapped:
             return mapped
     return _str_tuple(action_row.get(fallback_field, []))
+
+
+def _target_primitives_from_action_row(action_row: dict[str, Any]) -> tuple[str, ...]:
+    explicit = _str_tuple(action_row.get("target_primitives", []))
+    primitive = str(action_row.get("primitive", "")).strip()
+    return tuple(dict.fromkeys([*explicit, *([primitive] if primitive else [])]))
 
 
 def _expected_response_artifact(resource_id: str) -> str:

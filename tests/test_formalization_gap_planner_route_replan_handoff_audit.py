@@ -57,6 +57,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "resource_response_ledger_id": "rank_uniformity",
         "resource_request_id": "request:rank_uniformity",
         "resource_id": "lean_lsp_mcp",
+        "target_primitives": ["rank_uniformity"],
         "request_phase": "frontier_escalation",
         "expected_response_artifact": "proof_state_or_prover_feedback_response",
         "acceptance_status": "ACCEPTED_WITH_ROUTE_REVISION",

@@ -224,6 +224,7 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
                 "expected_response_artifact"
             ],
             "response_payload": {
+                "target_primitives": proof_request["target_primitives"],
                 "prover_diagnostics": ["unknown identifier rank_uniformity"],
                 "residual_goals": ["prove finite rank denominator is nonzero"],
                 "prover_attempt_status": "failed_with_residual_goals",
@@ -278,6 +279,8 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert payload["n_with_resource_contract_ids"] == payload["n_ledger_rows"]
     assert payload["n_with_stop_conditions"] == payload["n_ledger_rows"]
     assert payload["n_with_quality_controls"] == payload["n_ledger_rows"]
+    assert payload["n_rows_with_target_primitives"] == payload["n_ledger_rows"]
+    assert payload["n_target_primitives"] == payload["n_ledger_rows"]
     assert payload["n_route_revision_recommended"] == 1
     assert payload["n_rejected"] == 0
     assert payload["resource_response_schema"]["$id"] == RESOURCE_RESPONSE_SCHEMA_ID
@@ -291,6 +294,9 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
         if row["resource_request_id"] == source_request["resource_request_id"]
     )
     assert source_ledger["acceptance_status"] == "ACCEPTED_RESOURCE_RESPONSE"
+    assert tuple(source_ledger["target_primitives"]) == tuple(
+        source_request["target_primitives"]
+    )
     assert source_ledger["request_playbook_present"]
     assert source_ledger["response_playbook_grounded"]
     assert source_ledger["response_playbook_grounding_terms"]
@@ -323,6 +329,9 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
         },
     )
     assert proof_ledger["acceptance_status"] == "ACCEPTED_WITH_ROUTE_REVISION"
+    assert tuple(proof_ledger["target_primitives"]) == tuple(
+        proof_request["target_primitives"]
+    )
     assert proof_ledger["request_playbook_present"]
     assert proof_ledger["response_playbook_grounded"]
     assert "rank_uniformity" in proof_ledger["response_playbook_grounding_terms"]
@@ -508,6 +517,58 @@ def test_resource_response_ledger_rejects_missing_contract_evidence() -> None:
     assert rejected["response_contract_fields"] == request["response_contract_fields"]
     assert rejected["missing_response_contract_fields"] == request["response_contract_fields"]
     assert any("missing all queued response_contract_fields" in error for error in rejected["errors"])
+
+
+def test_resource_response_ledger_rejects_expanded_target_primitives() -> None:
+    root = Path("runs/test_formalization_gap_planner_resource_response_ledger_scope")
+    ledger_dir = root / "ledger"
+    response_jsonl = root / "resource_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    request_payload, request_queue_dir = _build_request_queue(root)
+    request = next(
+        row for row in request_payload["rows"] if row["resource_id"] == "lean_lsp_mcp"
+    )
+    response = {
+        "resource_request_id": request["resource_request_id"],
+        "resource_id": request["resource_id"],
+        "expected_response_artifact": request["expected_response_artifact"],
+        "target_primitives": ["rank_uniformity", "spectral_gap"],
+        "response_payload": {
+            "prover_diagnostics": ["unknown identifier rank_uniformity"],
+            "target_primitives": ["rank_uniformity", "spectral_gap"],
+        },
+        "prover_diagnostics": ["unknown identifier rank_uniformity"],
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+    response_jsonl.write_text(
+        json.dumps(response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    assert payload["n_response_schema_valid"] == 1
+    assert payload["n_ledger_row_schema_valid"] == payload["n_ledger_rows"]
+    row = next(
+        row
+        for row in payload["rows"]
+        if row["resource_request_id"] == request["resource_request_id"]
+    )
+    assert row["acceptance_status"] == "REJECTED_RESPONSE_TARGET_SCOPE_EXPANSION"
+    assert tuple(row["target_primitives"]) == ("rank_uniformity", "spectral_gap")
+    assert any(
+        "target_primitives must not expand beyond resource request target_primitives"
+        in error
+        and "spectral_gap" in error
+        for error in row["errors"]
+    )
 
 
 def test_resource_response_ledger_rejects_response_not_grounded_in_playbook() -> None:

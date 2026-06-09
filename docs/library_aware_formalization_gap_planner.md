@@ -539,8 +539,8 @@ plus `formalization_gap_planner_resource_request_queue_row.schema.json`. Each
 packet carries the primitive id, route id, component ids, resource id, request
 phase, the resource-specific contract id and request/response fields, evidence
 inputs, expected outputs, acceptance gate, stop conditions, an execution hint,
-and the explicit proof boundary. It is the executable interface for literature
-search, formal-source search, Lean-library lookup,
+the first-class `target_primitives` scope, and the explicit proof boundary. It
+is the executable interface for literature search, formal-source search, Lean-library lookup,
 Lean/LSP/Lake/LeanDojo-style prover feedback, and cross-prover/publication
 audits; it is still not theorem proof evidence. When both action-resource and
 request-queue artifacts are bundled, the publication audit checks that each
@@ -560,7 +560,9 @@ responses are recorded as `AWAITING_RESOURCE_RESPONSE`, not failure; malformed
 responses and `kernel_verified=true` claims are rejected in this adapter layer.
 Accepted responses can add source refs, Lean declaration hits, coverage
 updates, prover diagnostics, residual goals, or route-revision reasons, but
-they remain planner feedback rather than theorem proof evidence. When bundled,
+they remain planner feedback rather than theorem proof evidence. Responses that
+try to expand `target_primitives` beyond the queued request scope are rejected
+instead of silently broadening the formalization target. When bundled,
 the publication audit checks that each ledger row resolves to its request row
 and that matched plus missing response fields exactly account for that
 resource request's response contract. Ledger rows also retain the request
@@ -1364,9 +1366,9 @@ The current implementation composes four existing AI Statistician artifacts:
 12. `formalization_gap_planner_resource_request_queue`
    Expands each action-resource plan into per-resource dispatch packets for
    local-first and frontier resources. Rows carry the primitive id, route id,
-   resource id, phase, the exact contract id and request/response fields for
-   that resource, execution hint, structured `dispatch_spec`, acceptance gate,
-   stop conditions, and proof-boundary text. The nested `request_payload` is
+   resource id, phase, first-class `target_primitives`, the exact contract id
+   and request/response fields for that resource, execution hint, structured
+   `dispatch_spec`, acceptance gate, stop conditions, and proof-boundary text. The nested `request_payload` is
    self-contained: it includes the generated `resource_request_id`, request
    rank, expected response artifact, response-contract fields, and dispatch
    spec an external MCP/CLI adapter needs to emit a valid response row. They
@@ -1380,8 +1382,8 @@ The current implementation composes four existing AI Statistician artifacts:
    matched and missing response-contract fields, source refs, Lean declaration
    hits, coverage updates, prover diagnostics, residual goals, and route
    revision recommendations. It also carries forward the request
-   `dispatch_spec` so downstream route-revision traces remain tied to the
-   requested adapter surface. Missing responses are awaiting work; kernel-proof
+   `dispatch_spec` and `target_primitives` so downstream route-revision traces remain tied to the
+   requested adapter surface and primitive scope. Missing responses are awaiting work; kernel-proof
    claims are rejected. Ledger rows are adapter evidence and planner feedback,
    not theorem proof evidence. Publication-bundle audit rows also verify
    request-row resolution and response-contract field accounting.

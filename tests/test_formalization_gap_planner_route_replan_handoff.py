@@ -84,6 +84,7 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         "goal_plan_id": plan_row["goal_plan_id"],
         "route_id": plan_row["route_id"],
         "primitive": "conditional_rank_argument",
+        "target_primitives": ["conditional_rank_argument"],
         "resource_id": "lean_lsp_mcp",
         "request_phase": "frontier_escalation",
         "expected_response_artifact": "proof_state_or_prover_feedback_response",

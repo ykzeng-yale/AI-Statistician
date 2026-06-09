@@ -654,6 +654,7 @@ def _write_resource_response_ledger(root: Path) -> Path:
                         "route_id": "rank_route",
                         "display_name": "distribution_free_rank_bound",
                         "primitive": "rank_uniformity",
+                        "target_primitives": ["rank_uniformity"],
                         "resource_id": "paperclip_mcp",
                         "expected_response_artifact": "source_evidence",
                         "acceptance_gate": "source evidence must satisfy queued contract fields",

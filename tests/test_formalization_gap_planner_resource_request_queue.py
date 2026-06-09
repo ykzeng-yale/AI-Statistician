@@ -192,6 +192,13 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
         == lean_lsp_row["expected_response_artifact"]
     )
     assert "rank_uniformity" in lean_lsp_row["request_playbook"]["operator_prompt"]
+    assert tuple(lean_lsp_row["target_primitives"]) == ("rank_uniformity",)
+    assert tuple(lean_lsp_row["request_payload"]["target_primitives"]) == (
+        "rank_uniformity",
+    )
+    assert tuple(
+        lean_lsp_row["request_playbook"]["input_summary"]["target_primitives"]
+    ) == ("rank_uniformity",)
     assert (
         "prover_diagnostics"
         in lean_lsp_row["request_playbook"]["expected_response_fields"]
@@ -312,6 +319,31 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     malformed["request_playbook"]["expected_response_fields"] = ["stale_field"]
     assert (
         "request_playbook.expected_response_fields must match row.response_contract_fields"
+        in validate_resource_request_queue_row(
+            malformed,
+            resource_request_queue_row_json_schema(),
+        )
+    )
+    malformed = dict(lean_lsp_row)
+    malformed["request_payload"] = dict(lean_lsp_row["request_payload"])
+    malformed["request_payload"]["target_primitives"] = ["rank_uniformity", "spectral_gap"]
+    assert (
+        "request_payload.target_primitives must match row.target_primitives"
+        in validate_resource_request_queue_row(
+            malformed,
+            resource_request_queue_row_json_schema(),
+        )
+    )
+    malformed = dict(lean_lsp_row)
+    malformed["request_playbook"] = dict(lean_lsp_row["request_playbook"])
+    malformed["request_playbook"]["input_summary"] = dict(
+        lean_lsp_row["request_playbook"]["input_summary"]
+    )
+    malformed["request_playbook"]["input_summary"]["target_primitives"] = [
+        "spectral_gap"
+    ]
+    assert (
+        "request_playbook.input_summary.target_primitives must match row.target_primitives"
         in validate_resource_request_queue_row(
             malformed,
             resource_request_queue_row_json_schema(),

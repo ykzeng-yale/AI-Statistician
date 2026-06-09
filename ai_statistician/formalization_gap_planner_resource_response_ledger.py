@@ -16,7 +16,7 @@ from .formalization_gap_planner_resource_request_queue import (
 from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
-FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 5
+FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 6
 QUALITY_CONTROL_FIELDS = (
     "resource_contract_ids",
     "required_quality_signals",
@@ -30,7 +30,7 @@ RESOURCE_RESPONSE_SCHEMA_ID = (
 )
 RESOURCE_RESPONSE_LEDGER_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
-    "formalization-gap-planner-resource-response-ledger-row:5"
+    "formalization-gap-planner-resource-response-ledger-row:6"
 )
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_NOT_PROOF_EVIDENCE"
@@ -55,6 +55,7 @@ class FormalizationGapPlannerResourceResponseLedgerRow:
     route_id: str
     display_name: str
     primitive: str
+    target_primitives: tuple[str, ...]
     coverage_bucket: str
     queue_action_kind: str
     target_prover_family: str
@@ -230,6 +231,10 @@ def export_formalization_gap_planner_resource_response_ledger(
         "n_candidate_declaration_rows": sum(
             len(row.candidate_declaration_rows) for row in rows
         ),
+        "n_rows_with_target_primitives": sum(
+            1 for row in rows if row.target_primitives
+        ),
+        "n_target_primitives": sum(len(row.target_primitives) for row in rows),
         "n_route_revision_recommended": sum(
             1 for row in rows if row.route_revision_recommended
         ),
@@ -337,6 +342,7 @@ def resource_response_json_schema() -> dict[str, object]:
             "response_summary": {"type": "string"},
             "response_artifacts": string_array,
             "source_refs": string_array,
+            "target_primitives": string_array,
             "route_evidence_nodes": object_array,
             "lean_declaration_hits": object_array,
             "candidate_declaration_rows": {
@@ -387,6 +393,7 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
         "route_id",
         "display_name",
         "primitive",
+        "target_primitives",
         "coverage_bucket",
         "queue_action_kind",
         "target_prover_family",
@@ -456,6 +463,7 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
             "route_id": {"type": "string", "minLength": 1},
             "display_name": {"type": "string", "minLength": 1},
             "primitive": {"type": "string", "minLength": 1},
+            "target_primitives": string_array,
             "coverage_bucket": {"type": "string", "minLength": 1},
             "queue_action_kind": {"type": "string", "minLength": 1},
             "target_prover_family": {"type": "string", "minLength": 1},
@@ -572,6 +580,7 @@ def _ledger_row(
     response_contract_fields = _str_tuple(request_row.get("response_contract_fields", []))
     resource_contract_ids = _str_tuple(request_row.get("resource_contract_ids", []))
     stop_conditions = _str_tuple(request_row.get("stop_conditions", []))
+    request_target_primitives = _request_target_primitives(request_row)
     request_playbook = _dict_value(request_row, "request_playbook")
     request_playbook_present = bool(request_playbook)
     quality_controls = _quality_controls_for_ledger_row(
@@ -587,6 +596,11 @@ def _ledger_row(
     route_revision_recommended = bool(
         response_values.get("route_revision_recommended", False)
     ) or bool(residual_goals) or bool(route_revision_reasons)
+    response_target_primitives = _str_tuple(response_values.get("target_primitives", []))
+    target_primitives = response_target_primitives or request_target_primitives
+    expanded_target_primitives = sorted(
+        set(response_target_primitives) - set(request_target_primitives)
+    )
     response_playbook_grounded, response_playbook_grounding_terms = (
         _response_playbook_grounding(request_playbook, response_values)
         if response_present and request_playbook_present
@@ -602,6 +616,11 @@ def _ledger_row(
         row_errors.append(
             "resource response missing all queued response_contract_fields: "
             + ",".join(response_contract_fields)
+        )
+    if response_present and expanded_target_primitives:
+        row_errors.append(
+            "target_primitives must not expand beyond resource request target_primitives: "
+            + ", ".join(expanded_target_primitives[:8])
         )
     if (
         response_present
@@ -631,6 +650,8 @@ def _ledger_row(
         acceptance_status = "REJECTED_RESPONSE_REQUEST_MISMATCH"
     elif not matched_fields:
         acceptance_status = "REJECTED_MISSING_RESPONSE_CONTRACT_FIELDS"
+    elif expanded_target_primitives:
+        acceptance_status = "REJECTED_RESPONSE_TARGET_SCOPE_EXPANSION"
     elif request_playbook_present and not response_playbook_grounded:
         acceptance_status = "REJECTED_RESPONSE_NOT_GROUNDED_IN_REQUEST_PLAYBOOK"
     elif route_revision_recommended:
@@ -664,6 +685,7 @@ def _ledger_row(
         route_id=str(request_row.get("route_id", "")),
         display_name=str(request_row.get("display_name", "")),
         primitive=str(request_row.get("primitive", "")),
+        target_primitives=target_primitives,
         coverage_bucket=str(request_row.get("coverage_bucket", "")),
         queue_action_kind=str(request_row.get("queue_action_kind", "")),
         target_prover_family=str(request_row.get("target_prover_family", "")),
@@ -835,6 +857,12 @@ def _merged_response_values(
         if key not in values and key != "response_payload":
             values[key] = value
     return values
+
+
+def _request_target_primitives(request_row: dict[str, Any]) -> tuple[str, ...]:
+    explicit = _str_tuple(request_row.get("target_primitives", []))
+    primitive = str(request_row.get("primitive", "")).strip()
+    return tuple(dict.fromkeys([*explicit, *([primitive] if primitive else [])]))
 
 
 def _quality_controls_for_ledger_row(

@@ -643,7 +643,7 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                 "component_name": "formalization_gap_planner_resource_response_ledger",
                 "rows": [
                     {
-                        "schema_version": 3,
+                        "schema_version": 6,
                         "resource_response_ledger_id": "ledger:rank_uniformity",
                         "resource_request_id": "request:rank_uniformity",
                         "action_resource_plan_id": "action-resource-plan:rank_uniformity",
@@ -653,6 +653,7 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                         "route_id": "route:ledger",
                         "display_name": display_name,
                         "primitive": "rank_uniformity",
+                        "target_primitives": ["rank_uniformity"],
                         "coverage_bucket": "bridge_needed",
                         "queue_action_kind": "prove_bridge_lemma",
                         "target_prover_family": "lean4",
@@ -795,6 +796,7 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert trace["resource_response_ledger_id"] == "ledger:rank_uniformity"
     assert trace["resource_request_id"] == "request:rank_uniformity"
     assert trace["resource_id"] == "lean_lsp_mcp"
+    assert trace["target_primitives"] == ("rank_uniformity",)
     assert trace["quality_controls"]["resource_contract_ids"] == (
         "lean_lsp:proof_state_feedback",
     )
