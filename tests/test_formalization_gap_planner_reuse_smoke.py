@@ -1069,8 +1069,13 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_evaluation_unaligned_primitives"] == 0
     assert payload["n_evaluation_realization_missing_selected_formal_primitives"] == 0
     assert payload["n_evaluation_realization_missing_delta_alignment_primitives"] == 0
+    assert payload["n_evaluation_rows_with_incomplete_cost_hint_baseline_coverage"] == 0
+    assert payload["n_evaluation_realization_cost_hint_baseline_primitives"] == 0
+    assert payload["n_evaluation_realization_omitted_cost_hint_primitives"] == 0
     assert payload["evaluation_realization_missing_selected_formal_primitives"] == ()
     assert payload["evaluation_realization_missing_delta_alignment_primitives"] == ()
+    assert payload["evaluation_realization_cost_hint_baseline_primitives"] == ()
+    assert payload["evaluation_realization_omitted_cost_hint_primitives"] == ()
     assert payload["evaluation_realization_missing_primitives_by_route"] == ()
     assert payload["n_evaluation_rows_with_llm_route_planner_trace"] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_model_tier"] == 0

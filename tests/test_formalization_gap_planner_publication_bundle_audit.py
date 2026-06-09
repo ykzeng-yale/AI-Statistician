@@ -2926,6 +2926,36 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         ]
         == ("rank_uniformity",)
     )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_rows_with_incomplete_cost_hint_baseline_coverage"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_realization_cost_hint_baseline_primitives"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "optional_evaluation_realization_cost_hint_baseline_primitives"
+        ]
+        == ("rank_uniformity",)
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_realization_omitted_cost_hint_primitives"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "optional_evaluation_realization_omitted_cost_hint_primitives"
+        ]
+        == ("rank_uniformity",)
+    )
     assert audit_payload["optional_evaluation_realization_missing_primitives_by_route"] == (
         {
             "route_id": "route:fixture",

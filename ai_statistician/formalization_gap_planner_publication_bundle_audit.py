@@ -398,6 +398,12 @@ def audit_formalization_gap_planner_publication_bundle(
     optional_realization_missing_delta = (
         _evaluation_realization_missing_delta_from_rows(optional_evaluation_rows)
     )
+    optional_realization_cost_hint_baseline = (
+        _evaluation_realization_cost_hint_baseline_from_rows(optional_evaluation_rows)
+    )
+    optional_realization_omitted_cost_hint = (
+        _evaluation_realization_omitted_cost_hint_from_rows(optional_evaluation_rows)
+    )
     optional_realization_missing_by_route = (
         _evaluation_realization_missing_by_route_from_rows(optional_evaluation_rows)
     )
@@ -725,6 +731,25 @@ def audit_formalization_gap_planner_publication_bundle(
         ),
         "optional_evaluation_realization_missing_delta_alignment_primitives": (
             optional_realization_missing_delta
+        ),
+        "n_optional_evaluation_rows_with_incomplete_cost_hint_baseline_coverage": sum(
+            1
+            for row in optional_evaluation_rows
+            if row.get("realization_cost_hint_baseline_coverage_complete") is False
+        ),
+        "n_optional_evaluation_realization_cost_hint_baseline_primitives": sum(
+            len(_str_tuple(row.get("realization_cost_hint_baseline_primitives", [])))
+            for row in optional_evaluation_rows
+        ),
+        "optional_evaluation_realization_cost_hint_baseline_primitives": (
+            optional_realization_cost_hint_baseline
+        ),
+        "n_optional_evaluation_realization_omitted_cost_hint_primitives": sum(
+            len(_str_tuple(row.get("realization_omitted_cost_hint_primitives", [])))
+            for row in optional_evaluation_rows
+        ),
+        "optional_evaluation_realization_omitted_cost_hint_primitives": (
+            optional_realization_omitted_cost_hint
         ),
         "optional_evaluation_realization_missing_primitives_by_route": (
             optional_realization_missing_by_route
@@ -14589,6 +14614,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             "- Optional evaluation missing realization primitives: "
             f"selected={payload.get('optional_evaluation_realization_missing_selected_formal_primitives')} "
             f"delta={payload.get('optional_evaluation_realization_missing_delta_alignment_primitives')}"
+        ),
+        (
+            "- Optional evaluation omitted cost-hint primitives: "
+            f"baseline={payload.get('optional_evaluation_realization_cost_hint_baseline_primitives')} "
+            f"omitted={payload.get('optional_evaluation_realization_omitted_cost_hint_primitives')} "
+            f"incomplete_rows={payload.get('n_optional_evaluation_rows_with_incomplete_cost_hint_baseline_coverage')}"
         ),
         f"- Optional LLM route-planner requests valid: {payload.get('n_optional_llm_route_planner_request_schema_valid')}/{payload.get('n_optional_llm_route_planner_request_schema_checked')}",
         f"- Optional LLM route-planner rows valid: {payload.get('n_optional_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_llm_route_planner_row_schema_checked')}",

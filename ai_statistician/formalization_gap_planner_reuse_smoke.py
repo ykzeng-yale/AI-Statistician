@@ -2837,12 +2837,32 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_realization_missing_delta_alignment_primitives",
             0,
         ),
+        "n_evaluation_rows_with_incomplete_cost_hint_baseline_coverage": evaluation_payload.get(
+            "n_rows_with_incomplete_cost_hint_baseline_coverage",
+            0,
+        ),
+        "n_evaluation_realization_cost_hint_baseline_primitives": evaluation_payload.get(
+            "n_realization_cost_hint_baseline_primitives",
+            0,
+        ),
+        "n_evaluation_realization_omitted_cost_hint_primitives": evaluation_payload.get(
+            "n_realization_omitted_cost_hint_primitives",
+            0,
+        ),
         "evaluation_realization_missing_selected_formal_primitives": evaluation_payload.get(
             "realization_missing_selected_formal_primitives",
             (),
         ),
         "evaluation_realization_missing_delta_alignment_primitives": evaluation_payload.get(
             "realization_missing_delta_alignment_primitives",
+            (),
+        ),
+        "evaluation_realization_cost_hint_baseline_primitives": evaluation_payload.get(
+            "realization_cost_hint_baseline_primitives",
+            (),
+        ),
+        "evaluation_realization_omitted_cost_hint_primitives": evaluation_payload.get(
+            "realization_omitted_cost_hint_primitives",
             (),
         ),
         "evaluation_realization_missing_primitives_by_route": evaluation_payload.get(
@@ -5561,6 +5581,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_evaluation_realization_missing_delta_alignment_primitives')} "
             f"selected={payload.get('evaluation_realization_missing_selected_formal_primitives')} "
             f"delta={payload.get('evaluation_realization_missing_delta_alignment_primitives')}"
+        ),
+        (
+            f"- Evaluation omitted cost-hint primitives: "
+            f"{payload.get('n_evaluation_realization_omitted_cost_hint_primitives')} "
+            f"baseline={payload.get('evaluation_realization_cost_hint_baseline_primitives')} "
+            f"omitted={payload.get('evaluation_realization_omitted_cost_hint_primitives')} "
+            f"incomplete_rows={payload.get('n_evaluation_rows_with_incomplete_cost_hint_baseline_coverage')}"
         ),
         (
             f"- Evaluation LLM trace/model-tier/generator-metadata: "
