@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_statistician.cli import main
+from ai_statistician.cli import _load_runtime_learning_memory, main
 from ai_statistician.algorithm_engineer_llm import (
     AlgorithmEngineerConfig,
     LLMAlgorithmEngineerAgent,
@@ -721,6 +721,73 @@ def test_runtime_learning_memory_skips_already_kernel_verified_obligations() -> 
     )
 
     assert selected == ("event_indicator_expectation",)
+    assert off_catalog == ()
+    assert rejected == ()
+
+
+def test_proof_audit_learning_export_marks_kernel_verified_obligations_as_memory(tmp_path: Path) -> None:
+    proof_manifest = tmp_path / "proof_audit_manifest.json"
+    proof_manifest.write_text(
+        json.dumps(
+            {
+                "verifier": "local.lake_env_lean",
+                "verification_strength": "local_lean_kernel_batch",
+                "checks": [
+                    {
+                        "obligation_id": "finite_conformal_rank_coverage_counting",
+                        "kernel_verified": True,
+                    },
+                    {
+                        "obligation_id": "order_statistic_quantile_rule_bridge",
+                        "kernel_verified": False,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "learning_export"
+
+    code = main(
+        [
+            "proof-audit-learning-export",
+            "--proof-audit-manifest",
+            str(proof_manifest),
+            "--question-id",
+            "conformal_prediction_coverage",
+            "--out",
+            str(out_dir),
+        ]
+    )
+    assert code == 0
+    learning_path = out_dir / "runtime_learning_rows.jsonl"
+    memory = _load_runtime_learning_memory([learning_path])
+    assert memory["counts"]["rows_loaded"] == 1
+    row = memory["rows"][0]
+    assert row["kernel_verified_proof_obligation_ids"] == ["finite_conformal_rank_coverage_counting"]
+
+    selected, off_catalog, rejected = _runtime_learning_memory_proof_obligation_ids(
+        {
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    row,
+                    {
+                        "deferred_priority_proof_obligation_ids_due_to_max": [
+                            "finite_conformal_rank_coverage_counting",
+                            "order_statistic_quantile_rule_bridge",
+                        ]
+                    },
+                ],
+            }
+        },
+        catalog_ids=(
+            "finite_conformal_rank_coverage_counting",
+            "order_statistic_quantile_rule_bridge",
+        ),
+    )
+
+    assert selected == ("order_statistic_quantile_rule_bridge",)
     assert off_catalog == ()
     assert rejected == ()
 

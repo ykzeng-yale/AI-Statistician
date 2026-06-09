@@ -459,6 +459,66 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
     return compact
 
 
+def _proof_audit_learning_export(args: argparse.Namespace) -> int:
+    manifest_path = Path(args.proof_audit_manifest)
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    checks = payload.get("checks", [])
+    if not isinstance(checks, list):
+        raise ValueError(f"proof audit manifest checks is not a list: {manifest_path}")
+    kernel_ids = [
+        str(row.get("obligation_id", "")).strip()
+        for row in checks
+        if isinstance(row, Mapping)
+        and row.get("kernel_verified") is True
+        and str(row.get("obligation_id", "")).strip()
+    ]
+    row = {
+        "schema_version": 1,
+        "question_id": str(args.question_id or ""),
+        "learning_task": "proof_audit_kernel_overlay",
+        "input_summary": {
+            "proof_audit_manifest": str(manifest_path),
+            "kernel_verified_proof_obligation_ids": kernel_ids,
+            "verification_strength": str(payload.get("verification_strength", "")),
+            "verifier": str(payload.get("verifier", "")),
+        },
+        "kernel_verified_proof_obligation_ids": kernel_ids,
+        "target_behavior": (
+            "Treat listed proof-bank obligations as already kernel-verified subclaim evidence "
+            "for proof-obligation selection memory; do not treat them as full theorem proof."
+        ),
+        "acceptance_gate": (
+            "Only checks with kernel_verified=true from the referenced proof_audit_manifest are exported."
+        ),
+        "boundary": (
+            "Proof-audit learning rows are runtime memory and proof-selection guidance. "
+            "They preserve the referenced local Lean/AXLE proof-audit manifest as the proof evidence; "
+            "they do not prove unlisted obligations or the full frontier theorem."
+        ),
+    }
+    learning_path = out_dir / "runtime_learning_rows.jsonl"
+    learning_path.write_text(json.dumps(row, default=str) + "\n", encoding="utf-8")
+    export_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "ProofAuditRuntimeLearningExportManifest",
+        "proof_audit_manifest": str(manifest_path),
+        "runtime_learning_rows_jsonl": str(learning_path),
+        "n_kernel_verified_proof_obligation_ids": len(kernel_ids),
+        "kernel_verified_proof_obligation_ids": kernel_ids,
+        "boundary": row["boundary"],
+    }
+    manifest_out = out_dir / "proof_audit_runtime_learning_export_manifest.json"
+    manifest_out.write_text(json.dumps(export_manifest, indent=2, default=str), encoding="utf-8")
+    print("\nAI Statistician Proof-Audit Runtime Learning Export")
+    print("=" * 72)
+    print(f"kernel_verified_ids={len(kernel_ids)}")
+    print(f"runtime learning rows written to {learning_path.resolve()}")
+    print(f"export manifest written to {manifest_out.resolve()}")
+    return 0
+
+
 LIVE_GENERATOR_PROVIDER_CHOICES = ("anthropic", "openai", "static")
 SUBSYSTEM_GENERATOR_PROVIDER_CHOICES = (
     "same",
@@ -6240,6 +6300,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="also verify one intentionally empty proof body per obligation for repair/value-model data",
     )
     proof_audit.set_defaults(func=lambda args: asyncio.run(_proof_audit(args)))
+
+    proof_audit_learning_export = sub.add_parser(
+        "proof-audit-learning-export",
+        help=(
+            "convert kernel-verified proof-audit rows into runtime_learning_rows.jsonl "
+            "for AgentRuntime proof-selection memory"
+        ),
+    )
+    proof_audit_learning_export.add_argument(
+        "--proof-audit-manifest",
+        required=True,
+        help="path to proof_audit_manifest.json containing kernel-verified checks",
+    )
+    proof_audit_learning_export.add_argument(
+        "--question-id",
+        default="",
+        help="optional question id to attach to the runtime learning row",
+    )
+    proof_audit_learning_export.add_argument(
+        "--out",
+        default="runs/proof_audit_learning_export",
+        help="output directory for runtime_learning_rows.jsonl and manifest",
+    )
+    proof_audit_learning_export.set_defaults(func=_proof_audit_learning_export)
 
     proof_training_export = sub.add_parser(
         "proof-training-export",
