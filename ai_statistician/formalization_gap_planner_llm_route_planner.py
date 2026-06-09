@@ -3531,6 +3531,7 @@ def _response_contract_errors(
             selected_primitives=selected_primitives,
         )
     )
+    errors.extend(_minimal_delta_request_hint_errors(payload, request))
     standalone_route = _standalone_route_from_payload(
         payload,
         target_prover_family=target_prover_family,
@@ -6218,6 +6219,134 @@ def _primitive_cost_coverage_evidence_errors(
                 f"{primitive}: coverage_bucket={bucket} base_cost={bucket_cost:g} "
                 f"but evidence marker {evidence_marker} requires at least "
                 f"{evidence_cost:g}"
+            )
+    return errors
+
+
+def _minimal_delta_request_hint_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    """Reject LLM responses that underprice deterministic request cost hints."""
+
+    hints = _dict_value(
+        _dict_value(request, "context_packet"),
+        "minimal_delta_cost_hints",
+    )
+    if not hints:
+        return []
+    errors: list[str] = []
+    minimal_delta = _dict_value(payload, "minimal_delta_plan")
+    primitive_hints = _request_primitive_cost_hints_by_primitive(hints)
+    for index, row in enumerate(_dict_tuple(minimal_delta.get("primitive_costs", []))):
+        primitive = _primitive_key(row.get("primitive", ""))
+        hint = primitive_hints.get(primitive)
+        if not hint or not _is_nonnegative_number(row.get("base_cost")):
+            continue
+        minimum_base_cost = float(hint.get("minimum_base_cost", 0) or 0)
+        base_cost = float(row.get("base_cost", 0) or 0)
+        if base_cost + 1e-9 < minimum_base_cost:
+            errors.append(
+                "minimal_delta_plan.primitive_costs"
+                f"[{index}].base_cost underprices request minimal_delta_cost_hints "
+                f"for primitive {primitive}: base_cost={base_cost:g} but "
+                f"minimum_base_cost={minimum_base_cost:g} "
+                f"source={hint.get('minimum_cost_source', '')} "
+                f"marker={hint.get('minimum_cost_marker', '')}"
+            )
+
+    selected = {
+        _primitive_key(primitive)
+        for primitive in _str_tuple(minimal_delta.get("selected_primitives", []))
+    }
+    selected.discard("")
+    route_cost = minimal_delta.get("route_cost")
+    for hint_index, hint in enumerate(_dict_tuple(hints.get("route_option_hints", []))):
+        minimum_route_base_cost = hint.get("minimum_route_base_cost")
+        hint_primitives = {
+            _primitive_key(primitive)
+            for primitive in _str_tuple(hint.get("selected_primitives", []))
+        }
+        hint_primitives.discard("")
+        if not hint_primitives or not _is_nonnegative_number(minimum_route_base_cost):
+            continue
+        minimum_cost = float(minimum_route_base_cost or 0)
+        if (
+            selected == hint_primitives
+            and _is_nonnegative_number(route_cost)
+            and float(route_cost or 0) + 1e-9 < minimum_cost
+        ):
+            errors.append(
+                "minimal_delta_plan.route_cost underprices request "
+                "minimal_delta_cost_hints route option "
+                f"{hint.get('route_option_id', f'route_option_hints[{hint_index}]')}: "
+                f"route_cost={float(route_cost or 0):g} but "
+                f"minimum_route_base_cost={minimum_cost:g}"
+            )
+        errors.extend(
+            _minimal_delta_selected_route_option_hint_errors(
+                minimal_delta,
+                hint,
+                hint_index=hint_index,
+                hint_primitives=hint_primitives,
+                minimum_route_base_cost=minimum_cost,
+            )
+        )
+    return errors
+
+
+def _request_primitive_cost_hints_by_primitive(
+    hints: Mapping[str, Any],
+) -> dict[str, dict[str, object]]:
+    by_primitive: dict[str, dict[str, object]] = {}
+    for hint in _dict_tuple(hints.get("primitive_cost_hints", [])):
+        primitive = _primitive_key(hint.get("primitive", ""))
+        if not primitive or not _is_nonnegative_number(hint.get("minimum_base_cost")):
+            continue
+        current = by_primitive.get(primitive)
+        if current is None or float(
+            hint.get("minimum_base_cost", 0) or 0
+        ) > float(current.get("minimum_base_cost", 0) or 0):
+            by_primitive[primitive] = dict(hint)
+    return by_primitive
+
+
+def _minimal_delta_selected_route_option_hint_errors(
+    minimal_delta: Mapping[str, Any],
+    hint: Mapping[str, Any],
+    *,
+    hint_index: int,
+    hint_primitives: set[str],
+    minimum_route_base_cost: float,
+) -> list[str]:
+    errors: list[str] = []
+    graph = _dict_value(minimal_delta, "and_or_cost_graph")
+    hint_route_option_id = str(hint.get("route_option_id", "")).strip()
+    for index, option in enumerate(_dict_tuple(graph.get("route_options", []))):
+        if not bool(option.get("selected", False)):
+            continue
+        option_id = str(option.get("route_option_id", "")).strip()
+        option_primitives = {
+            _primitive_key(primitive)
+            for primitive in _str_tuple(option.get("selected_primitives", []))
+        }
+        option_primitives.discard("")
+        if not (
+            option_id == hint_route_option_id
+            or (option_primitives and option_primitives == hint_primitives)
+        ):
+            continue
+        option_cost = option.get("route_cost")
+        if not _is_nonnegative_number(option_cost):
+            continue
+        if float(option_cost or 0) + 1e-9 < minimum_route_base_cost:
+            errors.append(
+                "minimal_delta_plan.and_or_cost_graph.route_options"
+                f"[{index}].route_cost underprices request "
+                "minimal_delta_cost_hints route option "
+                f"{hint_route_option_id or f'route_option_hints[{hint_index}]'}: "
+                f"route_cost={float(option_cost or 0):g} but "
+                f"minimum_route_base_cost={minimum_route_base_cost:g}"
             )
     return errors
 

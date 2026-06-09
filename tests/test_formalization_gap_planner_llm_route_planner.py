@@ -377,6 +377,94 @@ def _append_bridge_cost(
     )
 
 
+def _make_rank_uniformity_near_exists_response() -> dict[str, object]:
+    response = _llm_response_payload()
+    response["lean_realization_dag_nodes"][1]["coverage_bucket"] = "near_exists"
+    response["lean_realization_dag_nodes"][1][
+        "candidate_declarations"
+    ] = ["Probability.exchangeable"]
+    response["lean_realization_dag_nodes"][1][
+        "formalization_action"
+    ] = "compose_existing_declarations"
+    response["route_alignment_edges"][0]["alignment_status"] = "near"
+    minimal_delta = response["minimal_delta_plan"]
+    assert isinstance(minimal_delta, dict)
+    minimal_delta["route_cost"] = 1
+    rank_cost = minimal_delta["primitive_costs"][1]
+    assert isinstance(rank_cost, dict)
+    rank_cost["coverage_bucket"] = "near_exists"
+    rank_cost["base_cost"] = 1
+    rank_cost["total_cost"] = 1
+    rank_cost["cost_rationale"] = (
+        "The answer claims an existing nearby declaration is enough."
+    )
+    minimal_delta["bridge_lemmas"] = []
+    graph = minimal_delta["and_or_cost_graph"]
+    assert isinstance(graph, dict)
+    route_options = graph["route_options"]
+    assert isinstance(route_options, list)
+    route_options[0]["route_cost"] = 1
+    route_options[0]["cost_rationale"] = (
+        "The answer claims the rank fact is near existing library coverage."
+    )
+    route_options[1]["route_cost"] = 7
+    standalone_rank = response["standalone_route"]["primitives"][1]
+    assert isinstance(standalone_rank, dict)
+    standalone_rank["coverage_status"] = "near_exists"
+    standalone_rank["candidate_declarations"] = ["Probability.exchangeable"]
+    return response
+
+
+def _promote_response_to_source_port_costs(response: dict[str, object]) -> None:
+    for node in response.get("lean_realization_dag_nodes", []):
+        if isinstance(node, dict):
+            node["coverage_bucket"] = "source_port_needed"
+            node["formalization_action"] = "port_external_source"
+    for edge in response.get("route_alignment_edges", []):
+        if isinstance(edge, dict):
+            edge["alignment_status"] = "source_port_needed"
+    response["route_alignment_edges"].append(
+        {
+            "informal_node_id": "informal:exchangeability",
+            "formal_node_id": "formal:exchangeability",
+            "alignment_status": "source_port_needed",
+            "alignment_rationale": (
+                "The carried replan handoff prices exchangeability as a "
+                "source-port obligation, so the response must align it "
+                "explicitly before adoption."
+            ),
+        }
+    )
+    minimal_delta = response["minimal_delta_plan"]
+    assert isinstance(minimal_delta, dict)
+    minimal_delta["route_cost"] = 14
+    for row in minimal_delta["primitive_costs"]:
+        assert isinstance(row, dict)
+        row["coverage_bucket"] = "source_port_needed"
+        row["base_cost"] = 7
+        row["total_cost"] = 7
+        row["cost_rationale"] = (
+            "The carried replan handoff marks this primitive as a source-port "
+            "obligation under the published minimal-delta cost policy."
+        )
+    minimal_delta["bridge_lemmas"] = []
+    minimal_delta["source_port_lemmas"] = ["exchangeability", "rank_uniformity"]
+    graph = minimal_delta["and_or_cost_graph"]
+    assert isinstance(graph, dict)
+    route_options = graph["route_options"]
+    assert isinstance(route_options, list)
+    route_options[0]["route_cost"] = 14
+    route_options[0]["cost_rationale"] = (
+        "The selected replan route carries two source-port obligations."
+    )
+    route_options[1]["route_cost"] = 16
+    standalone_route = response.get("standalone_route", {})
+    if isinstance(standalone_route, dict):
+        for primitive in standalone_route.get("primitives", []):
+            if isinstance(primitive, dict):
+                primitive["coverage_status"] = "source_port_needed"
+
+
 def _replace_source_ref(value, old: str, new: str):
     if isinstance(value, dict):
         return {key: _replace_source_ref(item, old, new) for key, item in value.items()}
@@ -2579,6 +2667,7 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
             "stop_conditions": ["residual interpreted or source search requested"],
         }
     )
+    _promote_response_to_source_port_costs(replan_response)
     replan_response_json = root / "replan_response.json"
     replan_response_json.write_text(json.dumps(replan_response), encoding="utf-8")
     replan_llm_dir = root / "llm_route_planner_from_quality_control_handoff"
@@ -3344,6 +3433,55 @@ def test_llm_route_planner_response_payload_validator_request_context_accepts_pa
     assert row["request_context_route_id"] == request["route_id"]
     assert row["n_schema_errors"] == 0
     assert row["n_request_context_errors"] == 0
+
+
+def test_llm_route_planner_response_payload_validator_request_context_rejects_cost_hint_underpricing() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_payload_validate_cost_hint")
+    planner_dir = root / "llm_route_planner"
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    staged = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        planner_dir,
+        provider_name="prompt_only",
+    )
+    request = staged["request_packets"][0]
+    response_json.write_text(
+        json.dumps(
+            {
+                "request_id": request["request_id"],
+                "route_id": request["route_id"],
+                "response_payload": _make_rank_uniformity_near_exists_response(),
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+        request_context_json=planner_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_schema_errors"] == 0
+    assert payload["n_request_context_errors"] >= 1
+    row = payload["rows"][0]
+    assert row["request_context_validation_mode"] == "request_bound"
+    assert row["n_schema_errors"] == 0
+    assert row["n_request_context_errors"] >= 1
+    assert any(
+        "underprices request minimal_delta_cost_hints" in error
+        and "minimum_base_cost=4" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "minimum_route_base_cost=4" in error for error in row["errors"]
+    )
 
 
 def test_llm_route_planner_response_payload_validator_request_context_rejects_theorem_drift() -> None:
@@ -5288,6 +5426,40 @@ def test_llm_route_planner_rejects_underpriced_coverage_evidence() -> None:
         "coverage_bucket/base_cost underprices formal/standalone coverage evidence"
         in error
         for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_underpriced_request_cost_hints() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_cost_hint_underpricing"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response_json.write_text(
+        json.dumps(_make_rank_uniformity_near_exists_response()),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    assert any(
+        "underprices request minimal_delta_cost_hints" in error
+        and "minimum_base_cost=4" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "minimum_route_base_cost=4" in error for error in row["errors"]
     )
 
 
