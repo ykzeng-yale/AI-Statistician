@@ -53,6 +53,13 @@ FORBIDDEN_PLACEHOLDER_RE = re.compile(
     r"\b(sorry|admit|axiom|admitted|undefined|todo|placeholder)\b",
     flags=re.IGNORECASE,
 )
+QUALITY_CONTROL_FIELDS = (
+    "resource_contract_ids",
+    "required_quality_signals",
+    "quality_gates",
+    "response_validation_signals",
+    "stop_conditions",
+)
 
 
 @dataclass(frozen=True)
@@ -182,6 +189,21 @@ def export_formalization_gap_planner_prover_adapter_contract(
     }
     by_mapping_status = Counter(row.mapping_status for row in validations)
     by_acceptance_status = Counter(row.acceptance_status for row in validations)
+    packet_quality_control_fields = _packet_quality_control_fields(packets)
+    packet_quality_control_resource_contract_ids = _packet_quality_control_values(
+        packets,
+        "resource_contract_ids",
+    )
+    packet_quality_control_response_validation_signals = (
+        _packet_quality_control_values(
+            packets,
+            "response_validation_signals",
+        )
+    )
+    packet_quality_control_stop_conditions = _packet_quality_control_values(
+        packets,
+        "stop_conditions",
+    )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_PROVER_ADAPTER_CONTRACT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -219,6 +241,25 @@ def export_formalization_gap_planner_prover_adapter_contract(
             1
             for packet in packets
             if packet.standalone_input_trace.get("has_replan_metadata")
+        ),
+        "n_packets_with_quality_controls": sum(
+            1 for packet in packets if _quality_controls_from_packet_trace(packet)
+        ),
+        "n_packet_quality_control_fields": sum(
+            len(_quality_controls_from_packet_trace(packet)) for packet in packets
+        ),
+        "packet_quality_control_fields": packet_quality_control_fields,
+        "packet_quality_control_resource_contract_ids": (
+            packet_quality_control_resource_contract_ids
+        ),
+        "packet_quality_control_response_validation_signals": (
+            packet_quality_control_response_validation_signals
+        ),
+        "packet_quality_control_stop_conditions": (
+            packet_quality_control_stop_conditions
+        ),
+        "by_packet_quality_control_field": _packet_quality_control_field_summary(
+            packets
         ),
         "n_packets_with_llm_route_adoption_status": sum(
             1 for packet in packets if packet.llm_route_planner_route_adoption_status
@@ -383,6 +424,13 @@ def export_formalization_gap_planner_prover_adapter_contract(
 
 def prover_adapter_packet_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
+    quality_controls_def = {
+        "type": "object",
+        "additionalProperties": True,
+        "properties": {
+            field_name: string_array for field_name in QUALITY_CONTROL_FIELDS
+        },
+    }
     route_alignment_edge_def = dict(route_alignment_edge_json_schema())
     route_alignment_edge_def.pop("$schema", None)
     standalone_input_trace_def = {
@@ -398,6 +446,9 @@ def prover_adapter_packet_json_schema() -> dict[str, object]:
             "target_prover_family": {"enum": list(PROVER_FAMILIES)},
             "target_library_snapshot_ref": {"type": "string"},
             "trace_target_projection": {"type": "string"},
+            "quality_controls": quality_controls_def,
+            "has_quality_controls": {"type": "boolean"},
+            "quality_control_fields": string_array,
         },
     }
     return {
@@ -522,6 +573,7 @@ def validate_prover_adapter_packet_row(
                 target_prover_family=str(row.get("target_prover_family", "")),
             )
         )
+        errors.extend(_standalone_trace_quality_control_errors(standalone_input_trace))
     else:
         errors.append("standalone_input_trace must be an object")
     return tuple(errors)
@@ -815,6 +867,7 @@ def _standalone_input_trace_for_packet(
         trace["target_prover_family"] = target_prover_family
         trace["target_library_snapshot_ref"] = library_snapshot_ref
         trace["trace_target_projection"] = "target_prover_adapter_contract"
+        _normalize_trace_quality_control_fields(trace)
         return trace
     replan_metadata = plan_row.get("replan_metadata", {})
     if not isinstance(replan_metadata, dict):
@@ -842,6 +895,9 @@ def _standalone_input_trace_for_packet(
             if isinstance(route_revision_triggers, (list, tuple))
             else 0
         ),
+        "quality_controls": {},
+        "has_quality_controls": False,
+        "quality_control_fields": [],
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
@@ -867,6 +923,140 @@ def _standalone_trace_target_errors(
             f"{trace_target} does not match packet {target_prover_family}"
         )
     return tuple(errors)
+
+
+def _standalone_trace_quality_control_errors(
+    trace: dict[str, object],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    raw_controls = trace.get("quality_controls", {})
+    if not isinstance(raw_controls, dict):
+        errors.append("standalone_input_trace.quality_controls must be an object")
+        controls: dict[str, tuple[str, ...]] = {}
+    else:
+        controls = _quality_controls_from_trace(trace)
+        unknown_fields = sorted(
+            set(str(field) for field in raw_controls) - set(QUALITY_CONTROL_FIELDS)
+        )
+        if unknown_fields:
+            errors.append(
+                "standalone_input_trace.quality_controls unknown fields: "
+                + ", ".join(unknown_fields)
+            )
+        for field_name, values in raw_controls.items():
+            if not isinstance(values, (list, tuple, set)):
+                errors.append(
+                    "standalone_input_trace.quality_controls."
+                    f"{field_name} must be array"
+                )
+                continue
+            non_strings = [
+                idx for idx, item in enumerate(values) if not isinstance(item, str)
+            ]
+            if non_strings:
+                errors.append(
+                    "standalone_input_trace.quality_controls."
+                    f"{field_name} items must be string at indexes "
+                    + ",".join(str(idx) for idx in non_strings)
+                )
+    if controls or "has_quality_controls" in trace:
+        observed_present = trace.get("has_quality_controls", False)
+        if not isinstance(observed_present, bool):
+            errors.append("standalone_input_trace.has_quality_controls must be boolean")
+        elif observed_present != bool(controls):
+            errors.append(
+                "standalone_input_trace.has_quality_controls mismatch: "
+                f"observed={observed_present} expected={bool(controls)}"
+            )
+    if controls or "quality_control_fields" in trace:
+        observed_fields = _str_tuple(trace.get("quality_control_fields", []))
+        expected_fields = tuple(sorted(controls))
+        if observed_fields != expected_fields:
+            errors.append(
+                "standalone_input_trace.quality_control_fields mismatch: "
+                f"observed={sorted(observed_fields)} expected={sorted(expected_fields)}"
+            )
+    return tuple(errors)
+
+
+def _normalize_trace_quality_control_fields(trace: dict[str, object]) -> None:
+    controls = _quality_controls_from_trace(trace)
+    trace["quality_controls"] = {
+        field_name: list(values) for field_name, values in controls.items()
+    }
+    trace["has_quality_controls"] = bool(controls)
+    trace["quality_control_fields"] = sorted(controls)
+
+
+def _quality_controls_from_packet_trace(
+    packet: FormalizationGapPlannerProverAdapterPacket,
+) -> dict[str, tuple[str, ...]]:
+    return _quality_controls_from_trace(packet.standalone_input_trace)
+
+
+def _quality_controls_from_trace(
+    trace: dict[str, object],
+) -> dict[str, tuple[str, ...]]:
+    raw_controls = trace.get("quality_controls", {})
+    if not isinstance(raw_controls, dict):
+        return {}
+    controls: dict[str, tuple[str, ...]] = {}
+    for field_name in QUALITY_CONTROL_FIELDS:
+        values = _str_tuple(raw_controls.get(field_name, ()))
+        if values:
+            controls[field_name] = values
+    return controls
+
+
+def _packet_quality_control_fields(
+    packets: list[FormalizationGapPlannerProverAdapterPacket],
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                field_name
+                for packet in packets
+                for field_name in _quality_controls_from_packet_trace(packet)
+            }
+        )
+    )
+
+
+def _packet_quality_control_values(
+    packets: list[FormalizationGapPlannerProverAdapterPacket],
+    field_name: str,
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                value
+                for packet in packets
+                for value in _quality_controls_from_packet_trace(packet).get(
+                    field_name,
+                    tuple(),
+                )
+            }
+        )
+    )
+
+
+def _packet_quality_control_field_summary(
+    packets: list[FormalizationGapPlannerProverAdapterPacket],
+) -> dict[str, dict[str, object]]:
+    summary: dict[str, dict[str, object]] = {}
+    for field_name in _packet_quality_control_fields(packets):
+        field_packets = [
+            packet
+            for packet in packets
+            if field_name in _quality_controls_from_packet_trace(packet)
+        ]
+        values = _packet_quality_control_values(packets, field_name)
+        summary[field_name] = {
+            "n_packets": len(field_packets),
+            "n_values": len(values),
+            "values": values,
+        }
+    return summary
 
 
 def _alignment_edge_for_primitive(
@@ -1228,6 +1418,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Packets with standalone trace: {payload.get('n_packets_with_standalone_input_trace')}",
         f"- Packets missing standalone trace: {payload.get('n_packets_missing_standalone_input_trace')}",
         f"- Packets with replan metadata trace: {payload.get('n_packets_with_replan_metadata_trace')}",
+        f"- Packets with quality controls: {payload.get('n_packets_with_quality_controls')}",
+        f"- Packet quality-control fields: {payload.get('packet_quality_control_fields')}",
         f"- Responses: {payload.get('n_response_present')}/{payload.get('n_packets')}",
         f"- Contract OK responses: {payload.get('n_response_contract_ok')}",
         (

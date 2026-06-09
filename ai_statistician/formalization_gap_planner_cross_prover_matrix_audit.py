@@ -11,6 +11,7 @@ from typing import Any
 from .fingerprint import stable_hash
 from .formalization_gap_planner_prover_adapter_contract import (
     PROVER_FAMILIES,
+    QUALITY_CONTROL_FIELDS,
     export_formalization_gap_planner_prover_adapter_contract,
     prover_adapter_packet_json_schema,
     prover_adapter_response_validation_row_json_schema,
@@ -59,6 +60,13 @@ class FormalizationGapPlannerCrossProverMatrixRow:
     n_packets_with_standalone_input_trace: int
     n_packets_missing_standalone_input_trace: int
     n_packets_with_replan_metadata_trace: int
+    n_packets_with_quality_controls: int
+    n_packet_quality_control_fields: int
+    packet_quality_control_fields: tuple[str, ...]
+    packet_quality_control_resource_contract_ids: tuple[str, ...]
+    packet_quality_control_response_validation_signals: tuple[str, ...]
+    packet_quality_control_stop_conditions: tuple[str, ...]
+    by_packet_quality_control_field: dict[str, dict[str, object]]
     n_packets_with_llm_route_adoption_status: int
     n_packets_llm_route_adoption_ready: int
     n_packets_llm_route_adoption_pending_refinement: int
@@ -132,6 +140,9 @@ def audit_formalization_gap_planner_cross_prover_matrix(
     packet_counts = {row.n_packets for row in rows}
     packet_alignment_counts = {row.n_packets_with_alignment for row in rows}
     packet_trace_counts = {row.n_packets_with_standalone_input_trace for row in rows}
+    packet_quality_control_counts = {
+        row.n_packets_with_quality_controls for row in rows
+    }
     route_adoption_status_counts = Counter(
         status
         for row in rows
@@ -139,6 +150,9 @@ def audit_formalization_gap_planner_cross_prover_matrix(
         for _ in range(count)
     )
     matrix_row_dicts = [asdict(row) for row in rows]
+    quality_control_field_summary = _sum_quality_control_field_summary(
+        matrix_row_dicts
+    )
     matrix_row_schema = cross_prover_matrix_audit_row_json_schema()
     packet_row_schema = prover_adapter_packet_json_schema()
     response_validation_row_schema = (
@@ -226,6 +240,32 @@ def audit_formalization_gap_planner_cross_prover_matrix(
         "n_total_packets_with_replan_metadata_trace": sum(
             row.n_packets_with_replan_metadata_trace for row in rows
         ),
+        "n_total_packets_with_quality_controls": sum(
+            row.n_packets_with_quality_controls for row in rows
+        ),
+        "n_total_packet_quality_control_fields": sum(
+            row.n_packet_quality_control_fields for row in rows
+        ),
+        "packet_quality_control_fields": _matrix_quality_control_fields(rows),
+        "packet_quality_control_resource_contract_ids": (
+            _matrix_quality_control_values(
+                rows,
+                "packet_quality_control_resource_contract_ids",
+            )
+        ),
+        "packet_quality_control_response_validation_signals": (
+            _matrix_quality_control_values(
+                rows,
+                "packet_quality_control_response_validation_signals",
+            )
+        ),
+        "packet_quality_control_stop_conditions": (
+            _matrix_quality_control_values(
+                rows,
+                "packet_quality_control_stop_conditions",
+            )
+        ),
+        "by_total_packet_quality_control_field": quality_control_field_summary,
         "n_total_packets_with_llm_route_adoption_status": sum(
             row.n_packets_with_llm_route_adoption_status for row in rows
         ),
@@ -262,12 +302,18 @@ def audit_formalization_gap_planner_cross_prover_matrix(
         "n_distinct_packet_counts": len(packet_counts),
         "n_distinct_alignment_packet_counts": len(packet_alignment_counts),
         "n_distinct_standalone_input_trace_packet_counts": len(packet_trace_counts),
+        "n_distinct_quality_control_packet_counts": len(
+            packet_quality_control_counts
+        ),
         "packet_count_consistent": len(packet_counts) == 1 if rows else False,
         "alignment_packet_count_consistent": (
             len(packet_alignment_counts) == 1 if rows else False
         ),
         "standalone_input_trace_packet_count_consistent": (
             len(packet_trace_counts) == 1 if rows else False
+        ),
+        "quality_control_packet_count_consistent": (
+            len(packet_quality_control_counts) == 1 if rows else False
         ),
         "matrix_row_schema": matrix_row_schema,
         "cross_prover_target_summary_schema": target_summary_schema,
@@ -291,6 +337,7 @@ def audit_formalization_gap_planner_cross_prover_matrix(
             and len(packet_counts) == 1
             and len(packet_alignment_counts) == 1
             and len(packet_trace_counts) == 1
+            and len(packet_quality_control_counts) == 1
             and sum(row.n_packets_schema_invalid for row in rows) == 0
             and sum(row.n_packets_missing_alignment for row in rows) == 0
             and sum(row.n_packets_missing_standalone_input_trace for row in rows) == 0
@@ -418,6 +465,13 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
             "n_total_packets_with_standalone_input_trace",
             "n_total_packets_missing_standalone_input_trace",
             "n_total_packets_with_replan_metadata_trace",
+            "n_total_packets_with_quality_controls",
+            "n_total_packet_quality_control_fields",
+            "packet_quality_control_fields",
+            "packet_quality_control_resource_contract_ids",
+            "packet_quality_control_response_validation_signals",
+            "packet_quality_control_stop_conditions",
+            "by_total_packet_quality_control_field",
             "n_total_packets_with_llm_route_adoption_status",
             "n_total_packets_llm_route_adoption_ready",
             "n_total_packets_llm_route_adoption_pending_refinement",
@@ -446,6 +500,13 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
             "n_total_packets_with_standalone_input_trace": {"type": "integer"},
             "n_total_packets_missing_standalone_input_trace": {"type": "integer"},
             "n_total_packets_with_replan_metadata_trace": {"type": "integer"},
+            "n_total_packets_with_quality_controls": {"type": "integer"},
+            "n_total_packet_quality_control_fields": {"type": "integer"},
+            "packet_quality_control_fields": string_array,
+            "packet_quality_control_resource_contract_ids": string_array,
+            "packet_quality_control_response_validation_signals": string_array,
+            "packet_quality_control_stop_conditions": string_array,
+            "by_total_packet_quality_control_field": {"type": "object"},
             "n_total_packets_with_llm_route_adoption_status": {"type": "integer"},
             "n_total_packets_llm_route_adoption_ready": {"type": "integer"},
             "n_total_packets_llm_route_adoption_pending_refinement": {
@@ -482,6 +543,13 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                     "n_packets_with_standalone_input_trace",
                     "n_packets_missing_standalone_input_trace",
                     "n_packets_with_replan_metadata_trace",
+                    "n_packets_with_quality_controls",
+                    "n_packet_quality_control_fields",
+                    "packet_quality_control_fields",
+                    "packet_quality_control_resource_contract_ids",
+                    "packet_quality_control_response_validation_signals",
+                    "packet_quality_control_stop_conditions",
+                    "by_packet_quality_control_field",
                     "n_packets_with_llm_route_adoption_status",
                     "n_packets_llm_route_adoption_ready",
                     "n_packets_llm_route_adoption_pending_refinement",
@@ -509,6 +577,13 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                     "n_packets_with_standalone_input_trace": {"type": "integer"},
                     "n_packets_missing_standalone_input_trace": {"type": "integer"},
                     "n_packets_with_replan_metadata_trace": {"type": "integer"},
+                    "n_packets_with_quality_controls": {"type": "integer"},
+                    "n_packet_quality_control_fields": {"type": "integer"},
+                    "packet_quality_control_fields": string_array,
+                    "packet_quality_control_resource_contract_ids": string_array,
+                    "packet_quality_control_response_validation_signals": string_array,
+                    "packet_quality_control_stop_conditions": string_array,
+                    "by_packet_quality_control_field": {"type": "object"},
                     "n_packets_with_llm_route_adoption_status": {"type": "integer"},
                     "n_packets_llm_route_adoption_ready": {"type": "integer"},
                     "n_packets_llm_route_adoption_pending_refinement": {
@@ -659,6 +734,57 @@ def validate_cross_prover_target_summary_payload(
         errors.append(
             "n_total_packets_with_replan_metadata_trace must equal target replan metadata trace total"
         )
+    if payload.get("n_total_packets_with_quality_controls") != sum(
+        _int(row.get("n_packets_with_quality_controls")) for row in rows
+    ):
+        errors.append(
+            "n_total_packets_with_quality_controls must equal target quality-control packet total"
+        )
+    if payload.get("n_total_packet_quality_control_fields") != sum(
+        _int(row.get("n_packet_quality_control_fields")) for row in rows
+    ):
+        errors.append(
+            "n_total_packet_quality_control_fields must equal target quality-control field total"
+        )
+    expected_quality_fields = _quality_control_fields_from_target_rows(rows)
+    observed_quality_fields = _str_tuple(
+        payload.get("packet_quality_control_fields", [])
+    )
+    if observed_quality_fields != expected_quality_fields:
+        errors.append(
+            "packet_quality_control_fields must equal target quality-control fields"
+        )
+    quality_value_comparisons = (
+        (
+            "packet_quality_control_resource_contract_ids",
+            "packet_quality_control_resource_contract_ids",
+        ),
+        (
+            "packet_quality_control_response_validation_signals",
+            "packet_quality_control_response_validation_signals",
+        ),
+        (
+            "packet_quality_control_stop_conditions",
+            "packet_quality_control_stop_conditions",
+        ),
+    )
+    for payload_field_name, target_field_name in quality_value_comparisons:
+        observed_values = _str_tuple(payload.get(payload_field_name, []))
+        expected_values = _quality_control_values_from_target_rows(
+            rows,
+            target_field_name,
+        )
+        if observed_values != expected_values:
+            errors.append(f"{payload_field_name} must equal target values")
+    observed_quality_summary = payload.get("by_total_packet_quality_control_field", {})
+    observed_quality_summary = _normalize_quality_control_field_summary(
+        observed_quality_summary
+    )
+    expected_quality_summary = _sum_quality_control_field_summary(rows)
+    if observed_quality_summary != expected_quality_summary:
+        errors.append(
+            "by_total_packet_quality_control_field must equal target quality-control summary"
+        )
     if payload.get("n_total_packets_with_llm_route_adoption_status") != sum(
         _int(row.get("n_packets_with_llm_route_adoption_status")) for row in rows
     ):
@@ -761,6 +887,13 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
             "n_packets_with_standalone_input_trace",
             "n_packets_missing_standalone_input_trace",
             "n_packets_with_replan_metadata_trace",
+            "n_packets_with_quality_controls",
+            "n_packet_quality_control_fields",
+            "packet_quality_control_fields",
+            "packet_quality_control_resource_contract_ids",
+            "packet_quality_control_response_validation_signals",
+            "packet_quality_control_stop_conditions",
+            "by_packet_quality_control_field",
             "n_packets_with_llm_route_adoption_status",
             "n_packets_llm_route_adoption_ready",
             "n_packets_llm_route_adoption_pending_refinement",
@@ -802,6 +935,13 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
             "n_packets_with_standalone_input_trace": {"type": "integer"},
             "n_packets_missing_standalone_input_trace": {"type": "integer"},
             "n_packets_with_replan_metadata_trace": {"type": "integer"},
+            "n_packets_with_quality_controls": {"type": "integer"},
+            "n_packet_quality_control_fields": {"type": "integer"},
+            "packet_quality_control_fields": string_array,
+            "packet_quality_control_resource_contract_ids": string_array,
+            "packet_quality_control_response_validation_signals": string_array,
+            "packet_quality_control_stop_conditions": string_array,
+            "by_packet_quality_control_field": {"type": "object"},
             "n_packets_with_llm_route_adoption_status": {"type": "integer"},
             "n_packets_llm_route_adoption_ready": {"type": "integer"},
             "n_packets_llm_route_adoption_pending_refinement": {"type": "integer"},
@@ -906,6 +1046,34 @@ def _matrix_row(
         n_packets_with_replan_metadata_trace=_int(
             contract_payload.get("n_packets_with_replan_metadata_trace")
         ),
+        n_packets_with_quality_controls=_int(
+            contract_payload.get("n_packets_with_quality_controls")
+        ),
+        n_packet_quality_control_fields=_int(
+            contract_payload.get("n_packet_quality_control_fields")
+        ),
+        packet_quality_control_fields=_str_tuple(
+            contract_payload.get("packet_quality_control_fields", [])
+        ),
+        packet_quality_control_resource_contract_ids=_str_tuple(
+            contract_payload.get("packet_quality_control_resource_contract_ids", [])
+        ),
+        packet_quality_control_response_validation_signals=_str_tuple(
+            contract_payload.get(
+                "packet_quality_control_response_validation_signals",
+                [],
+            )
+        ),
+        packet_quality_control_stop_conditions=_str_tuple(
+            contract_payload.get("packet_quality_control_stop_conditions", [])
+        ),
+        by_packet_quality_control_field={
+            str(field_name): dict(summary)
+            for field_name, summary in dict(
+                contract_payload.get("by_packet_quality_control_field", {}) or {}
+            ).items()
+            if isinstance(summary, dict)
+        },
         n_packets_with_llm_route_adoption_status=_int(
             contract_payload.get("n_packets_with_llm_route_adoption_status")
         ),
@@ -987,6 +1155,15 @@ def _target_summary_payload(
             if isinstance(packet.get("standalone_input_trace"), dict)
             and packet.get("standalone_input_trace")
         )
+        n_packets_with_quality_controls = sum(
+            1
+            for packet in target_packet_rows
+            if _quality_controls_from_packet_row(packet)
+        )
+        n_packet_quality_control_fields = sum(
+            len(_quality_controls_from_packet_row(packet))
+            for packet in target_packet_rows
+        )
         route_adoption_status_counts = Counter(
             str(packet.get("llm_route_planner_route_adoption_status", ""))
             for packet in target_packet_rows
@@ -1013,6 +1190,34 @@ def _target_summary_payload(
                     for packet in target_packet_rows
                     if isinstance(packet.get("standalone_input_trace"), dict)
                     and packet["standalone_input_trace"].get("has_replan_metadata")
+                ),
+                "n_packets_with_quality_controls": n_packets_with_quality_controls,
+                "n_packet_quality_control_fields": n_packet_quality_control_fields,
+                "packet_quality_control_fields": (
+                    _quality_control_fields_from_packet_rows(target_packet_rows)
+                ),
+                "packet_quality_control_resource_contract_ids": (
+                    _quality_control_values_from_packet_rows(
+                        target_packet_rows,
+                        "resource_contract_ids",
+                    )
+                ),
+                "packet_quality_control_response_validation_signals": (
+                    _quality_control_values_from_packet_rows(
+                        target_packet_rows,
+                        "response_validation_signals",
+                    )
+                ),
+                "packet_quality_control_stop_conditions": (
+                    _quality_control_values_from_packet_rows(
+                        target_packet_rows,
+                        "stop_conditions",
+                    )
+                ),
+                "by_packet_quality_control_field": (
+                    _quality_control_field_summary_from_packet_rows(
+                        target_packet_rows
+                    )
                 ),
                 "n_packets_with_llm_route_adoption_status": sum(
                     route_adoption_status_counts.values()
@@ -1100,6 +1305,36 @@ def _target_summary_payload(
             _int(row["n_packets_with_replan_metadata_trace"])
             for row in target_rows
         ),
+        "n_total_packets_with_quality_controls": sum(
+            _int(row["n_packets_with_quality_controls"]) for row in target_rows
+        ),
+        "n_total_packet_quality_control_fields": sum(
+            _int(row["n_packet_quality_control_fields"]) for row in target_rows
+        ),
+        "packet_quality_control_fields": _quality_control_fields_from_target_rows(
+            target_rows
+        ),
+        "packet_quality_control_resource_contract_ids": (
+            _quality_control_values_from_target_rows(
+                target_rows,
+                "packet_quality_control_resource_contract_ids",
+            )
+        ),
+        "packet_quality_control_response_validation_signals": (
+            _quality_control_values_from_target_rows(
+                target_rows,
+                "packet_quality_control_response_validation_signals",
+            )
+        ),
+        "packet_quality_control_stop_conditions": (
+            _quality_control_values_from_target_rows(
+                target_rows,
+                "packet_quality_control_stop_conditions",
+            )
+        ),
+        "by_total_packet_quality_control_field": (
+            _sum_quality_control_field_summary(target_rows)
+        ),
         "n_total_packets_with_llm_route_adoption_status": sum(
             _int(row["n_packets_with_llm_route_adoption_status"])
             for row in target_rows
@@ -1184,6 +1419,189 @@ def _sum_route_adoption_status_counts(
             if status_text:
                 counts[status_text] += _int(count)
     return dict(sorted(counts.items()))
+
+
+def _quality_controls_from_packet_row(
+    packet: dict[str, Any],
+) -> dict[str, tuple[str, ...]]:
+    trace = packet.get("standalone_input_trace", {})
+    if not isinstance(trace, dict):
+        return {}
+    raw_controls = trace.get("quality_controls", {})
+    if not isinstance(raw_controls, dict):
+        return {}
+    controls: dict[str, tuple[str, ...]] = {}
+    for field_name in QUALITY_CONTROL_FIELDS:
+        values = _str_tuple(raw_controls.get(field_name, []))
+        if values:
+            controls[field_name] = values
+    return controls
+
+
+def _quality_control_fields_from_packet_rows(
+    packets: list[dict[str, Any]],
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                field_name
+                for packet in packets
+                for field_name in _quality_controls_from_packet_row(packet)
+            }
+        )
+    )
+
+
+def _quality_control_values_from_packet_rows(
+    packets: list[dict[str, Any]],
+    field_name: str,
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                value
+                for packet in packets
+                for value in _quality_controls_from_packet_row(packet).get(
+                    field_name,
+                    tuple(),
+                )
+                if value
+            }
+        )
+    )
+
+
+def _quality_control_field_summary_from_packet_rows(
+    packets: list[dict[str, Any]],
+) -> dict[str, dict[str, object]]:
+    return {
+        field_name: {
+            "n_packets": sum(
+                1
+                for packet in packets
+                if field_name in _quality_controls_from_packet_row(packet)
+            ),
+            "n_values": len(
+                _quality_control_values_from_packet_rows(packets, field_name)
+            ),
+            "values": _quality_control_values_from_packet_rows(packets, field_name),
+        }
+        for field_name in _quality_control_fields_from_packet_rows(packets)
+    }
+
+
+def _matrix_quality_control_fields(
+    rows: list[FormalizationGapPlannerCrossProverMatrixRow],
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                field_name
+                for row in rows
+                for field_name in row.packet_quality_control_fields
+            }
+        )
+    )
+
+
+def _matrix_quality_control_values(
+    rows: list[FormalizationGapPlannerCrossProverMatrixRow],
+    attr_name: str,
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                value
+                for row in rows
+                for value in getattr(row, attr_name)
+                if str(value)
+            }
+        )
+    )
+
+
+def _quality_control_fields_from_target_rows(
+    rows: list[dict[str, Any]],
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                field_name
+                for row in rows
+                for field_name in _str_tuple(
+                    row.get("packet_quality_control_fields", [])
+                )
+            }
+        )
+    )
+
+
+def _quality_control_values_from_target_rows(
+    rows: list[dict[str, Any]],
+    field_name: str,
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                value
+                for row in rows
+                for value in _str_tuple(row.get(field_name, []))
+                if value
+            }
+        )
+    )
+
+
+def _sum_quality_control_field_summary(
+    rows: list[dict[str, Any]],
+) -> dict[str, dict[str, object]]:
+    summaries = [
+        row.get("by_packet_quality_control_field", {})
+        for row in rows
+        if isinstance(row.get("by_packet_quality_control_field", {}), dict)
+    ]
+    field_names = sorted(
+        {
+            str(field_name)
+            for summary in summaries
+            for field_name in summary
+            if str(field_name)
+        }
+    )
+    merged: dict[str, dict[str, object]] = {}
+    for field_name in field_names:
+        n_packets = 0
+        values: set[str] = set()
+        for summary in summaries:
+            field_summary = summary.get(field_name, {})
+            if not isinstance(field_summary, dict):
+                continue
+            n_packets += _int(field_summary.get("n_packets"))
+            values.update(_str_tuple(field_summary.get("values", [])))
+        merged[field_name] = {
+            "n_packets": n_packets,
+            "n_values": len(values),
+            "values": tuple(sorted(values)),
+        }
+    return merged
+
+
+def _normalize_quality_control_field_summary(
+    value: Any,
+) -> dict[str, dict[str, object]]:
+    if not isinstance(value, dict):
+        return {}
+    normalized: dict[str, dict[str, object]] = {}
+    for field_name, summary in value.items():
+        if not isinstance(summary, dict):
+            continue
+        values = tuple(sorted(_str_tuple(summary.get("values", []))))
+        normalized[str(field_name)] = {
+            "n_packets": _int(summary.get("n_packets")),
+            "n_values": _int(summary.get("n_values")),
+            "values": values,
+        }
+    return dict(sorted(normalized.items()))
 
 
 def _normalize_target(raw_target: str) -> str:
@@ -1283,6 +1701,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Packets with alignment: {payload.get('n_total_packets_with_alignment')}/{payload.get('n_total_packets')}",
         f"- Packets with standalone trace: {payload.get('n_total_packets_with_standalone_input_trace')}/{payload.get('n_total_packets')}",
         f"- Packets with replan metadata trace: {payload.get('n_total_packets_with_replan_metadata_trace')}/{payload.get('n_total_packets')}",
+        f"- Packets with quality controls: {payload.get('n_total_packets_with_quality_controls')}/{payload.get('n_total_packets')}",
+        f"- Packet quality-control fields: {payload.get('packet_quality_control_fields')}",
         f"- Packets with LLM route-adoption status: {payload.get('n_total_packets_with_llm_route_adoption_status')}/{payload.get('n_total_packets')}",
         f"- LLM route-adoption ready packets: {payload.get('n_total_packets_llm_route_adoption_ready')}",
         f"- LLM route-adoption pending packets: {payload.get('n_total_packets_llm_route_adoption_pending_refinement')}",
@@ -1292,6 +1712,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Packet count consistent: {payload.get('packet_count_consistent')}",
         f"- Alignment packet count consistent: {payload.get('alignment_packet_count_consistent')}",
         f"- Standalone trace packet count consistent: {payload.get('standalone_input_trace_packet_count_consistent')}",
+        f"- Quality-control packet count consistent: {payload.get('quality_control_packet_count_consistent')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
         "## Boundary",
@@ -1310,6 +1731,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"schema={row.get('n_packet_schema_valid')}/{row.get('n_packets')} "
             f"aligned={row.get('n_packets_with_alignment')}/{row.get('n_packets')} "
             f"trace={row.get('n_packets_with_standalone_input_trace')}/{row.get('n_packets')} "
+            f"quality_controls={row.get('n_packets_with_quality_controls')}/{row.get('n_packets')} "
             f"llm_status={row.get('n_packets_with_llm_route_adoption_status')} "
             f"awaiting={row.get('n_awaiting_adapter_mapping')} "
             f"ok={row.get('ok')}"

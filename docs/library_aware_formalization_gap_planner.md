@@ -394,7 +394,10 @@ enriches `standalone_input_trace` with `source_prover_family`,
 `source_target_prover_family`, `target_prover_family`,
 `target_library_snapshot_ref`, and `trace_target_projection`; the packet
 validator rejects rows whose trace target does not match the packet's adapter
-target. This keeps a Lean-origin route and a Rocq/Isabelle/Agda target replay
+target. Adapter manifests also count quality-control-bearing packet traces and
+the resource contracts, response-validation signals, and stop conditions they
+preserve, so target-prover handoff does not hide bounded-tool policy. This
+keeps a Lean-origin route and a Rocq/Isabelle/Agda target replay
 distinguishable inside the same publication bundle. Finally, it names
 `contract/formalization_gap_planner_schema_catalog.json` and its schema from
 the publication bundle so downstream consumers can discover every reusable
@@ -895,7 +898,8 @@ The cross-prover matrix audit reruns that packet export for the declared public
 reuse targets, currently Lean4, Rocq, Isabelle, and Agda, checks packet-count
 consistency, verifies that every target packet still carries both route
 alignment and `standalone_input_trace` provenance, aggregates target-specific
-packet JSONL, and preserves the same proof-boundary discipline. It also
+packet JSONL, rolls up quality-control-bearing packet counts and field/value
+summaries across every target, and preserves the same proof-boundary discipline. It also
 publishes and validates the matrix-row schema, the aggregated prover-adapter
 packet schema, and the aggregated response-validation row schema beside the
 cross-prover JSONL files.
@@ -1448,7 +1452,8 @@ The current implementation composes four existing AI Statistician artifacts:
    Exports portable work packets as target-prover mapping tasks and validates
    target-prover adapter responses for Lean, Rocq/Coq, Isabelle, Agda, or
    another prover family. Each packet carries its route-alignment edge and
-   alignment status. It writes a packet JSON Schema for incoming adapter work
+   alignment status plus compact `quality_controls` traces when the standalone
+   route exposes bounded tool policy. It writes a packet JSON Schema for incoming adapter work
    and a response JSON Schema for adapter output; the reuse-smoke manifest
    exposes both schema files as top-level reusable artifacts. It rejects
    `kernel_verified=true` claims because proof promotion belongs to a separate
@@ -1458,12 +1463,13 @@ The current implementation composes four existing AI Statistician artifacts:
    Reruns target-prover packet export for Lean4, Rocq, Isabelle, and Agda from
    the same portable plan, checks packet-count consistency, packet-schema
    validity, alignment-backed packet consistency, `standalone_input_trace`
-   provenance counts, and rejection counts, and writes aggregate
+   provenance counts, quality-control packet counts, and rejection counts, and writes aggregate
    packet/validation JSONL plus
    `formalization_gap_planner_cross_prover_target_summary.json` for downstream
    prover adapters. The target summary records the target families, packet
-   counts, standalone-trace counts, replan-metadata trace counts, and per-target
-   filter values needed to consume the aggregate JSONL files from a publication
+   counts, standalone-trace counts, replan-metadata trace counts,
+   quality-control field summaries, and per-target filter values needed to
+   consume the aggregate JSONL files from a publication
    bundle. It also writes
    `formalization_gap_planner_cross_prover_target_summary.schema.json`, and the
    reuse-smoke manifest exposes both files as top-level discoverable artifacts.

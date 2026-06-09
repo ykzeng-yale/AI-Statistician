@@ -40,6 +40,21 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
             "has_replan_metadata": True,
             "replan_metadata": {"revision_reason": "fixture refinement"},
             "applied_hook_kinds": ["resource_response_ledger"],
+            "quality_controls": {
+                "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
+                "response_validation_signals": [
+                    "residual_goals_or_diagnostics_present"
+                ],
+                "stop_conditions": [
+                    "residual interpreted or source search requested"
+                ],
+            },
+            "has_quality_controls": True,
+            "quality_control_fields": [
+                "resource_contract_ids",
+                "response_validation_signals",
+                "stop_conditions",
+            ],
         },
         "route_alignment_edges": [
             {
@@ -115,6 +130,29 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
     assert payload["n_packets_with_standalone_input_trace"] == 1
     assert payload["n_packets_missing_standalone_input_trace"] == 0
     assert payload["n_packets_with_replan_metadata_trace"] == 1
+    assert payload["n_packets_with_quality_controls"] == 1
+    assert payload["n_packet_quality_control_fields"] == 3
+    assert payload["packet_quality_control_fields"] == (
+        "resource_contract_ids",
+        "response_validation_signals",
+        "stop_conditions",
+    )
+    assert payload["packet_quality_control_resource_contract_ids"] == (
+        "lean_lsp:proof_state_feedback",
+    )
+    assert payload["packet_quality_control_response_validation_signals"] == (
+        "residual_goals_or_diagnostics_present",
+    )
+    assert payload["packet_quality_control_stop_conditions"] == (
+        "residual interpreted or source search requested",
+    )
+    assert payload["by_packet_quality_control_field"][
+        "resource_contract_ids"
+    ] == {
+        "n_packets": 1,
+        "n_values": 1,
+        "values": ("lean_lsp:proof_state_feedback",),
+    }
     assert payload["n_packets_with_llm_route_adoption_status"] == 0
     assert payload["n_packet_llm_route_adoption_blockers"] == 0
     assert payload["n_packet_schema_valid"] == payload["n_packets"]
@@ -143,6 +181,25 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
     assert payload["packets"][0]["standalone_input_trace"][
         "trace_target_projection"
     ] == "target_prover_adapter_contract"
+    assert payload["packets"][0]["standalone_input_trace"]["quality_controls"] == {
+        "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
+        "response_validation_signals": [
+            "residual_goals_or_diagnostics_present"
+        ],
+        "stop_conditions": [
+            "residual interpreted or source search requested"
+        ],
+    }
+    assert payload["packets"][0]["standalone_input_trace"][
+        "has_quality_controls"
+    ]
+    assert payload["packets"][0]["standalone_input_trace"][
+        "quality_control_fields"
+    ] == [
+        "resource_contract_ids",
+        "response_validation_signals",
+        "stop_conditions",
+    ]
     assert (
         payload["prover_adapter_packet_schema"]["$id"]
         == PROVER_ADAPTER_PACKET_SCHEMA_ID
@@ -170,6 +227,26 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
     assert (
         "standalone_input_trace.target_prover_family lean4 does not match packet rocq"
         in validate_prover_adapter_packet_row(
+            bad_packet,
+            prover_adapter_packet_json_schema(),
+        )
+    )
+    bad_packet = dict(payload["packets"][0])
+    bad_packet["standalone_input_trace"] = dict(bad_packet["standalone_input_trace"])
+    bad_packet["standalone_input_trace"]["has_quality_controls"] = False
+    assert any(
+        "standalone_input_trace.has_quality_controls mismatch" in error
+        for error in validate_prover_adapter_packet_row(
+            bad_packet,
+            prover_adapter_packet_json_schema(),
+        )
+    )
+    bad_packet = dict(payload["packets"][0])
+    bad_packet["standalone_input_trace"] = dict(bad_packet["standalone_input_trace"])
+    bad_packet["standalone_input_trace"]["quality_control_fields"] = []
+    assert any(
+        "standalone_input_trace.quality_control_fields mismatch" in error
+        for error in validate_prover_adapter_packet_row(
             bad_packet,
             prover_adapter_packet_json_schema(),
         )

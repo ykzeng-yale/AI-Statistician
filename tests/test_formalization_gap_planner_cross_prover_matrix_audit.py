@@ -37,6 +37,17 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
                     {
                         "display_name": "demo_cross_prover_route",
                         "theorem_statement": "A reusable bridge route.",
+                        "quality_controls": {
+                            "resource_contract_ids": [
+                                "lean_lsp:proof_state_feedback"
+                            ],
+                            "response_validation_signals": [
+                                "residual_goals_or_diagnostics_present"
+                            ],
+                            "stop_conditions": [
+                                "residual interpreted or source search requested"
+                            ],
+                        },
                         "primitives": [
                             {
                                 "primitive": "rank_uniformity_bridge",
@@ -90,6 +101,33 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
     )
     assert payload["n_total_packets_missing_standalone_input_trace"] == 0
     assert payload["n_total_packets_with_replan_metadata_trace"] == 0
+    assert payload["n_total_packets_with_quality_controls"] == payload[
+        "n_total_packets"
+    ]
+    assert payload["n_total_packet_quality_control_fields"] == (
+        3 * payload["n_total_packets"]
+    )
+    assert payload["packet_quality_control_fields"] == (
+        "resource_contract_ids",
+        "response_validation_signals",
+        "stop_conditions",
+    )
+    assert payload["packet_quality_control_resource_contract_ids"] == (
+        "lean_lsp:proof_state_feedback",
+    )
+    assert payload["packet_quality_control_response_validation_signals"] == (
+        "residual_goals_or_diagnostics_present",
+    )
+    assert payload["packet_quality_control_stop_conditions"] == (
+        "residual interpreted or source search requested",
+    )
+    assert payload["by_total_packet_quality_control_field"][
+        "resource_contract_ids"
+    ] == {
+        "n_packets": payload["n_total_packets"],
+        "n_values": 1,
+        "values": ("lean_lsp:proof_state_feedback",),
+    }
     assert payload["n_total_packets_with_llm_route_adoption_status"] == 0
     assert payload["n_total_packets_llm_route_adoption_ready"] == 0
     assert payload["n_total_packets_llm_route_adoption_pending_refinement"] == 0
@@ -102,6 +140,7 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
     assert payload["packet_count_consistent"]
     assert payload["alignment_packet_count_consistent"]
     assert payload["standalone_input_trace_packet_count_consistent"]
+    assert payload["quality_control_packet_count_consistent"]
     assert (
         payload["target_summary"]["n_total_packets_with_standalone_input_trace"]
         == payload["n_total_packets"]
@@ -111,6 +150,25 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         == 0
     )
     assert payload["target_summary"]["n_unmatched_adapter_responses"] == 0
+    assert (
+        payload["target_summary"]["n_total_packets_with_quality_controls"]
+        == payload["n_total_packets"]
+    )
+    assert payload["target_summary"]["n_total_packet_quality_control_fields"] == (
+        3 * payload["n_total_packets"]
+    )
+    assert payload["target_summary"]["packet_quality_control_fields"] == (
+        "resource_contract_ids",
+        "response_validation_signals",
+        "stop_conditions",
+    )
+    assert payload["target_summary"]["by_total_packet_quality_control_field"][
+        "resource_contract_ids"
+    ] == {
+        "n_packets": payload["n_total_packets"],
+        "n_values": 1,
+        "values": ("lean_lsp:proof_state_feedback",),
+    }
     assert (
         payload["target_summary"]["n_total_packets_with_llm_route_adoption_status"]
         == 0
@@ -125,6 +183,14 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         and row["n_packets_missing_alignment"] == 0
         and row["n_packets_with_standalone_input_trace"] == row["n_packets"]
         and row["n_packets_missing_standalone_input_trace"] == 0
+        and row["n_packets_with_quality_controls"] == row["n_packets"]
+        and row["n_packet_quality_control_fields"] == 3 * row["n_packets"]
+        and row["packet_quality_control_fields"]
+        == (
+            "resource_contract_ids",
+            "response_validation_signals",
+            "stop_conditions",
+        )
         and row["n_packets_with_llm_route_adoption_status"] == 0
         and row["n_packet_llm_route_adoption_blockers"] == 0
         and row["n_unmatched_adapter_responses"] == 0
@@ -136,6 +202,13 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         == packet["target_prover_family"]
         and packet["standalone_input_trace"]["trace_target_projection"]
         == "target_prover_adapter_contract"
+        and packet["standalone_input_trace"]["has_quality_controls"]
+        and packet["standalone_input_trace"]["quality_control_fields"]
+        == [
+            "resource_contract_ids",
+            "response_validation_signals",
+            "stop_conditions",
+        ]
         for packet in payload["packet_rows"]
     )
     assert "not theorem proof evidence" in payload["proof_evidence_boundary"]
