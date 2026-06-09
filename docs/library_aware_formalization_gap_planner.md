@@ -388,6 +388,15 @@ refs, candidate declarations, residual repairs, and minimal-delta cost witness.
 Prompt-only staged runs omit the artifact instead of emitting an empty
 validation bundle.
 
+AI Statistician runtime handoffs are audited through the same offline staging
+discipline. The runtime handoff audit reruns standalone planning and stages
+Anthropic `--model-tier auto` route-planner packets without invoking the API,
+then requires every staged prompt packet to carry
+`context_packet.minimal_delta_cost_hints`, nonempty primitive and route-option
+cost hints, and zero Claude tier mismatches. This makes the runtime bridge fail
+closed if the library-aware cost surface is accidentally dropped before an LLM
+call.
+
 The reuse-smoke manifest names both the route-replan standalone seed and its
 `formalization_gap_planner_route_replan_standalone_seed.schema.json`, so an
 external prover or planner team can discover and validate the next-round input

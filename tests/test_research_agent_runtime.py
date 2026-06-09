@@ -1680,6 +1680,15 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert runtime_handoff_audit["n_standalone_smoke_ok"] == 2
     assert runtime_handoff_audit["n_llm_prompt_smoke_ok"] == 2
     assert runtime_handoff_audit["n_llm_prompt_packets"] >= 2
+    assert (
+        runtime_handoff_audit[
+            "n_llm_prompt_requests_with_minimal_delta_cost_hints"
+        ]
+        == runtime_handoff_audit["n_llm_prompt_packets"]
+    )
+    assert runtime_handoff_audit["n_llm_prompt_primitive_cost_hints"] > 0
+    assert runtime_handoff_audit["n_llm_prompt_route_option_cost_hints"] > 0
+    assert runtime_handoff_audit["n_llm_prompt_model_tier_mismatches"] == 0
     assert runtime_handoff_audit["n_seed_candidate_declaration_rows"] > 0
     assert (
         runtime_handoff_audit["n_seed_primitives_with_candidate_declaration_rows"] > 0
@@ -1708,6 +1717,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "Target-intake smoke OK:" in runtime_handoff_report
     assert "Component-resource registry smoke OK:" in runtime_handoff_report
     assert "Registry context in prompts:" in runtime_handoff_report
+    assert "Minimal-delta cost hints in prompts:" in runtime_handoff_report
+    assert "LLM prompt model-tier mismatches:" in runtime_handoff_report
     standalone_seed = gap_planner_bridge["standalone_seed"]
     assert validate_standalone_input_payload(standalone_seed) == []
     assert standalone_seed["component_name"] == "formalization_gap_planner_standalone_input"

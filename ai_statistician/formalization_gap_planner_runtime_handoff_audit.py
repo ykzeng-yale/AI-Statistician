@@ -207,6 +207,28 @@ def audit_formalization_gap_planner_runtime_handoffs(
             int(summary.get("llm_prompt_awaiting_response", 0) or 0)
             for summary in smoke_summaries
         ),
+        "n_llm_prompt_requests_with_minimal_delta_cost_hints": sum(
+            int(
+                summary.get(
+                    "llm_prompt_requests_with_minimal_delta_cost_hints",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_primitive_cost_hints": sum(
+            int(summary.get("llm_prompt_primitive_cost_hints", 0) or 0)
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_route_option_cost_hints": sum(
+            int(summary.get("llm_prompt_route_option_cost_hints", 0) or 0)
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_model_tier_mismatches": sum(
+            int(summary.get("llm_prompt_model_tier_mismatches", 0) or 0)
+            for summary in smoke_summaries
+        ),
         "n_seed_routes": sum(
             int(summary.get("seed_routes", 0) or 0) for summary in smoke_summaries
         ),
@@ -391,6 +413,10 @@ def _audit_handoff_row(
         "llm_prompt_smoke_ok": False,
         "llm_prompt_packets": 0,
         "llm_prompt_awaiting_response": 0,
+        "llm_prompt_requests_with_minimal_delta_cost_hints": 0,
+        "llm_prompt_primitive_cost_hints": 0,
+        "llm_prompt_route_option_cost_hints": 0,
+        "llm_prompt_model_tier_mismatches": 0,
         "seed_routes": 0,
         "seed_primitives": 0,
         "seed_residual_goals": 0,
@@ -784,6 +810,33 @@ def _audit_handoff_row(
                 > 0,
             )
         )
+        cost_hint_ok = (
+            llm_ok
+            and int(
+                llm_counts.get(
+                    "llm_prompt_requests_with_minimal_delta_cost_hints",
+                    0,
+                )
+                or 0
+            )
+            == int(llm_counts.get("llm_prompt_packets", 0) or 0)
+            and int(llm_counts.get("llm_prompt_primitive_cost_hints", 0) or 0) > 0
+            and int(llm_counts.get("llm_prompt_route_option_cost_hints", 0) or 0)
+            > 0
+            and int(llm_counts.get("llm_prompt_model_tier_mismatches", 0) or 0)
+            == 0
+        )
+        checks.append(
+            _row_check(
+                "row_llm_prompt_has_minimal_delta_cost_hints",
+                "cost_control",
+                handoff_id,
+                bridge_id,
+                "prompt packets include minimal-delta cost hints and no tier mismatches",
+                llm_observed,
+                cost_hint_ok,
+            )
+        )
     elif run_smoke:
         checks.extend(
             [
@@ -820,6 +873,15 @@ def _audit_handoff_row(
                     handoff_id,
                     bridge_id,
                     "prompt packets include component/resource/contract rows",
+                    "skipped because seed schema invalid",
+                    False,
+                ),
+                _row_check(
+                    "row_llm_prompt_has_minimal_delta_cost_hints",
+                    "cost_control",
+                    handoff_id,
+                    bridge_id,
+                    "prompt packets include minimal-delta cost hints and no tier mismatches",
                     "skipped because seed schema invalid",
                     False,
                 ),
@@ -1050,6 +1112,10 @@ def _run_llm_prompt_smoke(
             {
                 "llm_prompt_packets": 0,
                 "llm_prompt_awaiting_response": 0,
+                "llm_prompt_requests_with_minimal_delta_cost_hints": 0,
+                "llm_prompt_primitive_cost_hints": 0,
+                "llm_prompt_route_option_cost_hints": 0,
+                "llm_prompt_model_tier_mismatches": 0,
                 "llm_prompt_component_resource_registry_components": 0,
                 "llm_prompt_component_resource_registry_resources": 0,
                 "llm_prompt_component_resource_registry_contracts": 0,
@@ -1066,6 +1132,18 @@ def _run_llm_prompt_smoke(
     n_registry_contracts = int(
         payload.get("n_component_resource_registry_contracts_in_prompt", 0) or 0
     )
+    n_requests_with_cost_hints = int(
+        payload.get("n_requests_with_minimal_delta_cost_hints", 0) or 0
+    )
+    n_primitive_cost_hints = int(
+        payload.get("n_request_primitive_cost_hints", 0) or 0
+    )
+    n_route_option_cost_hints = int(
+        payload.get("n_request_route_option_cost_hints", 0) or 0
+    )
+    n_model_tier_mismatches = int(
+        payload.get("n_request_model_tier_mismatches", 0) or 0
+    )
     ok = (
         bool(payload.get("all_ok", False))
         and n_packets > 0
@@ -1073,12 +1151,20 @@ def _run_llm_prompt_smoke(
         and bool(payload.get("invoke_provider", True)) is False
         and str(payload.get("provider_name", "")) == "anthropic"
         and str(payload.get("model_tier_selection_mode", "")) == "auto"
+        and n_requests_with_cost_hints == n_packets
+        and n_primitive_cost_hints > 0
+        and n_route_option_cost_hints > 0
+        and n_model_tier_mismatches == 0
     )
     return ok, (
         f"all_ok={payload.get('all_ok')} provider={payload.get('provider_name')} "
         f"invoke_provider={payload.get('invoke_provider')} "
         f"tier_mode={payload.get('model_tier_selection_mode')} "
         f"packets={n_packets} awaiting={n_awaiting} "
+        f"cost_hint_requests={n_requests_with_cost_hints} "
+        f"primitive_cost_hints={n_primitive_cost_hints} "
+        f"route_option_cost_hints={n_route_option_cost_hints} "
+        f"model_tier_mismatches={n_model_tier_mismatches} "
         f"registry_components={n_registry_components} "
         f"registry_resources={n_registry_resources} "
         f"registry_contracts={n_registry_contracts} "
@@ -1086,6 +1172,10 @@ def _run_llm_prompt_smoke(
     ), {
         "llm_prompt_packets": n_packets,
         "llm_prompt_awaiting_response": n_awaiting,
+        "llm_prompt_requests_with_minimal_delta_cost_hints": n_requests_with_cost_hints,
+        "llm_prompt_primitive_cost_hints": n_primitive_cost_hints,
+        "llm_prompt_route_option_cost_hints": n_route_option_cost_hints,
+        "llm_prompt_model_tier_mismatches": n_model_tier_mismatches,
         "llm_prompt_component_resource_registry_components": n_registry_components,
         "llm_prompt_component_resource_registry_resources": n_registry_resources,
         "llm_prompt_component_resource_registry_contracts": n_registry_contracts,
@@ -1430,6 +1520,16 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         ),
         f"- Prompt packets: {payload.get('n_llm_prompt_packets')}",
         f"- Awaiting LLM response: {payload.get('n_llm_prompt_awaiting_response')}",
+        (
+            f"- Minimal-delta cost hints in prompts: "
+            f"requests={payload.get('n_llm_prompt_requests_with_minimal_delta_cost_hints')} "
+            f"primitive_hints={payload.get('n_llm_prompt_primitive_cost_hints')} "
+            f"route_option_hints={payload.get('n_llm_prompt_route_option_cost_hints')}"
+        ),
+        (
+            f"- LLM prompt model-tier mismatches: "
+            f"{payload.get('n_llm_prompt_model_tier_mismatches')}"
+        ),
         f"- Seed routes/primitives: {payload.get('n_seed_routes')}/{payload.get('n_seed_primitives')}",
         f"- Seed residual goals: {payload.get('n_seed_residual_goals')}",
         (
