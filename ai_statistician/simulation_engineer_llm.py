@@ -236,6 +236,8 @@ def validate_simulation_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
     if isinstance(runtime_plan, Mapping):
         if str(runtime_plan.get("registered_simulator", "")) != "ResearchSimulator.run":
             errors.append("runtime_execution_plan.registered_simulator must be ResearchSimulator.run")
+    else:
+        errors.append("runtime_execution_plan must be an object")
     return sorted(set(errors))
 
 
@@ -250,6 +252,22 @@ def _normalize_simulation_packet(
     seed: int,
 ) -> dict[str, Any]:
     body = dict(payload)
+    runtime_plan = body.get("runtime_execution_plan", {})
+    if not isinstance(runtime_plan, Mapping):
+        runtime_plan = {}
+    else:
+        runtime_plan = dict(runtime_plan)
+    requested_registered_simulator = str(runtime_plan.get("registered_simulator", "") or "").strip()
+    runtime_plan["llm_requested_registered_simulator"] = requested_registered_simulator
+    runtime_plan["registered_simulator"] = "ResearchSimulator.run"
+    runtime_plan["n_runs"] = n_runs
+    runtime_plan["seed"] = seed
+    runtime_plan["canonicalization_boundary"] = (
+        "AgentRuntime owns simulator selection and execution. The LLM may propose "
+        "simulation diagnostics, but the registered simulator field is canonicalized "
+        "to the trusted ResearchSimulator.run entrypoint before validation."
+    )
+    body["runtime_execution_plan"] = runtime_plan
     body["simulation_evidence_status"] = SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE
     body["simulation_evidence_boundary"] = SIMULATION_ENGINEER_BOUNDARY
     body["proof_evidence_status"] = "NOT_PROOF_EVIDENCE"

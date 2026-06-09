@@ -1270,6 +1270,36 @@ def _critic_sample_response() -> dict[str, object]:
     }
 
 
+def test_simulation_engineer_canonicalizes_registered_simulator_field() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    response = _simulation_sample_response()
+    runtime_plan = dict(response["runtime_execution_plan"])  # type: ignore[index]
+    runtime_plan["registered_simulator"] = "AgentRuntime registered simulator"
+    runtime_plan["n_runs"] = 999
+    runtime_plan["seed"] = 999
+    response["runtime_execution_plan"] = runtime_plan
+    agent = LLMSimulationEngineerAgent(
+        provider=StaticArchitectLLMProvider(response),
+        config=SimulationEngineerConfig(provider_name="static", model="static-simulation-model"),
+    )
+
+    packet = agent.propose(
+        question=question,
+        theory_packet={"packet_id": "theory:test"},
+        registered_problem={"problem_class": "semiparametric_causal_ate"},
+        registered_procedures=[],
+        n_runs=80,
+        seed=20260528,
+    )
+    execution_plan = packet["runtime_execution_plan"]
+
+    assert execution_plan["registered_simulator"] == "ResearchSimulator.run"
+    assert execution_plan["llm_requested_registered_simulator"] == "AgentRuntime registered simulator"
+    assert execution_plan["n_runs"] == 80
+    assert execution_plan["seed"] == 20260528
+    assert "AgentRuntime owns simulator selection" in execution_plan["canonicalization_boundary"]
+
+
 def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     out_dir = Path("runs/test_research_agent_runtime")
     shutil.rmtree(out_dir, ignore_errors=True)
