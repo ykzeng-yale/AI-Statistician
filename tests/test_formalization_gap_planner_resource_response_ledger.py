@@ -172,6 +172,107 @@ def test_resource_response_ledger_reports_mixed_targets_from_request_rows() -> N
     }
 
 
+def test_resource_response_ledger_accepts_portable_formal_declaration_hits() -> None:
+    root = Path("runs/test_formalization_gap_planner_resource_response_ledger_rocq_hits")
+    ledger_dir = root / "ledger"
+    response_jsonl = root / "resource_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    _, request_queue_dir = _build_request_queue(
+        root,
+        input_payload={
+            "schema_version": 1,
+            "component_name": "formalization_gap_planner_standalone_input",
+            "target_prover_family": "rocq",
+            "library_snapshot_ref": "rocq_conformal_snapshot",
+            "routes": [
+                {
+                    "route_id": "rocq_rank_route",
+                    "display_name": "rocq_rank_route",
+                    "theorem_statement": "A Rocq rank route.",
+                    "primitives": [
+                        {
+                            "primitive": "rank_uniformity",
+                            "coverage_status": "bridge_needed",
+                            "expected_premises": ["exchangeability"],
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+    request_manifest = json.loads(
+        (
+            request_queue_dir
+            / "formalization_gap_planner_resource_request_queue_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    formal_request = next(
+        row
+        for row in request_manifest["rows"]
+        if row["target_prover_family"] == "rocq"
+        and "formal_declaration_hits" in row["response_contract_fields"]
+    )
+    response = {
+        "resource_request_id": formal_request["resource_request_id"],
+        "resource_id": formal_request["resource_id"],
+        "expected_response_artifact": formal_request["expected_response_artifact"],
+        "response_payload": {
+            "formal_declaration_hits": [
+                {
+                    "declaration": "Rocq.Conformal.rank_uniformity_bridge",
+                    "target_prover_family": "rocq",
+                    "source_field": "formal_declaration_hits",
+                }
+            ],
+            "coverage_updates": {"rank_uniformity": "bridge_needed"},
+        },
+        "formal_declaration_hits": [
+            {
+                "declaration": "Rocq.Conformal.rank_uniformity_bridge",
+                "target_prover_family": "rocq",
+                "source_field": "formal_declaration_hits",
+            }
+        ],
+        "coverage_updates": {"rank_uniformity": "bridge_needed"},
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+    response_jsonl.write_text(
+        json.dumps(response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert payload["all_ok"]
+    assert payload["target_prover_family"] == "rocq"
+    assert payload["n_response_contract_ok"] == 1
+    assert payload["n_rows_with_formal_declaration_hits"] == 1
+    assert payload["n_formal_declaration_hits"] == 1
+    assert payload["n_rows_with_legacy_lean_declaration_hits"] == 0
+    row = next(
+        row
+        for row in payload["rows"]
+        if row["resource_request_id"] == formal_request["resource_request_id"]
+    )
+    assert row["acceptance_status"] == "ACCEPTED_RESOURCE_RESPONSE"
+    assert row["target_prover_family"] == "rocq"
+    assert row["response_contract_ok"] is True
+    assert row["formal_declaration_hits"] == (
+        {
+            "declaration": "Rocq.Conformal.rank_uniformity_bridge",
+            "target_prover_family": "rocq",
+            "source_field": "formal_declaration_hits",
+        },
+    )
+    assert row["lean_declaration_hits"] == ()
+    assert "formal_declaration_hits" in row["matched_response_contract_fields"]
+
+
 def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims() -> None:
     root = Path("runs/test_formalization_gap_planner_resource_response_ledger")
     ledger_dir = root / "ledger"
@@ -225,6 +326,12 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
             ],
             "response_payload": {
                 "target_primitives": proof_request["target_primitives"],
+                "lean_declaration_hits": [
+                    {
+                        "declaration": "Mathlib.Probability.RankUniformityBridge",
+                        "target_prover_family": "lean4",
+                    }
+                ],
                 "prover_diagnostics": ["unknown identifier rank_uniformity"],
                 "residual_goals": ["prove finite rank denominator is nonzero"],
                 "prover_attempt_status": "failed_with_residual_goals",
@@ -281,13 +388,20 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert payload["n_with_quality_controls"] == payload["n_ledger_rows"]
     assert payload["n_rows_with_target_primitives"] == payload["n_ledger_rows"]
     assert payload["n_target_primitives"] == payload["n_ledger_rows"]
+    assert payload["n_rows_with_formal_declaration_hits"] == 1
+    assert payload["n_formal_declaration_hits"] == 1
+    assert payload["n_rows_with_legacy_lean_declaration_hits"] == 1
     assert payload["n_route_revision_recommended"] == 1
     assert payload["n_rejected"] == 0
     assert payload["resource_response_schema"]["$id"] == RESOURCE_RESPONSE_SCHEMA_ID
+    assert "formal_declaration_hits" in payload["resource_response_schema"]["properties"]
     assert (
         payload["resource_response_ledger_row_schema"]["$id"]
         == RESOURCE_RESPONSE_LEDGER_ROW_SCHEMA_ID
     )
+    assert "formal_declaration_hits" in payload[
+        "resource_response_ledger_row_schema"
+    ]["required"]
     source_ledger = next(
         row
         for row in payload["rows"]
@@ -348,6 +462,15 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert proof_ledger["response_contract_minimum_met"]
     assert proof_ledger["dispatch_spec"]["adapter_surface"] == "target_prover_lsp_mcp"
     assert "prover_diagnostics" in proof_ledger["matched_response_contract_fields"]
+    assert proof_ledger["formal_declaration_hits"] == proof_ledger[
+        "lean_declaration_hits"
+    ]
+    assert proof_ledger["formal_declaration_hits"] == (
+        {
+            "declaration": "Mathlib.Probability.RankUniformityBridge",
+            "target_prover_family": "lean4",
+        },
+    )
     assert proof_ledger["route_revision_recommended"]
     assert "not theorem proof evidence" in proof_ledger["proof_evidence_boundary"]
     assert validate_resource_response_row(

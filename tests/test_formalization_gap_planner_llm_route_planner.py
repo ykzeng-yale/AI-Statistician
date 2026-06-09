@@ -689,6 +689,13 @@ def _write_resource_response_ledger(root: Path) -> Path:
                                 "claim": "finite rank uniformity needs deterministic tie handling",
                             }
                         ],
+                        "formal_declaration_hits": [
+                            {
+                                "declaration": "Probability.rankUniformityBridge",
+                                "target_prover_family": "lean4",
+                                "source_field": "formal_declaration_hits",
+                            }
+                        ],
                         "coverage_updates": {"rank_uniformity": "bridge_needed"},
                         "residual_goals": [
                             "rank_uniformity: deterministic tie handling"
@@ -1849,6 +1856,17 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     ledger_row = context["resource_response_ledger_rows"][0]
     assert ledger_row["response_present"] is True
     assert ledger_row["response_contract_ok"] is True
+    assert ledger_row["formal_declaration_hits"] == [
+        {
+            "declaration": "Probability.rankUniformityBridge",
+            "target_prover_family": "lean4",
+            "source_field": "formal_declaration_hits",
+        }
+    ]
+    assert any(
+        row["declaration"] == "Probability.rankUniformityBridge"
+        for row in context["available_formal_declaration_rows"]
+    )
     assert "finite-rank uniformity lemma" in ledger_row["response_summary"]
     assert (
         ledger_row["response_payload"]["source_snippets"][0]["source_ref"]

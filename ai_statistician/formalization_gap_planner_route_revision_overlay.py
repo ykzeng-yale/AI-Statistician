@@ -1227,6 +1227,10 @@ def _resource_response_trace(row: dict[str, Any]) -> dict[str, object]:
         "candidate_declaration_rows": _dict_tuple(
             row.get("candidate_declaration_rows", [])
         ),
+        "formal_declaration_hits": _dict_tuple(
+            row.get("formal_declaration_hits", row.get("lean_declaration_hits", []))
+        ),
+        "lean_declaration_hits": _dict_tuple(row.get("lean_declaration_hits", [])),
         "response_present": bool(row.get("response_present", False)),
         "response_contract_fields": _str_tuple(
             row.get("response_contract_fields", [])

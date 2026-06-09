@@ -16,7 +16,7 @@ from .formalization_gap_planner_resource_request_queue import (
 from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
-FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 6
+FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 7
 QUALITY_CONTROL_FIELDS = (
     "resource_contract_ids",
     "required_quality_signals",
@@ -30,7 +30,7 @@ RESOURCE_RESPONSE_SCHEMA_ID = (
 )
 RESOURCE_RESPONSE_LEDGER_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
-    "formalization-gap-planner-resource-response-ledger-row:6"
+    "formalization-gap-planner-resource-response-ledger-row:7"
 )
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_NOT_PROOF_EVIDENCE"
@@ -84,6 +84,7 @@ class FormalizationGapPlannerResourceResponseLedgerRow:
     missing_response_contract_fields: tuple[str, ...]
     source_refs: tuple[str, ...]
     route_evidence_nodes: tuple[dict[str, object], ...]
+    formal_declaration_hits: tuple[dict[str, object], ...]
     lean_declaration_hits: tuple[dict[str, object], ...]
     coverage_updates: dict[str, str]
     prover_diagnostics: tuple[str, ...]
@@ -231,6 +232,15 @@ def export_formalization_gap_planner_resource_response_ledger(
         "n_candidate_declaration_rows": sum(
             len(row.candidate_declaration_rows) for row in rows
         ),
+        "n_rows_with_formal_declaration_hits": sum(
+            1 for row in rows if row.formal_declaration_hits
+        ),
+        "n_formal_declaration_hits": sum(
+            len(row.formal_declaration_hits) for row in rows
+        ),
+        "n_rows_with_legacy_lean_declaration_hits": sum(
+            1 for row in rows if row.lean_declaration_hits
+        ),
         "n_rows_with_target_primitives": sum(
             1 for row in rows if row.target_primitives
         ),
@@ -344,6 +354,7 @@ def resource_response_json_schema() -> dict[str, object]:
             "source_refs": string_array,
             "target_primitives": string_array,
             "route_evidence_nodes": object_array,
+            "formal_declaration_hits": object_array,
             "lean_declaration_hits": object_array,
             "candidate_declaration_rows": {
                 "type": "array",
@@ -422,6 +433,7 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
         "missing_response_contract_fields",
         "source_refs",
         "route_evidence_nodes",
+        "formal_declaration_hits",
         "lean_declaration_hits",
         "coverage_updates",
         "prover_diagnostics",
@@ -495,6 +507,7 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
             "missing_response_contract_fields": string_array,
             "source_refs": string_array,
             "route_evidence_nodes": object_array,
+            "formal_declaration_hits": object_array,
             "lean_declaration_hits": object_array,
             "coverage_updates": {"type": "object"},
             "prover_diagnostics": string_array,
@@ -667,6 +680,12 @@ def _ledger_row(
     resource_request_id = str(request_row.get("resource_request_id", ""))
     source_refs = _str_tuple(response_values.get("source_refs", []))
     route_evidence_nodes = _dict_tuple(response_values.get("route_evidence_nodes", []))
+    formal_declaration_hits = _dict_tuple(
+        response_values.get(
+            "formal_declaration_hits",
+            response_values.get("lean_declaration_hits", []),
+        )
+    )
     lean_declaration_hits = _dict_tuple(response_values.get("lean_declaration_hits", []))
     coverage_updates = {
         str(key): str(value)
@@ -722,6 +741,7 @@ def _ledger_row(
         missing_response_contract_fields=missing_fields,
         source_refs=source_refs,
         route_evidence_nodes=route_evidence_nodes,
+        formal_declaration_hits=formal_declaration_hits,
         lean_declaration_hits=lean_declaration_hits,
         coverage_updates=coverage_updates,
         prover_diagnostics=prover_diagnostics,
@@ -939,6 +959,10 @@ def _response_playbook_grounding(
                 " ".join(_str_tuple(response_values.get("source_refs", []))),
                 json.dumps(
                     _dict_tuple(response_values.get("route_evidence_nodes", [])),
+                    default=str,
+                ),
+                json.dumps(
+                    _dict_tuple(response_values.get("formal_declaration_hits", [])),
                     default=str,
                 ),
                 json.dumps(
@@ -1238,6 +1262,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Awaiting responses: {payload.get('n_awaiting_response')}",
         f"- Contract minimum met: {payload.get('n_response_contract_minimum_met')}",
         f"- Contract OK: {payload.get('n_response_contract_ok')}",
+        f"- Formal declaration hits: {payload.get('n_formal_declaration_hits')}",
         f"- Rows with missing contract fields: {payload.get('n_missing_response_contract_field_rows')}",
         f"- Request mismatches: {payload.get('n_response_request_mismatches')}",
         f"- Route revisions recommended: {payload.get('n_route_revision_recommended')}",

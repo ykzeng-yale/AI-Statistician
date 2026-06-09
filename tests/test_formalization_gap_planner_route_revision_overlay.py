@@ -643,7 +643,7 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                 "component_name": "formalization_gap_planner_resource_response_ledger",
                 "rows": [
                     {
-                        "schema_version": 6,
+                        "schema_version": 7,
                         "resource_response_ledger_id": "ledger:rank_uniformity",
                         "resource_request_id": "request:rank_uniformity",
                         "action_resource_plan_id": "action-resource-plan:rank_uniformity",
@@ -808,6 +808,13 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
             "source_field": "lean_declaration_hits",
         },
     )
+    assert trace["formal_declaration_hits"] == (
+        {
+            "declaration": "Mathlib.Data.Fintype.Card",
+            "namespace": "Mathlib",
+        },
+    )
+    assert trace["lean_declaration_hits"] == trace["formal_declaration_hits"]
     assert trace["matched_response_contract_fields"] == ("residual_goals",)
     assert trace["prover_diagnostic_signature"] == (
         "unknown_identifier:finite_rank_uniformity"

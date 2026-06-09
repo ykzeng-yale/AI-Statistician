@@ -560,9 +560,10 @@ against those request packets and writes
 `formalization_gap_planner_resource_response_ledger_row.schema.json`. Missing
 responses are recorded as `AWAITING_RESOURCE_RESPONSE`, not failure; malformed
 responses and `kernel_verified=true` claims are rejected in this adapter layer.
-Accepted responses can add source refs, Lean declaration hits, coverage
-updates, prover diagnostics, residual goals, or route-revision reasons, but
-they remain planner feedback rather than theorem proof evidence. Responses that
+Accepted responses can add source refs, portable formal declaration hits
+(`lean_declaration_hits` remains a Lean legacy alias), coverage updates, prover
+diagnostics, residual goals, or route-revision reasons, but they remain planner
+feedback rather than theorem proof evidence. Responses that
 try to expand `target_primitives` beyond the queued request scope are rejected
 and cannot count as `response_contract_ok`, instead of silently broadening the
 formalization target. When bundled,
@@ -1382,7 +1383,7 @@ The current implementation composes four existing AI Statistician artifacts:
 
 13. `formalization_gap_planner_resource_response_ledger`
    Validates local or frontier responses keyed by resource request, records
-   matched and missing response-contract fields, source refs, Lean declaration
+   matched and missing response-contract fields, source refs, formal declaration
    hits, coverage updates, prover diagnostics, residual goals, and route
    revision recommendations. It also carries forward the request
    `dispatch_spec` and `target_primitives` so downstream route-revision traces remain tied to the
@@ -1426,7 +1427,7 @@ The current implementation composes four existing AI Statistician artifacts:
 
 20. `formalization_gap_planner_refinement_evidence`
    Records tool responses to the refinement queue and normalizes literature
-   evidence, Lean declaration hits, coverage updates, prover diagnostics,
+   evidence, formal declaration hits, coverage updates, prover diagnostics,
    residual goals, and route-revision proposals. It also exports
    `formalization_gap_planner_refinement_evidence_row.schema.json` so accepted
    and awaiting evidence rows can be validated outside AI Statistician.
@@ -1461,7 +1462,7 @@ The current implementation composes four existing AI Statistician artifacts:
    They also preserve applied proposal ids, evidence ids, hook kinds,
    compact resource-response traces, pending or rejected resource-response
    request ids, prover-attempt statuses, diagnostic signatures, residual
-   goals, source refs, and Lean declaration hits so resource-response-ledger
+   goals, source refs, and formal declaration hits so resource-response-ledger
    feedback is not lost
    before the next route synthesis pass. The seed is planning input, not proof
    evidence. It exports
