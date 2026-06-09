@@ -567,10 +567,26 @@ def _alignment_edge_errors(row: dict[str, Any]) -> tuple[str, ...]:
 def _formal_realization_nodes(row: dict[str, Any]) -> tuple[dict[str, Any], ...]:
     nodes = row.get("formal_realization_dag_nodes", [])
     if not isinstance(nodes, (list, tuple)) or not nodes:
-        nodes = row.get("lean_realization_dag_nodes", [])
+        if _is_lean_target_prover(row.get("target_prover_family", "")):
+            nodes = row.get("lean_realization_dag_nodes", [])
+        else:
+            nodes = []
     if not isinstance(nodes, (list, tuple)):
         return tuple()
     return tuple(node for node in nodes if isinstance(node, dict))
+
+
+def _is_lean_target_prover(value: object) -> bool:
+    return _target_prover_key(value) == "lean4"
+
+
+def _target_prover_key(value: object) -> str:
+    key = str(value).strip().lower().replace("-", "_")
+    aliases = {
+        "lean": "lean4",
+        "lean_4": "lean4",
+    }
+    return aliases.get(key, key)
 
 
 def _iter_alignment_edges(rows: list[dict[str, Any]]) -> tuple[dict[str, Any], ...]:
