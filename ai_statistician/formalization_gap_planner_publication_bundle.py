@@ -1724,6 +1724,9 @@ def export_formalization_gap_planner_publication_bundle(
                 "benchmark_audit_fingerprint", ""
             ),
         },
+        "evaluation_summary": _evaluation_manifest_summary(
+            formalization_gap_planner_evaluation_dir
+        ),
         "adapter_registry_summary": {
             "n_adapters": adapter_registry_payload.get("n_adapters", 0),
             "n_adapter_row_schema_valid": adapter_registry_payload.get(
@@ -3515,6 +3518,147 @@ def _manifest_summary(
     }
 
 
+def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
+    zero_summary: dict[str, object] = {
+        "requested": False,
+        "manifest_path": "",
+        "n_evaluation_rows": 0,
+        "n_evaluation_row_schema_valid": 0,
+        "n_evaluation_row_schema_invalid": 0,
+        "n_matched_ground_truth": 0,
+        "n_missing_ground_truth": 0,
+        "n_alignment_contract_ok": 0,
+        "n_feedback_loop_ready": 0,
+        "n_unaligned_primitives": 0,
+        "n_realization_missing_selected_formal_primitives": 0,
+        "n_realization_missing_delta_alignment_primitives": 0,
+        "n_rows_with_incomplete_cost_hint_baseline_coverage": 0,
+        "n_realization_cost_hint_baseline_primitives": 0,
+        "n_realization_omitted_cost_hint_primitives": 0,
+        "realization_missing_selected_formal_primitives": (),
+        "realization_missing_delta_alignment_primitives": (),
+        "realization_cost_hint_baseline_primitives": (),
+        "realization_omitted_cost_hint_primitives": (),
+        "all_ok": False,
+    }
+    if source_dir is None:
+        return zero_summary
+    manifest_path = source_dir / "formalization_gap_planner_evaluation_manifest.json"
+    payload = _read_json_no_error(manifest_path)
+    rows = tuple(
+        row for row in payload.get("rows", []) if isinstance(row, dict)
+    )
+    return {
+        **zero_summary,
+        "requested": True,
+        "manifest_path": str(manifest_path),
+        "n_evaluation_rows": int(payload.get("n_evaluation_rows", len(rows)) or 0),
+        "n_evaluation_row_schema_valid": int(
+            payload.get("n_evaluation_row_schema_valid", 0) or 0
+        ),
+        "n_evaluation_row_schema_invalid": int(
+            payload.get("n_evaluation_row_schema_invalid", 0) or 0
+        ),
+        "n_matched_ground_truth": int(payload.get("n_matched_ground_truth", 0) or 0),
+        "n_missing_ground_truth": int(payload.get("n_missing_ground_truth", 0) or 0),
+        "n_alignment_contract_ok": int(
+            payload.get("n_alignment_contract_ok", 0) or 0
+        ),
+        "n_feedback_loop_ready": int(payload.get("n_feedback_loop_ready", 0) or 0),
+        "n_unaligned_primitives": int(payload.get("n_unaligned_primitives", 0) or 0),
+        "n_realization_missing_selected_formal_primitives": _manifest_count_or_rows(
+            payload,
+            rows,
+            "n_realization_missing_selected_formal_primitives",
+            "realization_missing_selected_formal_primitives",
+        ),
+        "n_realization_missing_delta_alignment_primitives": _manifest_count_or_rows(
+            payload,
+            rows,
+            "n_realization_missing_delta_alignment_primitives",
+            "realization_missing_delta_alignment_primitives",
+        ),
+        "n_rows_with_incomplete_cost_hint_baseline_coverage": int(
+            payload.get(
+                "n_rows_with_incomplete_cost_hint_baseline_coverage",
+                sum(
+                    1
+                    for row in rows
+                    if row.get("realization_cost_hint_baseline_coverage_complete")
+                    is False
+                ),
+            )
+            or 0
+        ),
+        "n_realization_cost_hint_baseline_primitives": _manifest_count_or_rows(
+            payload,
+            rows,
+            "n_realization_cost_hint_baseline_primitives",
+            "realization_cost_hint_baseline_primitives",
+        ),
+        "n_realization_omitted_cost_hint_primitives": _manifest_count_or_rows(
+            payload,
+            rows,
+            "n_realization_omitted_cost_hint_primitives",
+            "realization_omitted_cost_hint_primitives",
+        ),
+        "realization_missing_selected_formal_primitives": _manifest_values_or_rows(
+            payload,
+            rows,
+            "realization_missing_selected_formal_primitives",
+        ),
+        "realization_missing_delta_alignment_primitives": _manifest_values_or_rows(
+            payload,
+            rows,
+            "realization_missing_delta_alignment_primitives",
+        ),
+        "realization_cost_hint_baseline_primitives": _manifest_values_or_rows(
+            payload,
+            rows,
+            "realization_cost_hint_baseline_primitives",
+        ),
+        "realization_omitted_cost_hint_primitives": _manifest_values_or_rows(
+            payload,
+            rows,
+            "realization_omitted_cost_hint_primitives",
+        ),
+        "all_ok": bool(payload.get("all_ok", False)),
+    }
+
+
+def _manifest_count_or_rows(
+    payload: dict[str, object],
+    rows: tuple[dict[str, Any], ...],
+    count_field: str,
+    row_field: str,
+) -> int:
+    if count_field in payload:
+        return int(payload.get(count_field, 0) or 0)
+    return sum(len(_str_tuple(row.get(row_field, []))) for row in rows)
+
+
+def _manifest_values_or_rows(
+    payload: dict[str, object],
+    rows: tuple[dict[str, Any], ...],
+    field_name: str,
+) -> tuple[str, ...]:
+    manifest_values = _str_tuple(payload.get(field_name, []))
+    if manifest_values:
+        return manifest_values
+    values: list[str] = []
+    for row in rows:
+        values.extend(_str_tuple(row.get(field_name, [])))
+    return tuple(dict.fromkeys(values))
+
+
+def _str_tuple(value: Any) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return (value,) if value else ()
+    if isinstance(value, (list, tuple, set)):
+        return tuple(str(item) for item in value if str(item))
+    return ()
+
+
 def _read_json_no_error(path: Path) -> dict[str, object]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -3617,6 +3761,17 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Benchmark route schema valid: "
             f"{payload.get('benchmark_summary', {}).get('n_route_row_schema_valid')}/"
             f"{payload.get('benchmark_summary', {}).get('n_routes')}"
+        ),
+        (
+            f"- Evaluation rows/schema valid: "
+            f"{payload.get('evaluation_summary', {}).get('n_evaluation_row_schema_valid')}/"
+            f"{payload.get('evaluation_summary', {}).get('n_evaluation_rows')}"
+        ),
+        (
+            f"- Evaluation omitted cost-hint primitives: "
+            f"{payload.get('evaluation_summary', {}).get('n_realization_omitted_cost_hint_primitives')} "
+            f"baseline={payload.get('evaluation_summary', {}).get('realization_cost_hint_baseline_primitives')} "
+            f"omitted={payload.get('evaluation_summary', {}).get('realization_omitted_cost_hint_primitives')}"
         ),
         (
             f"- Adapter registry row schema valid: "

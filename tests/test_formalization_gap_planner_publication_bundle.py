@@ -1634,6 +1634,26 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert payload["benchmark_summary"]["n_route_row_schema_invalid"] == 0
     assert payload["benchmark_audit_summary"]["n_failed"] == 0
     assert payload["benchmark_audit_summary"]["n_evaluation_splits"] >= 2
+    assert payload["evaluation_summary"]["requested"] is True
+    assert payload["evaluation_summary"]["n_evaluation_rows"] == 1
+    assert payload["evaluation_summary"]["n_evaluation_row_schema_valid"] == 1
+    assert payload["evaluation_summary"]["n_evaluation_row_schema_invalid"] == 0
+    assert (
+        payload["evaluation_summary"][
+            "n_rows_with_incomplete_cost_hint_baseline_coverage"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"]["n_realization_cost_hint_baseline_primitives"]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"]["n_realization_omitted_cost_hint_primitives"]
+        == 0
+    )
+    assert payload["evaluation_summary"]["realization_cost_hint_baseline_primitives"] == ()
+    assert payload["evaluation_summary"]["realization_omitted_cost_hint_primitives"] == ()
     assert payload["adapter_registry_summary"]["n_adapters"] >= 16
     assert (
         payload["adapter_registry_summary"]["n_adapter_row_schema_valid"]

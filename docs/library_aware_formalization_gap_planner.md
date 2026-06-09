@@ -272,6 +272,9 @@ evidence without depending on Lean-specific internals. The publication-bundle
 audit recomputes these quality-control aggregates from packaged evaluation JSONL
 rows, and also recomputes omitted cost-hint counters, rejecting bundles whose
 evaluation manifest drops or mutates them.
+The publication-bundle manifest itself includes an `evaluation_summary` with
+the same realization and cost-hint counters, so public bundles expose semantic
+route weakening before a consumer runs the separate audit command.
 The one-command reuse-smoke manifest also promotes LLM route-planner
 realization-coverage counters for both primary and feedback planner passes, so
 a public artifact consumer can distinguish staged prompt-only requests from
