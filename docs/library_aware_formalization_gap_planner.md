@@ -209,7 +209,10 @@ this bound because it has no staged request packet. If a response selects a
 different route that omits a primitive from a hinted baseline primitive set, its
 AND/OR graph must still enumerate that baseline option at or above the hinted
 minimum cost; otherwise the planner treats the omission as silent route
-weakening and rejects the response.
+weakening and rejects the response. Even with a correctly priced baseline
+option, omitting a hinted primitive keeps route adoption pending under
+`omitted_cost_hint_primitives_require_review` until that semantic route change
+has been reviewed.
 Each primitive cost row must use a `coverage_bucket` listed in
 `minimal_delta_cost_policy.coverage_bucket_base_cost`, with `base_cost` exactly
 equal to that published bucket cost. That bucket/base cost also cannot be

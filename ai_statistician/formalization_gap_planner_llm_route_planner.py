@@ -101,6 +101,9 @@ ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE = (
 )
 ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN = "feedback_loop_replan_required"
 ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE = "realization_coverage_incomplete"
+ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES = (
+    "omitted_cost_hint_primitives_require_review"
+)
 ROUTE_ADOPTION_BLOCKER_VALUES = (
     ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED,
     ROUTE_ADOPTION_BLOCKER_RESPONSE_MISSING,
@@ -114,6 +117,7 @@ ROUTE_ADOPTION_BLOCKER_VALUES = (
     ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE,
     ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
+    ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES,
 )
 ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID = (
     "formalization_gap_planner_route_adoption_blocker_taxonomy:1"
@@ -161,6 +165,11 @@ ROUTE_ADOPTION_BLOCKER_DEFINITIONS = {
     ),
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE: (
         "The formal-realization coverage witness is incomplete."
+    ),
+    ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES: (
+        "The selected route omits one or more primitives from the request-bound "
+        "minimal-delta cost-hint baseline and needs review before standalone "
+        "route adoption."
     ),
 }
 LLM_ROUTE_PLANNER_COMPONENT = "formalization_gap_planner_llm_route_planner"
@@ -1164,6 +1173,16 @@ def export_formalization_gap_planner_llm_route_planner(
             for row in rows
             if ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE
             in row.route_adoption_blockers
+        ),
+        "n_route_adoption_pending_omitted_cost_hint_primitive_blockers": sum(
+            1
+            for row in rows
+            if ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES
+            in row.route_adoption_blockers
+        ),
+        "n_route_adoption_omitted_cost_hint_primitives": sum(
+            len(_omitted_cost_hint_primitives(row.minimal_delta_plan, request))
+            for row, request in zip(rows, request_packets)
         ),
         "n_rejected": sum(
             count
@@ -3337,6 +3356,10 @@ def _row_for_request(
             _dict_value(request, "context_packet"),
             "feedback_loop_summary",
         ),
+        omitted_cost_hint_primitives=_omitted_cost_hint_primitives(
+            minimal_delta_plan,
+            request,
+        ),
     )
     return FormalizationGapPlannerLLMRoutePlannerRow(
         schema_version=FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
@@ -3413,6 +3436,7 @@ def _route_adoption_readiness(
     semantic_alignment_risks: tuple[str, ...],
     residual_interpretations: tuple[dict[str, object], ...],
     feedback_summary: Mapping[str, object],
+    omitted_cost_hint_primitives: tuple[str, ...],
 ) -> tuple[str, tuple[str, ...]]:
     if provider_failure or (response_present and not response_contract_ok):
         return (
@@ -3455,6 +3479,8 @@ def _route_adoption_readiness(
     realization_coverage = _dict_value(feedback_summary, "realization_coverage")
     if realization_coverage.get("complete") is False:
         blockers.append(ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE)
+    if omitted_cost_hint_primitives:
+        blockers.append(ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES)
     blockers = list(dict.fromkeys(blockers))
     if blockers:
         return (ROUTE_ADOPTION_PENDING_STATUS, tuple(blockers))
@@ -6304,6 +6330,32 @@ def _minimal_delta_request_hint_errors(
             )
         )
     return errors
+
+
+def _omitted_cost_hint_primitives(
+    minimal_delta: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> tuple[str, ...]:
+    hints = _dict_value(
+        _dict_value(request, "context_packet"),
+        "minimal_delta_cost_hints",
+    )
+    if not hints:
+        return tuple()
+    selected = {
+        _primitive_key(primitive)
+        for primitive in _str_tuple(minimal_delta.get("selected_primitives", []))
+    }
+    selected.discard("")
+    omitted: list[str] = []
+    for hint in _dict_tuple(hints.get("route_option_hints", [])):
+        hint_primitives = {
+            _primitive_key(primitive)
+            for primitive in _str_tuple(hint.get("selected_primitives", []))
+        }
+        hint_primitives.discard("")
+        omitted.extend(sorted(hint_primitives - selected))
+    return tuple(dict.fromkeys(primitive for primitive in omitted if primitive))
 
 
 def _minimal_delta_baseline_route_option_hint_errors(

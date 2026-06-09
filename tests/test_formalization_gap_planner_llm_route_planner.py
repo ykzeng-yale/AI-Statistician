@@ -5652,6 +5652,57 @@ def test_llm_route_planner_rejects_underpriced_baseline_option_when_cost_hint_pr
     )
 
 
+def test_llm_route_planner_blocks_route_adoption_when_cost_hint_primitive_omitted() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_blocks_cost_hint_omission"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _make_rank_uniformity_omitted_response(
+        include_baseline_route_option=True,
+        baseline_route_cost=4,
+    )
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+    assert payload["n_route_adoption_ready"] == 0
+    assert payload["n_route_adoption_pending_refinement"] == 1
+    assert (
+        payload["n_route_adoption_pending_omitted_cost_hint_primitive_blockers"]
+        == 1
+    )
+    assert payload["n_route_adoption_omitted_cost_hint_primitives"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert row["response_contract_ok"] is True
+    assert row["route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert set(row["route_adoption_blockers"]) == {
+        "omitted_cost_hint_primitives_require_review"
+    }
+    seed_route = payload["standalone_seed"]["routes"][0]
+    assert seed_route["llm_route_planner_route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert seed_route["replan_metadata"][
+        "llm_route_planner_route_adoption_blockers"
+    ] == ["omitted_cost_hint_primitives_require_review"]
+
+
 def test_llm_route_planner_rejects_missing_primitive_cost_dimensions() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_missing_cost_dimensions"
