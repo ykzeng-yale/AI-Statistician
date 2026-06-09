@@ -555,6 +555,7 @@ def test_resource_response_ledger_rejects_expanded_target_primitives() -> None:
     assert not payload["all_ok"]
     assert payload["n_rejected"] == 1
     assert payload["n_response_schema_valid"] == 1
+    assert payload["n_response_contract_ok"] == 0
     assert payload["n_ledger_row_schema_valid"] == payload["n_ledger_rows"]
     row = next(
         row
@@ -562,12 +563,22 @@ def test_resource_response_ledger_rejects_expanded_target_primitives() -> None:
         if row["resource_request_id"] == request["resource_request_id"]
     )
     assert row["acceptance_status"] == "REJECTED_RESPONSE_TARGET_SCOPE_EXPANSION"
+    assert row["response_contract_ok"] is False
     assert tuple(row["target_primitives"]) == ("rank_uniformity", "spectral_gap")
     assert any(
         "target_primitives must not expand beyond resource request target_primitives"
         in error
         and "spectral_gap" in error
         for error in row["errors"]
+    )
+    malformed = dict(row)
+    malformed["response_contract_ok"] = True
+    assert (
+        "rejected resource response rows must not set response_contract_ok=true"
+        in validate_resource_response_ledger_row(
+            malformed,
+            resource_response_ledger_row_json_schema(),
+        )
     )
 
 

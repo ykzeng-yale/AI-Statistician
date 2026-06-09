@@ -562,7 +562,8 @@ Accepted responses can add source refs, Lean declaration hits, coverage
 updates, prover diagnostics, residual goals, or route-revision reasons, but
 they remain planner feedback rather than theorem proof evidence. Responses that
 try to expand `target_primitives` beyond the queued request scope are rejected
-instead of silently broadening the formalization target. When bundled,
+and cannot count as `response_contract_ok`, instead of silently broadening the
+formalization target. When bundled,
 the publication audit checks that each ledger row resolves to its request row
 and that matched plus missing response fields exactly account for that
 resource request's response contract. Ledger rows also retain the request

@@ -553,6 +553,11 @@ def validate_resource_response_ledger_row(
         row.get("proof_evidence_boundary", "")
     ).lower():
         errors.append("proof_evidence_boundary must say not theorem proof evidence")
+    if (
+        str(row.get("acceptance_status", "")).startswith("REJECTED_")
+        and bool(row.get("response_contract_ok", False))
+    ):
+        errors.append("rejected resource response rows must not set response_contract_ok=true")
     return errors
 
 
@@ -638,6 +643,7 @@ def _ledger_row(
         and not response_request_errors
         and not kernel_claimed
         and response_contract_minimum_met
+        and not expanded_target_primitives
         and (not request_playbook_present or response_playbook_grounded)
     )
     if not response_present:
