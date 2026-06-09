@@ -188,6 +188,9 @@ The same second-pass request packet carries route-level and
 `replan_metadata.residual_goals` into `request.residual_goals`, so residual
 interpretation requirements survive the standalone handoff instead of being
 hidden inside opaque metadata.
+The route-replan handoff audit checks that `quality_controls` survive from
+handoff rows into both the standalone route and its `replan_metadata`, and that
+roundtrip standalone traces preserve the same metadata controls.
 The
 cost witness uses
 `formalization_gap_planner_minimal_delta_cost_policy:1` and must include a

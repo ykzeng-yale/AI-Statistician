@@ -11,6 +11,7 @@ from .fingerprint import stable_hash
 from .formalization_gap_planner_route_replan_handoff import (
     PROOF_EVIDENCE_BOUNDARY as HANDOFF_PROOF_EVIDENCE_BOUNDARY,
     PROOF_EVIDENCE_STATUS as HANDOFF_PROOF_EVIDENCE_STATUS,
+    QUALITY_CONTROL_FIELDS,
 )
 from .formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
@@ -521,6 +522,15 @@ def _row_checks(
         )
         checks.append(
             _check(
+                f"row_{idx}_seed_route_quality_controls",
+                "provenance",
+                "seed route and replan metadata exactly preserve handoff quality controls",
+                _seed_quality_controls_observed(row, seed_route),
+                _seed_quality_controls_ok(row, seed_route),
+            )
+        )
+        checks.append(
+            _check(
                 f"row_{idx}_next_command",
                 "rows",
                 "standalone-plan command present",
@@ -794,6 +804,13 @@ def _trace_metadata_fields_ok(
         metadata.get("applied_resource_response_traces", [])
     ):
         return False
+    trace_metadata = trace.get("replan_metadata", {})
+    if not isinstance(trace_metadata, dict):
+        return False
+    if _quality_controls_from_payload(
+        trace_metadata.get("quality_controls", {})
+    ) != _quality_controls_from_payload(metadata.get("quality_controls", {})):
+        return False
     return True
 
 
@@ -1014,6 +1031,62 @@ def _seed_source_snippets_observed(
         f"route={len(row_hashes.intersection(route_hashes))}/{len(row_hashes)} "
         f"metadata={len(row_hashes.intersection(metadata_hashes))}/{len(row_hashes)} "
         f"primitive={len(row_hashes.intersection(primitive_hashes))}/{len(row_hashes)}"
+    )
+
+
+def _seed_quality_controls_ok(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> bool:
+    row_controls = _quality_controls_from_payload(row.get("quality_controls", {}))
+    if not row_controls:
+        return True
+    if not isinstance(seed_route, dict):
+        return False
+    metadata = seed_route.get("replan_metadata", {})
+    if not isinstance(metadata, dict):
+        return False
+    return (
+        row_controls
+        == _quality_controls_from_payload(seed_route.get("quality_controls", {}))
+        == _quality_controls_from_payload(metadata.get("quality_controls", {}))
+    )
+
+
+def _seed_quality_controls_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    if not isinstance(seed_route, dict):
+        return "missing seed route"
+    metadata = seed_route.get("replan_metadata", {})
+    if not isinstance(metadata, dict):
+        return "missing metadata"
+    return (
+        f"row={_quality_controls_summary(row.get('quality_controls', {}))} "
+        f"route={_quality_controls_summary(seed_route.get('quality_controls', {}))} "
+        f"metadata={_quality_controls_summary(metadata.get('quality_controls', {}))}"
+    )
+
+
+def _quality_controls_from_payload(value: Any) -> dict[str, tuple[str, ...]]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        field_name: _str_tuple(value.get(field_name, []))
+        for field_name in QUALITY_CONTROL_FIELDS
+        if _str_tuple(value.get(field_name, []))
+    }
+
+
+def _quality_controls_summary(value: Any) -> str:
+    controls = _quality_controls_from_payload(value)
+    if not controls:
+        return "none"
+    return ",".join(
+        f"{field_name}={len(controls.get(field_name, ()))}"
+        for field_name in QUALITY_CONTROL_FIELDS
+        if controls.get(field_name)
     )
 
 

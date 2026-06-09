@@ -23,6 +23,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     handoff_dir = root / "handoff"
     audit_dir = root / "audit"
     metadata_audit_dir = root / "metadata_audit"
+    quality_audit_dir = root / "quality_audit"
     reject_audit_dir = root / "reject_audit"
     shutil.rmtree(root, ignore_errors=True)
     handoff_dir.mkdir(parents=True, exist_ok=True)
@@ -71,6 +72,15 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "excerpt": "The source route supplies the rank-uniformity bridge used by the replan seed.",
         "target_primitives": ["rank_uniformity"],
     }
+    quality_controls = {
+        "resource_contract_ids": [
+            "formalization_gap_planner_resource_response_contract:lean_lsp_residual_goals"
+        ],
+        "required_quality_signals": ["diagnostic_signature"],
+        "quality_gates": ["residual_goals_source_grounded"],
+        "response_validation_signals": ["residual_goals_or_diagnostics_present"],
+        "stop_conditions": ["residual interpreted or source search requested"],
+    }
     route = {
         "route_id": route_id,
         "display_name": "split_conformal_rank_uniformity",
@@ -80,6 +90,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "recommended_action": "rerun standalone planning on revised rank route",
         "source_refs": ["Lei-Wasserman distribution-free prediction"],
         "source_snippets": [source_snippet],
+        "quality_controls": quality_controls,
         "revised_informal_knowledge_dag_nodes": informal_nodes,
         "revised_formal_realization_dag_nodes": lean_nodes,
         "revised_lean_realization_dag_nodes": lean_nodes,
@@ -111,6 +122,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
             "residual_goals": ["rank_uniformity bridge remains open"],
             "source_refs": ["Lei-Wasserman distribution-free prediction"],
             "source_snippets": [source_snippet],
+            "quality_controls": quality_controls,
             "lean_declaration_hits": [
                 {"primitive": "rank_uniformity", "declaration": "Fintype.card"}
             ],
@@ -157,6 +169,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "route_revision_summaries": ["add rank-uniformity bridge before replay"],
         "source_refs": ["Lei-Wasserman distribution-free prediction"],
         "source_snippets": [source_snippet],
+        "quality_controls": quality_controls,
         "lean_declaration_hits": [
             {"primitive": "rank_uniformity", "declaration": "Fintype.card"}
         ],
@@ -248,6 +261,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "row_0_seed_route_revised_dags" in ok_checks
     assert "row_0_seed_route_provenance_metadata" in ok_checks
     assert "row_0_seed_route_source_snippets" in ok_checks
+    assert "row_0_seed_route_quality_controls" in ok_checks
     provenance_check = next(
         check
         for check in payload["checks"]
@@ -262,6 +276,13 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     )
     assert "metadata=1/1" in snippet_check["observed"]
     assert "primitive=1/1" in snippet_check["observed"]
+    quality_check = next(
+        check
+        for check in payload["checks"]
+        if check["check_name"] == "row_0_seed_route_quality_controls"
+    )
+    assert "row=resource_contract_ids=1" in quality_check["observed"]
+    assert "metadata=resource_contract_ids=1" in quality_check["observed"]
     assert (
         audit_dir
         / "formalization_gap_planner_route_replan_handoff_audit_row.schema.json"
@@ -315,6 +336,27 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         if not check["ok"]
     }
     assert "row_0_seed_route_source_snippets" in snippet_failed
+
+    quality_rejected_seed = json.loads(json.dumps(seed))
+    quality_rejected_seed["routes"][0]["replan_metadata"]["quality_controls"][
+        "stop_conditions"
+    ] = []
+    (handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json").write_text(
+        json.dumps(quality_rejected_seed, indent=2),
+        encoding="utf-8",
+    )
+    quality_rejected = audit_formalization_gap_planner_route_replan_handoff(
+        handoff_dir,
+        quality_audit_dir,
+    )
+
+    assert not quality_rejected["all_ok"]
+    quality_failed = {
+        check["check_name"]
+        for check in quality_rejected["checks"]
+        if not check["ok"]
+    }
+    assert "row_0_seed_route_quality_controls" in quality_failed
 
     (handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json").write_text(
         json.dumps(seed, indent=2),
