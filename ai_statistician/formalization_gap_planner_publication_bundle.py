@@ -137,6 +137,7 @@ from .formalization_gap_planner_target_intake import (
 from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+    CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS,
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
     DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
@@ -2478,6 +2479,7 @@ def _llm_model_policy_payload() -> dict[str, object]:
     models_by_tier = dict(
         ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY.get("models_by_tier", {})
     )
+    outside_cost_tier_models = dict(CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS)
     supported_providers = ("anthropic", "openai", "static")
     prohibited_providers = ("codex", "codex_exec")
     all_ok = (
@@ -2488,6 +2490,7 @@ def _llm_model_policy_payload() -> dict[str, object]:
             "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
             "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
         }
+        and outside_cost_tier_models
         and not set(prohibited_providers).intersection(supported_providers)
     )
     return {
@@ -2500,6 +2503,13 @@ def _llm_model_policy_payload() -> dict[str, object]:
         "prohibited_generator_providers": prohibited_providers,
         "claude_model_selection": ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
         "latest_claude_models_by_tier": models_by_tier,
+        "latest_claude_family_models_outside_cost_tiers": outside_cost_tier_models,
+        "outside_cost_tier_policy": (
+            "Claude family models outside Opus/Sonnet/Haiku are tracked for "
+            "operator awareness but are not automatic AI Statistician cost "
+            "tiers. Haiku/Sonnet/Opus requests must resolve to their matching "
+            "Claude tier families."
+        ),
         "cost_aware_runtime_tiers": {
             "sonnet": (
                 "ArchitectCoordinator",
@@ -2541,6 +2551,9 @@ def _llm_model_policy_payload() -> dict[str, object]:
 def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
     policy = dict(payload.get("claude_model_selection", {}) or {})
     models = dict(payload.get("latest_claude_models_by_tier", {}) or {})
+    outside_models = dict(
+        payload.get("latest_claude_family_models_outside_cost_tiers", {}) or {}
+    )
     lines = [
         "# AI Statistician LLM Model Policy",
         "",
@@ -2554,6 +2567,8 @@ def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
         f"- Claude Haiku: `{models.get('haiku', '')}`",
         f"- Claude Sonnet: `{models.get('sonnet', '')}`",
         f"- Claude Opus: `{models.get('opus', '')}`",
+        "- Outside Opus/Sonnet/Haiku cost tiers: "
+        + ", ".join(f"{key}=`{value}`" for key, value in sorted(outside_models.items())),
         "",
         "## Source",
         "",

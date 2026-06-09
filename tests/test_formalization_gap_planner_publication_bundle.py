@@ -2284,6 +2284,13 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "sonnet": "claude-sonnet-4-6",
         "opus": "claude-opus-4-8",
     }
+    assert llm_model_policy["latest_claude_family_models_outside_cost_tiers"] == {
+        "fable": "claude-fable-5",
+        "mythos_limited_availability": "claude-mythos-5",
+    }
+    assert "not automatic AI Statistician cost tiers" in llm_model_policy[
+        "outside_cost_tier_policy"
+    ]
     assert "codex" not in llm_model_policy["supported_live_generator_providers"]
     assert "codex_exec" not in llm_model_policy["supported_live_generator_providers"]
     assert set(llm_model_policy["prohibited_generator_providers"]) == {

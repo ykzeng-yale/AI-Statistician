@@ -155,6 +155,7 @@ from .formalization_gap_planner_target_intake import (
 )
 from .model_backend import (
     ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+    CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS,
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
     DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
@@ -2694,6 +2695,17 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         if isinstance(llm_model_policy.get("latest_claude_models_by_tier", {}), dict)
         else {}
     )
+    llm_outside_cost_tier_models = (
+        llm_model_policy.get("latest_claude_family_models_outside_cost_tiers", {})
+        if isinstance(
+            llm_model_policy.get(
+                "latest_claude_family_models_outside_cost_tiers",
+                {},
+            ),
+            dict,
+        )
+        else {}
+    )
     supported_llm_providers = set(
         _str_tuple(llm_model_policy.get("supported_live_generator_providers", []))
     )
@@ -2798,6 +2810,15 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             str(llm_model_policy.get("source_checked_date", "")),
             llm_model_policy.get("source_checked_date")
             == ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+        ),
+        _check(
+            "llm_model_policy_outside_cost_tier_models",
+            "contract",
+            "Claude family models outside Opus/Sonnet/Haiku tier ids",
+            json.dumps(llm_outside_cost_tier_models, sort_keys=True),
+            llm_outside_cost_tier_models == CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS
+            and "not automatic AI Statistician cost tiers"
+            in str(llm_model_policy.get("outside_cost_tier_policy", "")),
         ),
         _check(
             "portable_contract_has_llm_model_policy_contract",

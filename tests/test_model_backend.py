@@ -11,10 +11,13 @@ from ai_statistician.model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     ANTHROPIC_CLAUDE_TIER_ENV_VARS,
     ANTHROPIC_MODEL_ID_VERSIONING_POLICY,
+    ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+    CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     AnthropicGeneratorBackend,
     GeneratorRequest,
     StaticJSONGeneratorBackend,
+    claude_outside_cost_tier_family_for_model,
     claude_model_tier_for_model,
     claude_model_tier_mismatch,
     claude_model_tier_policy_violations,
@@ -234,6 +237,20 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
         "sonnet": "claude-sonnet-4-6",
         "opus": "claude-opus-4-8",
     }
+    assert ANTHROPIC_MODEL_SOURCE_CHECKED_DATE == "2026-06-09"
+    assert (
+        ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY[
+            "models_outside_opus_sonnet_haiku_cost_tiers"
+        ]
+        == CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS
+        == {
+            "fable": "claude-fable-5",
+            "mythos_limited_availability": "claude-mythos-5",
+        }
+    )
+    assert "not automatic runtime tiers" in ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY[
+        "outside_tier_model_policy"
+    ]
     assert ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["tier_specific_model_env_vars"] == ANTHROPIC_CLAUDE_TIER_ENV_VARS
     assert "Sonnet-tier defaults only" in ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["global_model_override_policy"]
     assert "pinned snapshots" in ANTHROPIC_MODEL_ID_VERSIONING_POLICY
@@ -291,12 +308,26 @@ def test_claude_model_tier_policy_violations_detect_configured_model_collapse() 
     assert any("Claude opus tier expected Claude opus tier" in item for item in violations)
     assert any("collapsed to one resolved model" in item for item in violations)
 
+    outside_tier_violations = claude_model_tier_policy_violations(
+        {
+            "haiku": "claude-fable-5",
+            "sonnet": "claude-sonnet-4-6",
+            "opus": "claude-opus-4-8",
+        }
+    )
+    assert any("outside-tier Claude fable model" in item for item in outside_tier_violations)
+
 
 def test_claude_model_tier_helpers_detect_cross_tier_model_overrides() -> None:
     assert claude_model_tier_for_model("claude-haiku-4-5-20251001") == "haiku"
     assert claude_model_tier_for_model("claude-sonnet-4-6") == "sonnet"
     assert claude_model_tier_for_model("claude-opus-4-8") == "opus"
     assert claude_model_tier_for_model("custom-anthropic-model") == ""
+    assert claude_outside_cost_tier_family_for_model("claude-fable-5") == "fable"
+    assert (
+        claude_outside_cost_tier_family_for_model("claude-mythos-5")
+        == "mythos_limited_availability"
+    )
     assert (
         claude_model_tier_mismatch(
             "claude-sonnet-4-6",
@@ -306,6 +337,10 @@ def test_claude_model_tier_helpers_detect_cross_tier_model_overrides() -> None:
         == "SimulationEngineer expected Claude haiku tier but is configured with claude-sonnet-4-6"
     )
     assert claude_model_tier_mismatch("claude-haiku-4-5-20251001", "haiku") == ""
+    assert (
+        claude_model_tier_mismatch("claude-fable-5", "sonnet")
+        == "expected Claude sonnet tier but is configured with outside-tier Claude fable model claude-fable-5"
+    )
     assert claude_model_tier_mismatch("custom-anthropic-model", "haiku") == ""
 
 

@@ -11,6 +11,8 @@ DEFAULT_LIVE_GENERATOR_PROVIDER = "anthropic"
 DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL = "claude-opus-4-8"
 DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL = "claude-sonnet-4-6"
+DEFAULT_CLAUDE_FABLE_GENERATOR_MODEL = "claude-fable-5"
+DEFAULT_CLAUDE_MYTHOS_GENERATOR_MODEL = "claude-mythos-5"
 DEFAULT_ANTHROPIC_GENERATOR_MODEL = DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL
 DEFAULT_STATIC_GENERATOR_MODEL = "static"
 DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS = 120.0
@@ -18,6 +20,10 @@ DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER = {
     "haiku": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
+}
+CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS = {
+    "fable": DEFAULT_CLAUDE_FABLE_GENERATOR_MODEL,
+    "mythos_limited_availability": DEFAULT_CLAUDE_MYTHOS_GENERATOR_MODEL,
 }
 CLAUDE_MODEL_TIERS = tuple(DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER)
 ANTHROPIC_CLAUDE_TIER_ENV_VARS = {
@@ -34,7 +40,7 @@ ANTHROPIC_CLAUDE_TIER_ENV_VARS = {
         "AI_STATISTICIAN_ANTHROPIC_OPUS_MODEL",
     ),
 }
-ANTHROPIC_MODEL_SOURCE_CHECKED_DATE = "2026-06-08"
+ANTHROPIC_MODEL_SOURCE_CHECKED_DATE = "2026-06-09"
 ANTHROPIC_MODELS_OVERVIEW_URL = (
     "https://platform.claude.com/docs/en/about-claude/models/overview"
 )
@@ -53,6 +59,15 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
     "default_provider": DEFAULT_LIVE_GENERATOR_PROVIDER,
     "default_model_tier": "sonnet",
     "models_by_tier": DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER,
+    "models_outside_opus_sonnet_haiku_cost_tiers": (
+        CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS
+    ),
+    "outside_tier_model_policy": (
+        "Claude Fable/Mythos family IDs are tracked as outside the "
+        "Haiku/Sonnet/Opus cost-aware tier contract. They are not automatic "
+        "runtime tiers for AI Statistician; using them under a Haiku, Sonnet, "
+        "or Opus tier request is treated as a routing mismatch."
+    ),
     "tier_specific_model_env_vars": ANTHROPIC_CLAUDE_TIER_ENV_VARS,
     "global_model_override_policy": (
         "AI_STATISTICIAN_LLM_MODEL, AI_STATISTICIAN_ANTHROPIC_MODEL, and "
@@ -160,6 +175,24 @@ def claude_model_tier_for_model(model: str) -> str:
     return ""
 
 
+def claude_outside_cost_tier_family_for_model(model: str) -> str:
+    """Return the Claude family name for tracked outside-tier model ids."""
+
+    key = str(model or "").strip().lower()
+    if not key:
+        return ""
+    for family, model_id in CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS.items():
+        if key == str(model_id).lower():
+            return family
+        if family.endswith("_limited_availability"):
+            family_prefix = family.removesuffix("_limited_availability")
+        else:
+            family_prefix = family
+        if key.startswith(f"claude-{family_prefix}-"):
+            return family
+    return ""
+
+
 def claude_model_tier_mismatch(
     model: str,
     expected_model_tier: str,
@@ -170,7 +203,14 @@ def claude_model_tier_mismatch(
 
     expected = str(expected_model_tier or "").strip().lower()
     actual = claude_model_tier_for_model(model)
+    outside_family = claude_outside_cost_tier_family_for_model(model)
     if not expected or not actual or expected == actual:
+        if expected and outside_family:
+            prefix = f"{subject} " if subject else ""
+            return (
+                f"{prefix}expected Claude {expected} tier but is configured "
+                f"with outside-tier Claude {outside_family} model {model}"
+            )
         return ""
     prefix = f"{subject} " if subject else ""
     return f"{prefix}expected Claude {expected} tier but is configured with {model}"

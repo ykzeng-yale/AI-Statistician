@@ -5138,6 +5138,38 @@ def test_llm_route_planner_rejects_anthropic_explicit_model_tier_mismatch() -> N
     assert any("expected Claude haiku tier" in error for error in row["errors"])
 
 
+def test_llm_route_planner_rejects_outside_cost_tier_model_for_tier_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_outside_tier_model"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        model="claude-fable-5",
+        model_tier="sonnet",
+    )
+
+    assert not payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    assert payload["n_request_model_tier_mismatches"] == 1
+    mismatch = payload["request_model_tier_mismatches"][0]
+    assert mismatch["model"] == "claude-fable-5"
+    assert mismatch["model_tier"] == "sonnet"
+    assert "outside-tier Claude fable model" in mismatch["error"]
+    packet = payload["request_packets"][0]
+    assert packet["model"] == "claude-fable-5"
+    assert packet["model_tier"] == "sonnet"
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any("outside-tier Claude fable model" in error for error in row["errors"])
+
+
 def test_llm_route_planner_auto_uses_sonnet_for_incomplete_realization_feedback() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_realization_tier_fake"
