@@ -2209,6 +2209,7 @@ def _user_prompt(
             "Any formal-realization node or standalone primitive with unknown/formal-library-search-pending coverage must have a matching formal_library/library search_request unless it declares a formal gap boundary or concrete delta action.",
             "Every search_requests row must use a supported request_kind, include a nonempty query, and include a nonempty reason.",
             "Every planner_next_actions row must include owner and action, and the row must resolve to a supported literature/formal-library/proof-state/route-revision hook family.",
+            "planner_next_actions.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
             "Use context_packet.component_resource_registry_context only to choose bounded search/prover next actions; registry rows are not evidence that a tool was called.",
             "When context_packet.feedback_loop_summary is present, treat it as the route-repair brief derived from raw residual/resource/interactive rows; it is planning context, not proof evidence.",
             "Resource-response ledger rows with awaiting, rejected, absent-response, failed-contract, or unmet-contract-minimum status are status-only; do not use them as residual-goal or route-repair evidence.",
@@ -3565,6 +3566,7 @@ def _response_contract_errors(
     errors.extend(_response_target_prover_consistency_errors(payload, request))
     errors.extend(_response_search_request_contract_errors(payload))
     errors.extend(_response_planner_next_action_contract_errors(payload))
+    errors.extend(_response_planner_next_action_primitive_grounding_errors(payload, request))
     errors.extend(_response_source_search_obligation_errors(payload))
     errors.extend(_response_source_snippet_provenance_errors(payload, request))
     errors.extend(_response_resource_request_alignment_errors(payload, request))
@@ -5143,6 +5145,89 @@ def _response_planner_next_action_contract_errors(
                 f"[{index}] does not resolve to a supported hook family"
             )
     return errors
+
+
+def _response_planner_next_action_primitive_grounding_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    allowed_primitives = _planner_next_action_allowed_primitive_keys(payload, request)
+    errors: list[str] = []
+    for index, action in enumerate(_dict_tuple(payload.get("planner_next_actions", []))):
+        target_primitives = _planner_action_target_primitive_keys(action)
+        if not target_primitives:
+            continue
+        ungrounded = sorted(target_primitives - allowed_primitives)
+        if ungrounded:
+            errors.append(
+                "planner_next_actions"
+                f"[{index}].target_primitives must be drawn from request, route, "
+                "formal-realization, residual, or cost-hint primitive evidence; "
+                "ungrounded target_primitives: "
+                + ", ".join(ungrounded[:8])
+            )
+    return errors
+
+
+def _planner_next_action_allowed_primitive_keys(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> set[str]:
+    target_prover_family = str(request.get("target_prover_family", ""))
+    minimal_delta = _dict_value(payload, "minimal_delta_plan")
+    selected_primitives = {
+        _primitive_key(primitive)
+        for primitive in _str_tuple(minimal_delta.get("selected_primitives", []))
+    }
+    selected_primitives.discard("")
+    allowed = set(_available_primitive_keys_for_request(request))
+    allowed.update(selected_primitives)
+    allowed.update(_minimal_delta_primitives(minimal_delta, selected_primitives))
+    allowed.update(_cost_hint_baseline_primitives(request))
+    for row in _dict_tuple(minimal_delta.get("primitive_costs", [])):
+        primitive = _primitive_key(row.get("primitive", ""))
+        if primitive:
+            allowed.add(primitive)
+    for node in _formal_realization_nodes_from_payload(
+        payload,
+        target_prover_family=target_prover_family,
+    ):
+        primitive = _primitive_key(node.get("primitive", ""))
+        if primitive:
+            allowed.add(primitive)
+    route = _standalone_route_from_payload(
+        payload,
+        target_prover_family=target_prover_family,
+    )
+    for primitive_row in _dict_tuple(route.get("primitives", [])):
+        primitive = _primitive_key(primitive_row.get("primitive", ""))
+        if primitive:
+            allowed.add(primitive)
+    for edge in _dict_tuple(payload.get("route_alignment_edges", [])):
+        primitive = _primitive_key(edge.get("primitive", ""))
+        if primitive:
+            allowed.add(primitive)
+    for interpretation in _dict_tuple(payload.get("residual_interpretations", [])):
+        allowed.update(_residual_interpretation_search_primitives(interpretation))
+    allowed.discard("")
+    return allowed
+
+
+def _planner_action_target_primitive_keys(action: Mapping[str, Any]) -> set[str]:
+    primitives: set[str] = set()
+    for field_name in (
+        "target_primitive",
+        "target_primitives",
+        "primitive",
+        "primitives",
+    ):
+        primitives.update(
+            _primitive_key(primitive)
+            for primitive in _primitive_values(action.get(field_name))
+            if _primitive_key(primitive)
+        )
+    primitives.discard("")
+    return primitives
 
 
 def _planner_next_action_has_supported_hook(action: Mapping[str, Any]) -> bool:

@@ -1464,6 +1464,7 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
             "owner": "lean_lsp_mcp",
             "action": "attempt focused proof-state feedback for rank_uniformity",
             "query": "rank_uniformity residual goals after exchangeability reuse",
+            "target_primitives": ["rank_uniformity"],
             "resource_id": "lean_lsp_mcp",
         }
     ]
@@ -1599,6 +1600,43 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
     assert handoff_seed_route["replan_metadata"][
         "applied_llm_route_planner_hook_traces"
     ] == [hook_trace]
+
+
+def test_llm_route_planner_rejects_ungrounded_action_target_primitives() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_action_target_primitive"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": "attempt proof-state feedback for a spectral_gap side route",
+            "query": "spectral_gap residual goals",
+            "target_primitives": ["spectral_gap"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "planner_next_actions[0].target_primitives must be drawn from request"
+        in error
+        and "spectral_gap" in error
+        for error in row["errors"]
+    )
 
 
 def test_llm_route_planner_rejects_registry_unavailable_tool_actions() -> None:

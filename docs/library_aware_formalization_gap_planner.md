@@ -176,7 +176,10 @@ standalone replay. This is still planning evidence, not proof evidence. The
 contains an interactive decision policy, resource queue, feedback summary, or
 component-resource registry, those quality controls must be grounded in that
 context; invented gates or response-validation signals reject the LLM route
-instead of silently becoming tool policy.
+instead of silently becoming tool policy. Explicit
+`planner_next_actions.target_primitives` must also resolve to primitives already
+present in the request, selected/delta/cost-hint plan, formal realization DAG,
+standalone route, alignment edges, or residual interpretations.
 Accepted controls are preserved on route hooks and resource-request bindings so
 the refinement queue can dispatch the same bounded tool contract; refinement
 adapter responses and normalized refinement-evidence rows also expose a compact
