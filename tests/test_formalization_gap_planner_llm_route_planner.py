@@ -415,6 +415,87 @@ def _make_rank_uniformity_near_exists_response() -> dict[str, object]:
     return response
 
 
+def _make_rank_uniformity_omitted_response(
+    *,
+    include_baseline_route_option: bool = False,
+    baseline_route_cost: int = 4,
+) -> dict[str, object]:
+    response = _llm_response_payload()
+    response["informal_knowledge_dag_nodes"] = [
+        response["informal_knowledge_dag_nodes"][0]
+    ]
+    response["lean_realization_dag_nodes"] = [
+        response["lean_realization_dag_nodes"][0]
+    ]
+    response["route_alignment_edges"] = [
+        {
+            "informal_node_id": "informal:exchangeability",
+            "formal_node_id": "formal:exchangeability",
+            "alignment_status": "exact",
+            "alignment_rationale": (
+                "The response claims exchangeability alone is the selected route."
+            ),
+        }
+    ]
+    minimal_delta = response["minimal_delta_plan"]
+    assert isinstance(minimal_delta, dict)
+    minimal_delta["selected_primitives"] = ["exchangeability"]
+    minimal_delta["route_cost"] = 0
+    minimal_delta["primitive_costs"] = [minimal_delta["primitive_costs"][0]]
+    minimal_delta["bridge_lemmas"] = []
+    graph = minimal_delta["and_or_cost_graph"]
+    assert isinstance(graph, dict)
+    graph["selected_route_option_id"] = "route_option:exchangeability_only"
+    route_options = [
+        {
+            "route_option_id": "route_option:exchangeability_only",
+            "selected": True,
+            "selected_primitives": ["exchangeability"],
+            "route_cost": 0,
+            "cost_rationale": (
+                "The response claims the current rank-uniformity primitive is "
+                "unnecessary."
+            ),
+        }
+    ]
+    if include_baseline_route_option:
+        route_options.append(
+            {
+                "route_option_id": "route_option:current_route_min_delta_baseline",
+                "selected": False,
+                "selected_primitives": ["exchangeability", "rank_uniformity"],
+                "route_cost": baseline_route_cost,
+                "cost_rationale": (
+                    "The original request baseline keeps rank_uniformity."
+                ),
+            }
+        )
+    graph["route_options"] = route_options
+    graph["or_nodes"] = [
+        {
+            "node_id": "or:rank_route_choice",
+            "choices": [option["route_option_id"] for option in route_options],
+            "selection_rationale": (
+                "The response selects the exchangeability-only route."
+            ),
+        }
+    ]
+    graph["and_edges"] = [
+        {
+            "route_option_id": option["route_option_id"],
+            "requires": option["selected_primitives"],
+        }
+        for option in route_options
+    ]
+    response["standalone_route"]["primitives"] = [
+        response["standalone_route"]["primitives"][0]
+    ]
+    response["standalone_route"]["theorem_statement"] = (
+        "A distribution-free rank bound follows from exchangeability."
+    )
+    return response
+
+
 def _promote_response_to_source_port_costs(response: dict[str, object]) -> None:
     for node in response.get("lean_realization_dag_nodes", []):
         if isinstance(node, dict):
@@ -3484,6 +3565,49 @@ def test_llm_route_planner_response_payload_validator_request_context_rejects_co
     )
 
 
+def test_llm_route_planner_response_payload_validator_request_context_rejects_silent_cost_hint_primitive_omission() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_payload_validate_cost_hint_omission")
+    planner_dir = root / "llm_route_planner"
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    staged = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        planner_dir,
+        provider_name="prompt_only",
+    )
+    request = staged["request_packets"][0]
+    response_json.write_text(
+        json.dumps(
+            {
+                "request_id": request["request_id"],
+                "route_id": request["route_id"],
+                "response_payload": _make_rank_uniformity_omitted_response(),
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+        request_context_json=planner_dir,
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["request_context_validation_mode"] == "request_bound"
+    assert row["n_schema_errors"] == 0
+    assert row["n_request_context_errors"] >= 1
+    assert any(
+        "baseline route option" in error and "rank_uniformity" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_response_payload_validator_request_context_rejects_theorem_drift() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_payload_validate_theorem_drift")
     planner_dir = root / "llm_route_planner"
@@ -5460,6 +5584,71 @@ def test_llm_route_planner_rejects_underpriced_request_cost_hints() -> None:
     )
     assert any(
         "minimum_route_base_cost=4" in error for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_silent_cost_hint_primitive_omission() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_cost_hint_omission"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response_json.write_text(
+        json.dumps(_make_rank_uniformity_omitted_response()),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    assert any(
+        "baseline route option" in error and "rank_uniformity" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_underpriced_baseline_option_when_cost_hint_primitive_omitted() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_underpriced_cost_hint_baseline"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response_json.write_text(
+        json.dumps(
+            _make_rank_uniformity_omitted_response(
+                include_baseline_route_option=True,
+                baseline_route_cost=1,
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    assert any(
+        "baseline route option" in error and "minimum_route_base_cost=4" in error
+        for error in row["errors"]
     )
 
 

@@ -205,7 +205,11 @@ for Haiku. Request-bound response validation also treats these hints as hard
 lower bounds: a response whose `primitive_costs` or selected AND/OR route option
 prices a primitive set below `minimum_base_cost` or `minimum_route_base_cost` is
 rejected before route adoption. Schema-only response validation cannot enforce
-this bound because it has no staged request packet.
+this bound because it has no staged request packet. If a response selects a
+different route that omits a primitive from a hinted baseline primitive set, its
+AND/OR graph must still enumerate that baseline option at or above the hinted
+minimum cost; otherwise the planner treats the omission as silent route
+weakening and rejects the response.
 Each primitive cost row must use a `coverage_bucket` listed in
 `minimal_delta_cost_policy.coverage_bucket_base_cost`, with `base_cost` exactly
 equal to that published bucket cost. That bucket/base cost also cannot be

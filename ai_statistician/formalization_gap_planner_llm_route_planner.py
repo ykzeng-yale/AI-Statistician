@@ -2171,6 +2171,7 @@ def _user_prompt(
             "Minimal delta must include selected_primitives, cost_model_version, route_cost, primitive_costs, and_or_cost_graph, and minimality_rationale.",
             "Use minimal_delta_cost_policy as the AND/OR graph cost surface; pick the route with the lowest current formalization delta cost.",
             "When context_packet.minimal_delta_cost_hints is present, use primitive_cost_hints as lower-bound coverage evidence and do not choose route options cheaper than their minimum_route_base_cost.",
+            "If the selected route omits any primitive from context_packet.minimal_delta_cost_hints.route_option_hints, and_or_cost_graph.route_options must still enumerate that baseline primitive set with route_cost at least minimum_route_base_cost.",
             "Every selected primitive must have exactly one primitive_costs row with base_cost, proof_difficulty_cost, import_cone_cost, definition_or_typeclass_cost, semantic_risk_cost, reuse_credit, total_cost, and cost_rationale.",
             "Every primitive_costs coverage_bucket must be listed in minimal_delta_cost_policy.coverage_bucket_base_cost, and base_cost must equal that bucket base cost.",
             "A primitive_costs coverage_bucket/base_cost must not be cheaper than the explicit coverage_bucket, coverage_status, or formalization_action markers on the corresponding formal_realization_dag_nodes or standalone_route.primitives.",
@@ -6284,6 +6285,16 @@ def _minimal_delta_request_hint_errors(
                 f"minimum_route_base_cost={minimum_cost:g}"
             )
         errors.extend(
+            _minimal_delta_baseline_route_option_hint_errors(
+                minimal_delta,
+                hint,
+                hint_index=hint_index,
+                selected=selected,
+                hint_primitives=hint_primitives,
+                minimum_route_base_cost=minimum_cost,
+            )
+        )
+        errors.extend(
             _minimal_delta_selected_route_option_hint_errors(
                 minimal_delta,
                 hint,
@@ -6292,6 +6303,57 @@ def _minimal_delta_request_hint_errors(
                 minimum_route_base_cost=minimum_cost,
             )
         )
+    return errors
+
+
+def _minimal_delta_baseline_route_option_hint_errors(
+    minimal_delta: Mapping[str, Any],
+    hint: Mapping[str, Any],
+    *,
+    hint_index: int,
+    selected: set[str],
+    hint_primitives: set[str],
+    minimum_route_base_cost: float,
+) -> list[str]:
+    omitted = sorted(hint_primitives - selected)
+    if not omitted:
+        return []
+    graph = _dict_value(minimal_delta, "and_or_cost_graph")
+    hint_route_option_id = str(hint.get("route_option_id", "")).strip()
+    matching_options: list[tuple[int, dict[str, object]]] = []
+    for index, option in enumerate(_dict_tuple(graph.get("route_options", []))):
+        option_id = str(option.get("route_option_id", "")).strip()
+        option_primitives = {
+            _primitive_key(primitive)
+            for primitive in _str_tuple(option.get("selected_primitives", []))
+        }
+        option_primitives.discard("")
+        if option_primitives == hint_primitives or (
+            hint_route_option_id and option_id == hint_route_option_id
+        ):
+            matching_options.append((index, option))
+    if not matching_options:
+        return [
+            "minimal_delta_plan.and_or_cost_graph.route_options must include "
+            "request minimal_delta_cost_hints baseline route option "
+            f"{hint_route_option_id or f'route_option_hints[{hint_index}]'} "
+            "when selected route omits hinted primitive(s): "
+            + ", ".join(omitted)
+        ]
+    errors: list[str] = []
+    for index, option in matching_options:
+        option_cost = option.get("route_cost")
+        if not _is_nonnegative_number(option_cost):
+            continue
+        if float(option_cost or 0) + 1e-9 < minimum_route_base_cost:
+            errors.append(
+                "minimal_delta_plan.and_or_cost_graph.route_options"
+                f"[{index}].route_cost underprices request "
+                "minimal_delta_cost_hints baseline route option "
+                f"{hint_route_option_id or f'route_option_hints[{hint_index}]'}: "
+                f"route_cost={float(option_cost or 0):g} but "
+                f"minimum_route_base_cost={minimum_route_base_cost:g}"
+            )
     return errors
 
 
