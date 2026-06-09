@@ -2208,6 +2208,7 @@ def _user_prompt(
             "If a needed declaration is not listed, emit a formal_library search_request instead of inventing a candidate_declaration.",
             "Any formal-realization node or standalone primitive with unknown/formal-library-search-pending coverage must have a matching formal_library/library search_request unless it declares a formal gap boundary or concrete delta action.",
             "Every search_requests row must use a supported request_kind, include a nonempty query, and include a nonempty reason.",
+            "search_requests.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
             "Every planner_next_actions row must include owner and action, and the row must resolve to a supported literature/formal-library/proof-state/route-revision hook family.",
             "planner_next_actions.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
             "Use context_packet.component_resource_registry_context only to choose bounded search/prover next actions; registry rows are not evidence that a tool was called.",
@@ -3565,6 +3566,7 @@ def _response_contract_errors(
     errors.extend(_response_target_theorem_identity_errors(payload, request))
     errors.extend(_response_target_prover_consistency_errors(payload, request))
     errors.extend(_response_search_request_contract_errors(payload))
+    errors.extend(_response_search_request_primitive_grounding_errors(payload, request))
     errors.extend(_response_planner_next_action_contract_errors(payload))
     errors.extend(_response_planner_next_action_primitive_grounding_errors(payload, request))
     errors.extend(_response_source_search_obligation_errors(payload))
@@ -5130,6 +5132,17 @@ def _response_search_request_contract_errors(
     return errors
 
 
+def _response_search_request_primitive_grounding_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    return _response_target_primitive_grounding_errors(
+        payload,
+        request,
+        collection_name="search_requests",
+    )
+
+
 def _response_planner_next_action_contract_errors(
     payload: Mapping[str, Any],
 ) -> list[str]:
@@ -5151,17 +5164,29 @@ def _response_planner_next_action_primitive_grounding_errors(
     payload: Mapping[str, Any],
     request: Mapping[str, Any],
 ) -> list[str]:
-    allowed_primitives = _planner_next_action_allowed_primitive_keys(payload, request)
+    return _response_target_primitive_grounding_errors(
+        payload,
+        request,
+        collection_name="planner_next_actions",
+    )
+
+
+def _response_target_primitive_grounding_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+    *,
+    collection_name: str,
+) -> list[str]:
+    allowed_primitives = _bounded_action_allowed_primitive_keys(payload, request)
     errors: list[str] = []
-    for index, action in enumerate(_dict_tuple(payload.get("planner_next_actions", []))):
+    for index, action in enumerate(_dict_tuple(payload.get(collection_name, []))):
         target_primitives = _planner_action_target_primitive_keys(action)
         if not target_primitives:
             continue
         ungrounded = sorted(target_primitives - allowed_primitives)
         if ungrounded:
             errors.append(
-                "planner_next_actions"
-                f"[{index}].target_primitives must be drawn from request, route, "
+                f"{collection_name}[{index}].target_primitives must be drawn from request, route, "
                 "formal-realization, residual, or cost-hint primitive evidence; "
                 "ungrounded target_primitives: "
                 + ", ".join(ungrounded[:8])
@@ -5169,7 +5194,7 @@ def _response_planner_next_action_primitive_grounding_errors(
     return errors
 
 
-def _planner_next_action_allowed_primitive_keys(
+def _bounded_action_allowed_primitive_keys(
     payload: Mapping[str, Any],
     request: Mapping[str, Any],
 ) -> set[str]:
@@ -9468,6 +9493,12 @@ def _target_primitives_for_llm_search_request(
     *,
     selected_primitives: tuple[str, ...],
 ) -> tuple[str, ...]:
+    explicit = _explicit_target_primitives_for_llm_row(
+        request,
+        selected_primitives=selected_primitives,
+    )
+    if explicit:
+        return explicit
     text = _primitive_key(
         " ".join(
             str(request.get(field_name, ""))
@@ -9480,6 +9511,34 @@ def _target_primitives_for_llm_search_request(
         if _primitive_key(primitive) and _primitive_key(primitive) in text
     ]
     return _str_tuple(matched or selected_primitives[:6])
+
+
+def _explicit_target_primitives_for_llm_row(
+    row: Mapping[str, object],
+    *,
+    selected_primitives: tuple[str, ...],
+) -> tuple[str, ...]:
+    selected_by_key = {
+        _primitive_key(primitive): primitive
+        for primitive in selected_primitives
+        if _primitive_key(primitive)
+    }
+    values: list[str] = []
+    seen: set[str] = set()
+    for field_name in (
+        "target_primitive",
+        "target_primitives",
+        "primitive",
+        "primitives",
+    ):
+        for primitive in _primitive_values(row.get(field_name)):
+            primitive_text = str(primitive).strip()
+            primitive_key = _primitive_key(primitive_text)
+            if not primitive_key or primitive_key in seen:
+                continue
+            seen.add(primitive_key)
+            values.append(str(selected_by_key.get(primitive_key, primitive_text)))
+    return _str_tuple(values[:12])
 
 
 def _llm_alignment_edges_for_seed(

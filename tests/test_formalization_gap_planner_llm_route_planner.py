@@ -1463,7 +1463,7 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
         {
             "owner": "lean_lsp_mcp",
             "action": "attempt focused proof-state feedback for rank_uniformity",
-            "query": "rank_uniformity residual goals after exchangeability reuse",
+            "query": "residual goals after exchangeability reuse",
             "target_primitives": ["rank_uniformity"],
             "resource_id": "lean_lsp_mcp",
         }
@@ -1499,9 +1499,10 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
     hook = seed_route["interactive_refinement_hooks"][0]
     assert hook["hook_kind"] == "proof_state_feedback"
     assert hook["llm_route_planner_planner_next_action_index"] == 0
+    assert hook["target_primitives"] == ["rank_uniformity"]
     assert "lean_lsp_mcp" in hook["resource_ids"]
     assert hook["resource_request_bindings"][0]["resource_id"] == "lean_lsp_mcp"
-    assert "rank_uniformity residual goals" in " ".join(hook["queries"])
+    assert "residual goals after exchangeability reuse" in " ".join(hook["queries"])
     trigger = seed_route["route_revision_triggers"][0]
     assert trigger["trigger_kind"] == "blocked_by_formal_side_condition"
     assert "lean_lsp_mcp" in trigger["resource_ids"]
@@ -1520,6 +1521,7 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
         if hook.get("llm_route_planner_planner_next_action_index") == 0
     )
     assert plan_hook["hook_kind"] == "proof_state_feedback"
+    assert plan_hook["target_primitives"] == ["rank_uniformity"]
     queue_payload = export_formalization_gap_planner_refinement_queue(
         plan_dir,
         refinement_queue_dir,
@@ -1531,7 +1533,8 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
         if row.get("hook_kind") == "proof_state_feedback"
         and "lean_lsp_mcp" in row.get("resource_ids", ())
     )
-    assert "rank_uniformity residual goals" in " ".join(queue_row["queries"])
+    assert "residual goals after exchangeability reuse" in " ".join(queue_row["queries"])
+    assert tuple(queue_row["target_primitives"]) == ("rank_uniformity",)
     hook_trace = queue_row["llm_route_planner_hook_trace"]
     assert hook_trace["trace_kind"] == "llm_route_planner_hook_trace"
     assert hook_trace["llm_route_planner_planner_next_action_index"] == 0
@@ -1600,6 +1603,87 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
     assert handoff_seed_route["replan_metadata"][
         "applied_llm_route_planner_hook_traces"
     ] == [hook_trace]
+
+
+def test_llm_route_planner_materializes_explicit_search_target_primitives() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_search_target_primitives"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": "deterministic tie handling",
+            "reason": "bounded source search for the rank route side condition",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response["planner_next_actions"] = []
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["response_contract_ok"] is True
+    seed_route = payload["standalone_seed"]["routes"][0]
+    hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_search_request_index") == 0
+    )
+    assert hook["hook_kind"] == "literature_discovery"
+    assert hook["target_primitives"] == ["rank_uniformity"]
+    assert hook["llm_route_planner_search_request"]["target_primitives"] == [
+        "rank_uniformity"
+    ]
+
+
+def test_llm_route_planner_rejects_ungrounded_search_target_primitives() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_search_target_primitive"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": "spectral gap compact operator route",
+            "reason": "bad fixture tries to add an unrelated route primitive",
+            "target_primitives": ["spectral_gap"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "search_requests[0].target_primitives must be drawn from request"
+        in error
+        and "spectral_gap" in error
+        for error in row["errors"]
+    )
 
 
 def test_llm_route_planner_rejects_ungrounded_action_target_primitives() -> None:

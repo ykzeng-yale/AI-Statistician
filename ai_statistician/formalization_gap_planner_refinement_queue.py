@@ -468,7 +468,7 @@ def _refinement_row(
     hook_kind = str(hook.get("hook_kind", ""))
     target_prover_family = _target_prover_family(plan_row, hook)
     stage = _refinement_stage(hook_kind)
-    target_primitives = _target_primitives(plan_row, hook_kind, evaluation_row)
+    target_primitives = _target_primitives(plan_row, hook, hook_kind, evaluation_row)
     triggers = _triggers_for_hook(plan_row, hook_kind, evaluation_row, calibration_row)
     queries = _queries_for_hook(plan_row, hook, hook_kind, evaluation_row, calibration_row)
     recommended_tools = _recommended_tools(
@@ -810,9 +810,13 @@ def _queries_for_hook(
 
 def _target_primitives(
     plan_row: dict[str, Any],
+    hook: dict[str, Any],
     hook_kind: str,
     evaluation_row: dict[str, Any],
 ) -> tuple[str, ...]:
+    hook_targets = _str_tuple(hook.get("target_primitives", []))
+    if hook_targets:
+        return hook_targets
     selected = _str_tuple(plan_row.get("selected_primitives", []))
     missing = _str_tuple(
         [

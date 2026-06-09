@@ -177,9 +177,11 @@ contains an interactive decision policy, resource queue, feedback summary, or
 component-resource registry, those quality controls must be grounded in that
 context; invented gates or response-validation signals reject the LLM route
 instead of silently becoming tool policy. Explicit
+`search_requests.target_primitives` and
 `planner_next_actions.target_primitives` must also resolve to primitives already
 present in the request, selected/delta/cost-hint plan, formal realization DAG,
-standalone route, alignment edges, or residual interpretations.
+standalone route, alignment edges, or residual interpretations, and accepted
+refinement hooks preserve those explicit primitive targets.
 Accepted controls are preserved on route hooks and resource-request bindings so
 the refinement queue can dispatch the same bounded tool contract; refinement
 adapter responses and normalized refinement-evidence rows also expose a compact
