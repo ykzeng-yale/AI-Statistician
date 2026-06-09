@@ -36,9 +36,11 @@ from ai_statistician.proof_state_feedback import (
 )
 from ai_statistician.research_agent_runtime import (
     AlgorithmEngineerRuntimeSubsystem,
+    FormalizationEvaluatorRuntimeSubsystem,
     ResearchAgentRuntimeConfig,
     _proof_bank_obligation_request_ids,
     _registered_algorithm_template_hint,
+    _runtime_learning_memory_kernel_verified_proof_obligation_ids,
     _runtime_learning_memory_proof_obligation_ids,
     _runtime_formalization_gap_planner_bridge,
     _runtime_formalization_gap_planner_target_intake_payload,
@@ -702,6 +704,19 @@ def test_runtime_learning_memory_proof_obligation_requests_split_catalog_buckets
 
 
 def test_runtime_learning_memory_skips_already_kernel_verified_obligations() -> None:
+    kernel_verified = _runtime_learning_memory_kernel_verified_proof_obligation_ids(
+        {
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {
+                        "kernel_verified_proof_obligation_ids": ["variance_nonneg"],
+                    }
+                ],
+            }
+        },
+        catalog_ids=("variance_nonneg", "event_indicator_expectation"),
+    )
     selected, off_catalog, rejected = _runtime_learning_memory_proof_obligation_ids(
         {
             "runtime_learning_memory": {
@@ -720,9 +735,89 @@ def test_runtime_learning_memory_skips_already_kernel_verified_obligations() -> 
         catalog_ids=("variance_nonneg", "event_indicator_expectation"),
     )
 
+    assert kernel_verified == ("variance_nonneg",)
     assert selected == ("event_indicator_expectation",)
     assert off_catalog == ()
     assert rejected == ()
+
+
+def test_formalization_runtime_suppresses_llm_requests_already_kernel_verified_in_memory() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    question_payload = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+
+    class StaticFormalizer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            packet = dict(_formalizer_sample_response())
+            packet.update(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                    "packet_id": "formalizer_proposal:memory_suppression",
+                    "source_agent": "StaticFormalizer",
+                    "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+                    "kernel_verified": False,
+                    "full_frontier_theorem_proved": False,
+                }
+            )
+            return packet
+
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=StaticFormalizer(),
+        proof_verifier=MockProofVerifier(),
+        max_proof_obligations=1,
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {"manifest_id": "algorithm_sandbox_manifest:test"},
+        },
+    )
+    task = AgentTask(
+        task_id="task:formalization_memory_suppression",
+        owner_subsystem="FormalizationEvaluator",
+        objective="test proof-obligation memory suppression",
+        inputs={
+            "question": question_payload,
+            "architect_context": {
+                "runtime_learning_memory": {
+                    "artifact_kind": "RuntimeLearningMemoryContext",
+                    "rows": [
+                        {
+                            "kernel_verified_proof_obligation_ids": ["variance_nonneg"],
+                            "recommended_proof_obligation_ids": ["event_indicator_expectation"],
+                        }
+                    ],
+                }
+            },
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+    manifest = next(
+        row
+        for key, row in result.produced_artifacts.items()
+        if key.startswith("formalization_manifest:")
+    )
+    control = manifest["proof_obligation_control"]
+
+    assert control["memory_kernel_verified_proof_obligation_ids"] == ["variance_nonneg"]
+    assert control["memory_prioritized_proof_obligation_ids"] == ["event_indicator_expectation"]
+    assert control["llm_requested_proof_obligation_ids"] == ["variance_nonneg"]
+    assert control["llm_prioritized_proof_obligation_ids"] == []
+    assert control["llm_suppressed_kernel_verified_proof_obligation_ids"] == ["variance_nonneg"]
+    assert control["prioritized_proof_obligation_ids"] == ["event_indicator_expectation"]
+    assert control["selected_priority_proof_obligation_ids"] == ["event_indicator_expectation"]
+    assert "variance_nonneg" not in control["selected_proof_obligation_ids"]
 
 
 def test_proof_audit_learning_export_marks_kernel_verified_obligations_as_memory(tmp_path: Path) -> None:

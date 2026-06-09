@@ -892,8 +892,20 @@ class FormalizationEvaluatorRuntimeSubsystem:
         proposal_packet: dict[str, Any] | None = None
         proposal_evidence: EvidenceLedgerEntry | None = None
         llm_requested_proof_obligation_ids: tuple[str, ...] = ()
+        llm_prioritized_proof_obligation_ids: tuple[str, ...] = ()
+        llm_suppressed_kernel_verified_proof_obligation_ids: tuple[str, ...] = ()
         llm_off_catalog_proof_obligation_ids: tuple[str, ...] = ()
         llm_rejected_proof_obligation_ids: tuple[str, ...] = ()
+        memory_kernel_verified_proof_obligation_ids = (
+            _runtime_learning_memory_kernel_verified_proof_obligation_ids(
+                context,
+                catalog_ids=tuple(
+                    str(row.get("obligation_id", "") or "")
+                    for row in proof_bank_obligation_catalog
+                    if isinstance(row, Mapping)
+                ),
+            )
+        )
         (
             memory_prioritized_proof_obligation_ids,
             memory_off_catalog_proof_obligation_ids,
@@ -930,6 +942,13 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     if isinstance(row, Mapping)
                 ),
             )
+            memory_kernel_verified_set = set(memory_kernel_verified_proof_obligation_ids)
+            llm_prioritized_proof_obligation_ids = tuple(
+                row for row in llm_requested_proof_obligation_ids if row not in memory_kernel_verified_set
+            )
+            llm_suppressed_kernel_verified_proof_obligation_ids = tuple(
+                row for row in llm_requested_proof_obligation_ids if row in memory_kernel_verified_set
+            )
             proposal_id = str(proposal_packet["packet_id"])
             produced_artifacts[proposal_id] = proposal_packet
             observations.append(
@@ -948,6 +967,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
                         ),
                         "n_registered_proof_bank_obligation_candidates": len(proof_bank_obligation_catalog),
                         "n_registered_proof_bank_obligation_requests": len(llm_requested_proof_obligation_ids),
+                        "n_prioritized_registered_proof_bank_obligation_requests": len(
+                            llm_prioritized_proof_obligation_ids
+                        ),
+                        "n_suppressed_kernel_verified_proof_bank_obligation_requests": len(
+                            llm_suppressed_kernel_verified_proof_obligation_ids
+                        ),
                         "n_off_catalog_proof_bank_obligation_requests": len(
                             llm_off_catalog_proof_obligation_ids
                         ),
@@ -967,6 +992,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     "n_retrieval_queries": len(proposal_packet.get("retrieval_queries", []) or []),
                     "n_registered_proof_bank_obligation_candidates": len(proof_bank_obligation_catalog),
                     "n_registered_proof_bank_obligation_requests": len(llm_requested_proof_obligation_ids),
+                    "n_prioritized_registered_proof_bank_obligation_requests": len(
+                        llm_prioritized_proof_obligation_ids
+                    ),
+                    "n_suppressed_kernel_verified_proof_bank_obligation_requests": len(
+                        llm_suppressed_kernel_verified_proof_obligation_ids
+                    ),
                     "n_off_catalog_proof_bank_obligation_requests": len(llm_off_catalog_proof_obligation_ids),
                     "kernel_verified": False,
                     "full_frontier_theorem_proved": False,
@@ -978,7 +1009,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 theorem_goals,
                 prioritized_proof_obligation_ids=(
                     *memory_prioritized_proof_obligation_ids,
-                    *llm_requested_proof_obligation_ids,
+                    *llm_prioritized_proof_obligation_ids,
                 ),
             )
         )
@@ -992,25 +1023,35 @@ class FormalizationEvaluatorRuntimeSubsystem:
         proof_obligation_control["memory_rejected_proof_obligation_ids"] = list(
             memory_rejected_proof_obligation_ids
         )
+        proof_obligation_control["memory_kernel_verified_proof_obligation_ids"] = list(
+            memory_kernel_verified_proof_obligation_ids
+        )
         proof_obligation_control["llm_requested_proof_obligation_ids"] = list(llm_requested_proof_obligation_ids)
+        proof_obligation_control["llm_prioritized_proof_obligation_ids"] = list(
+            llm_prioritized_proof_obligation_ids
+        )
+        proof_obligation_control["llm_suppressed_kernel_verified_proof_obligation_ids"] = list(
+            llm_suppressed_kernel_verified_proof_obligation_ids
+        )
         proof_obligation_control["llm_off_catalog_proof_obligation_ids"] = list(
             llm_off_catalog_proof_obligation_ids
         )
         proof_obligation_control["llm_rejected_proof_obligation_ids"] = list(llm_rejected_proof_obligation_ids)
         proof_obligation_control["priority_source"] = (
             "runtime_learning_memory+llm_formalizer"
-            if memory_prioritized_proof_obligation_ids and llm_requested_proof_obligation_ids
+            if memory_prioritized_proof_obligation_ids and llm_prioritized_proof_obligation_ids
             else "runtime_learning_memory"
             if memory_prioritized_proof_obligation_ids
             else "llm_formalizer"
-            if llm_requested_proof_obligation_ids
+            if llm_prioritized_proof_obligation_ids
             else "none"
         )
         proof_obligation_control["priority_boundary"] = (
             "LLM Formalizer and runtime-learning-memory proof-bank requests only prioritize registered "
             "subclaim kernel-smoke work. AgentRuntime filters them against the proof bank and current "
-            "candidate catalog; off-catalog or rejected requests are recorded but not used for proof "
-            "selection. Requests and memory are not proof evidence."
+            "candidate catalog; requests already marked kernel verified by runtime-learning memory, "
+            "off-catalog requests, and rejected requests are recorded but not used for proof selection. "
+            "Requests and memory are not proof evidence."
         )
         n_proved = sum(1 for row in subclaims if row.status == "PROVED")
         n_kernel_verified = sum(1 for row in subclaims if row.kernel_verified)
@@ -1196,6 +1237,15 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     "counts": manifest["counts"],
                     "proof_evidence_status": manifest["proof_evidence_status"],
                     "full_frontier_theorem_proved": False,
+                    "memory_kernel_verified_proof_obligation_ids": list(
+                        memory_kernel_verified_proof_obligation_ids
+                    ),
+                    "llm_prioritized_proof_obligation_ids": list(
+                        llm_prioritized_proof_obligation_ids
+                    ),
+                    "llm_suppressed_kernel_verified_proof_obligation_ids": list(
+                        llm_suppressed_kernel_verified_proof_obligation_ids
+                    ),
                 },
             )
         )
@@ -1241,7 +1291,16 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 inputs={
                     "n_theorem_goals": len(theorem_goals),
                     "problem_class": problem.problem_class,
-                    "llm_prioritized_proof_obligation_ids": list(llm_requested_proof_obligation_ids),
+                    "llm_requested_proof_obligation_ids": list(llm_requested_proof_obligation_ids),
+                    "llm_prioritized_proof_obligation_ids": list(
+                        llm_prioritized_proof_obligation_ids
+                    ),
+                    "llm_suppressed_kernel_verified_proof_obligation_ids": list(
+                        llm_suppressed_kernel_verified_proof_obligation_ids
+                    ),
+                    "memory_kernel_verified_proof_obligation_ids": list(
+                        memory_kernel_verified_proof_obligation_ids
+                    ),
                     "memory_prioritized_proof_obligation_ids": list(
                         memory_prioritized_proof_obligation_ids
                     ),
@@ -3641,9 +3700,12 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             "configured_proof_obligation_ids": [],
             "requested_proof_obligation_ids": [],
             "memory_prioritized_proof_obligation_ids": [],
+            "memory_kernel_verified_proof_obligation_ids": [],
             "memory_off_catalog_proof_obligation_ids": [],
             "memory_rejected_proof_obligation_ids": [],
             "llm_requested_proof_obligation_ids": [],
+            "llm_prioritized_proof_obligation_ids": [],
+            "llm_suppressed_kernel_verified_proof_obligation_ids": [],
             "llm_off_catalog_proof_obligation_ids": [],
             "llm_rejected_proof_obligation_ids": [],
             "prioritized_proof_obligation_ids": [],
@@ -3732,6 +3794,10 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     set(proof_control.get("memory_prioritized_proof_obligation_ids", []) or [])
                     | {str(row) for row in control.get("memory_prioritized_proof_obligation_ids", []) or []}
                 )
+                proof_control["memory_kernel_verified_proof_obligation_ids"] = sorted(
+                    set(proof_control.get("memory_kernel_verified_proof_obligation_ids", []) or [])
+                    | {str(row) for row in control.get("memory_kernel_verified_proof_obligation_ids", []) or []}
+                )
                 proof_control["memory_off_catalog_proof_obligation_ids"] = sorted(
                     set(proof_control.get("memory_off_catalog_proof_obligation_ids", []) or [])
                     | {str(row) for row in control.get("memory_off_catalog_proof_obligation_ids", []) or []}
@@ -3743,6 +3809,27 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 proof_control["llm_requested_proof_obligation_ids"] = sorted(
                     set(proof_control.get("llm_requested_proof_obligation_ids", []) or [])
                     | {str(row) for row in control.get("llm_requested_proof_obligation_ids", []) or []}
+                )
+                proof_control["llm_prioritized_proof_obligation_ids"] = sorted(
+                    set(proof_control.get("llm_prioritized_proof_obligation_ids", []) or [])
+                    | {str(row) for row in control.get("llm_prioritized_proof_obligation_ids", []) or []}
+                )
+                proof_control["llm_suppressed_kernel_verified_proof_obligation_ids"] = sorted(
+                    set(
+                        proof_control.get(
+                            "llm_suppressed_kernel_verified_proof_obligation_ids",
+                            [],
+                        )
+                        or []
+                    )
+                    | {
+                        str(row)
+                        for row in control.get(
+                            "llm_suppressed_kernel_verified_proof_obligation_ids",
+                            [],
+                        )
+                        or []
+                    }
                 )
                 proof_control["llm_off_catalog_proof_obligation_ids"] = sorted(
                     set(proof_control.get("llm_off_catalog_proof_obligation_ids", []) or [])
@@ -3875,6 +3962,40 @@ def _proof_bank_obligation_request_ids(
     return tuple(valid), tuple(off_catalog), tuple(rejected)
 
 
+def _runtime_learning_memory_kernel_verified_proof_obligation_ids(
+    architect_context: Mapping[str, Any],
+    *,
+    catalog_ids: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if not isinstance(memory, Mapping) or memory.get("artifact_kind") != "RuntimeLearningMemoryContext":
+        return ()
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    requested_rows: list[dict[str, str]] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        for obligation_id in row.get("kernel_verified_proof_obligation_ids", []) or []:
+            text = str(obligation_id).strip()
+            if text:
+                requested_rows.append({"obligation_id": text})
+        input_summary = row.get("input_summary", {})
+        if isinstance(input_summary, Mapping):
+            for obligation_id in input_summary.get("kernel_verified_proof_obligation_ids", []) or []:
+                text = str(obligation_id).strip()
+                if text:
+                    requested_rows.append({"obligation_id": text})
+    valid, _off_catalog, _rejected = _proof_bank_obligation_request_ids(
+        {"proof_bank_obligation_requests": requested_rows},
+        catalog_ids=catalog_ids,
+    )
+    return valid
+
+
 def _runtime_learning_memory_proof_obligation_ids(
     architect_context: Mapping[str, Any],
     *,
@@ -3888,20 +4009,12 @@ def _runtime_learning_memory_proof_obligation_ids(
     if not isinstance(memory, Mapping) or memory.get("artifact_kind") != "RuntimeLearningMemoryContext":
         return (), (), ()
     rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
-    already_kernel_verified_ids: set[str] = set()
-    for row in rows:
-        if not isinstance(row, Mapping):
-            continue
-        for obligation_id in row.get("kernel_verified_proof_obligation_ids", []) or []:
-            text = str(obligation_id).strip()
-            if text:
-                already_kernel_verified_ids.add(text)
-        input_summary = row.get("input_summary", {})
-        if isinstance(input_summary, Mapping):
-            for obligation_id in input_summary.get("kernel_verified_proof_obligation_ids", []) or []:
-                text = str(obligation_id).strip()
-                if text:
-                    already_kernel_verified_ids.add(text)
+    already_kernel_verified_ids = set(
+        _runtime_learning_memory_kernel_verified_proof_obligation_ids(
+            architect_context,
+            catalog_ids=catalog_ids,
+        )
+    )
     requested_rows: list[dict[str, str]] = []
     for row in rows:
         if not isinstance(row, Mapping):
