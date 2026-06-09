@@ -417,6 +417,9 @@ also writes the staged request packets beside the validator input and runs the
 validator in request-bound mode, so the publication bundle can audit that every
 payload was checked against its target theorem, target prover family, source
 refs, candidate declarations, residual repairs, and minimal-delta cost witness.
+The stage summaries preserve omitted-cost-hint adoption counters and
+`planner_next_actions` totals so public reuse-smoke output exposes the route
+repair work still pending after LLM planning.
 Prompt-only staged runs omit the artifact instead of emitting an empty
 validation bundle.
 

@@ -454,12 +454,42 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert llm_stage_summary["by_request_model_tier"] == payload[
         "llm_route_planner_by_request_model_tier"
     ]
+    assert llm_stage_summary[
+        "n_route_adoption_pending_omitted_cost_hint_primitive_blockers"
+    ] == payload[
+        "n_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers"
+    ]
+    assert llm_stage_summary["n_route_adoption_omitted_cost_hint_primitives"] == (
+        payload["n_llm_route_planner_route_adoption_omitted_cost_hint_primitives"]
+    )
+    assert llm_stage_summary["n_planner_next_actions"] == payload[
+        "n_llm_route_planner_planner_next_actions"
+    ]
+    assert llm_stage_summary["n_rows_with_planner_next_actions"] == payload[
+        "n_llm_route_planner_rows_with_planner_next_actions"
+    ]
     feedback_llm_stage_summary = stage_by_name[
         "formalization_gap_planner_feedback_llm_route_planner"
     ]["summary"]
     assert feedback_llm_stage_summary["model_tier_selection_mode"] == "auto"
     assert feedback_llm_stage_summary["by_request_model_tier"] == payload[
         "feedback_llm_route_planner_by_request_model_tier"
+    ]
+    assert feedback_llm_stage_summary[
+        "n_route_adoption_pending_omitted_cost_hint_primitive_blockers"
+    ] == payload[
+        "n_feedback_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers"
+    ]
+    assert feedback_llm_stage_summary[
+        "n_route_adoption_omitted_cost_hint_primitives"
+    ] == payload[
+        "n_feedback_llm_route_planner_route_adoption_omitted_cost_hint_primitives"
+    ]
+    assert feedback_llm_stage_summary["n_planner_next_actions"] == payload[
+        "n_feedback_llm_route_planner_planner_next_actions"
+    ]
+    assert feedback_llm_stage_summary["n_rows_with_planner_next_actions"] == payload[
+        "n_feedback_llm_route_planner_rows_with_planner_next_actions"
     ]
     reproduction_command = payload["reproduction_commands"][0]
     assert "--llm-route-planner-model-tier auto" in reproduction_command

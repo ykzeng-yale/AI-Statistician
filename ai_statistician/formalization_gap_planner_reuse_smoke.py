@@ -168,6 +168,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_route_adoption_pending_resource_request_queue_blockers",
         "n_route_adoption_pending_feedback_replan_blockers",
         "n_route_adoption_pending_realization_coverage_blockers",
+        "n_route_adoption_pending_omitted_cost_hint_primitive_blockers",
+        "n_route_adoption_omitted_cost_hint_primitives",
         "n_rejected",
         "n_informal_knowledge_dag_nodes",
         "n_lean_realization_dag_nodes",
@@ -178,9 +180,13 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_delta_primitives_missing_route_alignment",
         "n_feedback_loop_summary_realization_witnesses",
         "n_feedback_loop_summary_incomplete_realization_coverage",
+        "n_feedback_loop_summary_incomplete_cost_hint_baseline_coverage",
         "n_feedback_loop_summary_missing_selected_formal_primitives",
         "n_feedback_loop_summary_missing_delta_alignment_primitives",
+        "n_feedback_loop_summary_omitted_cost_hint_primitives",
         "n_search_requests",
+        "n_planner_next_actions",
+        "n_rows_with_planner_next_actions",
         "n_row_schema_valid",
         "n_row_schema_invalid",
     ),
@@ -214,6 +220,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_route_adoption_pending_resource_request_queue_blockers",
         "n_route_adoption_pending_feedback_replan_blockers",
         "n_route_adoption_pending_realization_coverage_blockers",
+        "n_route_adoption_pending_omitted_cost_hint_primitive_blockers",
+        "n_route_adoption_omitted_cost_hint_primitives",
         "n_rejected",
         "n_informal_knowledge_dag_nodes",
         "n_lean_realization_dag_nodes",
@@ -224,9 +232,13 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_delta_primitives_missing_route_alignment",
         "n_feedback_loop_summary_realization_witnesses",
         "n_feedback_loop_summary_incomplete_realization_coverage",
+        "n_feedback_loop_summary_incomplete_cost_hint_baseline_coverage",
         "n_feedback_loop_summary_missing_selected_formal_primitives",
         "n_feedback_loop_summary_missing_delta_alignment_primitives",
+        "n_feedback_loop_summary_omitted_cost_hint_primitives",
         "n_search_requests",
+        "n_planner_next_actions",
+        "n_rows_with_planner_next_actions",
         "n_row_schema_valid",
         "n_row_schema_invalid",
     ),
@@ -1933,6 +1945,16 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_search_requests",
             0,
         ),
+        "n_llm_route_planner_planner_next_actions": llm_route_planner_payload.get(
+            "n_planner_next_actions",
+            0,
+        ),
+        "n_llm_route_planner_rows_with_planner_next_actions": (
+            llm_route_planner_payload.get(
+                "n_rows_with_planner_next_actions",
+                0,
+            )
+        ),
         "n_llm_route_planner_rows_with_realization_coverage_witness": (
             llm_route_planner_payload.get(
                 "n_rows_with_realization_coverage_witness",
@@ -2210,6 +2232,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_search_requests": feedback_llm_route_planner_payload.get(
             "n_search_requests",
             0,
+        ),
+        "n_feedback_llm_route_planner_planner_next_actions": (
+            feedback_llm_route_planner_payload.get(
+                "n_planner_next_actions",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_rows_with_planner_next_actions": (
+            feedback_llm_route_planner_payload.get(
+                "n_rows_with_planner_next_actions",
+                0,
+            )
         ),
         "n_feedback_llm_route_planner_rows_with_realization_coverage_witness": (
             feedback_llm_route_planner_payload.get(
