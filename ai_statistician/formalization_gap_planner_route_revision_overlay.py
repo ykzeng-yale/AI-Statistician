@@ -1133,6 +1133,9 @@ def _resource_response_ledger_proposal(
         "quality_controls": _quality_controls_from_rows([row]),
         "target_primitives": _str_tuple(row.get("target_primitives", [])),
         "resource_response_trace": _resource_response_trace(row),
+        "llm_route_planner_hook_trace": _resource_response_llm_route_planner_trace(
+            row
+        ),
         "route_revision_summary": route_revision_summary,
         "route_revision_reasons": route_revision_reasons,
         "revised_selected_primitives": revised_selected_primitives,
@@ -1273,6 +1276,75 @@ def _resource_response_trace(row: dict[str, Any]) -> dict[str, object]:
         "target_prover_family": str(row.get("target_prover_family", "")),
         "prover_diagnostic_signature": str(
             row.get("prover_diagnostic_signature", "")
+        ),
+        "proof_evidence_status": str(row.get("proof_evidence_status", "")),
+        "proof_evidence_boundary": str(row.get("proof_evidence_boundary", "")),
+        "llm_route_planner_trace_present": bool(
+            row.get("llm_route_planner_trace_present", False)
+        ),
+        "llm_route_planner_row_id": str(row.get("llm_route_planner_row_id", "")),
+        "llm_route_planner_request_id": str(
+            row.get("llm_route_planner_request_id", "")
+        ),
+        "llm_route_planner_source_kind": str(
+            row.get("llm_route_planner_source_kind", "")
+        ),
+        "llm_route_planner_source_index": _int_value(
+            row.get("llm_route_planner_source_index", -1),
+            default=-1,
+        ),
+        "llm_route_planner_hook_kind": str(
+            row.get("llm_route_planner_hook_kind", "")
+        ),
+        "llm_route_planner_response_trace_grounded": bool(
+            row.get("llm_route_planner_response_trace_grounded", False)
+        ),
+        "llm_route_planner_response_trace_mismatches": _str_tuple(
+            row.get("llm_route_planner_response_trace_mismatches", [])
+        ),
+    }
+
+
+def _resource_response_llm_route_planner_trace(
+    row: dict[str, Any],
+) -> dict[str, object]:
+    if not bool(row.get("llm_route_planner_trace_present", False)):
+        return {}
+    return {
+        "trace_source": "resource_response_ledger",
+        "resource_response_ledger_id": str(row.get("resource_response_ledger_id", "")),
+        "resource_request_id": str(row.get("resource_request_id", "")),
+        "route_id": str(row.get("route_id", "")),
+        "goal_plan_id": str(row.get("goal_plan_id", "")),
+        "target_primitives": _str_tuple(row.get("target_primitives", [])),
+        "resource_id": str(row.get("resource_id", "")),
+        "acceptance_status": str(row.get("acceptance_status", "")),
+        "llm_route_planner_row_id": str(row.get("llm_route_planner_row_id", "")),
+        "llm_route_planner_request_id": str(
+            row.get("llm_route_planner_request_id", "")
+        ),
+        "llm_route_planner_source_kind": str(
+            row.get("llm_route_planner_source_kind", "")
+        ),
+        "llm_route_planner_source_index": _int_value(
+            row.get("llm_route_planner_source_index", -1),
+            default=-1,
+        ),
+        "llm_route_planner_hook_kind": str(
+            row.get("llm_route_planner_hook_kind", "")
+        ),
+        "llm_route_planner_queries": _str_tuple(
+            row.get("llm_route_planner_queries", [])
+        ),
+        "llm_route_planner_source_item": _dict_value(
+            row,
+            "llm_route_planner_source_item",
+        ),
+        "llm_route_planner_response_trace_grounded": bool(
+            row.get("llm_route_planner_response_trace_grounded", False)
+        ),
+        "llm_route_planner_response_trace_mismatches": _str_tuple(
+            row.get("llm_route_planner_response_trace_mismatches", [])
         ),
         "proof_evidence_status": str(row.get("proof_evidence_status", "")),
         "proof_evidence_boundary": str(row.get("proof_evidence_boundary", "")),
@@ -1894,6 +1966,13 @@ def _dict_tuple(values: Any) -> tuple[dict[str, object], ...]:
 def _dict_value(row: dict[str, Any], key: str) -> dict[str, Any]:
     value = row.get(key, {})
     return value if isinstance(value, dict) else {}
+
+
+def _int_value(value: Any, *, default: int = -1) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return default
 
 
 def _prover_attempt_class(attempt_status: str) -> str:

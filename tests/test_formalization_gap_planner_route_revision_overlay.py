@@ -559,7 +559,7 @@ def test_route_revision_overlay_keeps_rocq_resource_hits_portable() -> None:
                 "component_name": "formalization_gap_planner_resource_response_ledger",
                 "rows": [
                     {
-                        "schema_version": 7,
+                        "schema_version": 8,
                         "resource_response_ledger_id": "ledger:rocq_exchangeability",
                         "resource_request_id": "request:rocq_exchangeability",
                         "goal_plan_id": "goal:rocq_ledger",
@@ -837,7 +837,7 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                 "component_name": "formalization_gap_planner_resource_response_ledger",
                 "rows": [
                     {
-                        "schema_version": 7,
+                        "schema_version": 8,
                         "resource_response_ledger_id": "ledger:rank_uniformity",
                         "resource_request_id": "request:rank_uniformity",
                         "action_resource_plan_id": "action-resource-plan:rank_uniformity",
@@ -888,6 +888,24 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                             "response_jsonl_contract": "formalization_gap_planner_resource_responses.jsonl",
                             "proof_evidence_boundary": "not theorem proof evidence",
                         },
+                        "llm_route_planner_trace_present": True,
+                        "llm_route_planner_row_id": "llm_route_row:rank",
+                        "llm_route_planner_request_id": "llm_route_request:rank",
+                        "llm_route_planner_source_kind": "planner_next_action",
+                        "llm_route_planner_source_index": 0,
+                        "llm_route_planner_hook_kind": "proof_state_feedback",
+                        "llm_route_planner_queries": [
+                            "ask Lean LSP for residual goals on rank_uniformity"
+                        ],
+                        "llm_route_planner_source_item": {
+                            "action": (
+                                "ask Lean LSP for residual goals on rank_uniformity"
+                            ),
+                            "resource_id": "lean_lsp_mcp",
+                            "target_primitives": ["rank_uniformity"],
+                        },
+                        "llm_route_planner_response_trace_grounded": True,
+                        "llm_route_planner_response_trace_mismatches": [],
                         "response_present": True,
                         "response_contract_ok": True,
                         "response_payload": {
@@ -959,7 +977,9 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert overlay_payload["n_resource_response_ledger_rows"] == 1
     assert overlay_payload["n_resource_response_ledger_route_revision_proposals"] == 1
     assert overlay_payload["n_applied_resource_response_traces"] == 1
+    assert overlay_payload["n_applied_llm_route_planner_hook_traces"] == 1
     assert overlay_payload["n_routes_with_resource_response_trace"] == 1
+    assert overlay_payload["n_routes_with_llm_route_planner_hook_trace"] == 1
     assert overlay_payload["n_routes_with_resource_response_status"] == 1
     assert overlay_payload["n_resource_response_ledger_status_rows"] == 1
     assert overlay_payload["n_resource_response_ledger_awaiting"] == 0
@@ -1013,6 +1033,30 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert trace["prover_diagnostic_signature"] == (
         "unknown_identifier:finite_rank_uniformity"
     )
+    assert trace["llm_route_planner_trace_present"] is True
+    assert trace["llm_route_planner_row_id"] == "llm_route_row:rank"
+    assert trace["llm_route_planner_source_kind"] == "planner_next_action"
+    assert trace["llm_route_planner_source_index"] == 0
+    assert trace["llm_route_planner_hook_kind"] == "proof_state_feedback"
+    assert trace["llm_route_planner_response_trace_grounded"] is True
+    assert trace["llm_route_planner_response_trace_mismatches"] == ()
+    assert overlay_row["applied_llm_route_planner_hook_traces"]
+    llm_trace = overlay_row["applied_llm_route_planner_hook_traces"][0]
+    assert llm_trace["trace_source"] == "resource_response_ledger"
+    assert llm_trace["resource_response_ledger_id"] == "ledger:rank_uniformity"
+    assert llm_trace["resource_request_id"] == "request:rank_uniformity"
+    assert llm_trace["llm_route_planner_row_id"] == "llm_route_row:rank"
+    assert llm_trace["llm_route_planner_request_id"] == "llm_route_request:rank"
+    assert llm_trace["llm_route_planner_source_kind"] == "planner_next_action"
+    assert llm_trace["llm_route_planner_source_index"] == 0
+    assert llm_trace["llm_route_planner_hook_kind"] == "proof_state_feedback"
+    assert llm_trace["llm_route_planner_queries"] == (
+        "ask Lean LSP for residual goals on rank_uniformity",
+    )
+    assert llm_trace["llm_route_planner_source_item"]["resource_id"] == (
+        "lean_lsp_mcp"
+    )
+    assert llm_trace["llm_route_planner_response_trace_grounded"] is True
     assert overlay_row["source_refs"] == (
         "Vovk-Gammerman-Shafer conformal prediction",
     )
