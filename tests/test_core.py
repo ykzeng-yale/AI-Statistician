@@ -389,6 +389,14 @@ class ProofBankTests(unittest.TestCase):
             self.assertNotIn("by sorry", content, obligation.id)
             self.assertIn("theorem", content, obligation.id)
 
+    def test_split_conformal_reuses_verified_theorem_reduction_bridge(self) -> None:
+        ids = {obligation.id for obligation in all_obligations()}
+        bridge = get_obligation("order_statistic_quantile_rule_bridge")
+
+        self.assertIn("split_conformal", bridge.tags)
+        self.assertIn("theorem_reduction", bridge.tags)
+        self.assertNotIn("split_conformal_coverage_reduction_from_rank_quantile", ids)
+
     def test_hf_lean_source_revalidation_tasks_export_worker_packets(self) -> None:
         queue_dir = Path("runs/test_hf_lean_source_revalidation_queue")
         queue_dir.mkdir(parents=True, exist_ok=True)

@@ -1338,7 +1338,7 @@ theorem finiteConformalRank_coverage_counting {Ω ρ : Type*}
             "quantile rule, if each bad rank has a local probability budget "
             "and the budgets sum to `alpha_total`, then the complement event "
             "has coverage at least `1-alpha_total`. This is a domain-named "
-            "minimal wrapper for the missing primitive "
+            "theorem-reduction wrapper for the missing primitive "
             "`order_statistic_quantile_rule`; it proves the finite bad-rank "
             "coverage algebra, but it does not prove exchangeability or the "
             "score-rank quantile construction itself."
@@ -1384,6 +1384,7 @@ theorem orderStatisticQuantileRule_coverage {Ω ρ : Type*}
             "coverage",
             "finite_sample",
             "conformal",
+            "split_conformal",
             "rank",
             "rank_uniformity",
             "coverage_counting",
@@ -1391,6 +1392,7 @@ theorem orderStatisticQuantileRule_coverage {Ω ρ : Type*}
             "order_statistic_quantile_rule",
             "union_bound",
             "minimal_wrapper",
+            "theorem_reduction",
         ),
         expected_lemmas=(
             "measure_mono",
@@ -1404,84 +1406,6 @@ theorem orderStatisticQuantileRule_coverage {Ω ρ : Type*}
             "finite_conformal_rank_coverage_counting",
             "coverage_lower_bound_of_complement_error",
             "finite_union_budget_control",
-        ),
-    ),
-    "split_conformal_coverage_reduction_from_rank_quantile": FormalObligation(
-        id="split_conformal_coverage_reduction_from_rank_quantile",
-        title="Split conformal coverage reduction from rank-quantile premises",
-        english=(
-            "If the split-conformal exchangeability and order-statistic steps "
-            "have reduced miscoverage to membership in a finite bad-rank set, "
-            "and each bad rank has a local probability budget whose sum is at "
-            "most the total budget, then the abstract split-conformal coverage "
-            "event has probability at least one minus the total budget. This is "
-            "a theorem-level reduction target connecting the reusable rank and "
-            "quantile proof-bank subclaims to the coverage conclusion; it still "
-            "does not prove the statistical exchangeability-to-rank semantics "
-            "or construct the nonconformity-score order statistic."
-        ),
-        formal_statement=_stmt(
-            """
-import Mathlib
-open MeasureTheory ProbabilityTheory
-
-theorem splitConformalCoverage_of_rankQuantile {Ω ρ : Type*}
-    [MeasurableSpace Ω]
-    (μ : Measure Ω) [IsProbabilityMeasure μ]
-    (BadRanks : Finset ρ) (rank : Ω → ρ)
-    (α : ρ → ENNReal) (α_total : ENNReal)
-    (hBadEvent : MeasurableSet {ω | rank ω ∈ BadRanks})
-    (hRank : ∀ r ∈ BadRanks, μ {ω | rank ω = r} ≤ α r)
-    (h_total : (∑ r ∈ BadRanks, α r) ≤ α_total) :
-    1 - α_total ≤ μ ({ω | rank ω ∈ BadRanks}ᶜ) := by sorry
-"""
-        ),
-        proof_body=(
-            "by\n"
-            "  have hbad : μ {ω | rank ω ∈ BadRanks} ≤ α_total := by\n"
-            "    calc\n"
-            "      μ {ω | rank ω ∈ BadRanks} ≤ μ (⋃ r ∈ BadRanks, {ω | rank ω = r}) := by\n"
-            "        apply measure_mono\n"
-            "        intro ω hω\n"
-            "        exact Set.mem_iUnion.mpr ⟨rank ω, Set.mem_iUnion.mpr ⟨hω, rfl⟩⟩\n"
-            "      _ ≤ ∑ r ∈ BadRanks, μ {ω | rank ω = r} := by\n"
-            "        exact measure_biUnion_finset_le (μ := μ) BadRanks (fun r => {ω | rank ω = r})\n"
-            "      _ ≤ ∑ r ∈ BadRanks, α r := by\n"
-            "        exact Finset.sum_le_sum (fun r hr => hRank r hr)\n"
-            "      _ ≤ α_total := h_total\n"
-            "  have hcoverage : μ ({ω | rank ω ∈ BadRanks}ᶜ) =\n"
-            "      1 - μ {ω | rank ω ∈ BadRanks} := by\n"
-            "    exact prob_compl_eq_one_sub hBadEvent\n"
-            "  rw [hcoverage]\n"
-            "  exact tsub_le_tsub_left hbad 1"
-        ),
-        tags=(
-            "probability",
-            "event",
-            "coverage",
-            "finite_sample",
-            "conformal",
-            "split_conformal",
-            "rank",
-            "rank_uniformity",
-            "coverage_counting",
-            "finite_sample_coverage_counting",
-            "order_statistic_quantile_rule",
-            "theorem_reduction",
-        ),
-        expected_lemmas=(
-            "measure_mono",
-            "Set.mem_iUnion",
-            "measure_biUnion_finset_le",
-            "Finset.sum_le_sum",
-            "prob_compl_eq_one_sub",
-            "tsub_le_tsub_left",
-        ),
-        depends_on=(
-            "exchangeable_scores_uniform_rank_bridge",
-            "finite_conformal_rank_coverage_counting",
-            "order_statistic_quantile_rule_bridge",
-            "coverage_lower_bound_of_complement_error",
         ),
     ),
     "finite_family_absolute_error_union_control": FormalObligation(
