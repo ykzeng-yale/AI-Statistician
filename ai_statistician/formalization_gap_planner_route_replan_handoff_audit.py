@@ -137,6 +137,20 @@ def audit_formalization_gap_planner_route_replan_handoff(
             )
             or 0
         ),
+        "n_roundtrip_standalone_input_trace_llm_route_planner_hook_traces": int(
+            roundtrip_payload.get(
+                "n_standalone_input_trace_llm_route_planner_hook_traces",
+                0,
+            )
+            or 0
+        ),
+        "n_roundtrip_standalone_input_traces_with_llm_route_planner_hook_traces": int(
+            roundtrip_payload.get(
+                "n_standalone_input_traces_with_llm_route_planner_hook_traces",
+                0,
+            )
+            or 0
+        ),
         "roundtrip_all_ok": bool(roundtrip_payload.get("all_ok", False)) if run_roundtrip else False,
         "n_row_schema_valid": n_row_schema_valid,
         "n_row_schema_invalid": len(row_schema_errors) - n_row_schema_valid,
@@ -652,6 +666,13 @@ def _roundtrip_checks(
             _roundtrip_trace_ok(roundtrip_payload, seed),
         ),
         _check(
+            "roundtrip_llm_route_planner_hook_trace",
+            "roundtrip",
+            "roundtrip standalone-input traces preserve applied LLM route-planner hook traces",
+            _roundtrip_llm_hook_trace_observed(roundtrip_payload, seed),
+            _roundtrip_llm_hook_trace_ok(roundtrip_payload, seed),
+        ),
+        _check(
             "roundtrip_manifest_written",
             "roundtrip",
             "roundtrip manifest exists when output directory is provided",
@@ -743,6 +764,14 @@ def _roundtrip_summary(payload: dict[str, Any]) -> dict[str, object]:
             "n_standalone_input_traces_with_replan_metadata",
             0,
         ),
+        "n_standalone_input_trace_llm_route_planner_hook_traces": payload.get(
+            "n_standalone_input_trace_llm_route_planner_hook_traces",
+            0,
+        ),
+        "n_standalone_input_traces_with_llm_route_planner_hook_traces": payload.get(
+            "n_standalone_input_traces_with_llm_route_planner_hook_traces",
+            0,
+        ),
         "n_portable_work_packets": payload.get("n_portable_work_packets", 0),
         "errors": payload.get("errors", []),
     }
@@ -826,6 +855,108 @@ def _roundtrip_trace_observed(payload: dict[str, Any], seed: dict[str, Any]) -> 
     )
 
 
+def _roundtrip_llm_hook_trace_ok(payload: dict[str, Any], seed: dict[str, Any]) -> bool:
+    rows = {
+        str(row.get("route_id", "")): row
+        for row in payload.get("rows", [])
+        if isinstance(row, dict)
+    }
+    seed_routes = {
+        str(route.get("route_id", "")): route
+        for route in seed.get("routes", [])
+        if isinstance(route, dict) and str(route.get("route_id", ""))
+    }
+    expected_total = sum(
+        len(
+            _dict_tuple(
+                (
+                    route.get("replan_metadata", {})
+                    if isinstance(route.get("replan_metadata", {}), dict)
+                    else {}
+                ).get(
+                    "applied_llm_route_planner_hook_traces",
+                    [],
+                )
+            )
+        )
+        for route in seed_routes.values()
+    )
+    if expected_total == 0:
+        return True
+    if int(
+        payload.get("n_standalone_input_trace_llm_route_planner_hook_traces", 0)
+        or 0
+    ) < expected_total:
+        return False
+    for route_id, seed_route in seed_routes.items():
+        metadata = seed_route.get("replan_metadata", {})
+        metadata = metadata if isinstance(metadata, dict) else {}
+        expected = _dict_tuple(
+            metadata.get("applied_llm_route_planner_hook_traces", [])
+        )
+        if not expected:
+            continue
+        row = rows.get(route_id, {})
+        trace = row.get("standalone_input_trace", {}) if isinstance(row, dict) else {}
+        if not isinstance(trace, dict):
+            return False
+        if _object_hashes(
+            trace.get("applied_llm_route_planner_hook_traces", [])
+        ) != _object_hashes(expected):
+            return False
+        trace_metadata = trace.get("replan_metadata", {})
+        if not isinstance(trace_metadata, dict):
+            return False
+        if _object_hashes(
+            trace_metadata.get("applied_llm_route_planner_hook_traces", [])
+        ) != _object_hashes(expected):
+            return False
+    return True
+
+
+def _roundtrip_llm_hook_trace_observed(
+    payload: dict[str, Any],
+    seed: dict[str, Any],
+) -> str:
+    rows = {
+        str(row.get("route_id", "")): row
+        for row in payload.get("rows", [])
+        if isinstance(row, dict)
+    }
+    expected_total = 0
+    preserved_total = 0
+    metadata_preserved_total = 0
+    for route in seed.get("routes", []):
+        if not isinstance(route, dict):
+            continue
+        route_id = str(route.get("route_id", ""))
+        metadata = route.get("replan_metadata", {})
+        metadata = metadata if isinstance(metadata, dict) else {}
+        expected = _dict_tuple(
+            metadata.get("applied_llm_route_planner_hook_traces", [])
+        )
+        expected_total += len(expected)
+        row = rows.get(route_id, {})
+        trace = row.get("standalone_input_trace", {}) if isinstance(row, dict) else {}
+        if not isinstance(trace, dict):
+            continue
+        preserved_total += len(
+            _dict_tuple(trace.get("applied_llm_route_planner_hook_traces", []))
+        )
+        trace_metadata = trace.get("replan_metadata", {})
+        if isinstance(trace_metadata, dict):
+            metadata_preserved_total += len(
+                _dict_tuple(
+                    trace_metadata.get("applied_llm_route_planner_hook_traces", [])
+                )
+            )
+    return (
+        f"expected={expected_total} trace={preserved_total} "
+        f"trace_metadata={metadata_preserved_total} "
+        f"manifest_total={payload.get('n_standalone_input_trace_llm_route_planner_hook_traces', 0)}"
+    )
+
+
 def _trace_metadata_fields_ok(
     trace: dict[str, Any],
     metadata: dict[str, Any],
@@ -861,8 +992,16 @@ def _trace_metadata_fields_ok(
         metadata.get("applied_resource_response_traces", [])
     ):
         return False
+    if _object_hashes(
+        trace.get("applied_llm_route_planner_hook_traces", [])
+    ) != _object_hashes(metadata.get("applied_llm_route_planner_hook_traces", [])):
+        return False
     trace_metadata = trace.get("replan_metadata", {})
     if not isinstance(trace_metadata, dict):
+        return False
+    if _object_hashes(
+        trace_metadata.get("applied_llm_route_planner_hook_traces", [])
+    ) != _object_hashes(metadata.get("applied_llm_route_planner_hook_traces", [])):
         return False
     if _quality_controls_from_payload(
         trace_metadata.get("quality_controls", {})
@@ -1005,7 +1144,17 @@ def _seed_provenance_ok(row: dict[str, Any], seed_route: dict[str, Any]) -> bool
     metadata_traces = _object_hashes(
         metadata.get("applied_resource_response_traces", [])
     )
-    return not row_traces or row_traces.issubset(metadata_traces)
+    if row_traces and not row_traces.issubset(metadata_traces):
+        return False
+    row_llm_hook_traces = _object_hashes(
+        row.get("applied_llm_route_planner_hook_traces", [])
+    )
+    metadata_llm_hook_traces = _object_hashes(
+        metadata.get("applied_llm_route_planner_hook_traces", [])
+    )
+    return not row_llm_hook_traces or row_llm_hook_traces.issubset(
+        metadata_llm_hook_traces
+    )
 
 
 def _seed_provenance_observed(
@@ -1035,6 +1184,10 @@ def _seed_provenance_observed(
     )
     observed_parts.append(
         f"applied_resource_response_traces={len(_object_hashes(metadata.get('applied_resource_response_traces', [])))}"
+    )
+    observed_parts.append(
+        "applied_llm_route_planner_hook_traces="
+        f"{len(_object_hashes(metadata.get('applied_llm_route_planner_hook_traces', [])))}"
     )
     return "; ".join(observed_parts)
 
@@ -1189,6 +1342,12 @@ def _object_hashes(values: Any) -> set[str]:
     if not isinstance(values, (list, tuple, set)):
         return set()
     return {stable_hash(value) for value in values if isinstance(value, dict)}
+
+
+def _dict_tuple(values: Any) -> tuple[dict[str, Any], ...]:
+    if not isinstance(values, (list, tuple, set)):
+        return tuple()
+    return tuple(dict(item) for item in values if isinstance(item, dict))
 
 
 def _str_tuple(values: Any) -> tuple[str, ...]:

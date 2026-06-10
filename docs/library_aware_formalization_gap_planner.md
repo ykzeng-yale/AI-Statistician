@@ -1217,7 +1217,8 @@ revised DAG/alignment payload shaped the route. The
 handoff audit checks that schema id, checks the seed, verifies exact
 row-to-seed preservation of revised alignment edges and revised informal/Lean
 DAG nodes, rejects promoted proof claims, and runs a standalone planner
-round-trip that must preserve `standalone_input_trace`; this is replayability
+round-trip that must preserve `standalone_input_trace`, including applied LLM
+route-planner hook traces that shaped the replan; this is replayability
 evidence, not theorem proof evidence. The proof-state triage command turns overlay-level prover statuses into
 ranked work items for statement materialization, local Lean repair, or
 environment configuration.

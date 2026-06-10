@@ -1678,6 +1678,18 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == payload["n_replan_seed_routes"]
     )
+    assert (
+        payload[
+            "n_route_replan_roundtrip_standalone_input_trace_llm_route_planner_hook_traces"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_route_replan_roundtrip_standalone_input_traces_with_llm_route_planner_hook_traces"
+        ]
+        >= 0
+    )
     assert payload["n_proof_state_triage_items"] > 0
     assert payload["n_proof_state_triage_row_schema_valid"] == payload[
         "n_proof_state_triage_items"

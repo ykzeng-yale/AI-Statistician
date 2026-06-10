@@ -850,7 +850,8 @@ standalone-input schema id, optional route-replan standalone seeds exactly
 preserve revised alignment edges and revised informal/Lean DAG nodes from the
 packaged handoff rows, optional route-replan standalone seed schemas expose
 the replan metadata contract, optional handoff-audit rows include a passing
-roundtrip standalone-input trace check, optional portable-plan audit rows satisfy the
+roundtrip standalone-input trace check and a passing LLM route-planner
+hook-trace preservation check, optional portable-plan audit rows satisfy the
 published audit-row schema, optional library-coverage map rows satisfy the published coverage-map
 row schema, optional primitive action-queue rows satisfy the published work-queue
 schema, optional action-resource plan rows satisfy the published resource-plan

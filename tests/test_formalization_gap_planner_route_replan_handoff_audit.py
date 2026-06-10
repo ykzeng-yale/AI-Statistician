@@ -67,6 +67,25 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "prover_diagnostic_signature": "missing_rank_uniformity_bridge",
         "proof_evidence_boundary": "not theorem proof evidence",
     }
+    llm_route_planner_hook_trace = {
+        "trace_kind": "llm_route_planner_hook_trace",
+        "llm_route_planner_row_id": "llm-route-row:rank-uniformity",
+        "llm_route_planner_request_id": "llm-route-request:rank-uniformity",
+        "llm_route_planner_hook_kind": "proof_state_feedback",
+        "llm_route_planner_source_kind": "planner_next_action",
+        "llm_route_planner_source_index": 0,
+        "llm_route_planner_queries": [
+            "inspect rank_uniformity proof-state residuals"
+        ],
+        "llm_route_planner_source_item": {
+            "action": "inspect rank_uniformity proof-state residuals",
+            "resource_id": "lean_lsp_mcp",
+            "target_primitives": ["rank_uniformity"],
+        },
+        "target_primitives": ["rank_uniformity"],
+        "resource_id": "lean_lsp_mcp",
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
     source_snippet = {
         "source_ref": "Lei-Wasserman distribution-free prediction",
         "claim": "exchangeability supports rank uniformity",
@@ -114,6 +133,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
             ],
             "applied_hook_kinds": ["resource_response_ledger"],
             "applied_resource_response_traces": [resource_response_trace],
+            "applied_llm_route_planner_hook_traces": [
+                llm_route_planner_hook_trace
+            ],
             "resource_response_awaiting_request_ids": ["request:awaiting-rank-source"],
             "resource_response_rejected_request_ids": ["request:rejected-rank-proof"],
             "applied_prover_attempt_statuses": ["failed_with_residual_goals"],
@@ -162,6 +184,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         ],
         "applied_hook_kinds": ["resource_response_ledger"],
         "applied_resource_response_traces": [resource_response_trace],
+        "applied_llm_route_planner_hook_traces": [llm_route_planner_hook_trace],
         "resource_response_awaiting_request_ids": ["request:awaiting-rank-source"],
         "resource_response_rejected_request_ids": ["request:rejected-rank-proof"],
         "applied_prover_attempt_statuses": ["failed_with_residual_goals"],
@@ -269,6 +292,16 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert payload["n_roundtrip_route_alignment_edges"] >= 1
     assert payload["n_roundtrip_standalone_input_traces"] == 1
     assert payload["n_roundtrip_standalone_input_traces_with_replan_metadata"] == 1
+    assert (
+        payload["n_roundtrip_standalone_input_trace_llm_route_planner_hook_traces"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_roundtrip_standalone_input_traces_with_llm_route_planner_hook_traces"
+        ]
+        == 1
+    )
     assert any(
         check["check_name"] == "standalone_seed_no_kernel_verified_claims" and check["ok"]
         for check in payload["checks"]
@@ -284,6 +317,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "roundtrip_alignment_edges" in ok_checks
     assert "roundtrip_alignment_contract" in ok_checks
     assert "roundtrip_standalone_input_trace" in ok_checks
+    assert "roundtrip_llm_route_planner_hook_trace" in ok_checks
     assert "row_0_next_llm_prompt_command" in ok_checks
     assert "row_0_next_llm_live_command" in ok_checks
     assert "row_0_seed_route_alignment_metadata" in ok_checks
@@ -298,6 +332,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     )
     assert "resource_response_awaiting_request_ids=1" in provenance_check["observed"]
     assert "resource_response_rejected_request_ids=1" in provenance_check["observed"]
+    assert "applied_llm_route_planner_hook_traces=1" in provenance_check["observed"]
     snippet_check = next(
         check
         for check in payload["checks"]
@@ -312,6 +347,14 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     )
     assert "row=resource_contract_ids=1" in quality_check["observed"]
     assert "metadata=resource_contract_ids=1" in quality_check["observed"]
+    llm_hook_roundtrip_check = next(
+        check
+        for check in payload["checks"]
+        if check["check_name"] == "roundtrip_llm_route_planner_hook_trace"
+    )
+    assert "expected=1" in llm_hook_roundtrip_check["observed"]
+    assert "trace=1" in llm_hook_roundtrip_check["observed"]
+    assert "trace_metadata=1" in llm_hook_roundtrip_check["observed"]
     assert (
         audit_dir
         / "formalization_gap_planner_route_replan_handoff_audit_row.schema.json"
@@ -386,6 +429,27 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         if not check["ok"]
     }
     assert "row_0_seed_route_quality_controls" in quality_failed
+
+    llm_hook_rejected_seed = json.loads(json.dumps(seed))
+    llm_hook_rejected_seed["routes"][0]["replan_metadata"][
+        "applied_llm_route_planner_hook_traces"
+    ] = []
+    (handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json").write_text(
+        json.dumps(llm_hook_rejected_seed, indent=2),
+        encoding="utf-8",
+    )
+    llm_hook_rejected = audit_formalization_gap_planner_route_replan_handoff(
+        handoff_dir,
+        root / "llm_hook_audit",
+    )
+
+    assert not llm_hook_rejected["all_ok"]
+    llm_hook_failed = {
+        check["check_name"]
+        for check in llm_hook_rejected["checks"]
+        if not check["ok"]
+    }
+    assert "row_0_seed_route_provenance_metadata" in llm_hook_failed
 
     (handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json").write_text(
         json.dumps(seed, indent=2),

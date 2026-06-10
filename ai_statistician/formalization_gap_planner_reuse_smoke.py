@@ -667,6 +667,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_roundtrip_route_alignment_edges",
         "n_roundtrip_standalone_input_traces",
         "n_roundtrip_standalone_input_traces_with_replan_metadata",
+        "n_roundtrip_standalone_input_trace_llm_route_planner_hook_traces",
+        "n_roundtrip_standalone_input_traces_with_llm_route_planner_hook_traces",
         "n_row_schema_valid",
         "n_row_schema_invalid",
         "roundtrip_all_ok",
@@ -4784,6 +4786,14 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_route_replan_roundtrip_standalone_input_traces_with_replan_metadata": route_replan_handoff_audit_payload.get(
             "n_roundtrip_standalone_input_traces_with_replan_metadata",
+            0,
+        ),
+        "n_route_replan_roundtrip_standalone_input_trace_llm_route_planner_hook_traces": route_replan_handoff_audit_payload.get(
+            "n_roundtrip_standalone_input_trace_llm_route_planner_hook_traces",
+            0,
+        ),
+        "n_route_replan_roundtrip_standalone_input_traces_with_llm_route_planner_hook_traces": route_replan_handoff_audit_payload.get(
+            "n_roundtrip_standalone_input_traces_with_llm_route_planner_hook_traces",
             0,
         ),
         "n_proof_state_triage_items": proof_state_triage_payload.get(

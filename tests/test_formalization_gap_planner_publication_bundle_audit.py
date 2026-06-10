@@ -2752,6 +2752,20 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         },
         {
             "schema_version": 1,
+            "check_id": "check:roundtrip_llm_route_planner_hook_trace",
+            "check_name": "roundtrip_llm_route_planner_hook_trace",
+            "category": "roundtrip",
+            "expected": (
+                "roundtrip standalone-input traces preserve applied LLM "
+                "route-planner hook traces"
+            ),
+            "observed": "expected=0 trace=0 trace_metadata=0 manifest_total=0",
+            "ok": True,
+            "severity": "error",
+            "errors": [],
+        },
+        {
+            "schema_version": 1,
             "check_id": "check:row_0_seed_route_provenance_metadata",
             "check_name": "row_0_seed_route_provenance_metadata",
             "category": "provenance",
@@ -2766,9 +2780,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         json.dumps(
             {
                 "component_name": "formalization_gap_planner_route_replan_handoff_audit",
-                "n_checks": 6,
+                "n_checks": 7,
                 "n_failed": 0,
-                "n_row_schema_valid": 6,
+                "n_row_schema_valid": 7,
                 "n_row_schema_invalid": 0,
                 "n_seed_routes": 1,
                 "n_roundtrip_goal_plans": 1,
@@ -4117,8 +4131,8 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert audit_payload["n_optional_route_revision_generic_formal_dag_valid"] == 1
     assert audit_payload["n_optional_route_replan_handoff_generic_formal_dag_checked"] == 1
     assert audit_payload["n_optional_route_replan_handoff_generic_formal_dag_valid"] == 1
-    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_checked"] == 6
-    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_valid"] == 6
+    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_checked"] == 7
+    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_valid"] == 7
     assert any(
         row["check_name"]
         == "optional_route_replan_handoff_audit_row_0_schema_valid"

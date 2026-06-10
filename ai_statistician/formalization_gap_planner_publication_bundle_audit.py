@@ -15294,6 +15294,7 @@ def _route_replan_handoff_audit_optional_checks(
     }
     required_trace_checks = {
         "roundtrip_standalone_input_trace",
+        "roundtrip_llm_route_planner_hook_trace",
     }
     provenance_check_names = {
         check_name
