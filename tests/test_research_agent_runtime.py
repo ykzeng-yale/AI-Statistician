@@ -38,6 +38,8 @@ from ai_statistician.research_agent_runtime import (
     AlgorithmEngineerRuntimeSubsystem,
     FormalizationEvaluatorRuntimeSubsystem,
     ResearchAgentRuntimeConfig,
+    _critic_learning_rows,
+    _critic_next_action_agenda,
     _proof_bank_obligation_request_ids,
     _registered_algorithm_template_hint,
     _runtime_learning_memory_kernel_verified_proof_obligation_ids,
@@ -858,6 +860,75 @@ def test_formalization_runtime_suppresses_llm_requests_already_kernel_verified_i
     assert control["selected_priority_proof_obligation_ids"] == ["event_indicator_expectation"]
     assert "variance_nonneg" not in control["selected_proof_obligation_ids"]
     assert "variance_nonneg" not in control["deferred_proof_obligation_ids_due_to_max"]
+
+
+def test_critic_routes_formal_gap_to_theorem_closure_after_proof_bank_exhausted() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    formalization_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:all_kernel_subclaims",
+        "counts": {"formal_gap": 1, "kernel_verified": 2, "proved": 2, "failed": 0},
+        "deterministic_theorem_goals": [
+            {"id": "split_conformal_finite_sample_coverage", "status": "FORMAL_GAP"}
+        ],
+        "formal_subclaims": [
+            {
+                "id": "conformal:prob_compl",
+                "claim_type": "lean_obligation",
+                "proof_obligation_id": "prob_compl",
+                "status": "PROVED",
+                "kernel_verified": True,
+            },
+            {
+                "id": "conformal:prob_measure_univ",
+                "claim_type": "lean_obligation",
+                "proof_obligation_id": "prob_measure_univ",
+                "status": "PROVED",
+                "kernel_verified": True,
+            },
+            {
+                "id": "conformal:split_conformal_finite_sample_coverage",
+                "claim_type": "theorem_goal",
+                "status": "FORMAL_GAP",
+            },
+        ],
+        "proof_obligation_control": {
+            "candidate_proof_obligation_ids": ["prob_compl", "prob_measure_univ"],
+            "selected_proof_obligation_ids": ["prob_compl", "prob_measure_univ"],
+            "selected_priority_proof_obligation_ids": [],
+            "deferred_proof_obligation_ids_due_to_max": [],
+            "deferred_priority_proof_obligation_ids_due_to_max": [],
+            "memory_kernel_verified_proof_obligation_ids": ["prob_compl", "prob_measure_univ"],
+            "excluded_candidate_proof_obligation_ids": ["prob_compl", "prob_measure_univ"],
+        },
+    }
+    agenda = _critic_next_action_agenda(
+        question=question,
+        retrieval_manifest={"counts": {"formal_source_hits": 1}},
+        theory_packet={"packet_id": "theory:conformal"},
+        simulation_manifest={"simulation_passed": True},
+        algorithm_manifest={"n_executed": 0},
+        formalization_manifest=formalization_manifest,
+    )
+    agenda_ids = {row["id"] for row in agenda}
+    learning_rows = _critic_learning_rows(
+        question=question,
+        agenda=agenda,
+        retrieval_manifest={"manifest_id": "retrieval:test", "counts": {"formal_source_hits": 1}},
+        theory_packet={"packet_id": "theory:conformal", "estimator_specs": []},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 0},
+        formalization_manifest=formalization_manifest,
+    )
+    feedback_row = next(
+        row for row in learning_rows if row["learning_task"] == "simulation_algorithm_formalization_feedback"
+    )
+
+    assert "formal_gap:theorem_reduction_closure" in agenda_ids
+    assert "formal_gap:proof_bank_expansion" not in agenda_ids
+    assert feedback_row["recommended_proof_obligation_ids"] == []
+    assert feedback_row["selected_unverified_proof_obligation_ids"] == []
+    assert feedback_row["formal_gap_target_ids"] == ["conformal:split_conformal_finite_sample_coverage"]
 
 
 def test_proof_audit_learning_export_marks_kernel_verified_obligations_as_memory(tmp_path: Path) -> None:

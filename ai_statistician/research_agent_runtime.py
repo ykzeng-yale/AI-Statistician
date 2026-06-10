@@ -2352,18 +2352,38 @@ def _critic_next_action_agenda(
             for row in formalization_manifest.get("deterministic_theorem_goals", []) or []
             if isinstance(row, Mapping)
         ]
-        agenda.append(
-            {
-                "id": "formal_gap:proof_bank_expansion",
-                "owner_subsystem": "Formalizer/LeanProver",
-                "trigger": "FORMAL_GAP",
-                "action": "promote retrieved formal-source hits into reusable Lean proof-bank obligations",
-                "acceptance_gate": "AXLE/local Lean kernel verifies the new obligation and full theorem gaps remain explicit",
-                "target_ids": [row for row in gap_goals if row],
-                "priority": "high",
-                "proof_boundary": KERNEL_PROOF_BOUNDARY,
-            }
-        )
+        if _formalization_manifest_has_remaining_proof_bank_work(formalization_manifest):
+            agenda.append(
+                {
+                    "id": "formal_gap:proof_bank_expansion",
+                    "owner_subsystem": "Formalizer/LeanProver",
+                    "trigger": "FORMAL_GAP",
+                    "action": "promote retrieved formal-source hits into reusable Lean proof-bank obligations",
+                    "acceptance_gate": "AXLE/local Lean kernel verifies the new obligation and full theorem gaps remain explicit",
+                    "target_ids": [row for row in gap_goals if row],
+                    "priority": "high",
+                    "proof_boundary": KERNEL_PROOF_BOUNDARY,
+                }
+            )
+        else:
+            agenda.append(
+                {
+                    "id": "formal_gap:theorem_reduction_closure",
+                    "owner_subsystem": "Formalizer/LeanProver",
+                    "trigger": "FORMAL_GAP_WITH_PROOF_BANK_EXHAUSTED",
+                    "action": (
+                        "formalize the theorem-level reduction that connects the "
+                        "kernel-verified proof-bank subclaims to the frontier theorem statement"
+                    ),
+                    "acceptance_gate": (
+                        "AXLE/local Lean kernel verifies the theorem-level reduction, "
+                        "or the manifest records a precise semantic/source theorem blocker"
+                    ),
+                    "target_ids": [row for row in gap_goals if row],
+                    "priority": "high",
+                    "proof_boundary": KERNEL_PROOF_BOUNDARY,
+                }
+            )
         if str(formalization_manifest.get("formalization_gap_planner_bridge_id", "")).strip():
             agenda.append(
                 {
@@ -2469,6 +2489,64 @@ def _critic_next_action_agenda(
     return agenda
 
 
+def _formalization_manifest_has_remaining_proof_bank_work(
+    formalization_manifest: Mapping[str, Any],
+) -> bool:
+    proof_control = (
+        formalization_manifest.get("proof_obligation_control", {})
+        if isinstance(formalization_manifest.get("proof_obligation_control"), Mapping)
+        else {}
+    )
+    if not proof_control:
+        return True
+    for key in (
+        "deferred_priority_proof_obligation_ids_due_to_max",
+        "deferred_proof_obligation_ids_due_to_max",
+        "requested_non_candidate_proof_obligation_ids",
+    ):
+        if any(str(row).strip() for row in proof_control.get(key, []) or []):
+            return True
+    formal_subclaims = (
+        formalization_manifest.get("formal_subclaims", [])
+        if isinstance(formalization_manifest.get("formal_subclaims", []), list)
+        else []
+    )
+    for row in formal_subclaims:
+        if not isinstance(row, Mapping):
+            continue
+        if str(row.get("claim_type", "")) != "lean_obligation":
+            continue
+        if row.get("status") == "FAILED":
+            return True
+        if row.get("status") == "PROVED" and row.get("kernel_verified") is not True:
+            return True
+    candidate_ids = {
+        str(row).strip()
+        for row in proof_control.get("candidate_proof_obligation_ids", []) or []
+        if str(row).strip()
+    }
+    if not candidate_ids:
+        return False
+    kernel_verified_ids = {
+        str(row.get("proof_obligation_id", "")).strip()
+        for row in formal_subclaims
+        if isinstance(row, Mapping)
+        and row.get("kernel_verified") is True
+        and str(row.get("proof_obligation_id", "")).strip()
+    }
+    kernel_verified_ids |= {
+        str(row).strip()
+        for row in proof_control.get("memory_kernel_verified_proof_obligation_ids", []) or []
+        if str(row).strip()
+    }
+    kernel_verified_ids |= {
+        str(row).strip()
+        for row in proof_control.get("excluded_candidate_proof_obligation_ids", []) or []
+        if str(row).strip()
+    }
+    return bool(candidate_ids - kernel_verified_ids)
+
+
 def _critic_learning_rows(
     *,
     question: OpenResearchQuestion,
@@ -2536,12 +2614,16 @@ def _critic_learning_rows(
         for row in formal_subclaims
         if isinstance(row, Mapping) and row.get("status") == "FORMAL_GAP"
     ]
+    kernel_verified_set = {row for row in kernel_verified_proof_obligation_ids if row}
+    selected_unverified_proof_obligation_ids = [
+        row for row in selected_proof_obligation_ids if row not in kernel_verified_set
+    ]
     recommended_proof_obligation_ids = (
         failed_proof_obligation_ids
         or proved_non_kernel_proof_obligation_ids
         or deferred_priority_proof_obligation_ids_due_to_max
         or deferred_proof_obligation_ids_due_to_max
-        or selected_proof_obligation_ids
+        or selected_unverified_proof_obligation_ids
     )
     rows: list[dict[str, Any]] = []
     rows.append(
@@ -2568,6 +2650,7 @@ def _critic_learning_rows(
                 "algorithm_n_executed": algorithm_manifest.get("n_executed", 0),
                 "formalization_counts": formalization_manifest.get("counts", {}),
                 "selected_proof_obligation_ids": selected_proof_obligation_ids,
+                "selected_unverified_proof_obligation_ids": selected_unverified_proof_obligation_ids,
                 "deferred_proof_obligation_ids_due_to_max": deferred_proof_obligation_ids_due_to_max,
                 "deferred_priority_proof_obligation_ids_due_to_max": (
                     deferred_priority_proof_obligation_ids_due_to_max
@@ -2579,6 +2662,7 @@ def _critic_learning_rows(
                 "recommended_proof_obligation_ids": recommended_proof_obligation_ids,
             },
             "selected_proof_obligation_ids": selected_proof_obligation_ids,
+            "selected_unverified_proof_obligation_ids": selected_unverified_proof_obligation_ids,
             "deferred_proof_obligation_ids_due_to_max": deferred_proof_obligation_ids_due_to_max,
             "deferred_priority_proof_obligation_ids_due_to_max": (
                 deferred_priority_proof_obligation_ids_due_to_max
