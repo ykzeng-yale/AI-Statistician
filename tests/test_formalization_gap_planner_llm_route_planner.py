@@ -15,6 +15,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY,
+    ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     _generator_model_for_request,
     _route_adoption_readiness,
     export_formalization_gap_planner_llm_route_planner,
@@ -28,6 +29,8 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     validate_llm_route_planner_response_payload_validation_row,
     validate_llm_route_planner_response_payload_validation_manifest,
     validate_llm_route_planner_row,
+    route_adoption_blocker_taxonomy_payload,
+    validate_route_adoption_blocker_taxonomy_payload,
 )
 from ai_statistician.formalization_gap_planner_component_resource_registry import (
     export_formalization_gap_planner_component_resource_registry,
@@ -5228,6 +5231,30 @@ def test_route_adoption_readiness_uses_current_realization_witness() -> None:
 
     assert status == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     assert blockers == ("realization_coverage_incomplete",)
+
+
+def test_route_adoption_taxonomy_publishes_blocker_trigger_fields() -> None:
+    payload = route_adoption_blocker_taxonomy_payload()
+
+    assert validate_route_adoption_blocker_taxonomy_payload(payload) == ()
+    trigger_fields = payload["blocker_trigger_fields"][
+        ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE
+    ]
+    assert (
+        "rows[].realization_coverage_witness.realization_coverage_complete"
+        in trigger_fields
+    )
+
+    corrupted_payload = deepcopy(payload)
+    corrupted_payload["blocker_trigger_fields"][
+        ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE
+    ] = []
+    assert any(
+        "blocker_trigger_fields must list at least one trigger field" in error
+        for error in validate_route_adoption_blocker_taxonomy_payload(
+            corrupted_payload
+        )
+    )
 
 
 def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> None:

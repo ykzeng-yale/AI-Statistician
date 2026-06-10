@@ -240,6 +240,57 @@ ROUTE_ADOPTION_BLOCKER_DEFINITIONS = {
         "resource-response or refinement evidence."
     ),
 }
+ROUTE_ADOPTION_BLOCKER_TRIGGER_FIELDS = {
+    ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED: (
+        "request_errors",
+        "provider_failure",
+        "response_contract_ok",
+    ),
+    ROUTE_ADOPTION_BLOCKER_RESPONSE_MISSING: ("response_present",),
+    ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS: ("response_payload.search_requests",),
+    ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS: (
+        "response_payload.planner_next_actions",
+    ),
+    ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS: (
+        "response_payload.uncertainty_flags",
+    ),
+    ROUTE_ADOPTION_BLOCKER_SEMANTIC_ALIGNMENT_RISKS: (
+        "response_payload.semantic_alignment_risks",
+    ),
+    ROUTE_ADOPTION_BLOCKER_RESIDUAL_INTERPRETATIONS: (
+        "response_payload.residual_interpretations",
+    ),
+    ROUTE_ADOPTION_BLOCKER_FEEDBACK_ACTIONS: (
+        "context_packet.feedback_loop_summary.recommended_next_actions",
+    ),
+    ROUTE_ADOPTION_BLOCKER_RESOURCE_PLAYBOOK_REDISPATCH: (
+        "context_packet.feedback_loop_summary.recommended_next_actions[].action",
+    ),
+    ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE: (
+        "context_packet.feedback_loop_summary.recommended_next_actions[].source",
+    ),
+    ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN: (
+        "context_packet.feedback_loop_summary.replan_required",
+    ),
+    ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE: (
+        "rows[].realization_coverage_witness.realization_coverage_complete",
+        "context_packet.feedback_loop_summary.realization_coverage.complete",
+    ),
+    ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES: (
+        "rows[].realization_coverage_witness.omitted_cost_hint_primitives",
+        "context_packet.minimal_delta_cost_hints.route_option_hints",
+    ),
+    ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES: (
+        "response_payload.informal_knowledge_dag_nodes[].formal_gap_boundary",
+        "response_payload.formal_realization_dag_nodes[].formal_gap_boundary",
+        "response_payload.residual_interpretations[].formal_gap_boundary",
+        "response_payload.standalone_route.primitives[].formal_gap_boundary",
+    ),
+    ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS: (
+        "context_packet.quality_control_obligations.pending",
+        "context_packet.context_packet_inventory.n_pending_quality_control_values",
+    ),
+}
 LLM_ROUTE_PLANNER_COMPONENT = "formalization_gap_planner_llm_route_planner"
 LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT = (
     "formalization_gap_planner_llm_route_planner_response_payload_validator"
@@ -2291,6 +2342,7 @@ def route_adoption_blocker_taxonomy_json_schema() -> dict[str, object]:
             "status_values",
             "blocker_values",
             "blocker_definitions",
+            "blocker_trigger_fields",
             "proof_evidence_status",
             "proof_evidence_boundary",
             "all_ok",
@@ -2319,6 +2371,10 @@ def route_adoption_blocker_taxonomy_json_schema() -> dict[str, object]:
                 "type": "object",
                 "additionalProperties": {"type": "string"},
             },
+            "blocker_trigger_fields": {
+                "type": "object",
+                "additionalProperties": string_array,
+            },
             "proof_evidence_status": {"const": PROOF_EVIDENCE_STATUS},
             "proof_evidence_boundary": {
                 "type": "string",
@@ -2339,6 +2395,10 @@ def route_adoption_blocker_taxonomy_payload() -> dict[str, object]:
         "status_values": list(ROUTE_ADOPTION_STATUSES),
         "blocker_values": list(ROUTE_ADOPTION_BLOCKER_VALUES),
         "blocker_definitions": dict(ROUTE_ADOPTION_BLOCKER_DEFINITIONS),
+        "blocker_trigger_fields": {
+            blocker: list(fields)
+            for blocker, fields in ROUTE_ADOPTION_BLOCKER_TRIGGER_FIELDS.items()
+        },
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": (
             "Route-adoption blocker taxonomy artifacts define reusable planner "
@@ -2388,6 +2448,23 @@ def validate_route_adoption_blocker_taxonomy_payload(
             errors.append(
                 "blocker_definitions must be non-empty strings for: "
                 + ", ".join(sorted(str(key) for key in empty_definitions))
+            )
+    trigger_fields = payload.get("blocker_trigger_fields", {})
+    if not isinstance(trigger_fields, Mapping):
+        errors.append("blocker_trigger_fields must be object")
+    else:
+        trigger_keys = tuple(str(key) for key in trigger_fields.keys())
+        if set(trigger_keys) != set(ROUTE_ADOPTION_BLOCKER_VALUES):
+            errors.append("blocker_trigger_fields keys must match blocker_values")
+        empty_trigger_fields = [
+            key
+            for key, values in trigger_fields.items()
+            if not _str_tuple(values)
+        ]
+        if empty_trigger_fields:
+            errors.append(
+                "blocker_trigger_fields must list at least one trigger field for: "
+                + ", ".join(sorted(str(key) for key in empty_trigger_fields))
             )
     if payload.get("proof_evidence_status") != PROOF_EVIDENCE_STATUS:
         errors.append("proof_evidence_status mismatch")

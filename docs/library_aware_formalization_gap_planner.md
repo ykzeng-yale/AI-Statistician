@@ -494,7 +494,10 @@ contract while still being `PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION` because it
 asked for additional literature search, formal-library search, prover feedback,
 planner next actions, quality-control evidence, or uncertainty review. Only
 `READY_FOR_STANDALONE_REPLAY` means the route has no unresolved LLM-planner
-handoff blockers under the current evidence bound.
+handoff blockers under the current evidence bound. The readiness gate is
+computed from both the current row's structured `realization_coverage_witness`
+and any upstream feedback-loop realization summary, so a stale or missing
+feedback summary cannot make an incomplete current response adoption-ready.
 Residual-only repair responses are labeled `ACCEPTED_WITH_RESIDUAL_REPAIR` and
 remain pending with `residual_interpretations_require_route_replay` until the
 repair is replayed or discharged by later evidence. The standalone seed also
@@ -522,7 +525,11 @@ Blocker labels are part of the published
 `formalization_gap_planner_route_adoption_blocker_taxonomy:1` vocabulary, and
 publication bundles now package that vocabulary as
 `contract/formalization_gap_planner_route_adoption_blocker_taxonomy.json` plus
-its JSON Schema. The publication-bundle audit rejects evaluation rows or LLM
+its JSON Schema. The taxonomy also publishes `blocker_trigger_fields`, a
+machine-readable map from each blocker label to the row, response, or context
+fields that trigger it. External prover adapters can therefore reproduce
+readiness decisions from packaged artifacts instead of treating blocker labels
+as free-form prose. The publication-bundle audit rejects evaluation rows or LLM
 seed metadata that invent unregistered blocker strings, and it also checks that
 the LLM route-planner row schema enums match the packaged taxonomy contract.
 The response contract also rejects target drift. A returned

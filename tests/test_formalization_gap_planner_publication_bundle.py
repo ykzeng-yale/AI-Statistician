@@ -45,6 +45,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
+    ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
     export_formalization_gap_planner_llm_route_planner,
     route_adoption_blocker_taxonomy_json_schema,
@@ -2098,6 +2099,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert validate_route_adoption_blocker_taxonomy_payload(
         route_adoption_taxonomy_contract
     ) == ()
+    assert (
+        "rows[].realization_coverage_witness.realization_coverage_complete"
+        in route_adoption_taxonomy_contract["blocker_trigger_fields"][
+            ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE
+        ]
+    )
     assert (
         out_dir / "contract" / "formalization_gap_planner_route_revision_overlay_row.schema.json"
     ).exists()
