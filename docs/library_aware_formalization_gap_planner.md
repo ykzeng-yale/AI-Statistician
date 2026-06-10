@@ -341,7 +341,10 @@ The one-command reuse-smoke manifest also promotes LLM route-planner
 realization-coverage counters for both primary and feedback planner passes, so
 a public artifact consumer can distinguish staged prompt-only requests from
 accepted routes whose selected and delta primitives are fully covered by
-standalone/formal DAG nodes and alignment edges. The same manifest now exposes
+standalone/formal DAG nodes and alignment edges. It also forwards the packaged
+publication-bundle LLM route-planner summaries and their audit-consistency
+counters, so one smoke output can show that the public bundle view matches the
+copied primary and feedback LLM planning artifacts. The same manifest now exposes
 cost-hint baseline incompleteness and omitted cost-hint primitive counts for
 primary planner, feedback planner, and evaluation outputs, so a publication
 artifact can surface semantic route weakening without opening nested LLM

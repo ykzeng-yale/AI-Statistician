@@ -2564,6 +2564,112 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert "--feedback-llm-route-planner-max-repair-attempts 1" in reproduction_command
     assert "--feedback-llm-route-planner-invoke-provider" in reproduction_command
     assert "--feedback-llm-route-planner-static-response-file" in reproduction_command
+    assert payload["publication_bundle_llm_route_planner_summary_requested"]
+    assert (
+        payload["n_publication_bundle_llm_route_planner_summary_request_packets"]
+        == payload["n_llm_route_planner_request_packets"]
+        == 1
+    )
+    assert (
+        payload["n_publication_bundle_llm_route_planner_summary_rows"]
+        == payload["n_llm_route_planner_request_packets"]
+        == 1
+    )
+    assert (
+        payload["n_publication_bundle_llm_route_planner_summary_response_present"]
+        == payload["n_llm_route_planner_response_present"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_response_contract_ok"
+        ]
+        == payload["n_llm_route_planner_response_contract_ok"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_accepted_route_plans"
+        ]
+        == payload["n_llm_route_planner_accepted_route_plans"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_route_adoption_pending_refinement"
+        ]
+        == payload["n_llm_route_planner_route_adoption_pending_refinement"]
+        == 1
+    )
+    assert (
+        payload[
+            "publication_bundle_llm_route_planner_summary_route_adoption_blocker_counts"
+        ]["search_requests_pending_evidence"]
+        == 1
+    )
+    assert (
+        payload[
+            "publication_bundle_llm_route_planner_summary_by_route_adoption_status"
+        ]["PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"]
+        == 1
+    )
+    assert (
+        payload[
+            "publication_bundle_llm_route_planner_summary_by_route_adoption_blocker"
+        ]["search_requests_pending_evidence"]["n_rows"]
+        == 1
+    )
+    assert payload["publication_bundle_feedback_llm_route_planner_summary_requested"]
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_packets"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_response_present"
+        ]
+        == payload["n_feedback_llm_route_planner_response_present"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_accepted_route_plans"
+        ]
+        == payload["n_feedback_llm_route_planner_accepted_route_plans"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_route_adoption_pending_refinement"
+        ]
+        == payload["n_feedback_llm_route_planner_route_adoption_pending_refinement"]
+        == 1
+    )
+    assert (
+        payload[
+            "publication_bundle_feedback_llm_route_planner_summary_route_adoption_blocker_counts"
+        ]["feedback_loop_replan_required"]
+        == 1
+    )
+    assert (
+        payload[
+            "publication_bundle_feedback_llm_route_planner_summary_by_route_adoption_blocker"
+        ]["feedback_summary_actions_pending_resolution"]["n_rows"]
+        == 1
+    )
+    assert (
+        payload["n_publication_bundle_llm_route_planner_summary_valid"]
+        == payload["n_publication_bundle_llm_route_planner_summary_checked"]
+        == 1
+    )
+    assert (
+        payload["n_publication_bundle_feedback_llm_route_planner_summary_valid"]
+        == payload["n_publication_bundle_feedback_llm_route_planner_summary_checked"]
+        == 1
+    )
     assert (
         payload["n_publication_bundle_optional_llm_route_planner_row_schema_valid"]
         == payload["n_publication_bundle_optional_llm_route_planner_row_schema_checked"]
