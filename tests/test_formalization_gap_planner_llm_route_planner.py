@@ -1192,6 +1192,126 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     )
 
 
+def test_llm_route_planner_matches_context_rows_by_route_aliases() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_alias_context")
+    out_dir = root / "llm_route_planner"
+    source_grounding_dir = root / "source_grounding"
+    resource_response_dir = root / "resource_response_ledger"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    source_grounding_dir.mkdir(parents=True, exist_ok=True)
+    resource_response_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+
+    source_manifest = (
+        source_grounding_dir
+        / "formalization_gap_planner_source_grounding_audit_manifest.json"
+    )
+    source_manifest.write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_source_grounding_audit",
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:alias",
+                        "source_route_id": "rank_route",
+                        "source_refs": ["alias_rank_source"],
+                        "source_snippets": [
+                            {
+                                "source_ref": "alias_rank_source",
+                                "claim": (
+                                    "Alias route source supports rank "
+                                    "exchangeability."
+                                ),
+                                "excerpt": (
+                                    "The exchangeability route can be carried "
+                                    "through the same finite rank argument."
+                                ),
+                                "target_primitives": ["rank_uniformity"],
+                            }
+                        ],
+                        "source_grounding_status": "source_backed",
+                        "ok": True,
+                        "errors": [],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    ledger_manifest = (
+        resource_response_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    )
+    ledger_manifest.write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_resource_response_ledger",
+                "rows": [
+                    {
+                        "resource_response_ledger_id": "ledger:alias",
+                        "standalone_input_trace": {
+                            "trace_kind": "route_replan_seed",
+                            "source_route_id": "rank_route",
+                            "source_goal_plan_id": "goal:alias",
+                        },
+                        "target_prover_family": "lean4",
+                        "response_present": True,
+                        "response_contract_ok": True,
+                        "response_contract_minimum_met": True,
+                        "acceptance_status": "accepted",
+                        "response_summary": (
+                            "Alias trace found a reusable rank bridge."
+                        ),
+                        "formal_declaration_hits": [
+                            {
+                                "declaration": "Probability.aliasRankBridge",
+                                "target_prover_family": "lean4",
+                                "source_field": "formal_declaration_hits",
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_source_grounding_audit_dir=source_grounding_dir,
+        formalization_gap_planner_resource_response_ledger_dir=resource_response_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_requests_with_source_grounding_rows"] == 1
+    assert payload["n_requests_with_resource_response_ledger_rows"] == 1
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    assert context["source_grounding_rows"][0]["source_route_id"] == "rank_route"
+    assert context["resource_response_ledger_rows"][0]["standalone_input_trace"][
+        "source_route_id"
+    ] == "rank_route"
+    assert "alias_rank_source" in set(context["available_source_refs"])
+    assert any(
+        snippet.get("source_ref") == "alias_rank_source"
+        for snippet in context["available_source_snippets"]
+    )
+    assert any(
+        row["declaration"] == "Probability.aliasRankBridge"
+        for row in context["available_formal_declaration_rows"]
+    )
+    inventory = context["context_packet_inventory"]
+    assert inventory["row_counts"]["source_grounding_rows"] == 1
+    assert inventory["row_counts"]["resource_response_ledger_rows"] == 1
+    assert inventory["available_source_ref_count"] == len(
+        context["available_source_refs"]
+    )
+
+
 def test_llm_route_planner_prompt_only_remains_explicit_no_provider_mode() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_prompt_only")
     out_dir = root / "llm_route_planner"

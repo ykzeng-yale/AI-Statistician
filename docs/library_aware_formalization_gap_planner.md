@@ -445,7 +445,12 @@ resource playbooks, cost hints, registry resources, feedback actions, and
 quality-control obligations. The inventory is only a navigation aid for the LLM
 and downstream auditors; raw `context_packet` rows remain the source of truth,
 and request validation rejects inventory drift when counts disagree with the
-raw packet.
+raw packet. Context-row lookup follows route aliases such as `source_route_id`,
+`standalone_route_id`, `target_id`, `goal_plan_id`, `display_name`,
+`route_match_ids`, and nested `replan_metadata` or `standalone_input_trace`
+provenance, so evidence produced by handoff, feedback, or external prover
+adapters is not dropped merely because it uses a different route identifier
+field.
 Admissible resource-response and refinement-evidence `coverage_updates` also
 feed the next request's `minimal_delta_cost_hints`. A declaration hit therefore
 does not by itself lower the route cost to exact reuse: if accepted feedback

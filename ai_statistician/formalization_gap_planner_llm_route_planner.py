@@ -148,6 +148,32 @@ CONTEXT_PACKET_ROW_FIELDS = (
     "interactive_decision_policy_rows",
     "current_goal_plan_rows",
 )
+ROUTE_MATCH_SCALAR_FIELDS = (
+    "route_id",
+    "source_route_id",
+    "target_route_id",
+    "current_route_id",
+    "request_route_id",
+    "selected_route_id",
+    "standalone_route_id",
+    "target_id",
+    "target_theorem_id",
+    "display_name",
+    "goal_plan_id",
+    "source_goal_plan_id",
+    "target_goal_plan_id",
+)
+ROUTE_MATCH_COLLECTION_FIELDS = (
+    "route_match_ids",
+    "route_ids",
+    "source_route_ids",
+    "standalone_route_ids",
+    "goal_plan_ids",
+)
+ROUTE_MATCH_NESTED_FIELDS = (
+    "replan_metadata",
+    "standalone_input_trace",
+)
 ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID = (
     "formalization_gap_planner_route_adoption_blocker_taxonomy:1"
 )
@@ -9466,15 +9492,26 @@ def _rows_for_route(
     for row in rows:
         if not isinstance(row, dict):
             continue
-        candidate_ids = {
-            str(row.get("route_id", "")),
-            str(row.get("target_id", "")),
-            str(row.get("standalone_route_id", "")),
-            str(row.get("goal_plan_id", "")),
-        }
+        candidate_ids = _row_route_match_ids(row)
         if route_id_set.intersection(candidate_ids) or not route_id_set:
             matched.append(_compact_row(row))
     return tuple(matched[:25])
+
+
+def _row_route_match_ids(row: Mapping[str, Any]) -> set[str]:
+    ids = set(_route_match_id_values(row))
+    for nested_field in ROUTE_MATCH_NESTED_FIELDS:
+        ids.update(_route_match_id_values(_dict_value(row, nested_field)))
+    return {route_id for route_id in ids if route_id}
+
+
+def _route_match_id_values(row: Mapping[str, Any]) -> tuple[str, ...]:
+    values: list[str] = []
+    for field_name in ROUTE_MATCH_SCALAR_FIELDS:
+        values.extend(_str_tuple(row.get(field_name, "")))
+    for field_name in ROUTE_MATCH_COLLECTION_FIELDS:
+        values.extend(_str_tuple(row.get(field_name, [])))
+    return _str_tuple(values)
 
 
 def _component_resource_registry_context(
@@ -10595,9 +10632,18 @@ def _resource_ids_for_registry_context(rows: list[dict[str, object]]) -> set[str
 def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
     keep = (
         "goal_plan_id",
+        "source_goal_plan_id",
+        "target_goal_plan_id",
         "route_id",
+        "source_route_id",
+        "target_route_id",
+        "current_route_id",
+        "request_route_id",
+        "selected_route_id",
+        "route_match_ids",
         "target_intake_id",
         "target_id",
+        "target_theorem_id",
         "standalone_route_id",
         "route_replan_handoff_id",
         "route_revision_overlay_id",
@@ -10781,6 +10827,7 @@ def _compact_standalone_input_trace(value: object) -> dict[str, object]:
     compact: dict[str, object] = {
         "trace_kind": str(trace.get("trace_kind", "")),
         "source_route_id": str(trace.get("source_route_id", "")),
+        "source_goal_plan_id": str(trace.get("source_goal_plan_id", "")),
         "has_replan_metadata": bool(trace.get("has_replan_metadata", False)),
         "applied_hook_kinds": list(_str_tuple(trace.get("applied_hook_kinds", []))),
         "residual_goals": list(_str_tuple(trace.get("residual_goals", []))),
@@ -10895,14 +10942,9 @@ def _refinement_evidence_row_is_admissible_feedback(row: Mapping[str, object]) -
 
 
 def _route_match_ids(route: Mapping[str, Any], route_id: str) -> tuple[str, ...]:
-    replan_metadata = _dict_value(route, "replan_metadata")
-    ids = [
-        route_id,
-        str(route.get("source_route_id", "")),
-        str(route.get("goal_plan_id", "")),
-        str(replan_metadata.get("source_route_id", "")),
-        str(replan_metadata.get("source_goal_plan_id", "")),
-    ]
+    ids = [route_id, *_route_match_id_values(route)]
+    for nested_field in ROUTE_MATCH_NESTED_FIELDS:
+        ids.extend(_route_match_id_values(_dict_value(route, nested_field)))
     return _str_tuple(ids)
 
 
