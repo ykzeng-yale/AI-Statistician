@@ -1149,6 +1149,32 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_seed_route_adoption_readiness")
             and check.ok
         ),
+        "n_optional_llm_route_planner_seed_route_selection_summary_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_seed_route_selection_summary"
+        ),
+        "n_optional_llm_route_planner_seed_route_selection_summary_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_seed_route_selection_summary"
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_seed_route_selection_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_route_selection")
+        ),
+        "n_optional_llm_route_planner_seed_route_selection_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_route_selection")
+            and check.ok
+        ),
         "n_optional_llm_route_planner_generic_formal_dag_checked": sum(
             1
             for check in checks
@@ -1448,6 +1474,36 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
             and check.check_name.endswith("_seed_route_adoption_readiness")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_seed_route_selection_summary_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_seed_route_selection_summary"
+        ),
+        "n_optional_feedback_llm_route_planner_seed_route_selection_summary_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_seed_route_selection_summary"
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_seed_route_selection_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_feedback_llm_route_planner_row_"
+            )
+            and check.check_name.endswith("_seed_route_selection")
+        ),
+        "n_optional_feedback_llm_route_planner_seed_route_selection_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_feedback_llm_route_planner_row_"
+            )
+            and check.check_name.endswith("_seed_route_selection")
             and check.ok
         ),
         "n_optional_feedback_llm_route_planner_generic_formal_dag_checked": sum(
@@ -6863,6 +6919,14 @@ def _llm_route_planner_optional_checks(
             not _llm_generic_formal_dag_errors(rows, seed_payload, manifest),
             errors=_llm_generic_formal_dag_errors(rows, seed_payload, manifest),
         ),
+        _check(
+            f"{check_prefix}_seed_route_selection_summary",
+            "optional_artifacts",
+            "LLM route-planner standalone seed publishes a coherent selected route summary",
+            _llm_seed_route_selection_summary_observed(seed_payload, rows),
+            not _llm_seed_route_selection_summary_errors(seed_payload, rows),
+            errors=_llm_seed_route_selection_summary_errors(seed_payload, rows),
+        ),
     ]
     for idx, request in enumerate(requests):
         schema_errors = validate_llm_route_planner_request(request, request_schema)
@@ -7016,6 +7080,17 @@ def _llm_route_planner_optional_checks(
                     _llm_seed_route_adoption_readiness_observed(row, seed_route),
                     not route_adoption_errors,
                     errors=route_adoption_errors,
+                )
+            )
+            route_selection_errors = _llm_seed_route_selection_errors(row, seed_route)
+            checks.append(
+                _check(
+                    f"{check_prefix}_row_{idx}_seed_route_selection",
+                    "optional_artifacts",
+                    "accepted LLM row seed-selection rank, selected flag, and minimal-delta cost are preserved in standalone seed metadata",
+                    _llm_seed_route_selection_observed(row, seed_route),
+                    not route_selection_errors,
+                    errors=route_selection_errors,
                 )
             )
     return checks
@@ -9205,6 +9280,169 @@ def _llm_seed_route_adoption_readiness_observed(
         f"metadata_status={metadata.get('llm_route_planner_route_adoption_status', '')}; "
         f"route_blockers={len(set(row_blockers).intersection(route_blockers))}/{len(row_blockers)}; "
         f"metadata_blockers={len(set(row_blockers).intersection(metadata_blockers))}/{len(row_blockers)}"
+    )
+
+
+def _llm_seed_route_selection_summary_errors(
+    seed_payload: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> tuple[str, ...]:
+    seed_routes = _seed_route_index(seed_payload)
+    accepted_rows = [row for row in rows if _llm_route_planner_row_accepted(row)]
+    selection = _dict_value(seed_payload, "llm_route_planner_seed_route_selection")
+    selection_rows = _dict_tuple(selection.get("selection_rows", []))
+    if not seed_routes and not selection:
+        return tuple()
+    errors: list[str] = []
+    if not selection:
+        errors.append("seed llm_route_planner_seed_route_selection missing")
+        return tuple(errors)
+    if (
+        str(selection.get("selection_kind", ""))
+        != "formalization_gap_planner_llm_route_planner_seed_route_selection"
+    ):
+        errors.append("seed route-selection summary kind mismatch")
+    route_candidate_count = _int_or_none(selection.get("n_route_candidates"))
+    if route_candidate_count != len(selection_rows):
+        errors.append("seed route-selection candidate count mismatch")
+    selected_rows = [row for row in selection_rows if bool(row.get("selected", False))]
+    if selection_rows and len(selected_rows) != 1:
+        errors.append(
+            f"seed route-selection summary must select exactly one route, found {len(selected_rows)}"
+        )
+    ranks = [_int_or_none(row.get("selection_rank")) for row in selection_rows]
+    if any(rank is None for rank in ranks) or sorted(
+        rank for rank in ranks if rank is not None
+    ) != list(range(1, len(selection_rows) + 1)):
+        errors.append("seed route-selection ranks are not consecutive from 1")
+    contract_valid_count = _int_or_none(
+        selection.get("n_contract_valid_route_candidates")
+    )
+    if accepted_rows and contract_valid_count != len(accepted_rows):
+        errors.append("seed route-selection contract-valid candidate count mismatch")
+    for selection_row in selection_rows:
+        seed_route_id = str(
+            selection_row.get("seed_route_id", "")
+            or selection_row.get("route_id", "")
+        )
+        seed_route = seed_routes.get(seed_route_id, {})
+        if not seed_route:
+            errors.append(f"selection row seed route missing: {seed_route_id}")
+            continue
+        metadata = _seed_route_metadata(seed_route)
+        metadata = metadata if isinstance(metadata, dict) else {}
+        selected = bool(selection_row.get("selected", False))
+        rank = int(selection_row.get("selection_rank", 0) or 0)
+        if bool(seed_route.get("llm_route_planner_seed_selected", False)) != selected:
+            errors.append(f"seed route {seed_route_id} selected flag mismatch")
+        if bool(metadata.get("llm_route_planner_seed_selected", False)) != selected:
+            errors.append(f"seed metadata {seed_route_id} selected flag mismatch")
+        if int(seed_route.get("llm_route_planner_seed_selection_rank", 0) or 0) != rank:
+            errors.append(f"seed route {seed_route_id} selection rank mismatch")
+        if int(metadata.get("llm_route_planner_seed_selection_rank", 0) or 0) != rank:
+            errors.append(f"seed metadata {seed_route_id} selection rank mismatch")
+    if selected_rows:
+        selected = selected_rows[0]
+        if str(selection.get("selected_route_id", "")) != str(selected.get("route_id", "")):
+            errors.append("seed route-selection selected_route_id mismatch")
+        if str(selection.get("selected_seed_route_id", "")) != str(
+            selected.get("seed_route_id", "")
+        ):
+            errors.append("seed route-selection selected_seed_route_id mismatch")
+        if str(selection.get("selected_llm_route_planner_row_id", "")) != str(
+            selected.get("llm_route_planner_row_id", "")
+        ):
+            errors.append("seed route-selection selected row id mismatch")
+        if int(selected.get("selection_rank", 0) or 0) != 1:
+            errors.append("seed route-selection selected row must have rank 1")
+    return tuple(errors)
+
+
+def _llm_seed_route_selection_summary_observed(
+    seed_payload: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> str:
+    selection = _dict_value(seed_payload, "llm_route_planner_seed_route_selection")
+    selection_rows = _dict_tuple(selection.get("selection_rows", []))
+    selected_rows = [row for row in selection_rows if bool(row.get("selected", False))]
+    accepted_rows = [row for row in rows if _llm_route_planner_row_accepted(row)]
+    return (
+        f"status={selection.get('selection_status', '')}; "
+        f"candidates={len(selection_rows)}/{selection.get('n_route_candidates', 0)}; "
+        f"selected={len(selected_rows)}; "
+        f"selected_seed_route_id={selection.get('selected_seed_route_id', '')}; "
+        f"accepted_rows={len(accepted_rows)}; "
+        f"contract_valid={selection.get('n_contract_valid_route_candidates', 0)}"
+    )
+
+
+def _llm_seed_route_selection_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    route_rank = _int_or_none(seed_route.get("llm_route_planner_seed_selection_rank"))
+    metadata_rank = _int_or_none(
+        metadata.get("llm_route_planner_seed_selection_rank")
+    )
+    if route_rank is None or route_rank <= 0:
+        errors.append("seed route llm_route_planner_seed_selection_rank missing")
+    if metadata_rank is None or metadata_rank <= 0:
+        errors.append("seed metadata llm_route_planner_seed_selection_rank missing")
+    if route_rank != metadata_rank:
+        errors.append("seed route and metadata selection rank mismatch")
+    route_selected = bool(seed_route.get("llm_route_planner_seed_selected", False))
+    metadata_selected = bool(
+        metadata.get("llm_route_planner_seed_selected", False)
+    )
+    if route_selected != metadata_selected:
+        errors.append("seed route and metadata selected flag mismatch")
+    if route_selected and route_rank != 1:
+        errors.append("selected seed route must have selection rank 1")
+    if not str(seed_route.get("llm_route_planner_seed_selection_reason", "")).strip():
+        errors.append("seed route selection reason missing")
+    if not str(
+        metadata.get("llm_route_planner_seed_selection_reason", "")
+    ).strip():
+        errors.append("seed metadata selection reason missing")
+    row_cost = _float_or_none(_dict_value(row, "minimal_delta_plan").get("route_cost"))
+    route_cost = _float_or_none(
+        seed_route.get("llm_route_planner_seed_minimal_delta_route_cost")
+    )
+    metadata_cost = _float_or_none(
+        metadata.get("llm_route_planner_seed_minimal_delta_route_cost")
+    )
+    if row_cost is not None and route_cost != row_cost:
+        errors.append("seed route minimal-delta selection cost mismatch")
+    if row_cost is not None and metadata_cost != row_cost:
+        errors.append("seed metadata minimal-delta selection cost mismatch")
+    if route_cost != metadata_cost:
+        errors.append("seed route and metadata minimal-delta selection cost mismatch")
+    return tuple(errors)
+
+
+def _llm_seed_route_selection_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    row_cost = _float_or_none(_dict_value(row, "minimal_delta_plan").get("route_cost"))
+    return (
+        f"row_id={row.get('llm_route_planner_row_id', '')}; "
+        f"seed_selected={seed_route.get('llm_route_planner_seed_selected', '')}; "
+        f"metadata_selected={metadata.get('llm_route_planner_seed_selected', '')}; "
+        f"seed_rank={seed_route.get('llm_route_planner_seed_selection_rank', '')}; "
+        f"metadata_rank={metadata.get('llm_route_planner_seed_selection_rank', '')}; "
+        f"row_cost={row_cost}; "
+        f"seed_cost={seed_route.get('llm_route_planner_seed_minimal_delta_route_cost', '')}; "
+        f"metadata_cost={metadata.get('llm_route_planner_seed_minimal_delta_route_cost', '')}"
     )
 
 
@@ -16219,6 +16457,26 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     return tuple(dict.fromkeys(str(item) for item in values if str(item)))
 
 
+def _int_or_none(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _float_or_none(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _int_mapping(value: Any) -> dict[str, int]:
     if not isinstance(value, dict):
         return {}
@@ -16366,6 +16624,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional LLM route-planner seed DAG preserved: {payload.get('n_optional_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_llm_route_planner_seed_dag_checked')}",
         f"- Optional LLM route-planner seed search handoff preserved: {payload.get('n_optional_llm_route_planner_seed_search_handoff_valid')}/{payload.get('n_optional_llm_route_planner_seed_search_handoff_checked')}",
         f"- Optional LLM route-planner seed route-adoption readiness preserved: {payload.get('n_optional_llm_route_planner_seed_route_adoption_readiness_valid')}/{payload.get('n_optional_llm_route_planner_seed_route_adoption_readiness_checked')}",
+        f"- Optional LLM route-planner seed route-selection summary valid: {payload.get('n_optional_llm_route_planner_seed_route_selection_summary_valid')}/{payload.get('n_optional_llm_route_planner_seed_route_selection_summary_checked')}",
+        f"- Optional LLM route-planner seed route-selection traces preserved: {payload.get('n_optional_llm_route_planner_seed_route_selection_valid')}/{payload.get('n_optional_llm_route_planner_seed_route_selection_checked')}",
         f"- Optional LLM route-planner request evidence bounds valid: {payload.get('n_optional_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_llm_route_planner_request_evidence_bound_checked')}",
         f"- Optional LLM route-planner request registry context valid: {payload.get('n_optional_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_llm_route_planner_request_registry_context_checked')}",
         f"- Optional LLM route-planner request target-intake context valid: {payload.get('n_optional_llm_route_planner_request_target_intake_context_valid')}/{payload.get('n_optional_llm_route_planner_request_target_intake_context_checked')}",
@@ -16381,6 +16641,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional feedback LLM route-planner seed DAG preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_dag_checked')}",
         f"- Optional feedback LLM route-planner seed search handoff preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_search_handoff_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_search_handoff_checked')}",
         f"- Optional feedback LLM route-planner seed route-adoption readiness preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_checked')}",
+        f"- Optional feedback LLM route-planner seed route-selection summary valid: {payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_summary_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_summary_checked')}",
+        f"- Optional feedback LLM route-planner seed route-selection traces preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_checked')}",
         f"- Optional feedback LLM route-planner request evidence bounds valid: {payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_checked')}",
         f"- Optional feedback LLM route-planner request registry context valid: {payload.get('n_optional_feedback_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_registry_context_checked')}",
         f"- Optional feedback LLM route-planner request target-intake context valid: {payload.get('n_optional_feedback_llm_route_planner_request_target_intake_context_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_target_intake_context_checked')}",
