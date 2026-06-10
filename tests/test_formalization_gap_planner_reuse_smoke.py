@@ -2611,6 +2611,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_llm_route_planner_route_adoption_pending_formal_gap_boundary_blockers"
+        ]
+        == 0
+    )
+    assert (
+        payload[
             "n_llm_route_planner_route_adoption_pending_quality_control_blockers"
         ]
         == 0
@@ -2682,6 +2688,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert (
         payload[
             "n_feedback_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_route_adoption_pending_formal_gap_boundary_blockers"
         ]
         == 1
     )
@@ -2949,6 +2961,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_llm_route_planner_summary_route_adoption_pending_formal_gap_boundary_blockers"
+        ]
+        == payload[
+            "n_llm_route_planner_route_adoption_pending_formal_gap_boundary_blockers"
+        ]
+        == 0
+    )
+    assert (
+        payload[
             "publication_bundle_llm_route_planner_summary_route_adoption_blocker_counts"
         ]["search_requests_pending_evidence"]
         == 1
@@ -3089,6 +3110,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "n_publication_bundle_feedback_llm_route_planner_summary_route_adoption_pending_refinement"
         ]
         == payload["n_feedback_llm_route_planner_route_adoption_pending_refinement"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_route_adoption_pending_formal_gap_boundary_blockers"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_route_adoption_pending_formal_gap_boundary_blockers"
+        ]
         == 1
     )
     assert (

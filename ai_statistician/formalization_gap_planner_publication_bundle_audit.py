@@ -66,6 +66,7 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES,
     MINIMAL_DELTA_COST_POLICY_ID,
     PROOF_EVIDENCE_STATUS as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS,
     ROUTE_ADOPTION_AWAITING_STATUS,
@@ -2687,6 +2688,12 @@ def _expected_bundle_llm_route_planner_summary(
             0,
         ),
         "n_route_adoption_blockers": sum(route_adoption_blocker_counts.values()),
+        "n_route_adoption_pending_formal_gap_boundary_blockers": (
+            route_adoption_blocker_counts.get(
+                ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES,
+                0,
+            )
+        ),
         "route_adoption_blockers": tuple(route_adoption_blocker_counts),
         "route_adoption_blocker_counts": dict(route_adoption_blocker_counts),
         "by_route_adoption_status": dict(route_adoption_status_counts),

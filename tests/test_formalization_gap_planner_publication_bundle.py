@@ -745,6 +745,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         == 1
     )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_route_adoption_pending_formal_gap_boundary_blockers"
+        ]
+        == 0
+    )
     assert manifest["feedback_llm_route_planner_summary"]["requested"] is True
     assert manifest["feedback_llm_route_planner_summary"]["n_request_packets"] == 1
     assert (
@@ -811,6 +817,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
             "n_route_adoption_awaiting_llm_response"
         ]
         == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_route_adoption_pending_formal_gap_boundary_blockers"
+        ]
+        == 0
     )
     assert optional_by_name[
         "formalization_gap_planner_llm_route_planner_response_payload_validation"
@@ -1915,6 +1927,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         == 0
     )
     assert payload["llm_route_planner_summary"]["route_adoption_blocker_counts"] == {}
+    assert (
+        payload["llm_route_planner_summary"][
+            "n_route_adoption_pending_formal_gap_boundary_blockers"
+        ]
+        == 0
+    )
     assert payload["llm_route_planner_summary"]["by_route_adoption_status"] == {}
     assert payload["feedback_llm_route_planner_summary"]["requested"] is False
     assert payload["feedback_llm_route_planner_summary"]["n_request_packets"] == 0
@@ -1930,6 +1948,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
             "route_adoption_blocker_counts"
         ]
         == {}
+    )
+    assert (
+        payload["feedback_llm_route_planner_summary"][
+            "n_route_adoption_pending_formal_gap_boundary_blockers"
+        ]
+        == 0
     )
     assert payload["feedback_llm_route_planner_summary"]["by_route_adoption_status"] == {}
     assert payload["adapter_registry_summary"]["n_adapters"] >= 16

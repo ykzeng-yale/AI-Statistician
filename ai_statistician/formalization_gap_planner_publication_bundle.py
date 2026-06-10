@@ -65,6 +65,7 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     ROUTE_ADOPTION_AWAITING_STATUS,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
+    ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES,
     ROUTE_ADOPTION_PENDING_STATUS,
     ROUTE_ADOPTION_READY_STATUS,
     ROUTE_ADOPTION_REJECTED_STATUS,
@@ -2257,6 +2258,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_route_adoption_pending_refinement",
             "n_route_adoption_awaiting_llm_response",
             "n_route_adoption_rejected",
+            "n_route_adoption_pending_formal_gap_boundary_blockers",
             "n_route_adoption_blockers",
             "route_adoption_blockers",
             "route_adoption_blocker_counts",
@@ -2306,6 +2308,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_route_adoption_pending_refinement": nonnegative_integer,
             "n_route_adoption_awaiting_llm_response": nonnegative_integer,
             "n_route_adoption_rejected": nonnegative_integer,
+            "n_route_adoption_pending_formal_gap_boundary_blockers": (
+                nonnegative_integer
+            ),
             "n_route_adoption_blockers": nonnegative_integer,
             "route_adoption_blockers": string_array,
             "route_adoption_blocker_counts": {
@@ -4393,6 +4398,7 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_route_adoption_pending_refinement": 0,
         "n_route_adoption_awaiting_llm_response": 0,
         "n_route_adoption_rejected": 0,
+        "n_route_adoption_pending_formal_gap_boundary_blockers": 0,
         "n_route_adoption_blockers": 0,
         "route_adoption_blockers": (),
         "route_adoption_blocker_counts": {},
@@ -4562,6 +4568,16 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_route_adoption_rejected": route_adoption_status_counts.get(
             ROUTE_ADOPTION_REJECTED_STATUS,
             0,
+        ),
+        "n_route_adoption_pending_formal_gap_boundary_blockers": int(
+            payload.get(
+                "n_route_adoption_pending_formal_gap_boundary_blockers",
+                route_adoption_blocker_counts.get(
+                    ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES,
+                    0,
+                ),
+            )
+            or 0
         ),
         "n_route_adoption_blockers": sum(route_adoption_blocker_counts.values()),
         "route_adoption_blockers": tuple(route_adoption_blocker_counts),

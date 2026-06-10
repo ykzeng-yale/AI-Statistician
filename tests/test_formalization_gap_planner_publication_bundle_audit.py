@@ -6292,6 +6292,12 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         ]["search_requests_pending_evidence"]
         == 1
     )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_route_adoption_pending_formal_gap_boundary_blockers"
+        ]
+        == 0
+    )
     assert bundle_manifest["feedback_llm_route_planner_summary"]["requested"] is True
     assert (
         bundle_manifest["feedback_llm_route_planner_summary"][
@@ -6356,6 +6362,12 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
             "route_adoption_blocker_counts"
         ]["search_requests_pending_evidence"]
         == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_route_adoption_pending_formal_gap_boundary_blockers"
+        ]
+        == 0
     )
     audit_payload = audit_formalization_gap_planner_publication_bundle(
         bundle_dir,
@@ -8204,6 +8216,9 @@ def test_publication_bundle_audit_rejects_bundle_llm_summary_drift() -> None:
     corrupted_primary["llm_route_planner_summary"][
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces"
     ] = 1
+    corrupted_primary["llm_route_planner_summary"][
+        "n_route_adoption_pending_formal_gap_boundary_blockers"
+    ] = 1
     corrupted_primary["llm_route_planner_summary"]["by_route_adoption_blocker"] = {}
     manifest_path.write_text(
         json.dumps(corrupted_primary, indent=2),
@@ -8240,6 +8255,9 @@ def test_publication_bundle_audit_rejects_bundle_llm_summary_drift() -> None:
     ] = 0
     corrupted_feedback["feedback_llm_route_planner_summary"][
         "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces"
+    ] = 1
+    corrupted_feedback["feedback_llm_route_planner_summary"][
+        "n_route_adoption_pending_formal_gap_boundary_blockers"
     ] = 1
     corrupted_feedback["feedback_llm_route_planner_summary"][
         "by_route_adoption_blocker"

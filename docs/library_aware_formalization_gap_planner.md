@@ -585,6 +585,10 @@ responses. The route-planner manifest also exposes
 `route_adoption_blocker_counts` and `by_route_adoption_blocker`, so downstream
 evaluation, publication bundles, and independent prover integrations can audit
 which blocker classes caused pending adoption without re-parsing every row.
+Publication and reuse-smoke LLM-route summaries also surface
+`n_route_adoption_pending_formal_gap_boundary_blockers`, keeping declared
+formal-boundary gaps visible beside source-grounding, quality-control,
+resource, and cost-hint blockers.
 Blocker labels are part of the published
 `formalization_gap_planner_route_adoption_blocker_taxonomy:1` vocabulary, and
 publication bundles now package that vocabulary as

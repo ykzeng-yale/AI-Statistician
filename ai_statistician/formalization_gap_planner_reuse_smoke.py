@@ -181,6 +181,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_route_adoption_pending_feedback_replan_blockers",
         "n_route_adoption_pending_realization_coverage_blockers",
         "n_route_adoption_pending_omitted_cost_hint_primitive_blockers",
+        "n_route_adoption_pending_formal_gap_boundary_blockers",
         "n_route_adoption_pending_source_grounding_blockers",
         "n_route_adoption_pending_quality_control_blockers",
         "n_route_adoption_omitted_cost_hint_primitives",
@@ -248,6 +249,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_route_adoption_pending_feedback_replan_blockers",
         "n_route_adoption_pending_realization_coverage_blockers",
         "n_route_adoption_pending_omitted_cost_hint_primitive_blockers",
+        "n_route_adoption_pending_formal_gap_boundary_blockers",
         "n_route_adoption_pending_source_grounding_blockers",
         "n_route_adoption_pending_quality_control_blockers",
         "n_route_adoption_omitted_cost_hint_primitives",
@@ -2042,6 +2044,12 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_publication_bundle_llm_route_planner_summary_route_adoption_pending_formal_gap_boundary_blockers": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_route_adoption_pending_formal_gap_boundary_blockers",
+                0,
+            )
+        ),
         "n_publication_bundle_llm_route_planner_summary_route_adoption_blockers": (
             publication_bundle_llm_route_planner_summary.get(
                 "n_route_adoption_blockers",
@@ -2210,6 +2218,12 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_feedback_llm_route_planner_summary_route_adoption_pending_refinement": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_route_adoption_pending_refinement",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_route_adoption_pending_formal_gap_boundary_blockers": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_route_adoption_pending_formal_gap_boundary_blockers",
                 0,
             )
         ),
@@ -2502,6 +2516,12 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers": (
             llm_route_planner_payload.get(
                 "n_route_adoption_pending_omitted_cost_hint_primitive_blockers",
+                0,
+            )
+        ),
+        "n_llm_route_planner_route_adoption_pending_formal_gap_boundary_blockers": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_pending_formal_gap_boundary_blockers",
                 0,
             )
         ),
@@ -2919,6 +2939,12 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers": (
             feedback_llm_route_planner_payload.get(
                 "n_route_adoption_pending_omitted_cost_hint_primitive_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_pending_formal_gap_boundary_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_formal_gap_boundary_blockers",
                 0,
             )
         ),
@@ -6264,6 +6290,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"realization={payload.get('n_llm_route_planner_route_adoption_pending_realization_coverage_blockers')} "
             f"omitted_cost_hint={payload.get('n_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers')}/"
             f"{payload.get('n_llm_route_planner_route_adoption_omitted_cost_hint_primitives')} "
+            f"formal_gap={payload.get('n_llm_route_planner_route_adoption_pending_formal_gap_boundary_blockers')} "
             f"source_grounding={payload.get('n_llm_route_planner_route_adoption_pending_source_grounding_blockers')} "
             f"quality_controls={payload.get('n_llm_route_planner_route_adoption_pending_quality_control_blockers')}"
         ),
@@ -6424,6 +6451,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"realization={payload.get('n_feedback_llm_route_planner_route_adoption_pending_realization_coverage_blockers')} "
             f"omitted_cost_hint={payload.get('n_feedback_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers')}/"
             f"{payload.get('n_feedback_llm_route_planner_route_adoption_omitted_cost_hint_primitives')} "
+            f"formal_gap={payload.get('n_feedback_llm_route_planner_route_adoption_pending_formal_gap_boundary_blockers')} "
             f"source_grounding={payload.get('n_feedback_llm_route_planner_route_adoption_pending_source_grounding_blockers')} "
             f"quality_controls={payload.get('n_feedback_llm_route_planner_route_adoption_pending_quality_control_blockers')}"
         ),
