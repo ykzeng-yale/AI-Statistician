@@ -186,7 +186,10 @@ vocabulary; arbitrary confidence labels do not count as evidence or bounded
 follow-up work. Formal-boundary statuses and `formal_gap_boundary` fields must
 include a substantive explanation of the boundary; placeholders such as
 `todo` or `later` do not discharge a source, library-search, or residual-repair
-obligation. Each row also carries a
+obligation. Accepted routes that carry formal-gap boundaries remain
+`PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION` with the
+`formal_gap_boundaries_require_resolution` blocker; the boundary is honest
+planning output, not a standalone-replay certificate. Each row also carries a
 `realization_coverage_witness` summarizing
 whether the selected primitives have standalone-route nodes and formal
 realization nodes, whether delta primitives have route-alignment edges, and

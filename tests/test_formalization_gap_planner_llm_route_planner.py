@@ -5165,6 +5165,49 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
     assert trace["llm_route_planner_route_adoption_blockers"] == []
 
 
+def test_llm_route_planner_blocks_route_adoption_on_formal_gap_boundary() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_boundary_blocker")
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["lean_realization_dag_nodes"][1]["formal_gap_boundary"] = (
+        "Rank uniformity bridge remains a formal library boundary requiring "
+        "a new Lean lemma before kernel replay."
+    )
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_route_adoption_ready"] == 0
+    assert payload["n_route_adoption_pending_refinement"] == 1
+    assert payload["n_route_adoption_pending_formal_gap_boundary_blockers"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert row["route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert row["route_adoption_blockers"] == (
+        "formal_gap_boundaries_require_resolution",
+    )
+    seed_route = payload["standalone_seed"]["routes"][0]
+    assert seed_route["replan_metadata"][
+        "llm_route_planner_route_adoption_blockers"
+    ] == ["formal_gap_boundaries_require_resolution"]
+
+
 def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_quality_control_adoption"

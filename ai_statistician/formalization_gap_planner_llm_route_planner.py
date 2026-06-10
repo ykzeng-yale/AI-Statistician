@@ -108,6 +108,9 @@ ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE = "realization_coverage_incomplete"
 ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES = (
     "omitted_cost_hint_primitives_require_review"
 )
+ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES = (
+    "formal_gap_boundaries_require_resolution"
+)
 ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
 ROUTE_ADOPTION_BLOCKER_VALUES = (
     ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED,
@@ -123,6 +126,7 @@ ROUTE_ADOPTION_BLOCKER_VALUES = (
     ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES,
+    ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES,
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS,
 )
 QUALITY_CONTROL_FIELDS = (
@@ -225,6 +229,10 @@ ROUTE_ADOPTION_BLOCKER_DEFINITIONS = {
         "The selected route omits one or more primitives from the request-bound "
         "minimal-delta cost-hint baseline and needs review before standalone "
         "route adoption."
+    ),
+    ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES: (
+        "The accepted route carries explicit formal-gap boundaries that must be "
+        "resolved, searched, or replayed before standalone adoption."
     ),
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS: (
         "The route carries quality-control obligations whose required gates, "
@@ -1493,6 +1501,12 @@ def export_formalization_gap_planner_llm_route_planner(
             if ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES
             in row.route_adoption_blockers
         ),
+        "n_route_adoption_pending_formal_gap_boundary_blockers": sum(
+            1
+            for row in rows
+            if ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES
+            in row.route_adoption_blockers
+        ),
         "n_route_adoption_pending_quality_control_blockers": sum(
             1
             for row in rows
@@ -1924,6 +1938,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "route_adoption_blocker_counts",
             "by_route_adoption_status",
             "by_route_adoption_blocker",
+            "n_route_adoption_pending_formal_gap_boundary_blockers",
             "n_route_adoption_pending_quality_control_blockers",
             "n_informal_knowledge_dag_nodes",
             "n_formal_realization_dag_nodes",
@@ -2004,6 +2019,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "route_adoption_blocker_counts": {"type": "object"},
             "by_route_adoption_status": {"type": "object"},
             "by_route_adoption_blocker": {"type": "object"},
+            "n_route_adoption_pending_formal_gap_boundary_blockers": (
+                nonnegative_integer
+            ),
             "n_route_adoption_pending_quality_control_blockers": (
                 nonnegative_integer
             ),
@@ -4598,6 +4616,10 @@ def _row_for_request(
             minimal_delta_plan,
             request,
         ),
+        formal_gap_boundary_obligations=_formal_gap_boundary_obligations(
+            payload,
+            request,
+        ),
         quality_control_obligations_pending=bool(
             quality_control_obligations.get("pending", False)
         ),
@@ -4682,6 +4704,7 @@ def _route_adoption_readiness(
     residual_interpretations: tuple[dict[str, object], ...],
     feedback_summary: Mapping[str, object],
     omitted_cost_hint_primitives: tuple[str, ...],
+    formal_gap_boundary_obligations: tuple[str, ...],
     quality_control_obligations_pending: bool,
 ) -> tuple[str, tuple[str, ...]]:
     if (
@@ -4731,6 +4754,8 @@ def _route_adoption_readiness(
         blockers.append(ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE)
     if omitted_cost_hint_primitives:
         blockers.append(ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES)
+    if formal_gap_boundary_obligations:
+        blockers.append(ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES)
     if quality_control_obligations_pending:
         blockers.append(ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS)
     blockers = list(dict.fromkeys(blockers))
@@ -7138,6 +7163,18 @@ def _response_formal_gap_boundary_errors(
                 "boundary explanation, not a placeholder"
             )
     return errors
+
+
+def _formal_gap_boundary_obligations(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> tuple[str, ...]:
+    obligations: list[str] = []
+    for location, row in _response_formal_gap_boundary_locations(payload, request):
+        boundary = str(row.get("formal_gap_boundary", "") or "").strip()
+        if _formal_gap_boundary_is_substantive(boundary):
+            obligations.append(location)
+    return tuple(dict.fromkeys(obligations))
 
 
 def _response_formal_gap_boundary_locations(
