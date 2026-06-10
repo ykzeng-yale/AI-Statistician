@@ -2651,6 +2651,11 @@ def _formalization_gap_planner_resource_request_queue(args: argparse.Namespace) 
     payload = export_formalization_gap_planner_resource_request_queue(
         Path(args.formalization_gap_planner_action_resource_plan_dir),
         Path(args.out),
+        formalization_gap_planner_llm_route_planner_dir=(
+            Path(args.formalization_gap_planner_llm_route_planner_dir)
+            if args.formalization_gap_planner_llm_route_planner_dir
+            else None
+        ),
     )
     print("\nAI Statistical Theory Lab Formalization Gap Planner Resource Request Queue")
     print("=" * 72)
@@ -2658,6 +2663,7 @@ def _formalization_gap_planner_resource_request_queue(args: argparse.Namespace) 
         f"requests={payload['n_ok']}/{payload['n_resource_request_rows']} "
         f"local={payload['n_local_first_requests']} "
         f"frontier={payload['n_frontier_escalation_requests']} "
+        f"llm_rows={payload['n_llm_route_planner_resource_request_rows']} "
         f"resources={payload['n_distinct_resources']} "
         f"all_ok={payload['all_ok']}"
     )
@@ -7944,6 +7950,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--formalization-gap-planner-action-resource-plan-dir",
         required=True,
         help="directory containing formalization_gap_planner_action_resource_plan_manifest.json",
+    )
+    formalization_gap_planner_resource_request_queue.add_argument(
+        "--formalization-gap-planner-llm-route-planner-dir",
+        default="",
+        help=(
+            "optional directory containing "
+            "formalization_gap_planner_llm_route_planner_manifest.json; "
+            "search_requests and planner_next_actions are converted into "
+            "bounded resource request packets"
+        ),
     )
     formalization_gap_planner_resource_request_queue.add_argument(
         "--out",

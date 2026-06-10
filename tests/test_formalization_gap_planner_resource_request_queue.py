@@ -365,6 +365,209 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     ).exists()
 
 
+def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None:
+    root = Path("runs/test_formalization_gap_planner_resource_request_queue_llm")
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    coverage_dir = root / "coverage"
+    action_queue_dir = root / "action_queue"
+    component_resource_registry_dir = root / "component_resource_registry"
+    action_resource_plan_dir = root / "action_resource_plan"
+    llm_route_planner_dir = root / "llm_route_planner"
+    request_queue_dir = root / "request_queue"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "lean_mathlib_empirical_process_snapshot",
+                "routes": [
+                    {
+                        "route_id": "rank_route",
+                        "display_name": "rank_route",
+                        "theorem_statement": (
+                            "A distribution-free rank bound follows from exchangeability."
+                        ),
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "primitives": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": ["Probability.exchangeable"],
+                            },
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                            },
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    export_formalization_gap_planner_library_coverage_map(plan_dir, coverage_dir)
+    export_formalization_gap_planner_primitive_action_queue(
+        coverage_dir,
+        action_queue_dir,
+    )
+    export_formalization_gap_planner_component_resource_registry(
+        component_resource_registry_dir
+    )
+    export_formalization_gap_planner_action_resource_plan(
+        action_queue_dir,
+        component_resource_registry_dir,
+        action_resource_plan_dir,
+    )
+    llm_route_planner_dir.mkdir(parents=True, exist_ok=True)
+    (
+        llm_route_planner_dir
+        / "formalization_gap_planner_llm_route_planner_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_llm_route_planner",
+                "rows": [
+                    {
+                        "llm_route_planner_row_id": "llm_route_row:rank",
+                        "request_id": "llm_route_request:rank",
+                        "route_id": "rank_route",
+                        "display_name": "rank_route",
+                        "target_prover_family": "lean4",
+                        "library_snapshot_ref": (
+                            "lean_mathlib_empirical_process_snapshot"
+                        ),
+                        "minimal_delta_plan": {
+                            "selected_primitives": [
+                                "exchangeability",
+                                "rank_uniformity",
+                            ]
+                        },
+                        "search_requests": [
+                            {
+                                "request_kind": "literature_discovery",
+                                "query": (
+                                    "exchangeability rank uniformity proof route"
+                                ),
+                                "reason": (
+                                    "ground the informal rank-uniformity lemma in "
+                                    "source text before route repair"
+                                ),
+                                "target_primitives": ["rank_uniformity"],
+                                "resource_ids": ["paperclip_cli_mcp"],
+                            }
+                        ],
+                        "planner_next_actions": [
+                            {
+                                "action": (
+                                    "ask Lean LSP for residual goals on the "
+                                    "rank_uniformity bridge lemma"
+                                ),
+                                "resource_id": "lean_lsp_mcp",
+                                "target_primitives": ["rank_uniformity"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_resource_request_queue(
+        action_resource_plan_dir,
+        request_queue_dir,
+        formalization_gap_planner_llm_route_planner_dir=llm_route_planner_dir,
+    )
+
+    assert payload["all_ok"]
+    assert (
+        "formalization_gap_planner_llm_route_planner"
+        in payload["source_components"]
+    )
+    assert payload["n_llm_route_planner_rows"] == 1
+    assert payload["n_llm_route_planner_rows_with_search_requests"] == 1
+    assert payload["n_llm_route_planner_rows_with_planner_next_actions"] == 1
+    assert payload["n_llm_route_planner_search_requests"] == 1
+    assert payload["n_llm_route_planner_planner_next_actions"] == 1
+    assert payload["n_llm_route_planner_search_request_rows"] == 3
+    assert payload["n_llm_route_planner_planner_next_action_rows"] == 3
+    assert payload["n_llm_route_planner_resource_request_rows"] == 6
+    assert (
+        payload["n_resource_request_rows"]
+        == payload["n_action_resource_plan_resource_request_rows"]
+        + payload["n_llm_route_planner_resource_request_rows"]
+    )
+    llm_rows = [
+        row
+        for row in payload["rows"]
+        if row["request_payload"].get("llm_route_planner_row_id")
+        == "llm_route_row:rank"
+    ]
+    assert len(llm_rows) == payload["n_llm_route_planner_resource_request_rows"]
+    assert {row["resource_id"] for row in llm_rows}.issuperset(
+        {
+            "local_literature_corpus",
+            "paperclip_cli_mcp",
+            "paperqa2_local_library",
+            "local_lake_lean",
+            "lean_lsp_mcp",
+            "leandojo_reprover",
+        }
+    )
+    paperclip_row = next(
+        row for row in llm_rows if row["resource_id"] == "paperclip_cli_mcp"
+    )
+    assert paperclip_row["request_payload"][
+        "llm_route_planner_source_kind"
+    ] == "search_request"
+    assert paperclip_row["request_payload"][
+        "llm_route_planner_hook_kind"
+    ] == "literature_discovery"
+    assert "exchangeability rank uniformity" in " ".join(
+        paperclip_row["request_payload"]["llm_route_planner_queries"]
+    )
+    assert (
+        paperclip_row["request_playbook"]["llm_route_planner_source_item"][
+            "request_kind"
+        ]
+        == "literature_discovery"
+    )
+    lean_lsp_row = next(
+        row for row in llm_rows if row["resource_id"] == "lean_lsp_mcp"
+    )
+    assert lean_lsp_row["request_payload"][
+        "llm_route_planner_source_kind"
+    ] == "planner_next_action"
+    assert lean_lsp_row["request_payload"][
+        "llm_route_planner_hook_kind"
+    ] == "proof_state_feedback"
+    assert lean_lsp_row["queue_action_kind"] == "prove_bridge_lemma"
+    assert "residual_goals" in lean_lsp_row["response_contract_fields"]
+    assert "not theorem proof evidence" in lean_lsp_row["proof_evidence_boundary"]
+    assert (
+        validate_resource_request_queue_row(
+            paperclip_row,
+            resource_request_queue_row_json_schema(),
+        )
+        == []
+    )
+    assert (
+        validate_resource_request_queue_row(
+            lean_lsp_row,
+            resource_request_queue_row_json_schema(),
+        )
+        == []
+    )
+
+
 def test_resource_request_queue_dispatches_rocq_bridge_without_lean_resources() -> None:
     root = Path("runs/test_formalization_gap_planner_resource_request_queue_rocq")
     input_json = root / "standalone_input.json"
