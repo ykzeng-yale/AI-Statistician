@@ -1778,6 +1778,18 @@ def export_formalization_gap_planner_publication_bundle(
             ),
             "n_required_primitives": benchmark_payload.get("n_required_primitives", 0),
             "n_kernel_verified_routes": benchmark_payload.get("n_kernel_verified_routes", 0),
+            "n_kernel_verification_witnesses": benchmark_payload.get(
+                "n_kernel_verification_witnesses",
+                0,
+            ),
+            "n_kernel_verified_routes_with_witnesses": benchmark_payload.get(
+                "n_kernel_verified_routes_with_witnesses",
+                0,
+            ),
+            "n_kernel_verified_routes_missing_witnesses": benchmark_payload.get(
+                "n_kernel_verified_routes_missing_witnesses",
+                0,
+            ),
             "benchmark_fingerprint": benchmark_payload.get("benchmark_fingerprint", ""),
         },
         "benchmark_audit_summary": {
@@ -2132,6 +2144,8 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_minimal_delta_route_options",
             "mean_minimal_delta_selected_route_cost",
             "n_kernel_verified_ground_truth",
+            "n_kernel_verification_witnesses",
+            "n_kernel_verified_ground_truth_with_witnesses",
             "mean_alignment_coverage",
             "n_rows_with_llm_route_planner_route_adoption_status",
             "n_rows_ready_for_route_adoption",
@@ -2164,6 +2178,8 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_minimal_delta_route_options": nonnegative_integer,
             "mean_minimal_delta_selected_route_cost": {"type": "number"},
             "n_kernel_verified_ground_truth": nonnegative_integer,
+            "n_kernel_verification_witnesses": nonnegative_integer,
+            "n_kernel_verified_ground_truth_with_witnesses": nonnegative_integer,
             "mean_alignment_coverage": {"type": "number"},
             "n_realization_missing_selected_formal_primitives": nonnegative_integer,
             "n_realization_missing_delta_alignment_primitives": nonnegative_integer,
@@ -4015,6 +4031,8 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         "n_minimal_delta_route_options": 0,
         "mean_minimal_delta_selected_route_cost": 0.0,
         "n_kernel_verified_ground_truth": 0,
+        "n_kernel_verification_witnesses": 0,
+        "n_kernel_verified_ground_truth_with_witnesses": 0,
         "mean_alignment_coverage": 0.0,
         "n_realization_missing_selected_formal_primitives": 0,
         "n_realization_missing_delta_alignment_primitives": 0,
@@ -4093,6 +4111,33 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
                     1
                     for row in rows
                     if row.get("kernel_verified_ground_truth") is True
+                ),
+            )
+            or 0
+        ),
+        "n_kernel_verification_witnesses": int(
+            payload.get(
+                "n_kernel_verification_witnesses",
+                sum(
+                    len(
+                        row.get("kernel_verification_witnesses", [])
+                        if isinstance(row.get("kernel_verification_witnesses", []), list)
+                        else []
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_kernel_verified_ground_truth_with_witnesses": int(
+            payload.get(
+                "n_kernel_verified_ground_truth_with_witnesses",
+                sum(
+                    1
+                    for row in rows
+                    if row.get("kernel_verified_ground_truth") is True
+                    and isinstance(row.get("kernel_verification_witnesses", []), list)
+                    and row.get("kernel_verification_witnesses", [])
                 ),
             )
             or 0
@@ -4969,7 +5014,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('evaluation_summary', {}).get('mean_minimal_delta_selected_route_cost')} "
             f"alignment={payload.get('evaluation_summary', {}).get('mean_alignment_coverage')} "
             f"kernel_truth="
-            f"{payload.get('evaluation_summary', {}).get('n_kernel_verified_ground_truth')}"
+            f"{payload.get('evaluation_summary', {}).get('n_kernel_verified_ground_truth')} "
+            f"kernel_witnesses="
+            f"{payload.get('evaluation_summary', {}).get('n_kernel_verification_witnesses')}"
         ),
         (
             f"- Evaluation route adoption ready/pending/blockers: "

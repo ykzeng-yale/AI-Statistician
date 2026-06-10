@@ -80,6 +80,18 @@ def test_evaluation_scores_route_alignment_contract() -> None:
                         "expected_residual_goals": [
                             "rank_bridge: missing order-statistic side condition"
                         ],
+                        "kernel_verified": True,
+                        "kernel_verification_witnesses": [
+                            {
+                                "target_prover_family": "lean4",
+                                "verification_status": "kernel_verified",
+                                "artifact_refs": ["Proofs/AlignmentFixture.lean"],
+                                "declaration_names": ["AlignmentFixture.rank_bridge"],
+                                "proof_hash": "sha256:alignment-fixture",
+                                "checker": "lake build",
+                                "no_sorry_or_admit": True,
+                            }
+                        ],
                     }
                 ]
             },
@@ -113,6 +125,9 @@ def test_evaluation_scores_route_alignment_contract() -> None:
     assert payload["n_ground_truth_residual_rows"] == 1
     assert payload["mean_residual_precision"] == 1.0
     assert payload["mean_residual_recall"] == 1.0
+    assert payload["n_kernel_verified_ground_truth"] == 1
+    assert payload["n_kernel_verification_witnesses"] == 1
+    assert payload["n_kernel_verified_ground_truth_with_witnesses"] == 1
     row = payload["rows"][0]
     assert row["alignment_contract_ok"]
     assert not validate_evaluation_row(row)
@@ -126,6 +141,10 @@ def test_evaluation_scores_route_alignment_contract() -> None:
     assert row["residual_true_positive_primitives"] == ("rank_bridge",)
     assert row["residual_precision"] == 1.0
     assert row["residual_recall"] == 1.0
+    assert row["kernel_verified_ground_truth"] is True
+    assert row["kernel_verification_witnesses"][0]["proof_hash"] == (
+        "sha256:alignment-fixture"
+    )
     assert row["predicted_residual_goals"] == (
         "rank_bridge: missing order-statistic side condition",
     )
@@ -139,6 +158,10 @@ def test_evaluation_scores_route_alignment_contract() -> None:
     assert (
         out_dir / "formalization_gap_planner_evaluation_ground_truth.json"
     ).exists()
+    report = (
+        out_dir / "formalization_gap_planner_evaluation.md"
+    ).read_text(encoding="utf-8")
+    assert "Kernel verification witnesses: 1" in report
 
 
 def test_evaluation_rejects_non_lean_legacy_lean_realization_alias() -> None:

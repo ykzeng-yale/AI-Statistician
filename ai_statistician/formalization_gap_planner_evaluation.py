@@ -119,6 +119,7 @@ class FormalizationGapPlannerEvaluationRow:
     portable_schema_id: str
     proof_evidence_boundary_ok: bool
     kernel_verified_ground_truth: bool
+    kernel_verification_witnesses: tuple[dict[str, object], ...]
     proof_evidence_status: str
     proof_evidence_boundary: str
     ok: bool
@@ -395,6 +396,14 @@ def evaluate_formalization_gap_planner(
         "n_kernel_verified_ground_truth": sum(
             1 for row in evaluation_rows if row.kernel_verified_ground_truth
         ),
+        "n_kernel_verification_witnesses": sum(
+            len(row.kernel_verification_witnesses) for row in evaluation_rows
+        ),
+        "n_kernel_verified_ground_truth_with_witnesses": sum(
+            1
+            for row in evaluation_rows
+            if row.kernel_verified_ground_truth and row.kernel_verification_witnesses
+        ),
         "mean_route_recall": _mean(row.route_recall for row in matched_rows),
         "mean_route_precision": _mean(row.route_precision for row in matched_rows),
         "mean_delta_precision": _mean(row.delta_precision for row in matched_rows),
@@ -572,6 +581,7 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "portable_schema_id",
             "proof_evidence_boundary_ok",
             "kernel_verified_ground_truth",
+            "kernel_verification_witnesses",
             "proof_evidence_status",
             "proof_evidence_boundary",
             "ok",
@@ -657,6 +667,7 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "portable_schema_id": {"type": "string", "minLength": 1},
             "proof_evidence_boundary_ok": {"type": "boolean"},
             "kernel_verified_ground_truth": {"type": "boolean"},
+            "kernel_verification_witnesses": object_array,
             "proof_evidence_status": {"const": PROOF_EVIDENCE_STATUS},
             "proof_evidence_boundary": {
                 "type": "string",
@@ -887,6 +898,7 @@ def _evaluate_row(
         portable_schema_id=portable_schema_id,
         proof_evidence_boundary_ok=proof_boundary_ok,
         kernel_verified_ground_truth=bool(truth.get("kernel_verified", False)),
+        kernel_verification_witnesses=_truth_kernel_verification_witnesses(truth),
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
         proof_evidence_boundary=PROOF_EVIDENCE_BOUNDARY,
         ok=not errors,
@@ -942,6 +954,30 @@ def _truth_residual_goals(truth: dict[str, Any]) -> tuple[str, ...]:
         if values:
             return values
     return tuple()
+
+
+def _truth_kernel_verification_witnesses(
+    truth: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    values = truth.get(
+        "kernel_verification_witnesses",
+        truth.get("kernel_verification_refs", truth.get("kernel_proof_witnesses", [])),
+    )
+    if isinstance(values, dict):
+        values = [values]
+    if not isinstance(values, (list, tuple)):
+        return tuple()
+    witnesses: list[dict[str, object]] = []
+    for value in values:
+        if isinstance(value, dict):
+            witness = {
+                str(key): value_item
+                for key, value_item in value.items()
+                if str(key)
+            }
+            if witness:
+                witnesses.append(witness)
+    return tuple(witnesses)
 
 
 def _predicted_residual_primitives(
@@ -1784,6 +1820,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Rows with quality controls: {payload.get('n_rows_with_quality_controls')}",
         f"- Quality control fields: {payload.get('quality_control_fields')}",
         f"- Mean selected route-option cost: {payload.get('mean_minimal_delta_selected_route_cost')}",
+        f"- Kernel-verified ground truth rows: {payload.get('n_kernel_verified_ground_truth')}",
+        f"- Kernel verification witnesses: {payload.get('n_kernel_verification_witnesses')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
         "## Boundary",

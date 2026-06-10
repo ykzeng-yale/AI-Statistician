@@ -6,7 +6,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 from .formalization_gap_planner_adapter_registry import (
@@ -2789,6 +2789,15 @@ def _expected_bundle_evaluation_summary(bundle_dir: Path) -> dict[str, object]:
         ),
         "n_kernel_verified_ground_truth": sum(
             1 for row in rows if row.get("kernel_verified_ground_truth") is True
+        ),
+        "n_kernel_verification_witnesses": sum(
+            _kernel_verification_witness_count(row) for row in rows
+        ),
+        "n_kernel_verified_ground_truth_with_witnesses": sum(
+            1
+            for row in rows
+            if row.get("kernel_verified_ground_truth") is True
+            and _kernel_verification_witness_count(row) > 0
         ),
         "mean_alignment_coverage": _mean_float(
             row.get("alignment_coverage", 0.0) for row in rows
@@ -13645,6 +13654,15 @@ def _optional_evaluation_rows_for_summary(
         return tuple()
     rows, errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
     return tuple() if errors else tuple(rows)
+
+
+def _kernel_verification_witness_count(row: Mapping[str, Any]) -> int:
+    witnesses = row.get("kernel_verification_witnesses", [])
+    if isinstance(witnesses, (list, tuple)):
+        return sum(1 for witness in witnesses if isinstance(witness, Mapping))
+    if isinstance(witnesses, Mapping):
+        return 1
+    return 0
 
 
 def _optional_ablation_study_rows_for_summary(

@@ -1041,6 +1041,7 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "portable_schema_id": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
         "proof_evidence_boundary_ok": True,
         "kernel_verified_ground_truth": False,
+        "kernel_verification_witnesses": [],
         "proof_evidence_status": (
             "FORMALIZATION_GAP_PLANNER_EVALUATION_NOT_PROOF_EVIDENCE"
         ),
@@ -1809,6 +1810,11 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         == payload["benchmark_summary"]["n_routes"]
     )
     assert payload["benchmark_summary"]["n_route_row_schema_invalid"] == 0
+    assert payload["benchmark_summary"]["n_kernel_verification_witnesses"] == 0
+    assert (
+        payload["benchmark_summary"]["n_kernel_verified_routes_missing_witnesses"]
+        == 0
+    )
     assert payload["benchmark_audit_summary"]["n_failed"] == 0
     assert payload["benchmark_audit_summary"]["n_evaluation_splits"] >= 2
     assert payload["evaluation_summary"]["requested"] is True
@@ -1821,6 +1827,13 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         == 0.0
     )
     assert payload["evaluation_summary"]["n_kernel_verified_ground_truth"] == 0
+    assert payload["evaluation_summary"]["n_kernel_verification_witnesses"] == 0
+    assert (
+        payload["evaluation_summary"][
+            "n_kernel_verified_ground_truth_with_witnesses"
+        ]
+        == 0
+    )
     assert payload["evaluation_summary"]["mean_alignment_coverage"] == 1.0
     assert (
         payload["evaluation_summary"][

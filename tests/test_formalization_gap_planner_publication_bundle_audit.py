@@ -987,6 +987,7 @@ def _fixture_evaluation_row() -> dict[str, object]:
         "portable_schema_id": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
         "proof_evidence_boundary_ok": True,
         "kernel_verified_ground_truth": False,
+        "kernel_verification_witnesses": [],
         "proof_evidence_status": (
             "FORMALIZATION_GAP_PLANNER_EVALUATION_NOT_PROOF_EVIDENCE"
         ),
@@ -4298,6 +4299,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert bundle_manifest_payload["evaluation_summary"][
         "n_kernel_verified_ground_truth"
     ] == 0
+    assert bundle_manifest_payload["evaluation_summary"][
+        "n_kernel_verification_witnesses"
+    ] == 0
+    assert bundle_manifest_payload["evaluation_summary"][
+        "n_kernel_verified_ground_truth_with_witnesses"
+    ] == 0
     assert (
         bundle_manifest_payload["evaluation_summary"]["mean_alignment_coverage"]
         == 1.0
@@ -4309,6 +4316,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     corrupted_bundle_manifest["evaluation_summary"][
         "realization_omitted_cost_hint_primitives"
     ] = []
+    corrupted_bundle_manifest["evaluation_summary"][
+        "n_kernel_verification_witnesses"
+    ] = 1
     corrupted_bundle_manifest["evaluation_summary"]["mean_alignment_coverage"] = 0.0
     bundle_manifest_path.write_text(
         json.dumps(corrupted_bundle_manifest, indent=2),

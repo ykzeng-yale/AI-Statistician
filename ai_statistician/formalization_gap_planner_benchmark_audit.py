@@ -52,6 +52,7 @@ class FormalizationGapPlannerBenchmarkSplitRow:
     n_required_primitives: int
     n_source_refs: int
     kernel_verified: bool
+    n_kernel_verification_witnesses: int
 
 
 def audit_formalization_gap_planner_benchmark(
@@ -118,6 +119,22 @@ def audit_formalization_gap_planner_benchmark(
             1 for row in routes if _str_tuple(row.get("source_refs", []))
         ),
         "n_kernel_verified_routes": sum(1 for row in routes if row.get("kernel_verified")),
+        "n_kernel_verification_witnesses": sum(
+            len(_dict_rows(row.get("kernel_verification_witnesses", [])))
+            for row in routes
+        ),
+        "n_kernel_verified_routes_with_witnesses": sum(
+            1
+            for row in routes
+            if row.get("kernel_verified")
+            and _dict_rows(row.get("kernel_verification_witnesses", []))
+        ),
+        "n_kernel_verified_routes_missing_witnesses": sum(
+            1
+            for row in routes
+            if row.get("kernel_verified")
+            and not _dict_rows(row.get("kernel_verification_witnesses", []))
+        ),
         "n_routes_with_expected_residuals": sum(
             1 for row in routes if _str_tuple(row.get("expected_residual_primitives", []))
         ),
@@ -318,6 +335,9 @@ def _route_checks(routes: list[dict[str, Any]]) -> list[FormalizationGapPlannerB
         duplicate_name = display_name in seen_names
         seen_names.add(display_name)
         route_label = display_name or f"row:{idx}"
+        kernel_verified = bool(row.get("kernel_verified", False))
+        kernel_truth_status = row.get("route_truth_status") == "kernel_verified_route_truth"
+        witnesses = _dict_rows(row.get("kernel_verification_witnesses", []))
         checks.extend(
             [
                 _check(
@@ -327,6 +347,14 @@ def _route_checks(routes: list[dict[str, Any]]) -> list[FormalizationGapPlannerB
                     "; ".join(schema_errors) if schema_errors else "ok",
                     not schema_errors,
                     errors=schema_errors,
+                ),
+                _check(
+                    f"route_{idx}_ok",
+                    "route_contract",
+                    "normalized route truth row has ok=true",
+                    "; ".join(_str_tuple(row.get("errors", []))) or str(row.get("ok", "")),
+                    bool(row.get("ok", False)),
+                    errors=_str_tuple(row.get("errors", [])),
                 ),
                 _check(
                     f"route_{idx}_identity",
@@ -380,10 +408,16 @@ def _route_checks(routes: list[dict[str, Any]]) -> list[FormalizationGapPlannerB
                 _check(
                     f"route_{idx}_kernel_verified_status_consistent",
                     "proof_boundary",
-                    "kernel_verified true only with kernel_verified_route_truth",
+                    "kernel_verified iff route_truth_status is kernel_verified_route_truth",
                     f"{route_label}: kernel={row.get('kernel_verified')} status={row.get('route_truth_status')}",
-                    (not row.get("kernel_verified"))
-                    or row.get("route_truth_status") == "kernel_verified_route_truth",
+                    kernel_verified == kernel_truth_status,
+                ),
+                _check(
+                    f"route_{idx}_kernel_verification_witness",
+                    "proof_boundary",
+                    "kernel-verified route truth carries at least one kernel witness",
+                    f"{route_label}: witnesses={len(witnesses)} kernel={kernel_verified}",
+                    (not kernel_verified) or bool(witnesses),
                 ),
             ]
         )
@@ -449,6 +483,9 @@ def _split_row(
         n_required_primitives=len(_str_tuple(row.get("required_primitives", []))),
         n_source_refs=len(_str_tuple(row.get("source_refs", []))),
         kernel_verified=bool(row.get("kernel_verified", False)),
+        n_kernel_verification_witnesses=len(
+            _dict_rows(row.get("kernel_verification_witnesses", []))
+        ),
     )
 
 
@@ -523,6 +560,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Coverage statuses: {payload.get('n_coverage_statuses')}",
         f"- Evaluation splits: {payload.get('n_evaluation_splits')}",
         f"- Kernel-verified routes: {payload.get('n_kernel_verified_routes')}",
+        f"- Kernel verification witnesses: {payload.get('n_kernel_verification_witnesses')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
         "## Boundary",

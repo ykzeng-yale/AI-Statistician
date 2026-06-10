@@ -50,6 +50,7 @@ class FormalizationGapPlannerBenchmarkRoute:
     coverage_by_primitive: dict[str, str]
     source_refs: tuple[str, ...]
     kernel_verified: bool
+    kernel_verification_witnesses: tuple[dict[str, object], ...]
     notes: str
     proof_evidence_status: str
     proof_evidence_boundary: str
@@ -94,6 +95,19 @@ def load_formalization_gap_planner_ground_truth(
         "n_route_row_schema_invalid": len(route_row_schema_errors)
         - n_route_row_schema_valid,
         "n_kernel_verified_routes": sum(1 for row in rows if row.kernel_verified),
+        "n_kernel_verification_witnesses": sum(
+            len(row.kernel_verification_witnesses) for row in rows
+        ),
+        "n_kernel_verified_routes_with_witnesses": sum(
+            1
+            for row in rows
+            if row.kernel_verified and row.kernel_verification_witnesses
+        ),
+        "n_kernel_verified_routes_missing_witnesses": sum(
+            1
+            for row in rows
+            if row.kernel_verified and not row.kernel_verification_witnesses
+        ),
         "n_required_primitives": sum(len(row.required_primitives) for row in rows),
         "n_actual_delta_primitives": sum(len(row.actual_delta_primitives) for row in rows),
         "n_expected_residual_primitives": sum(
@@ -171,6 +185,7 @@ def export_formalization_gap_planner_benchmark(
 
 def benchmark_route_row_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
+    object_array = {"type": "array", "items": {"type": "object"}}
     string_map = {"type": "object", "additionalProperties": {"type": "string"}}
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -197,6 +212,7 @@ def benchmark_route_row_json_schema() -> dict[str, object]:
             "coverage_by_primitive",
             "source_refs",
             "kernel_verified",
+            "kernel_verification_witnesses",
             "notes",
             "proof_evidence_status",
             "proof_evidence_boundary",
@@ -220,6 +236,7 @@ def benchmark_route_row_json_schema() -> dict[str, object]:
             "coverage_by_primitive": string_map,
             "source_refs": string_array,
             "kernel_verified": {"type": "boolean"},
+            "kernel_verification_witnesses": object_array,
             "notes": {"type": "string"},
             "proof_evidence_status": {"const": PROOF_EVIDENCE_STATUS},
             "proof_evidence_boundary": {
@@ -283,6 +300,8 @@ def _benchmark_route(row: dict[str, Any]) -> FormalizationGapPlannerBenchmarkRou
         if str(key) and str(value)
     } if isinstance(coverage_raw, dict) else {}
     source_refs = _str_tuple(row.get("source_refs", []))
+    kernel_verified = bool(row.get("kernel_verified", False))
+    kernel_verification_witnesses = _kernel_verification_witnesses(row)
 
     for field_name, value in (
         ("display_name", display_name),
@@ -318,6 +337,25 @@ def _benchmark_route(row: dict[str, Any]) -> FormalizationGapPlannerBenchmarkRou
         )
     if not source_refs:
         errors.append("source_refs missing")
+    if kernel_verified and route_truth_status != "kernel_verified_route_truth":
+        errors.append(
+            "kernel_verified true requires route_truth_status=kernel_verified_route_truth"
+        )
+    if route_truth_status == "kernel_verified_route_truth" and not kernel_verified:
+        errors.append(
+            "kernel_verified_route_truth requires kernel_verified true"
+        )
+    if kernel_verified and not kernel_verification_witnesses:
+        errors.append("kernel_verified route truth requires kernel_verification_witnesses")
+    for index, witness in enumerate(kernel_verification_witnesses):
+        errors.extend(
+            f"kernel_verification_witnesses[{index}].{error}"
+            for error in _kernel_verification_witness_errors(
+                witness,
+                target_prover_family=target_prover_family,
+                require_verified=kernel_verified,
+            )
+        )
     return FormalizationGapPlannerBenchmarkRoute(
         schema_version=FORMALIZATION_GAP_PLANNER_BENCHMARK_SCHEMA_VERSION,
         benchmark_route_id="formalization_gap_planner_benchmark_route:"
@@ -333,7 +371,8 @@ def _benchmark_route(row: dict[str, Any]) -> FormalizationGapPlannerBenchmarkRou
         expected_residual_goals=expected_residual_goals,
         coverage_by_primitive=coverage,
         source_refs=source_refs,
-        kernel_verified=bool(row.get("kernel_verified", False)),
+        kernel_verified=kernel_verified,
+        kernel_verification_witnesses=kernel_verification_witnesses,
         notes=str(row.get("notes", "")),
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
         proof_evidence_boundary=PROOF_EVIDENCE_BOUNDARY,
@@ -357,6 +396,98 @@ def _coverage_status_counts(
     for row in rows:
         counter.update(row.coverage_by_primitive.values())
     return dict(sorted(counter.items()))
+
+
+def _kernel_verification_witnesses(
+    row: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    values = row.get(
+        "kernel_verification_witnesses",
+        row.get("kernel_verification_refs", row.get("kernel_proof_witnesses", [])),
+    )
+    if isinstance(values, dict):
+        values = [values]
+    if not isinstance(values, (list, tuple)):
+        return tuple()
+    witnesses: list[dict[str, object]] = []
+    for value in values:
+        if not isinstance(value, dict):
+            continue
+        witness = {
+            str(key): value_item
+            for key, value_item in value.items()
+            if str(key)
+        }
+        if witness:
+            witnesses.append(witness)
+    return tuple(witnesses)
+
+
+def _kernel_verification_witness_errors(
+    witness: dict[str, object],
+    *,
+    target_prover_family: str,
+    require_verified: bool,
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    target = str(witness.get("target_prover_family", "")).strip()
+    status = str(witness.get("verification_status", "")).strip()
+    if not target:
+        errors.append("target_prover_family missing")
+    if target and not _target_prover_family_compatible(target, target_prover_family):
+        errors.append(
+            "target_prover_family does not match benchmark route target_prover_family"
+        )
+    if not status:
+        errors.append("verification_status missing")
+    elif status not in {"kernel_verified", "pending", "rejected"}:
+        errors.append(
+            "verification_status must be kernel_verified, pending, or rejected"
+        )
+    if require_verified and status != "kernel_verified":
+        errors.append("verified route truth requires kernel_verified witness status")
+    if not _witness_artifact_refs(witness):
+        errors.append("artifact_refs or declaration_names missing")
+    if require_verified and witness.get("no_sorry_or_admit") is not True:
+        errors.append("no_sorry_or_admit must be true for kernel_verified witness")
+    return tuple(errors)
+
+
+def _target_prover_family_compatible(witness_target: str, route_target: str) -> bool:
+    witness_key = _target_prover_key(witness_target)
+    route_key = _target_prover_key(route_target)
+    return bool(
+        witness_key
+        and route_key
+        and (witness_key == route_key or witness_key in route_key or route_key in witness_key)
+    )
+
+
+def _target_prover_key(value: object) -> str:
+    key = str(value).strip().lower().replace("-", "_")
+    aliases = {
+        "lean": "lean4",
+        "lean_4": "lean4",
+        "coq": "rocq",
+    }
+    return aliases.get(key, key)
+
+
+def _witness_artifact_refs(witness: dict[str, object]) -> tuple[str, ...]:
+    values: list[str] = []
+    for field_name in (
+        "artifact_ref",
+        "proof_artifact_ref",
+        "proof_hash",
+        "declaration_name",
+        "verified_declaration",
+    ):
+        value = str(witness.get(field_name, "")).strip()
+        if value:
+            values.append(value)
+    for field_name in ("artifact_refs", "declaration_names", "proof_artifact_refs"):
+        values.extend(_str_tuple(witness.get(field_name, [])))
+    return _str_tuple(values)
 
 
 def _str_tuple(values: Any) -> tuple[str, ...]:
@@ -395,6 +526,13 @@ def _schema_property_errors(
                 if bad:
                     errors.append(
                         f"{field_name} items must be string at indexes "
+                        + ",".join(str(idx) for idx in bad)
+                    )
+            if isinstance(item_schema, dict) and item_schema.get("type") == "object":
+                bad = [idx for idx, item in enumerate(value) if not isinstance(item, dict)]
+                if bad:
+                    errors.append(
+                        f"{field_name} items must be object at indexes "
                         + ",".join(str(idx) for idx in bad)
                     )
     elif expected_type == "object":
@@ -444,6 +582,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Expected residual primitives: {payload.get('n_expected_residual_primitives')}",
         f"- Existing-reuse primitives: {payload.get('n_existing_reuse_primitives')}",
         f"- Kernel-verified route truth: {payload.get('n_kernel_verified_routes')}",
+        f"- Kernel verification witnesses: {payload.get('n_kernel_verification_witnesses')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
         "## Boundary",
