@@ -24,6 +24,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     validate_llm_route_planner_manifest,
     validate_llm_route_planner_request,
     validate_llm_route_planner_response_payload,
+    validate_llm_route_planner_response_payload_validation_row,
     validate_llm_route_planner_response_payload_validation_manifest,
     validate_llm_route_planner_row,
 )
@@ -4531,6 +4532,40 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert row["request_context_inventory_total_rows"] == 0
     assert row["n_schema_errors"] == 0
     assert row["n_request_context_errors"] == 0
+    row_schema = payload["response_payload_validation_row_schema"]
+    assert row_schema["properties"]["n_errors"]["minimum"] == 0
+    assert row_schema["properties"]["payload_index"]["minimum"] == 0
+    assert (
+        validate_llm_route_planner_response_payload_validation_row(
+            row,
+            row_schema,
+        )
+        == []
+    )
+    drifted_row = deepcopy(row)
+    drifted_row["n_errors"] = 1
+    assert "n_errors must match errors length" in (
+        validate_llm_route_planner_response_payload_validation_row(
+            drifted_row,
+            row_schema,
+        )
+    )
+    drifted_ok_row = deepcopy(row)
+    drifted_ok_row["ok"] = False
+    assert "failed validation row must carry n_errors" in (
+        validate_llm_route_planner_response_payload_validation_row(
+            drifted_ok_row,
+            row_schema,
+        )
+    )
+    drifted_negative_row = deepcopy(row)
+    drifted_negative_row["n_schema_errors"] = -1
+    assert "n_schema_errors must be nonnegative" in (
+        validate_llm_route_planner_response_payload_validation_row(
+            drifted_negative_row,
+            row_schema,
+        )
+    )
     assert (
         out_dir
         / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
@@ -4574,6 +4609,15 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
         "rows[0].payload_schema_id required"
         in validate_llm_route_planner_response_payload_validation_manifest(
             drifted_row_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_row_count_manifest = deepcopy(payload)
+    drifted_row_count_manifest["rows"][0]["n_errors"] = 1
+    assert (
+        "rows[0].n_errors must match errors length"
+        in validate_llm_route_planner_response_payload_validation_manifest(
+            drifted_row_count_manifest,
             manifest_schema,
         )
     )

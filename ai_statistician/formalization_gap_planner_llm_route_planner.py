@@ -2602,10 +2602,44 @@ def validate_llm_route_planner_response_payload_validation_row(
 ) -> list[str]:
     """Validate a response-payload validation JSONL row."""
 
-    return _validate_with_schema(
+    errors = _validate_with_schema(
         row,
         schema or llm_route_planner_response_payload_validation_row_json_schema(),
     )
+    count_fields = (
+        "payload_index",
+        "request_context_inventory_total_rows",
+        "n_schema_errors",
+        "n_request_context_errors",
+        "n_errors",
+    )
+    count_values: dict[str, int] = {}
+    for field_name in count_fields:
+        value = row.get(field_name, 0)
+        if not isinstance(value, int) or isinstance(value, bool):
+            count_values[field_name] = 0
+            continue
+        count_values[field_name] = value
+        if value < 0:
+            errors.append(f"{field_name} must be nonnegative")
+
+    reported_errors = _str_tuple(row.get("errors", []))
+    n_errors = count_values["n_errors"]
+    n_schema_errors = count_values["n_schema_errors"]
+    n_request_context_errors = count_values["n_request_context_errors"]
+    if n_errors != len(reported_errors):
+        errors.append("n_errors must match errors length")
+    if n_errors > n_schema_errors + n_request_context_errors:
+        errors.append(
+            "n_errors cannot exceed n_schema_errors + n_request_context_errors"
+        )
+    if bool(row.get("ok", False)):
+        if n_errors != 0 or reported_errors:
+            errors.append("ok validation row must have zero errors")
+    elif n_errors <= 0:
+        errors.append("failed validation row must carry n_errors")
+
+    return sorted(set(errors))
 
 
 def validate_llm_route_planner_row(
@@ -3772,6 +3806,7 @@ def llm_route_planner_response_payload_schema(
 
 def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
+    nonnegative_integer = {"type": "integer", "minimum": 0}
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
@@ -3812,7 +3847,7 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
                 "type": "integer",
                 "const": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
             },
-            "payload_index": {"type": "integer"},
+            "payload_index": nonnegative_integer,
             "input_path": {"type": "string", "minLength": 1},
             "input_shape": {"type": "string", "minLength": 1},
             "response_wrapper_present": {"type": "boolean"},
@@ -3831,10 +3866,10 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
             "request_context_id": {"type": "string"},
             "request_context_route_id": {"type": "string"},
             "request_context_inventory_present": {"type": "boolean"},
-            "request_context_inventory_total_rows": {"type": "integer"},
-            "n_schema_errors": {"type": "integer"},
-            "n_request_context_errors": {"type": "integer"},
-            "n_errors": {"type": "integer"},
+            "request_context_inventory_total_rows": nonnegative_integer,
+            "n_schema_errors": nonnegative_integer,
+            "n_request_context_errors": nonnegative_integer,
+            "n_errors": nonnegative_integer,
             "ok": {"type": "boolean"},
             "errors": string_array,
             "proof_evidence_status": {

@@ -128,9 +128,10 @@ the bundle audit checks its manifest contract, JSONL row count, valid/invalid
 payload counters, and row schema IDs. The validator manifest contract also
 self-checks embedded schema IDs, row counts, valid/invalid counters,
 schema-error totals, request-context error totals, and request-bound inventory
-totals, and it validates embedded rows against the published validation-row
-schema, so a standalone validation artifact remains auditable outside the full
-bundle. That preflight checks the reusable
+totals. It also validates embedded rows against the published validation-row
+schema and enforces row-level `ok`, `n_errors`, and `errors` consistency, so a
+standalone validation artifact remains auditable outside the full bundle. That
+preflight checks the reusable
 payload contract and proof-evidence boundary; request-bound mode strengthens it
 to route-planning consistency against the staged request, but it still does not
 prove kernel verification. Request-bound validator manifests and rows also
