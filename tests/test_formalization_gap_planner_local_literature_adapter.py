@@ -119,9 +119,33 @@ def test_local_literature_adapter_emits_source_backed_route_evidence() -> None:
     assert response["source_snippets"][0]["source_ref"] == response["source_refs"][0]
     assert "conditional" in response["source_snippets"][0]["matched_terms"]
     assert "conditional" in response["source_snippets"][0]["excerpt"]
+    assert response["source_support_status"] == "source_backed_all_target_primitives"
+    assert response["supported_target_primitives"] == ("conditional_mean_residual_zero",)
+    assert response["unsupported_target_primitives"] == ()
+    primitive_support = response["target_primitive_support"][0]
+    assert primitive_support["primitive"] == "conditional_mean_residual_zero"
+    assert primitive_support["supported"] is True
+    assert primitive_support["supporting_source_refs"] == response["source_refs"]
+    assert {"conditional", "mean", "residual", "zero"}.issubset(
+        set(primitive_support["matched_terms"])
+    )
+    assert (
+        response["source_snippets"][0]["source_support_status"]
+        == "source_backed_all_target_primitives"
+    )
+    assert response["source_snippets"][0]["supported_target_primitives"] == (
+        "conditional_mean_residual_zero",
+    )
+    assert response["source_snippets"][0]["unsupported_target_primitives"] == ()
     assert response["route_evidence_nodes"][0]["kind"] == "source_ref"
     assert "conditional" in response["route_evidence_nodes"][0]["matched_terms"]
+    assert response["route_evidence_nodes"][0]["source_support_status"] == (
+        "source_backed_all_target_primitives"
+    )
     assert not response["route_revision_recommended"]
+    assert payload["n_fully_source_supported_literature_responses"] == 1
+    assert payload["n_partially_source_supported_literature_responses"] == 0
+    assert payload["n_unsupported_literature_responses"] == 0
 
     evidence_payload = export_formalization_gap_planner_refinement_evidence(
         queue_dir,
@@ -194,3 +218,89 @@ def test_local_literature_adapter_emits_source_backed_route_evidence() -> None:
     assert (
         evidence_dir / "formalization_gap_planner_refinement_evidence_row.schema.json"
     ).exists()
+
+
+def test_local_literature_adapter_marks_partial_target_support() -> None:
+    root = Path("runs/test_formalization_gap_planner_local_literature_adapter_partial")
+    queue_dir = root / "queue"
+    corpus_dir = root / "papers"
+    adapter_dir = root / "adapter"
+    shutil.rmtree(root, ignore_errors=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    corpus_dir.mkdir(parents=True, exist_ok=True)
+    (corpus_dir / "rank_uniformity.md").write_text(
+        "\n".join(
+            [
+                "# Rank uniformity note",
+                "",
+                "Exchangeability implies rank uniformity for the calibration rank.",
+                "This note does not discuss measurability side conditions.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (queue_dir / "formalization_gap_planner_refinement_queue_manifest.json").write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "refinement_item_id": "refinement:partial-literature",
+                        "goal_plan_id": "goal:partial",
+                        "route_id": "route:partial",
+                        "display_name": "rank route with a missing side condition",
+                        "hook_kind": "literature_discovery",
+                        "refinement_stage": "literature",
+                        "owner_agent": "literature",
+                        "target_primitives": [
+                            "rank_uniformity",
+                            "conditional_measurability",
+                        ],
+                        "queries": [
+                            "rank uniformity conditional measurability exchangeability"
+                        ],
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_local_literature_adapter_responses(
+        queue_dir,
+        adapter_dir,
+        literature_roots=(corpus_dir,),
+        k=1,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_fully_source_supported_literature_responses"] == 0
+    assert payload["n_partially_source_supported_literature_responses"] == 1
+    assert payload["n_unsupported_literature_responses"] == 0
+    response = payload["responses"][0]
+    assert response["source_support_status"] == (
+        "source_backed_partial_target_primitives"
+    )
+    assert response["supported_target_primitives"] == ("rank_uniformity",)
+    assert response["unsupported_target_primitives"] == (
+        "conditional_measurability",
+    )
+    assert response["route_revision_recommended"]
+    assert response["route_revision_reasons"] == (
+        "conditional_measurability not directly supported by local literature hits",
+    )
+    support_by_primitive = {
+        row["primitive"]: row for row in response["target_primitive_support"]
+    }
+    assert support_by_primitive["rank_uniformity"]["supported"] is True
+    assert support_by_primitive["conditional_measurability"]["supported"] is False
+    assert (
+        response["source_snippets"][0]["source_support_status"]
+        == "source_backed_partial_target_primitives"
+    )
+    assert response["source_snippets"][0]["supported_target_primitives"] == (
+        "rank_uniformity",
+    )
+    assert response["source_snippets"][0]["unsupported_target_primitives"] == (
+        "conditional_measurability",
+    )

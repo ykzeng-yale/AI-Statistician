@@ -8766,10 +8766,21 @@ def _compact_source_snippets(
                 "rank",
                 "evidence_role",
                 "target_primitives",
+                "supported_target_primitives",
+                "unsupported_target_primitives",
+                "source_support_status",
                 "matched_terms",
             )
             if key in snippet
         }
+        for primitive_key in (
+            "target_primitives",
+            "supported_target_primitives",
+            "unsupported_target_primitives",
+            "matched_terms",
+        ):
+            if primitive_key in compact:
+                compact[primitive_key] = _str_tuple(compact[primitive_key])
         key = stable_hash(
             [
                 compact.get("source_ref", ""),
@@ -8814,6 +8825,15 @@ def _row_source_snippet_candidates(
                     "target_primitives": _str_tuple(
                         node.get("target_primitives", [])
                     ),
+                    "supported_target_primitives": _str_tuple(
+                        node.get("supported_target_primitives", [])
+                    ),
+                    "unsupported_target_primitives": _str_tuple(
+                        node.get("unsupported_target_primitives", [])
+                    ),
+                    "source_support_status": str(
+                        node.get("source_support_status", "")
+                    ).strip(),
                     "matched_terms": _str_tuple(node.get("matched_terms", [])),
                 }
             )

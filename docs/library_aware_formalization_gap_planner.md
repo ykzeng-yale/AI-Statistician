@@ -946,7 +946,12 @@ end-to-end tests and writes the shared refinement-tool response schema plus
 schema-valid counts beside that JSONL. The local literature adapter can replace
 `literature_discovery` rows with source-backed route evidence from a local
 text/markdown/json corpus or mark focused literature gaps for later
-Paperclip/PaperQA/OpenScholar search. The local formal-source adapter can then
+Paperclip/PaperQA/OpenScholar search. Its response rows also expose
+`source_support_status`, `supported_target_primitives`,
+`unsupported_target_primitives`, and `target_primitive_support`, so the LLM
+route planner can tell a fully source-backed route step from a partial lexical
+hit that still needs literature search or route repair. The local formal-source
+adapter can then
 replace
 `lean_library_grounding` rows with real declaration-search evidence from the
 current formal-source backend and optional Lean RAG dependency DB, while
@@ -1468,7 +1473,11 @@ The current implementation composes four existing AI Statistician artifacts:
 17. `formalization_gap_planner_local_literature_adapter`
    Replaces literature-discovery rows with local source-backed route evidence
    from text/markdown/json corpora, or emits focused literature-gap nodes when
-   the local corpus has no match. It is route evidence, not proof evidence.
+   the local corpus has no match. Each response records primitive-level source
+   support (`source_support_status`, supported and unsupported target
+   primitives, and per-primitive supporting source refs), and those fields are
+   preserved into LLM route-planner source snippets. It is route evidence, not
+   proof evidence.
 
 18. `formalization_gap_planner_local_formal_source_adapter`
    Replaces formal-library-grounding rows, including legacy

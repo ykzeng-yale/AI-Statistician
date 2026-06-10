@@ -181,6 +181,23 @@ def export_formalization_gap_planner_local_literature_adapter_responses(
                 for snippet in response.get("source_snippets", [])
             )
         ),
+        "n_fully_source_supported_literature_responses": sum(
+            1
+            for response in responses
+            if response.get("source_support_status")
+            == "source_backed_all_target_primitives"
+        ),
+        "n_partially_source_supported_literature_responses": sum(
+            1
+            for response in responses
+            if response.get("source_support_status")
+            == "source_backed_partial_target_primitives"
+        ),
+        "n_unsupported_literature_responses": sum(
+            1
+            for response in responses
+            if response.get("source_support_status") == "local_literature_gap"
+        ),
         "n_literature_gap_responses": sum(
             1
             for response in responses
@@ -267,11 +284,23 @@ def _literature_response(
     query_terms = _query_terms(query_text)
     target_primitives = _str_tuple(queue_row.get("target_primitives", []))
     hits = _search_documents(documents, query_terms, target_primitives, k=k)
+    primitive_support = _target_primitive_support(hits, target_primitives)
+    supported_primitives = tuple(
+        row["primitive"] for row in primitive_support if row["supported"]
+    )
+    unsupported_primitives = tuple(
+        row["primitive"] for row in primitive_support if not row["supported"]
+    )
+    source_support_status = _source_support_status(
+        hits,
+        target_primitives=target_primitives,
+        unsupported_primitives=unsupported_primitives,
+    )
     revision_reasons: list[str] = []
     if not hits:
         revision_reasons.append("no local literature source matched queued queries")
-    for primitive in target_primitives:
-        if hits and not _primitive_supported_by_hits(primitive, hits):
+    if hits:
+        for primitive in unsupported_primitives:
             revision_reasons.append(
                 f"{primitive} not directly supported by local literature hits"
             )
@@ -282,6 +311,8 @@ def _literature_response(
         source_refs=source_refs,
         query_terms=query_terms,
         target_primitives=target_primitives,
+        primitive_support=primitive_support,
+        source_support_status=source_support_status,
     )
     source_snippets = _source_snippets_from_route_nodes(route_nodes)
     return {
@@ -293,6 +324,10 @@ def _literature_response(
         "source_refs": tuple(source_refs),
         "source_snippets": tuple(source_snippets),
         "route_evidence_nodes": tuple(route_nodes),
+        "target_primitive_support": tuple(primitive_support),
+        "supported_target_primitives": supported_primitives,
+        "unsupported_target_primitives": unsupported_primitives,
+        "source_support_status": source_support_status,
         "route_revision_recommended": bool(revision_reasons),
         "route_revision_reasons": tuple(sorted(dict.fromkeys(revision_reasons))),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
@@ -457,18 +492,67 @@ def _primitive_supported_by_hits(
     primitive: str,
     hits: list[dict[str, object]],
 ) -> bool:
+    return any(_primitive_supported_by_hit(primitive, hit) for hit in hits)
+
+
+def _primitive_supported_by_hit(
+    primitive: str,
+    hit: dict[str, object],
+) -> bool:
     primitive_lower = primitive.lower()
     primitive_phrase = primitive.replace("_", " ").lower()
     primitive_terms = set(_query_terms(primitive))
-    for hit in hits:
-        text_lower = str(hit.get("text_lower", ""))
-        if primitive_lower in text_lower or primitive_phrase in text_lower:
-            return True
-        if primitive_terms and primitive_terms.issubset(
-            set(_str_tuple(hit.get("matched_terms", [])))
-        ):
-            return True
+    text_lower = str(hit.get("text_lower", ""))
+    if primitive_lower in text_lower or primitive_phrase in text_lower:
+        return True
+    if primitive_terms and primitive_terms.issubset(
+        set(_str_tuple(hit.get("matched_terms", [])))
+    ):
+        return True
     return False
+
+
+def _target_primitive_support(
+    hits: list[dict[str, object]],
+    target_primitives: tuple[str, ...],
+) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    for primitive in target_primitives:
+        supporting_hits = [
+            hit for hit in hits if _primitive_supported_by_hit(primitive, hit)
+        ]
+        matched_terms: list[str] = []
+        for hit in supporting_hits:
+            matched_terms.extend(_str_tuple(hit.get("matched_terms", [])))
+            matched_terms.extend(_query_terms(primitive))
+        rows.append(
+            {
+                "primitive": primitive,
+                "supported": bool(supporting_hits),
+                "supporting_source_refs": tuple(
+                    dict.fromkeys(
+                        str(hit.get("source_ref", ""))
+                        for hit in supporting_hits
+                        if hit.get("source_ref")
+                    )
+                ),
+                "matched_terms": tuple(sorted(dict.fromkeys(matched_terms))),
+            }
+        )
+    return tuple(rows)
+
+
+def _source_support_status(
+    hits: list[dict[str, object]],
+    *,
+    target_primitives: tuple[str, ...],
+    unsupported_primitives: tuple[str, ...],
+) -> str:
+    if not hits:
+        return "local_literature_gap"
+    if target_primitives and not unsupported_primitives:
+        return "source_backed_all_target_primitives"
+    return "source_backed_partial_target_primitives"
 
 
 def _source_refs(
@@ -495,6 +579,8 @@ def _route_evidence_nodes(
     source_refs: tuple[str, ...],
     query_terms: tuple[str, ...],
     target_primitives: tuple[str, ...],
+    primitive_support: tuple[dict[str, object], ...],
+    source_support_status: str,
 ) -> list[dict[str, object]]:
     if not hits:
         return [
@@ -505,6 +591,10 @@ def _route_evidence_nodes(
                 "label": "No local literature match found",
                 "source_ref": source_refs[0],
                 "target_primitives": target_primitives,
+                "supported_target_primitives": (),
+                "unsupported_target_primitives": target_primitives,
+                "target_primitive_support": primitive_support,
+                "source_support_status": source_support_status,
                 "queries": _str_tuple(queue_row.get("queries", [])),
                 "evidence_role": "focused literature search needed before route confidence increases",
             }
@@ -512,6 +602,16 @@ def _route_evidence_nodes(
     nodes: list[dict[str, object]] = []
     for rank, hit in enumerate(hits, start=1):
         matched_terms = _str_tuple(hit.get("matched_terms", []))
+        supported_target_primitives = tuple(
+            primitive
+            for primitive in target_primitives
+            if _primitive_supported_by_hit(primitive, hit)
+        )
+        unsupported_target_primitives = tuple(
+            primitive
+            for primitive in target_primitives
+            if primitive not in supported_target_primitives
+        )
         node_id = "literature_source_ref:" + stable_hash(
             [
                 str(queue_row.get("refinement_item_id", "")),
@@ -533,6 +633,10 @@ def _route_evidence_nodes(
                     hit.get("matched_primitive_phrases", [])
                 ),
                 "target_primitives": target_primitives,
+                "supported_target_primitives": supported_target_primitives,
+                "unsupported_target_primitives": unsupported_target_primitives,
+                "target_primitive_support": primitive_support,
+                "source_support_status": source_support_status,
                 "excerpt": _excerpt(str(hit.get("text", "")), matched_terms),
                 "evidence_role": "source-backed informal route evidence",
             }
@@ -565,6 +669,15 @@ def _source_snippets_from_route_nodes(
                     node.get("matched_primitive_phrases", [])
                 ),
                 "target_primitives": _str_tuple(node.get("target_primitives", [])),
+                "supported_target_primitives": _str_tuple(
+                    node.get("supported_target_primitives", [])
+                ),
+                "unsupported_target_primitives": _str_tuple(
+                    node.get("unsupported_target_primitives", [])
+                ),
+                "source_support_status": str(
+                    node.get("source_support_status", "")
+                ).strip(),
                 "evidence_role": "source-backed informal route evidence",
             }
         )
@@ -640,6 +753,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Merged response schema valid: {payload.get('n_merged_response_schema_valid')}/{payload.get('n_merged_responses')}",
         f"- Source hits: {payload.get('n_source_hits')}",
         f"- Source snippets: {payload.get('n_source_snippets')}",
+        f"- Fully source-supported literature responses: {payload.get('n_fully_source_supported_literature_responses')}",
+        f"- Partially source-supported literature responses: {payload.get('n_partially_source_supported_literature_responses')}",
+        f"- Unsupported literature responses: {payload.get('n_unsupported_literature_responses')}",
         f"- Literature gaps: {payload.get('n_literature_gap_responses')}",
         f"- Route revision recommended: {payload.get('n_route_revision_recommended')}",
         f"- All OK: {payload.get('all_ok')}",

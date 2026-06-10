@@ -762,6 +762,13 @@ def _write_refinement_evidence(
                                     "supports finite-rank uniformity once tie handling is fixed."
                                 ),
                                 "target_primitives": ["rank_uniformity"],
+                                "supported_target_primitives": [
+                                    "rank_uniformity"
+                                ],
+                                "unsupported_target_primitives": [],
+                                "source_support_status": (
+                                    "source_backed_all_target_primitives"
+                                ),
                                 "evidence_role": "source-backed informal route evidence",
                             }
                         ],
@@ -771,6 +778,14 @@ def _write_refinement_evidence(
                                 "kind": "source_ref",
                                 "source_ref": source_ref,
                                 "claim": "finite-rank uniformity route evidence",
+                                "target_primitives": ["rank_uniformity"],
+                                "supported_target_primitives": [
+                                    "rank_uniformity"
+                                ],
+                                "unsupported_target_primitives": [],
+                                "source_support_status": (
+                                    "source_backed_all_target_primitives"
+                                ),
                             }
                         ],
                         "residual_goals": [
@@ -2319,12 +2334,25 @@ def test_llm_route_planner_accepts_source_from_admissible_refinement_evidence() 
         snippet["source_ref"] == source_ref
         for snippet in context["available_source_snippets"]
     )
+    source_snippet = next(
+        snippet
+        for snippet in context["available_source_snippets"]
+        if snippet["source_ref"] == source_ref
+    )
+    assert source_snippet["source_support_status"] == (
+        "source_backed_all_target_primitives"
+    )
+    assert source_snippet["supported_target_primitives"] == ("rank_uniformity",)
+    assert source_snippet["unsupported_target_primitives"] == ()
     assert tuple(request["residual_goals"]) == (
         "rank_uniformity: tie handling side condition from refinement evidence",
     )
     summary = context["feedback_loop_summary"]
     assert summary["refinement_evidence_admissibility"]["admissible_count"] == 1
     assert summary["admissible_source_snippets"][0]["source_ref"] == source_ref
+    assert summary["admissible_source_snippets"][0]["source_support_status"] == (
+        "source_backed_all_target_primitives"
+    )
     assert "refinement-evidence snippet" in summary["admissible_source_snippets"][0][
         "excerpt"
     ]
