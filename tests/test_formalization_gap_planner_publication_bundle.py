@@ -2480,15 +2480,35 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "not automatic AI Statistician cost tiers" in llm_model_policy[
         "outside_cost_tier_policy"
     ]
+    request_time_policy = llm_model_policy["request_time_model_resolution_policy"]
+    assert "request is built" in request_time_policy["empty_model_resolution"]
+    assert (
+        "Tier-specific Claude environment variables"
+        in request_time_policy["tier_specific_env_overrides"]
+    )
+    assert request_time_policy["worker_default_tiers"] == {
+        "TheoryIntake": "haiku",
+        "SimulationEngineer": "haiku",
+        "AlgorithmEngineer": "haiku",
+        "CriticEvaluator": "haiku",
+        "ArchitectCoordinator": "sonnet",
+        "TheoryDeveloper": "sonnet",
+        "FormalizerProofEngineer": "sonnet",
+        "formalization_gap_planner_route_synthesis": "auto",
+    }
     assert "codex" not in llm_model_policy["supported_live_generator_providers"]
     assert "codex_exec" not in llm_model_policy["supported_live_generator_providers"]
     assert set(llm_model_policy["prohibited_generator_providers"]) == {
         "codex",
         "codex_exec",
     }
-    assert (
+    llm_model_policy_report = (
         out_dir / "contract" / "ai_statistician_llm_model_policy.md"
-    ).exists()
+    )
+    assert llm_model_policy_report.exists()
+    assert "## Request-Time Resolution" in llm_model_policy_report.read_text(
+        encoding="utf-8"
+    )
     assert (
         "llm_route_planner_response_payload_validation_manifest_contract"
         in contract_payload

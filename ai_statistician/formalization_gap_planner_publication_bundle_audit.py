@@ -3186,6 +3186,22 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
     prohibited_llm_providers = set(
         _str_tuple(llm_model_policy.get("prohibited_generator_providers", []))
     )
+    request_time_resolution_policy = (
+        llm_model_policy.get("request_time_model_resolution_policy", {})
+        if isinstance(
+            llm_model_policy.get("request_time_model_resolution_policy", {}),
+            dict,
+        )
+        else {}
+    )
+    worker_default_tiers = (
+        request_time_resolution_policy.get("worker_default_tiers", {})
+        if isinstance(
+            request_time_resolution_policy.get("worker_default_tiers", {}),
+            dict,
+        )
+        else {}
+    )
     schema_catalog_entries = [
         row
         for row in schema_catalog.get("schema_entries", [])
@@ -3293,6 +3309,37 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             llm_outside_cost_tier_models == CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS
             and "not automatic AI Statistician cost tiers"
             in str(llm_model_policy.get("outside_cost_tier_policy", "")),
+        ),
+        _check(
+            "llm_model_policy_request_time_resolution",
+            "contract",
+            "empty model configs resolve by provider/model_tier at request time",
+            json.dumps(request_time_resolution_policy, sort_keys=True),
+            "request is built"
+            in str(
+                request_time_resolution_policy.get(
+                    "empty_model_resolution",
+                    "",
+                )
+            )
+            and "Tier-specific Claude environment variables"
+            in str(
+                request_time_resolution_policy.get(
+                    "tier_specific_env_overrides",
+                    "",
+                )
+            )
+            and worker_default_tiers.get("TheoryIntake") == "haiku"
+            and worker_default_tiers.get("SimulationEngineer") == "haiku"
+            and worker_default_tiers.get("AlgorithmEngineer") == "haiku"
+            and worker_default_tiers.get("CriticEvaluator") == "haiku"
+            and worker_default_tiers.get("ArchitectCoordinator") == "sonnet"
+            and worker_default_tiers.get("TheoryDeveloper") == "sonnet"
+            and worker_default_tiers.get("FormalizerProofEngineer") == "sonnet"
+            and worker_default_tiers.get(
+                "formalization_gap_planner_route_synthesis"
+            )
+            == "auto",
         ),
         _check(
             "portable_contract_has_llm_model_policy_contract",

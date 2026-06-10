@@ -2659,6 +2659,33 @@ def _llm_model_policy_payload() -> dict[str, object]:
             "tiers. Haiku/Sonnet/Opus requests must resolve to their matching "
             "Claude tier families."
         ),
+        "request_time_model_resolution_policy": {
+            "empty_model_resolution": (
+                "LLM worker configs may leave model empty; the concrete provider "
+                "model is resolved from provider_name and model_tier when each "
+                "request is built, not when modules are imported."
+            ),
+            "tier_specific_env_overrides": (
+                "Tier-specific Claude environment variables override only their "
+                "matching Haiku, Sonnet, or Opus tier and must not collapse "
+                "cost-aware routing across tiers."
+            ),
+            "explicit_model_override_policy": (
+                "An explicit model remains an explicit operator override; "
+                "recognized Anthropic cross-tier model IDs are recorded as "
+                "model-tier mismatches by runtime and route-planner audits."
+            ),
+            "worker_default_tiers": {
+                "TheoryIntake": "haiku",
+                "SimulationEngineer": "haiku",
+                "AlgorithmEngineer": "haiku",
+                "CriticEvaluator": "haiku",
+                "ArchitectCoordinator": "sonnet",
+                "TheoryDeveloper": "sonnet",
+                "FormalizerProofEngineer": "sonnet",
+                "formalization_gap_planner_route_synthesis": "auto",
+            },
+        },
         "cost_aware_runtime_tiers": {
             "sonnet": (
                 "ArchitectCoordinator",
@@ -2703,6 +2730,9 @@ def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
     outside_models = dict(
         payload.get("latest_claude_family_models_outside_cost_tiers", {}) or {}
     )
+    resolution_policy = dict(
+        payload.get("request_time_model_resolution_policy", {}) or {}
+    )
     lines = [
         "# AI Statistician LLM Model Policy",
         "",
@@ -2718,6 +2748,12 @@ def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
         f"- Claude Opus: `{models.get('opus', '')}`",
         "- Outside Opus/Sonnet/Haiku cost tiers: "
         + ", ".join(f"{key}=`{value}`" for key, value in sorted(outside_models.items())),
+        "",
+        "## Request-Time Resolution",
+        "",
+        f"- Empty model configs: {resolution_policy.get('empty_model_resolution', '')}",
+        f"- Tier-specific overrides: {resolution_policy.get('tier_specific_env_overrides', '')}",
+        f"- Explicit overrides: {resolution_policy.get('explicit_model_override_policy', '')}",
         "",
         "## Source",
         "",

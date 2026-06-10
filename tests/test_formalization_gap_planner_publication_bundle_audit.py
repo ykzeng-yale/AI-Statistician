@@ -3369,6 +3369,13 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "llm_model_policy_request_time_resolution"
+        and "TheoryIntake" in row["observed"]
+        and "request is built" in row["observed"]
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "llm_model_policy_rejects_codex"
         and row["ok"]
         for row in audit_payload["checks"]
