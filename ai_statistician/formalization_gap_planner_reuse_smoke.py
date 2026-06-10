@@ -30,6 +30,7 @@ from .formalization_gap_planner_interactive_session import (
     export_formalization_gap_planner_interactive_session,
 )
 from .formalization_gap_planner_local_formal_source_adapter import (
+    LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
     export_formalization_gap_planner_local_formal_source_adapter_responses,
 )
 from .formalization_gap_planner_local_literature_adapter import (
@@ -4365,6 +4366,18 @@ def run_formalization_gap_planner_reuse_smoke(
             local_formal_source_adapter_payload.get(
                 "n_lean_library_grounding_rows",
                 0,
+            )
+        ),
+        "n_local_formal_source_legacy_lean_declaration_hit_responses": (
+            local_formal_source_adapter_payload.get(
+                "n_responses_with_legacy_lean_declaration_hits",
+                0,
+            )
+        ),
+        "local_formal_source_adapter_legacy_field_aliases": (
+            local_formal_source_adapter_payload.get(
+                "legacy_formal_source_adapter_field_aliases",
+                dict(LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES),
             )
         ),
         "n_local_formal_source_hits": local_formal_source_adapter_payload.get(

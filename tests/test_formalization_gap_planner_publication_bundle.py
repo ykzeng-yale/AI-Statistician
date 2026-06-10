@@ -36,6 +36,9 @@ from ai_statistician.formalization_gap_planner_library_coverage_map import (
     PROOF_EVIDENCE_STATUS as LIBRARY_COVERAGE_MAP_PROOF_EVIDENCE_STATUS,
     library_coverage_map_row_json_schema,
 )
+from ai_statistician.formalization_gap_planner_local_formal_source_adapter import (
+    LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
+)
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
@@ -1294,6 +1297,14 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
             else "fixture\n",
             encoding="utf-8",
         )
+    local_formal_source_adapter_manifest = {
+        "component_name": "formalization_gap_planner_local_formal_source_adapter",
+        "n_local_formal_source_responses": 1,
+        "n_responses_with_legacy_lean_declaration_hits": 0,
+        "legacy_formal_source_adapter_field_aliases": (
+            LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES
+        ),
+    }
     for directory, prefix in (
         (local_literature_adapter_dir, "formalization_gap_planner_local_literature_adapter"),
         (local_formal_source_adapter_dir, "formalization_gap_planner_local_formal_source_adapter"),
@@ -1306,12 +1317,19 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
             "formalization_gap_planner_refinement_tool_response.schema.json",
             f"{prefix}.md",
         ):
+            if (
+                directory == local_formal_source_adapter_dir
+                and filename == "formalization_gap_planner_local_formal_source_adapter_manifest.json"
+            ):
+                text = json.dumps(local_formal_source_adapter_manifest, indent=2)
+            elif filename == "formalization_gap_planner_refinement_tool_response.schema.json":
+                text = json.dumps(refinement_tool_response_json_schema(), indent=2)
+            elif filename.endswith(".json"):
+                text = json.dumps({"fixture": filename})
+            else:
+                text = "fixture\n"
             (directory / filename).write_text(
-                json.dumps(refinement_tool_response_json_schema(), indent=2)
-                if filename == "formalization_gap_planner_refinement_tool_response.schema.json"
-                else json.dumps({"fixture": filename})
-                if filename.endswith(".json")
-                else "fixture\n",
+                text,
                 encoding="utf-8",
             )
     for filename in (
@@ -3310,6 +3328,26 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         / "formalization_gap_planner_local_formal_source_adapter"
         / "formalization_gap_planner_local_formal_source_adapter_manifest.json"
     ).exists()
+    copied_local_formal_source_manifest = json.loads(
+        (
+            out_dir
+            / "artifacts"
+            / "formalization_gap_planner_local_formal_source_adapter"
+            / "formalization_gap_planner_local_formal_source_adapter_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert (
+        copied_local_formal_source_manifest[
+            "legacy_formal_source_adapter_field_aliases"
+        ]
+        == LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES
+    )
+    assert (
+        copied_local_formal_source_manifest[
+            "n_responses_with_legacy_lean_declaration_hits"
+        ]
+        == 0
+    )
     assert (
         out_dir
         / "artifacts"

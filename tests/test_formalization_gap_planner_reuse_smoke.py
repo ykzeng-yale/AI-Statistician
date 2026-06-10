@@ -8,6 +8,9 @@ from ai_statistician.formalization_gap_planner_reuse_smoke import (
     FORMALIZATION_GAP_PLANNER_REUSE_SMOKE_COMPONENT,
     run_formalization_gap_planner_reuse_smoke,
 )
+from ai_statistician.formalization_gap_planner_local_formal_source_adapter import (
+    LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
+)
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
 )
@@ -1489,6 +1492,14 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "n_local_formal_source_responses"
     ]
     assert payload["n_local_formal_source_legacy_lean_grounding_rows"] == 0
+    assert (
+        payload["local_formal_source_adapter_legacy_field_aliases"]
+        == LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES
+    )
+    assert (
+        payload["n_local_formal_source_legacy_lean_declaration_hit_responses"]
+        == payload["n_local_formal_source_responses"]
+    )
     assert payload["n_local_proof_state_responses"] > 0
     assert (
         payload["n_local_proof_state_target_prover_scaffold_accepted"]

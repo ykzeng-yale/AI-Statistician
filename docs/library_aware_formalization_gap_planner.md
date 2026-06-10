@@ -822,9 +822,13 @@ artifacts are included, the bundle audit also checks that revised route
 revision overlay rows satisfy the published row schema, route-alignment counts
 and resource-response-ledger proposal counts remain consistent, revised route
 alignment edges survive handoff and standalone-planner roundtrip, and applied
-proposal/evidence ids, hook kinds, prover diagnostics, source refs, and Lean
-declaration hits survive from packaged handoff rows into the standalone seed
-metadata.
+proposal/evidence ids, hook kinds, prover diagnostics, source refs, formal
+declaration hits, and any Lean legacy alias survive from packaged handoff rows
+into the standalone seed metadata. The reuse-smoke manifest also exposes
+`local_formal_source_adapter_legacy_field_aliases` and
+`n_local_formal_source_legacy_lean_declaration_hit_responses`, so a public
+smoke run can verify whether local formal-source evidence is using the portable
+`formal_declaration_hits` contract or only the Lean compatibility alias.
 
 Planner quality can be scored against a curated or held-out theorem-route file:
 
