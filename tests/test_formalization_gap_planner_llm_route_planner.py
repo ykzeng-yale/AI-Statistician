@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ai_statistician.cli import main
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES,
     LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
@@ -1052,6 +1053,10 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["by_request_model_tier"] == {"sonnet": 1}
     assert payload["n_request_packets"] == 1
     assert payload["n_requests_with_context_packet_inventory"] == 1
+    assert payload["legacy_context_field_aliases"] == (
+        LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES
+    )
+    assert payload["n_requests_with_legacy_context_field_aliases"] == 1
     assert payload["n_requests_with_available_source_snippets"] == 1
     assert payload["n_request_available_source_snippets"] == 1
     assert payload["n_requests_with_minimal_delta_cost_hints"] == 1
@@ -1101,6 +1106,9 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         context["available_source_snippets"]
     )
     assert inventory["resource_request_playbook_count"] == 0
+    assert inventory["legacy_context_field_alias_count"] == len(
+        LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES
+    )
     assert inventory["primitive_cost_hint_count"] == 2
     assert inventory["route_option_cost_hint_count"] == 1
     assert inventory["feedback_loop_summary_present"] is bool(
@@ -1141,6 +1149,11 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert "available_source_refs" in request["prompt_messages"]["user"]
     assert "available_source_snippets" in request["prompt_messages"]["user"]
     assert "available_formal_declarations" in request["prompt_messages"]["user"]
+    assert context["legacy_context_field_aliases"] == (
+        LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES
+    )
+    assert "legacy_context_field_aliases" in request["prompt_messages"]["user"]
+    assert "prefer portable fields" in request["prompt_messages"]["user"]
     assert "minimal_delta_cost_hints" in request["prompt_messages"]["user"]
     assert "minimum_base_cost" in request["prompt_messages"]["user"]
     assert "context_packet_inventory" in request["prompt_messages"]["user"]
@@ -1186,6 +1199,13 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         "context_packet.context_packet_inventory.available_source_snippet_count "
         "must match context_packet"
         in validate_llm_route_planner_request(drifted_inventory_request)
+    )
+    drifted_alias_request = deepcopy(request)
+    drifted_alias_request["context_packet"]["legacy_context_field_aliases"] = {}
+    assert (
+        "context_packet.legacy_context_field_aliases must match planner legacy "
+        "context alias contract for target_prover_family"
+        in validate_llm_route_planner_request(drifted_alias_request)
     )
     drifted_request = dict(request)
     drifted_request["llm_generation_policy"] = {
@@ -1691,6 +1711,10 @@ def test_llm_route_planner_filters_registry_context_for_rocq_target() -> None:
     assert "rocq_lsp_serapi" in contract_resource_ids
     assert not contract_resource_ids.intersection(lean_only_resource_ids)
     assert "lean_realization_dag_nodes" not in request["required_output_contract"]
+    assert request["context_packet"]["legacy_context_field_aliases"] == {}
+    assert request["context_packet"]["context_packet_inventory"][
+        "legacy_context_field_alias_count"
+    ] == 0
     rocq_schema = llm_route_planner_response_payload_schema(
         target_prover_family="rocq"
     )
@@ -4242,6 +4266,14 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert llm_route_planner_manifest_json_schema()["$id"] == (
         LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID
     )
+    assert "legacy_context_field_aliases" in manifest_schema["required"]
+    assert "n_requests_with_legacy_context_field_aliases" in manifest_schema["required"]
+    assert (
+        manifest_schema["properties"]["legacy_context_field_aliases"][
+            "properties"
+        ]["lean_declaration_hits"]["const"]
+        == "formal_declaration_hits"
+    )
     assert validate_llm_route_planner_manifest(payload, manifest_schema) == []
     drifted_manifest = dict(payload)
     drifted_manifest["n_rows"] = 999
@@ -4264,6 +4296,24 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "route_adoption_blocker_values must match route adoption blocker constants"
         in validate_llm_route_planner_manifest(
             drifted_taxonomy_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_alias_manifest = deepcopy(payload)
+    drifted_alias_manifest["legacy_context_field_aliases"] = {}
+    assert (
+        "legacy_context_field_aliases must match planner legacy context aliases"
+        in validate_llm_route_planner_manifest(
+            drifted_alias_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_alias_count_manifest = deepcopy(payload)
+    drifted_alias_count_manifest["n_requests_with_legacy_context_field_aliases"] = 0
+    assert (
+        "n_requests_with_legacy_context_field_aliases must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_alias_count_manifest,
             manifest_schema,
         )
     )

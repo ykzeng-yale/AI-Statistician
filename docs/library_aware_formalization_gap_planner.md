@@ -182,6 +182,12 @@ provider, resolved model, selected/requested tier, Claude pinned model policy,
 auto-tier rules, and explicit `codex`/`codex_exec` exclusion. This lets an
 external prover team audit a single JSONL request without reopening the full
 publication bundle or assuming the local runtime configuration is available. In
+the same request packet, `context_packet.legacy_context_field_aliases` is
+target-aware: Lean requests map legacy context fields such as
+`lean_grounding_queries` and `lean_declaration_hits` back to portable
+`formal_library_grounding_queries` and `formal_declaration_hits`, while non-Lean
+requests keep that map empty and the prompt requires new route output to prefer
+the portable fields.
 `--model-tier auto`, the route planner also reads target-intake rows: missing
 proof sources, library-search-required review flags, proof-state probes, complex
 theorem shapes, many `formal_library_grounding_queries`, or large normalized

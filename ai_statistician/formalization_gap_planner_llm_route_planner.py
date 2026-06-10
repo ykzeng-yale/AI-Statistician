@@ -13,11 +13,17 @@ from .fingerprint import stable_hash
 from .formalization_gap_planner_contract import (
     LEGACY_FORMAL_REALIZATION_FIELD_ALIASES,
 )
+from .formalization_gap_planner_local_formal_source_adapter import (
+    LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
+)
 from .formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
     standalone_input_json_schema,
     validate_standalone_input_payload,
+)
+from .formalization_gap_planner_target_intake import (
+    LEGACY_TARGET_INTAKE_FIELD_ALIASES,
 )
 from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
@@ -317,6 +323,10 @@ LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES = {
     "lean_realization_dag_nodes": LEGACY_FORMAL_REALIZATION_FIELD_ALIASES[
         "lean_realization_dag_nodes"
     ],
+}
+LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES = {
+    **LEGACY_TARGET_INTAKE_FIELD_ALIASES,
+    **LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
 }
 SOURCE_SNIPPET_MIN_SUPPORT_TOKENS = 3
 SOURCE_SNIPPET_MIN_TWO_TOKEN_SUPPORT_CHARS = 18
@@ -926,6 +936,9 @@ def export_formalization_gap_planner_llm_route_planner(
         "legacy_response_field_aliases": dict(
             LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES
         ),
+        "legacy_context_field_aliases": dict(
+            LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES
+        ),
         "max_repair_attempts": max(0, int(max_repair_attempts)),
         "invoke_provider": invoke_provider,
         "n_routes": len(routes),
@@ -947,6 +960,21 @@ def export_formalization_gap_planner_llm_route_planner(
                 or 0
             )
             for packet in request_packets
+        ),
+        "n_requests_with_legacy_context_field_aliases": sum(
+            1
+            for packet in request_packets
+            if _dict_value(
+                _dict_value(packet, "context_packet"),
+                "legacy_context_field_aliases",
+            )
+            and _dict_value(
+                _dict_value(packet, "context_packet"),
+                "legacy_context_field_aliases",
+            )
+            == _legacy_context_field_aliases_for_target(
+                packet.get("target_prover_family", "")
+            )
         ),
         "n_requests_with_available_source_snippets": sum(
             1
@@ -2016,11 +2044,13 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "model_tier_selection_mode",
             "llm_route_planner_model_tier_policy",
             "legacy_response_field_aliases",
+            "legacy_context_field_aliases",
             "invoke_provider",
             "n_routes",
             "n_request_packets",
             "n_requests_with_context_packet_inventory",
             "n_request_context_inventory_total_rows",
+            "n_requests_with_legacy_context_field_aliases",
             "n_request_model_tier_haiku",
             "n_request_model_tier_sonnet",
             "n_request_model_tier_opus",
@@ -2099,12 +2129,21 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                     }
                 },
             },
+            "legacy_context_field_aliases": {
+                "type": "object",
+                "required": sorted(LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES),
+                "properties": {
+                    key: {"type": "string", "const": value}
+                    for key, value in LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES.items()
+                },
+            },
             "max_repair_attempts": nonnegative_integer,
             "invoke_provider": {"type": "boolean"},
             "n_routes": nonnegative_integer,
             "n_request_packets": nonnegative_integer,
             "n_requests_with_context_packet_inventory": nonnegative_integer,
             "n_request_context_inventory_total_rows": nonnegative_integer,
+            "n_requests_with_legacy_context_field_aliases": nonnegative_integer,
             "n_request_model_tier_haiku": nonnegative_integer,
             "n_request_model_tier_sonnet": nonnegative_integer,
             "n_request_model_tier_opus": nonnegative_integer,
@@ -2642,6 +2681,35 @@ def validate_llm_route_planner_manifest(
         errors.append(
             "request schema valid/invalid counts must sum to n_request_packets"
         )
+    if (
+        manifest.get("legacy_context_field_aliases")
+        != LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES
+    ):
+        errors.append(
+            "legacy_context_field_aliases must match planner legacy context aliases"
+        )
+    request_packets = _dict_tuple(manifest.get("request_packets", []))
+    n_requests_with_context_aliases = sum(
+        1
+        for packet in request_packets
+        if _dict_value(
+            _dict_value(packet, "context_packet"),
+            "legacy_context_field_aliases",
+        )
+        and _dict_value(
+            _dict_value(packet, "context_packet"),
+            "legacy_context_field_aliases",
+        )
+        == _legacy_context_field_aliases_for_target(
+            packet.get("target_prover_family", "")
+        )
+    )
+    if int(
+        manifest.get("n_requests_with_legacy_context_field_aliases", 0) or 0
+    ) != n_requests_with_context_aliases:
+        errors.append(
+            "n_requests_with_legacy_context_field_aliases must match request_packets"
+        )
     embedded_schema_ids = {
         "request_schema": LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
         "response_payload_schema": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
@@ -3096,6 +3164,9 @@ def _request_packet(
             context_payloads.get("component_resource_registry", {}),
             target_prover_family=target_prover_family,
         ),
+        "legacy_context_field_aliases": dict(
+            _legacy_context_field_aliases_for_target(target_prover_family)
+        ),
         "residual_goals": residual_goals,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
@@ -3240,6 +3311,9 @@ def _context_packet_inventory(
         "resource_request_playbook_count": len(
             _dict_tuple(context_packet.get("resource_request_playbooks", []))
         ),
+        "legacy_context_field_alias_count": len(
+            _dict_value(context_packet, "legacy_context_field_aliases")
+        ),
         "primitive_cost_hint_count": len(
             _dict_tuple(cost_hints.get("primitive_cost_hints", []))
         ),
@@ -3339,7 +3413,19 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             "resource_request_playbook_count",
             len(_dict_tuple(context_packet.get("resource_request_playbooks", []))),
         ),
+        (
+            "legacy_context_field_alias_count",
+            len(_dict_value(context_packet, "legacy_context_field_aliases")),
+        ),
     )
+    aliases = _dict_value(context_packet, "legacy_context_field_aliases")
+    if aliases != _legacy_context_field_aliases_for_target(
+        context_packet.get("target_prover_family", "")
+    ):
+        errors.append(
+            "context_packet.legacy_context_field_aliases must match planner "
+            "legacy context alias contract for target_prover_family"
+        )
     for field_name, expected_count in scalar_count_checks:
         if int(inventory.get(field_name, 0) or 0) != expected_count:
             errors.append(
@@ -3467,6 +3553,17 @@ def _user_prompt(
     formal_realization_requirement = (
         "Use formal_realization_dag_nodes for the target-prover realization DAG."
     )
+    declaration_seed_requirement = (
+        "Resource-request candidate declarations are search seeds only; they "
+        "cannot justify existing-library or reuse coverage until accepted "
+        "formal_declaration_hits or route-level formal context is available."
+    )
+    declaration_scope_requirement = (
+        "Primitive-scoped formal_declaration_hits may justify existing-library "
+        "or reuse coverage only for the matching primitive; use bridge/prover "
+        "feedback/search when a declaration is merely a premise for a different "
+        "primitive."
+    )
     if target_prover_key == "lean4":
         target_intake_requirement = (
             target_intake_requirement
@@ -3477,6 +3574,22 @@ def _user_prompt(
             "lean_realization_dag_nodes is accepted only as a Lean legacy "
             "alias and must not be used for non-Lean target_prover_family "
             "values."
+        )
+        declaration_seed_requirement = (
+            "Resource-request candidate declarations are search seeds only; "
+            "they cannot justify existing-library or reuse coverage until "
+            "accepted formal_declaration_hits, a Lean-only legacy "
+            "lean_declaration_hits alias listed in "
+            "context_packet.legacy_context_field_aliases, or route-level "
+            "formal context is available."
+        )
+        declaration_scope_requirement = (
+            "Primitive-scoped formal_declaration_hits, or Lean-only legacy "
+            "lean_declaration_hits aliases listed in "
+            "context_packet.legacy_context_field_aliases, may justify "
+            "existing-library or reuse coverage only for the matching "
+            "primitive; use bridge/prover feedback/search when a declaration "
+            "is merely a premise for a different primitive."
         )
     payload = {
         "task": (
@@ -3503,8 +3616,8 @@ def _user_prompt(
             "If a needed source is not listed, emit a literature search_request instead of inventing a source_ref.",
             "Any informal node or standalone primitive with SEARCH_REQUESTED/source_search_pending status must have a matching literature/source search_request.",
             "Existing-library or reuse claims may cite only candidate_declarations or candidate_declaration_rows listed in context_packet.available_formal_declarations/available_formal_declaration_rows.",
-            "Resource-request candidate declarations are search seeds only; they cannot justify existing-library or reuse coverage until accepted formal_declaration_hits, lean_declaration_hits, or route-level formal context is available.",
-            "Primitive-scoped formal_declaration_hits and lean_declaration_hits may justify existing-library or reuse coverage only for the matching primitive; use bridge/prover feedback/search when a declaration is merely a premise for a different primitive.",
+            declaration_seed_requirement,
+            declaration_scope_requirement,
             "Prefer candidate_declaration_rows over bare candidate_declarations so target_prover_family provenance is preserved.",
             "If a needed declaration is not listed, emit a formal_library search_request instead of inventing a candidate_declaration.",
             "Any formal-realization node or standalone primitive with unknown/formal-library-search-pending coverage must have a matching formal_library/library search_request unless it declares a formal gap boundary or concrete delta action.",
@@ -3513,6 +3626,7 @@ def _user_prompt(
             "Every planner_next_actions row must include owner and action, and the row must resolve to a supported literature/formal-library/proof-state/route-revision hook family.",
             "planner_next_actions.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
             "Use context_packet.context_packet_inventory as the compact inventory of available evidence and feedback rows; raw context_packet rows remain the source of truth if a count is surprising.",
+            "Use context_packet.legacy_context_field_aliases only as a compatibility map; prefer portable fields such as formal_library_grounding_queries and formal_declaration_hits in new route output.",
             "Use context_packet.component_resource_registry_context only to choose bounded search/prover next actions; registry rows are not evidence that a tool was called.",
             "When context_packet.feedback_loop_summary is present, treat it as the route-repair brief derived from raw residual/resource/interactive rows; it is planning context, not proof evidence.",
             "When context_packet.route_replan_handoff_rows is present, preserve its applied evidence ids, quality controls, and next_commands as prior handoff context; route-replan handoff rows are planning input, not proof evidence.",
@@ -4754,6 +4868,14 @@ def _formal_library_grounding_queries_from_intake_row(
     generic = _str_tuple(row.get("formal_library_grounding_queries", []))
     legacy = _str_tuple(row.get("lean_grounding_queries", []))
     return tuple(dict.fromkeys([*generic, *legacy]))
+
+
+def _legacy_context_field_aliases_for_target(
+    target_prover_family: object,
+) -> dict[str, str]:
+    if _target_prover_key(target_prover_family) == "lean4":
+        return dict(LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES)
+    return {}
 
 
 def _route_and_primitive_source_refs(route: Mapping[str, Any]) -> tuple[str, ...]:
