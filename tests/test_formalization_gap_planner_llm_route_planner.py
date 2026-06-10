@@ -7045,6 +7045,36 @@ def test_llm_route_planner_rejects_fabricated_source_snippet_excerpt() -> None:
     assert any("unsupported snippets" in error for error in row["errors"])
 
 
+def test_llm_route_planner_rejects_trivial_source_snippet_substring() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_tiny_excerpt"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["source_snippets"] = [
+        {
+            "source_ref": "conformal_prediction_textbook",
+            "excerpt": "rank",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any("unsupported snippets" in error for error in row["errors"])
+
+
 def test_llm_route_planner_rejects_partial_source_snippet_primitive_overclaim() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_partial_source_overclaim"

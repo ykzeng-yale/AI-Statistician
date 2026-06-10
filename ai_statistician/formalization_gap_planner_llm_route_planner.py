@@ -251,6 +251,20 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY_ID = (
     "formalization_gap_planner_llm_route_planner_model_tier_policy:1"
 )
 LLM_ROUTE_PLANNER_MODEL_TIERS = ("auto", "haiku", "sonnet", "opus")
+SOURCE_SNIPPET_MIN_SUPPORT_TOKENS = 3
+SOURCE_SNIPPET_MIN_TWO_TOKEN_SUPPORT_CHARS = 18
+SOURCE_SNIPPET_TEXT_SUPPORT_STOPWORDS = {
+    "after",
+    "also",
+    "among",
+    "before",
+    "from",
+    "into",
+    "that",
+    "this",
+    "under",
+    "with",
+}
 LLM_ROUTE_PLANNER_SEARCH_REQUEST_KIND_ALIASES = (
     "literature",
     "literature_search",
@@ -7606,7 +7620,28 @@ def _source_snippet_supported_by_available(
 def _snippet_text_contains(left: str, right: str) -> bool:
     if not left or not right:
         return False
-    return left in right or right in left
+    if left in right:
+        return _snippet_text_has_substantive_anchor(left)
+    if right in left:
+        return _snippet_text_has_substantive_anchor(right)
+    return False
+
+
+def _snippet_text_has_substantive_anchor(text: str) -> bool:
+    stripped = str(text or "").strip()
+    if not stripped:
+        return False
+    substantive_tokens = [
+        token
+        for token in re.findall(r"[a-z0-9]+", stripped.lower())
+        if len(token) >= 4 and token not in SOURCE_SNIPPET_TEXT_SUPPORT_STOPWORDS
+    ]
+    if len(substantive_tokens) >= SOURCE_SNIPPET_MIN_SUPPORT_TOKENS:
+        return True
+    return (
+        len(substantive_tokens) >= 2
+        and len(stripped) >= SOURCE_SNIPPET_MIN_TWO_TOKEN_SUPPORT_CHARS
+    )
 
 
 def _snippet_text_key(value: object) -> str:
