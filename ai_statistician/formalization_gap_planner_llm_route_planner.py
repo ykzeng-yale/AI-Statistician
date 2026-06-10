@@ -2326,6 +2326,7 @@ def _user_prompt(
             "SOURCE_BACKED claims may cite only source_refs listed in context_packet.available_source_refs.",
             "When context_packet.available_source_snippets contains relevant excerpts, reuse those source_snippets in informal DAG nodes or standalone_route primitives instead of paraphrasing unsupported evidence.",
             "source_snippets may cite only source_refs listed in context_packet.available_source_refs.",
+            "Partial source_snippets are checked against both their own target_primitives and their enclosing informal/route primitive scope; omitting target_primitives inside a primitive-specific node does not make the source evidence support that primitive.",
             "If a needed source is not listed, emit a literature search_request instead of inventing a source_ref.",
             "Any informal node or standalone primitive with SEARCH_REQUESTED/source_search_pending status must have a matching literature/source search_request.",
             "Existing-library or reuse claims may cite only candidate_declarations or candidate_declaration_rows listed in context_packet.available_formal_declarations/available_formal_declaration_rows.",
@@ -6310,7 +6311,7 @@ def _response_source_snippet_primitive_support_errors(
 ) -> list[str]:
     """Reject using partial source snippets as evidence for unsupported primitives."""
 
-    emitted = _response_source_snippet_locations(payload)
+    emitted = _response_source_snippet_locations_with_context(payload)
     if not emitted:
         return []
     available = _dict_tuple(
@@ -6320,8 +6321,13 @@ def _response_source_snippet_primitive_support_errors(
         return []
     search_requests = _dict_tuple(payload.get("search_requests", []))
     errors: list[str] = []
-    for snippet, location in emitted:
-        emitted_primitives = _str_tuple(snippet.get("target_primitives", []))
+    for snippet, location, context_primitives in emitted:
+        emitted_primitives = _str_tuple(
+            [
+                *_str_tuple(snippet.get("target_primitives", [])),
+                *context_primitives,
+            ]
+        )
         emitted_supported = _str_tuple(
             snippet.get("supported_target_primitives", [])
         )
@@ -6410,6 +6416,88 @@ def _response_source_snippet_locations(
             for snippet_index, snippet in enumerate(_dict_tuple(primitive.get("source_snippets", [])))
         )
     return tuple(rows)
+
+
+def _response_source_snippet_locations_with_context(
+    payload: Mapping[str, Any],
+) -> tuple[tuple[dict[str, object], str, tuple[str, ...]], ...]:
+    rows: list[tuple[dict[str, object], str, tuple[str, ...]]] = []
+    rows.extend(
+        (snippet, f"response.source_snippets[{index}]", tuple())
+        for index, snippet in enumerate(_dict_tuple(payload.get("source_snippets", [])))
+    )
+    for index, node in enumerate(_dict_tuple(payload.get("informal_knowledge_dag_nodes", []))):
+        context_primitives = _source_snippet_informal_node_context_primitives(node)
+        rows.extend(
+            (
+                snippet,
+                f"informal_knowledge_dag_nodes[{index}].source_snippets[{snippet_index}]",
+                context_primitives,
+            )
+            for snippet_index, snippet in enumerate(_dict_tuple(node.get("source_snippets", [])))
+        )
+    for index, residual in enumerate(_dict_tuple(payload.get("residual_interpretations", []))):
+        context_primitives = _source_snippet_declared_context_primitives(residual)
+        rows.extend(
+            (
+                snippet,
+                f"residual_interpretations[{index}].source_snippets[{snippet_index}]",
+                context_primitives,
+            )
+            for snippet_index, snippet in enumerate(_dict_tuple(residual.get("source_snippets", [])))
+        )
+    route = _dict_value(payload, "standalone_route")
+    rows.extend(
+        (snippet, f"standalone_route.source_snippets[{index}]", tuple())
+        for index, snippet in enumerate(_dict_tuple(route.get("source_snippets", [])))
+    )
+    for index, primitive in enumerate(_dict_tuple(route.get("primitives", []))):
+        context_primitives = _source_snippet_declared_context_primitives(primitive)
+        rows.extend(
+            (
+                snippet,
+                f"standalone_route.primitives[{index}].source_snippets[{snippet_index}]",
+                context_primitives,
+            )
+            for snippet_index, snippet in enumerate(_dict_tuple(primitive.get("source_snippets", [])))
+        )
+    return tuple(rows)
+
+
+def _source_snippet_informal_node_context_primitives(
+    node: Mapping[str, Any],
+) -> tuple[str, ...]:
+    primitives = list(_source_snippet_declared_context_primitives(node))
+    node_id = str(node.get("node_id", "")).strip()
+    if ":" in node_id:
+        primitives.append(node_id.rsplit(":", 1)[-1])
+    return tuple(
+        dict.fromkeys(
+            primitive
+            for primitive in (_primitive_key(value) for value in primitives)
+            if primitive
+        )
+    )
+
+
+def _source_snippet_declared_context_primitives(
+    value: Mapping[str, Any],
+) -> tuple[str, ...]:
+    primitives: list[str] = []
+    for field_name in (
+        "target_primitive",
+        "target_primitives",
+        "primitive",
+        "primitives",
+    ):
+        primitives.extend(_primitive_values(value.get(field_name)))
+    return tuple(
+        dict.fromkeys(
+            primitive
+            for primitive in (_primitive_key(value) for value in primitives)
+            if primitive
+        )
+    )
 
 
 def _matching_available_source_snippets(

@@ -6078,6 +6078,64 @@ def test_llm_route_planner_rejects_partial_source_snippet_primitive_overclaim() 
     )
 
 
+def test_llm_route_planner_rejects_partial_source_snippet_enclosing_primitive_overclaim() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_enclosing_partial_source"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    source_ref = "paper:partial-rank-source"
+    partial_snippet = {
+        "source_ref": source_ref,
+        "claim": "This source supports exchangeability but not rank uniformity.",
+        "excerpt": (
+            "The paper states that the calibration observations are exchangeable. "
+            "It does not prove the finite rank uniformity bridge lemma."
+        ),
+        "target_primitives": ["exchangeability", "rank_uniformity"],
+        "supported_target_primitives": ["exchangeability"],
+        "unsupported_target_primitives": ["rank_uniformity"],
+        "source_support_status": "source_backed_partial_target_primitives",
+        "evidence_role": "source-backed informal route evidence",
+    }
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["source_refs"] = [source_ref]
+    input_payload["routes"][0]["source_snippets"] = [partial_snippet]
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+
+    emitted_snippet = {
+        "source_ref": source_ref,
+        "claim": partial_snippet["claim"],
+        "excerpt": partial_snippet["excerpt"],
+        "evidence_role": "source-backed informal route evidence",
+    }
+    bad_response = _replace_source_ref(
+        _llm_response_payload(),
+        "conformal_prediction_textbook",
+        source_ref,
+    )
+    bad_response = _replace_source_snippets(bad_response, emitted_snippet)
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "partial source evidence" in error
+        and "rank_uniformity" in error
+        and "search_request" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_allows_partial_source_snippet_with_search_request() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_partial_source_search_request"

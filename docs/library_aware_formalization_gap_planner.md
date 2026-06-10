@@ -972,7 +972,10 @@ route planner can tell a fully source-backed route step from a partial lexical
 hit that still needs literature search or route repair. The route-planner
 response validator rejects using a partial source snippet as evidence for an
 unsupported primitive unless the response also emits a matching
-literature/source `search_request`. The local formal-source
+literature/source `search_request`. This check uses both snippet-level
+`target_primitives` and the enclosing informal/route primitive scope, so a
+partial snippet nested under a primitive cannot evade the check by omitting its
+own `target_primitives`. The local formal-source
 adapter can then
 replace
 `lean_library_grounding` rows with real declaration-search evidence from the
