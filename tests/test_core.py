@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import signal
 import shutil
 import sqlite3
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -2347,6 +2349,102 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
         self.assertFalse(check.kernel_verified)
         self.assertEqual(check.verification_strength, "local_lean_placeholder_rejected")
         self.assertIn("candidate still contains sorry", check.errors)
+
+    def test_local_lean_batch_timeout_returns_timeout_rows_without_fallback(self) -> None:
+        class HangingProcess:
+            pid = 12345
+            returncode = None
+
+            async def communicate(self):
+                await asyncio.sleep(3600)
+                return b"", b""
+
+            async def wait(self):
+                self.returncode = -15
+                return self.returncode
+
+        async def run(project_root: Path):
+            create_calls = []
+            killpg_calls = []
+
+            async def fake_create(*args, **kwargs):
+                create_calls.append((args, kwargs))
+                return HangingProcess()
+
+            with (
+                patch("ai_statistician.verifier.shutil.which", return_value="/usr/bin/lake"),
+                patch("ai_statistician.verifier.asyncio.create_subprocess_exec", new=fake_create),
+                patch(
+                    "ai_statistician.verifier.os.killpg",
+                    side_effect=lambda pid, sig: killpg_calls.append((pid, sig)),
+                ),
+            ):
+                verifier = LocalLeanProofVerifier(project_root=project_root, timeout_s=0)
+                first = get_obligation("prob_measure_univ")
+                second = get_obligation("prob_compl")
+                checks = await verifier.verify_many(
+                    [
+                        (first, first.proof_body, []),
+                        (second, second.proof_body, []),
+                    ]
+                )
+                return checks, create_calls, killpg_calls
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root = Path(tmp)
+            (project_root / "lakefile.toml").write_text("name = \"timeout-test\"\n", encoding="utf-8")
+            checks, create_calls, killpg_calls = asyncio.run(run(project_root))
+
+        self.assertEqual(len(create_calls), 1)
+        self.assertTrue(create_calls[0][1]["start_new_session"])
+        self.assertEqual(killpg_calls, [(12345, signal.SIGTERM)])
+        self.assertEqual([check.verification_strength for check in checks], ["local_lean_timeout"] * 2)
+        self.assertFalse(any(check.ok for check in checks))
+        self.assertFalse(any(check.kernel_verified for check in checks))
+        self.assertIn("batch verification timed out", checks[0].errors[0])
+
+    def test_local_lean_single_timeout_terminates_process_group(self) -> None:
+        class HangingProcess:
+            pid = 23456
+            returncode = None
+
+            async def communicate(self):
+                await asyncio.sleep(3600)
+                return b"", b""
+
+            async def wait(self):
+                self.returncode = -15
+                return self.returncode
+
+        async def run(project_root: Path):
+            killpg_calls = []
+
+            async def fake_create(*args, **kwargs):
+                return HangingProcess()
+
+            with (
+                patch("ai_statistician.verifier.shutil.which", return_value="/usr/bin/lake"),
+                patch("ai_statistician.verifier.asyncio.create_subprocess_exec", new=fake_create),
+                patch(
+                    "ai_statistician.verifier.os.killpg",
+                    side_effect=lambda pid, sig: killpg_calls.append((pid, sig)),
+                ),
+            ):
+                verifier = LocalLeanProofVerifier(project_root=project_root, timeout_s=0)
+                obligation = get_obligation("prob_measure_univ")
+                check = await verifier.verify(obligation, obligation.proof_body, [])
+                return check, killpg_calls
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project_root = Path(tmp)
+            (project_root / "lakefile.toml").write_text("name = \"timeout-test\"\n", encoding="utf-8")
+            check, killpg_calls = asyncio.run(run(project_root))
+
+        self.assertEqual(killpg_calls, [(23456, signal.SIGTERM)])
+        self.assertFalse(check.ok)
+        self.assertFalse(check.kernel_verified)
+        self.assertEqual(check.verification_strength, "local_lean_timeout")
+        self.assertIn("verification timed out", check.errors[0])
 
     def test_stat_claim_certificate_checker_audit_mock_contract(self) -> None:
         async def run():

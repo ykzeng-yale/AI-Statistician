@@ -6,6 +6,7 @@ import copy
 import os
 import re
 import shutil
+import signal
 import tempfile
 import time
 from dataclasses import dataclass
@@ -168,6 +169,20 @@ class AxleProofVerifier:
         )
 
 
+async def _terminate_process_tree(proc: asyncio.subprocess.Process | None) -> None:
+    if proc is None or proc.returncode is not None:
+        return
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(proc.pid, signal.SIGTERM)
+    with contextlib.suppress(Exception):
+        await asyncio.wait_for(proc.wait(), timeout=2)
+        return
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(proc.pid, signal.SIGKILL)
+    with contextlib.suppress(Exception):
+        await proc.wait()
+
+
 class LocalLeanProofVerifier:
     """Local `lake env lean` verifier for Mathlib-backed proof-bank checks.
 
@@ -231,15 +246,24 @@ class LocalLeanProofVerifier:
                     cwd=str(self.project_root),
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
+                    start_new_session=True,
                 )
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=self.timeout_s)
             except asyncio.TimeoutError:
-                with contextlib.suppress(Exception):
-                    if proc is not None:
-                        proc.kill()
-                        await proc.wait()
+                await _terminate_process_tree(proc)
+                elapsed_ms = int((time.perf_counter() - start) * 1000)
                 return [
-                    await self.verify(obligation, proof_body, retrieval_hits)
+                    ProofCheck(
+                        obligation_id=obligation.id,
+                        ok=False,
+                        proof_body=proof_body,
+                        verifier=self.name,
+                        verification_strength="local_lean_timeout",
+                        kernel_verified=False,
+                        elapsed_ms=elapsed_ms,
+                        errors=[f"local Lean batch verification timed out after {self.timeout_s}s"],
+                        retrieval_hits=retrieval_hits,
+                    )
                     for obligation, proof_body, retrieval_hits in items
                 ]
             except Exception:
@@ -329,13 +353,11 @@ class LocalLeanProofVerifier:
                     cwd=str(self.project_root),
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
+                    start_new_session=True,
                 )
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=self.timeout_s)
             except asyncio.TimeoutError:
-                with contextlib.suppress(Exception):
-                    if proc is not None:
-                        proc.kill()
-                        await proc.wait()
+                await _terminate_process_tree(proc)
                 errors = [f"local Lean verification timed out after {self.timeout_s}s"]
                 return ProofCheck(
                     obligation_id=obligation.id,
