@@ -182,7 +182,29 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "unaligned_primitives": [],
         "standalone_route_id": route_id,
         "next_commands": [
-            "formalization-gap-planner-standalone-plan --input formalization_gap_planner_route_replan_standalone_seed.json"
+            "formalization-gap-planner-standalone-plan --input formalization_gap_planner_route_replan_standalone_seed.json",
+            "formalization-gap-planner-component-resource-registry --out <formalization_gap_planner_component_resource_registry_dir>",
+            (
+                "formalization-gap-planner-llm-route-planner "
+                "--input formalization_gap_planner_route_replan_standalone_seed.json "
+                "--provider anthropic --model-tier auto --max-repair-attempts 1 "
+                "--formalization-gap-planner-route-revision-overlay-dir "
+                "<formalization_gap_planner_route_revision_overlay_dir> "
+                "--formalization-gap-planner-component-resource-registry-dir "
+                "<formalization_gap_planner_component_resource_registry_dir> "
+                "--out <formalization_gap_planner_route_replan_llm_route_planner_prompt_dir>"
+            ),
+            (
+                "formalization-gap-planner-llm-route-planner "
+                "--input formalization_gap_planner_route_replan_standalone_seed.json "
+                "--provider anthropic --model-tier auto --max-repair-attempts 1 "
+                "--formalization-gap-planner-route-revision-overlay-dir "
+                "<formalization_gap_planner_route_revision_overlay_dir> "
+                "--formalization-gap-planner-component-resource-registry-dir "
+                "<formalization_gap_planner_component_resource_registry_dir> "
+                "--invoke-provider "
+                "--out <formalization_gap_planner_route_replan_llm_route_planner_live_dir>"
+            ),
         ],
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
@@ -258,6 +280,8 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "roundtrip_alignment_edges" in ok_checks
     assert "roundtrip_alignment_contract" in ok_checks
     assert "roundtrip_standalone_input_trace" in ok_checks
+    assert "row_0_next_llm_prompt_command" in ok_checks
+    assert "row_0_next_llm_live_command" in ok_checks
     assert "row_0_seed_route_alignment_metadata" in ok_checks
     assert "row_0_seed_route_revised_dags" in ok_checks
     assert "row_0_seed_route_provenance_metadata" in ok_checks

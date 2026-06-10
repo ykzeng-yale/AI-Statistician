@@ -2502,7 +2502,29 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "standalone_route_id": "replan_route:rank_uniformity",
         "standalone_route": {"route_id": "replan_route:rank_uniformity"},
         "next_commands": [
-            "formalization-gap-planner-standalone-plan --input formalization_gap_planner_route_replan_standalone_seed.json"
+            "formalization-gap-planner-standalone-plan --input formalization_gap_planner_route_replan_standalone_seed.json",
+            "formalization-gap-planner-component-resource-registry --out <formalization_gap_planner_component_resource_registry_dir>",
+            (
+                "formalization-gap-planner-llm-route-planner "
+                "--input formalization_gap_planner_route_replan_standalone_seed.json "
+                "--provider anthropic --model-tier auto --max-repair-attempts 1 "
+                "--formalization-gap-planner-route-revision-overlay-dir "
+                "<formalization_gap_planner_route_revision_overlay_dir> "
+                "--formalization-gap-planner-component-resource-registry-dir "
+                "<formalization_gap_planner_component_resource_registry_dir> "
+                "--out <formalization_gap_planner_route_replan_llm_route_planner_prompt_dir>"
+            ),
+            (
+                "formalization-gap-planner-llm-route-planner "
+                "--input formalization_gap_planner_route_replan_standalone_seed.json "
+                "--provider anthropic --model-tier auto --max-repair-attempts 1 "
+                "--formalization-gap-planner-route-revision-overlay-dir "
+                "<formalization_gap_planner_route_revision_overlay_dir> "
+                "--formalization-gap-planner-component-resource-registry-dir "
+                "<formalization_gap_planner_component_resource_registry_dir> "
+                "--invoke-provider "
+                "--out <formalization_gap_planner_route_replan_llm_route_planner_live_dir>"
+            ),
         ],
         "proof_evidence_status": "FORMALIZATION_GAP_PLANNER_ROUTE_REPLAN_HANDOFF_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": "not theorem proof evidence",

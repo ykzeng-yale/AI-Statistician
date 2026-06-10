@@ -543,6 +543,24 @@ def _row_checks(
         )
         checks.append(
             _check(
+                f"row_{idx}_next_llm_prompt_command",
+                "rows",
+                "prompt-only LLM route-planner command preserves replan context",
+                _next_llm_command_observed(row, invoke_provider=False),
+                _next_llm_command_ok(row, invoke_provider=False),
+            )
+        )
+        checks.append(
+            _check(
+                f"row_{idx}_next_llm_live_command",
+                "rows",
+                "explicit live LLM route-planner command preserves replan context",
+                _next_llm_command_observed(row, invoke_provider=True),
+                _next_llm_command_ok(row, invoke_provider=True),
+            )
+        )
+        checks.append(
+            _check(
                 f"row_{idx}_proof_status",
                 "proof_boundary",
                 "row not proof evidence status",
@@ -672,6 +690,44 @@ def _replan_observed(row: dict[str, Any]) -> str:
         f"delta={len(row.get('added_delta_primitives', []))} "
         f"residual={len(row.get('residual_goals', []))}"
     )
+
+
+def _next_llm_command_ok(row: dict[str, Any], *, invoke_provider: bool) -> bool:
+    command = _next_llm_command(row, invoke_provider=invoke_provider)
+    if not command:
+        return False
+    required_fragments = (
+        "formalization-gap-planner-llm-route-planner",
+        "--input formalization_gap_planner_route_replan_standalone_seed.json",
+        "--provider anthropic",
+        "--model-tier auto",
+        "--max-repair-attempts 1",
+        "--formalization-gap-planner-route-revision-overlay-dir",
+        "--formalization-gap-planner-component-resource-registry-dir",
+    )
+    if not all(fragment in command for fragment in required_fragments):
+        return False
+    has_invoke = "--invoke-provider" in command
+    return has_invoke if invoke_provider else not has_invoke
+
+
+def _next_llm_command_observed(row: dict[str, Any], *, invoke_provider: bool) -> str:
+    command = _next_llm_command(row, invoke_provider=invoke_provider)
+    if not command:
+        mode = "live" if invoke_provider else "prompt"
+        return f"{mode} command missing"
+    return command
+
+
+def _next_llm_command(row: dict[str, Any], *, invoke_provider: bool) -> str:
+    commands = [str(command) for command in row.get("next_commands", [])]
+    for command in commands:
+        if "formalization-gap-planner-llm-route-planner" not in command:
+            continue
+        has_invoke = "--invoke-provider" in command
+        if has_invoke == invoke_provider:
+            return command
+    return ""
 
 
 def _roundtrip_summary(payload: dict[str, Any]) -> dict[str, object]:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -144,6 +145,9 @@ def export_formalization_gap_planner_route_replan_handoff(
             overlay_row,
             _first_match(overlay_row, plan_index),
             _first_match(overlay_row, stability_index),
+            route_revision_overlay_dir=(
+                formalization_gap_planner_route_revision_overlay_dir
+            ),
         )
         for overlay_row in overlay_rows
     ]
@@ -503,6 +507,8 @@ def _handoff_row(
     overlay_row: dict[str, Any],
     plan_row: dict[str, Any] | None,
     stability_row: dict[str, Any] | None,
+    *,
+    route_revision_overlay_dir: Path,
 ) -> FormalizationGapPlannerRouteReplanHandoffRow:
     errors: list[str] = []
     plan_row = plan_row or {}
@@ -677,16 +683,53 @@ def _handoff_row(
         unaligned_primitives=unaligned_primitives,
         standalone_route_id=standalone_route_id,
         standalone_route=standalone_route,
-        next_commands=(
-            "formalization-gap-planner-standalone-plan --input formalization_gap_planner_route_replan_standalone_seed.json",
-            "formalization-gap-planner-portable-plan-audit --goal-conditioned-minimal-formalization-plan-dir <new_plan_dir>",
-            "formalization-gap-planner-minimal-delta-audit --goal-conditioned-minimal-formalization-plan-dir <new_plan_dir>",
-            "formalization-gap-planner-refinement-queue --goal-conditioned-minimal-formalization-plan-dir <new_plan_dir>",
-        ),
+        next_commands=_next_commands(route_revision_overlay_dir),
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
         proof_evidence_boundary=PROOF_EVIDENCE_BOUNDARY,
         ok=not errors,
         errors=tuple(errors),
+    )
+
+
+def _next_commands(route_revision_overlay_dir: Path) -> tuple[str, ...]:
+    seed_path = "formalization_gap_planner_route_replan_standalone_seed.json"
+    registry_dir = "<formalization_gap_planner_component_resource_registry_dir>"
+    overlay_arg = shlex.quote(str(route_revision_overlay_dir))
+    common_llm_args = (
+        f"--input {seed_path} --provider anthropic --model-tier auto "
+        "--max-repair-attempts 1 "
+        f"--formalization-gap-planner-route-revision-overlay-dir {overlay_arg} "
+        "--formalization-gap-planner-component-resource-registry-dir "
+        f"{registry_dir}"
+    )
+    return (
+        f"formalization-gap-planner-standalone-plan --input {seed_path}",
+        (
+            "formalization-gap-planner-component-resource-registry "
+            f"--out {registry_dir}"
+        ),
+        (
+            "formalization-gap-planner-llm-route-planner "
+            f"{common_llm_args} "
+            "--out <formalization_gap_planner_route_replan_llm_route_planner_prompt_dir>"
+        ),
+        (
+            "formalization-gap-planner-llm-route-planner "
+            f"{common_llm_args} --invoke-provider "
+            "--out <formalization_gap_planner_route_replan_llm_route_planner_live_dir>"
+        ),
+        (
+            "formalization-gap-planner-portable-plan-audit "
+            "--goal-conditioned-minimal-formalization-plan-dir <new_plan_dir>"
+        ),
+        (
+            "formalization-gap-planner-minimal-delta-audit "
+            "--goal-conditioned-minimal-formalization-plan-dir <new_plan_dir>"
+        ),
+        (
+            "formalization-gap-planner-refinement-queue "
+            "--goal-conditioned-minimal-formalization-plan-dir <new_plan_dir>"
+        ),
     )
 
 

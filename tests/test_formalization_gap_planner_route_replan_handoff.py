@@ -235,6 +235,22 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     row = payload["rows"][0]
     assert row["requires_replan"]
     assert row["stability_decision"] == "APPLY_ROUTE_REVISION_AND_REPLAN"
+    next_commands = "\n".join(row["next_commands"])
+    assert "formalization-gap-planner-llm-route-planner" in next_commands
+    assert "--provider anthropic" in next_commands
+    assert "--model-tier auto" in next_commands
+    assert "--max-repair-attempts 1" in next_commands
+    assert "--formalization-gap-planner-route-revision-overlay-dir" in next_commands
+    assert str(overlay_dir) in next_commands
+    assert "--formalization-gap-planner-component-resource-registry-dir" in next_commands
+    llm_commands = [
+        command
+        for command in row["next_commands"]
+        if "formalization-gap-planner-llm-route-planner" in command
+    ]
+    assert len(llm_commands) == 2
+    assert any("--invoke-provider" not in command for command in llm_commands)
+    assert any("--invoke-provider" in command for command in llm_commands)
     assert row["applied_hook_kinds"] == ("resource_response_ledger",)
     assert row["applied_refinement_evidence_ids"] == (
         "resource_response_ledger:conditional_rank_argument",
