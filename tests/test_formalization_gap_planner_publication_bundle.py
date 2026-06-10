@@ -882,6 +882,9 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "llm_route_planner_model_selection_rationale": "",
         "llm_route_planner_has_generator_metadata": False,
         "llm_route_planner_generator_metadata_keys": [],
+        "llm_route_planner_request_contract_blocked": False,
+        "llm_route_planner_errors": [],
+        "llm_route_planner_generation_errors": [],
         "quality_controls_present": False,
         "quality_controls": {},
         "quality_control_fields": [],
@@ -908,6 +911,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
                 "bundled_ground_truth_filename": (
                     "formalization_gap_planner_evaluation_ground_truth.json"
                 ),
+                "n_rows_with_llm_route_planner_request_contract_blocked": 0,
+                "n_rows_with_llm_route_planner_errors": 0,
+                "n_llm_route_planner_errors": 0,
+                "n_llm_route_planner_generation_errors": 0,
                 "all_ok": True,
                 "proof_evidence_boundary": "not theorem proof evidence",
                 "rows": [evaluation_row],

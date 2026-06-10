@@ -5238,6 +5238,35 @@ def test_llm_route_planner_preflight_blocks_live_provider_on_model_tier_mismatch
     assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_REQUEST_CONTRACT"
     assert row["route_adoption_status"] == "REJECTED_LLM_ROUTE_PLAN"
     assert "response_not_accepted" in row["route_adoption_blockers"]
+    seed_route = payload["standalone_seed"]["routes"][0]
+    seed_metadata = seed_route["replan_metadata"]
+    assert seed_route["llm_route_planner_acceptance_status"] == (
+        "REJECTED_LLM_ROUTE_PLANNER_REQUEST_CONTRACT"
+    )
+    assert seed_route["llm_route_planner_route_adoption_status"] == (
+        "REJECTED_LLM_ROUTE_PLAN"
+    )
+    assert seed_metadata["llm_route_planner_request_contract_blocked"] is True
+    assert any(
+        "expected Claude haiku tier" in error
+        for error in seed_metadata["llm_route_planner_errors"]
+    )
+
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        root / "standalone_plan",
+    )
+    assert plan_payload[
+        "n_standalone_input_traces_with_llm_route_planner_metadata"
+    ] == 1
+    assert plan_payload[
+        "n_standalone_input_traces_with_llm_request_contract_blocked"
+    ] == 1
+    plan_trace = plan_payload["rows"][0]["standalone_input_trace"]
+    assert plan_trace["llm_route_planner_request_contract_blocked"] is True
+    assert plan_trace["llm_route_planner_route_adoption_status"] == (
+        "REJECTED_LLM_ROUTE_PLAN"
+    )
 
 
 def test_llm_route_planner_rejects_outside_cost_tier_model_for_tier_request() -> None:

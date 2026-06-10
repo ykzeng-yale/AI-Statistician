@@ -1609,6 +1609,12 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "goal_plan_standalone_input_trace_by_llm_route_adoption_status": (
+            plan_payload.get(
+                "standalone_input_trace_by_llm_route_adoption_status",
+                {},
+            )
+        ),
         "n_goal_plan_standalone_input_traces_ready_for_route_adoption": (
             plan_payload.get(
                 "n_standalone_input_traces_ready_for_route_adoption",
@@ -2981,6 +2987,22 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_evaluation_rows_with_llm_route_planner_generator_metadata": evaluation_payload.get(
             "n_rows_with_llm_route_planner_generator_metadata",
+            0,
+        ),
+        "n_evaluation_rows_with_llm_route_planner_request_contract_blocked": evaluation_payload.get(
+            "n_rows_with_llm_route_planner_request_contract_blocked",
+            0,
+        ),
+        "n_evaluation_rows_with_llm_route_planner_errors": evaluation_payload.get(
+            "n_rows_with_llm_route_planner_errors",
+            0,
+        ),
+        "n_evaluation_llm_route_planner_errors": evaluation_payload.get(
+            "n_llm_route_planner_errors",
+            0,
+        ),
+        "n_evaluation_llm_route_planner_generation_errors": evaluation_payload.get(
+            "n_llm_route_planner_generation_errors",
             0,
         ),
         "evaluation_by_llm_model_tier": evaluation_payload.get(
@@ -5355,7 +5377,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata')}/"
             f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_model_tier')}/"
             f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_generator_metadata')} "
-            f"tiers={payload.get('goal_plan_standalone_input_trace_by_llm_model_tier')}"
+            f"tiers={payload.get('goal_plan_standalone_input_trace_by_llm_model_tier')} "
+            f"adoption={payload.get('goal_plan_standalone_input_trace_by_llm_route_adoption_status')}"
         ),
         (
             f"- Goal-plan LLM route-adoption ready/pending/blockers: "
@@ -5677,6 +5700,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_evaluation_rows_with_llm_route_planner_trace')}/"
             f"{payload.get('n_evaluation_rows_with_llm_route_planner_model_tier')}/"
             f"{payload.get('n_evaluation_rows_with_llm_route_planner_generator_metadata')} "
+            f"request_blocks={payload.get('n_evaluation_rows_with_llm_route_planner_request_contract_blocked')} "
+            f"errors={payload.get('n_evaluation_llm_route_planner_errors')} "
             f"tiers={payload.get('evaluation_by_llm_model_tier')}"
         ),
         (

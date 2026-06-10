@@ -264,6 +264,26 @@ def export_formalization_gap_planner_standalone_plan(
                 "llm_route_planner_has_generator_metadata"
             )
         ),
+        "n_standalone_input_traces_with_llm_request_contract_blocked": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "llm_route_planner_request_contract_blocked"
+            )
+        ),
+        "n_standalone_input_traces_with_llm_route_planner_errors": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get("llm_route_planner_errors")
+        ),
+        "n_standalone_input_trace_llm_route_planner_errors": sum(
+            len(row.standalone_input_trace.get("llm_route_planner_errors", []))
+            for row in rows
+        ),
+        "n_standalone_input_trace_llm_generation_errors": sum(
+            len(row.standalone_input_trace.get("llm_route_planner_generation_errors", []))
+            for row in rows
+        ),
         "standalone_input_trace_by_llm_route_adoption_status": dict(
             sorted(by_llm_route_adoption_status.items())
         ),
@@ -1141,6 +1161,15 @@ def _standalone_input_trace(
             metadata.get("llm_route_planner_generator_metadata_keys", [])
         ),
         "llm_route_planner_has_generator_metadata": bool(llm_generator_metadata),
+        "llm_route_planner_errors": _str_list(
+            metadata.get("llm_route_planner_errors", [])
+        ),
+        "llm_route_planner_generation_errors": _str_list(
+            metadata.get("llm_route_planner_generation_errors", [])
+        ),
+        "llm_route_planner_request_contract_blocked": bool(
+            metadata.get("llm_route_planner_request_contract_blocked", False)
+        ),
         "applied_proposal_ids": _str_list(metadata.get("applied_proposal_ids", [])),
         "applied_refinement_evidence_ids": _str_list(
             metadata.get("applied_refinement_evidence_ids", [])

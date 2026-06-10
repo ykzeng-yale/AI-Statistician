@@ -8845,7 +8845,7 @@ def _standalone_seed(
         for row in rows
         if row.response_contract_ok and row.standalone_route
     ]
-    routes = accepted_routes or [dict(route) for route in _routes(input_payload)]
+    routes = accepted_routes or _fallback_routes_for_seed(input_payload, rows)
     seed: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
         "component_name": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
@@ -8859,6 +8859,68 @@ def _standalone_seed(
     if seed_target:
         seed["target_prover_family"] = seed_target
     return seed
+
+
+def _fallback_routes_for_seed(
+    input_payload: Mapping[str, Any],
+    rows: tuple[FormalizationGapPlannerLLMRoutePlannerRow, ...],
+) -> list[dict[str, object]]:
+    rows_by_route_id = {row.route_id: row for row in rows if row.route_id}
+    routes: list[dict[str, object]] = []
+    for route in _routes(input_payload):
+        row = rows_by_route_id.get(str(route.get("route_id", "")))
+        if row is None:
+            routes.append(dict(route))
+            continue
+        routes.append(_fallback_route_for_seed(route, row))
+    return routes
+
+
+def _fallback_route_for_seed(
+    route: Mapping[str, Any],
+    row: FormalizationGapPlannerLLMRoutePlannerRow,
+) -> dict[str, object]:
+    fallback = dict(route)
+    metadata = _dict_value(fallback, "replan_metadata")
+    metadata = {
+        **metadata,
+        "source_route_id": str(metadata.get("source_route_id", row.route_id)),
+        "llm_route_planner_row_id": row.llm_route_planner_row_id,
+        "llm_route_planner_request_id": row.request_id,
+        "llm_route_planner_provider": row.provider_name,
+        "llm_route_planner_model": row.model,
+        "llm_route_planner_model_tier": row.model_tier,
+        "llm_route_planner_model_selection_rationale": (
+            row.model_selection_rationale
+        ),
+        "llm_route_planner_generator_metadata": dict(row.generator_metadata),
+        "llm_route_planner_generator_metadata_keys": sorted(
+            str(key) for key in row.generator_metadata
+        ),
+        "target_prover_family": row.target_prover_family,
+        "llm_route_planner_acceptance_status": row.acceptance_status,
+        "llm_route_planner_route_adoption_status": row.route_adoption_status,
+        "llm_route_planner_route_adoption_blockers": list(
+            row.route_adoption_blockers
+        ),
+        "llm_route_planner_errors": list(row.errors),
+        "llm_route_planner_generation_errors": list(row.generation_errors),
+        "llm_route_planner_request_contract_blocked": (
+            row.acceptance_status
+            == "REJECTED_LLM_ROUTE_PLANNER_REQUEST_CONTRACT"
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+    fallback["target_prover_family"] = row.target_prover_family
+    fallback["replan_metadata"] = metadata
+    fallback["llm_route_planner_row_id"] = row.llm_route_planner_row_id
+    fallback["llm_route_planner_acceptance_status"] = row.acceptance_status
+    fallback["llm_route_planner_route_adoption_status"] = row.route_adoption_status
+    fallback["llm_route_planner_route_adoption_blockers"] = list(
+        row.route_adoption_blockers
+    )
+    return fallback
 
 
 def _accepted_route_for_seed(
@@ -8993,6 +9055,12 @@ def _accepted_route_for_seed(
         ],
         "llm_route_planner_minimal_delta_plan": dict(row.minimal_delta_plan),
         "llm_route_planner_realization_coverage_witness": realization_coverage_witness,
+        "llm_route_planner_errors": list(row.errors),
+        "llm_route_planner_generation_errors": list(row.generation_errors),
+        "llm_route_planner_request_contract_blocked": (
+            row.acceptance_status
+            == "REJECTED_LLM_ROUTE_PLANNER_REQUEST_CONTRACT"
+        ),
         "minimal_delta_and_or_cost_graph": dict(and_or_cost_graph),
         "applied_hook_kinds": list(applied_hook_kinds),
         "applied_proposal_ids": list(applied_proposal_ids),

@@ -132,6 +132,13 @@ prove kernel verification. The public planner path records
 `*_provider_execution_mode`, live-call counters, and generation preflight block
 counts/errors so staged packets are distinguishable from paid provider calls
 and schema/model-tier-invalid requests are visible before any live Claude call.
+If no LLM response is accepted, the emitted standalone seed falls back to the
+original route content but still records route-level LLM provenance:
+row/request id, provider/model/tier, acceptance status, route-adoption status,
+blockers, request-contract block flag, and provider/generation errors. This
+keeps staged, awaiting, preflight-blocked, and provider-failed planner attempts
+visible to standalone-plan, evaluation, reuse-smoke, and publication-bundle
+artifacts without treating them as accepted route synthesis.
 For live
 AI Statistician development, the default LLM runtime is Anthropic Claude API:
 Sonnet 4.6 for theorem understanding, route planning, theory repair, and

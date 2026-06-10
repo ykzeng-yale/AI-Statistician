@@ -104,6 +104,9 @@ class FormalizationGapPlannerEvaluationRow:
     llm_route_planner_model_selection_rationale: str
     llm_route_planner_has_generator_metadata: bool
     llm_route_planner_generator_metadata_keys: tuple[str, ...]
+    llm_route_planner_request_contract_blocked: bool
+    llm_route_planner_errors: tuple[str, ...]
+    llm_route_planner_generation_errors: tuple[str, ...]
     quality_controls_present: bool
     quality_controls: dict[str, tuple[str, ...]]
     quality_control_fields: tuple[str, ...]
@@ -307,6 +310,20 @@ def evaluate_formalization_gap_planner(
             1
             for row in evaluation_rows
             if row.llm_route_planner_has_generator_metadata
+        ),
+        "n_rows_with_llm_route_planner_request_contract_blocked": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_request_contract_blocked
+        ),
+        "n_rows_with_llm_route_planner_errors": sum(
+            1 for row in evaluation_rows if row.llm_route_planner_errors
+        ),
+        "n_llm_route_planner_errors": sum(
+            len(row.llm_route_planner_errors) for row in evaluation_rows
+        ),
+        "n_llm_route_planner_generation_errors": sum(
+            len(row.llm_route_planner_generation_errors) for row in evaluation_rows
         ),
         "evaluation_by_llm_model_tier": by_llm_model_tier,
         "n_rows_with_quality_controls": sum(
@@ -526,6 +543,9 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "llm_route_planner_model_selection_rationale",
             "llm_route_planner_has_generator_metadata",
             "llm_route_planner_generator_metadata_keys",
+            "llm_route_planner_request_contract_blocked",
+            "llm_route_planner_errors",
+            "llm_route_planner_generation_errors",
             "quality_controls_present",
             "quality_controls",
             "quality_control_fields",
@@ -608,6 +628,9 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "llm_route_planner_model_selection_rationale": {"type": "string"},
             "llm_route_planner_has_generator_metadata": {"type": "boolean"},
             "llm_route_planner_generator_metadata_keys": string_array,
+            "llm_route_planner_request_contract_blocked": {"type": "boolean"},
+            "llm_route_planner_errors": string_array,
+            "llm_route_planner_generation_errors": string_array,
             "quality_controls_present": {"type": "boolean"},
             "quality_controls": {"type": "object"},
             "quality_control_fields": string_array,
@@ -824,6 +847,13 @@ def _evaluate_row(
         ),
         llm_route_planner_generator_metadata_keys=_str_tuple(
             llm_trace["generator_metadata_keys"]
+        ),
+        llm_route_planner_request_contract_blocked=bool(
+            llm_trace["request_contract_blocked"]
+        ),
+        llm_route_planner_errors=_str_tuple(llm_trace["errors"]),
+        llm_route_planner_generation_errors=_str_tuple(
+            llm_trace["generation_errors"]
         ),
         quality_controls_present=bool(quality_trace["present"]),
         quality_controls=quality_trace["quality_controls"],
@@ -1231,6 +1261,13 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
             or generator_metadata
         ),
         "generator_metadata_keys": generator_keys,
+        "request_contract_blocked": bool(
+            trace.get("llm_route_planner_request_contract_blocked", False)
+        ),
+        "errors": _str_tuple(trace.get("llm_route_planner_errors", [])),
+        "generation_errors": _str_tuple(
+            trace.get("llm_route_planner_generation_errors", [])
+        ),
     }
 
 
@@ -1306,6 +1343,14 @@ def _llm_model_tier_summary(
             ),
             "n_rows_with_generator_metadata": sum(
                 1 for row in tier_rows if row.llm_route_planner_has_generator_metadata
+            ),
+            "n_rows_with_request_contract_blocked": sum(
+                1
+                for row in tier_rows
+                if row.llm_route_planner_request_contract_blocked
+            ),
+            "n_rows_with_errors": sum(
+                1 for row in tier_rows if row.llm_route_planner_errors
             ),
         }
         for tier in tiers
@@ -1666,6 +1711,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Missing delta alignment primitives: {payload.get('realization_missing_delta_alignment_primitives')}",
         f"- Omitted cost-hint primitives: {payload.get('realization_omitted_cost_hint_primitives')}",
         f"- Rows with LLM route-planner trace: {payload.get('n_rows_with_llm_route_planner_trace')}",
+        f"- Rows with LLM request-contract blocks: {payload.get('n_rows_with_llm_route_planner_request_contract_blocked')}",
+        f"- LLM route-planner errors: {payload.get('n_llm_route_planner_errors')}",
         f"- Evaluation by LLM model tier: {payload.get('evaluation_by_llm_model_tier')}",
         f"- Evaluation by LLM route adoption status: {payload.get('evaluation_by_llm_route_adoption_status')}",
         f"- LLM route adoption blockers: {payload.get('llm_route_adoption_blockers')}",

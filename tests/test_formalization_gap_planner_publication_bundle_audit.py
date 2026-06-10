@@ -930,6 +930,9 @@ def _fixture_evaluation_row() -> dict[str, object]:
         ),
         "llm_route_planner_has_generator_metadata": True,
         "llm_route_planner_generator_metadata_keys": ["retry_count"],
+        "llm_route_planner_request_contract_blocked": False,
+        "llm_route_planner_errors": [],
+        "llm_route_planner_generation_errors": [],
         "quality_controls_present": True,
         "quality_controls": {
             "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
@@ -1658,6 +1661,10 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                         "mean_delta_precision": 1.0,
                     }
                 },
+                "n_rows_with_llm_route_planner_request_contract_blocked": 0,
+                "n_rows_with_llm_route_planner_errors": 0,
+                "n_llm_route_planner_errors": 0,
+                "n_llm_route_planner_generation_errors": 0,
                 "n_rows_with_quality_controls": 1,
                 "n_quality_control_fields": 4,
                 "quality_control_fields": [

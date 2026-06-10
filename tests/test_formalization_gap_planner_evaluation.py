@@ -406,6 +406,10 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         }
     }
     assert payload["n_rows_with_llm_route_planner_generator_metadata"] == 1
+    assert payload["n_rows_with_llm_route_planner_request_contract_blocked"] == 0
+    assert payload["n_rows_with_llm_route_planner_errors"] == 0
+    assert payload["n_llm_route_planner_errors"] == 0
+    assert payload["n_llm_route_planner_generation_errors"] == 0
     assert payload["evaluation_by_llm_model_tier"] == {
         "sonnet": {
             "n_rows": 1,
@@ -415,6 +419,8 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "mean_delta_precision": 1.0,
             "mean_alignment_coverage": 1.0,
             "n_rows_with_generator_metadata": 1,
+            "n_rows_with_request_contract_blocked": 0,
+            "n_rows_with_errors": 0,
         }
     }
     assert payload["n_rows_with_quality_controls"] == 1
@@ -486,6 +492,9 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         "generator_only",
         "retry_count",
     )
+    assert row["llm_route_planner_request_contract_blocked"] is False
+    assert row["llm_route_planner_errors"] == ()
+    assert row["llm_route_planner_generation_errors"] == ()
     assert row["quality_controls_present"] is True
     assert row["quality_controls"] == expected_quality_controls
     assert row["quality_control_fields"] == tuple(sorted(expected_quality_controls))

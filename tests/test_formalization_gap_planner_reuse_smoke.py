@@ -302,10 +302,15 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         payload[
             "n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata"
         ]
-        == 0
+        == 1
     )
-    assert payload["n_goal_plan_standalone_input_traces_with_llm_model_tier"] == 0
-    assert payload["goal_plan_standalone_input_trace_by_llm_model_tier"] == {}
+    assert payload["n_goal_plan_standalone_input_traces_with_llm_model_tier"] == 1
+    assert payload["goal_plan_standalone_input_trace_by_llm_model_tier"] == {
+        "sonnet": 1
+    }
+    assert payload["goal_plan_standalone_input_trace_by_llm_route_adoption_status"] == {
+        "AWAITING_LLM_ROUTE_PLANNER_RESPONSE": 1
+    }
     assert (
         payload[
             "n_goal_plan_standalone_input_traces_with_llm_generator_metadata"
@@ -1129,10 +1134,36 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["evaluation_realization_cost_hint_baseline_primitives"] == ()
     assert payload["evaluation_realization_omitted_cost_hint_primitives"] == ()
     assert payload["evaluation_realization_missing_primitives_by_route"] == ()
-    assert payload["n_evaluation_rows_with_llm_route_planner_trace"] == 0
-    assert payload["n_evaluation_rows_with_llm_route_planner_model_tier"] == 0
+    assert payload["n_evaluation_rows_with_llm_route_planner_trace"] == 1
+    assert payload["n_evaluation_rows_with_llm_route_planner_model_tier"] == 1
     assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 0
-    assert payload["evaluation_by_llm_model_tier"] == {}
+    assert payload["n_evaluation_rows_with_llm_route_planner_request_contract_blocked"] == 0
+    assert payload["n_evaluation_rows_with_llm_route_planner_errors"] == 0
+    assert payload["n_evaluation_llm_route_planner_errors"] == 0
+    assert payload["n_evaluation_llm_route_planner_generation_errors"] == 0
+    assert payload["evaluation_by_llm_model_tier"] == {
+        "sonnet": {
+            "n_rows": 1,
+            "n_ok": 1,
+            "n_matched_ground_truth": 1,
+            "mean_route_recall": 1.0,
+            "mean_delta_precision": 1.0,
+            "mean_alignment_coverage": 1.0,
+            "n_rows_with_generator_metadata": 0,
+            "n_rows_with_request_contract_blocked": 0,
+            "n_rows_with_errors": 0,
+        }
+    }
+    assert payload["evaluation_by_llm_route_adoption_status"] == {
+        "AWAITING_LLM_ROUTE_PLANNER_RESPONSE": {
+            "n_rows": 1,
+            "n_ok": 1,
+            "n_matched_ground_truth": 1,
+            "n_route_adoption_blockers": 1,
+            "mean_route_recall": 1.0,
+            "mean_delta_precision": 1.0,
+        }
+    }
     assert payload["mean_evaluation_route_recall"] == 1.0
     assert payload["mean_evaluation_alignment_coverage"] == 1.0
     assert (
@@ -2716,16 +2747,40 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
         payload[
             "n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata"
         ]
-        == 0
+        == 1
     )
-    assert payload["n_goal_plan_standalone_input_traces_with_llm_model_tier"] == 0
-    assert payload["goal_plan_standalone_input_trace_by_llm_model_tier"] == {}
+    assert payload["n_goal_plan_standalone_input_traces_with_llm_model_tier"] == 1
+    assert payload["goal_plan_standalone_input_trace_by_llm_model_tier"] == {
+        "sonnet": 1
+    }
+    assert payload["goal_plan_standalone_input_trace_by_llm_route_adoption_status"] == {
+        "REJECTED_LLM_ROUTE_PLAN": 1
+    }
     assert (
         payload[
             "n_goal_plan_standalone_input_traces_with_llm_generator_metadata"
         ]
-        == 0
+        == 1
     )
+    assert payload["n_evaluation_rows_with_llm_route_planner_trace"] == 1
+    assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 1
+    assert payload["n_evaluation_rows_with_llm_route_planner_request_contract_blocked"] == 0
+    assert payload["n_evaluation_rows_with_llm_route_planner_errors"] == 1
+    assert payload["n_evaluation_llm_route_planner_errors"] == 1
+    assert payload["n_evaluation_llm_route_planner_generation_errors"] == 1
+    assert payload["evaluation_by_llm_route_adoption_status"] == {
+        "REJECTED_LLM_ROUTE_PLAN": {
+            "n_rows": 1,
+            "n_ok": 1,
+            "n_matched_ground_truth": 1,
+            "n_route_adoption_blockers": 1,
+            "mean_route_recall": 1.0,
+            "mean_delta_precision": 1.0,
+        }
+    }
+    assert payload["evaluation_by_llm_model_tier"]["sonnet"][
+        "n_rows_with_errors"
+    ] == 1
     assert payload["n_llm_route_planner_request_packets"] == 1
     assert payload["n_llm_route_planner_response_present"] == 0
     assert payload["n_llm_route_planner_provider_failures"] == 1
