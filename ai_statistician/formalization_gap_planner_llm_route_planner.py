@@ -104,6 +104,7 @@ ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE = "realization_coverage_incomplete"
 ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES = (
     "omitted_cost_hint_primitives_require_review"
 )
+ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
 ROUTE_ADOPTION_BLOCKER_VALUES = (
     ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED,
     ROUTE_ADOPTION_BLOCKER_RESPONSE_MISSING,
@@ -118,6 +119,14 @@ ROUTE_ADOPTION_BLOCKER_VALUES = (
     ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES,
+    ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS,
+)
+QUALITY_CONTROL_FIELDS = (
+    "resource_contract_ids",
+    "required_quality_signals",
+    "quality_gates",
+    "response_validation_signals",
+    "stop_conditions",
 )
 ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID = (
     "formalization_gap_planner_route_adoption_blocker_taxonomy:1"
@@ -170,6 +179,11 @@ ROUTE_ADOPTION_BLOCKER_DEFINITIONS = {
         "The selected route omits one or more primitives from the request-bound "
         "minimal-delta cost-hint baseline and needs review before standalone "
         "route adoption."
+    ),
+    ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS: (
+        "The route carries quality-control obligations whose required gates, "
+        "signals, or stop conditions have not been discharged by admissible "
+        "resource-response or refinement evidence."
     ),
 }
 LLM_ROUTE_PLANNER_COMPONENT = "formalization_gap_planner_llm_route_planner"
@@ -1294,6 +1308,12 @@ def export_formalization_gap_planner_llm_route_planner(
             1
             for row in rows
             if ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES
+            in row.route_adoption_blockers
+        ),
+        "n_route_adoption_pending_quality_control_blockers": sum(
+            1
+            for row in rows
+            if ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS
             in row.route_adoption_blockers
         ),
         "n_route_adoption_omitted_cost_hint_primitives": sum(
@@ -3612,6 +3632,9 @@ def _row_for_request(
             minimal_delta_plan,
             request,
         ),
+        quality_control_obligations_pending=_quality_control_obligations_pending(
+            _dict_value(request, "context_packet"),
+        ),
     )
     return FormalizationGapPlannerLLMRoutePlannerRow(
         schema_version=FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
@@ -3690,6 +3713,7 @@ def _route_adoption_readiness(
     residual_interpretations: tuple[dict[str, object], ...],
     feedback_summary: Mapping[str, object],
     omitted_cost_hint_primitives: tuple[str, ...],
+    quality_control_obligations_pending: bool,
 ) -> tuple[str, tuple[str, ...]]:
     if (
         request_errors
@@ -3738,10 +3762,163 @@ def _route_adoption_readiness(
         blockers.append(ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE)
     if omitted_cost_hint_primitives:
         blockers.append(ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES)
+    if quality_control_obligations_pending:
+        blockers.append(ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS)
     blockers = list(dict.fromkeys(blockers))
     if blockers:
         return (ROUTE_ADOPTION_PENDING_STATUS, tuple(blockers))
     return (ROUTE_ADOPTION_READY_STATUS, tuple())
+
+
+def _quality_control_obligations_pending(
+    context_packet: Mapping[str, Any],
+) -> bool:
+    summary = _quality_control_obligation_summary(context_packet)
+    return bool(summary.get("pending", False))
+
+
+def _quality_control_obligation_summary(
+    context_packet: Mapping[str, Any],
+    *,
+    recommended_next_actions: tuple[dict[str, object], ...] = (),
+    include_feedback_summary: bool = True,
+) -> dict[str, object]:
+    obligations = _quality_control_obligations_for_context(
+        context_packet,
+        recommended_next_actions=recommended_next_actions,
+        include_feedback_summary=include_feedback_summary,
+    )
+    discharged = _quality_control_discharges_for_context(context_packet)
+    pending = _quality_control_difference(obligations, discharged)
+    present = any(obligations.values())
+    return {
+        "present": present,
+        "pending": any(pending.values()),
+        "discharged": present and not any(pending.values()),
+        "quality_controls": _quality_controls_to_lists(obligations),
+        "discharged_quality_controls": _quality_controls_to_lists(discharged),
+        "pending_quality_controls": _quality_controls_to_lists(pending),
+        "pending_fields": sorted(
+            field_name for field_name, values in pending.items() if values
+        ),
+        "n_pending_values": sum(len(values) for values in pending.values()),
+    }
+
+
+def _quality_control_obligations_for_context(
+    context_packet: Mapping[str, Any],
+    *,
+    recommended_next_actions: tuple[dict[str, object], ...],
+    include_feedback_summary: bool,
+) -> dict[str, tuple[str, ...]]:
+    current_route = _dict_value(context_packet, "current_route")
+    replan_metadata = _dict_value(context_packet, "replan_metadata")
+    rows: list[Mapping[str, Any]] = [
+        current_route,
+        _dict_value(current_route, "quality_controls"),
+        replan_metadata,
+        _dict_value(replan_metadata, "quality_controls"),
+    ]
+    rows.extend(_dict_tuple(context_packet.get("resource_request_queue_rows", [])))
+    rows.extend(_dict_tuple(context_packet.get("interactive_decision_policy_rows", [])))
+    rows.extend(recommended_next_actions)
+    if include_feedback_summary:
+        feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+        rows.extend(_dict_tuple(feedback_summary.get("recommended_next_actions", [])))
+        prior_replan_metadata = _dict_value(
+            feedback_summary,
+            "prior_replan_metadata",
+        )
+        rows.extend(
+            (
+                prior_replan_metadata,
+                _dict_value(prior_replan_metadata, "quality_controls"),
+            )
+        )
+    return _merge_quality_control_values(
+        *(_quality_control_values_for_row(row) for row in rows)
+    )
+
+
+def _quality_control_discharges_for_context(
+    context_packet: Mapping[str, Any],
+) -> dict[str, tuple[str, ...]]:
+    rows: list[Mapping[str, Any]] = []
+    rows.extend(
+        row
+        for row in _dict_tuple(context_packet.get("resource_response_ledger_rows", []))
+        if _resource_response_row_is_admissible_feedback(row)
+    )
+    rows.extend(
+        row
+        for row in _dict_tuple(context_packet.get("refinement_evidence_rows", []))
+        if _refinement_evidence_row_is_admissible_feedback(row)
+    )
+    return _merge_quality_control_values(
+        *(_quality_control_values_for_row(row) for row in rows)
+    )
+
+
+def _quality_control_values_for_row(
+    row: Mapping[str, Any],
+) -> dict[str, tuple[str, ...]]:
+    nested = row.get("quality_controls", {})
+    return _merge_quality_control_values(
+        _direct_quality_control_values(row),
+        _direct_quality_control_values(nested if isinstance(nested, Mapping) else {}),
+    )
+
+
+def _direct_quality_control_values(
+    row: Mapping[str, Any],
+) -> dict[str, tuple[str, ...]]:
+    controls: dict[str, tuple[str, ...]] = {}
+    for field_name in QUALITY_CONTROL_FIELDS:
+        values = _str_tuple(row.get(field_name, []))
+        if values:
+            controls[field_name] = tuple(dict.fromkeys(values))
+    return controls
+
+
+def _merge_quality_control_values(
+    *controls: Mapping[str, tuple[str, ...]],
+) -> dict[str, tuple[str, ...]]:
+    merged: dict[str, tuple[str, ...]] = {}
+    for field_name in QUALITY_CONTROL_FIELDS:
+        values: list[str] = []
+        for payload in controls:
+            values.extend(_str_tuple(payload.get(field_name, [])))
+        unique_values = tuple(dict.fromkeys(value for value in values if value))
+        if unique_values:
+            merged[field_name] = unique_values
+    return merged
+
+
+def _quality_control_difference(
+    obligations: Mapping[str, tuple[str, ...]],
+    discharged: Mapping[str, tuple[str, ...]],
+) -> dict[str, tuple[str, ...]]:
+    pending: dict[str, tuple[str, ...]] = {}
+    for field_name in QUALITY_CONTROL_FIELDS:
+        discharged_values = set(_str_tuple(discharged.get(field_name, [])))
+        missing = tuple(
+            value
+            for value in _str_tuple(obligations.get(field_name, []))
+            if value not in discharged_values
+        )
+        if missing:
+            pending[field_name] = missing
+    return pending
+
+
+def _quality_controls_to_lists(
+    controls: Mapping[str, tuple[str, ...]],
+) -> dict[str, list[str]]:
+    return {
+        field_name: list(_str_tuple(controls.get(field_name, [])))
+        for field_name in QUALITY_CONTROL_FIELDS
+        if _str_tuple(controls.get(field_name, []))
+    }
 
 
 def _response_contract_errors(
@@ -7816,7 +7993,16 @@ def _feedback_loop_summary(
         row for rows in actionable_rows_by_field.values() for row in rows
     )
     replan_metadata = _dict_value(context_packet, "replan_metadata")
-    if not residual_goals and not evidence_counts and not replan_metadata:
+    initial_quality_control_obligations = _quality_control_obligation_summary(
+        context_packet,
+        include_feedback_summary=False,
+    )
+    if (
+        not residual_goals
+        and not evidence_counts
+        and not replan_metadata
+        and not initial_quality_control_obligations.get("present")
+    ):
         return {}
 
     route_revision_reasons = _unique_strings(
@@ -7853,6 +8039,11 @@ def _feedback_loop_summary(
             _realization_feedback_next_actions(realization_coverage),
             key_fields=("source", "action", "target_primitives"),
         )
+    quality_control_obligations = _quality_control_obligation_summary(
+        context_packet,
+        recommended_next_actions=recommended_next_actions,
+        include_feedback_summary=False,
+    )
     replan_required = any(
         _truthy(row.get(field_name))
         for row in actionable_rows
@@ -7934,6 +8125,8 @@ def _feedback_loop_summary(
         summary["resource_request_playbooks"] = resource_request_playbooks[:12]
     if realization_coverage:
         summary["realization_coverage"] = realization_coverage
+    if quality_control_obligations.get("present"):
+        summary["quality_control_obligations"] = quality_control_obligations
     if replan_metadata:
         summary["prior_replan_metadata"] = {
             key: replan_metadata[key]

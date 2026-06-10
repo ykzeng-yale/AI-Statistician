@@ -4115,6 +4115,118 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
     assert trace["llm_route_planner_route_adoption_blockers"] == []
 
 
+def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_quality_control_adoption"
+    )
+    out_dir = root / "llm_route_planner_pending_quality_controls"
+    discharged_dir = root / "llm_route_planner_discharged_quality_controls"
+    response_json = root / "response.json"
+    ledger_dir = root / "resource_response_ledger"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    quality_controls = {
+        "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
+        "required_quality_signals": ["diagnostic_signature"],
+        "quality_gates": ["response_schema_valid"],
+        "response_validation_signals": [
+            "residual_goals_or_diagnostics_present"
+        ],
+        "stop_conditions": ["residual interpreted or source search requested"],
+    }
+    input_payload["routes"][0]["quality_controls"] = quality_controls
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    pending_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert pending_payload["all_ok"]
+    assert pending_payload["n_route_adoption_ready"] == 0
+    assert pending_payload["n_route_adoption_pending_refinement"] == 1
+    assert pending_payload["n_route_adoption_pending_quality_control_blockers"] == 1
+    pending_row = pending_payload["rows"][0]
+    assert pending_row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert pending_row["route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert pending_row["route_adoption_blockers"] == (
+        "quality_control_obligations_pending",
+    )
+    pending_summary = pending_payload["request_packets"][0]["context_packet"][
+        "feedback_loop_summary"
+    ]["quality_control_obligations"]
+    assert pending_summary["pending"] is True
+    assert pending_summary["pending_quality_controls"]["required_quality_signals"] == [
+        "diagnostic_signature"
+    ]
+    assert (
+        pending_payload["standalone_seed"]["routes"][0]["replan_metadata"][
+            "llm_route_planner_route_adoption_blockers"
+        ]
+        == ["quality_control_obligations_pending"]
+    )
+
+    ledger_dir.mkdir(parents=True, exist_ok=True)
+    (
+        ledger_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_resource_response_ledger",
+                "rows": [
+                    {
+                        "resource_response_ledger_id": "ledger:quality-controls",
+                        "route_id": "rank_route",
+                        "display_name": "distribution_free_rank_bound",
+                        "acceptance_status": "ACCEPTED_RESOURCE_RESPONSE",
+                        "response_present": True,
+                        "response_contract_ok": True,
+                        "response_contract_minimum_met": True,
+                        "quality_controls": quality_controls,
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    discharged_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        discharged_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_response_ledger_dir=ledger_dir,
+    )
+
+    assert discharged_payload["all_ok"]
+    assert discharged_payload["n_route_adoption_ready"] == 1
+    assert discharged_payload["n_route_adoption_pending_refinement"] == 0
+    assert discharged_payload["n_route_adoption_pending_quality_control_blockers"] == 0
+    discharged_row = discharged_payload["rows"][0]
+    assert discharged_row["route_adoption_status"] == "READY_FOR_STANDALONE_REPLAY"
+    assert discharged_row["route_adoption_blockers"] == ()
+    discharged_summary = discharged_payload["request_packets"][0]["context_packet"][
+        "feedback_loop_summary"
+    ]["quality_control_obligations"]
+    assert discharged_summary["pending"] is False
+    assert discharged_summary["discharged"] is True
+    assert discharged_summary["pending_quality_controls"] == {}
+
+
 def test_llm_route_planner_blocks_route_adoption_on_feedback_redispatch_actions() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_feedback_action_blocks_adoption"

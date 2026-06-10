@@ -214,6 +214,12 @@ evidence it is repairing. Request-bound LLM response validation also treats
 route-level, replan-metadata, and `feedback_loop_summary.prior_replan_metadata`
 quality controls as grounded policy context, allowing the next route-planner
 pass to cite those contracts without inventing new tool policy.
+Those controls are also adoption obligations: if a route carries required
+contracts, quality signals, gates, response-validation signals, or stop
+conditions and no admissible resource-response or refinement-evidence row
+discharges the same normalized controls, the accepted LLM route stays
+`PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION` with the
+`quality_control_obligations_pending` blocker.
 The same second-pass request packet carries route-level and
 `replan_metadata.residual_goals` into `request.residual_goals`, so residual
 interpretation requirements survive the standalone handoff instead of being
@@ -379,7 +385,7 @@ Accepted rows also carry `route_adoption_status` and
 `route_adoption_blockers`. A row can satisfy the JSON/source/formal alignment
 contract while still being `PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION` because it
 asked for additional literature search, formal-library search, prover feedback,
-planner next actions, or uncertainty review. Only
+planner next actions, quality-control evidence, or uncertainty review. Only
 `READY_FOR_STANDALONE_REPLAY` means the route has no unresolved LLM-planner
 handoff blockers under the current evidence bound. The standalone seed and each
 standalone-plan `standalone_input_trace` preserve the same fields, so a public
