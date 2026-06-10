@@ -153,12 +153,12 @@ def build_architect_coordinator_prompt(
     }
     return (
         "Act as the top-level ArchitectCoordinator for the AI Statistician runtime. "
-        "Return ONLY one compact JSON object matching required_output_contract. Keep each "
-        "list to at most 3 short strings or objects. Do not include paragraphs, Markdown, "
-        "LaTeX derivations, or code. Start with problem_analysis, then define the execution "
-        "graph, dynamic knowledge-bank plan, literature fair-comparison gate, retrieval/search "
-        "strategy, iteration policy, and evidence gates. Do not execute tools, do not claim "
-        "simulations ran, and do not claim proof evidence.\n\n"
+        "Return ONLY one compact JSON object matching required_output_contract. The object "
+        "must contain exactly the required top-level fields unless a field is needed for "
+        "schema repair. Keep each list to at most 2 short strings or 1 short object. Do not "
+        "include paragraphs, Markdown, LaTeX derivations, optional long-form analysis sections, "
+        "or code. Route first to RetrievalMemory and leave detailed derivation to TheoryDeveloper. "
+        "Do not execute tools, do not claim simulations ran, and do not claim proof evidence.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str)
     )
 
@@ -177,57 +177,40 @@ ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
     "intake_assessment": {
         "problem_type": "string",
         "frontier_difficulty": "low|medium|high",
-        "primary_success_criteria": ["string"],
-        "known_risks": ["string"],
+        "primary_success_criteria": ["one short string"],
+        "known_risks": ["one short string"],
     },
     "subsystem_execution_plan": [
         {
-            "subsystem": "string",
-            "objective": "string",
-            "inputs_needed": ["string"],
-            "expected_artifacts": ["string"],
-            "acceptance_gate": "string",
+            "subsystem": "RetrievalMemory",
+            "objective": "one short string",
+            "inputs_needed": ["one short string"],
+            "expected_artifacts": ["one short string"],
+            "acceptance_gate": "one short string",
         }
     ],
     "retrieval_strategy": {
-        "paper_queries": ["string"],
-        "formal_source_queries": ["string"],
-        "lean_rag_priorities": ["string"],
+        "paper_queries": ["one short string"],
+        "formal_source_queries": ["one short string"],
+        "lean_rag_priorities": ["one short string"],
     },
-    "problem_analysis": {
-        "theorem_family": "string",
-        "statistical_objects": ["string"],
-        "likely_analogy_classes": ["string"],
-        "key_obstacles": ["string"],
-        "missing_information": ["string"],
-    },
-    "stat_knowledge_bank_plan": {
-        "source_families_to_collect": ["string"],
-        "assumption_dimensions": ["string"],
-        "proof_skeletons_to_track": ["string"],
-        "failed_attempt_memory_policy": "string",
-    },
-    "literature_fair_comparison_plan": [
-        {
-            "candidate_source_family": "string",
-            "must_match": ["string"],
-            "likely_mismatches": ["string"],
-            "unsafe_transfer_risks": ["string"],
-        }
-    ],
     "iteration_policy": {
-        "reroute_triggers": ["string"],
+        "reroute_triggers": ["one short string"],
         "max_repair_rounds": "integer",
-        "stop_conditions": ["string"],
+        "stop_conditions": ["one short string"],
     },
     "evidence_gates": [
-        {"artifact_kind": "string", "required_evidence": "string", "not_evidence": "string"}
+        {
+            "artifact_kind": "string",
+            "required_evidence": "one short string",
+            "not_evidence": "one short string",
+        }
     ],
     "risk_register": [
-        {"risk": "string", "mitigation": "string", "owner_subsystem": "string"}
+        {"risk": "one short string", "mitigation": "one short string", "owner_subsystem": "string"}
     ],
     "next_actions": [
-        {"owner_agent": "string", "action": "string", "acceptance_gate": "string"}
+        {"owner_agent": "RetrievalMemory", "action": "one short string", "acceptance_gate": "one short string"}
     ],
 }
 

@@ -18,7 +18,11 @@ from ai_statistician.architect_coordinator_llm import (
     LLMArchitectCoordinatorAgent,
     build_architect_coordinator_prompt,
 )
-from ai_statistician.critic_evaluator_llm import CriticEvaluatorConfig, LLMCriticEvaluatorAgent
+from ai_statistician.critic_evaluator_llm import (
+    CriticEvaluatorConfig,
+    LLMCriticEvaluatorAgent,
+    build_critic_evaluator_prompt,
+)
 from ai_statistician.formalizer_llm import (
     FormalizerConfig,
     LLMFormalizerProofEngineerAgent,
@@ -44,8 +48,10 @@ from ai_statistician.research_agent_runtime import (
     _registered_algorithm_template_hint,
     _runtime_learning_memory_kernel_verified_proof_obligation_ids,
     _runtime_learning_memory_proof_obligation_ids,
+    _runtime_completion_summary,
     _runtime_formalization_gap_planner_bridge,
     _runtime_formalization_gap_planner_target_intake_payload,
+    _runtime_failure_summary,
     _llm_agent_topology_row,
     _run_generated_python_sandbox,
     _run_split_conformal_interval_prototype,
@@ -72,7 +78,11 @@ from ai_statistician.research_schema import (
     TheoremGoal,
 )
 from ai_statistician.schema import ProofCheck
-from ai_statistician.simulation_engineer_llm import LLMSimulationEngineerAgent, SimulationEngineerConfig
+from ai_statistician.simulation_engineer_llm import (
+    LLMSimulationEngineerAgent,
+    SimulationEngineerConfig,
+    build_simulation_engineer_prompt,
+)
 from ai_statistician.verifier import MockProofVerifier
 
 
@@ -90,6 +100,222 @@ def test_architect_coordinator_prompt_requires_long_horizon_research_memory() ->
     assert "proposer_verifier_iteration" in prompt
     assert "embedding/RAG similarity" in prompt
     assert "only Lean/AXLE/local kernel rows" in prompt
+    assert '"problem_analysis":{"theorem_family"' not in prompt
+    assert '"stat_knowledge_bank_plan"' not in prompt
+
+
+def test_simulation_engineer_prompt_compacts_theory_context() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_simulation_engineer_prompt(
+        question=question,
+        theory_packet={
+            "packet_id": "theory:test",
+            "problem_card": {
+                "estimand": "coverage",
+                "assumptions": ["exchangeability", "x" * 5000],
+                "desired_theorem_type": "finite-sample coverage",
+                "irrelevant_long_field": "x" * 5000,
+            },
+            "estimator_specs": [
+                {"id": "E1", "name": "split conformal", "algorithm_sketch": "calibrate residuals"},
+                {"id": "E2", "name": "extra", "algorithm_sketch": "unused"},
+                {"id": "E3", "name": "dropped", "algorithm_sketch": "unused"},
+            ],
+            "theorem_cards": [
+                {
+                    "id": "T1",
+                    "conclusion": "coverage",
+                    "semantic_risks": ["exchangeability semantics"],
+                    "long_proof_strategy": "y" * 5000,
+                }
+            ],
+            "simulation_ademp_spec": {
+                "aim": "stress coverage",
+                "dgps": ["nonlinear", "x" * 5000],
+                "methods": ["split conformal", "x" * 5000],
+            },
+        },
+        registered_problem={"problem_class": "distribution_free_conformal_prediction"},
+        registered_procedures=[],
+        n_runs=20,
+        seed=7,
+    )
+
+    assert "x" * 5000 not in prompt
+    assert "y" * 5000 not in prompt
+    assert '"E1"' in prompt
+    assert '"E3"' not in prompt
+    assert "Return ONLY one compact JSON object" in prompt
+    assert '"dgp_plan"' not in prompt
+    assert '"failure_interpretation"' not in prompt
+
+
+def test_algorithm_engineer_prompt_compacts_theory_and_simulation_context() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    long_text = "long_algorithm_context_" + ("z" * 5000)
+    prompt = build_algorithm_engineer_prompt(
+        question=question,
+        theory_packet={
+            "packet_id": "theory:test",
+            "problem_card": {
+                "estimand": "coverage",
+                "assumptions": ["exchangeability", long_text],
+                "desired_theorem_type": "finite-sample coverage",
+                "unused_large_field": long_text,
+            },
+            "estimator_specs": [
+                {"id": "E1", "name": "split conformal interval", "algorithm_sketch": long_text},
+                {"id": "E2", "name": "extra", "algorithm_sketch": "unused"},
+                {"id": "E3", "name": "dropped", "algorithm_sketch": "unused"},
+            ],
+            "theorem_cards": [
+                {"id": "T1", "conclusion": long_text, "semantic_risks": [long_text]},
+            ],
+            "simulation_ademp_spec": {
+                "methods": [long_text for _ in range(5)],
+                "performance_measures": [long_text for _ in range(5)],
+                "stress_tests": [long_text for _ in range(5)],
+            },
+        },
+        simulation_manifest={
+            "manifest_id": "simulation:test",
+            "simulation_passed": True,
+            "registered_procedures": [
+                {"procedure_id": "split_conformal_interval", "registered_simulator": long_text}
+            ],
+            "simulations": [
+                {"procedure_id": "E1", "passed": True, "metrics": {"coverage": long_text}},
+                {"procedure_id": "E2", "passed": True, "metrics": {"unused": long_text}},
+                {"procedure_id": "E3", "passed": True, "metrics": {"dropped": long_text}},
+            ],
+            "implementation_gaps": [{"estimator_id": "E1", "status": "gap", "reason": long_text}],
+            "raw_large_trace": long_text,
+        },
+        implementation_gaps=[{"estimator_id": "E1", "status": "gap", "reason": long_text}],
+    )
+
+    assert "z" * 5000 not in prompt
+    assert "raw_large_trace" not in prompt
+    assert '"E1"' in prompt
+    assert '"E3"' not in prompt
+    assert "Return ONLY one compact JSON object" in prompt
+    assert "leave sandbox_code_drafts empty whenever a template matches" in prompt
+    assert '"code_generation_plan"' not in prompt
+    assert '"promotion_gate"' not in prompt
+    assert len(prompt) < 22000
+
+
+def test_critic_evaluator_prompt_compacts_trace_context() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    long_text = "long_critic_context_" + ("q" * 5000)
+    prompt = build_critic_evaluator_prompt(
+        question=question,
+        retrieval_manifest={"manifest_id": "retrieval:test", "boundary": long_text},
+        theory_packet={"packet_id": "theory:test", "unused_large_field": long_text},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1, "n_passed": 1},
+        formalization_manifest={
+            "manifest_id": "formalization:test",
+            "counts": {"kernel_verified": 0, "formal_gap": 1},
+            "proof_evidence_status": "FORMAL_GAPS_REMAIN",
+            "huge_trace": long_text,
+        },
+        deterministic_agenda=[
+            {
+                "id": f"agenda_{idx}",
+                "owner_subsystem": "TheoryDeveloper",
+                "trigger": long_text,
+                "action": long_text,
+                "acceptance_gate": long_text,
+                "priority": "high",
+                "unused_large_field": long_text,
+            }
+            for idx in range(8)
+        ],
+        deterministic_learning_rows=[
+            {
+                "learning_task": f"learn_{idx}",
+                "input_signal": long_text,
+                "target_behavior": long_text,
+                "unused_large_field": long_text,
+            }
+            for idx in range(8)
+        ],
+    )
+
+    assert "q" * 5000 not in prompt
+    assert "unused_large_field" not in prompt
+    assert '"agenda_0"' in prompt
+    assert '"agenda_4"' not in prompt
+    assert "Include only required fields" in prompt
+    assert '"learning_updates"' not in prompt
+    assert '"benchmark_expansion_plan"' not in prompt
+    assert len(prompt) < 18000
+
+
+def test_runtime_failure_summary_surfaces_failed_subsystem() -> None:
+    completion = _runtime_completion_summary(
+        [
+            {
+                "status": "FAILED",
+                "final_task_id": "algorithm:q1:abc",
+                "traces": [
+                    {
+                        "task": {
+                            "task_id": "algorithm:q1:abc",
+                            "inputs": {
+                                "question": {"id": "q1", "title": "Question 1"},
+                            },
+                        },
+                        "subsystem": "AlgorithmEngineer",
+                        "status": "FAILED",
+                        "failure_classification": "subsystem_exception",
+                        "next_task_id": "",
+                    }
+                ],
+            }
+        ]
+    )
+    summary = _runtime_failure_summary(completion)
+
+    assert summary["has_failure"] is True
+    assert summary["failed_question_id"] == "q1"
+    assert summary["failed_subsystem"] == "AlgorithmEngineer"
+    assert summary["failed_task_id"] == "algorithm:q1:abc"
+    assert summary["failure_classification"] == "subsystem_exception"
+
+
+def test_runtime_failure_summary_does_not_label_budget_pending_as_failure() -> None:
+    completion = _runtime_completion_summary(
+        [
+            {
+                "status": "MAX_ITERATIONS_REACHED",
+                "final_task_id": "theory-critic-revise:q1:abc",
+                "traces": [
+                    {
+                        "task": {
+                            "task_id": "critic:q1:abc",
+                            "inputs": {
+                                "question": {"id": "q1", "title": "Question 1"},
+                            },
+                        },
+                        "subsystem": "CriticEvaluator",
+                        "status": "REVISE",
+                        "failure_classification": "critic_requested_theory_revision",
+                        "next_task_id": "theory-critic-revise:q1:abc",
+                    }
+                ],
+            }
+        ]
+    )
+    summary = _runtime_failure_summary(completion)
+
+    assert summary["has_failure"] is False
+    assert summary["has_incomplete_pending_work"] is True
+    assert summary["failed_subsystem"] == ""
+    assert summary["terminal_subsystem"] == "CriticEvaluator"
+    assert summary["terminal_kind"] == "budget_exhausted_with_pending_next_task"
+    assert summary["pending_next_task_id"] == "theory-critic-revise:q1:abc"
 
 
 def test_generated_algorithm_sandbox_rejects_unsafe_code(tmp_path: Path) -> None:

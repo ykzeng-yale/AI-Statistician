@@ -118,34 +118,18 @@ def build_algorithm_engineer_prompt(
             "description": question.description,
             "tags": list(question.tags),
         },
-        "theory_packet_summary": {
-            "packet_id": theory_packet.get("packet_id", ""),
-            "problem_card": theory_packet.get("problem_card", {}),
-            "estimator_specs": theory_packet.get("estimator_specs", []),
-            "theorem_cards": theory_packet.get("theorem_cards", []),
-            "simulation_ademp_spec": theory_packet.get("simulation_ademp_spec", {}),
-        },
-        "simulation_manifest_summary": {
-            "manifest_id": simulation_manifest.get("manifest_id", ""),
-            "simulation_passed": simulation_manifest.get("simulation_passed"),
-            "registered_procedures": simulation_manifest.get("registered_procedures", []),
-            "simulations": simulation_manifest.get("simulations", []),
-            "implementation_gaps": simulation_manifest.get("implementation_gaps", []),
-        },
-        "implementation_gaps": [dict(row) for row in implementation_gaps],
+        "theory_packet_summary": _compact_theory_packet_for_algorithm(theory_packet),
+        "simulation_manifest_summary": _compact_simulation_manifest_for_algorithm(simulation_manifest),
+        "implementation_gaps": _compact_implementation_gaps(implementation_gaps),
         "registered_runtime_templates": [
             {
                 "template_id": "crossfit_aipw",
-                "capability": "sandbox AIPW-style binary-treatment ATE prototype with nuisance fits and coverage stress metrics",
+                "capability": "AIPW binary-treatment ATE sandbox with stress metrics",
                 "execution_owner": "AgentRuntime",
             },
             {
                 "template_id": "split_conformal_interval",
-                "capability": (
-                    "trusted split-conformal regression interval sandbox with "
-                    "exchangeable train/calibration/test simulation, empirical "
-                    "coverage, interval width, and calibration quantile metrics"
-                ),
+                "capability": "trusted split-conformal regression interval sandbox",
                 "execution_owner": "AgentRuntime",
             }
         ],
@@ -153,6 +137,7 @@ def build_algorithm_engineer_prompt(
             "status": "optional fallback when no registered template matches",
             "language": "python",
             "entrypoint": "run_sandbox(seed: int, replicates: int) -> dict",
+            "default": "leave sandbox_code_drafts empty when a registered template matches",
             "safe_subset": {
                 "allowed_globals": [
                     "math",
@@ -171,9 +156,7 @@ def build_algorithm_engineer_prompt(
                     "range",
                     "round",
                     "sorted",
-                    "str",
                     "sum",
-                    "tuple",
                 ],
                 "forbidden_dependencies": [
                     "numpy",
@@ -213,15 +196,19 @@ def build_algorithm_engineer_prompt(
     }
     return (
         "Design implementation and sandbox-validation artifacts for the AlgorithmEngineer subsystem. "
-        "Return ONLY JSON matching required_output_contract. You may propose code and tests, but "
+        "Return ONLY one compact JSON object matching required_output_contract. Keep each list to "
+        "exactly 1 short object or 1 short string. Include only required fields. Prefer registered runtime templates over "
+        "sandbox_code_drafts; leave sandbox_code_drafts empty whenever a template matches. You may "
+        "propose code and tests, but "
         "you must not claim you executed code, wrote files, promoted a production algorithm, or proved "
         "any theorem. Pick registered runtime templates only when their contract matches the estimator. "
         "For sandbox_code_drafts, obey the generated_code_sandbox_contract safe_subset exactly: do not "
         "use imports, NumPy/SciPy/sklearn/pandas/statsmodels/torch/JAX, class definitions, file/network "
         "operations, method calls, or attribute access except math.* and statistics.*. If the requested "
         "prototype needs those tools, omit sandbox_code_drafts and describe the registered-template or "
-        "human-reviewed adapter plan instead.\n\n"
-        + json.dumps(payload, indent=2, default=str)
+        "human-reviewed adapter plan instead. For this compact packet, do not include "
+        "sandbox_code_drafts unless registered_template_hint is none for every implementation target.\n\n"
+        + json.dumps(payload, separators=(",", ":"), default=str)
     )
 
 
@@ -235,53 +222,130 @@ files, do not report tests as passed, and do not claim proof evidence.
 """
 
 
+def _compact_theory_packet_for_algorithm(theory_packet: Mapping[str, Any]) -> dict[str, Any]:
+    """Expose only implementation-relevant theory fields to keep Haiku packets short."""
+
+    problem_card = _mapping(theory_packet.get("problem_card", {}))
+    simulation_spec = _mapping(theory_packet.get("simulation_ademp_spec", {}))
+    return {
+        "packet_id": theory_packet.get("packet_id", ""),
+        "problem_card": {
+            key: _truncate_text(problem_card.get(key, ""))
+            for key in ("estimand", "assumptions", "desired_theorem_type")
+        },
+        "estimator_specs": [
+            {
+                "id": _truncate_text(row.get("id", ""), limit=120),
+                "name": _truncate_text(row.get("name", ""), limit=180),
+                "algorithm_sketch": _truncate_text(row.get("algorithm_sketch", ""), limit=500),
+            }
+            for row in _first_mapping_rows(theory_packet.get("estimator_specs", []), limit=2)
+        ],
+        "theorem_cards": [
+            {
+                "id": _truncate_text(row.get("id", ""), limit=120),
+                "conclusion": _truncate_text(row.get("conclusion", ""), limit=500),
+                "semantic_risks": _compact_string_list(row.get("semantic_risks", []), limit=2),
+            }
+            for row in _first_mapping_rows(theory_packet.get("theorem_cards", []), limit=2)
+        ],
+        "simulation_ademp_spec": {
+            key: _compact_string_list(simulation_spec.get(key, []), limit=2)
+            for key in ("methods", "performance_measures", "stress_tests")
+        },
+    }
+
+
+def _compact_simulation_manifest_for_algorithm(simulation_manifest: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "manifest_id": simulation_manifest.get("manifest_id", ""),
+        "simulation_passed": simulation_manifest.get("simulation_passed"),
+        "registered_procedures": [
+            {
+                "procedure_id": _truncate_text(
+                    row.get("procedure_id", row.get("id", row.get("name", ""))),
+                    limit=160,
+                ),
+                "registered_simulator": _truncate_text(row.get("registered_simulator", ""), limit=160),
+            }
+            for row in _first_mapping_rows(simulation_manifest.get("registered_procedures", []), limit=3)
+        ],
+        "simulations": [
+            {
+                "procedure_id": _truncate_text(row.get("procedure_id", row.get("id", "")), limit=160),
+                "passed": row.get("passed", row.get("simulation_passed", row.get("smoke_passed"))),
+                "metrics": _compact_mapping(row.get("metrics", {}), limit=4),
+            }
+            for row in _first_mapping_rows(simulation_manifest.get("simulations", []), limit=2)
+        ],
+        "implementation_gaps": _compact_implementation_gaps(
+            simulation_manifest.get("implementation_gaps", [])
+        ),
+    }
+
+
+def _compact_implementation_gaps(value: Any) -> list[dict[str, Any]]:
+    return [
+        {
+            "estimator_id": _truncate_text(row.get("estimator_id", row.get("id", "")), limit=160),
+            "status": _truncate_text(row.get("status", ""), limit=180),
+            "reason": _truncate_text(row.get("reason", ""), limit=360),
+        }
+        for row in _first_mapping_rows(value, limit=3)
+    ]
+
+
+def _first_mapping_rows(value: Any, *, limit: int) -> list[Mapping[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [row for row in value[:limit] if isinstance(row, Mapping)]
+
+
+def _mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _compact_mapping(value: Any, *, limit: int) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    compact: dict[str, Any] = {}
+    for index, (key, row_value) in enumerate(value.items()):
+        if index >= limit:
+            break
+        compact[str(key)] = _truncate_text(row_value, limit=180)
+    return compact
+
+
+def _compact_string_list(value: Any, *, limit: int, char_limit: int = 220) -> list[str]:
+    if isinstance(value, str):
+        rows = [value]
+    elif isinstance(value, list):
+        rows = value
+    else:
+        rows = []
+    return [_truncate_text(row, limit=char_limit) for row in rows[:limit]]
+
+
+def _truncate_text(value: Any, *, limit: int = 360) -> str:
+    text = str(value or "")
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 18)] + "...[truncated]"
+
+
 ALGORITHM_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
     "implementation_targets": [
         {
             "estimator_id": "string",
-            "adapter_strategy": "string",
+            "adapter_strategy": "short string",
             "registered_template_hint": "crossfit_aipw|split_conformal_interval|none",
-            "data_contract": ["string"],
-            "validation_metrics": ["string"],
-            "risk_controls": ["string"],
+            "data_contract": ["one short string"],
+            "validation_metrics": ["one short string"],
+            "risk_controls": ["one short string"],
         }
-    ],
-    "sandbox_plan": {
-        "prototype_steps": ["string"],
-        "stress_tests": ["string"],
-        "expected_outputs": ["string"],
-        "expected_failure_modes": ["string"],
-    },
-    "code_generation_plan": {
-        "files_to_generate": ["string"],
-        "functions_to_implement": ["string"],
-        "dependencies": ["string"],
-        "runtime_executor": "AgentRuntime",
-    },
-    "sandbox_code_drafts": [
-        {
-            "estimator_id": "string",
-            "language": "python",
-            "entrypoint": "run_sandbox",
-            "code": (
-                "def run_sandbox(seed: int, replicates: int) -> dict: ... "
-                "# pure Python only: no imports, no numpy/sklearn/pandas/scipy, "
-                "no method calls, no attribute access except math.* and statistics.*"
-            ),
-            "intended_metrics": ["string"],
-            "safety_notes": ["string"],
-        }
-    ],
-    "promotion_gate": {
-        "required_tests": ["string"],
-        "required_reproducibility_evidence": ["string"],
-        "production_registration_requirements": ["string"],
-    },
-    "critic_findings": [
-        {"critic": "string", "finding": "string", "reroute_if_confirmed": "string"}
     ],
     "next_actions": [
-        {"owner_agent": "string", "action": "string", "acceptance_gate": "string"}
+        {"owner_agent": "string", "action": "short string", "acceptance_gate": "short string"}
     ],
 }
 
@@ -292,10 +356,6 @@ ALGORITHM_ENGINEER_JSON_SCHEMA: dict[str, Any] = {
     "additionalProperties": True,
     "required": [
         "implementation_targets",
-        "sandbox_plan",
-        "code_generation_plan",
-        "promotion_gate",
-        "critic_findings",
         "next_actions",
     ],
     "properties": {
@@ -304,7 +364,7 @@ ALGORITHM_ENGINEER_JSON_SCHEMA: dict[str, Any] = {
         "code_generation_plan": {"type": "object"},
         "sandbox_code_drafts": {"type": "array"},
         "promotion_gate": {"type": "object"},
-        "critic_findings": {"type": "array", "minItems": 1},
+        "critic_findings": {"type": "array"},
         "next_actions": {"type": "array", "minItems": 1},
     },
 }
@@ -314,10 +374,6 @@ def validate_algorithm_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
     for field in (
         "implementation_targets",
-        "sandbox_plan",
-        "code_generation_plan",
-        "promotion_gate",
-        "critic_findings",
         "next_actions",
     ):
         if packet.get(field) in (None, "", [], {}):

@@ -103,7 +103,7 @@ def _repair_prompt(
             "Preserve all evidence boundaries.",
             "Do not claim tool execution, simulation execution, production promotion, Lean proof, or kernel verification.",
         ],
-        "original_request": original_user_prompt,
+        "original_request": _compact_original_request(original_user_prompt),
     }
     return (
         "Your previous response failed AI Statistician local validation. "
@@ -229,3 +229,36 @@ def _stable_text_fingerprint(text: str) -> str:
     import hashlib
 
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:24]
+
+
+def _compact_original_request(
+    prompt: str,
+    *,
+    head_chars: int = 2500,
+    tail_chars: int = 4500,
+) -> dict[str, Any]:
+    """Keep repair prompts bounded while preserving instructions and contract.
+
+    The first attempt already receives the complete prompt. Re-sending that
+    full prompt inside the repair payload can make the repair request longer
+    than the request that failed, especially for Architect packets with runtime
+    memory. Most subsystem prompts put role instructions at the start and the
+    serialized output contract/context near the end, so keep both ends and make
+    the truncation explicit.
+    """
+
+    text = str(prompt or "")
+    limit = max(0, head_chars) + max(0, tail_chars)
+    if len(text) <= limit:
+        return {
+            "truncated": False,
+            "text": text,
+            "n_chars": len(text),
+        }
+    return {
+        "truncated": True,
+        "n_chars": len(text),
+        "head": text[: max(0, head_chars)],
+        "tail": text[-max(0, tail_chars) :] if tail_chars > 0 else "",
+        "omitted_chars": max(0, len(text) - limit),
+    }

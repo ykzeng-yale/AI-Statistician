@@ -132,17 +132,18 @@ def build_critic_evaluator_prompt(
             "algorithm": _small_manifest(algorithm_manifest),
             "formalization": _small_manifest(formalization_manifest),
         },
-        "deterministic_next_action_agenda": [dict(row) for row in deterministic_agenda],
-        "deterministic_learning_rows": [dict(row) for row in deterministic_learning_rows],
+        "deterministic_next_action_agenda": _compact_rows(deterministic_agenda, limit=4),
+        "deterministic_learning_rows": _compact_rows(deterministic_learning_rows, limit=4),
         "required_output_contract": CRITIC_EVALUATOR_OUTPUT_CONTRACT,
         "boundary": CRITIC_EVALUATOR_BOUNDARY,
     }
     return (
         "Review this AI Statistician runtime trace as the CriticEvaluator. Return ONLY JSON "
-        "matching required_output_contract. Audit evidence boundaries, identify reroute priorities, "
-        "propose learning rows, and propose frontier benchmark expansions. Do not promote any "
+        "matching required_output_contract. Include only required fields. Keep each list to exactly "
+        "1 short object or 1 short string. Audit evidence boundaries and identify one reroute "
+        "priority. Do not promote any "
         "artifact to proof evidence; only AXLE/local Lean/kernel records can do that.\n\n"
-        + json.dumps(payload, indent=2, default=str)
+        + json.dumps(payload, separators=(",", ":"), default=str)
     )
 
 
@@ -168,33 +169,17 @@ CRITIC_EVALUATOR_OUTPUT_CONTRACT: dict[str, Any] = {
     "reroute_recommendations": [
         {
             "owner_subsystem": "string",
-            "trigger": "string",
-            "action": "string",
+            "trigger": "short string",
+            "action": "short string",
             "priority": "low|medium|high",
-            "acceptance_gate": "string",
+            "acceptance_gate": "short string",
         }
     ],
-    "learning_updates": [
-        {
-            "learning_task": "string",
-            "input_signal": "string",
-            "target_behavior": "string",
-            "negative_example": "string",
-        }
-    ],
-    "benchmark_expansion_plan": [
-        {
-            "benchmark_item": "string",
-            "capability_target": "string",
-            "success_evidence": "string",
-        }
-    ],
-    "kernel_evidence_requirements": ["string"],
     "critic_findings": [
-        {"critic": "string", "finding": "string", "reroute_if_confirmed": "string"}
+        {"critic": "string", "finding": "short string", "reroute_if_confirmed": "string"}
     ],
     "next_actions": [
-        {"owner_agent": "string", "action": "string", "acceptance_gate": "string"}
+        {"owner_agent": "string", "action": "short string", "acceptance_gate": "short string"}
     ],
 }
 
@@ -206,18 +191,15 @@ CRITIC_EVALUATOR_JSON_SCHEMA: dict[str, Any] = {
     "required": [
         "evidence_boundary_audit",
         "reroute_recommendations",
-        "learning_updates",
-        "benchmark_expansion_plan",
-        "kernel_evidence_requirements",
         "critic_findings",
         "next_actions",
     ],
     "properties": {
         "evidence_boundary_audit": {"type": "array", "minItems": 1},
         "reroute_recommendations": {"type": "array", "minItems": 1},
-        "learning_updates": {"type": "array", "minItems": 1},
-        "benchmark_expansion_plan": {"type": "array", "minItems": 1},
-        "kernel_evidence_requirements": {"type": "array", "minItems": 1},
+        "learning_updates": {"type": "array"},
+        "benchmark_expansion_plan": {"type": "array"},
+        "kernel_evidence_requirements": {"type": "array"},
         "critic_findings": {"type": "array", "minItems": 1},
         "next_actions": {"type": "array", "minItems": 1},
     },
@@ -229,9 +211,6 @@ def validate_critic_evaluator_packet(packet: Mapping[str, Any]) -> list[str]:
     for field in (
         "evidence_boundary_audit",
         "reroute_recommendations",
-        "learning_updates",
-        "benchmark_expansion_plan",
-        "kernel_evidence_requirements",
         "critic_findings",
         "next_actions",
     ):
@@ -313,7 +292,54 @@ def _small_manifest(row: Mapping[str, Any]) -> dict[str, Any]:
         "boundary",
         "proof_evidence_boundary",
     )
-    return {key: row.get(key) for key in keys if key in row}
+    compact: dict[str, Any] = {}
+    for key in keys:
+        if key not in row:
+            continue
+        value = row.get(key)
+        if isinstance(value, Mapping):
+            compact[key] = {
+                str(nested_key): _truncate_text(nested_value)
+                for nested_key, nested_value in list(value.items())[:8]
+            }
+        else:
+            compact[key] = _truncate_text(value)
+    return compact
+
+
+def _compact_rows(rows: list[Mapping[str, Any]], *, limit: int) -> list[dict[str, Any]]:
+    compact: list[dict[str, Any]] = []
+    for row in rows[:limit]:
+        if not isinstance(row, Mapping):
+            continue
+        compact.append(
+            {
+                str(key): _truncate_text(value)
+                for key, value in row.items()
+                if key in {
+                    "id",
+                    "artifact_id",
+                    "evidence_type",
+                    "owner_subsystem",
+                    "trigger",
+                    "action",
+                    "acceptance_gate",
+                    "priority",
+                    "learning_task",
+                    "input_signal",
+                    "target_behavior",
+                    "gap_reason",
+                }
+            }
+        )
+    return compact
+
+
+def _truncate_text(value: Any, *, limit: int = 300) -> str:
+    text = str(value or "")
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 18)] + "...[truncated]"
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:

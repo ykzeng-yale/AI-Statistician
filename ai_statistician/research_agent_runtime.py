@@ -1762,6 +1762,8 @@ def run_research_agent_runtime(
     for row in results:
         status = str(row["status"])
         status_counts[status] = status_counts.get(status, 0) + 1
+    completion_summary = _runtime_completion_summary(results)
+    failure_summary = _runtime_failure_summary(completion_summary)
     evidence_summary = _runtime_evidence_summary(results)
     manifest = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -1776,7 +1778,16 @@ def run_research_agent_runtime(
         "config": asdict(config),
         "runtime_input_context": _runtime_input_context_summary(architect_context or {}),
         "status_counts": dict(sorted(status_counts.items())),
-        "runtime_completion_summary": _runtime_completion_summary(results),
+        "runtime_completion_summary": completion_summary,
+        "runtime_failure_summary": failure_summary,
+        "runtime_terminal_kind": failure_summary["terminal_kind"],
+        "terminal_subsystem": failure_summary["terminal_subsystem"],
+        "terminal_task_id": failure_summary["terminal_task_id"],
+        "terminal_classification": failure_summary["terminal_classification"],
+        "incomplete_pending_next_task_id": failure_summary["pending_next_task_id"],
+        "failed_subsystem": failure_summary["failed_subsystem"],
+        "failed_task_id": failure_summary["failed_task_id"],
+        "failure_classification": failure_summary["failure_classification"],
         "runtime_evidence_summary": evidence_summary,
         "n_kernel_verified_subclaims": evidence_summary["proof"]["n_kernel_verified_subclaims"],
         "n_formal_gaps": evidence_summary["proof"]["n_formal_gaps"],
@@ -3902,6 +3913,65 @@ def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]
         "boundary": (
             "Runtime completion status describes orchestration progress and budget exhaustion only. "
             "It is not theorem proof evidence, simulation evidence, or a claim that remaining formal gaps are closed."
+        ),
+    }
+
+
+def _runtime_failure_summary(completion_summary: Mapping[str, Any]) -> dict[str, Any]:
+    rows = completion_summary.get("rows", [])
+    if not isinstance(rows, list):
+        rows = []
+    failure_rows = [
+        row for row in rows
+        if isinstance(row, Mapping)
+        and str(row.get("terminal_kind", "") or "") in {
+            "failed",
+            "blocked",
+        }
+    ]
+    incomplete_rows = [
+        row for row in rows
+        if isinstance(row, Mapping)
+        and str(row.get("terminal_kind", "") or "") in {
+            "budget_exhausted_with_pending_next_task",
+            "budget_exhausted_without_pending_next_task",
+        }
+    ]
+    first_failure = failure_rows[0] if failure_rows else {}
+    first_terminal = first_failure or (incomplete_rows[0] if incomplete_rows else {})
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeFailureSummary",
+        "n_failure_rows": len(failure_rows),
+        "n_incomplete_rows": len(incomplete_rows),
+        "has_failure": bool(failure_rows),
+        "has_incomplete_pending_work": bool(incomplete_rows),
+        "terminal_question_id": str(first_terminal.get("question_id", "") or ""),
+        "terminal_subsystem": str(first_terminal.get("last_completed_subsystem", "") or ""),
+        "terminal_task_id": str(
+            first_terminal.get("last_completed_task_id", "")
+            or first_terminal.get("final_task_id", "")
+            or ""
+        ),
+        "terminal_status": str(first_terminal.get("status", "") or ""),
+        "terminal_kind": str(first_terminal.get("terminal_kind", "") or ""),
+        "terminal_classification": str(first_terminal.get("last_failure_classification", "") or ""),
+        "failed_question_id": str(first_failure.get("question_id", "") or ""),
+        "failed_subsystem": str(first_failure.get("last_completed_subsystem", "") or ""),
+        "failed_task_id": str(
+            first_failure.get("last_completed_task_id", "")
+            or first_failure.get("final_task_id", "")
+            or ""
+        ),
+        "failure_status": str(first_failure.get("status", "") or ""),
+        "failure_terminal_kind": str(first_failure.get("terminal_kind", "") or ""),
+        "failure_classification": str(first_failure.get("last_failure_classification", "") or ""),
+        "pending_next_task_id": str(first_terminal.get("pending_next_task_id", "") or ""),
+        "boundary": (
+            "Runtime terminal status is an orchestration diagnostic. Budget exhaustion "
+            "with a pending next task is incomplete work, not a subsystem failure. This "
+            "summary does not downgrade kernel-verified subclaims or promote partial "
+            "runtime progress to theorem proof evidence."
         ),
     }
 

@@ -121,13 +121,7 @@ def build_simulation_engineer_prompt(
             "description": question.description,
             "tags": list(question.tags),
         },
-        "theory_packet_summary": {
-            "packet_id": theory_packet.get("packet_id", ""),
-            "problem_card": theory_packet.get("problem_card", {}),
-            "estimator_specs": theory_packet.get("estimator_specs", []),
-            "theorem_cards": theory_packet.get("theorem_cards", []),
-            "simulation_ademp_spec": theory_packet.get("simulation_ademp_spec", {}),
-        },
+        "theory_packet_summary": _compact_theory_packet_for_simulation(theory_packet),
         "registered_problem": dict(registered_problem),
         "registered_procedures": [dict(row) for row in registered_procedures],
         "runtime_execution_budget": {"n_runs": n_runs, "seed": seed},
@@ -137,10 +131,11 @@ def build_simulation_engineer_prompt(
     }
     return (
         "Design a simulation and stress-test plan for the SimulatorEngineer subsystem. "
-        "Return ONLY JSON matching required_output_contract. You may critique the theory "
-        "packet and propose DGPs, metrics, stress tests, and failure interpretation, but "
-        "do not claim that simulations were run or passed. Execution is owned by AgentRuntime.\n\n"
-        + json.dumps(payload, indent=2, default=str)
+        "Return ONLY one compact JSON object matching required_output_contract. Include "
+        "only the required fields. Keep each list to exactly 1 short object or 1 short "
+        "string. You may name one runtime diagnostic, but do not claim that simulations "
+        "were run or passed. Execution is owned by AgentRuntime.\n\n"
+        + json.dumps(payload, separators=(",", ":"), default=str)
     )
 
 
@@ -154,40 +149,90 @@ and do not claim proof evidence.
 """
 
 
+def _compact_theory_packet_for_simulation(theory_packet: Mapping[str, Any]) -> dict[str, Any]:
+    """Expose only simulator-relevant theory fields to keep Haiku packets short."""
+
+    problem_card = _mapping(theory_packet.get("problem_card", {}))
+    simulation_spec = _mapping(theory_packet.get("simulation_ademp_spec", {}))
+    return {
+        "packet_id": theory_packet.get("packet_id", ""),
+        "problem_card": {
+            key: _compact_string_or_list(problem_card.get(key, ""))
+            for key in ("estimand", "assumptions", "desired_theorem_type")
+        },
+        "estimator_specs": [
+            {
+                "id": _truncate_text(row.get("id", ""), limit=120),
+                "name": _truncate_text(row.get("name", ""), limit=180),
+                "algorithm_sketch": _truncate_text(row.get("algorithm_sketch", ""), limit=500),
+            }
+            for row in _first_mapping_rows(theory_packet.get("estimator_specs", []), limit=2)
+        ],
+        "theorem_cards": [
+            {
+                "id": _truncate_text(row.get("id", ""), limit=120),
+                "conclusion": _truncate_text(row.get("conclusion", ""), limit=500),
+                "semantic_risks": _compact_string_list(row.get("semantic_risks", []), limit=2),
+            }
+            for row in _first_mapping_rows(theory_packet.get("theorem_cards", []), limit=2)
+        ],
+        "simulation_ademp_spec": {
+            key: _compact_string_or_list(simulation_spec.get(key, ""))
+            for key in ("aim", "dgps", "methods", "performance_measures", "stress_tests")
+        },
+    }
+
+
+def _first_mapping_rows(value: Any, *, limit: int) -> list[Mapping[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [row for row in value[:limit] if isinstance(row, Mapping)]
+
+
+def _mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _compact_string_or_list(value: Any) -> str | list[str]:
+    if isinstance(value, list):
+        return _compact_string_list(value, limit=2)
+    return _truncate_text(value)
+
+
+def _compact_string_list(value: Any, *, limit: int, char_limit: int = 220) -> list[str]:
+    if isinstance(value, str):
+        rows = [value]
+    elif isinstance(value, list):
+        rows = value
+    else:
+        rows = []
+    return [_truncate_text(row, limit=char_limit) for row in rows[:limit]]
+
+
+def _truncate_text(value: Any, *, limit: int = 360) -> str:
+    text = str(value or "")
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 18)] + "...[truncated]"
+
+
 SIMULATION_ENGINEER_OUTPUT_CONTRACT: dict[str, Any] = {
     "simulation_targets": [
         {
             "procedure_id": "string",
-            "estimand": "string",
-            "primary_question": "string",
-            "target_theorem_card": "string",
+            "estimand": "short string",
         }
-    ],
-    "dgp_plan": [
-        {
-            "id": "string",
-            "description": "string",
-            "parameters": ["string"],
-            "assumptions_stressed": ["string"],
-            "expected_behavior": "string",
-        }
-    ],
-    "metric_plan": ["string"],
-    "stress_tests": ["string"],
-    "failure_interpretation": [
-        {"diagnostic": "string", "possible_cause": "string", "reroute_to": "string"}
     ],
     "runtime_execution_plan": {
         "registered_simulator": "ResearchSimulator.run",
         "n_runs": "integer",
         "seed": "integer",
-        "notes": ["string"],
     },
     "critic_findings": [
-        {"critic": "string", "finding": "string", "reroute_if_confirmed": "string"}
+        {"critic": "string", "finding": "short string", "reroute_if_confirmed": "string"}
     ],
     "next_actions": [
-        {"owner_agent": "string", "action": "string", "acceptance_gate": "string"}
+        {"owner_agent": "string", "action": "short string", "acceptance_gate": "short string"}
     ],
 }
 
@@ -198,20 +243,16 @@ SIMULATION_ENGINEER_JSON_SCHEMA: dict[str, Any] = {
     "additionalProperties": True,
     "required": [
         "simulation_targets",
-        "dgp_plan",
-        "metric_plan",
-        "stress_tests",
-        "failure_interpretation",
         "runtime_execution_plan",
         "critic_findings",
         "next_actions",
     ],
     "properties": {
         "simulation_targets": {"type": "array", "minItems": 1},
-        "dgp_plan": {"type": "array", "minItems": 1},
-        "metric_plan": {"type": "array", "minItems": 1},
-        "stress_tests": {"type": "array", "minItems": 1},
-        "failure_interpretation": {"type": "array", "minItems": 1},
+        "dgp_plan": {"type": "array"},
+        "metric_plan": {"type": "array"},
+        "stress_tests": {"type": "array"},
+        "failure_interpretation": {"type": "array"},
         "runtime_execution_plan": {"type": "object"},
         "critic_findings": {"type": "array", "minItems": 1},
         "next_actions": {"type": "array", "minItems": 1},
@@ -223,10 +264,6 @@ def validate_simulation_engineer_packet(packet: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
     for field in (
         "simulation_targets",
-        "dgp_plan",
-        "metric_plan",
-        "stress_tests",
-        "failure_interpretation",
         "runtime_execution_plan",
         "critic_findings",
         "next_actions",
