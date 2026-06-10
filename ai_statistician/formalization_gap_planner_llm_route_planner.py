@@ -124,6 +124,7 @@ ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES = (
 ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES = (
     "formal_gap_boundaries_require_resolution"
 )
+ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING = "source_grounding_obligations_pending"
 ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
 ROUTE_ADOPTION_BLOCKER_VALUES = (
     ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED,
@@ -140,6 +141,7 @@ ROUTE_ADOPTION_BLOCKER_VALUES = (
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES,
     ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES,
+    ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS,
 )
 QUALITY_CONTROL_FIELDS = (
@@ -250,6 +252,11 @@ ROUTE_ADOPTION_BLOCKER_DEFINITIONS = {
         "The accepted route carries explicit formal-gap boundaries that must be "
         "resolved, searched, or replayed before standalone adoption."
     ),
+    ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING: (
+        "The request context contains source-grounding audit rows whose claims "
+        "or prover residual repairs remain unaccounted, source-search pending, "
+        "or explicitly failed."
+    ),
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS: (
         "The route carries quality-control obligations whose required gates, "
         "signals, or stop conditions have not been discharged by admissible "
@@ -301,6 +308,11 @@ ROUTE_ADOPTION_BLOCKER_TRIGGER_FIELDS = {
         "response_payload.formal_realization_dag_nodes[].formal_gap_boundary",
         "response_payload.residual_interpretations[].formal_gap_boundary",
         "response_payload.standalone_route.primitives[].formal_gap_boundary",
+    ),
+    ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING: (
+        "context_packet.source_grounding_obligations.pending",
+        "context_packet.source_grounding_rows[].grounding_status",
+        "context_packet.source_grounding_rows[].ok",
     ),
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS: (
         "context_packet.quality_control_obligations.pending",
@@ -373,6 +385,11 @@ LLM_ROUTE_PLANNER_SOURCE_SEARCH_STATUS_KEYS = (
     "formal_boundary",
     "formal_boundary_declared",
 )
+SOURCE_GROUNDING_UNRESOLVED_STATUSES = (
+    "source_search_pending",
+    "unaccounted",
+)
+SOURCE_GROUNDING_RESIDUAL_NODE_SOURCE = "refinement_evidence_prover_feedback"
 LLM_ROUTE_PLANNER_SEARCH_REQUEST_KIND_ALIASES = (
     "literature",
     "literature_search",
@@ -1092,6 +1109,51 @@ def export_formalization_gap_planner_llm_route_planner(
                 _dict_value(packet, "context_packet").get("source_grounding_rows", [])
             )
         ),
+        "n_request_source_grounding_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "source_grounding_rows",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_source_grounding_obligation_inventory": sum(
+            1
+            for packet in request_packets
+            if _request_context_packet_inventory(packet).get(
+                "source_grounding_obligation_present",
+            )
+        ),
+        "n_requests_with_pending_source_grounding_obligation_inventory": sum(
+            1
+            for packet in request_packets
+            if _request_context_packet_inventory(packet).get(
+                "source_grounding_obligation_pending",
+            )
+        ),
+        "n_request_source_grounding_unresolved_rows": sum(
+            int(
+                _request_context_packet_inventory(packet).get(
+                    "source_grounding_unresolved_count",
+                    0,
+                )
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_residual_source_grounding_unresolved_rows": sum(
+            int(
+                _request_context_packet_inventory(packet).get(
+                    "residual_source_grounding_unresolved_count",
+                    0,
+                )
+                or 0
+            )
+            for packet in request_packets
+        ),
         "n_requests_with_resource_response_ledger_rows": sum(
             1
             for packet in request_packets
@@ -1680,6 +1742,12 @@ def export_formalization_gap_planner_llm_route_planner(
             if ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES
             in row.route_adoption_blockers
         ),
+        "n_route_adoption_pending_source_grounding_blockers": sum(
+            1
+            for row in rows
+            if ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING
+            in row.route_adoption_blockers
+        ),
         "n_route_adoption_pending_quality_control_blockers": sum(
             1
             for row in rows
@@ -2144,6 +2212,11 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_model_tier_mismatches",
             "request_model_tier_mismatches",
             "n_generation_preflight_blocked",
+            "n_request_source_grounding_rows",
+            "n_requests_with_source_grounding_obligation_inventory",
+            "n_requests_with_pending_source_grounding_obligation_inventory",
+            "n_request_source_grounding_unresolved_rows",
+            "n_request_residual_source_grounding_unresolved_rows",
             "n_requests_with_quality_control_obligation_inventory",
             "n_requests_with_pending_quality_control_obligation_inventory",
             "n_request_quality_control_obligation_fields",
@@ -2175,6 +2248,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "by_route_adoption_status",
             "by_route_adoption_blocker",
             "n_route_adoption_pending_formal_gap_boundary_blockers",
+            "n_route_adoption_pending_source_grounding_blockers",
             "n_route_adoption_pending_quality_control_blockers",
             "n_informal_knowledge_dag_nodes",
             "n_formal_realization_dag_nodes",
@@ -2245,6 +2319,17 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "request_model_tier_mismatches": object_array,
             "n_generation_preflight_blocked": nonnegative_integer,
             "generation_preflight_errors": object_array,
+            "n_request_source_grounding_rows": nonnegative_integer,
+            "n_requests_with_source_grounding_obligation_inventory": (
+                nonnegative_integer
+            ),
+            "n_requests_with_pending_source_grounding_obligation_inventory": (
+                nonnegative_integer
+            ),
+            "n_request_source_grounding_unresolved_rows": nonnegative_integer,
+            "n_request_residual_source_grounding_unresolved_rows": (
+                nonnegative_integer
+            ),
             "n_requests_with_quality_control_obligation_inventory": nonnegative_integer,
             "n_requests_with_pending_quality_control_obligation_inventory": (
                 nonnegative_integer
@@ -2282,6 +2367,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "by_route_adoption_status": {"type": "object"},
             "by_route_adoption_blocker": {"type": "object"},
             "n_route_adoption_pending_formal_gap_boundary_blockers": (
+                nonnegative_integer
+            ),
+            "n_route_adoption_pending_source_grounding_blockers": (
                 nonnegative_integer
             ),
             "n_route_adoption_pending_quality_control_blockers": (
@@ -3432,6 +3520,9 @@ def _request_packet(
         context_packet,
         target_prover_family=target_prover_family,
     )
+    context_packet["source_grounding_obligations"] = (
+        _source_grounding_obligation_summary(context_packet)
+    )
     context_packet["feedback_loop_summary"] = _feedback_loop_summary(
         context_packet,
         residual_goals=residual_goals,
@@ -3526,6 +3617,9 @@ def _route_planning_brief(
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
     playbooks = _dict_tuple(context_packet.get("resource_request_playbooks", []))
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
+    source_grounding_obligations = _source_grounding_obligation_summary(
+        context_packet
+    )
     target_intake_rows = _dict_tuple(context_packet.get("target_intake_rows", []))
     planner_focus: list[dict[str, object]] = []
     evidence_gaps: list[dict[str, object]] = []
@@ -3711,6 +3805,36 @@ def _route_planning_brief(
             recommended_action="emit bounded next actions that discharge pending controls",
             evidence_fields=("context_packet.context_packet_inventory",),
         )
+    if bool(source_grounding_obligations.get("pending", False)):
+        add_focus(
+            "resolve_source_grounding_obligations",
+            priority=2,
+            action=(
+                "resolve unaccounted or source-search-pending grounding rows "
+                "before adoption"
+            ),
+            reason=(
+                "source-grounding audit rows in the request context remain "
+                "unresolved"
+            ),
+            evidence_fields=(
+                "context_packet.source_grounding_obligations",
+                "context_packet.source_grounding_rows",
+            ),
+            required_output_fields=("search_requests", "planner_next_actions"),
+        )
+        add_gap(
+            "pending_source_grounding",
+            gap_kind="source_grounding",
+            reason=(
+                "source-grounding audit rows remain unaccounted, source-search "
+                "pending, or failed"
+            ),
+            recommended_action=(
+                "emit bounded source-search or route-repair next actions"
+            ),
+            evidence_fields=("context_packet.source_grounding_obligations",),
+        )
 
     target_context = {
         "theorem_statement": str(
@@ -3756,6 +3880,16 @@ def _route_planning_brief(
         "pending_quality_control_value_count": int(
             quality_control_obligations.get("n_pending_values", 0) or 0
         ),
+        "source_grounding_unresolved_count": int(
+            source_grounding_obligations.get("n_unresolved_rows", 0) or 0
+        ),
+        "residual_source_grounding_unresolved_count": int(
+            source_grounding_obligations.get(
+                "n_residual_unresolved_rows",
+                0,
+            )
+            or 0
+        ),
     }
     return {
         "brief_kind": ROUTE_PLANNING_BRIEF_KIND,
@@ -3789,6 +3923,90 @@ def _residual_goal_target_primitives(
     return tuple(dict.fromkeys(primitives))
 
 
+def _source_grounding_obligation_summary(
+    context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    rows = _dict_tuple(context_packet.get("source_grounding_rows", []))
+    statuses = tuple(_source_grounding_status(row) for row in rows)
+    unresolved_rows = tuple(
+        row for row in rows if _source_grounding_row_unresolved(row)
+    )
+    residual_rows = tuple(
+        row for row in rows if _source_grounding_row_from_residual(row)
+    )
+    residual_unresolved_rows = tuple(
+        row
+        for row in unresolved_rows
+        if _source_grounding_row_from_residual(row)
+    )
+    return {
+        "present": bool(rows),
+        "pending": bool(unresolved_rows),
+        "discharged": bool(rows) and not unresolved_rows,
+        "n_rows": len(rows),
+        "n_residual_rows": len(residual_rows),
+        "n_unresolved_rows": len(unresolved_rows),
+        "n_residual_unresolved_rows": len(residual_unresolved_rows),
+        "by_grounding_status": _value_counts(statuses),
+        "unresolved_grounding_statuses": sorted(
+            {
+                _source_grounding_status(row)
+                for row in unresolved_rows
+                if _source_grounding_status(row)
+            }
+        ),
+        "unresolved_row_ids": [
+            _source_grounding_row_id(row) for row in unresolved_rows[:25]
+        ],
+        "residual_unresolved_row_ids": [
+            _source_grounding_row_id(row)
+            for row in residual_unresolved_rows[:25]
+        ],
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _source_grounding_status(row: Mapping[str, object]) -> str:
+    return str(
+        row.get("grounding_status")
+        or row.get("source_grounding_status")
+        or ""
+    ).strip()
+
+
+def _source_grounding_row_unresolved(row: Mapping[str, object]) -> bool:
+    status = _source_grounding_status(row)
+    ok_value = row.get("ok")
+    ok_explicitly_false = ok_value is False or (
+        "ok" in row and str(ok_value).strip().lower() in {"false", "no", "0"}
+    )
+    return ok_explicitly_false or status in SOURCE_GROUNDING_UNRESOLVED_STATUSES
+
+
+def _source_grounding_row_from_residual(row: Mapping[str, object]) -> bool:
+    node_source = str(row.get("node_source", "")).strip()
+    if node_source == SOURCE_GROUNDING_RESIDUAL_NODE_SOURCE:
+        return True
+    searchable_fields = (
+        row.get("source_grounding_id", ""),
+        row.get("node_id", ""),
+        row.get("node_kind", ""),
+        row.get("required_next_action", ""),
+    )
+    return any("residual" in str(value).lower() for value in searchable_fields)
+
+
+def _source_grounding_row_id(row: Mapping[str, object]) -> str:
+    return str(
+        row.get("source_grounding_id")
+        or row.get("node_id")
+        or row.get("route_id")
+        or row.get("source_route_id")
+        or ""
+    ).strip()
+
+
 def _context_packet_inventory(
     context_packet: Mapping[str, Any],
     *,
@@ -3806,6 +4024,9 @@ def _context_packet_inventory(
     )
     route_planning_brief = _dict_value(context_packet, "route_planning_brief")
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
+    source_grounding_obligations = _source_grounding_obligation_summary(
+        context_packet
+    )
     quality_controls = _dict_value(quality_control_obligations, "quality_controls")
     pending_quality_controls = _dict_value(
         quality_control_obligations,
@@ -3894,6 +4115,28 @@ def _context_packet_inventory(
         "discharged_quality_control_field_count": len(discharged_quality_controls),
         "discharged_quality_control_value_count": _quality_control_value_count(
             discharged_quality_controls
+        ),
+        "source_grounding_obligation_present": bool(
+            source_grounding_obligations.get("present", False)
+        ),
+        "source_grounding_obligation_pending": bool(
+            source_grounding_obligations.get("pending", False)
+        ),
+        "source_grounding_obligation_discharged": bool(
+            source_grounding_obligations.get("discharged", False)
+        ),
+        "source_grounding_row_count": int(
+            source_grounding_obligations.get("n_rows", 0) or 0
+        ),
+        "source_grounding_residual_row_count": int(
+            source_grounding_obligations.get("n_residual_rows", 0) or 0
+        ),
+        "source_grounding_unresolved_count": int(
+            source_grounding_obligations.get("n_unresolved_rows", 0) or 0
+        ),
+        "residual_source_grounding_unresolved_count": int(
+            source_grounding_obligations.get("n_residual_unresolved_rows", 0)
+            or 0
         ),
     }
 
@@ -4101,6 +4344,26 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                 "resource_request_playbook_count",
                 len(_dict_tuple(context_packet.get("resource_request_playbooks", []))),
             ),
+            (
+                "source_grounding_unresolved_count",
+                int(
+                    _source_grounding_obligation_summary(context_packet).get(
+                        "n_unresolved_rows",
+                        0,
+                    )
+                    or 0
+                ),
+            ),
+            (
+                "residual_source_grounding_unresolved_count",
+                int(
+                    _source_grounding_obligation_summary(context_packet).get(
+                        "n_residual_unresolved_rows",
+                        0,
+                    )
+                    or 0
+                ),
+            ),
         )
         for field_name, expected_count in brief_count_checks:
             if int(brief_summary.get(field_name, 0) or 0) != expected_count:
@@ -4160,6 +4423,81 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             errors.append(
                 "context_packet.context_packet_inventory."
                 f"{field_name} must match quality_control_obligations"
+            )
+    source_grounding_obligations = _source_grounding_obligation_summary(
+        context_packet
+    )
+    reported_source_grounding_obligations = _dict_value(
+        context_packet,
+        "source_grounding_obligations",
+    )
+    if reported_source_grounding_obligations:
+        source_grounding_summary_checks = (
+            "present",
+            "pending",
+            "discharged",
+            "n_rows",
+            "n_residual_rows",
+            "n_unresolved_rows",
+            "n_residual_unresolved_rows",
+        )
+        for field_name in source_grounding_summary_checks:
+            if reported_source_grounding_obligations.get(
+                field_name
+            ) != source_grounding_obligations.get(field_name):
+                errors.append(
+                    "context_packet.source_grounding_obligations."
+                    f"{field_name} must match context_packet.source_grounding_rows"
+                )
+    source_grounding_count_checks = (
+        (
+            "source_grounding_obligation_present",
+            bool(source_grounding_obligations.get("present", False)),
+        ),
+        (
+            "source_grounding_obligation_pending",
+            bool(source_grounding_obligations.get("pending", False)),
+        ),
+        (
+            "source_grounding_obligation_discharged",
+            bool(source_grounding_obligations.get("discharged", False)),
+        ),
+        (
+            "source_grounding_row_count",
+            int(source_grounding_obligations.get("n_rows", 0) or 0),
+        ),
+        (
+            "source_grounding_residual_row_count",
+            int(source_grounding_obligations.get("n_residual_rows", 0) or 0),
+        ),
+        (
+            "source_grounding_unresolved_count",
+            int(source_grounding_obligations.get("n_unresolved_rows", 0) or 0),
+        ),
+        (
+            "residual_source_grounding_unresolved_count",
+            int(
+                source_grounding_obligations.get(
+                    "n_residual_unresolved_rows",
+                    0,
+                )
+                or 0
+            ),
+        ),
+    )
+    for field_name, expected_value in source_grounding_count_checks:
+        actual_value = inventory.get(
+            field_name,
+            False if isinstance(expected_value, bool) else 0,
+        )
+        if isinstance(expected_value, bool):
+            matches = bool(actual_value) == expected_value
+        else:
+            matches = int(actual_value or 0) == expected_value
+        if not matches:
+            errors.append(
+                "context_packet.context_packet_inventory."
+                f"{field_name} must match source_grounding_obligations"
             )
     return errors
 
@@ -5899,6 +6237,9 @@ def _row_for_request(
         "context_packet_inventory",
     )
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
+    source_grounding_obligations = _source_grounding_obligation_summary(
+        context_packet
+    )
     realization_coverage_witness = _realization_coverage_witness(
         request=request,
         minimal_delta=minimal_delta_plan,
@@ -5932,6 +6273,9 @@ def _row_for_request(
         ),
         quality_control_obligations_pending=bool(
             quality_control_obligations.get("pending", False)
+        ),
+        source_grounding_obligations_pending=bool(
+            source_grounding_obligations.get("pending", False)
         ),
     )
     repair_attempt_ledger = _repair_attempt_ledger_rows(
@@ -6018,6 +6362,7 @@ def _route_adoption_readiness(
     omitted_cost_hint_primitives: tuple[str, ...],
     formal_gap_boundary_obligations: tuple[str, ...],
     quality_control_obligations_pending: bool,
+    source_grounding_obligations_pending: bool = False,
 ) -> tuple[str, tuple[str, ...]]:
     if (
         request_errors
@@ -6071,6 +6416,8 @@ def _route_adoption_readiness(
         blockers.append(ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES)
     if formal_gap_boundary_obligations:
         blockers.append(ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES)
+    if source_grounding_obligations_pending:
+        blockers.append(ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING)
     if quality_control_obligations_pending:
         blockers.append(ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS)
     blockers = list(dict.fromkeys(blockers))
@@ -12278,6 +12625,17 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "lean_declaration_hits",
         "coverage_updates",
         "route_revision_summary",
+        "source_grounding_id",
+        "node_source",
+        "node_id",
+        "node_kind",
+        "node_label",
+        "grounding_status",
+        "required_next_action",
+        "residual_primitives",
+        "residual_evidence_ids",
+        "residual_attempt_status",
+        "residual_diagnostic_signature",
         "revised_selected_primitives",
         "revised_delta_primitives",
         "revised_informal_knowledge_dag_nodes",

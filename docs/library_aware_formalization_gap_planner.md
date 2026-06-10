@@ -224,7 +224,14 @@ include a substantive explanation of the boundary; placeholders such as
 obligation. Accepted routes that carry formal-gap boundaries remain
 `PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION` with the
 `formal_gap_boundaries_require_resolution` blocker; the boundary is honest
-planning output, not a standalone-replay certificate. Each row also carries a
+planning output, not a standalone-replay certificate. LLM route-planner
+requests also carry `context_packet.source_grounding_obligations`, derived from
+source-grounding audit rows rather than from the LLM response. If any row is
+`unaccounted`, `source_search_pending`, or explicitly `ok: false`, the accepted
+route remains pending with `source_grounding_obligations_pending`; residual
+prover-feedback rows are counted separately so an ungrounded side condition
+cannot become standalone-ready just because the LLM wrote a plausible repair.
+Each row also carries a
 `realization_coverage_witness` summarizing
 whether the selected primitives have standalone-route nodes and formal
 realization nodes, whether delta primitives have route-alignment edges, and
@@ -385,9 +392,11 @@ validation signals, and stop conditions. Benchmark and publication artifacts can
 therefore inspect minimal-route, realization-coverage, and bounded-tool-policy
 evidence without depending on Lean-specific internals. Evaluation and
 publication summaries also expose
-`n_llm_route_adoption_pending_quality_control_blockers`, so unmet tool-policy
-obligations can be reported separately from literature, prover, or cost-hint
-blockers. The publication-bundle audit recomputes these quality-control
+`n_llm_route_adoption_pending_quality_control_blockers`, and planner manifests
+expose `n_route_adoption_pending_source_grounding_blockers`, so unmet
+tool-policy and source-grounding obligations can be reported separately from
+literature, prover, or cost-hint blockers. The publication-bundle audit
+recomputes these quality-control
 aggregates from packaged evaluation JSONL rows, and also recomputes omitted
 cost-hint counters, rejecting bundles whose evaluation manifest drops or mutates
 them.
@@ -838,7 +847,11 @@ When passed a refinement-evidence directory, the same audit also emits
 `prover_residual_goal` rows for proof-state residuals. Those rows distinguish
 source-backed residual side conditions from residuals that still need bounded
 literature discovery or an explicit formal-gap boundary before route repair can
-promote them into the next informal DAG.
+promote them into the next informal DAG. The LLM route planner preserves the
+audit's canonical `grounding_status`, residual provenance, and `ok` fields in
+its compact context packet, turns unresolved rows into
+`context_packet.source_grounding_obligations`, and blocks route adoption until
+the unresolved source-search or route-repair obligation is discharged.
 The reuse-smoke command orchestrates target intake,
 standalone planning, portable-plan audit, library-coverage map,
 primitive-action queue, minimal-delta audit, source-grounding audit,

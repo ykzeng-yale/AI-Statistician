@@ -18,6 +18,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
+    ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
     _generator_model_for_request,
     _route_adoption_readiness,
     export_formalization_gap_planner_llm_route_planner,
@@ -5649,6 +5650,127 @@ def test_llm_route_planner_blocks_route_adoption_on_formal_gap_boundary() -> Non
     assert seed_route["replan_metadata"][
         "llm_route_planner_route_adoption_blockers"
     ] == ["formal_gap_boundaries_require_resolution"]
+
+
+def test_llm_route_planner_blocks_route_adoption_on_unresolved_source_grounding() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_source_grounding_blocker"
+    )
+    out_dir = root / "llm_route_planner"
+    source_grounding_dir = root / "source_grounding"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    source_grounding_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    (
+        source_grounding_dir
+        / "formalization_gap_planner_source_grounding_audit_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_source_grounding_audit",
+                "rows": [
+                    {
+                        "source_grounding_id": "source-grounding:rank-residual",
+                        "route_id": "rank_route",
+                        "display_name": "distribution_free_rank_bound",
+                        "node_source": "refinement_evidence_prover_feedback",
+                        "node_id": "residual:rank_uniformity:measurability",
+                        "node_kind": "prover_residual_goal",
+                        "node_label": "Rank bridge residual measurability condition",
+                        "source_refs": [],
+                        "source_snippets": [],
+                        "residual_goals": [
+                            "rank_uniformity: missing measurability side condition"
+                        ],
+                        "residual_primitives": ["rank_uniformity"],
+                        "residual_evidence_ids": ["evidence:rank-lsp"],
+                        "grounding_status": "unaccounted",
+                        "required_next_action": "route_repair_or_source_search",
+                        "ok": False,
+                        "errors": ["residual goal has no source-backed route repair"],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": "rank_uniformity: missing measurability side condition",
+            "interpretation": (
+                "The attempted rank-uniformity bridge exposed a side condition "
+                "that is not yet source-backed."
+            ),
+            "route_repair": (
+                "Keep the measurability side condition as a route-repair "
+                "obligation until source evidence or a formal boundary is added."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_source_grounding_audit_dir=source_grounding_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_requests_with_source_grounding_rows"] == 1
+    assert payload["n_request_source_grounding_rows"] == 1
+    assert payload["n_requests_with_source_grounding_obligation_inventory"] == 1
+    assert (
+        payload["n_requests_with_pending_source_grounding_obligation_inventory"]
+        == 1
+    )
+    assert payload["n_request_source_grounding_unresolved_rows"] == 1
+    assert payload["n_request_residual_source_grounding_unresolved_rows"] == 1
+    assert payload["n_route_adoption_ready"] == 0
+    assert payload["n_route_adoption_pending_refinement"] == 1
+    assert payload["n_route_adoption_pending_residual_repair_blockers"] == 1
+    assert payload["n_route_adoption_pending_source_grounding_blockers"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_WITH_RESIDUAL_REPAIR"
+    assert row["route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert set(row["route_adoption_blockers"]) >= {
+        "residual_interpretations_require_route_replay",
+        ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
+    }
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    source_row = context["source_grounding_rows"][0]
+    assert source_row["grounding_status"] == "unaccounted"
+    assert source_row["node_source"] == "refinement_evidence_prover_feedback"
+    obligations = context["source_grounding_obligations"]
+    assert obligations["pending"] is True
+    assert obligations["n_unresolved_rows"] == 1
+    assert obligations["n_residual_unresolved_rows"] == 1
+    inventory = context["context_packet_inventory"]
+    assert inventory["source_grounding_obligation_pending"] is True
+    assert inventory["residual_source_grounding_unresolved_count"] == 1
+    assert ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING in payload[
+        "route_adoption_blocker_values"
+    ]
+    seed_route = payload["standalone_seed"]["routes"][0]
+    assert set(
+        seed_route["replan_metadata"]["llm_route_planner_route_adoption_blockers"]
+    ) >= {
+        "residual_interpretations_require_route_replay",
+        ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
+    }
 
 
 def test_route_adoption_readiness_uses_current_realization_witness() -> None:
