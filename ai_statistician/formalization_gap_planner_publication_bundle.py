@@ -2072,7 +2072,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_llm_route_adoption_blockers",
             "n_llm_route_adoption_pending_quality_control_blockers",
             "llm_route_adoption_blockers",
+            "llm_route_adoption_blocker_counts",
             "llm_route_adoption_status_counts",
+            "evaluation_by_llm_route_adoption_blocker",
             "n_rows_with_quality_controls",
             "n_quality_control_fields",
             "quality_control_fields",
@@ -2111,9 +2113,17 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "llm_route_adoption_blockers": string_array,
+            "llm_route_adoption_blocker_counts": {
+                "type": "object",
+                "additionalProperties": nonnegative_integer,
+            },
             "llm_route_adoption_status_counts": {
                 "type": "object",
                 "additionalProperties": nonnegative_integer,
+            },
+            "evaluation_by_llm_route_adoption_blocker": {
+                "type": "object",
+                "additionalProperties": {"type": "object"},
             },
             "n_rows_with_quality_controls": nonnegative_integer,
             "n_quality_control_fields": nonnegative_integer,
@@ -3730,7 +3740,9 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         "n_llm_route_adoption_blockers": 0,
         "n_llm_route_adoption_pending_quality_control_blockers": 0,
         "llm_route_adoption_blockers": (),
+        "llm_route_adoption_blocker_counts": {},
         "llm_route_adoption_status_counts": {},
+        "evaluation_by_llm_route_adoption_blocker": {},
         "n_rows_with_quality_controls": 0,
         "n_quality_control_fields": 0,
         "quality_control_fields": (),
@@ -3901,9 +3913,16 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
             "llm_route_adoption_blockers",
             "llm_route_planner_route_adoption_blockers",
         ),
+        "llm_route_adoption_blocker_counts": _llm_route_adoption_blocker_counts(
+            payload,
+            rows,
+        ),
         "llm_route_adoption_status_counts": _llm_route_adoption_status_counts(
             payload,
             rows,
+        ),
+        "evaluation_by_llm_route_adoption_blocker": (
+            _llm_route_adoption_blocker_summary(payload, rows)
         ),
         "n_rows_with_quality_controls": int(
             payload.get(
@@ -4011,6 +4030,58 @@ def _llm_route_adoption_status_counts(
         if status:
             counts[status] = counts.get(status, 0) + 1
     return counts
+
+
+def _llm_route_adoption_blocker_counts(
+    payload: dict[str, object],
+    rows: tuple[dict[str, Any], ...],
+) -> dict[str, int]:
+    manifest_counts = payload.get("llm_route_adoption_blocker_counts", {})
+    if isinstance(manifest_counts, dict) and manifest_counts:
+        return {
+            str(blocker): int(count or 0)
+            for blocker, count in sorted(manifest_counts.items())
+        }
+    counts: dict[str, int] = {}
+    for row in rows:
+        for blocker in _str_tuple(
+            row.get("llm_route_planner_route_adoption_blockers", [])
+        ):
+            counts[blocker] = counts.get(blocker, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _llm_route_adoption_blocker_summary(
+    payload: dict[str, object],
+    rows: tuple[dict[str, Any], ...],
+) -> dict[str, dict[str, object]]:
+    manifest_summary = payload.get("evaluation_by_llm_route_adoption_blocker", {})
+    if isinstance(manifest_summary, dict) and manifest_summary:
+        return {
+            str(blocker): dict(summary)
+            for blocker, summary in sorted(manifest_summary.items())
+            if isinstance(summary, dict)
+        }
+    counts = _llm_route_adoption_blocker_counts({}, rows)
+    summaries: dict[str, dict[str, object]] = {}
+    for blocker, count in counts.items():
+        blocker_rows = [
+            row
+            for row in rows
+            if blocker
+            in _str_tuple(row.get("llm_route_planner_route_adoption_blockers", []))
+        ]
+        by_status: dict[str, int] = {}
+        for row in blocker_rows:
+            status = str(row.get("llm_route_planner_route_adoption_status", "")).strip()
+            if status:
+                by_status[status] = by_status.get(status, 0) + 1
+        summaries[blocker] = {
+            "n_rows": len(blocker_rows),
+            "n_blocker_occurrences": count,
+            "by_route_adoption_status": dict(sorted(by_status.items())),
+        }
+    return summaries
 
 
 def _str_tuple(value: Any) -> tuple[str, ...]:

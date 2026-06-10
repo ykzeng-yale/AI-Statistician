@@ -2200,13 +2200,21 @@ def _bundle_evaluation_summary_errors(
                 )
         elif isinstance(expected_value, dict):
             observed_dict = observed_value if isinstance(observed_value, dict) else {}
-            normalized_observed = {
-                str(key): int(value or 0) for key, value in observed_dict.items()
-            }
-            if normalized_observed != expected_value:
+            has_nested_summary = any(
+                isinstance(value, dict)
+                for value in tuple(expected_value.values())
+                + tuple(observed_dict.values())
+            )
+            if has_nested_summary:
+                normalized_observed = _normalized_summary_dict(observed_dict)
+                normalized_expected = _normalized_summary_dict(expected_value)
+            else:
+                normalized_observed = _int_mapping(observed_dict)
+                normalized_expected = _int_mapping(expected_value)
+            if normalized_observed != normalized_expected:
                 errors.append(
                     f"evaluation_summary.{field_name} mismatch: "
-                    f"observed={normalized_observed} expected={expected_value}"
+                    f"observed={normalized_observed} expected={normalized_expected}"
                 )
         elif str(observed_value) != str(expected_value):
             errors.append(
@@ -2226,6 +2234,14 @@ def _expected_bundle_evaluation_summary(bundle_dir: Path) -> dict[str, object]:
     evaluation_manifest = _read_json_no_error(evaluation_manifest_path)
     rows = _optional_evaluation_rows_for_summary(bundle_dir)
     route_adoption_counts = _evaluation_route_adoption_status_counts_from_rows(rows)
+    route_adoption_blocker_counts = _evaluation_route_adoption_blocker_counts_for_summary(
+        evaluation_manifest,
+        rows,
+    )
+    route_adoption_blocker_summary = _evaluation_route_adoption_blocker_summary_for_summary(
+        evaluation_manifest,
+        rows,
+    )
     return {
         "requested": evaluation_manifest_path.exists(),
         "n_evaluation_rows": int(
@@ -2313,7 +2329,9 @@ def _expected_bundle_evaluation_summary(bundle_dir: Path) -> dict[str, object]:
         "llm_route_adoption_blockers": _evaluation_route_adoption_blockers_from_rows(
             rows
         ),
+        "llm_route_adoption_blocker_counts": dict(route_adoption_blocker_counts),
         "llm_route_adoption_status_counts": dict(route_adoption_counts),
+        "evaluation_by_llm_route_adoption_blocker": route_adoption_blocker_summary,
         "n_rows_with_quality_controls": sum(
             1 for row in rows if _quality_controls_from_evaluation_row(row)
         ),
@@ -12741,6 +12759,8 @@ def _evaluation_route_adoption_manifest_errors(
         in _str_tuple(row.get("llm_route_planner_route_adoption_blockers", []))
     )
     expected_blockers = set(_evaluation_route_adoption_blockers_from_rows(rows))
+    expected_blocker_counts = _evaluation_route_adoption_blocker_counts_from_rows(rows)
+    expected_by_blocker = _evaluation_route_adoption_blocker_summary_from_rows(rows)
     observed_status_count = int(
         manifest.get("n_rows_with_llm_route_planner_route_adoption_status", -1) or 0
     )
@@ -12761,11 +12781,23 @@ def _evaluation_route_adoption_manifest_errors(
         or 0
     )
     observed_blockers = set(_str_tuple(manifest.get("llm_route_adoption_blockers", [])))
+    observed_blocker_counts = _int_mapping(
+        manifest.get("llm_route_adoption_blocker_counts", {})
+    )
     observed_by_status = manifest.get("evaluation_by_llm_route_adoption_status", {})
     observed_by_status = observed_by_status if isinstance(observed_by_status, dict) else {}
     observed_status_keys = {
         str(key)
         for key, value in observed_by_status.items()
+        if isinstance(value, dict) and int(value.get("n_rows", 0) or 0) > 0
+    }
+    observed_by_blocker = manifest.get("evaluation_by_llm_route_adoption_blocker", {})
+    observed_by_blocker = (
+        observed_by_blocker if isinstance(observed_by_blocker, dict) else {}
+    )
+    observed_blocker_keys = {
+        str(key)
+        for key, value in observed_by_blocker.items()
         if isinstance(value, dict) and int(value.get("n_rows", 0) or 0) > 0
     }
     if observed_status_count != expected_status_count:
@@ -12809,10 +12841,21 @@ def _evaluation_route_adoption_manifest_errors(
             "llm_route_adoption_blockers mismatch: "
             f"observed={sorted(observed_blockers)} expected={sorted(expected_blockers)}"
         )
+    if observed_blocker_counts != expected_blocker_counts:
+        errors.append(
+            "llm_route_adoption_blocker_counts mismatch: "
+            f"observed={observed_blocker_counts} expected={expected_blocker_counts}"
+        )
     if observed_status_keys != set(status_counts):
         errors.append(
             "evaluation_by_llm_route_adoption_status keys mismatch: "
             f"observed={sorted(observed_status_keys)} expected={sorted(status_counts)}"
+        )
+    if observed_blocker_keys != set(expected_by_blocker):
+        errors.append(
+            "evaluation_by_llm_route_adoption_blocker keys mismatch: "
+            f"observed={sorted(observed_blocker_keys)} "
+            f"expected={sorted(expected_by_blocker)}"
         )
     for status, expected_count in status_counts.items():
         summary = observed_by_status.get(status, {})
@@ -12840,6 +12883,41 @@ def _evaluation_route_adoption_manifest_errors(
                 f"[{status}].n_route_adoption_blockers mismatch: "
                 f"observed={observed_status_blockers} "
                 f"expected={expected_status_blockers}"
+            )
+    for blocker, expected_summary in expected_by_blocker.items():
+        summary = observed_by_blocker.get(blocker, {})
+        if not isinstance(summary, dict):
+            errors.append(f"evaluation_by_llm_route_adoption_blocker[{blocker}] missing")
+            continue
+        observed_rows = int(summary.get("n_rows", -1) or 0)
+        observed_occurrences = int(summary.get("n_blocker_occurrences", -1) or 0)
+        observed_by_blocker_status = _int_mapping(
+            summary.get("by_route_adoption_status", {})
+        )
+        expected_by_blocker_status = _int_mapping(
+            expected_summary.get("by_route_adoption_status", {})
+        )
+        if observed_rows != int(expected_summary.get("n_rows", 0) or 0):
+            errors.append(
+                f"evaluation_by_llm_route_adoption_blocker[{blocker}].n_rows "
+                f"mismatch: observed={observed_rows} "
+                f"expected={expected_summary.get('n_rows')}"
+            )
+        if observed_occurrences != int(
+            expected_summary.get("n_blocker_occurrences", 0) or 0
+        ):
+            errors.append(
+                "evaluation_by_llm_route_adoption_blocker"
+                f"[{blocker}].n_blocker_occurrences mismatch: "
+                f"observed={observed_occurrences} "
+                f"expected={expected_summary.get('n_blocker_occurrences')}"
+            )
+        if observed_by_blocker_status != expected_by_blocker_status:
+            errors.append(
+                "evaluation_by_llm_route_adoption_blocker"
+                f"[{blocker}].by_route_adoption_status mismatch: "
+                f"observed={observed_by_blocker_status} "
+                f"expected={expected_by_blocker_status}"
             )
     return tuple(errors)
 
@@ -12946,6 +13024,73 @@ def _evaluation_route_adoption_blockers_from_rows(rows: Any) -> tuple[str, ...]:
             _str_tuple(row.get("llm_route_planner_route_adoption_blockers", []))
         )
     return tuple(dict.fromkeys(values))
+
+
+def _evaluation_route_adoption_blocker_counts_from_rows(rows: Any) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for row in _dict_tuple(rows):
+        counts.update(
+            _str_tuple(row.get("llm_route_planner_route_adoption_blockers", []))
+        )
+    return dict(sorted(counts.items()))
+
+
+def _evaluation_route_adoption_blocker_summary_from_rows(
+    rows: Any,
+) -> dict[str, dict[str, object]]:
+    row_tuple = _dict_tuple(rows)
+    counts = _evaluation_route_adoption_blocker_counts_from_rows(row_tuple)
+    summaries: dict[str, dict[str, object]] = {}
+    for blocker, count in counts.items():
+        blocker_rows = [
+            row
+            for row in row_tuple
+            if blocker
+            in _str_tuple(row.get("llm_route_planner_route_adoption_blockers", []))
+        ]
+        by_status: Counter[str] = Counter(
+            status
+            for row in blocker_rows
+            for status in [
+                str(row.get("llm_route_planner_route_adoption_status", "")).strip()
+            ]
+            if status
+        )
+        summaries[blocker] = {
+            "n_rows": len(blocker_rows),
+            "n_blocker_occurrences": count,
+            "by_route_adoption_status": dict(sorted(by_status.items())),
+        }
+    return summaries
+
+
+def _evaluation_route_adoption_blocker_counts_for_summary(
+    evaluation_manifest: dict[str, Any],
+    rows: Any,
+) -> dict[str, int]:
+    manifest_counts = _int_mapping(
+        evaluation_manifest.get("llm_route_adoption_blocker_counts", {})
+    )
+    if manifest_counts:
+        return manifest_counts
+    return _evaluation_route_adoption_blocker_counts_from_rows(rows)
+
+
+def _evaluation_route_adoption_blocker_summary_for_summary(
+    evaluation_manifest: dict[str, Any],
+    rows: Any,
+) -> dict[str, dict[str, object]]:
+    manifest_summary = evaluation_manifest.get(
+        "evaluation_by_llm_route_adoption_blocker",
+        {},
+    )
+    if isinstance(manifest_summary, dict) and manifest_summary:
+        return {
+            str(blocker): _normalized_summary_dict(summary)
+            for blocker, summary in sorted(manifest_summary.items())
+            if isinstance(summary, dict)
+        }
+    return _evaluation_route_adoption_blocker_summary_from_rows(rows)
 
 
 def _evaluation_quality_control_fields_from_rows(rows: Any) -> tuple[str, ...]:
@@ -15123,6 +15268,36 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     if not isinstance(values, (list, tuple, set)):
         return tuple()
     return tuple(dict.fromkeys(str(item) for item in values if str(item)))
+
+
+def _int_mapping(value: Any) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): int(item or 0)
+        for key, item in sorted(value.items())
+        if item is not None
+    }
+
+
+def _normalized_summary_dict(value: Any) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    normalized: dict[str, object] = {}
+    for key, item in sorted(value.items()):
+        if isinstance(item, dict):
+            normalized[str(key)] = _normalized_summary_dict(item)
+        elif isinstance(item, bool):
+            normalized[str(key)] = bool(item)
+        elif isinstance(item, int):
+            normalized[str(key)] = int(item)
+        elif isinstance(item, float):
+            normalized[str(key)] = float(item)
+        elif isinstance(item, (list, tuple, set)):
+            normalized[str(key)] = tuple(str(entry) for entry in item)
+        else:
+            normalized[str(key)] = item
+    return normalized
 
 
 def _dict_tuple(values: Any) -> tuple[dict[str, Any], ...]:

@@ -3017,8 +3017,16 @@ def run_formalization_gap_planner_reuse_smoke(
             "llm_route_adoption_blockers",
             (),
         ),
+        "evaluation_llm_route_adoption_blocker_counts": evaluation_payload.get(
+            "llm_route_adoption_blocker_counts",
+            {},
+        ),
         "evaluation_by_llm_route_adoption_status": evaluation_payload.get(
             "evaluation_by_llm_route_adoption_status",
+            {},
+        ),
+        "evaluation_by_llm_route_adoption_blocker": evaluation_payload.get(
+            "evaluation_by_llm_route_adoption_blocker",
             {},
         ),
         "n_evaluation_rows_with_llm_route_planner_generator_metadata": evaluation_payload.get(

@@ -12,6 +12,9 @@ from .formalization_gap_planner_contract import (
     LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
     PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
 )
+from .formalization_gap_planner_llm_route_planner import (
+    ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS,
+)
 
 
 FORMALIZATION_GAP_PLANNER_EVALUATION_SCHEMA_VERSION = 1
@@ -28,7 +31,6 @@ ROUTE_ADOPTION_READY_STATUS = "READY_FOR_STANDALONE_REPLAY"
 ROUTE_ADOPTION_PENDING_STATUS = "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
 ROUTE_ADOPTION_AWAITING_STATUS = "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
 ROUTE_ADOPTION_REJECTED_STATUS = "REJECTED_LLM_ROUTE_PLAN"
-ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
 QUALITY_CONTROL_FIELDS = (
     "resource_contract_ids",
     "required_quality_signals",
@@ -177,6 +179,12 @@ def evaluate_formalization_gap_planner(
         by_ok[row.ok] = by_ok.get(row.ok, 0) + 1
     by_llm_model_tier = _llm_model_tier_summary(evaluation_rows)
     by_llm_route_adoption_status = _llm_route_adoption_status_summary(evaluation_rows)
+    by_llm_route_adoption_blocker = _llm_route_adoption_blocker_summary(
+        evaluation_rows
+    )
+    llm_route_adoption_blocker_counts = _llm_route_adoption_blocker_counts(
+        evaluation_rows
+    )
     llm_route_adoption_blockers = _unique_row_attr_strings(
         evaluation_rows,
         "llm_route_planner_route_adoption_blockers",
@@ -312,7 +320,9 @@ def evaluate_formalization_gap_planner(
             in row.llm_route_planner_route_adoption_blockers
         ),
         "llm_route_adoption_blockers": llm_route_adoption_blockers,
+        "llm_route_adoption_blocker_counts": llm_route_adoption_blocker_counts,
         "evaluation_by_llm_route_adoption_status": by_llm_route_adoption_status,
+        "evaluation_by_llm_route_adoption_blocker": by_llm_route_adoption_blocker,
         "n_rows_with_llm_route_planner_generator_metadata": sum(
             1
             for row in evaluation_rows
@@ -1319,6 +1329,54 @@ def _llm_route_adoption_status_summary(
             ),
         }
         for status in sorted(by_status)
+    }
+
+
+def _llm_route_adoption_blocker_counts(
+    rows: list[FormalizationGapPlannerEvaluationRow],
+) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for row in rows:
+        counts.update(row.llm_route_planner_route_adoption_blockers)
+    return dict(sorted(counts.items()))
+
+
+def _llm_route_adoption_blocker_summary(
+    rows: list[FormalizationGapPlannerEvaluationRow],
+) -> dict[str, dict[str, object]]:
+    counts = _llm_route_adoption_blocker_counts(rows)
+    return {
+        blocker: {
+            "n_rows": len(blocker_rows),
+            "n_blocker_occurrences": counts[blocker],
+            "n_ok": sum(1 for row in blocker_rows if row.ok),
+            "n_matched_ground_truth": sum(
+                1 for row in blocker_rows if row.matched_ground_truth
+            ),
+            "by_route_adoption_status": dict(
+                sorted(
+                    Counter(
+                        row.llm_route_planner_route_adoption_status
+                        for row in blocker_rows
+                        if row.llm_route_planner_route_adoption_status
+                    ).items()
+                )
+            ),
+            "mean_route_recall": _mean(
+                row.route_recall for row in blocker_rows if row.matched_ground_truth
+            ),
+            "mean_delta_precision": _mean(
+                row.delta_precision for row in blocker_rows if row.matched_ground_truth
+            ),
+        }
+        for blocker in sorted(counts)
+        for blocker_rows in [
+            [
+                row
+                for row in rows
+                if blocker in row.llm_route_planner_route_adoption_blockers
+            ]
+        ]
     }
 
 

@@ -1681,7 +1681,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert payload["evaluation_summary"]["n_llm_route_adoption_blockers"] == 0
     assert payload["evaluation_summary"]["llm_route_adoption_blockers"] == ()
+    assert payload["evaluation_summary"]["llm_route_adoption_blocker_counts"] == {}
     assert payload["evaluation_summary"]["llm_route_adoption_status_counts"] == {}
+    assert (
+        payload["evaluation_summary"]["evaluation_by_llm_route_adoption_blocker"]
+        == {}
+    )
     assert payload["evaluation_summary"]["n_rows_with_quality_controls"] == 0
     assert payload["evaluation_summary"]["n_quality_control_fields"] == 0
     assert payload["evaluation_summary"]["quality_control_fields"] == ()

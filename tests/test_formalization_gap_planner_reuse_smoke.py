@@ -2337,6 +2337,13 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         "semantic_alignment_risks_require_review",
         "uncertainty_flags_require_review",
     }
+    assert payload["evaluation_llm_route_adoption_blocker_counts"] == {
+        "omitted_cost_hint_primitives_require_review": 1,
+        "planner_next_actions_pending_evidence": 1,
+        "search_requests_pending_evidence": 1,
+        "semantic_alignment_risks_require_review": 1,
+        "uncertainty_flags_require_review": 1,
+    }
     assert payload["evaluation_by_llm_route_adoption_status"] == {
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": {
             "n_rows": 1,
@@ -2347,6 +2354,9 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "mean_delta_precision": 1.0,
         }
     }
+    assert payload["evaluation_by_llm_route_adoption_blocker"][
+        "search_requests_pending_evidence"
+    ]["n_rows"] == 1
     assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 1
     sonnet_evaluation = payload["evaluation_by_llm_model_tier"]["sonnet"]
     assert sonnet_evaluation["n_rows"] == 1

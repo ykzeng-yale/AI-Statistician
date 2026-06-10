@@ -1655,6 +1655,10 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                     "search_requests_pending_evidence",
                     "uncertainty_flags_require_review",
                 ],
+                "llm_route_adoption_blocker_counts": {
+                    "search_requests_pending_evidence": 1,
+                    "uncertainty_flags_require_review": 1,
+                },
                 "evaluation_by_llm_route_adoption_status": {
                     "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": {
                         "n_rows": 1,
@@ -1664,6 +1668,22 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                         "mean_route_recall": 1.0,
                         "mean_delta_precision": 1.0,
                     }
+                },
+                "evaluation_by_llm_route_adoption_blocker": {
+                    "search_requests_pending_evidence": {
+                        "n_rows": 1,
+                        "n_blocker_occurrences": 1,
+                        "by_route_adoption_status": {
+                            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+                        },
+                    },
+                    "uncertainty_flags_require_review": {
+                        "n_rows": 1,
+                        "n_blocker_occurrences": 1,
+                        "by_route_adoption_status": {
+                            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+                        },
+                    },
                 },
                 "n_rows_with_llm_route_planner_request_contract_blocked": 0,
                 "n_rows_with_llm_route_planner_errors": 0,
@@ -4253,7 +4273,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     ] = 0
     corrupted_route_adoption_manifest["n_llm_route_adoption_blockers"] = 0
     corrupted_route_adoption_manifest["llm_route_adoption_blockers"] = []
+    corrupted_route_adoption_manifest["llm_route_adoption_blocker_counts"] = {}
     corrupted_route_adoption_manifest["evaluation_by_llm_route_adoption_status"] = {}
+    corrupted_route_adoption_manifest["evaluation_by_llm_route_adoption_blocker"] = {}
     evaluation_manifest_path.write_text(
         json.dumps(corrupted_route_adoption_manifest, indent=2),
         encoding="utf-8",
@@ -4310,6 +4332,26 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "search_requests_pending_evidence",
         "invented_route_adoption_blocker",
     ]
+    corrupted_route_adoption_manifest["llm_route_adoption_blocker_counts"] = {
+        "search_requests_pending_evidence": 1,
+        "invented_route_adoption_blocker": 1,
+    }
+    corrupted_route_adoption_manifest["evaluation_by_llm_route_adoption_blocker"] = {
+        "search_requests_pending_evidence": {
+            "n_rows": 1,
+            "n_blocker_occurrences": 1,
+            "by_route_adoption_status": {
+                "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+            },
+        },
+        "invented_route_adoption_blocker": {
+            "n_rows": 1,
+            "n_blocker_occurrences": 1,
+            "by_route_adoption_status": {
+                "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+            },
+        },
+    }
     corrupted_route_adoption_manifest["rows"] = corrupted_route_adoption_rows
     evaluation_rows_path.write_text(
         "\n".join(
