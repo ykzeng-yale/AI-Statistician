@@ -2462,6 +2462,13 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     manifest = json.loads((out_dir / "research_agent_runtime_manifest.json").read_text())
     assert manifest["n_questions"] == 1
     assert manifest["runtime_evidence_summary"]["artifact_kind"] == "RuntimeEvidenceSummary"
+    completion = manifest["runtime_completion_summary"]
+    assert completion["artifact_kind"] == "RuntimeCompletionSummary"
+    assert completion["n_questions"] == 1
+    assert len(completion["rows"]) == 1
+    assert completion["rows"][0]["status"] in manifest["status_counts"]
+    assert completion["rows"][0]["last_completed_subsystem"]
+    assert "not theorem proof evidence" in completion["boundary"]
     assert manifest["runtime_input_context"]["artifact_kind"] == "RuntimeInputContextSummary"
     assert manifest["runtime_input_context"]["runtime_learning_memory_supplied"] is True
     assert manifest["runtime_input_context"]["runtime_learning_memory_rows_loaded"] == 1

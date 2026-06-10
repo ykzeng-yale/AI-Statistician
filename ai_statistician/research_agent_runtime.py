@@ -1772,6 +1772,7 @@ def run_research_agent_runtime(
         "config": asdict(config),
         "runtime_input_context": _runtime_input_context_summary(architect_context or {}),
         "status_counts": dict(sorted(status_counts.items())),
+        "runtime_completion_summary": _runtime_completion_summary(results),
         "runtime_evidence_summary": evidence_summary,
         "n_kernel_verified_subclaims": evidence_summary["proof"]["n_kernel_verified_subclaims"],
         "n_formal_gaps": evidence_summary["proof"]["n_formal_gaps"],
@@ -3677,6 +3678,89 @@ def _str_tuple(value: Any) -> tuple[str, ...]:
     if isinstance(value, (list, tuple, set)):
         return tuple(str(item) for item in value if str(item))
     return (str(value),) if str(value) else ()
+
+
+def _runtime_completion_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    counts = {
+        "accepted": 0,
+        "failed": 0,
+        "blocked": 0,
+        "max_iterations_reached": 0,
+        "budget_exhausted_with_pending_next_task": 0,
+        "budget_exhausted_after_revision_request": 0,
+    }
+    for result in results:
+        traces = result.get("traces", []) if isinstance(result.get("traces"), list) else []
+        final_trace = traces[-1] if traces and isinstance(traces[-1], Mapping) else {}
+        first_trace = traces[0] if traces and isinstance(traces[0], Mapping) else {}
+        first_task = first_trace.get("task", {}) if isinstance(first_trace.get("task"), Mapping) else {}
+        first_inputs = first_task.get("inputs", {}) if isinstance(first_task.get("inputs"), Mapping) else {}
+        question = first_inputs.get("question", {}) if isinstance(first_inputs.get("question"), Mapping) else {}
+        status = str(result.get("status", "") or "")
+        pending_next_task_id = str(final_trace.get("next_task_id", "") or "")
+        failure_classification = str(final_trace.get("failure_classification", "") or "")
+        last_task_id = str(final_trace.get("task_id", "") or "")
+        max_iterations_reached = status == "MAX_ITERATIONS_REACHED"
+        budget_exhausted_with_pending = bool(max_iterations_reached and pending_next_task_id)
+        budget_exhausted_after_revision = bool(
+            budget_exhausted_with_pending
+            and (
+                "critic" in pending_next_task_id
+                or "revise" in pending_next_task_id
+                or "revision" in failure_classification
+                or last_task_id.startswith("theory-critic-revise:")
+            )
+        )
+        if status == "ACCEPTED":
+            terminal_kind = "accepted"
+            counts["accepted"] += 1
+        elif status == "FAILED":
+            terminal_kind = "failed"
+            counts["failed"] += 1
+        elif status == "BLOCKED":
+            terminal_kind = "blocked"
+            counts["blocked"] += 1
+        elif max_iterations_reached and pending_next_task_id:
+            terminal_kind = "budget_exhausted_with_pending_next_task"
+            counts["max_iterations_reached"] += 1
+            counts["budget_exhausted_with_pending_next_task"] += 1
+        elif max_iterations_reached:
+            terminal_kind = "budget_exhausted_without_pending_next_task"
+            counts["max_iterations_reached"] += 1
+        else:
+            terminal_kind = status.lower() or "unknown"
+        if budget_exhausted_after_revision:
+            counts["budget_exhausted_after_revision_request"] += 1
+        rows.append(
+            {
+                "question_id": str(question.get("id", "") or ""),
+                "question_title": str(question.get("title", "") or ""),
+                "status": status,
+                "terminal_kind": terminal_kind,
+                "n_iterations": len(traces),
+                "final_task_id": str(result.get("final_task_id", "") or ""),
+                "last_completed_task_id": last_task_id,
+                "last_completed_subsystem": str(final_trace.get("subsystem", "") or ""),
+                "last_completed_status": str(final_trace.get("status", "") or ""),
+                "last_failure_classification": failure_classification,
+                "pending_next_task_id": pending_next_task_id,
+                "max_iterations_reached": max_iterations_reached,
+                "budget_exhausted_with_pending_next_task": budget_exhausted_with_pending,
+                "budget_exhausted_after_revision_request": budget_exhausted_after_revision,
+            }
+        )
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeCompletionSummary",
+        "n_questions": len(results),
+        **counts,
+        "rows": rows,
+        "boundary": (
+            "Runtime completion status describes orchestration progress and budget exhaustion only. "
+            "It is not theorem proof evidence, simulation evidence, or a claim that remaining formal gaps are closed."
+        ),
+    }
 
 
 def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
