@@ -3363,6 +3363,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "llm_model_policy_latest_claude_api_aliases"
+        and "claude-haiku-4-5" in row["observed"]
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "llm_model_policy_outside_cost_tier_models"
         and "claude-fable-5" in row["observed"]
         and row["ok"]

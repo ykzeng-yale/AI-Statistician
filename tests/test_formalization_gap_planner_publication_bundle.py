@@ -129,7 +129,10 @@ from ai_statistician.formalization_gap_planner_publication_bundle_audit import (
 from ai_statistician.formalization_gap_planner_target_intake import (
     target_intake_row_json_schema,
 )
-from ai_statistician.model_backend import ANTHROPIC_MODEL_SOURCE_CHECKED_DATE
+from ai_statistician.model_backend import (
+    ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+    DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
+)
 
 
 def _write_llm_route_planner_fixture_input(root: Path) -> Path:
@@ -2502,6 +2505,18 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "sonnet": "claude-sonnet-4-6",
         "opus": "claude-opus-4-8",
     }
+    assert (
+        llm_model_policy["latest_claude_api_aliases_by_tier"]
+        == DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER
+        == {
+            "haiku": "claude-haiku-4-5",
+            "sonnet": "claude-sonnet-4-6",
+            "opus": "claude-opus-4-8",
+        }
+    )
+    assert "Runtime calls use latest_claude_models_by_tier API IDs" in (
+        llm_model_policy["runtime_model_id_policy"]
+    )
     assert (
         llm_model_policy["source_checked_date"]
         == ANTHROPIC_MODEL_SOURCE_CHECKED_DATE

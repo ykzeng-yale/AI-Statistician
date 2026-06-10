@@ -160,6 +160,7 @@ from .formalization_gap_planner_target_intake import (
 from .model_backend import (
     ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
     CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS,
+    DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
     DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
@@ -3180,6 +3181,14 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         )
         else {}
     )
+    llm_api_aliases_by_tier = (
+        llm_model_policy.get("latest_claude_api_aliases_by_tier", {})
+        if isinstance(
+            llm_model_policy.get("latest_claude_api_aliases_by_tier", {}),
+            dict,
+        )
+        else {}
+    )
     supported_llm_providers = set(
         _str_tuple(llm_model_policy.get("supported_live_generator_providers", []))
     )
@@ -3292,6 +3301,16 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
                 "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
                 "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
             },
+        ),
+        _check(
+            "llm_model_policy_latest_claude_api_aliases",
+            "contract",
+            "latest Claude Haiku/Sonnet/Opus API aliases",
+            json.dumps(llm_api_aliases_by_tier, sort_keys=True),
+            llm_api_aliases_by_tier
+            == DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER
+            and "Runtime calls use latest_claude_models_by_tier API IDs"
+            in str(llm_model_policy.get("runtime_model_id_policy", "")),
         ),
         _check(
             "llm_model_policy_source_checked_date",

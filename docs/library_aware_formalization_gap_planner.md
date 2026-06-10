@@ -158,8 +158,7 @@ blockers, request-contract block flag, and provider/generation errors. This
 keeps staged, awaiting, preflight-blocked, and provider-failed planner attempts
 visible to standalone-plan, evaluation, reuse-smoke, and publication-bundle
 artifacts without treating them as accepted route synthesis.
-For live
-AI Statistician development, the default LLM runtime is Anthropic Claude API:
+For live AI Statistician development, the default LLM runtime is Anthropic Claude API:
 Sonnet 4.6 for theorem understanding, route planning, theory repair, and
 formalizer work; Haiku 4.5 for cheaper structured helper tasks such as intake,
 simulation planning, algorithm-planning packets, and boundary critique. The same
@@ -170,11 +169,14 @@ a Haiku-designated helper configured with a Sonnet or Opus model. The packaged
 `ai_statistician_llm_model_policy` contract also records that empty worker
 `model` fields resolve from provider and `model_tier` when each request is
 built, so tier-specific Claude overrides apply to direct worker construction as
-well as CLI-created agents. LLM
-route-planner rows also reject provider-returned Anthropic model drift, so a
+well as CLI-created agents. It records both canonical runtime API IDs and
+official Claude API aliases by tier; runtime calls stay pinned to the API IDs,
+so Haiku uses `claude-haiku-4-5-20251001` rather than relying on the shorter
+`claude-haiku-4-5` alias. LLM route-planner rows also reject provider-returned
+Anthropic model drift, so a
 Haiku-selected request cannot be accepted if the backend reports a Sonnet or
-Opus response model. In
-addition to the manifest-level policy, every LLM route-planner request packet
+Opus response model. In addition to the manifest-level policy, every LLM
+route-planner request packet
 now carries a request-scoped `llm_generation_policy` snapshot with the selected
 provider, resolved model, selected/requested tier, Claude pinned model policy,
 auto-tier rules, and explicit `codex`/`codex_exec` exclusion. This lets an

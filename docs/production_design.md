@@ -27,8 +27,11 @@ tier-specific environment overrides apply to direct worker construction as well
 as CLI-created agents. As of the 2026-06-10 model-source check, the pinned
 default Claude API
 IDs are Haiku `claude-haiku-4-5-20251001`, Sonnet `claude-sonnet-4-6`, and Opus
-`claude-opus-4-8`; Claude 4.6+ dateless IDs are treated as pinned snapshots, not
-evergreen aliases. Claude Fable/Mythos family IDs are tracked as outside the
+`claude-opus-4-8`. The policy also records official API aliases by tier, but
+runtime calls use those pinned API IDs; in particular, Haiku stays on
+`claude-haiku-4-5-20251001` rather than the shorter `claude-haiku-4-5` alias.
+Claude 4.6+ dateless IDs are treated as pinned snapshots, not evergreen aliases.
+Claude Fable/Mythos family IDs are tracked as outside the
 Opus/Sonnet/Haiku cost-aware tier contract, so they are not selected
 automatically for AI Statistician helper tiers. Use `AI_STATISTICIAN_CLAUDE_HAIKU_MODEL`,
 `AI_STATISTICIAN_CLAUDE_SONNET_MODEL`, and

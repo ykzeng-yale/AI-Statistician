@@ -21,6 +21,11 @@ DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER = {
     "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
 }
+DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER = {
+    "haiku": "claude-haiku-4-5",
+    "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
+    "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
+}
 CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS = {
     "fable": DEFAULT_CLAUDE_FABLE_GENERATOR_MODEL,
     "mythos_limited_availability": DEFAULT_CLAUDE_MYTHOS_GENERATOR_MODEL,
@@ -59,6 +64,12 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
     "default_provider": DEFAULT_LIVE_GENERATOR_PROVIDER,
     "default_model_tier": "sonnet",
     "models_by_tier": DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER,
+    "api_aliases_by_tier": DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
+    "runtime_model_id_policy": (
+        "AI Statistician resolves runtime calls to the Claude API IDs in "
+        "models_by_tier. API aliases are recorded for operator reference only "
+        "and are not used to collapse pinned runtime model IDs."
+    ),
     "models_outside_opus_sonnet_haiku_cost_tiers": (
         CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS
     ),

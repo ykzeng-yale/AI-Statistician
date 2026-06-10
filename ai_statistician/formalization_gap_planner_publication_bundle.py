@@ -144,6 +144,7 @@ from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
     CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS,
+    DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
     DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
     DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
@@ -2717,6 +2718,14 @@ def _llm_model_policy_payload() -> dict[str, object]:
         "prohibited_generator_providers": prohibited_providers,
         "claude_model_selection": ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
         "latest_claude_models_by_tier": models_by_tier,
+        "latest_claude_api_aliases_by_tier": dict(
+            DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER
+        ),
+        "runtime_model_id_policy": (
+            "Runtime calls use latest_claude_models_by_tier API IDs. Claude API "
+            "aliases are documented for operator reference only, and Haiku stays "
+            "pinned to the dated API ID instead of the shorter alias."
+        ),
         "latest_claude_family_models_outside_cost_tiers": outside_cost_tier_models,
         "outside_cost_tier_policy": (
             "Claude family models outside Opus/Sonnet/Haiku are tracked for "
@@ -2811,6 +2820,16 @@ def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
         f"- Claude Haiku: `{models.get('haiku', '')}`",
         f"- Claude Sonnet: `{models.get('sonnet', '')}`",
         f"- Claude Opus: `{models.get('opus', '')}`",
+        "- Claude API aliases: "
+        + ", ".join(
+            f"{key}=`{value}`"
+            for key, value in sorted(
+                dict(
+                    payload.get("latest_claude_api_aliases_by_tier", {}) or {}
+                ).items()
+            )
+        ),
+        f"- Runtime ID policy: {payload.get('runtime_model_id_policy', '')}",
         "- Outside Opus/Sonnet/Haiku cost tiers: "
         + ", ".join(f"{key}=`{value}`" for key, value in sorted(outside_models.items())),
         "",
