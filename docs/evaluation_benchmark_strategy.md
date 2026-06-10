@@ -91,7 +91,9 @@ Pass criteria:
   summary across accepted candidates, ranking first by route-adoption readiness
   and then by minimal-delta route cost, blocker count, and original request
   order; this keeps replay focused on the cheapest source-backed extension
-  rather than whichever valid LLM response happened to arrive first
+  rather than whichever valid LLM response happened to arrive first, and
+  standalone/reuse-smoke manifests report the selected rank and minimal-delta
+  cost trace
 - claim-ledger proof statuses report whether kernel evidence came from the trace
   verifier or from a matching `proof_audit_manifest.json` overlay
 - claim-ledger formal gaps can also be upgraded by a matching

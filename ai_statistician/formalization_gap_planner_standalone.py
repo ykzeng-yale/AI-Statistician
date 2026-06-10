@@ -171,6 +171,12 @@ def export_formalization_gap_planner_standalone_plan(
             "llm_route_planner_route_adoption_status"
         )
     )
+    by_llm_seed_selection_rank = Counter(
+        str(row.standalone_input_trace.get("llm_route_planner_seed_selection_rank", ""))
+        or "missing"
+        for row in rows
+        if row.standalone_input_trace.get("llm_route_planner_seed_selection_rank")
+    )
     manifest_target_prover_family = _manifest_target_prover_family(
         rows,
         fallback_target_prover_family=target_prover_family,
@@ -315,6 +321,29 @@ def export_formalization_gap_planner_standalone_plan(
                 )
             )
             for row in rows
+        ),
+        "n_standalone_input_traces_with_llm_seed_selection": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "llm_route_planner_seed_selection_rank"
+            )
+        ),
+        "n_standalone_input_traces_llm_seed_selected": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get("llm_route_planner_seed_selected")
+        ),
+        "standalone_input_trace_by_llm_seed_selection_rank": dict(
+            sorted(by_llm_seed_selection_rank.items())
+        ),
+        "n_standalone_input_traces_with_llm_seed_minimal_delta_route_cost": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "llm_route_planner_seed_minimal_delta_route_cost"
+            )
+            is not None
         ),
         "n_standalone_input_traces_with_source_snippets": sum(
             1
@@ -1124,6 +1153,18 @@ def _standalone_input_trace(
     llm_generator_metadata = _dict_value(
         metadata.get("llm_route_planner_generator_metadata", {})
     )
+    llm_seed_selection_rank = _int_value(
+        metadata.get(
+            "llm_route_planner_seed_selection_rank",
+            raw_route.get("llm_route_planner_seed_selection_rank", 0),
+        )
+    )
+    llm_seed_minimal_delta_route_cost = _float_or_none(
+        metadata.get(
+            "llm_route_planner_seed_minimal_delta_route_cost",
+            raw_route.get("llm_route_planner_seed_minimal_delta_route_cost", None),
+        )
+    )
     return {
         "trace_kind": "standalone_input_route_trace",
         "source_route_id": route_id,
@@ -1159,6 +1200,22 @@ def _standalone_input_trace(
         ),
         "llm_route_planner_route_adoption_blockers": _str_list(
             metadata.get("llm_route_planner_route_adoption_blockers", [])
+        ),
+        "llm_route_planner_seed_selected": _bool_value(
+            metadata.get(
+                "llm_route_planner_seed_selected",
+                raw_route.get("llm_route_planner_seed_selected", False),
+            )
+        ),
+        "llm_route_planner_seed_selection_rank": llm_seed_selection_rank,
+        "llm_route_planner_seed_selection_reason": str(
+            metadata.get(
+                "llm_route_planner_seed_selection_reason",
+                raw_route.get("llm_route_planner_seed_selection_reason", ""),
+            )
+        ),
+        "llm_route_planner_seed_minimal_delta_route_cost": (
+            llm_seed_minimal_delta_route_cost
         ),
         "llm_route_planner_generator_metadata": llm_generator_metadata,
         "llm_route_planner_generator_metadata_keys": _str_list(
@@ -1793,6 +1850,34 @@ def _dict_list(values: Any) -> list[dict[str, object]]:
 
 def _dict_value(value: Any) -> dict[str, object]:
     return dict(value) if isinstance(value, dict) else {}
+
+
+def _bool_value(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def _int_value(value: Any) -> int:
+    if isinstance(value, bool):
+        return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _float_or_none(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _read_json(path: Path, errors: list[str]) -> dict[str, Any]:

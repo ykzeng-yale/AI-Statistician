@@ -320,6 +320,17 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == 0
     )
+    assert payload["n_goal_plan_standalone_input_traces_with_llm_seed_selection"] == 1
+    assert payload["n_goal_plan_standalone_input_traces_llm_seed_selected"] == 1
+    assert payload[
+        "goal_plan_standalone_input_trace_by_llm_seed_selection_rank"
+    ] == {"1": 1}
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_seed_minimal_delta_route_cost"
+        ]
+        == 0
+    )
     assert payload["n_llm_route_planner_request_packets"] > 0
     assert payload["llm_route_planner_model_tier_selection_mode"] == "auto"
     assert (
@@ -2407,6 +2418,17 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == 1
     )
+    assert payload["n_goal_plan_standalone_input_traces_with_llm_seed_selection"] == 1
+    assert payload["n_goal_plan_standalone_input_traces_llm_seed_selected"] == 1
+    assert payload[
+        "goal_plan_standalone_input_trace_by_llm_seed_selection_rank"
+    ] == {"1": 1}
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_seed_minimal_delta_route_cost"
+        ]
+        == 1
+    )
     assert payload["n_evaluation_rows_with_llm_route_planner_trace"] == 1
     assert payload["n_evaluation_rows_with_llm_route_planner_model_tier"] == 1
     assert (
@@ -3304,6 +3326,17 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
             "n_goal_plan_standalone_input_traces_with_llm_generator_metadata"
         ]
         == 1
+    )
+    assert payload["n_goal_plan_standalone_input_traces_with_llm_seed_selection"] == 1
+    assert payload["n_goal_plan_standalone_input_traces_llm_seed_selected"] == 1
+    assert payload[
+        "goal_plan_standalone_input_trace_by_llm_seed_selection_rank"
+    ] == {"1": 1}
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_seed_minimal_delta_route_cost"
+        ]
+        == 0
     )
     assert payload["n_evaluation_rows_with_llm_route_planner_trace"] == 1
     assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 1

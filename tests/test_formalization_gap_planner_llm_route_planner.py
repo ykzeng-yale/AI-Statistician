@@ -4630,6 +4630,17 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         row["model_tier"]: 1
     }
     assert plan_payload["n_standalone_input_traces_with_llm_generator_metadata"] == 0
+    assert plan_payload["n_standalone_input_traces_with_llm_seed_selection"] == 1
+    assert plan_payload["n_standalone_input_traces_llm_seed_selected"] == 1
+    assert plan_payload[
+        "standalone_input_trace_by_llm_seed_selection_rank"
+    ] == {"1": 1}
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_llm_seed_minimal_delta_route_cost"
+        ]
+        == 1
+    )
     source_payload = audit_formalization_gap_planner_source_grounding(
         plan_dir,
         source_audit_dir,
@@ -4655,6 +4666,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     trace = plan_row["standalone_input_trace"]
     assert trace["llm_route_planner_row_id"] == row["llm_route_planner_row_id"]
     assert trace["llm_route_planner_model_tier"] == row["model_tier"]
+    assert trace["llm_route_planner_seed_selected"] is True
+    assert trace["llm_route_planner_seed_selection_rank"] == 1
+    assert trace["llm_route_planner_seed_minimal_delta_route_cost"] == 4.0
     assert trace["llm_route_planner_route_adoption_status"] == (
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
@@ -5510,6 +5524,29 @@ def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() ->
     ] == 4.0
     assert seed_routes[1]["llm_route_planner_seed_selected"] is False
     assert seed_routes[1]["llm_route_planner_seed_selection_rank"] == 2
+
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        root / "standalone_plan_from_ranked_llm_seed",
+    )
+    assert plan_payload["all_ok"]
+    assert plan_payload["n_standalone_input_traces_with_llm_seed_selection"] == 2
+    assert plan_payload["n_standalone_input_traces_llm_seed_selected"] == 1
+    assert plan_payload[
+        "standalone_input_trace_by_llm_seed_selection_rank"
+    ] == {"1": 1, "2": 1}
+    traces = [
+        row["standalone_input_trace"]
+        for row in plan_payload["rows"]
+    ]
+    assert [trace["llm_route_planner_seed_selected"] for trace in traces] == [
+        True,
+        False,
+    ]
+    assert [
+        trace["llm_route_planner_seed_minimal_delta_route_cost"]
+        for trace in traces
+    ] == [4.0, 8.0]
 
 
 def test_llm_route_planner_blocks_route_adoption_on_formal_gap_boundary() -> None:

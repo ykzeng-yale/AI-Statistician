@@ -1690,6 +1690,30 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_goal_plan_standalone_input_traces_with_llm_seed_selection": (
+            plan_payload.get(
+                "n_standalone_input_traces_with_llm_seed_selection",
+                0,
+            )
+        ),
+        "n_goal_plan_standalone_input_traces_llm_seed_selected": (
+            plan_payload.get(
+                "n_standalone_input_traces_llm_seed_selected",
+                0,
+            )
+        ),
+        "goal_plan_standalone_input_trace_by_llm_seed_selection_rank": (
+            plan_payload.get(
+                "standalone_input_trace_by_llm_seed_selection_rank",
+                {},
+            )
+        ),
+        "n_goal_plan_standalone_input_traces_with_llm_seed_minimal_delta_route_cost": (
+            plan_payload.get(
+                "n_standalone_input_traces_with_llm_seed_minimal_delta_route_cost",
+                0,
+            )
+        ),
         "max_routes": max_routes,
         "llm_route_planner_provider": llm_route_planner_provider,
         "llm_route_planner_model": str(llm_route_planner_payload.get("model", "")),
@@ -6065,6 +6089,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_goal_plan_standalone_input_traces_ready_for_route_adoption')}/"
             f"{payload.get('n_goal_plan_standalone_input_traces_pending_refinement_before_route_adoption')}/"
             f"{payload.get('n_goal_plan_standalone_input_trace_route_adoption_blockers')}"
+        ),
+        (
+            f"- Goal-plan LLM seed selection selected/with-rank/costs: "
+            f"{payload.get('n_goal_plan_standalone_input_traces_llm_seed_selected')}/"
+            f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_seed_selection')}/"
+            f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_seed_minimal_delta_route_cost')} "
+            f"ranks={payload.get('goal_plan_standalone_input_trace_by_llm_seed_selection_rank')}"
         ),
         (
             f"- LLM route planner requests valid: "
