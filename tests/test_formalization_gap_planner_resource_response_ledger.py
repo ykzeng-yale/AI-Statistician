@@ -38,6 +38,7 @@ def _build_request_queue(
     root: Path,
     *,
     input_payload: dict[str, object] | None = None,
+    llm_route_planner_rows: list[dict[str, object]] | None = None,
 ) -> tuple[dict[str, object], Path]:
     input_json = root / "standalone_input.json"
     plan_dir = root / "plan"
@@ -45,6 +46,7 @@ def _build_request_queue(
     action_queue_dir = root / "action_queue"
     component_resource_registry_dir = root / "component_resource_registry"
     action_resource_plan_dir = root / "action_resource_plan"
+    llm_route_planner_dir = root / "llm_route_planner"
     request_queue_dir = root / "request_queue"
     payload = input_payload or {
         "schema_version": 1,
@@ -94,9 +96,28 @@ def _build_request_queue(
         component_resource_registry_dir,
         action_resource_plan_dir,
     )
+    if llm_route_planner_rows is not None:
+        llm_route_planner_dir.mkdir(parents=True, exist_ok=True)
+        (
+            llm_route_planner_dir
+            / "formalization_gap_planner_llm_route_planner_manifest.json"
+        ).write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "component_name": "formalization_gap_planner_llm_route_planner",
+                    "rows": llm_route_planner_rows,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
     payload = export_formalization_gap_planner_resource_request_queue(
         action_resource_plan_dir,
         request_queue_dir,
+        formalization_gap_planner_llm_route_planner_dir=(
+            llm_route_planner_dir if llm_route_planner_rows is not None else None
+        ),
     )
     return payload, request_queue_dir
 
@@ -271,6 +292,195 @@ def test_resource_response_ledger_accepts_portable_formal_declaration_hits() -> 
     )
     assert row["lean_declaration_hits"] == ()
     assert "formal_declaration_hits" in row["matched_response_contract_fields"]
+
+
+def test_resource_response_ledger_preserves_llm_route_planner_trace() -> None:
+    root = Path("runs/test_formalization_gap_planner_resource_response_ledger_llm")
+    ledger_dir = root / "ledger"
+    response_jsonl = root / "resource_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    request_payload, request_queue_dir = _build_request_queue(
+        root,
+        llm_route_planner_rows=[
+            {
+                "llm_route_planner_row_id": "llm_route_row:rank",
+                "request_id": "llm_route_request:rank",
+                "route_id": "distribution_free_rank_bound",
+                "display_name": "distribution_free_rank_bound",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "lean_mathlib_empirical_process_snapshot",
+                "minimal_delta_plan": {
+                    "selected_primitives": ["rank_uniformity"],
+                },
+                "search_requests": [
+                    {
+                        "request_kind": "literature_discovery",
+                        "query": "exchangeability rank_uniformity source proof",
+                        "reason": "ground rank_uniformity before route repair",
+                        "target_primitives": ["rank_uniformity"],
+                    }
+                ],
+                "planner_next_actions": [],
+            }
+        ],
+    )
+    llm_request = next(
+        row
+        for row in request_payload["rows"]
+        if row["request_payload"].get("llm_route_planner_source_kind")
+        == "search_request"
+        and row["resource_id"] == "paperclip_cli_mcp"
+    )
+    response = {
+        "resource_request_id": llm_request["resource_request_id"],
+        "resource_id": llm_request["resource_id"],
+        "tool_name": "paperclip_cli_mcp",
+        "expected_response_artifact": llm_request["expected_response_artifact"],
+        "llm_route_planner_row_id": "llm_route_row:rank",
+        "llm_route_planner_request_id": "llm_route_request:rank",
+        "llm_route_planner_source_kind": "search_request",
+        "llm_route_planner_source_index": 0,
+        "llm_route_planner_hook_kind": "literature_discovery",
+        "response_payload": {
+            "source_refs": ["source:rank_uniformity"],
+            "route_evidence_nodes": [
+                {
+                    "node_id": "rank_uniformity:source",
+                    "claim": "rank_uniformity follows from exchangeability",
+                }
+            ],
+            "response_summary": (
+                "rank_uniformity source evidence grounded for the LLM route request"
+            ),
+        },
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+    response_jsonl.write_text(
+        json.dumps(response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_llm_route_planner_traced_requests"] == request_payload[
+        "n_llm_route_planner_resource_request_rows"
+    ]
+    assert payload["n_llm_route_planner_traced_responses"] == 1
+    assert payload["n_llm_route_planner_response_trace_grounded"] == 1
+    assert payload["n_llm_route_planner_response_trace_mismatches"] == 0
+    assert payload["n_llm_route_planner_response_trace_missing_echo"] == 0
+    ledger_row = next(
+        row
+        for row in payload["rows"]
+        if row["resource_request_id"] == llm_request["resource_request_id"]
+    )
+    assert ledger_row["acceptance_status"] == "ACCEPTED_RESOURCE_RESPONSE"
+    assert ledger_row["llm_route_planner_trace_present"]
+    assert ledger_row["llm_route_planner_row_id"] == "llm_route_row:rank"
+    assert ledger_row["llm_route_planner_request_id"] == "llm_route_request:rank"
+    assert ledger_row["llm_route_planner_source_kind"] == "search_request"
+    assert ledger_row["llm_route_planner_source_index"] == 0
+    assert ledger_row["llm_route_planner_hook_kind"] == "literature_discovery"
+    assert "exchangeability rank_uniformity" in " ".join(
+        ledger_row["llm_route_planner_queries"]
+    )
+    assert ledger_row["llm_route_planner_source_item"]["request_kind"] == (
+        "literature_discovery"
+    )
+    assert ledger_row["llm_route_planner_response_trace_grounded"]
+    assert ledger_row["llm_route_planner_response_trace_mismatches"] == ()
+    assert validate_resource_response_ledger_row(
+        ledger_row,
+        resource_response_ledger_row_json_schema(),
+    ) == []
+
+
+def test_resource_response_ledger_rejects_llm_route_planner_trace_mismatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_resource_response_ledger_llm_mismatch"
+    )
+    ledger_dir = root / "ledger"
+    response_jsonl = root / "resource_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    request_payload, request_queue_dir = _build_request_queue(
+        root,
+        llm_route_planner_rows=[
+            {
+                "llm_route_planner_row_id": "llm_route_row:rank",
+                "request_id": "llm_route_request:rank",
+                "route_id": "distribution_free_rank_bound",
+                "display_name": "distribution_free_rank_bound",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "lean_mathlib_empirical_process_snapshot",
+                "minimal_delta_plan": {
+                    "selected_primitives": ["rank_uniformity"],
+                },
+                "search_requests": [
+                    {
+                        "request_kind": "literature_discovery",
+                        "query": "exchangeability rank_uniformity source proof",
+                        "target_primitives": ["rank_uniformity"],
+                    }
+                ],
+                "planner_next_actions": [],
+            }
+        ],
+    )
+    llm_request = next(
+        row
+        for row in request_payload["rows"]
+        if row["request_payload"].get("llm_route_planner_source_kind")
+        == "search_request"
+        and row["resource_id"] == "paperclip_cli_mcp"
+    )
+    response = {
+        "resource_request_id": llm_request["resource_request_id"],
+        "resource_id": llm_request["resource_id"],
+        "expected_response_artifact": llm_request["expected_response_artifact"],
+        "llm_route_planner_row_id": "llm_route_row:wrong",
+        "response_payload": {
+            "source_refs": ["source:rank_uniformity"],
+            "route_evidence_nodes": [
+                {
+                    "node_id": "rank_uniformity:source",
+                    "claim": "rank_uniformity follows from exchangeability",
+                }
+            ],
+            "response_summary": "rank_uniformity source evidence",
+        },
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+    response_jsonl.write_text(
+        json.dumps(response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 0
+    assert payload["n_llm_route_planner_response_trace_mismatches"] == 1
+    ledger_row = next(
+        row
+        for row in payload["rows"]
+        if row["resource_request_id"] == llm_request["resource_request_id"]
+    )
+    assert ledger_row["acceptance_status"] == (
+        "REJECTED_LLM_ROUTE_PLANNER_TRACE_MISMATCH"
+    )
+    assert not ledger_row["response_contract_ok"]
+    assert "llm route-planner trace mismatch" in " ".join(ledger_row["errors"])
 
 
 def test_resource_response_ledger_rejects_cross_prover_declaration_hit_mismatch() -> None:

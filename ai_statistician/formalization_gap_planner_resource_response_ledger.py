@@ -16,7 +16,7 @@ from .formalization_gap_planner_resource_request_queue import (
 from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
-FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 7
+FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 8
 QUALITY_CONTROL_FIELDS = (
     "resource_contract_ids",
     "required_quality_signals",
@@ -30,7 +30,7 @@ RESOURCE_RESPONSE_SCHEMA_ID = (
 )
 RESOURCE_RESPONSE_LEDGER_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
-    "formalization-gap-planner-resource-response-ledger-row:7"
+    "formalization-gap-planner-resource-response-ledger-row:8"
 )
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_NOT_PROOF_EVIDENCE"
@@ -70,6 +70,16 @@ class FormalizationGapPlannerResourceResponseLedgerRow:
     expected_response_artifact: str
     acceptance_gate: str
     dispatch_spec: dict[str, object]
+    llm_route_planner_trace_present: bool
+    llm_route_planner_row_id: str
+    llm_route_planner_request_id: str
+    llm_route_planner_source_kind: str
+    llm_route_planner_source_index: int
+    llm_route_planner_hook_kind: str
+    llm_route_planner_queries: tuple[str, ...]
+    llm_route_planner_source_item: dict[str, object]
+    llm_route_planner_response_trace_grounded: bool
+    llm_route_planner_response_trace_mismatches: tuple[str, ...]
     response_present: bool
     response_contract_fields: tuple[str, ...]
     response_contract_minimum_met: bool
@@ -226,6 +236,28 @@ def export_formalization_gap_planner_resource_response_ledger(
         ),
         "n_with_stop_conditions": sum(1 for row in rows if row.stop_conditions),
         "n_with_quality_controls": sum(1 for row in rows if row.quality_controls),
+        "n_llm_route_planner_traced_requests": sum(
+            1 for row in rows if row.llm_route_planner_trace_present
+        ),
+        "n_llm_route_planner_traced_responses": sum(
+            1
+            for row in rows
+            if row.response_present and row.llm_route_planner_trace_present
+        ),
+        "n_llm_route_planner_response_trace_grounded": sum(
+            1 for row in rows if row.llm_route_planner_response_trace_grounded
+        ),
+        "n_llm_route_planner_response_trace_mismatches": sum(
+            len(row.llm_route_planner_response_trace_mismatches) for row in rows
+        ),
+        "n_llm_route_planner_response_trace_missing_echo": sum(
+            1
+            for row in rows
+            if row.response_present
+            and row.llm_route_planner_trace_present
+            and not row.llm_route_planner_response_trace_grounded
+            and not row.llm_route_planner_response_trace_mismatches
+        ),
         "n_with_candidate_declaration_rows": sum(
             1 for row in rows if row.candidate_declaration_rows
         ),
@@ -367,6 +399,11 @@ def resource_response_json_schema() -> dict[str, object]:
             "prover_diagnostic_signature": {"type": "string"},
             "route_revision_recommended": {"type": "boolean"},
             "route_revision_reasons": string_array,
+            "llm_route_planner_row_id": {"type": "string"},
+            "llm_route_planner_request_id": {"type": "string"},
+            "llm_route_planner_source_kind": {"type": "string"},
+            "llm_route_planner_source_index": {"type": "integer"},
+            "llm_route_planner_hook_kind": {"type": "string"},
             "kernel_verified": {"type": "boolean", "const": False},
             "proof_evidence_boundary": {
                 "type": "string",
@@ -419,6 +456,16 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
         "expected_response_artifact",
         "acceptance_gate",
         "dispatch_spec",
+        "llm_route_planner_trace_present",
+        "llm_route_planner_row_id",
+        "llm_route_planner_request_id",
+        "llm_route_planner_source_kind",
+        "llm_route_planner_source_index",
+        "llm_route_planner_hook_kind",
+        "llm_route_planner_queries",
+        "llm_route_planner_source_item",
+        "llm_route_planner_response_trace_grounded",
+        "llm_route_planner_response_trace_mismatches",
         "response_present",
         "response_contract_fields",
         "response_contract_minimum_met",
@@ -493,6 +540,16 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
             "expected_response_artifact": {"type": "string", "minLength": 1},
             "acceptance_gate": {"type": "string", "minLength": 1},
             "dispatch_spec": {"type": "object"},
+            "llm_route_planner_trace_present": {"type": "boolean"},
+            "llm_route_planner_row_id": {"type": "string"},
+            "llm_route_planner_request_id": {"type": "string"},
+            "llm_route_planner_source_kind": {"type": "string"},
+            "llm_route_planner_source_index": {"type": "integer"},
+            "llm_route_planner_hook_kind": {"type": "string"},
+            "llm_route_planner_queries": string_array,
+            "llm_route_planner_source_item": {"type": "object"},
+            "llm_route_planner_response_trace_grounded": {"type": "boolean"},
+            "llm_route_planner_response_trace_mismatches": string_array,
             "response_present": {"type": "boolean"},
             "response_contract_fields": string_array,
             "response_contract_minimum_met": {"type": "boolean"},
@@ -548,6 +605,27 @@ def validate_resource_response_ledger_row(
         errors.append("component_ids must be non-empty")
     if not isinstance(row.get("dispatch_spec", {}), dict):
         errors.append("dispatch_spec must be object")
+    if bool(row.get("llm_route_planner_trace_present", False)):
+        if not str(row.get("llm_route_planner_row_id", "")).strip():
+            errors.append("llm_route_planner_row_id required when trace is present")
+        if not str(row.get("llm_route_planner_source_kind", "")).strip():
+            errors.append(
+                "llm_route_planner_source_kind required when trace is present"
+            )
+        if not str(row.get("llm_route_planner_hook_kind", "")).strip():
+            errors.append(
+                "llm_route_planner_hook_kind required when trace is present"
+            )
+        try:
+            source_index = int(row.get("llm_route_planner_source_index", -1))
+        except Exception:
+            source_index = -1
+        if source_index < 0:
+            errors.append(
+                "llm_route_planner_source_index must be nonnegative when trace is present"
+            )
+        if not isinstance(row.get("llm_route_planner_source_item", {}), dict):
+            errors.append("llm_route_planner_source_item must be object")
     row_target = _target_prover_key(row.get("target_prover_family", ""))
     for index, declaration_row in enumerate(
         row.get("candidate_declaration_rows", []) or []
@@ -592,6 +670,13 @@ def validate_resource_response_ledger_row(
         and bool(row.get("response_contract_ok", False))
     ):
         errors.append("rejected resource response rows must not set response_contract_ok=true")
+    if (
+        bool(row.get("llm_route_planner_response_trace_mismatches", ()))
+        and bool(row.get("response_contract_ok", False))
+    ):
+        errors.append(
+            "LLM route-planner trace mismatches must not set response_contract_ok=true"
+        )
     return errors
 
 
@@ -623,6 +708,17 @@ def _ledger_row(
     request_target_primitives = _request_target_primitives(request_row)
     request_playbook = _dict_value(request_row, "request_playbook")
     request_playbook_present = bool(request_playbook)
+    llm_trace = _llm_route_planner_trace_from_request(request_row)
+    llm_trace_present = bool(llm_trace["trace_present"])
+    llm_trace_grounded, llm_trace_mismatches = (
+        _llm_route_planner_response_trace_status(
+            llm_trace,
+            response or {},
+            response_payload,
+        )
+        if response_present and llm_trace_present
+        else (False, tuple())
+    )
     quality_controls = _quality_controls_for_ledger_row(
         request_row,
         request_playbook,
@@ -692,6 +788,11 @@ def _ledger_row(
         )
     if response_present and declaration_hit_errors:
         row_errors.extend(declaration_hit_errors)
+    if response_present and llm_trace_mismatches:
+        row_errors.extend(
+            f"llm route-planner trace mismatch: {error}"
+            for error in llm_trace_mismatches
+        )
     if (
         response_present
         and request_playbook_present
@@ -710,6 +811,7 @@ def _ledger_row(
         and response_contract_minimum_met
         and not expanded_target_primitives
         and not declaration_hit_errors
+        and not llm_trace_mismatches
         and (not request_playbook_present or response_playbook_grounded)
     )
     if not response_present:
@@ -726,6 +828,8 @@ def _ledger_row(
         acceptance_status = "REJECTED_RESPONSE_TARGET_SCOPE_EXPANSION"
     elif declaration_hit_errors:
         acceptance_status = "REJECTED_DECLARATION_TARGET_MISMATCH"
+    elif llm_trace_mismatches:
+        acceptance_status = "REJECTED_LLM_ROUTE_PLANNER_TRACE_MISMATCH"
     elif request_playbook_present and not response_playbook_grounded:
         acceptance_status = "REJECTED_RESPONSE_NOT_GROUNDED_IN_REQUEST_PLAYBOOK"
     elif route_revision_recommended:
@@ -775,6 +879,16 @@ def _ledger_row(
         expected_response_artifact=str(request_row.get("expected_response_artifact", "")),
         acceptance_gate=str(request_row.get("acceptance_gate", "")),
         dispatch_spec=_dict_value(request_row, "dispatch_spec"),
+        llm_route_planner_trace_present=llm_trace_present,
+        llm_route_planner_row_id=str(llm_trace["row_id"]),
+        llm_route_planner_request_id=str(llm_trace["request_id"]),
+        llm_route_planner_source_kind=str(llm_trace["source_kind"]),
+        llm_route_planner_source_index=int(llm_trace["source_index"]),
+        llm_route_planner_hook_kind=str(llm_trace["hook_kind"]),
+        llm_route_planner_queries=_str_tuple(llm_trace["queries"]),
+        llm_route_planner_source_item=_dict_value(llm_trace, "source_item"),
+        llm_route_planner_response_trace_grounded=llm_trace_grounded,
+        llm_route_planner_response_trace_mismatches=llm_trace_mismatches,
         response_present=response_present,
         response_contract_fields=response_contract_fields,
         response_contract_minimum_met=response_contract_minimum_met,
@@ -806,6 +920,118 @@ def _ledger_row(
         ok=(not row_errors and not acceptance_status.startswith("REJECTED_")),
         errors=tuple(row_errors),
     )
+
+
+def _llm_route_planner_trace_from_request(
+    request_row: dict[str, Any],
+) -> dict[str, object]:
+    request_payload = _dict_value(request_row, "request_payload")
+    request_playbook = _dict_value(request_row, "request_playbook")
+    playbook_summary = _dict_value(request_playbook, "input_summary")
+    row_id = _first_string(
+        request_payload.get("llm_route_planner_row_id", ""),
+        request_playbook.get("llm_route_planner_row_id", ""),
+        playbook_summary.get("llm_route_planner_row_id", ""),
+    )
+    request_id = _first_string(
+        request_payload.get("llm_route_planner_request_id", ""),
+        request_playbook.get("llm_route_planner_request_id", ""),
+        playbook_summary.get("llm_route_planner_request_id", ""),
+    )
+    source_kind = _first_string(
+        request_payload.get("llm_route_planner_source_kind", ""),
+        request_playbook.get("llm_route_planner_source_kind", ""),
+        playbook_summary.get("llm_route_planner_source_kind", ""),
+    )
+    hook_kind = _first_string(
+        request_payload.get("llm_route_planner_hook_kind", ""),
+        request_playbook.get("llm_route_planner_hook_kind", ""),
+        playbook_summary.get("llm_route_planner_hook_kind", ""),
+    )
+    source_index = _first_int(
+        request_payload.get("llm_route_planner_source_index", -1),
+        request_playbook.get("llm_route_planner_source_index", -1),
+        playbook_summary.get("llm_route_planner_source_index", -1),
+        default=-1,
+    )
+    queries = _str_tuple(
+        [
+            *_str_tuple(request_payload.get("llm_route_planner_queries", [])),
+            *_str_tuple(request_playbook.get("llm_route_planner_queries", [])),
+            *_str_tuple(playbook_summary.get("llm_route_planner_queries", [])),
+        ]
+    )
+    source_item = (
+        _dict_value(request_payload, "llm_route_planner_source_item")
+        or _dict_value(request_playbook, "llm_route_planner_source_item")
+    )
+    return {
+        "trace_present": bool(row_id or source_kind or hook_kind or source_item),
+        "row_id": row_id,
+        "request_id": request_id,
+        "source_kind": source_kind,
+        "source_index": source_index,
+        "hook_kind": hook_kind,
+        "queries": queries,
+        "source_item": source_item,
+    }
+
+
+def _llm_route_planner_response_trace_status(
+    llm_trace: dict[str, object],
+    response: dict[str, Any],
+    response_payload: dict[str, Any],
+) -> tuple[bool, tuple[str, ...]]:
+    response_values = _merged_response_values(response, response_payload)
+    mismatches: list[str] = []
+    grounded_fields: list[str] = []
+    for field_name, response_field, expected in (
+        (
+            "row_id",
+            "llm_route_planner_row_id",
+            str(llm_trace.get("row_id", "")),
+        ),
+        (
+            "request_id",
+            "llm_route_planner_request_id",
+            str(llm_trace.get("request_id", "")),
+        ),
+        (
+            "source_kind",
+            "llm_route_planner_source_kind",
+            str(llm_trace.get("source_kind", "")),
+        ),
+        (
+            "hook_kind",
+            "llm_route_planner_hook_kind",
+            str(llm_trace.get("hook_kind", "")),
+        ),
+    ):
+        observed = response_values.get(response_field)
+        if not _has_value(observed):
+            continue
+        if expected and str(observed) == expected:
+            grounded_fields.append(response_field)
+        elif expected:
+            mismatches.append(
+                f"{response_field}={observed!s} does not match request {field_name}={expected}"
+            )
+    observed_index = response_values.get("llm_route_planner_source_index")
+    expected_index = int(llm_trace.get("source_index", -1) or -1)
+    if _has_value(observed_index):
+        try:
+            observed_index_int = int(observed_index)
+        except Exception:
+            mismatches.append("llm_route_planner_source_index must be integer")
+        else:
+            if expected_index >= 0 and observed_index_int == expected_index:
+                grounded_fields.append("llm_route_planner_source_index")
+            elif expected_index >= 0:
+                mismatches.append(
+                    "llm_route_planner_source_index="
+                    f"{observed_index_int} does not match request source_index={expected_index}"
+                )
+    return (bool(grounded_fields) and not mismatches, tuple(mismatches))
 
 
 def _response_index(
@@ -1096,6 +1322,24 @@ def _has_value(value: Any) -> bool:
     return True
 
 
+def _first_string(*values: Any) -> str:
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        if not isinstance(value, (dict, list, tuple, set)) and str(value).strip():
+            return str(value).strip()
+    return ""
+
+
+def _first_int(*values: Any, default: int = -1) -> int:
+    for value in values:
+        try:
+            return int(value)
+        except Exception:
+            continue
+    return default
+
+
 def _validate_with_schema(
     row: dict[str, object],
     schema: dict[str, object],
@@ -1332,6 +1576,22 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Awaiting responses: {payload.get('n_awaiting_response')}",
         f"- Contract minimum met: {payload.get('n_response_contract_minimum_met')}",
         f"- Contract OK: {payload.get('n_response_contract_ok')}",
+        (
+            f"- LLM route-planner traced requests: "
+            f"{payload.get('n_llm_route_planner_traced_requests')}"
+        ),
+        (
+            f"- LLM route-planner traced responses: "
+            f"{payload.get('n_llm_route_planner_traced_responses')}"
+        ),
+        (
+            f"- LLM route-planner response trace grounded: "
+            f"{payload.get('n_llm_route_planner_response_trace_grounded')}"
+        ),
+        (
+            f"- LLM route-planner response trace mismatches: "
+            f"{payload.get('n_llm_route_planner_response_trace_mismatches')}"
+        ),
         f"- Formal declaration hits: {payload.get('n_formal_declaration_hits')}",
         f"- Rows with missing contract fields: {payload.get('n_missing_response_contract_field_rows')}",
         f"- Request mismatches: {payload.get('n_response_request_mismatches')}",
