@@ -253,11 +253,23 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY_ID = (
 LLM_ROUTE_PLANNER_MODEL_TIERS = ("auto", "haiku", "sonnet", "opus")
 SOURCE_SNIPPET_MIN_SUPPORT_TOKENS = 3
 SOURCE_SNIPPET_MIN_TWO_TOKEN_SUPPORT_CHARS = 18
+FORMAL_GAP_BOUNDARY_MIN_SUPPORT_TOKENS = 3
+FORMAL_GAP_BOUNDARY_MIN_TWO_TOKEN_SUPPORT_CHARS = 20
 SOURCE_SNIPPET_TEXT_SUPPORT_STOPWORDS = {
     "after",
     "also",
     "among",
     "before",
+    "from",
+    "into",
+    "that",
+    "this",
+    "under",
+    "with",
+}
+FORMAL_GAP_BOUNDARY_TEXT_STOPWORDS = {
+    "after",
+    "also",
     "from",
     "into",
     "that",
@@ -3218,6 +3230,7 @@ def _user_prompt(
             "standalone_route.theorem_statement must preserve the requested target theorem identity; route repairs may add explicit side-condition notes but must not switch to a different theorem.",
             "Every informal DAG node must have source_refs, a source_search_status, or a formal_gap_boundary.",
             "source_search_status values are limited to SOURCE_BACKED, SEARCH_REQUESTED/search_pending/source_search_pending/literature_search_pending, or FORMAL_GAP_BOUNDARY/formal_boundary_declared; unsupported status strings are rejected.",
+            "Any FORMAL_GAP_BOUNDARY/formal_boundary_declared status or formal_gap_boundary field must include a substantive boundary explanation, not a placeholder such as todo/later.",
             "SOURCE_BACKED claims may cite only source_refs listed in context_packet.available_source_refs.",
             "Any standalone_route primitive marked SOURCE_BACKED must carry primitive-level source_refs or source_snippets; route-level source_refs do not silently justify that primitive.",
             "When context_packet.available_source_snippets contains relevant excerpts, reuse those source_snippets in informal DAG nodes or standalone_route primitives instead of paraphrasing unsupported evidence.",
@@ -4922,6 +4935,7 @@ def _response_contract_errors(
                 f"[{index}] needs source_refs, source_search_status, or formal_gap_boundary"
             )
     errors.extend(_response_source_search_status_errors(payload))
+    errors.extend(_response_formal_gap_boundary_errors(payload, request))
     errors.extend(_response_source_ref_grounding_errors(payload, request))
     errors.extend(_response_target_theorem_identity_errors(payload, request))
     errors.extend(_response_target_prover_consistency_errors(payload, request))
@@ -5508,11 +5522,11 @@ def _residual_interpretation_has_source_refs(
 def _residual_interpretation_has_formal_boundary(
     interpretation: Mapping[str, Any],
 ) -> bool:
-    if str(interpretation.get("formal_gap_boundary", "")).strip():
+    if _formal_gap_boundary_is_substantive(
+        str(interpretation.get("formal_gap_boundary", "") or "")
+    ):
         return True
-    return _source_search_status_is_formal_boundary(
-        _source_ref_key(interpretation.get("source_search_status", ""))
-    )
+    return False
 
 
 def _has_literature_search_request_for_residual_interpretation(
@@ -6113,7 +6127,9 @@ def _response_formal_search_obligation_errors(
 def _formal_node_requires_library_search(node: Mapping[str, Any]) -> bool:
     if _node_candidate_declarations(node):
         return False
-    if str(node.get("formal_gap_boundary", "")).strip():
+    if _formal_gap_boundary_is_substantive(
+        str(node.get("formal_gap_boundary", "") or "")
+    ):
         return False
     markers = (
         node.get("coverage_bucket", ""),
@@ -7095,6 +7111,81 @@ def _response_source_search_status_locations(
             )
         )
     return tuple(rows)
+
+
+def _response_formal_gap_boundary_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    for location, row in _response_formal_gap_boundary_locations(payload, request):
+        boundary = str(row.get("formal_gap_boundary", "") or "").strip()
+        status_key = _source_ref_key(row.get("source_search_status", ""))
+        requires_boundary = bool(boundary) or _source_search_status_is_formal_boundary(
+            status_key
+        )
+        if not requires_boundary:
+            continue
+        if not boundary:
+            errors.append(
+                f"{location}.formal_gap_boundary required when "
+                "source_search_status declares a formal boundary"
+            )
+            continue
+        if not _formal_gap_boundary_is_substantive(boundary):
+            errors.append(
+                f"{location}.formal_gap_boundary must be a substantive formal "
+                "boundary explanation, not a placeholder"
+            )
+    return errors
+
+
+def _response_formal_gap_boundary_locations(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> tuple[tuple[str, dict[str, object]], ...]:
+    rows: list[tuple[str, dict[str, object]]] = []
+    for index, node in enumerate(
+        _dict_tuple(payload.get("informal_knowledge_dag_nodes", []))
+    ):
+        rows.append((f"informal_knowledge_dag_nodes[{index}]", node))
+    for index, residual in enumerate(
+        _dict_tuple(payload.get("residual_interpretations", []))
+    ):
+        rows.append((f"residual_interpretations[{index}]", residual))
+    target_prover_family = str(request.get("target_prover_family", ""))
+    for index, node in enumerate(
+        _formal_realization_nodes_from_payload(
+            payload,
+            target_prover_family=target_prover_family,
+        )
+    ):
+        rows.append((f"formal_realization_dag_nodes[{index}]", node))
+    route = _standalone_route_from_payload(
+        payload,
+        target_prover_family=target_prover_family,
+    )
+    rows.append(("standalone_route", route))
+    for index, primitive in enumerate(_dict_tuple(route.get("primitives", []))):
+        rows.append((f"standalone_route.primitives[{index}]", primitive))
+    return tuple(rows)
+
+
+def _formal_gap_boundary_is_substantive(text: str) -> bool:
+    stripped = str(text or "").strip()
+    if not stripped:
+        return False
+    tokens = [
+        token
+        for token in re.findall(r"[a-z0-9]+", stripped.lower())
+        if len(token) >= 4 and token not in FORMAL_GAP_BOUNDARY_TEXT_STOPWORDS
+    ]
+    if len(tokens) >= FORMAL_GAP_BOUNDARY_MIN_SUPPORT_TOKENS:
+        return True
+    return (
+        len(tokens) >= 2
+        and len(stripped) >= FORMAL_GAP_BOUNDARY_MIN_TWO_TOKEN_SUPPORT_CHARS
+    )
 
 
 def _response_search_request_contract_errors(
@@ -9082,11 +9173,11 @@ def _informal_node_supports_introduced_primitive(
 ) -> bool:
     if _str_tuple(node.get("source_refs", [])):
         return True
-    if str(node.get("formal_gap_boundary", "")).strip():
+    if _formal_gap_boundary_is_substantive(
+        str(node.get("formal_gap_boundary", "") or "")
+    ):
         return True
     status = _source_ref_key(node.get("source_search_status", ""))
-    if _source_search_status_is_formal_boundary(status):
-        return True
     if _source_search_status_requires_request(status):
         return _has_search_request_for_primitive(
             search_requests,
@@ -9106,7 +9197,9 @@ def _formal_node_supports_introduced_primitive(
         return False
     if _formal_node_claims_existing_library(node):
         return bool(_node_candidate_declarations(node))
-    if str(node.get("formal_gap_boundary", "")).strip():
+    if _formal_gap_boundary_is_substantive(
+        str(node.get("formal_gap_boundary", "") or "")
+    ):
         return True
     markers = (
         node.get("coverage_bucket", ""),

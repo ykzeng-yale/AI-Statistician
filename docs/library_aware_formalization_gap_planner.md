@@ -183,7 +183,10 @@ valid `source_ref` plus a tiny common substring is not accepted as source
 grounding. Response `source_search_status` values are restricted to the
 published source-backed, search-pending/requested, and formal-boundary
 vocabulary; arbitrary confidence labels do not count as evidence or bounded
-follow-up work. Each row also carries a
+follow-up work. Formal-boundary statuses and `formal_gap_boundary` fields must
+include a substantive explanation of the boundary; placeholders such as
+`todo` or `later` do not discharge a source, library-search, or residual-repair
+obligation. Each row also carries a
 `realization_coverage_witness` summarizing
 whether the selected primitives have standalone-route nodes and formal
 realization nodes, whether delta primitives have route-alignment edges, and
