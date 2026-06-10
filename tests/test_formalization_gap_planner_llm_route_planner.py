@@ -4446,12 +4446,20 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert payload["n_payloads"] == 1
     assert payload["n_valid_payloads"] == 1
     assert payload["n_invalid_payloads"] == 0
+    assert payload["n_request_context_packets"] == 0
+    assert payload["n_request_contexts_with_context_packet_inventory"] == 0
+    assert payload["n_request_context_inventory_total_rows"] == 0
+    assert payload["n_request_bound_payloads"] == 0
+    assert payload["n_request_bound_payloads_with_context_packet_inventory"] == 0
+    assert payload["n_request_bound_payload_context_inventory_total_rows"] == 0
     row = payload["rows"][0]
     assert row["ok"]
     assert not row["response_wrapper_present"]
     assert row["payload_schema_id"] == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID
     assert row["request_context_validation_mode"] == "schema_only"
     assert row["request_context_id"] == ""
+    assert row["request_context_inventory_present"] is False
+    assert row["request_context_inventory_total_rows"] == 0
     assert row["n_schema_errors"] == 0
     assert row["n_request_context_errors"] == 0
     assert (
@@ -4583,12 +4591,24 @@ def test_llm_route_planner_response_payload_validator_request_context_accepts_pa
 
     assert payload["all_ok"]
     assert payload["n_request_context_packets"] == 1
+    assert payload["n_request_contexts_with_context_packet_inventory"] == 1
+    assert payload["n_request_context_inventory_total_rows"] == request[
+        "context_packet"
+    ]["context_packet_inventory"]["total_context_rows"]
     assert payload["n_request_bound_payloads"] == 1
+    assert payload["n_request_bound_payloads_with_context_packet_inventory"] == 1
+    assert payload[
+        "n_request_bound_payload_context_inventory_total_rows"
+    ] == request["context_packet"]["context_packet_inventory"]["total_context_rows"]
     assert payload["n_request_context_errors"] == 0
     row = payload["rows"][0]
     assert row["request_context_validation_mode"] == "request_bound"
     assert row["request_context_id"] == request["request_id"]
     assert row["request_context_route_id"] == request["route_id"]
+    assert row["request_context_inventory_present"] is True
+    assert row["request_context_inventory_total_rows"] == request["context_packet"][
+        "context_packet_inventory"
+    ]["total_context_rows"]
     assert row["n_schema_errors"] == 0
     assert row["n_request_context_errors"] == 0
 
@@ -4816,6 +4836,10 @@ def test_llm_route_planner_response_payload_validator_cli_request_context() -> N
     )
     assert manifest["all_ok"]
     assert manifest["n_request_bound_payloads"] == 1
+    assert manifest["n_request_bound_payloads_with_context_packet_inventory"] == 1
+    assert (
+        manifest["rows"][0]["request_context_inventory_present"] is True
+    )
     assert manifest["rows"][0]["request_context_validation_mode"] == "request_bound"
 
 

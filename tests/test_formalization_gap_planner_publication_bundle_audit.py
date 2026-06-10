@@ -6260,6 +6260,8 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         row["check_name"]
         == "optional_llm_route_planner_response_payload_validation_request_bound_coverage"
         and row["ok"]
+        and "context_inventories=1" in row["observed"]
+        and "bound_inventories=1" in row["observed"]
         for row in audit_payload["checks"]
     )
     assert (

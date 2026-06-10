@@ -352,6 +352,18 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         payload["n_llm_route_planner_response_payload_validation_invalid_payloads"]
         == 0
     )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_context_inventories"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_context_inventory"
+        ]
+        == 0
+    )
     assert payload["n_llm_route_planner_provider_failures"] == 0
     assert payload["n_llm_route_planner_rows_with_generator_metadata"] == 0
     assert payload["n_llm_route_planner_rows_with_generation_errors"] == 0
@@ -2284,9 +2296,33 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_llm_route_planner_response_payload_validation_request_context_inventories"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_context_inventory_total_rows"
+        ]
+        >= 2
+    )
+    assert (
+        payload[
             "n_llm_route_planner_response_payload_validation_request_bound_payloads"
         ]
         == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_context_inventory"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_context_inventory_total_rows"
+        ]
+        >= 2
     )
     assert (
         payload[

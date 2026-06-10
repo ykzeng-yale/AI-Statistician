@@ -254,6 +254,12 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_payloads",
         "n_valid_payloads",
         "n_invalid_payloads",
+        "n_request_context_packets",
+        "n_request_contexts_with_context_packet_inventory",
+        "n_request_context_inventory_total_rows",
+        "n_request_bound_payloads",
+        "n_request_bound_payloads_with_context_packet_inventory",
+        "n_request_bound_payload_context_inventory_total_rows",
         "all_ok",
     ),
     "goal_conditioned_minimal_formalization_plan": (
@@ -1727,10 +1733,34 @@ def run_formalization_gap_planner_reuse_smoke(
                 "n_request_context_packets",
             )
         ),
+        "n_llm_route_planner_response_payload_validation_request_context_inventories": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_contexts_with_context_packet_inventory",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_request_context_inventory_total_rows": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_context_inventory_total_rows",
+            )
+        ),
         "n_llm_route_planner_response_payload_validation_request_bound_payloads": (
             _optional_int(
                 llm_response_payload_validation_payload,
                 "n_request_bound_payloads",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_context_inventory": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payloads_with_context_packet_inventory",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_request_bound_context_inventory_total_rows": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payload_context_inventory_total_rows",
             )
         ),
         "n_llm_route_planner_response_payload_validation_schema_errors": (

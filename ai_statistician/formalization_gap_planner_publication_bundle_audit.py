@@ -6024,8 +6024,38 @@ def _llm_route_planner_response_payload_validation_optional_checks(
     manifest_request_context_packets = int(
         manifest.get("n_request_context_packets", 0) or 0
     )
+    manifest_request_contexts_with_inventory = int(
+        manifest.get("n_request_contexts_with_context_packet_inventory", 0) or 0
+    )
+    manifest_request_bound_payloads_with_inventory = int(
+        manifest.get(
+            "n_request_bound_payloads_with_context_packet_inventory",
+            0,
+        )
+        or 0
+    )
+    manifest_request_bound_context_inventory_total_rows = int(
+        manifest.get(
+            "n_request_bound_payload_context_inventory_total_rows",
+            0,
+        )
+        or 0
+    )
     row_request_bound_payloads = sum(
         1
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+    )
+    row_request_bound_payloads_with_inventory = sum(
+        1
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+        and bool(row.get("request_context_inventory_present", False))
+    )
+    row_request_bound_context_inventory_total_rows = sum(
+        int(row.get("request_context_inventory_total_rows", 0) or 0)
         for row in rows
         if str(row.get("request_context_validation_mode", ""))
         == "request_bound"
@@ -6047,6 +6077,22 @@ def _llm_route_planner_response_payload_validation_optional_checks(
         request_bound_accounting_errors.append(
             "JSONL row request-context-error counts must match manifest n_request_context_errors"
         )
+    if (
+        row_request_bound_payloads_with_inventory
+        != manifest_request_bound_payloads_with_inventory
+    ):
+        request_bound_accounting_errors.append(
+            "JSONL request-bound inventory rows must match manifest "
+            "n_request_bound_payloads_with_context_packet_inventory"
+        )
+    if (
+        row_request_bound_context_inventory_total_rows
+        != manifest_request_bound_context_inventory_total_rows
+    ):
+        request_bound_accounting_errors.append(
+            "JSONL request-bound inventory total rows must match manifest "
+            "n_request_bound_payload_context_inventory_total_rows"
+        )
     request_context_path_present = bool(
         str(manifest.get("request_context_path", "")).strip()
     )
@@ -6056,9 +6102,25 @@ def _llm_route_planner_response_payload_validation_optional_checks(
             request_bound_coverage_errors.append(
                 "request-context validation must declare n_request_context_packets"
             )
+        if (
+            manifest_request_contexts_with_inventory
+            != manifest_request_context_packets
+        ):
+            request_bound_coverage_errors.append(
+                "request-context validation must carry context_packet_inventory "
+                "for every request context"
+            )
         if manifest_request_bound_payloads != int(manifest.get("n_payloads", 0) or 0):
             request_bound_coverage_errors.append(
                 "request-context validation must bind every payload row"
+            )
+        if (
+            manifest_request_bound_payloads_with_inventory
+            != manifest_request_bound_payloads
+        ):
+            request_bound_coverage_errors.append(
+                "request-bound validation must carry context_packet_inventory "
+                "for every bound payload row"
             )
         if manifest_request_context_errors:
             request_bound_coverage_errors.append(
@@ -6168,7 +6230,11 @@ def _llm_route_planner_response_payload_validation_optional_checks(
             (
                 f"bound={row_request_bound_payloads}/{manifest_request_bound_payloads} "
                 f"schema_errors={row_schema_errors}/{manifest_schema_errors} "
-                f"context_errors={row_request_context_errors}/{manifest_request_context_errors}"
+                f"context_errors={row_request_context_errors}/{manifest_request_context_errors} "
+                f"inventory_rows={row_request_bound_payloads_with_inventory}/"
+                f"{manifest_request_bound_payloads_with_inventory} "
+                f"inventory_total_rows={row_request_bound_context_inventory_total_rows}/"
+                f"{manifest_request_bound_context_inventory_total_rows}"
             ),
             not request_bound_accounting_errors,
             errors=tuple(request_bound_accounting_errors),
@@ -6180,8 +6246,10 @@ def _llm_route_planner_response_payload_validation_optional_checks(
             (
                 f"context_path_present={request_context_path_present} "
                 f"context_packets={manifest_request_context_packets} "
+                f"context_inventories={manifest_request_contexts_with_inventory} "
                 f"request_bound={manifest_request_bound_payloads}/"
                 f"{manifest.get('n_payloads', 0)} "
+                f"bound_inventories={manifest_request_bound_payloads_with_inventory} "
                 f"context_errors={manifest_request_context_errors}"
             ),
             not request_bound_coverage_errors,

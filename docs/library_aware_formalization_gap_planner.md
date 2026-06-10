@@ -128,7 +128,11 @@ the bundle audit checks its manifest contract, JSONL row count, valid/invalid
 payload counters, and row schema IDs. That preflight checks the reusable
 payload contract and proof-evidence boundary; request-bound mode strengthens it
 to route-planning consistency against the staged request, but it still does not
-prove kernel verification. The public planner path records
+prove kernel verification. Request-bound validator manifests and rows also
+record whether each matched request context carried
+`context_packet.context_packet_inventory` and the corresponding inventory row
+totals; the publication-bundle audit checks those counters against JSONL rows
+when the optional validator artifact is packaged. The public planner path records
 `*_provider_execution_mode`, live-call counters, and generation preflight block
 counts/errors so staged packets are distinguishable from paid provider calls
 and schema/model-tier-invalid requests are visible before any live Claude call.
@@ -540,7 +544,8 @@ passes that optional validator run into the publication bundle. The smoke path
 also writes the staged request packets beside the validator input and runs the
 validator in request-bound mode, so the publication bundle can audit that every
 payload was checked against its target theorem, target prover family, source
-refs, candidate declarations, residual repairs, and minimal-delta cost witness.
+refs, candidate declarations, residual repairs, minimal-delta cost witness, and
+request-context inventory coverage.
 The stage summaries preserve omitted-cost-hint adoption counters and
 `planner_next_actions` totals so public reuse-smoke output exposes the route
 repair work still pending after LLM planning.

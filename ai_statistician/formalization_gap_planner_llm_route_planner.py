@@ -1537,14 +1537,20 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
             request_context_validation_mode = "request_bound"
             request_context_id = request_id
             request_context_route_id = str(request_context.get("route_id", ""))
+            request_context_inventory = _dict_value(
+                _dict_value(request_context, "context_packet"),
+                "context_packet_inventory",
+            )
         elif request_context_json is not None:
             request_context_validation_mode = "request_context_unmatched"
             request_context_id = ""
             request_context_route_id = ""
+            request_context_inventory = {}
         else:
             request_context_validation_mode = "schema_only"
             request_context_id = ""
             request_context_route_id = ""
+            request_context_inventory = {}
         row_errors = sorted(set([*schema_errors, *request_context_errors]))
         rows.append(
             {
@@ -1571,6 +1577,10 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
                 "request_context_validation_mode": request_context_validation_mode,
                 "request_context_id": request_context_id,
                 "request_context_route_id": request_context_route_id,
+                "request_context_inventory_present": bool(request_context_inventory),
+                "request_context_inventory_total_rows": int(
+                    request_context_inventory.get("total_context_rows", 0) or 0
+                ),
                 "n_schema_errors": len(schema_errors),
                 "n_request_context_errors": len(request_context_errors),
                 "n_errors": len(row_errors),
@@ -1581,6 +1591,18 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
             }
         )
     n_valid = sum(1 for row in rows if row["ok"])
+    request_context_inventories = tuple(
+        _dict_value(
+            _dict_value(request_context, "context_packet"),
+            "context_packet_inventory",
+        )
+        for request_context in request_contexts
+    )
+    request_context_inventory_total_rows = sum(
+        int(inventory.get("total_context_rows", 0) or 0)
+        for inventory in request_context_inventories
+        if inventory
+    )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1603,8 +1625,25 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
         "n_valid_payloads": n_valid,
         "n_invalid_payloads": len(rows) - n_valid,
         "n_request_context_packets": len(request_contexts),
+        "n_request_contexts_with_context_packet_inventory": sum(
+            1 for inventory in request_context_inventories if inventory
+        ),
+        "n_request_context_inventory_total_rows": (
+            request_context_inventory_total_rows
+        ),
         "n_request_bound_payloads": sum(
             1
+            for row in rows
+            if row["request_context_validation_mode"] == "request_bound"
+        ),
+        "n_request_bound_payloads_with_context_packet_inventory": sum(
+            1
+            for row in rows
+            if row["request_context_validation_mode"] == "request_bound"
+            and row["request_context_inventory_present"]
+        ),
+        "n_request_bound_payload_context_inventory_total_rows": sum(
+            int(row["request_context_inventory_total_rows"] or 0)
             for row in rows
             if row["request_context_validation_mode"] == "request_bound"
         ),
@@ -3261,6 +3300,8 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
             "request_context_validation_mode",
             "request_context_id",
             "request_context_route_id",
+            "request_context_inventory_present",
+            "request_context_inventory_total_rows",
             "n_schema_errors",
             "n_request_context_errors",
             "n_errors",
@@ -3293,6 +3334,8 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
             },
             "request_context_id": {"type": "string"},
             "request_context_route_id": {"type": "string"},
+            "request_context_inventory_present": {"type": "boolean"},
+            "request_context_inventory_total_rows": {"type": "integer"},
             "n_schema_errors": {"type": "integer"},
             "n_request_context_errors": {"type": "integer"},
             "n_errors": {"type": "integer"},
@@ -3332,6 +3375,14 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
             "n_payloads",
             "n_valid_payloads",
             "n_invalid_payloads",
+            "n_request_context_packets",
+            "n_request_contexts_with_context_packet_inventory",
+            "n_request_context_inventory_total_rows",
+            "n_request_bound_payloads",
+            "n_request_bound_payloads_with_context_packet_inventory",
+            "n_request_bound_payload_context_inventory_total_rows",
+            "n_schema_errors",
+            "n_request_context_errors",
             "rows",
             "all_ok",
             "errors",
@@ -3369,7 +3420,13 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
             "n_valid_payloads": {"type": "integer"},
             "n_invalid_payloads": {"type": "integer"},
             "n_request_context_packets": {"type": "integer"},
+            "n_request_contexts_with_context_packet_inventory": {"type": "integer"},
+            "n_request_context_inventory_total_rows": {"type": "integer"},
             "n_request_bound_payloads": {"type": "integer"},
+            "n_request_bound_payloads_with_context_packet_inventory": {"type": "integer"},
+            "n_request_bound_payload_context_inventory_total_rows": {
+                "type": "integer"
+            },
             "n_schema_errors": {"type": "integer"},
             "n_request_context_errors": {"type": "integer"},
             "rows": {
