@@ -688,6 +688,7 @@ def _fixture_cross_prover_matrix_row(
         "n_packets_llm_route_adoption_rejected": 0,
         "n_packets_llm_route_adoption_awaiting_response": 0,
         "n_packet_llm_route_adoption_blockers": 2,
+        "n_packet_llm_route_adoption_pending_quality_control_blockers": 1,
         "by_packet_llm_route_adoption_status": {
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
         },
@@ -765,6 +766,7 @@ def _fixture_cross_prover_target_summary(
         "n_total_packets_llm_route_adoption_rejected": 0,
         "n_total_packets_llm_route_adoption_awaiting_response": 0,
         "n_total_packet_llm_route_adoption_blockers": 2,
+        "n_total_packet_llm_route_adoption_pending_quality_control_blockers": 1,
         "by_total_packet_llm_route_adoption_status": {
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
         },
@@ -824,6 +826,7 @@ def _fixture_cross_prover_target_summary(
                 "n_packets_llm_route_adoption_rejected": 0,
                 "n_packets_llm_route_adoption_awaiting_response": 0,
                 "n_packet_llm_route_adoption_blockers": 2,
+                "n_packet_llm_route_adoption_pending_quality_control_blockers": 1,
                 "by_packet_llm_route_adoption_status": {
                     "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
                 },
@@ -2202,6 +2205,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "route_adoption_ready_rate": 1.0,
         "route_adoption_pending_refinement_rate": 0.0,
         "mean_route_adoption_blockers": 0.0,
+        "mean_route_adoption_pending_quality_control_blockers": 0.0,
         "relative_route_recall_drop": 0.0,
         "relative_delta_recall_drop": 0.0,
         "relative_residual_recall_drop": 0.0,

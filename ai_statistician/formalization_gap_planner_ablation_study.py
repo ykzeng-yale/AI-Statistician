@@ -35,6 +35,7 @@ ABLATION_VARIANTS = (
     "no_proof_state_feedback",
     "no_route_planner",
 )
+ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,7 @@ class FormalizationGapPlannerAblationStudyRow:
     route_adoption_ready_rate: float
     route_adoption_pending_refinement_rate: float
     mean_route_adoption_blockers: float
+    mean_route_adoption_pending_quality_control_blockers: float
     relative_route_recall_drop: float
     relative_delta_recall_drop: float
     relative_residual_recall_drop: float
@@ -265,6 +267,7 @@ def ablation_study_row_json_schema() -> dict[str, object]:
         "route_adoption_ready_rate",
         "route_adoption_pending_refinement_rate",
         "mean_route_adoption_blockers",
+        "mean_route_adoption_pending_quality_control_blockers",
         "relative_route_recall_drop",
         "relative_delta_recall_drop",
         "relative_residual_recall_drop",
@@ -314,6 +317,9 @@ def ablation_study_row_json_schema() -> dict[str, object]:
             "route_adoption_ready_rate": rate,
             "route_adoption_pending_refinement_rate": rate,
             "mean_route_adoption_blockers": nonnegative_number,
+            "mean_route_adoption_pending_quality_control_blockers": (
+                nonnegative_number
+            ),
             "relative_route_recall_drop": nonnegative_number,
             "relative_delta_recall_drop": nonnegative_number,
             "relative_residual_recall_drop": nonnegative_number,
@@ -405,7 +411,12 @@ def _ablation_row(
             existing_pred = ()
             residual_pred = ()
             coverage = 0.0
-        adoption_ready, adoption_pending, adoption_blockers = (
+        (
+            adoption_ready,
+            adoption_pending,
+            adoption_blockers,
+            adoption_quality_control_blockers,
+        ) = (
             _route_adoption_metrics(variant, row, removed)
         )
         if removed:
@@ -428,6 +439,9 @@ def _ablation_row(
                 "route_adoption_ready": adoption_ready,
                 "route_adoption_pending": adoption_pending,
                 "route_adoption_blockers": adoption_blockers,
+                "route_adoption_quality_control_blockers": (
+                    adoption_quality_control_blockers
+                ),
             }
         )
     if not evaluation_rows:
@@ -473,6 +487,10 @@ def _ablation_row(
         ),
         mean_route_adoption_blockers=_mean(
             metric["route_adoption_blockers"] for metric in metrics
+        ),
+        mean_route_adoption_pending_quality_control_blockers=_mean(
+            metric["route_adoption_quality_control_blockers"]
+            for metric in metrics
         ),
         relative_route_recall_drop=0.0,
         relative_delta_recall_drop=0.0,
@@ -579,25 +597,38 @@ def _route_adoption_metrics(
     variant: str,
     evaluation_row: dict[str, Any],
     removed: set[str],
-) -> tuple[float, float, float]:
+) -> tuple[float, float, float, float]:
     blockers = _str_tuple(
         evaluation_row.get("llm_route_planner_route_adoption_blockers", [])
     )
+    quality_control_blockers = float(
+        1 if ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS in blockers else 0
+    )
     if variant != "full_planner_observed" and removed:
-        return (0.0, 1.0, float(max(1, len(blockers))))
+        return (0.0, 1.0, float(max(1, len(blockers))), quality_control_blockers)
     status = str(
         evaluation_row.get("llm_route_planner_route_adoption_status", "")
     ).strip()
     if status == "READY_FOR_STANDALONE_REPLAY":
-        return (1.0, 0.0, 0.0)
+        return (1.0, 0.0, 0.0, 0.0)
     if status == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION":
-        return (0.0, 1.0, float(max(1, len(blockers))))
+        return (
+            0.0,
+            1.0,
+            float(max(1, len(blockers))),
+            quality_control_blockers,
+        )
     if status in {
         "AWAITING_LLM_ROUTE_PLANNER_RESPONSE",
         "REJECTED_LLM_ROUTE_PLAN",
     }:
-        return (0.0, 1.0, float(max(1, len(blockers))))
-    return (0.0, 0.0, float(len(blockers)))
+        return (
+            0.0,
+            1.0,
+            float(max(1, len(blockers))),
+            quality_control_blockers,
+        )
+    return (0.0, 0.0, float(len(blockers)), quality_control_blockers)
 
 
 def _next_action_rate(
@@ -817,6 +848,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"- Residual recall: {row.get('mean_residual_recall')}",
                 f"- Existing reuse recall: {row.get('mean_existing_reuse_recall')}",
                 f"- Route-adoption ready/pending/blockers: {row.get('route_adoption_ready_rate')}/{row.get('route_adoption_pending_refinement_rate')}/{row.get('mean_route_adoption_blockers')}",
+                "- Route-adoption pending quality-control blockers: "
+                f"{row.get('mean_route_adoption_pending_quality_control_blockers')}",
                 f"- Impacted routes: {row.get('n_impacted_routes')}",
                 f"- Interpretation: {row.get('interpretation')}",
                 "",

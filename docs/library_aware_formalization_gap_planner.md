@@ -731,7 +731,12 @@ The ablation study compares the observed planner with counterfactual
 successor to the legacy `no_lean_grounding` label. It is a diagnostic for which
 signal families matter for route recall, formalization-delta recall, reuse,
 feedback readiness, and
-route-adoption readiness under the current evidence bound; it is not theorem
+route-adoption readiness under the current evidence bound. It also separates
+generic route-adoption blockers from
+`mean_route_adoption_pending_quality_control_blockers`, so ablation rows can
+show when readiness loss reflects unmet resource/response-validation policy
+rather than missing literature, formal-library, proof-state, or route-planner
+signals. It is not theorem
 proof evidence. `research-system-audit` promotes the evaluation and ablation
 route-adoption counts into its top-level `counts` payload so AI Statistician
 runs can be filtered by adoption readiness without parsing nested planner
@@ -1576,7 +1581,8 @@ The current implementation composes four existing AI Statistician artifacts:
    no-proof-feedback, and no-route-planner counterfactuals. It is planning
    diagnostic evidence only, not theorem proof evidence. It exports
    `formalization_gap_planner_ablation_study_row.schema.json` and the
-   `largest_route_adoption_ready_drop_variant` aggregate so paper supplements
+   `largest_route_adoption_ready_drop_variant` aggregate, including
+   quality-control-specific route-adoption blocker means, so paper supplements
    can validate counterfactual metric rows and route-adoption drop summaries
    independently.
 
@@ -1655,7 +1661,8 @@ resolution, and route/delta/existing-reuse primitive consistency.
    portable-plan audit rows satisfy the published audit-row schema, optional
    route-replan handoff-audit rows satisfy the published audit-row schema,
    optional ablation-study rows satisfy the published ablation-row schema and
-   recomputed route-adoption drop aggregate,
+   recomputed route-adoption drop aggregate, including quality-control-specific
+   route-adoption blocker means,
    optional evaluation quality-control aggregates match the packaged evaluation
    JSONL rows,
    optional proof-state triage rows satisfy the published triage-row schema,

@@ -168,6 +168,12 @@ def test_ablation_study_compares_literature_lean_feedback_and_null_baselines() -
         == 0.0
     )
     assert by_variant["full_planner_observed"]["mean_route_adoption_blockers"] == 0.0
+    assert (
+        by_variant["full_planner_observed"][
+            "mean_route_adoption_pending_quality_control_blockers"
+        ]
+        == 0.0
+    )
     assert by_variant["no_literature_evidence"]["mean_route_recall"] < 1.0
     assert by_variant["no_literature_evidence"]["n_impacted_primitives"] == 2
     assert by_variant["no_literature_evidence"]["route_adoption_ready_rate"] == 0.0
@@ -178,6 +184,12 @@ def test_ablation_study_compares_literature_lean_feedback_and_null_baselines() -
         == 1.0
     )
     assert by_variant["no_literature_evidence"]["mean_route_adoption_blockers"] == 1.0
+    assert (
+        by_variant["no_literature_evidence"][
+            "mean_route_adoption_pending_quality_control_blockers"
+        ]
+        == 0.0
+    )
     assert (
         by_variant["no_literature_evidence"][
             "relative_route_adoption_ready_drop"
@@ -226,4 +238,98 @@ def test_ablation_study_compares_literature_lean_feedback_and_null_baselines() -
     assert "ablation_variant required" in validate_ablation_study_row(
         {"schema_version": 1},
         ablation_study_row_json_schema(),
+    )
+
+
+def test_ablation_study_tracks_quality_control_route_adoption_blockers() -> None:
+    root = Path("runs/test_formalization_gap_planner_ablation_study_quality_blockers")
+    plan_dir = root / "plan"
+    evaluation_dir = root / "evaluation"
+    out_dir = root / "ablation"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    evaluation_dir.mkdir(parents=True, exist_ok=True)
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": "library_aware_formalization_gap_planner",
+                "portable_schema_id": "urn:ai-statistician:schemas:library-aware-formalization-gap-plan:1",
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:qc",
+                        "route_id": "route:qc",
+                        "display_name": "quality-control blocked route",
+                        "formal_realization_dag_nodes": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                            }
+                        ],
+                        "minimal_additional_formalization_nodes": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "action_class": "bridge_needed",
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (evaluation_dir / "formalization_gap_planner_evaluation_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_evaluation",
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:qc",
+                        "route_id": "route:qc",
+                        "display_name": "quality-control blocked route",
+                        "matched_ground_truth": True,
+                        "predicted_route_primitives": ["rank_uniformity"],
+                        "ground_truth_route_primitives": ["rank_uniformity"],
+                        "predicted_delta_primitives": ["rank_uniformity"],
+                        "ground_truth_delta_primitives": ["rank_uniformity"],
+                        "predicted_residual_primitives": [],
+                        "ground_truth_residual_primitives": [],
+                        "predicted_existing_reuse_primitives": [],
+                        "ground_truth_existing_reuse_primitives": [],
+                        "coverage_classification_accuracy": 1.0,
+                        "feedback_loop_ready": False,
+                        "llm_route_planner_trace_present": True,
+                        "llm_route_planner_route_adoption_status": (
+                            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+                        ),
+                        "llm_route_planner_route_adoption_blockers": [
+                            "quality_control_obligations_pending"
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_ablation_study(
+        plan_dir,
+        evaluation_dir,
+        out_dir,
+    )
+
+    assert payload["all_ok"]
+    by_variant = {row["ablation_variant"]: row for row in payload["rows"]}
+    full = by_variant["full_planner_observed"]
+    assert full["route_adoption_ready_rate"] == 0.0
+    assert full["route_adoption_pending_refinement_rate"] == 1.0
+    assert full["mean_route_adoption_blockers"] == 1.0
+    assert (
+        full["mean_route_adoption_pending_quality_control_blockers"]
+        == 1.0
+    )
+    assert all(
+        row["mean_route_adoption_pending_quality_control_blockers"] == 1.0
+        for row in payload["rows"]
     )

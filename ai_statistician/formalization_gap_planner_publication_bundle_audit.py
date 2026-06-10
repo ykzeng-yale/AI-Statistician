@@ -12911,6 +12911,7 @@ def _ablation_study_row_has_route_adoption_metrics(row: dict[str, Any]) -> bool:
             "route_adoption_ready_rate",
             "route_adoption_pending_refinement_rate",
             "mean_route_adoption_blockers",
+            "mean_route_adoption_pending_quality_control_blockers",
             "relative_route_adoption_ready_drop",
         )
     )
