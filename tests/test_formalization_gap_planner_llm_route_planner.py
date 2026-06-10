@@ -7328,6 +7328,40 @@ def test_llm_route_planner_rejects_target_theorem_identity_drift() -> None:
     )
 
 
+def test_llm_route_planner_rejects_unsupported_source_search_status() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_bad_source_status"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["informal_knowledge_dag_nodes"][0]["source_refs"] = []
+    bad_response["informal_knowledge_dag_nodes"][0][
+        "source_search_status"
+    ] = "MODEL_CONFIDENT_WITHOUT_EVIDENCE"
+    bad_response["standalone_route"]["primitives"][0][
+        "source_search_status"
+    ] = "UNREGISTERED_STATUS"
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert "source_search_status unsupported" in error_text
+    assert "MODEL_CONFIDENT_WITHOUT_EVIDENCE" in error_text
+    assert "UNREGISTERED_STATUS" in error_text
+
+
 def test_llm_route_planner_rejects_source_backed_node_without_source_ref() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_rejects_source_backed_without_ref")
     response_json = root / "bad_response.json"

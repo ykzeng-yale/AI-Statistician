@@ -180,7 +180,10 @@ carry primitive-level `source_refs` or `source_snippets`; broad route-level
 source refs do not silently certify each primitive. Response `source_snippets`
 must be copied from or substantively anchored in request-context snippets; a
 valid `source_ref` plus a tiny common substring is not accepted as source
-grounding. Each row also carries a
+grounding. Response `source_search_status` values are restricted to the
+published source-backed, search-pending/requested, and formal-boundary
+vocabulary; arbitrary confidence labels do not count as evidence or bounded
+follow-up work. Each row also carries a
 `realization_coverage_witness` summarizing
 whether the selected primitives have standalone-route nodes and formal
 realization nodes, whether delta primitives have route-alignment edges, and

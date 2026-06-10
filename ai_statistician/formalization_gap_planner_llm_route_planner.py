@@ -265,6 +265,18 @@ SOURCE_SNIPPET_TEXT_SUPPORT_STOPWORDS = {
     "under",
     "with",
 }
+LLM_ROUTE_PLANNER_SOURCE_SEARCH_STATUS_KEYS = (
+    "source_backed",
+    "search_requested",
+    "search_pending",
+    "source_search_requested",
+    "source_search_pending",
+    "literature_search_requested",
+    "literature_search_pending",
+    "formal_gap_boundary",
+    "formal_boundary",
+    "formal_boundary_declared",
+)
 LLM_ROUTE_PLANNER_SEARCH_REQUEST_KIND_ALIASES = (
     "literature",
     "literature_search",
@@ -3205,6 +3217,7 @@ def _user_prompt(
             target_intake_requirement,
             "standalone_route.theorem_statement must preserve the requested target theorem identity; route repairs may add explicit side-condition notes but must not switch to a different theorem.",
             "Every informal DAG node must have source_refs, a source_search_status, or a formal_gap_boundary.",
+            "source_search_status values are limited to SOURCE_BACKED, SEARCH_REQUESTED/search_pending/source_search_pending/literature_search_pending, or FORMAL_GAP_BOUNDARY/formal_boundary_declared; unsupported status strings are rejected.",
             "SOURCE_BACKED claims may cite only source_refs listed in context_packet.available_source_refs.",
             "Any standalone_route primitive marked SOURCE_BACKED must carry primitive-level source_refs or source_snippets; route-level source_refs do not silently justify that primitive.",
             "When context_packet.available_source_snippets contains relevant excerpts, reuse those source_snippets in informal DAG nodes or standalone_route primitives instead of paraphrasing unsupported evidence.",
@@ -4908,6 +4921,7 @@ def _response_contract_errors(
                 "informal_knowledge_dag_nodes"
                 f"[{index}] needs source_refs, source_search_status, or formal_gap_boundary"
             )
+    errors.extend(_response_source_search_status_errors(payload))
     errors.extend(_response_source_ref_grounding_errors(payload, request))
     errors.extend(_response_target_theorem_identity_errors(payload, request))
     errors.extend(_response_target_prover_consistency_errors(payload, request))
@@ -5496,10 +5510,9 @@ def _residual_interpretation_has_formal_boundary(
 ) -> bool:
     if str(interpretation.get("formal_gap_boundary", "")).strip():
         return True
-    return _source_ref_key(interpretation.get("source_search_status", "")) in {
-        "formal_gap_boundary",
-        "formal_boundary_declared",
-    }
+    return _source_search_status_is_formal_boundary(
+        _source_ref_key(interpretation.get("source_search_status", ""))
+    )
 
 
 def _has_literature_search_request_for_residual_interpretation(
@@ -7031,6 +7044,59 @@ def _response_source_ref_grounding_errors(
     return errors
 
 
+def _response_source_search_status_errors(
+    payload: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    for location, value in _response_source_search_status_locations(payload):
+        raw_status = str(value or "").strip()
+        if not raw_status:
+            continue
+        status_key = _source_ref_key(raw_status)
+        if status_key not in LLM_ROUTE_PLANNER_SOURCE_SEARCH_STATUS_KEYS:
+            errors.append(
+                f"{location}.source_search_status unsupported: {raw_status}; "
+                "expected one of "
+                + ", ".join(LLM_ROUTE_PLANNER_SOURCE_SEARCH_STATUS_KEYS)
+            )
+    return errors
+
+
+def _response_source_search_status_locations(
+    payload: Mapping[str, Any],
+) -> tuple[tuple[str, object], ...]:
+    rows: list[tuple[str, object]] = []
+    for index, node in enumerate(
+        _dict_tuple(payload.get("informal_knowledge_dag_nodes", []))
+    ):
+        rows.append(
+            (
+                f"informal_knowledge_dag_nodes[{index}]",
+                node.get("source_search_status", ""),
+            )
+        )
+    for index, residual in enumerate(
+        _dict_tuple(payload.get("residual_interpretations", []))
+    ):
+        rows.append(
+            (
+                f"residual_interpretations[{index}]",
+                residual.get("source_search_status", ""),
+            )
+        )
+    route = _dict_value(payload, "standalone_route")
+    if "source_search_status" in route:
+        rows.append(("standalone_route", route.get("source_search_status", "")))
+    for index, primitive in enumerate(_dict_tuple(route.get("primitives", []))):
+        rows.append(
+            (
+                f"standalone_route.primitives[{index}]",
+                primitive.get("source_search_status", ""),
+            )
+        )
+    return tuple(rows)
+
+
 def _response_search_request_contract_errors(
     payload: Mapping[str, Any],
 ) -> list[str]:
@@ -7238,10 +7304,19 @@ def _response_source_search_obligation_errors(
 def _source_search_status_requires_request(status: str) -> bool:
     return status in {
         "search_requested",
+        "search_pending",
         "source_search_requested",
         "source_search_pending",
         "literature_search_requested",
         "literature_search_pending",
+    }
+
+
+def _source_search_status_is_formal_boundary(status: str) -> bool:
+    return status in {
+        "formal_gap_boundary",
+        "formal_boundary",
+        "formal_boundary_declared",
     }
 
 
@@ -9010,15 +9085,9 @@ def _informal_node_supports_introduced_primitive(
     if str(node.get("formal_gap_boundary", "")).strip():
         return True
     status = _source_ref_key(node.get("source_search_status", ""))
-    if status in {"formal_gap_boundary", "formal_boundary_declared"}:
+    if _source_search_status_is_formal_boundary(status):
         return True
-    if status in {
-        "search_requested",
-        "source_search_requested",
-        "source_search_pending",
-        "literature_search_requested",
-        "literature_search_pending",
-    }:
+    if _source_search_status_requires_request(status):
         return _has_search_request_for_primitive(
             search_requests,
             primitive=primitive,
