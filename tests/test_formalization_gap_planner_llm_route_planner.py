@@ -4647,12 +4647,24 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert payload["n_request_bound_payloads"] == 0
     assert payload["n_request_bound_payloads_with_context_packet_inventory"] == 0
     assert payload["n_request_bound_payload_context_inventory_total_rows"] == 0
+    assert payload["n_payloads_with_declared_target_prover_family"] == 0
+    assert (
+        payload["n_request_bound_payloads_with_target_prover_family_mismatch"]
+        == 0
+    )
+    assert payload["by_payload_target_prover_family"] == {}
+    assert payload["by_request_context_target_prover_family"] == {}
     row = payload["rows"][0]
     assert row["ok"]
     assert not row["response_wrapper_present"]
     assert row["payload_schema_id"] == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID
     assert row["request_context_validation_mode"] == "schema_only"
     assert row["request_context_id"] == ""
+    assert row["payload_target_prover_family"] == ""
+    assert row["payload_target_prover_key"] == ""
+    assert row["request_context_target_prover_family"] == ""
+    assert row["request_context_target_prover_key"] == ""
+    assert row["target_prover_family_consistent"] is True
     assert row["request_context_inventory_present"] is False
     assert row["request_context_inventory_total_rows"] == 0
     assert row["n_schema_errors"] == 0
@@ -4660,6 +4672,9 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     row_schema = payload["response_payload_validation_row_schema"]
     assert row_schema["properties"]["n_errors"]["minimum"] == 0
     assert row_schema["properties"]["payload_index"]["minimum"] == 0
+    assert row_schema["properties"]["target_prover_family_consistent"][
+        "type"
+    ] == "boolean"
     assert (
         validate_llm_route_planner_response_payload_validation_row(
             row,
@@ -4691,6 +4706,19 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
             row_schema,
         )
     )
+    drifted_target_row = deepcopy(row)
+    drifted_target_row["payload_target_prover_family"] = "Lean 4"
+    drifted_target_row["payload_target_prover_key"] = "lean4"
+    drifted_target_row["request_context_target_prover_family"] = "Rocq"
+    drifted_target_row["request_context_target_prover_key"] = "rocq"
+    drifted_target_row["target_prover_family_consistent"] = True
+    assert (
+        "target_prover_family_consistent must match normalized payload and request target prover keys"
+        in validate_llm_route_planner_response_payload_validation_row(
+            drifted_target_row,
+            row_schema,
+        )
+    )
     assert (
         out_dir
         / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
@@ -4713,6 +4741,15 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
         "n_valid_payloads must match rows with ok=true"
         in validate_llm_route_planner_response_payload_validation_manifest(
             drifted_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_target_count_manifest = deepcopy(payload)
+    drifted_target_count_manifest["n_payloads_with_declared_target_prover_family"] = 1
+    assert (
+        "n_payloads_with_declared_target_prover_family must match rows with payload_target_prover_family"
+        in validate_llm_route_planner_response_payload_validation_manifest(
+            drifted_target_count_manifest,
             manifest_schema,
         )
     )
@@ -4868,17 +4905,91 @@ def test_llm_route_planner_response_payload_validator_request_context_accepts_pa
     assert payload[
         "n_request_bound_payload_context_inventory_total_rows"
     ] == request["context_packet"]["context_packet_inventory"]["total_context_rows"]
+    assert payload["n_payloads_with_declared_target_prover_family"] == 0
+    assert (
+        payload["n_request_bound_payloads_with_target_prover_family_mismatch"]
+        == 0
+    )
+    assert payload["by_payload_target_prover_family"] == {}
+    assert payload["by_request_context_target_prover_family"] == {"lean4": 1}
     assert payload["n_request_context_errors"] == 0
     row = payload["rows"][0]
     assert row["request_context_validation_mode"] == "request_bound"
     assert row["request_context_id"] == request["request_id"]
     assert row["request_context_route_id"] == request["route_id"]
+    assert row["payload_target_prover_family"] == ""
+    assert row["payload_target_prover_key"] == ""
+    assert row["request_context_target_prover_family"] == "lean4"
+    assert row["request_context_target_prover_key"] == "lean4"
+    assert row["target_prover_family_consistent"] is True
     assert row["request_context_inventory_present"] is True
     assert row["request_context_inventory_total_rows"] == request["context_packet"][
         "context_packet_inventory"
     ]["total_context_rows"]
     assert row["n_schema_errors"] == 0
     assert row["n_request_context_errors"] == 0
+
+
+def test_llm_route_planner_response_payload_validator_counts_target_prover_mismatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_payload_validate_target_mismatch"
+    )
+    planner_dir = root / "llm_route_planner"
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["target_prover_family"] = "rocq"
+    input_payload["routes"][0]["target_prover_family"] = "rocq"
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    staged = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        planner_dir,
+        provider_name="prompt_only",
+    )
+    request = staged["request_packets"][0]
+    response = _llm_response_payload()
+    response["target_prover_family"] = "lean4"
+    response_json.write_text(
+        json.dumps(
+            {
+                "request_id": request["request_id"],
+                "route_id": request["route_id"],
+                "response_payload": response,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+        request_context_json=planner_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_payloads_with_declared_target_prover_family"] == 1
+    assert (
+        payload["n_request_bound_payloads_with_target_prover_family_mismatch"]
+        == 1
+    )
+    assert payload["by_payload_target_prover_family"] == {"lean4": 1}
+    assert payload["by_request_context_target_prover_family"] == {"rocq": 1}
+    row = payload["rows"][0]
+    assert row["request_context_validation_mode"] == "request_bound"
+    assert row["payload_target_prover_family"] == "lean4"
+    assert row["payload_target_prover_key"] == "lean4"
+    assert row["request_context_target_prover_family"] == "rocq"
+    assert row["request_context_target_prover_key"] == "rocq"
+    assert row["target_prover_family_consistent"] is False
+    assert any(
+        "does not match request target_prover_family rocq" in error
+        for error in row["errors"]
+    )
 
 
 def test_llm_route_planner_response_payload_validator_request_context_rejects_cost_hint_underpricing() -> None:

@@ -1723,6 +1723,12 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
     for index, response_input in enumerate(response_inputs):
         response = response_input["response"]
         payload = _response_payload(response)
+        payload_target_prover_family = _declared_payload_target_prover_family(
+            payload
+        )
+        payload_target_prover_key = _target_prover_key(
+            payload_target_prover_family
+        )
         schema_errors = validate_llm_route_planner_response_payload(
             payload,
             response_payload_schema,
@@ -1744,6 +1750,12 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
             request_context_validation_mode = "request_bound"
             request_context_id = request_id
             request_context_route_id = str(request_context.get("route_id", ""))
+            request_context_target_prover_family = str(
+                request_context.get("target_prover_family", "") or ""
+            ).strip()
+            request_context_target_prover_key = _target_prover_key(
+                request_context_target_prover_family
+            )
             request_context_inventory = _dict_value(
                 _dict_value(request_context, "context_packet"),
                 "context_packet_inventory",
@@ -1752,12 +1764,21 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
             request_context_validation_mode = "request_context_unmatched"
             request_context_id = ""
             request_context_route_id = ""
+            request_context_target_prover_family = ""
+            request_context_target_prover_key = ""
             request_context_inventory = {}
         else:
             request_context_validation_mode = "schema_only"
             request_context_id = ""
             request_context_route_id = ""
+            request_context_target_prover_family = ""
+            request_context_target_prover_key = ""
             request_context_inventory = {}
+        target_prover_family_consistent = not (
+            payload_target_prover_key
+            and request_context_target_prover_key
+            and payload_target_prover_key != request_context_target_prover_key
+        )
         row_errors = sorted(set([*schema_errors, *request_context_errors]))
         rows.append(
             {
@@ -1784,6 +1805,15 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
                 "request_context_validation_mode": request_context_validation_mode,
                 "request_context_id": request_context_id,
                 "request_context_route_id": request_context_route_id,
+                "payload_target_prover_family": payload_target_prover_family,
+                "payload_target_prover_key": payload_target_prover_key,
+                "request_context_target_prover_family": (
+                    request_context_target_prover_family
+                ),
+                "request_context_target_prover_key": request_context_target_prover_key,
+                "target_prover_family_consistent": (
+                    target_prover_family_consistent
+                ),
                 "request_context_inventory_present": bool(request_context_inventory),
                 "request_context_inventory_total_rows": int(
                     request_context_inventory.get("total_context_rows", 0) or 0
@@ -1853,6 +1883,29 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
             int(row["request_context_inventory_total_rows"] or 0)
             for row in rows
             if row["request_context_validation_mode"] == "request_bound"
+        ),
+        "n_payloads_with_declared_target_prover_family": sum(
+            1 for row in rows if str(row["payload_target_prover_family"]).strip()
+        ),
+        "n_request_bound_payloads_with_target_prover_family_mismatch": sum(
+            1
+            for row in rows
+            if row["request_context_validation_mode"] == "request_bound"
+            and not bool(row["target_prover_family_consistent"])
+        ),
+        "by_payload_target_prover_family": _value_counts(
+            [
+                str(row["payload_target_prover_key"]).strip()
+                for row in rows
+                if str(row["payload_target_prover_key"]).strip()
+            ]
+        ),
+        "by_request_context_target_prover_family": _value_counts(
+            [
+                str(row["request_context_target_prover_key"]).strip()
+                for row in rows
+                if str(row["request_context_target_prover_key"]).strip()
+            ]
         ),
         "n_schema_errors": sum(int(row["n_schema_errors"]) for row in rows),
         "n_request_context_errors": sum(
@@ -2706,6 +2759,30 @@ def validate_llm_route_planner_response_payload_validation_manifest(
         int(row.get("request_context_inventory_total_rows", 0) or 0)
         for row in request_bound_rows
     )
+    payload_target_counts = _value_counts(
+        [
+            _target_prover_key(row.get("payload_target_prover_key", ""))
+            for row in rows
+            if str(row.get("payload_target_prover_key", "") or "").strip()
+        ]
+    )
+    request_context_target_counts = _value_counts(
+        [
+            _target_prover_key(row.get("request_context_target_prover_key", ""))
+            for row in rows
+            if str(row.get("request_context_target_prover_key", "") or "").strip()
+        ]
+    )
+    payloads_with_declared_target = sum(
+        1
+        for row in rows
+        if str(row.get("payload_target_prover_family", "") or "").strip()
+    )
+    target_mismatch_rows = tuple(
+        row
+        for row in request_bound_rows
+        if not bool(row.get("target_prover_family_consistent", False))
+    )
     if int(manifest.get("n_payloads", 0) or 0) != len(rows):
         errors.append("n_payloads must match rows length")
     if int(manifest.get("n_valid_payloads", 0) or 0) != valid_rows:
@@ -2741,6 +2818,36 @@ def validate_llm_route_planner_response_payload_validation_manifest(
         errors.append(
             "n_request_bound_payload_context_inventory_total_rows must match "
             "request_bound row inventory total"
+        )
+    if int(
+        manifest.get("n_payloads_with_declared_target_prover_family", 0) or 0
+    ) != payloads_with_declared_target:
+        errors.append(
+            "n_payloads_with_declared_target_prover_family must match rows "
+            "with payload_target_prover_family"
+        )
+    if int(
+        manifest.get(
+            "n_request_bound_payloads_with_target_prover_family_mismatch",
+            0,
+        )
+        or 0
+    ) != len(target_mismatch_rows):
+        errors.append(
+            "n_request_bound_payloads_with_target_prover_family_mismatch must "
+            "match request-bound rows with inconsistent target prover family"
+        )
+    if dict(manifest.get("by_payload_target_prover_family", {}) or {}) != (
+        payload_target_counts
+    ):
+        errors.append(
+            "by_payload_target_prover_family must match validation row target counts"
+        )
+    if dict(
+        manifest.get("by_request_context_target_prover_family", {}) or {}
+    ) != request_context_target_counts:
+        errors.append(
+            "by_request_context_target_prover_family must match validation row request-context target counts"
         )
     embedded_row_schema = manifest.get("response_payload_validation_row_schema", {})
     for index, row in enumerate(rows):
@@ -2818,6 +2925,25 @@ def validate_llm_route_planner_response_payload_validation_row(
             errors.append("ok validation row must have zero errors")
     elif n_errors <= 0:
         errors.append("failed validation row must carry n_errors")
+    payload_target_key = _target_prover_key(
+        row.get("payload_target_prover_key", "")
+        or row.get("payload_target_prover_family", "")
+    )
+    request_target_key = _target_prover_key(
+        row.get("request_context_target_prover_key", "")
+        or row.get("request_context_target_prover_family", "")
+    )
+    expected_target_consistent = not (
+        payload_target_key
+        and request_target_key
+        and payload_target_key != request_target_key
+    )
+    if bool(row.get("target_prover_family_consistent", False)) != (
+        expected_target_consistent
+    ):
+        errors.append(
+            "target_prover_family_consistent must match normalized payload and request target prover keys"
+        )
 
     return sorted(set(errors))
 
@@ -4013,6 +4139,11 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
             "request_context_validation_mode",
             "request_context_id",
             "request_context_route_id",
+            "payload_target_prover_family",
+            "payload_target_prover_key",
+            "request_context_target_prover_family",
+            "request_context_target_prover_key",
+            "target_prover_family_consistent",
             "request_context_inventory_present",
             "request_context_inventory_total_rows",
             "n_schema_errors",
@@ -4047,6 +4178,11 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
             },
             "request_context_id": {"type": "string"},
             "request_context_route_id": {"type": "string"},
+            "payload_target_prover_family": {"type": "string"},
+            "payload_target_prover_key": {"type": "string"},
+            "request_context_target_prover_family": {"type": "string"},
+            "request_context_target_prover_key": {"type": "string"},
+            "target_prover_family_consistent": {"type": "boolean"},
             "request_context_inventory_present": {"type": "boolean"},
             "request_context_inventory_total_rows": nonnegative_integer,
             "n_schema_errors": nonnegative_integer,
@@ -4094,6 +4230,10 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
             "n_request_bound_payloads",
             "n_request_bound_payloads_with_context_packet_inventory",
             "n_request_bound_payload_context_inventory_total_rows",
+            "n_payloads_with_declared_target_prover_family",
+            "n_request_bound_payloads_with_target_prover_family_mismatch",
+            "by_payload_target_prover_family",
+            "by_request_context_target_prover_family",
             "n_schema_errors",
             "n_request_context_errors",
             "rows",
@@ -4165,6 +4305,18 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
             "n_request_bound_payloads_with_context_packet_inventory": {"type": "integer"},
             "n_request_bound_payload_context_inventory_total_rows": {
                 "type": "integer"
+            },
+            "n_payloads_with_declared_target_prover_family": {"type": "integer"},
+            "n_request_bound_payloads_with_target_prover_family_mismatch": {
+                "type": "integer"
+            },
+            "by_payload_target_prover_family": {
+                "type": "object",
+                "additionalProperties": {"type": "integer"},
+            },
+            "by_request_context_target_prover_family": {
+                "type": "object",
+                "additionalProperties": {"type": "integer"},
             },
             "n_schema_errors": {"type": "integer"},
             "n_request_context_errors": {"type": "integer"},
