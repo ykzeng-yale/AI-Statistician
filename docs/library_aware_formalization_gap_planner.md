@@ -564,9 +564,11 @@ discipline. The runtime handoff audit reruns standalone planning and stages
 Anthropic `--model-tier auto` route-planner packets without invoking the API,
 then requires every staged prompt packet to carry
 `context_packet.minimal_delta_cost_hints`, nonempty primitive and route-option
-cost hints, and zero Claude tier mismatches. This makes the runtime bridge fail
-closed if the library-aware cost surface is accidentally dropped before an LLM
-call.
+cost hints, zero Claude tier mismatches, and an accounted Haiku/Sonnet/Opus
+request-tier distribution. This makes the runtime bridge fail closed if the
+library-aware cost surface is accidentally dropped before an LLM call, and it
+lets a public handoff audit show whether auto-tiering stayed cheap or upgraded
+to Sonnet because the route still needed source/library search.
 
 The reuse-smoke manifest names both the route-replan standalone seed and its
 `formalization_gap_planner_route_replan_standalone_seed.schema.json`, so an

@@ -237,6 +237,18 @@ def audit_formalization_gap_planner_runtime_handoffs(
             int(summary.get("llm_prompt_model_tier_mismatches", 0) or 0)
             for summary in smoke_summaries
         ),
+        "n_llm_prompt_model_tier_haiku": sum(
+            int(summary.get("llm_prompt_model_tier_haiku", 0) or 0)
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_model_tier_sonnet": sum(
+            int(summary.get("llm_prompt_model_tier_sonnet", 0) or 0)
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_model_tier_opus": sum(
+            int(summary.get("llm_prompt_model_tier_opus", 0) or 0)
+            for summary in smoke_summaries
+        ),
         "n_seed_routes": sum(
             int(summary.get("seed_routes", 0) or 0) for summary in smoke_summaries
         ),
@@ -434,6 +446,9 @@ def _audit_handoff_row(
         "llm_prompt_requests_with_target_intake_rows": 0,
         "llm_prompt_target_intake_rows": 0,
         "llm_prompt_model_tier_mismatches": 0,
+        "llm_prompt_model_tier_haiku": 0,
+        "llm_prompt_model_tier_sonnet": 0,
+        "llm_prompt_model_tier_opus": 0,
         "seed_routes": 0,
         "seed_primitives": 0,
         "seed_residual_goals": 0,
@@ -1205,6 +1220,9 @@ def _run_llm_prompt_smoke(
                 "llm_prompt_requests_with_target_intake_rows": 0,
                 "llm_prompt_target_intake_rows": 0,
                 "llm_prompt_model_tier_mismatches": 0,
+                "llm_prompt_model_tier_haiku": 0,
+                "llm_prompt_model_tier_sonnet": 0,
+                "llm_prompt_model_tier_opus": 0,
                 "llm_prompt_component_resource_registry_components": 0,
                 "llm_prompt_component_resource_registry_resources": 0,
                 "llm_prompt_component_resource_registry_contracts": 0,
@@ -1237,6 +1255,10 @@ def _run_llm_prompt_smoke(
     n_model_tier_mismatches = int(
         payload.get("n_request_model_tier_mismatches", 0) or 0
     )
+    n_tier_haiku = int(payload.get("n_request_model_tier_haiku", 0) or 0)
+    n_tier_sonnet = int(payload.get("n_request_model_tier_sonnet", 0) or 0)
+    n_tier_opus = int(payload.get("n_request_model_tier_opus", 0) or 0)
+    n_tier_accounted = n_tier_haiku + n_tier_sonnet + n_tier_opus
     ok = (
         bool(payload.get("all_ok", False))
         and n_packets > 0
@@ -1255,6 +1277,7 @@ def _run_llm_prompt_smoke(
             )
         )
         and n_model_tier_mismatches == 0
+        and n_tier_accounted == n_packets
     )
     return ok, (
         f"all_ok={payload.get('all_ok')} provider={payload.get('provider_name')} "
@@ -1267,6 +1290,7 @@ def _run_llm_prompt_smoke(
         f"target_intake_requests={n_requests_with_target_intake} "
         f"target_intake_rows={n_target_intake_rows} "
         f"model_tier_mismatches={n_model_tier_mismatches} "
+        f"model_tiers=haiku:{n_tier_haiku},sonnet:{n_tier_sonnet},opus:{n_tier_opus} "
         f"registry_components={n_registry_components} "
         f"registry_resources={n_registry_resources} "
         f"registry_contracts={n_registry_contracts} "
@@ -1280,6 +1304,9 @@ def _run_llm_prompt_smoke(
         "llm_prompt_requests_with_target_intake_rows": n_requests_with_target_intake,
         "llm_prompt_target_intake_rows": n_target_intake_rows,
         "llm_prompt_model_tier_mismatches": n_model_tier_mismatches,
+        "llm_prompt_model_tier_haiku": n_tier_haiku,
+        "llm_prompt_model_tier_sonnet": n_tier_sonnet,
+        "llm_prompt_model_tier_opus": n_tier_opus,
         "llm_prompt_component_resource_registry_components": n_registry_components,
         "llm_prompt_component_resource_registry_resources": n_registry_resources,
         "llm_prompt_component_resource_registry_contracts": n_registry_contracts,
@@ -1647,6 +1674,12 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         (
             f"- LLM prompt model-tier mismatches: "
             f"{payload.get('n_llm_prompt_model_tier_mismatches')}"
+        ),
+        (
+            f"- LLM prompt model tiers: "
+            f"haiku={payload.get('n_llm_prompt_model_tier_haiku')} "
+            f"sonnet={payload.get('n_llm_prompt_model_tier_sonnet')} "
+            f"opus={payload.get('n_llm_prompt_model_tier_opus')}"
         ),
         f"- Seed routes/primitives: {payload.get('n_seed_routes')}/{payload.get('n_seed_primitives')}",
         f"- Seed residual goals: {payload.get('n_seed_residual_goals')}",

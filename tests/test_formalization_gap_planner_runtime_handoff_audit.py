@@ -162,17 +162,29 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     payload = audit_formalization_gap_planner_runtime_handoffs(
         handoffs_path,
         out_dir,
-        run_smoke=False,
+        run_smoke=True,
     )
 
     assert payload["all_ok"]
     assert payload["n_mixed_seed_target_prover_families"] == 1
     assert payload["n_seed_target_prover_family_compatible_with_handoff"] == 1
+    assert payload["n_llm_prompt_packets"] == 2
+    assert payload["n_llm_prompt_model_tier_mismatches"] == 0
+    assert payload["n_llm_prompt_model_tier_haiku"] == 0
+    assert payload["n_llm_prompt_model_tier_sonnet"] == 2
+    assert payload["n_llm_prompt_model_tier_opus"] == 0
     summary = payload["smoke_summaries"][0]
     assert summary["seed_declared_target_prover_family"] == ""
     assert summary["seed_target_prover_family"] == "mixed:lean4,rocq"
     assert summary["seed_n_target_prover_families"] == 2
     assert summary["seed_by_target_prover_family"] == {"lean4": 1, "rocq": 1}
+    assert summary["llm_prompt_model_tier_haiku"] == 0
+    assert summary["llm_prompt_model_tier_sonnet"] == 2
+    assert summary["llm_prompt_model_tier_opus"] == 0
+    report = (
+        out_dir / "formalization_gap_planner_runtime_handoff_audit.md"
+    ).read_text(encoding="utf-8")
+    assert "- LLM prompt model tiers: haiku=0 sonnet=2 opus=0" in report
     seed_target_checks = {
         str(check["check_name"]).split(":", 1)[0]: check
         for check in payload["checks"]
