@@ -3970,6 +3970,7 @@ def _response_contract_errors(
     errors.extend(_response_planner_next_action_primitive_grounding_errors(payload, request))
     errors.extend(_response_source_search_obligation_errors(payload))
     errors.extend(_response_source_snippet_provenance_errors(payload, request))
+    errors.extend(_response_source_snippet_primitive_support_errors(payload, request))
     errors.extend(_response_resource_request_alignment_errors(payload, request))
     for index, node in enumerate(formal_nodes):
         if not str(node.get("node_id", "")).strip():
@@ -5872,6 +5873,83 @@ def _response_source_snippet_provenance_errors(
     return errors
 
 
+def _response_source_snippet_primitive_support_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    """Reject using partial source snippets as evidence for unsupported primitives."""
+
+    emitted = _response_source_snippet_locations(payload)
+    if not emitted:
+        return []
+    available = _dict_tuple(
+        _dict_value(request, "context_packet").get("available_source_snippets", [])
+    )
+    if not available:
+        return []
+    search_requests = _dict_tuple(payload.get("search_requests", []))
+    errors: list[str] = []
+    for snippet, location in emitted:
+        emitted_primitives = _str_tuple(snippet.get("target_primitives", []))
+        emitted_supported = _str_tuple(
+            snippet.get("supported_target_primitives", [])
+        )
+        if not emitted_primitives and not emitted_supported:
+            continue
+        matches = _matching_available_source_snippets(snippet, available)
+        if not matches:
+            continue
+        unsupported_keys: set[str] = set()
+        supported_keys: set[str] = set()
+        unsupported_labels: dict[str, str] = {}
+        for match in matches:
+            for primitive in _str_tuple(
+                match.get("unsupported_target_primitives", [])
+            ):
+                key = _primitive_key(primitive)
+                if key:
+                    unsupported_keys.add(key)
+                    unsupported_labels.setdefault(key, primitive)
+            for primitive in _str_tuple(
+                match.get("supported_target_primitives", [])
+            ):
+                key = _primitive_key(primitive)
+                if key:
+                    supported_keys.add(key)
+        if not unsupported_keys:
+            continue
+        claimed_primitives = tuple(
+            dict.fromkeys([*emitted_primitives, *emitted_supported])
+        )
+        overclaimed = tuple(
+            primitive
+            for primitive in claimed_primitives
+            if _primitive_key(primitive) in unsupported_keys
+            and _primitive_key(primitive) not in supported_keys
+        )
+        if not overclaimed:
+            continue
+        uncovered = tuple(
+            primitive
+            for primitive in overclaimed
+            if not _has_literature_search_request_for_obligation(
+                search_requests,
+                primitives=(primitive,),
+            )
+        )
+        if uncovered:
+            errors.append(
+                f"{location} uses partial source evidence for unsupported "
+                "target primitive(s) without a matching literature/source "
+                "search_request: "
+                + ", ".join(
+                    unsupported_labels.get(_primitive_key(primitive), primitive)
+                    for primitive in uncovered[:8]
+                )
+            )
+    return errors
+
+
 def _response_source_snippet_locations(
     payload: Mapping[str, Any],
 ) -> tuple[tuple[dict[str, object], str], ...]:
@@ -5903,39 +5981,35 @@ def _response_source_snippet_locations(
     return tuple(rows)
 
 
+def _matching_available_source_snippets(
+    snippet: Mapping[str, object],
+    available: tuple[dict[str, object], ...],
+) -> tuple[dict[str, object], ...]:
+    source_ref_key = _source_ref_key(snippet.get("source_ref", ""))
+    if not source_ref_key:
+        return tuple()
+    claim = _snippet_text_key(snippet.get("claim", ""))
+    excerpt = _snippet_text_key(snippet.get("excerpt", ""))
+    matches: list[dict[str, object]] = []
+    for row in available:
+        if _source_ref_key(row.get("source_ref", "")) != source_ref_key:
+            continue
+        row_claim = _snippet_text_key(row.get("claim", ""))
+        row_excerpt = _snippet_text_key(row.get("excerpt", ""))
+        if excerpt:
+            if _snippet_text_contains(excerpt, row_excerpt):
+                matches.append(row)
+            continue
+        if claim and _snippet_text_contains(claim, row_claim):
+            matches.append(row)
+    return tuple(matches)
+
+
 def _source_snippet_supported_by_available(
     snippet: Mapping[str, object],
     available: tuple[dict[str, object], ...],
 ) -> bool:
-    source_ref_key = _source_ref_key(snippet.get("source_ref", ""))
-    if not source_ref_key:
-        return False
-    claim = _snippet_text_key(snippet.get("claim", ""))
-    excerpt = _snippet_text_key(snippet.get("excerpt", ""))
-    same_source = [
-        row
-        for row in available
-        if _source_ref_key(row.get("source_ref", "")) == source_ref_key
-    ]
-    if not same_source:
-        return False
-    if excerpt:
-        return any(
-            _snippet_text_contains(
-                excerpt,
-                _snippet_text_key(row.get("excerpt", "")),
-            )
-            for row in same_source
-        )
-    if claim:
-        return any(
-            _snippet_text_contains(
-                claim,
-                _snippet_text_key(row.get("claim", "")),
-            )
-            for row in same_source
-        )
-    return False
+    return bool(_matching_available_source_snippets(snippet, available))
 
 
 def _snippet_text_contains(left: str, right: str) -> bool:

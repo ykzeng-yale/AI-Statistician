@@ -950,7 +950,10 @@ Paperclip/PaperQA/OpenScholar search. Its response rows also expose
 `source_support_status`, `supported_target_primitives`,
 `unsupported_target_primitives`, and `target_primitive_support`, so the LLM
 route planner can tell a fully source-backed route step from a partial lexical
-hit that still needs literature search or route repair. The local formal-source
+hit that still needs literature search or route repair. The route-planner
+response validator rejects using a partial source snippet as evidence for an
+unsupported primitive unless the response also emits a matching
+literature/source `search_request`. The local formal-source
 adapter can then
 replace
 `lean_library_grounding` rows with real declaration-search evidence from the
