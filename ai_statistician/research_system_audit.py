@@ -6,7 +6,7 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 from .frontier_backlog_audit import audit_frontier_backlog
@@ -3952,9 +3952,8 @@ async def run_research_system_audit(
                 "n_rows_pending_refinement_before_route_adoption",
                 0,
             ),
-            "formalization_gap_planner_evaluation_route_adoption_blockers": formalization_gap_planner_evaluation_manifest.get(
-                "n_llm_route_adoption_blockers",
-                0,
+            **_formalization_gap_planner_evaluation_route_adoption_count_rollups(
+                formalization_gap_planner_evaluation_manifest
             ),
             "formalization_gap_planner_evaluation_ground_truth_residual_rows": formalization_gap_planner_evaluation_manifest.get(
                 "n_ground_truth_residual_rows",
@@ -8709,6 +8708,34 @@ def _record_stage(
         }
     )
     return now
+
+
+def _formalization_gap_planner_evaluation_route_adoption_count_rollups(
+    formalization_gap_planner_evaluation_manifest: Mapping[str, Any],
+) -> dict[str, int]:
+    return {
+        "formalization_gap_planner_evaluation_route_adoption_blockers": int(
+            formalization_gap_planner_evaluation_manifest.get(
+                "n_llm_route_adoption_blockers",
+                0,
+            )
+            or 0
+        ),
+        "formalization_gap_planner_evaluation_route_adoption_pending_quality_control_blockers": int(
+            formalization_gap_planner_evaluation_manifest.get(
+                "n_llm_route_adoption_pending_quality_control_blockers",
+                0,
+            )
+            or 0
+        ),
+        "formalization_gap_planner_evaluation_route_adoption_pending_source_grounding_blockers": int(
+            formalization_gap_planner_evaluation_manifest.get(
+                "n_llm_route_adoption_pending_source_grounding_blockers",
+                0,
+            )
+            or 0
+        ),
+    }
 
 
 def _select_kernel_smoke_ids_from_actions(

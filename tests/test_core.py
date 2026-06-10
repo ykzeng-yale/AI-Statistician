@@ -266,6 +266,7 @@ from ai_statistician.research_report import build_research_markdown_report
 from ai_statistician.research_schema import FormalSubclaim, ResearchReport
 from ai_statistician.research_system_audit import (
     ResearchSystemAuditConfig,
+    _formalization_gap_planner_evaluation_route_adoption_count_rollups,
     _select_kernel_smoke_ids_from_actions,
     run_research_system_audit,
 )
@@ -19016,6 +19017,32 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         self.assertTrue(Path(payload["artifacts"][0]["benchmark_manifest"]).exists())
         self.assertTrue(Path(payload["artifacts"][0]["trace_audit_manifest"]).exists())
 
+    def test_research_system_audit_lifts_route_adoption_blocker_subcounts(self) -> None:
+        counts = _formalization_gap_planner_evaluation_route_adoption_count_rollups(
+            {
+                "n_llm_route_adoption_blockers": 7,
+                "n_llm_route_adoption_pending_quality_control_blockers": 2,
+                "n_llm_route_adoption_pending_source_grounding_blockers": 3,
+            }
+        )
+
+        self.assertEqual(
+            counts["formalization_gap_planner_evaluation_route_adoption_blockers"],
+            7,
+        )
+        self.assertEqual(
+            counts[
+                "formalization_gap_planner_evaluation_route_adoption_pending_quality_control_blockers"
+            ],
+            2,
+        )
+        self.assertEqual(
+            counts[
+                "formalization_gap_planner_evaluation_route_adoption_pending_source_grounding_blockers"
+            ],
+            3,
+        )
+
     def test_research_system_audit_runs_frontier_gates(self) -> None:
         async def run():
             lean_rag_db = _write_tiny_lean_rag_dependency_db(
@@ -20372,6 +20399,34 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                 "formalization_gap_planner_evaluation_route_adoption_blockers"
             ],
             0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_evaluation_route_adoption_pending_quality_control_blockers"
+            ],
+            0,
+        )
+        self.assertGreaterEqual(
+            payload["counts"][
+                "formalization_gap_planner_evaluation_route_adoption_pending_source_grounding_blockers"
+            ],
+            0,
+        )
+        self.assertLessEqual(
+            payload["counts"][
+                "formalization_gap_planner_evaluation_route_adoption_pending_quality_control_blockers"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_evaluation_route_adoption_blockers"
+            ],
+        )
+        self.assertLessEqual(
+            payload["counts"][
+                "formalization_gap_planner_evaluation_route_adoption_pending_source_grounding_blockers"
+            ],
+            payload["counts"][
+                "formalization_gap_planner_evaluation_route_adoption_blockers"
+            ],
         )
         self.assertGreaterEqual(
             payload["counts"]["formalization_gap_planner_evaluation_mean_route_recall"],

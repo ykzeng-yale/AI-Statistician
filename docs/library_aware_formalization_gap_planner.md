@@ -44,7 +44,11 @@ and schema, the publication-bundle schema catalog and schema, and the
 publication-bundle manifest schema. It also
 reports cross-prover target-summary contract errors, publication-bundle
 schema-catalog validity counts, and optional interactive decision-policy
-resource-link check counts in the top-level audit counts.
+resource-link check counts in the top-level audit counts. It also lifts
+evaluation route-adoption blocker subcounts for pending quality-control and
+source-grounding obligations, so the release audit can distinguish ordinary
+route blockers from unresolved evidence-boundary obligations without opening
+the evaluation manifest.
 
 For external prover ecosystems or paper supplements that do not have the full
 AI Statistician audit pipeline, normalize a raw theorem request first, then use
