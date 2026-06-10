@@ -406,7 +406,10 @@ contract while still being `PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION` because it
 asked for additional literature search, formal-library search, prover feedback,
 planner next actions, quality-control evidence, or uncertainty review. Only
 `READY_FOR_STANDALONE_REPLAY` means the route has no unresolved LLM-planner
-handoff blockers under the current evidence bound. The standalone seed and each
+handoff blockers under the current evidence bound.
+Residual-only repair responses are labeled `ACCEPTED_WITH_RESIDUAL_REPAIR` and
+remain pending with `residual_interpretations_require_route_replay` until the
+repair is replayed or discharged by later evidence. The standalone seed and each
 standalone-plan `standalone_input_trace` preserve the same fields, so a public
 consumer can filter adoption-ready route plans without reopening raw LLM
 responses. Blocker labels are part of the published

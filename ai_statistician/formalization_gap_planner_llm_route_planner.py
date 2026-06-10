@@ -3595,6 +3595,8 @@ def _row_for_request(
         acceptance_status = "ACCEPTED_WITH_PLANNER_NEXT_ACTIONS"
     elif _str_tuple(payload.get("uncertainty_flags", [])):
         acceptance_status = "ACCEPTED_WITH_UNCERTAINTY_FLAGS"
+    elif _dict_tuple(payload.get("residual_interpretations", [])):
+        acceptance_status = "ACCEPTED_WITH_RESIDUAL_REPAIR"
     else:
         acceptance_status = "ACCEPTED_LLM_ROUTE_PLAN"
     route_id = str(request.get("route_id", ""))

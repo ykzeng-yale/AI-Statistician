@@ -3374,6 +3374,57 @@ def test_llm_route_planner_accepts_grounded_residual_interpretation() -> None:
     assert primitive_source_ref in row["source_refs"]
 
 
+def test_llm_route_planner_marks_residual_repair_as_pending_replay() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_residual_repair_pending"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    residual_source_ref = "paper:tie-side-condition"
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["source_refs"].append(residual_source_ref)
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    interactive_session_dir = _write_interactive_session(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": "The proof route has not fixed deterministic tie handling.",
+            "route_repair": "Add a tie-breaking side condition before replay.",
+            "source_refs": [residual_source_ref],
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_route_adoption_ready"] == 0
+    assert payload["n_route_adoption_pending_refinement"] == 1
+    assert payload["n_route_adoption_pending_residual_repair_blockers"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_WITH_RESIDUAL_REPAIR"
+    assert row["route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert "residual_interpretations_require_route_replay" in row[
+        "route_adoption_blockers"
+    ]
+
+
 def test_llm_route_planner_rejects_unsourced_residual_repair() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_unsourced_residual_repair"
