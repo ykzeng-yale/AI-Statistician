@@ -1574,6 +1574,8 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
     export_formalization_gap_planner_component_resource_registry(registry_dir)
     response = _llm_response_payload()
     response["search_requests"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
     response["planner_next_actions"] = [
         {
             "owner": "lean_lsp_mcp",
@@ -3473,6 +3475,160 @@ def test_llm_route_planner_marks_residual_repair_as_pending_replay() -> None:
     )
     assert residual_queue_row["target_primitives"] == ("rank_uniformity",)
     assert "llm_route_revision_requested" in residual_queue_row["trigger_kinds"]
+
+
+def test_llm_route_planner_materializes_uncertainty_and_risk_review_work_items() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_uncertainty_review_handoff"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["residual_interpretations"] = []
+    response["uncertainty_flags"] = [
+        "rank_uniformity finite support assumption needs review"
+    ]
+    response["semantic_alignment_risks"] = [
+        "rank_uniformity rank convention may differ from textbook"
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_route_adoption_ready"] == 0
+    assert payload["n_route_adoption_pending_refinement"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_WITH_UNCERTAINTY_FLAGS"
+    assert set(row["route_adoption_blockers"]) >= {
+        "uncertainty_flags_require_review",
+        "semantic_alignment_risks_require_review",
+    }
+    seed_route = payload["standalone_seed"]["routes"][0]
+    uncertainty_hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_review_source") == "uncertainty_flags"
+    )
+    risk_hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_review_source") == "semantic_alignment_risks"
+    )
+    assert uncertainty_hook["hook_kind"] == "route_revision"
+    assert risk_hook["hook_kind"] == "route_revision"
+    assert uncertainty_hook["target_primitives"] == ["rank_uniformity"]
+    assert risk_hook["target_primitives"] == ["rank_uniformity"]
+    assert uncertainty_hook["llm_route_planner_uncertainty_flags"] == (
+        response["uncertainty_flags"]
+    )
+    assert risk_hook["llm_route_planner_semantic_alignment_risks"] == (
+        response["semantic_alignment_risks"]
+    )
+    assert any(
+        trigger.get("trigger_kind") == "llm_uncertainty_review_required"
+        for trigger in seed_route["route_revision_triggers"]
+    )
+    assert any(
+        trigger.get("trigger_kind") == "llm_semantic_alignment_review_required"
+        for trigger in seed_route["route_revision_triggers"]
+    )
+
+    plan_dir = root / "standalone_plan_from_uncertainty_review_seed"
+    refinement_queue_dir = root / "refinement_queue_from_uncertainty_review_seed"
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    queue_payload = export_formalization_gap_planner_refinement_queue(
+        plan_dir,
+        refinement_queue_dir,
+    )
+    assert queue_payload["all_ok"]
+    uncertainty_queue_row = next(
+        item
+        for item in queue_payload["rows"]
+        if item["hook_kind"] == "route_revision"
+        and item["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_review_source"
+        )
+        == "uncertainty_flags"
+    )
+    risk_queue_row = next(
+        item
+        for item in queue_payload["rows"]
+        if item["hook_kind"] == "route_revision"
+        and item["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_review_source"
+        )
+        == "semantic_alignment_risks"
+    )
+    assert uncertainty_queue_row["target_primitives"] == ("rank_uniformity",)
+    assert risk_queue_row["target_primitives"] == ("rank_uniformity",)
+    assert "llm_uncertainty_review_required" in uncertainty_queue_row["trigger_kinds"]
+    assert (
+        "llm_semantic_alignment_review_required"
+        in risk_queue_row["trigger_kinds"]
+    )
+
+
+def test_llm_route_planner_marks_semantic_risk_only_response_as_review_pending() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_semantic_risk_pending"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["residual_interpretations"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = [
+        "rank_uniformity rank convention may differ from textbook"
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_route_adoption_ready"] == 0
+    assert payload["n_route_adoption_pending_refinement"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_WITH_SEMANTIC_ALIGNMENT_RISKS"
+    assert row["route_adoption_blockers"] == (
+        "semantic_alignment_risks_require_review",
+    )
+    seed_route = payload["standalone_seed"]["routes"][0]
+    risk_hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_review_source") == "semantic_alignment_risks"
+    )
+    assert risk_hook["hook_kind"] == "route_revision"
+    assert risk_hook["target_primitives"] == ["rank_uniformity"]
+    assert any(
+        trigger.get("trigger_kind") == "llm_semantic_alignment_review_required"
+        for trigger in seed_route["route_revision_triggers"]
+    )
 
 
 def test_llm_route_planner_rejects_unsourced_residual_repair() -> None:

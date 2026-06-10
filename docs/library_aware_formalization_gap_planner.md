@@ -413,6 +413,12 @@ repair is replayed or discharged by later evidence. The standalone seed also
 materializes each residual interpretation as a `route_revision` refinement hook
 and `llm_route_revision_requested` trigger, so a residual-only LLM repair
 response schedules bounded route replay without parsing raw model prose. The
+same handoff rule applies to `uncertainty_flags` and
+`semantic_alignment_risks`: accepted-but-pending rows materialize
+`route_revision` hooks plus `llm_uncertainty_review_required` or
+`llm_semantic_alignment_review_required` triggers, and semantic-risk-only rows
+are labeled `ACCEPTED_WITH_SEMANTIC_ALIGNMENT_RISKS` instead of being mistaken
+for adoption-ready plans. The
 standalone seed and each
 standalone-plan `standalone_input_trace` preserve the same fields, so a public
 consumer can filter adoption-ready route plans without reopening raw LLM
