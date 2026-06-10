@@ -55,12 +55,14 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_PLANNER_NEXT_ACTION_HOOK_ALIASES,
     LLM_ROUTE_PLANNER_SEARCH_REQUEST_KIND_ALIASES,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_MODEL_TIER_POLICY_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     MINIMAL_DELTA_COST_POLICY_ID,
+    PROOF_EVIDENCE_STATUS as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS,
     ROUTE_ADOPTION_AWAITING_STATUS,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID,
@@ -1164,6 +1166,19 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_target_intake_context")
             and check.ok
         ),
+        "n_optional_llm_route_planner_request_generation_policy_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_request_")
+            and check.check_name.endswith("_generation_policy")
+        ),
+        "n_optional_llm_route_planner_request_generation_policy_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_request_")
+            and check.check_name.endswith("_generation_policy")
+            and check.ok
+        ),
         "n_optional_llm_route_planner_request_model_tier_mismatch_checked": sum(
             1
             for check in checks
@@ -1439,6 +1454,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name.startswith("optional_feedback_llm_route_planner_request_")
             and check.check_name.endswith("_target_intake_context")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_request_generation_policy_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_request_")
+            and check.check_name.endswith("_generation_policy")
+        ),
+        "n_optional_feedback_llm_route_planner_request_generation_policy_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_request_")
+            and check.check_name.endswith("_generation_policy")
             and check.ok
         ),
         "n_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked": sum(
@@ -6157,6 +6185,17 @@ def _llm_route_planner_optional_checks(
                 errors=target_intake_errors,
             )
         )
+        generation_policy_errors = _llm_request_generation_policy_errors(request)
+        checks.append(
+            _check(
+                f"{check_prefix}_request_{idx}_generation_policy",
+                "optional_artifacts",
+                "LLM route-planner request carries a self-contained generator model policy matching its provider/model/tier",
+                _llm_request_generation_policy_observed(request),
+                not generation_policy_errors,
+                errors=generation_policy_errors,
+            )
+        )
     for idx, row in enumerate(rows):
         schema_errors = validate_llm_route_planner_row(row, row_schema)
         checks.append(
@@ -6348,6 +6387,92 @@ def _llm_generation_preflight_observed(manifest: dict[str, Any]) -> str:
         f"preflight={manifest.get('n_generation_preflight_blocked', 0)}; "
         f"rows={len(preflight_rows)}; "
         f"request_schema_invalid={manifest.get('n_request_schema_invalid', 0)}"
+    )
+
+
+def _llm_request_generation_policy_errors(
+    request: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    policy = request.get("llm_generation_policy", {})
+    if not isinstance(policy, dict):
+        return ("llm_generation_policy missing or not object",)
+    if str(policy.get("policy_id", "")).strip() != LLM_ROUTE_PLANNER_MODEL_TIER_POLICY_ID:
+        errors.append("llm_generation_policy.policy_id mismatch")
+    if str(policy.get("provider_name", "")).strip() != str(
+        request.get("provider_name", "")
+    ).strip():
+        errors.append("llm_generation_policy.provider_name does not match request")
+    if str(policy.get("resolved_model", "")).strip() != str(
+        request.get("model", "")
+    ).strip():
+        errors.append("llm_generation_policy.resolved_model does not match request")
+    if str(policy.get("selected_model_tier", "")).strip() != str(
+        request.get("model_tier", "")
+    ).strip():
+        errors.append(
+            "llm_generation_policy.selected_model_tier does not match request"
+        )
+    supported = set(_str_tuple(policy.get("supported_live_generator_providers", [])))
+    if supported != {"anthropic", "openai", "static"}:
+        errors.append(
+            "llm_generation_policy.supported_live_generator_providers must be "
+            "anthropic/openai/static"
+        )
+    prohibited = set(_str_tuple(policy.get("prohibited_generator_providers", [])))
+    if not {"codex", "codex_exec"}.issubset(prohibited):
+        errors.append(
+            "llm_generation_policy.prohibited_generator_providers must include "
+            "codex and codex_exec"
+        )
+    if {"codex", "codex_exec"}.intersection(supported):
+        errors.append(
+            "llm_generation_policy.supported_live_generator_providers must exclude "
+            "codex and codex_exec"
+        )
+    claude_models = policy.get("claude_models_by_tier", {})
+    if not isinstance(claude_models, dict):
+        errors.append("llm_generation_policy.claude_models_by_tier must be object")
+    elif claude_models != {
+        "haiku": DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
+        "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
+        "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
+    }:
+        errors.append("llm_generation_policy.claude_models_by_tier mismatch")
+    if str(policy.get("claude_model_source_checked_date", "")).strip() != (
+        ANTHROPIC_MODEL_SOURCE_CHECKED_DATE
+    ):
+        errors.append("llm_generation_policy.claude_model_source_checked_date mismatch")
+    if "not evergreen aliases" not in str(
+        policy.get("claude_model_id_versioning", "")
+    ):
+        errors.append(
+            "llm_generation_policy.claude_model_id_versioning must mention "
+            "not evergreen aliases"
+        )
+    auto_rules = policy.get("auto_tier_rules", [])
+    if not isinstance(auto_rules, list) or not auto_rules:
+        errors.append("llm_generation_policy.auto_tier_rules missing")
+    if policy.get("proof_evidence_status") != LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS:
+        errors.append("llm_generation_policy.proof_evidence_status mismatch")
+    if "not theorem proof evidence" not in str(
+        policy.get("proof_evidence_boundary", "")
+    ).lower():
+        errors.append(
+            "llm_generation_policy.proof_evidence_boundary must say not theorem proof evidence"
+        )
+    return tuple(errors)
+
+
+def _llm_request_generation_policy_observed(request: dict[str, Any]) -> str:
+    policy = request.get("llm_generation_policy", {})
+    if not isinstance(policy, dict):
+        return "policy=missing"
+    return (
+        f"provider={policy.get('provider_name', '')}; "
+        f"model={policy.get('resolved_model', '')}; "
+        f"tier={policy.get('selected_model_tier', '')}; "
+        f"prohibited={','.join(_str_tuple(policy.get('prohibited_generator_providers', [])))}"
     )
 
 
@@ -15091,6 +15216,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional LLM route-planner request evidence bounds valid: {payload.get('n_optional_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_llm_route_planner_request_evidence_bound_checked')}",
         f"- Optional LLM route-planner request registry context valid: {payload.get('n_optional_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_llm_route_planner_request_registry_context_checked')}",
         f"- Optional LLM route-planner request target-intake context valid: {payload.get('n_optional_llm_route_planner_request_target_intake_context_valid')}/{payload.get('n_optional_llm_route_planner_request_target_intake_context_checked')}",
+        f"- Optional LLM route-planner request generation policy valid: {payload.get('n_optional_llm_route_planner_request_generation_policy_valid')}/{payload.get('n_optional_llm_route_planner_request_generation_policy_checked')}",
         f"- Optional LLM route-planner request model-tier mismatch policy valid: {payload.get('n_optional_llm_route_planner_request_model_tier_mismatch_valid')}/{payload.get('n_optional_llm_route_planner_request_model_tier_mismatch_checked')}",
         f"- Optional LLM route-planner generation preflight policy valid: {payload.get('n_optional_llm_route_planner_generation_preflight_valid')}/{payload.get('n_optional_llm_route_planner_generation_preflight_checked')}",
         f"- Optional feedback LLM route-planner requests valid: {payload.get('n_optional_feedback_llm_route_planner_request_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_schema_checked')}",
@@ -15104,6 +15230,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional feedback LLM route-planner request evidence bounds valid: {payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_checked')}",
         f"- Optional feedback LLM route-planner request registry context valid: {payload.get('n_optional_feedback_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_registry_context_checked')}",
         f"- Optional feedback LLM route-planner request target-intake context valid: {payload.get('n_optional_feedback_llm_route_planner_request_target_intake_context_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_target_intake_context_checked')}",
+        f"- Optional feedback LLM route-planner request generation policy valid: {payload.get('n_optional_feedback_llm_route_planner_request_generation_policy_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_generation_policy_checked')}",
         f"- Optional feedback LLM route-planner request model-tier mismatch policy valid: {payload.get('n_optional_feedback_llm_route_planner_request_model_tier_mismatch_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked')}",
         f"- Optional feedback LLM route-planner generation preflight policy valid: {payload.get('n_optional_feedback_llm_route_planner_generation_preflight_valid')}/{payload.get('n_optional_feedback_llm_route_planner_generation_preflight_checked')}",
         f"- Optional interactive-session schema valid: {payload.get('n_optional_interactive_session_row_schema_valid')}/{payload.get('n_optional_interactive_session_row_schema_checked')}",

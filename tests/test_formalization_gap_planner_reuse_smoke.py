@@ -641,6 +641,15 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_optional_llm_route_planner_request_generation_policy_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_request_generation_policy_checked"
+        ]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
             "n_publication_bundle_optional_llm_route_planner_generation_preflight_valid"
         ]
         == payload[
@@ -697,6 +706,15 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_publication_bundle_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked"
         ]
         == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_request_generation_policy_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_request_generation_policy_checked"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
     )
     assert (
         payload[
@@ -2472,6 +2490,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_optional_llm_route_planner_request_generation_policy_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_request_generation_policy_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_publication_bundle_optional_llm_route_planner_generation_preflight_valid"
         ]
         == payload[
@@ -2508,6 +2535,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload[
             "n_publication_bundle_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_request_generation_policy_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_request_generation_policy_checked"
         ]
         == 1
     )

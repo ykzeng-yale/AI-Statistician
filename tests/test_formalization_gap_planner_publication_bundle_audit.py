@@ -6196,6 +6196,23 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert (
         audit_payload[
+            "n_optional_llm_route_planner_request_generation_policy_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_request_generation_policy_valid"
+        ]
+        == 1
+    )
+    assert any(
+        row["check_name"] == "optional_llm_route_planner_request_0_generation_policy"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert (
+        audit_payload[
             "n_optional_llm_route_planner_request_model_tier_mismatch_checked"
         ]
         == 1
@@ -6289,6 +6306,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         audit_payload[
             "n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_request_generation_policy_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_request_generation_policy_valid"
         ]
         == 1
     )
