@@ -376,6 +376,12 @@ adds explicit repair actions for missing formal realization nodes or missing
 route-alignment edges. It does not replace raw rows and is not proof evidence;
 it gives the LLM planner a compact view of what changed and what still needs
 search, library grounding, proof-state feedback, or route revision.
+Admissible resource-response and refinement-evidence `coverage_updates` also
+feed the next request's `minimal_delta_cost_hints`. A declaration hit therefore
+does not by itself lower the route cost to exact reuse: if accepted feedback
+says the primitive is still `bridge_needed` or broader, a later LLM response
+must price that primitive at the corresponding coverage bucket or ask for more
+formal-library/prover feedback before claiming cheaper coverage.
 
 Accepted LLM route-planner responses also materialize their bounded
 `search_requests` and `planner_next_actions` as portable refinement work. A

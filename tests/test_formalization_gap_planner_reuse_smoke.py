@@ -2183,6 +2183,44 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         encoding="utf-8",
     )
     feedback_response = _reviewed_llm_route_response_payload()
+    feedback_response["lean_realization_dag_nodes"][0]["coverage_bucket"] = (
+        "wrapper_needed"
+    )
+    feedback_response["lean_realization_dag_nodes"][0]["formalization_action"] = (
+        "write_wrapper"
+    )
+    feedback_response["route_alignment_edges"].append(
+        {
+            "informal_node_id": "informal:exchangeability",
+            "formal_node_id": "formal:exchangeability",
+            "alignment_status": "wrapper_needed",
+            "alignment_rationale": (
+                "The Rocq feedback pass needs a target-prover wrapper for the "
+                "exchangeability declaration before reuse."
+            ),
+        }
+    )
+    feedback_response["minimal_delta_plan"]["route_cost"] = 6
+    feedback_response["minimal_delta_plan"]["primitive_costs"][0][
+        "coverage_bucket"
+    ] = "wrapper_needed"
+    feedback_response["minimal_delta_plan"]["primitive_costs"][0]["base_cost"] = 2
+    feedback_response["minimal_delta_plan"]["primitive_costs"][0]["total_cost"] = 2
+    feedback_response["minimal_delta_plan"]["primitive_costs"][0][
+        "cost_rationale"
+    ] = "The feedback pass requires a target-prover exchangeability wrapper."
+    feedback_response["minimal_delta_plan"]["wrapper_lemmas"] = [
+        "exchangeability"
+    ]
+    feedback_response["minimal_delta_plan"]["and_or_cost_graph"]["route_options"][0][
+        "route_cost"
+    ] = 6
+    feedback_response["minimal_delta_plan"]["and_or_cost_graph"]["route_options"][0][
+        "cost_rationale"
+    ] = "Add a target-prover exchangeability wrapper and one focused rank bridge."
+    feedback_response["standalone_route"]["primitives"][0][
+        "coverage_status"
+    ] = "wrapper_needed"
     feedback_response["residual_interpretations"] = [
         {
             "residual_goal": "rocq:rank_uniformity: awaiting prover adapter mapping",

@@ -2034,6 +2034,97 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     ]["user"]
 
 
+def test_llm_route_planner_feedback_coverage_updates_raise_cost_hint_floor() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_feedback_cost_hint"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["primitives"][1]["coverage_status"] = "exact_exists"
+    input_payload["routes"][0]["primitives"][1]["candidate_declaration_rows"] = [
+        {
+            "declaration": "Probability.rankUniformityBridge",
+            "target_prover_family": "lean4",
+            "source_field": "formal_declaration_hits",
+        }
+    ]
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    request = payload["request_packets"][0]
+    cost_hints = request["context_packet"]["minimal_delta_cost_hints"]
+    cost_by_primitive = {
+        row["primitive"]: row for row in cost_hints["primitive_cost_hints"]
+    }
+    rank_hint = cost_by_primitive["rank_uniformity"]
+    assert rank_hint["minimum_coverage_bucket"] == "bridge_needed"
+    assert rank_hint["minimum_base_cost"] == 4
+    assert (
+        rank_hint["minimum_cost_source"]
+        == "resource_response_ledger_rows.coverage_updates"
+    )
+    assert rank_hint["minimum_cost_marker"] == "bridge_needed"
+
+
+def test_llm_route_planner_rejects_reuse_under_feedback_coverage_update() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_feedback_underprice"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    declaration_row = {
+        "declaration": "Probability.rankUniformityBridge",
+        "target_prover_family": "lean4",
+        "source_field": "formal_declaration_hits",
+    }
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    rank_primitive = input_payload["routes"][0]["primitives"][1]
+    rank_primitive["coverage_status"] = "exact_exists"
+    rank_primitive["candidate_declaration_rows"] = [declaration_row]
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    bad_response = _make_rank_uniformity_reuse_response(declaration_row)
+    bad_response["residual_interpretations"] = [
+        {
+            "residual_goal": "rank_uniformity: deterministic tie handling",
+            "interpretation": "Accepted feedback says rank uniformity still needs deterministic tie handling.",
+            "route_repair": "Keep rank_uniformity as a bridge until the side condition is replayed.",
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert "base_cost underprices request minimal_delta_cost_hints" in error_text
+    assert "source=resource_response_ledger_rows.coverage_updates" in error_text
+
+
 def test_llm_route_planner_feedback_summary_uses_standalone_realization_witness() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_realization_feedback")
     out_dir = root / "llm_route_planner"

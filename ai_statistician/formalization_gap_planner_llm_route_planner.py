@@ -7791,6 +7791,22 @@ def _minimal_delta_cost_hints(
             *_dict_tuple(row.get("next_work_packets", [])),
         ):
             add_row("current_goal_plan_rows.work_packets", packet)
+    for row in _dict_tuple(context_packet.get("resource_response_ledger_rows", [])):
+        if not _resource_response_row_is_admissible_feedback(row):
+            continue
+        for update in _coverage_update_hint_rows(
+            row,
+            target_prover_family=target_prover_family,
+        ):
+            add_row("resource_response_ledger_rows.coverage_updates", update)
+    for row in _dict_tuple(context_packet.get("refinement_evidence_rows", [])):
+        if not _refinement_evidence_row_is_admissible_feedback(row):
+            continue
+        for update in _coverage_update_hint_rows(
+            row,
+            target_prover_family=target_prover_family,
+        ):
+            add_row("refinement_evidence_rows.coverage_updates", update)
 
     primitive_hints = [
         _primitive_cost_hint(
@@ -7832,6 +7848,36 @@ def _minimal_delta_cost_hints(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _coverage_update_hint_rows(
+    row: Mapping[str, Any],
+    *,
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    updates = _dict_value(row, "coverage_updates")
+    if not updates:
+        return tuple()
+    target = str(
+        row.get("target_prover_family")
+        or row.get("target_prover")
+        or target_prover_family
+    )
+    rows: list[dict[str, object]] = []
+    for primitive, coverage_status in updates.items():
+        primitive_key = _primitive_key(primitive)
+        coverage_key = _primitive_key(coverage_status)
+        if not primitive_key or not coverage_key:
+            continue
+        rows.append(
+            {
+                "primitive": str(primitive).strip(),
+                "coverage_status": str(coverage_status).strip(),
+                "target_prover_family": target,
+                "source_field": "coverage_updates",
+            }
+        )
+    return tuple(rows)
 
 
 def _primitive_cost_hint(
