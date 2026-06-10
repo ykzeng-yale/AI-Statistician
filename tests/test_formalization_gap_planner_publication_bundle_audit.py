@@ -6870,6 +6870,32 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert not rejected_manifest_schema_payload["all_ok"]
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
+    schema_corrupted_manifest = json.loads(json.dumps(manifest))
+    schema_corrupted_manifest["row_schema"]["$id"] = "urn:wrong-row-schema"
+    manifest_path.write_text(
+        json.dumps(schema_corrupted_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_embedded_schema_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_route_planner_embedded_schema_drift",
+        )
+    )
+    embedded_schema_checks = [
+        row
+        for row in rejected_embedded_schema_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_manifest_schema_valid"
+    ]
+    assert embedded_schema_checks
+    assert not embedded_schema_checks[0]["ok"]
+    assert any(
+        "row_schema.$id must equal" in error
+        for error in embedded_schema_checks[0]["errors"]
+    )
+    assert not rejected_embedded_schema_payload["all_ok"]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
     preflight_manifest = json.loads(json.dumps(manifest))
     preflight_manifest["n_request_schema_invalid"] = 1
     preflight_manifest["n_generation_preflight_blocked"] = 1

@@ -1951,10 +1951,28 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_rows_with_context_packet_inventory": nonnegative_integer,
             "n_row_schema_valid": nonnegative_integer,
             "n_row_schema_invalid": nonnegative_integer,
-            "request_schema": {"type": "object"},
-            "response_payload_schema": {"type": "object"},
-            "response_schema": {"type": "object"},
-            "row_schema": {"type": "object"},
+            "request_schema": {
+                "type": "object",
+                "required": ["$id"],
+                "properties": {"$id": {"const": LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID}},
+            },
+            "response_payload_schema": {
+                "type": "object",
+                "required": ["$id"],
+                "properties": {
+                    "$id": {"const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID}
+                },
+            },
+            "response_schema": {
+                "type": "object",
+                "required": ["$id"],
+                "properties": {"$id": {"const": LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID}},
+            },
+            "row_schema": {
+                "type": "object",
+                "required": ["$id"],
+                "properties": {"$id": {"const": LLM_ROUTE_PLANNER_ROW_SCHEMA_ID}},
+            },
             "request_packets": object_array,
             "rows": object_array,
             "standalone_seed": {"type": "object"},
@@ -2368,6 +2386,34 @@ def validate_llm_route_planner_manifest(
     ) != int(manifest.get("n_request_packets", 0) or 0):
         errors.append(
             "request schema valid/invalid counts must sum to n_request_packets"
+        )
+    embedded_schema_ids = {
+        "request_schema": LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+        "response_payload_schema": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+        "response_schema": LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
+        "row_schema": LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    }
+    for field_name, expected_schema_id in embedded_schema_ids.items():
+        embedded_schema = manifest.get(field_name, {})
+        if not isinstance(embedded_schema, Mapping):
+            errors.append(f"{field_name} must be object")
+            continue
+        observed_schema_id = str(embedded_schema.get("$id", "") or "")
+        if observed_schema_id != expected_schema_id:
+            errors.append(f"{field_name}.$id must equal {expected_schema_id}")
+    if (
+        str(manifest.get("route_adoption_blocker_taxonomy_id", "") or "")
+        != ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID
+    ):
+        errors.append(
+            "route_adoption_blocker_taxonomy_id must equal "
+            + ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID
+        )
+    if _str_tuple(manifest.get("route_adoption_blocker_values", [])) != (
+        ROUTE_ADOPTION_BLOCKER_VALUES
+    ):
+        errors.append(
+            "route_adoption_blocker_values must match route adoption blocker constants"
         )
     return sorted(set(errors))
 

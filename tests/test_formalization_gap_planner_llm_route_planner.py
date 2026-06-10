@@ -4099,6 +4099,18 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert manifest_schema_path.exists()
     manifest_schema = json.loads(manifest_schema_path.read_text(encoding="utf-8"))
     assert manifest_schema["$id"] == LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID
+    assert manifest_schema["properties"]["request_schema"]["properties"]["$id"][
+        "const"
+    ] == LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID
+    assert manifest_schema["properties"]["response_payload_schema"]["properties"][
+        "$id"
+    ]["const"] == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID
+    assert manifest_schema["properties"]["response_schema"]["properties"]["$id"][
+        "const"
+    ] == LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID
+    assert manifest_schema["properties"]["row_schema"]["properties"]["$id"][
+        "const"
+    ] == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID
     assert llm_route_planner_manifest_json_schema()["$id"] == (
         LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID
     )
@@ -4108,6 +4120,24 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert (
         "n_rows must match rows length"
         in validate_llm_route_planner_manifest(drifted_manifest, manifest_schema)
+    )
+    drifted_schema_manifest = deepcopy(payload)
+    drifted_schema_manifest["request_schema"]["$id"] = "urn:wrong-request-schema"
+    assert (
+        f"request_schema.$id must equal {LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID}"
+        in validate_llm_route_planner_manifest(
+            drifted_schema_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_taxonomy_manifest = deepcopy(payload)
+    drifted_taxonomy_manifest["route_adoption_blocker_values"] = []
+    assert (
+        "route_adoption_blocker_values must match route adoption blocker constants"
+        in validate_llm_route_planner_manifest(
+            drifted_taxonomy_manifest,
+            manifest_schema,
+        )
     )
     assert payload["row_schema"]["$id"] == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID
     assert (

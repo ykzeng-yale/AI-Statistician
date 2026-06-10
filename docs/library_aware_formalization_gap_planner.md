@@ -189,7 +189,10 @@ is wrapped into an AI Statistician response row. It also publishes
 publication bundle audit validates packaged planner manifests against that
 schema, so request/row counts, embedded schemas, model-tier preflight counters,
 route-adoption summaries, and proof-boundary metadata are checkable without the
-AI Statistician runtime. That payload schema is
+AI Statistician runtime. Manifest validation also pins the embedded
+request/response-payload/wrapper-response/row schema IDs and the
+route-adoption blocker vocabulary, so a self-contained planner artifact cannot
+silently swap its own public contracts. That payload schema is
 structured around informal DAG nodes, formal realization nodes or the legacy
 Lean realization alias, route-alignment edges, the AND/OR minimal-delta cost
 graph, residual interpretations, search requests, planner next actions, source
