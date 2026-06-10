@@ -151,6 +151,9 @@ QUALITY_CONTROL_FIELDS = (
 CONTEXT_PACKET_INVENTORY_KIND = (
     "formalization_gap_planner_llm_route_planner_context_packet_inventory"
 )
+ROUTE_PLANNING_BRIEF_KIND = (
+    "formalization_gap_planner_llm_route_planner_route_planning_brief"
+)
 CONTEXT_PACKET_ROW_FIELDS = (
     "target_intake_rows",
     "library_coverage_rows",
@@ -967,6 +970,36 @@ def export_formalization_gap_planner_llm_route_planner(
                     "context_packet_inventory",
                 ).get("total_context_rows", 0)
                 or 0
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_route_planning_brief": sum(
+            1
+            for packet in request_packets
+            if _dict_value(
+                _dict_value(packet, "context_packet"),
+                "route_planning_brief",
+            )
+        ),
+        "n_request_route_planning_focus_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "route_planning_brief",
+                    ).get("planner_focus", [])
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_request_route_planning_evidence_gaps": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "route_planning_brief",
+                    ).get("evidence_gaps", [])
+                )
             )
             for packet in request_packets
         ),
@@ -2072,6 +2105,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_packets",
             "n_requests_with_context_packet_inventory",
             "n_request_context_inventory_total_rows",
+            "n_requests_with_route_planning_brief",
+            "n_request_route_planning_focus_rows",
+            "n_request_route_planning_evidence_gaps",
             "n_requests_with_legacy_context_field_aliases",
             "n_request_model_tier_haiku",
             "n_request_model_tier_sonnet",
@@ -2169,6 +2205,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_packets": nonnegative_integer,
             "n_requests_with_context_packet_inventory": nonnegative_integer,
             "n_request_context_inventory_total_rows": nonnegative_integer,
+            "n_requests_with_route_planning_brief": nonnegative_integer,
+            "n_request_route_planning_focus_rows": nonnegative_integer,
+            "n_request_route_planning_evidence_gaps": nonnegative_integer,
             "n_requests_with_legacy_context_field_aliases": nonnegative_integer,
             "n_request_model_tier_haiku": nonnegative_integer,
             "n_request_model_tier_sonnet": nonnegative_integer,
@@ -2740,6 +2779,54 @@ def validate_llm_route_planner_manifest(
     ) != n_requests_with_context_aliases:
         errors.append(
             "n_requests_with_legacy_context_field_aliases must match request_packets"
+        )
+    n_requests_with_route_planning_brief = sum(
+        1
+        for packet in request_packets
+        if _dict_value(
+            _dict_value(packet, "context_packet"),
+            "route_planning_brief",
+        )
+    )
+    if int(
+        manifest.get("n_requests_with_route_planning_brief", 0) or 0
+    ) != n_requests_with_route_planning_brief:
+        errors.append(
+            "n_requests_with_route_planning_brief must match request_packets"
+        )
+    n_route_planning_focus_rows = sum(
+        len(
+            _dict_tuple(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "route_planning_brief",
+                ).get("planner_focus", [])
+            )
+        )
+        for packet in request_packets
+    )
+    if int(
+        manifest.get("n_request_route_planning_focus_rows", 0) or 0
+    ) != n_route_planning_focus_rows:
+        errors.append(
+            "n_request_route_planning_focus_rows must match request_packets"
+        )
+    n_route_planning_evidence_gaps = sum(
+        len(
+            _dict_tuple(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "route_planning_brief",
+                ).get("evidence_gaps", [])
+            )
+        )
+        for packet in request_packets
+    )
+    if int(
+        manifest.get("n_request_route_planning_evidence_gaps", 0) or 0
+    ) != n_route_planning_evidence_gaps:
+        errors.append(
+            "n_request_route_planning_evidence_gaps must match request_packets"
         )
     repair_attempt_ledger = _dict_tuple(manifest.get("repair_attempt_ledger", []))
     row_repair_attempt_ledger = tuple(
@@ -3321,6 +3408,15 @@ def _request_packet(
         context_packet,
         residual_goals=residual_goals,
     )
+    context_packet["route_planning_brief"] = _route_planning_brief(
+        route_id=route_id,
+        display_name=display_name,
+        route=route,
+        context_packet=context_packet,
+        residual_goals=residual_goals,
+        target_prover_family=target_prover_family,
+        library_snapshot_ref=library_snapshot_ref,
+    )
     context_packet["context_packet_inventory"] = _context_packet_inventory(
         context_packet,
         residual_goals=residual_goals,
@@ -3381,6 +3477,290 @@ def _request_packet(
     }
 
 
+def _route_planning_brief(
+    *,
+    route_id: str,
+    display_name: str,
+    route: Mapping[str, Any],
+    context_packet: Mapping[str, Any],
+    residual_goals: tuple[str, ...],
+    target_prover_family: str,
+    library_snapshot_ref: str,
+) -> dict[str, object]:
+    source_refs = _str_tuple(context_packet.get("available_source_refs", []))
+    source_snippets = _dict_tuple(context_packet.get("available_source_snippets", []))
+    formal_declaration_rows = _dict_tuple(
+        context_packet.get("available_formal_declaration_rows", [])
+    )
+    cost_hints = _dict_value(context_packet, "minimal_delta_cost_hints")
+    primitive_cost_hints = _dict_tuple(cost_hints.get("primitive_cost_hints", []))
+    route_option_hints = _dict_tuple(cost_hints.get("route_option_hints", []))
+    feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    playbooks = _dict_tuple(context_packet.get("resource_request_playbooks", []))
+    quality_control_obligations = _quality_control_obligation_summary(context_packet)
+    target_intake_rows = _dict_tuple(context_packet.get("target_intake_rows", []))
+    planner_focus: list[dict[str, object]] = []
+    evidence_gaps: list[dict[str, object]] = []
+
+    def add_focus(
+        focus_id: str,
+        *,
+        priority: int,
+        action: str,
+        reason: str,
+        evidence_fields: tuple[str, ...],
+        required_output_fields: tuple[str, ...],
+        target_primitives: tuple[str, ...] = (),
+    ) -> None:
+        planner_focus.append(
+            {
+                "focus_id": focus_id,
+                "priority": priority,
+                "action": action,
+                "reason": reason,
+                "target_primitives": list(target_primitives),
+                "evidence_fields": list(evidence_fields),
+                "required_output_fields": list(required_output_fields),
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+
+    def add_gap(
+        gap_id: str,
+        *,
+        gap_kind: str,
+        reason: str,
+        recommended_action: str,
+        evidence_fields: tuple[str, ...],
+        target_primitives: tuple[str, ...] = (),
+    ) -> None:
+        evidence_gaps.append(
+            {
+                "gap_id": gap_id,
+                "gap_kind": gap_kind,
+                "reason": reason,
+                "recommended_action": recommended_action,
+                "target_primitives": list(target_primitives),
+                "evidence_fields": list(evidence_fields),
+            }
+        )
+
+    add_focus(
+        "preserve_target_theorem_identity",
+        priority=1,
+        action="preserve requested theorem identity and target prover family",
+        reason="route repair may add explicit side-condition notes but must not switch theorem",
+        evidence_fields=("target_route", "context_packet.current_route"),
+        required_output_fields=("standalone_route.theorem_statement",),
+    )
+    if residual_goals:
+        add_focus(
+            "interpret_residual_goals",
+            priority=1,
+            action="interpret prover residual goals and emit grounded route repair",
+            reason="request residual_goals are present and must be covered by residual_interpretations",
+            evidence_fields=(
+                "residual_goals",
+                "context_packet.feedback_loop_summary",
+                "context_packet.available_source_snippets",
+            ),
+            required_output_fields=("residual_interpretations", "search_requests"),
+            target_primitives=_residual_goal_target_primitives(residual_goals),
+        )
+    if source_refs or source_snippets:
+        add_focus(
+            "synthesize_source_grounded_informal_route",
+            priority=2,
+            action="build informal knowledge DAG from admissible source refs and snippets",
+            reason="source evidence is available in the request context",
+            evidence_fields=(
+                "context_packet.available_source_refs",
+                "context_packet.available_source_snippets",
+            ),
+            required_output_fields=(
+                "informal_knowledge_dag_nodes",
+                "standalone_route.primitives.source_refs",
+            ),
+        )
+    else:
+        add_focus(
+            "request_literature_source_evidence",
+            priority=2,
+            action="emit bounded literature/source search requests before source-backed claims",
+            reason="no admissible source refs or source snippets are available",
+            evidence_fields=("context_packet.available_source_refs",),
+            required_output_fields=("search_requests",),
+        )
+        add_gap(
+            "missing_source_evidence",
+            gap_kind="source_grounding",
+            reason="no available source refs/snippets can ground informal claims",
+            recommended_action="emit literature search_request rows",
+            evidence_fields=("context_packet.available_source_refs",),
+        )
+    if formal_declaration_rows:
+        add_focus(
+            "map_formal_library_coverage",
+            priority=3,
+            action="align route primitives to target-compatible formal declaration rows",
+            reason="formal declaration rows are available for reuse or bridge planning",
+            evidence_fields=(
+                "context_packet.available_formal_declaration_rows",
+                "context_packet.available_formal_declarations",
+            ),
+            required_output_fields=(
+                "formal_realization_dag_nodes",
+                "minimal_delta_plan.primitive_costs",
+            ),
+        )
+    else:
+        add_focus(
+            "request_formal_library_grounding",
+            priority=3,
+            action="emit formal-library search requests before exact-reuse claims",
+            reason="no target-compatible formal declaration rows are available",
+            evidence_fields=("context_packet.available_formal_declaration_rows",),
+            required_output_fields=("search_requests",),
+        )
+        add_gap(
+            "missing_formal_library_grounding",
+            gap_kind="formal_library_grounding",
+            reason="no available declaration row can justify existing-library coverage",
+            recommended_action="emit formal_library search_request rows",
+            evidence_fields=("context_packet.available_formal_declaration_rows",),
+        )
+    if primitive_cost_hints or route_option_hints:
+        add_focus(
+            "minimize_formalization_delta",
+            priority=4,
+            action="choose the lowest-cost AND/OR route consistent with coverage hints",
+            reason="minimal_delta_cost_hints provide lower bounds for current library reuse",
+            evidence_fields=("context_packet.minimal_delta_cost_hints",),
+            required_output_fields=(
+                "minimal_delta_plan",
+                "minimal_delta_plan.and_or_cost_graph",
+            ),
+        )
+    if bool(feedback_summary.get("replan_required", False)):
+        add_focus(
+            "revise_route_from_feedback",
+            priority=1,
+            action="repair the route using feedback-loop evidence and next actions",
+            reason="feedback_loop_summary marks replan_required",
+            evidence_fields=("context_packet.feedback_loop_summary",),
+            required_output_fields=(
+                "standalone_route",
+                "planner_next_actions",
+                "residual_interpretations",
+            ),
+        )
+    if playbooks:
+        add_focus(
+            "align_followup_to_resource_playbooks",
+            priority=2,
+            action="align search_requests and planner_next_actions to queued resource playbooks",
+            reason="resource_request_playbooks define bounded operator prompts and acceptance checks",
+            evidence_fields=("context_packet.resource_request_playbooks",),
+            required_output_fields=("search_requests", "planner_next_actions"),
+        )
+    if bool(quality_control_obligations.get("pending", False)):
+        add_focus(
+            "discharge_pending_quality_controls",
+            priority=2,
+            action="preserve or request evidence for pending quality controls",
+            reason="context has pending quality-control obligations",
+            evidence_fields=(
+                "context_packet.feedback_loop_summary",
+                "context_packet.resource_request_queue_rows",
+            ),
+            required_output_fields=("planner_next_actions", "search_requests"),
+        )
+        add_gap(
+            "pending_quality_controls",
+            gap_kind="quality_control",
+            reason="quality controls remain pending in the context packet",
+            recommended_action="emit bounded next actions that discharge pending controls",
+            evidence_fields=("context_packet.context_packet_inventory",),
+        )
+
+    target_context = {
+        "theorem_statement": str(
+            route.get("theorem_statement")
+            or route.get("formal_statement")
+            or route.get("statement")
+            or ""
+        ),
+        "target_intake_claims": [
+            str(row.get("normalized_claim", "")).strip()
+            for row in target_intake_rows[:6]
+            if str(row.get("normalized_claim", "")).strip()
+        ],
+        "desired_theorem_shapes": [
+            str(row.get("desired_theorem_shape", "")).strip()
+            for row in target_intake_rows[:6]
+            if str(row.get("desired_theorem_shape", "")).strip()
+        ],
+        "normalized_objects": list(
+            dict.fromkeys(
+                object_name
+                for row in target_intake_rows
+                for object_name in _str_tuple(row.get("normalized_objects", []))
+            )
+        )[:12],
+        "normalized_assumptions": list(
+            dict.fromkeys(
+                assumption
+                for row in target_intake_rows
+                for assumption in _str_tuple(row.get("normalized_assumptions", []))
+            )
+        )[:12],
+    }
+    evidence_summary = {
+        "source_ref_count": len(source_refs),
+        "source_snippet_count": len(source_snippets),
+        "formal_declaration_row_count": len(formal_declaration_rows),
+        "residual_goal_count": len(residual_goals),
+        "primitive_cost_hint_count": len(primitive_cost_hints),
+        "route_option_cost_hint_count": len(route_option_hints),
+        "resource_request_playbook_count": len(playbooks),
+        "feedback_replan_required": bool(feedback_summary.get("replan_required", False)),
+        "pending_quality_control_value_count": int(
+            quality_control_obligations.get("n_pending_values", 0) or 0
+        ),
+    }
+    return {
+        "brief_kind": ROUTE_PLANNING_BRIEF_KIND,
+        "route_id": route_id,
+        "display_name": display_name,
+        "target_prover_family": target_prover_family,
+        "library_snapshot_ref": library_snapshot_ref,
+        "target_context": target_context,
+        "evidence_summary": evidence_summary,
+        "planner_focus": sorted(
+            planner_focus,
+            key=lambda item: (
+                int(item.get("priority", 999) or 999),
+                str(item.get("focus_id", "")),
+            ),
+        ),
+        "evidence_gaps": evidence_gaps,
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _residual_goal_target_primitives(
+    residual_goals: tuple[str, ...],
+) -> tuple[str, ...]:
+    primitives: list[str] = []
+    for residual in residual_goals:
+        prefix = str(residual).split(":", 1)[0].strip()
+        if prefix and re.match(r"^[A-Za-z_][A-Za-z0-9_.'-]*$", prefix):
+            primitives.append(prefix)
+    return tuple(dict.fromkeys(primitives))
+
+
 def _context_packet_inventory(
     context_packet: Mapping[str, Any],
     *,
@@ -3396,6 +3776,7 @@ def _context_packet_inventory(
         context_packet,
         "component_resource_registry_context",
     )
+    route_planning_brief = _dict_value(context_packet, "route_planning_brief")
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     quality_controls = _dict_value(quality_control_obligations, "quality_controls")
     pending_quality_controls = _dict_value(
@@ -3442,6 +3823,13 @@ def _context_packet_inventory(
         ),
         "component_resource_contract_count": len(
             _dict_tuple(registry_context.get("resource_contract_rows", []))
+        ),
+        "route_planning_brief_present": bool(route_planning_brief),
+        "route_planning_brief_focus_count": len(
+            _dict_tuple(route_planning_brief.get("planner_focus", []))
+        ),
+        "route_planning_brief_evidence_gap_count": len(
+            _dict_tuple(route_planning_brief.get("evidence_gaps", []))
         ),
         "feedback_loop_summary_present": bool(feedback_summary),
         "feedback_loop_summary_replan_required": bool(
@@ -3588,6 +3976,87 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             "feedback_loop_summary_recommended_next_action_count must match "
             "context_packet.feedback_loop_summary"
         )
+    route_planning_brief = _dict_value(context_packet, "route_planning_brief")
+    if bool(inventory.get("route_planning_brief_present", False)) != bool(
+        route_planning_brief
+    ):
+        errors.append(
+            "context_packet.context_packet_inventory.route_planning_brief_present "
+            "must match context_packet.route_planning_brief"
+        )
+    if route_planning_brief:
+        if route_planning_brief.get("brief_kind") != ROUTE_PLANNING_BRIEF_KIND:
+            errors.append(
+                "context_packet.route_planning_brief.brief_kind must equal "
+                + ROUTE_PLANNING_BRIEF_KIND
+            )
+        if str(route_planning_brief.get("route_id", "")) != str(
+            row.get("route_id", "")
+        ):
+            errors.append(
+                "context_packet.route_planning_brief.route_id must match request route_id"
+            )
+        if str(route_planning_brief.get("target_prover_family", "")) != str(
+            context_packet.get("target_prover_family", "")
+        ):
+            errors.append(
+                "context_packet.route_planning_brief.target_prover_family must match context_packet"
+            )
+        if int(inventory.get("route_planning_brief_focus_count", 0) or 0) != len(
+            _dict_tuple(route_planning_brief.get("planner_focus", []))
+        ):
+            errors.append(
+                "context_packet.context_packet_inventory.route_planning_brief_focus_count "
+                "must match context_packet.route_planning_brief"
+            )
+        if int(
+            inventory.get("route_planning_brief_evidence_gap_count", 0) or 0
+        ) != len(_dict_tuple(route_planning_brief.get("evidence_gaps", []))):
+            errors.append(
+                "context_packet.context_packet_inventory.route_planning_brief_evidence_gap_count "
+                "must match context_packet.route_planning_brief"
+            )
+        brief_summary = _dict_value(route_planning_brief, "evidence_summary")
+        brief_count_checks = (
+            (
+                "source_ref_count",
+                len(_str_tuple(context_packet.get("available_source_refs", []))),
+            ),
+            (
+                "source_snippet_count",
+                len(_dict_tuple(context_packet.get("available_source_snippets", []))),
+            ),
+            (
+                "formal_declaration_row_count",
+                len(
+                    _dict_tuple(
+                        context_packet.get("available_formal_declaration_rows", [])
+                    )
+                ),
+            ),
+            (
+                "residual_goal_count",
+                len(_str_tuple(context_packet.get("residual_goals", []))),
+            ),
+            (
+                "primitive_cost_hint_count",
+                len(_dict_tuple(cost_hints.get("primitive_cost_hints", []))),
+            ),
+            (
+                "route_option_cost_hint_count",
+                len(_dict_tuple(cost_hints.get("route_option_hints", []))),
+            ),
+            (
+                "resource_request_playbook_count",
+                len(_dict_tuple(context_packet.get("resource_request_playbooks", []))),
+            ),
+        )
+        for field_name, expected_count in brief_count_checks:
+            if int(brief_summary.get(field_name, 0) or 0) != expected_count:
+                errors.append(
+                    "context_packet.route_planning_brief.evidence_summary."
+                    f"{field_name} must match context_packet"
+                )
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     quality_controls = _dict_value(quality_control_obligations, "quality_controls")
     pending_quality_controls = _dict_value(

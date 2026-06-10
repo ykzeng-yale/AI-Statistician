@@ -1053,6 +1053,9 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["by_request_model_tier"] == {"sonnet": 1}
     assert payload["n_request_packets"] == 1
     assert payload["n_requests_with_context_packet_inventory"] == 1
+    assert payload["n_requests_with_route_planning_brief"] == 1
+    assert payload["n_request_route_planning_focus_rows"] >= 4
+    assert payload["n_request_route_planning_evidence_gaps"] == 0
     assert payload["legacy_context_field_aliases"] == (
         LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES
     )
@@ -1088,6 +1091,27 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert "primitive_costs" in request["prompt_messages"]["user"]
     context = request["context_packet"]
     assert context["current_route"]["route_id"] == "rank_route"
+    brief = context["route_planning_brief"]
+    assert brief["brief_kind"] == (
+        "formalization_gap_planner_llm_route_planner_route_planning_brief"
+    )
+    assert brief["route_id"] == "rank_route"
+    assert brief["target_prover_family"] == "lean4"
+    assert brief["evidence_summary"]["source_ref_count"] == len(
+        context["available_source_refs"]
+    )
+    assert brief["evidence_summary"]["formal_declaration_row_count"] == len(
+        context["available_formal_declaration_rows"]
+    )
+    assert {
+        focus["focus_id"] for focus in brief["planner_focus"]
+    } >= {
+        "preserve_target_theorem_identity",
+        "synthesize_source_grounded_informal_route",
+        "map_formal_library_coverage",
+        "minimize_formalization_delta",
+    }
+    assert brief["evidence_gaps"] == []
     inventory = context["context_packet_inventory"]
     assert inventory["inventory_kind"] == (
         "formalization_gap_planner_llm_route_planner_context_packet_inventory"
@@ -1108,6 +1132,13 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert inventory["resource_request_playbook_count"] == 0
     assert inventory["legacy_context_field_alias_count"] == len(
         LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES
+    )
+    assert inventory["route_planning_brief_present"] is True
+    assert inventory["route_planning_brief_focus_count"] == len(
+        brief["planner_focus"]
+    )
+    assert inventory["route_planning_brief_evidence_gap_count"] == len(
+        brief["evidence_gaps"]
     )
     assert inventory["primitive_cost_hint_count"] == 2
     assert inventory["route_option_cost_hint_count"] == 1
@@ -1157,6 +1188,7 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert "minimal_delta_cost_hints" in request["prompt_messages"]["user"]
     assert "minimum_base_cost" in request["prompt_messages"]["user"]
     assert "context_packet_inventory" in request["prompt_messages"]["user"]
+    assert "route_planning_brief" in request["prompt_messages"]["user"]
     assert (
         out_dir
         / "formalization_gap_planner_llm_route_planner_manifest.json"
@@ -1199,6 +1231,15 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         "context_packet.context_packet_inventory.available_source_snippet_count "
         "must match context_packet"
         in validate_llm_route_planner_request(drifted_inventory_request)
+    )
+    drifted_brief_request = deepcopy(request)
+    drifted_brief_request["context_packet"]["route_planning_brief"][
+        "evidence_summary"
+    ]["source_ref_count"] = 999
+    assert (
+        "context_packet.route_planning_brief.evidence_summary.source_ref_count "
+        "must match context_packet"
+        in validate_llm_route_planner_request(drifted_brief_request)
     )
     drifted_alias_request = deepcopy(request)
     drifted_alias_request["context_packet"]["legacy_context_field_aliases"] = {}
@@ -4268,6 +4309,11 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     )
     assert "legacy_context_field_aliases" in manifest_schema["required"]
     assert "n_requests_with_legacy_context_field_aliases" in manifest_schema["required"]
+    assert "n_requests_with_route_planning_brief" in manifest_schema["required"]
+    assert "n_request_route_planning_focus_rows" in manifest_schema["required"]
+    assert "n_request_route_planning_evidence_gaps" in manifest_schema["required"]
+    assert payload["n_requests_with_route_planning_brief"] == 1
+    assert payload["n_request_route_planning_focus_rows"] >= 4
     assert "repair_attempt_ledger" in manifest_schema["required"]
     assert "n_repair_attempt_ledger_rows" in manifest_schema["required"]
     assert payload["repair_attempt_ledger"] == ()
@@ -4329,6 +4375,15 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_repair_attempt_ledger_rows must match repair_attempt_ledger"
         in validate_llm_route_planner_manifest(
             drifted_repair_ledger_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_brief_count_manifest = deepcopy(payload)
+    drifted_brief_count_manifest["n_requests_with_route_planning_brief"] = 0
+    assert (
+        "n_requests_with_route_planning_brief must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_brief_count_manifest,
             manifest_schema,
         )
     )
