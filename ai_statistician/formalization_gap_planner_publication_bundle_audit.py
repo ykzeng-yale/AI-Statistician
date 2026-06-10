@@ -51,6 +51,7 @@ from .formalization_gap_planner_library_coverage_map import (
     validate_library_coverage_map_row,
 )
 from .formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
     LLM_ROUTE_PLANNER_PLANNER_NEXT_ACTION_HOOK_ALIASES,
     LLM_ROUTE_PLANNER_SEARCH_REQUEST_KIND_ALIASES,
@@ -72,6 +73,7 @@ from .formalization_gap_planner_llm_route_planner import (
     ROUTE_ADOPTION_REJECTED_STATUS,
     validate_route_adoption_blocker_taxonomy_payload,
     validate_llm_route_planner_request,
+    validate_llm_route_planner_manifest,
     validate_llm_route_planner_response_payload_validation_manifest,
     validate_llm_route_planner_response_payload_validation_row,
     validate_llm_route_planner_row,
@@ -204,6 +206,7 @@ REQUIRED_CORE_ARTIFACTS = (
     "llm_route_planner_response_payload_target_prover_schema",
     "llm_route_planner_response_payload_validation_manifest_schema",
     "llm_route_planner_response_payload_validation_row_schema",
+    "llm_route_planner_manifest_schema",
     "llm_route_planner_row_schema",
     "route_adoption_blocker_taxonomy_schema",
     "route_adoption_blocker_taxonomy_contract",
@@ -2879,6 +2882,11 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         / "contract"
         / "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json"
     )
+    llm_route_planner_manifest_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_llm_route_planner_manifest.schema.json"
+    )
     llm_route_planner_row_schema_path = (
         bundle_dir
         / "contract"
@@ -3048,6 +3056,9 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
     )
     llm_route_planner_response_payload_validation_row_schema = _read_json_no_error(
         llm_route_planner_response_payload_validation_row_schema_path
+    )
+    llm_route_planner_manifest_schema = _read_json_no_error(
+        llm_route_planner_manifest_schema_path
     )
     llm_route_planner_row_schema = _read_json_no_error(
         llm_route_planner_row_schema_path
@@ -4194,6 +4205,21 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             ),
             llm_route_planner_response_payload_validation_row_schema.get("$id")
             == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "llm_route_planner_manifest_schema_file",
+            "contract",
+            "LLM route-planner manifest schema exists",
+            str(llm_route_planner_manifest_schema_path.exists()),
+            llm_route_planner_manifest_schema_path.exists(),
+        ),
+        _check(
+            "llm_route_planner_manifest_schema_id",
+            "contract",
+            LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
+            str(llm_route_planner_manifest_schema.get("$id", "")),
+            llm_route_planner_manifest_schema.get("$id")
+            == LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
         ),
         _check(
             "llm_route_planner_response_schema_rejects_kernel_claim",
@@ -6389,6 +6415,10 @@ def _llm_route_planner_optional_checks(
     manifest_path = (
         artifact_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
     )
+    manifest_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_manifest.schema.json"
+    )
     requests_jsonl_path = (
         artifact_dir / "formalization_gap_planner_llm_route_planner_requests.jsonl"
     )
@@ -6419,6 +6449,7 @@ def _llm_route_planner_optional_checks(
         / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
     )
     manifest = _read_json_no_error(manifest_path)
+    manifest_schema = _read_json_no_error(manifest_schema_path)
     request_schema = _read_json_no_error(request_schema_path)
     response_schema = _read_json_no_error(response_schema_path)
     response_payload_schema = _read_json_no_error(response_payload_schema_path)
@@ -6433,6 +6464,10 @@ def _llm_route_planner_optional_checks(
     requests, request_errors = _read_jsonl_dict_rows_no_error(requests_jsonl_path)
     rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
     seed_errors = validate_standalone_input_payload(seed_payload)
+    manifest_schema_errors = validate_llm_route_planner_manifest(
+        manifest,
+        manifest_schema if manifest_schema else None,
+    )
     checks = [
         _check(
             f"{check_prefix}_all_ok",
@@ -6456,6 +6491,28 @@ def _llm_route_planner_optional_checks(
             str(manifest.get("proof_evidence_boundary", ""))[:160],
             "not theorem proof evidence"
             in str(manifest.get("proof_evidence_boundary", "")).lower(),
+        ),
+        _check(
+            f"{check_prefix}_manifest_schema_file",
+            "optional_artifacts",
+            "LLM route-planner manifest schema exists",
+            str(manifest_schema_path.exists()),
+            manifest_schema_path.exists(),
+        ),
+        _check(
+            f"{check_prefix}_manifest_schema_id",
+            "optional_artifacts",
+            LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
+            str(manifest_schema.get("$id", "")),
+            manifest_schema.get("$id") == LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
+        ),
+        _check(
+            f"{check_prefix}_manifest_schema_valid",
+            "optional_artifacts",
+            "LLM route-planner manifest satisfies published manifest schema",
+            "; ".join(manifest_schema_errors) if manifest_schema_errors else "ok",
+            not manifest_schema_errors,
+            errors=tuple(manifest_schema_errors),
         ),
         _check(
             f"{check_prefix}_request_schema_file",

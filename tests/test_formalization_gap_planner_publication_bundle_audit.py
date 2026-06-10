@@ -23,6 +23,7 @@ from ai_statistician.formalization_gap_planner_library_coverage_map import (
     library_coverage_map_row_json_schema,
 )
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
     export_formalization_gap_planner_llm_route_planner,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
@@ -3245,6 +3246,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "llm_route_planner_manifest_schema_id"
+        and row["observed"] == LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "schema_catalog_payload_schema_id"
         and row["observed"] == schema_catalog_json_schema()["$id"]
         and row["ok"]
@@ -6251,6 +6258,17 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "optional_llm_route_planner_manifest_schema_id"
+        and row["observed"] == LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "optional_llm_route_planner_manifest_schema_valid"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"]
         == "optional_llm_route_planner_response_payload_validation_manifest_schema_id"
         and row["ok"]
@@ -6823,6 +6841,35 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         / "formalization_gap_planner_llm_route_planner_manifest.json"
     )
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    count_corrupted_manifest = json.loads(json.dumps(manifest))
+    count_corrupted_manifest["n_rows"] = int(
+        count_corrupted_manifest.get("n_rows", 0)
+        or 0
+    ) + 1
+    manifest_path.write_text(
+        json.dumps(count_corrupted_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_manifest_schema_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_route_planner_manifest_schema_drift",
+        )
+    )
+    manifest_schema_checks = [
+        row
+        for row in rejected_manifest_schema_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_manifest_schema_valid"
+    ]
+    assert manifest_schema_checks
+    assert not manifest_schema_checks[0]["ok"]
+    assert any(
+        "n_rows must match rows length" in error
+        for error in manifest_schema_checks[0]["errors"]
+    )
+    assert not rejected_manifest_schema_payload["all_ok"]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
     preflight_manifest = json.loads(json.dumps(manifest))
     preflight_manifest["n_request_schema_invalid"] = 1
     preflight_manifest["n_generation_preflight_blocked"] = 1

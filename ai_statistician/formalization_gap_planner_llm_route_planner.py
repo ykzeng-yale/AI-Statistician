@@ -49,6 +49,10 @@ LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-response-payload-validation-row:1"
 )
+LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-llm-route-planner-manifest:1"
+)
 LLM_ROUTE_PLANNER_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-row:1"
@@ -1800,6 +1804,177 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
     }
 
 
+def llm_route_planner_manifest_json_schema() -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    object_array = {"type": "array", "items": {"type": "object"}}
+    nonnegative_integer = {"type": "integer", "minimum": 0}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
+        "title": "Formalization Gap Planner LLM Route Planner Manifest",
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "schema_version",
+            "created_at",
+            "component_name",
+            "standalone_input_path",
+            "provider_name",
+            "model_tier_selection_mode",
+            "llm_route_planner_model_tier_policy",
+            "invoke_provider",
+            "n_routes",
+            "n_request_packets",
+            "n_requests_with_context_packet_inventory",
+            "n_request_context_inventory_total_rows",
+            "n_request_model_tier_haiku",
+            "n_request_model_tier_sonnet",
+            "n_request_model_tier_opus",
+            "by_request_model_tier",
+            "n_request_model_tier_mismatches",
+            "request_model_tier_mismatches",
+            "n_generation_preflight_blocked",
+            "n_requests_with_quality_control_obligation_inventory",
+            "n_requests_with_pending_quality_control_obligation_inventory",
+            "n_request_quality_control_obligation_fields",
+            "n_request_quality_control_obligation_values",
+            "n_request_pending_quality_control_fields",
+            "n_request_pending_quality_control_values",
+            "n_request_discharged_quality_control_fields",
+            "n_request_discharged_quality_control_values",
+            "n_request_schema_valid",
+            "n_request_schema_invalid",
+            "n_raw_responses",
+            "n_response_schema_valid",
+            "n_response_schema_invalid",
+            "n_rows",
+            "n_response_present",
+            "n_response_contract_ok",
+            "n_accepted_route_plans",
+            "n_route_adoption_ready",
+            "n_route_adoption_pending_refinement",
+            "n_route_adoption_awaiting_llm_response",
+            "n_route_adoption_rejected",
+            "route_adoption_blocker_taxonomy_id",
+            "route_adoption_blocker_values",
+            "route_adoption_blocker_counts",
+            "by_route_adoption_status",
+            "by_route_adoption_blocker",
+            "n_route_adoption_pending_quality_control_blockers",
+            "n_informal_knowledge_dag_nodes",
+            "n_formal_realization_dag_nodes",
+            "n_lean_realization_dag_nodes",
+            "n_route_alignment_edges",
+            "n_rows_with_context_packet_inventory",
+            "n_row_schema_valid",
+            "n_row_schema_invalid",
+            "request_schema",
+            "response_payload_schema",
+            "response_schema",
+            "row_schema",
+            "request_packets",
+            "rows",
+            "standalone_seed",
+            "by_acceptance_status",
+            "all_ok",
+            "errors",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+            "limitations",
+        ],
+        "properties": {
+            "schema_version": {
+                "type": "integer",
+                "const": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
+            },
+            "created_at": {"type": "string", "minLength": 1},
+            "component_name": {"type": "string", "const": LLM_ROUTE_PLANNER_COMPONENT},
+            "standalone_input_path": {"type": "string", "minLength": 1},
+            "provider_name": {"type": "string", "minLength": 1},
+            "model": {"type": "string"},
+            "model_tier_selection_mode": {"type": "string", "minLength": 1},
+            "llm_route_planner_model_tier_policy": {"type": "object"},
+            "max_repair_attempts": nonnegative_integer,
+            "invoke_provider": {"type": "boolean"},
+            "n_routes": nonnegative_integer,
+            "n_request_packets": nonnegative_integer,
+            "n_requests_with_context_packet_inventory": nonnegative_integer,
+            "n_request_context_inventory_total_rows": nonnegative_integer,
+            "n_request_model_tier_haiku": nonnegative_integer,
+            "n_request_model_tier_sonnet": nonnegative_integer,
+            "n_request_model_tier_opus": nonnegative_integer,
+            "by_request_model_tier": {"type": "object"},
+            "n_request_model_tier_mismatches": nonnegative_integer,
+            "request_model_tier_mismatches": object_array,
+            "n_generation_preflight_blocked": nonnegative_integer,
+            "generation_preflight_errors": object_array,
+            "n_requests_with_quality_control_obligation_inventory": nonnegative_integer,
+            "n_requests_with_pending_quality_control_obligation_inventory": (
+                nonnegative_integer
+            ),
+            "n_request_quality_control_obligation_fields": nonnegative_integer,
+            "n_request_quality_control_obligation_values": nonnegative_integer,
+            "n_request_pending_quality_control_fields": nonnegative_integer,
+            "n_request_pending_quality_control_values": nonnegative_integer,
+            "n_request_discharged_quality_control_fields": nonnegative_integer,
+            "n_request_discharged_quality_control_values": nonnegative_integer,
+            "n_request_schema_valid": nonnegative_integer,
+            "n_request_schema_invalid": nonnegative_integer,
+            "n_raw_responses": nonnegative_integer,
+            "n_response_schema_valid": nonnegative_integer,
+            "n_response_schema_invalid": nonnegative_integer,
+            "n_rows": nonnegative_integer,
+            "n_response_present": nonnegative_integer,
+            "n_provider_failures": nonnegative_integer,
+            "n_response_contract_ok": nonnegative_integer,
+            "n_accepted_route_plans": nonnegative_integer,
+            "n_route_adoption_ready": nonnegative_integer,
+            "n_route_adoption_pending_refinement": nonnegative_integer,
+            "n_route_adoption_awaiting_llm_response": nonnegative_integer,
+            "n_route_adoption_rejected": nonnegative_integer,
+            "route_adoption_blocker_taxonomy_id": {
+                "type": "string",
+                "const": ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID,
+            },
+            "route_adoption_blocker_values": string_array,
+            "route_adoption_blocker_counts": {"type": "object"},
+            "by_route_adoption_status": {"type": "object"},
+            "by_route_adoption_blocker": {"type": "object"},
+            "n_route_adoption_pending_quality_control_blockers": (
+                nonnegative_integer
+            ),
+            "n_route_adoption_omitted_cost_hint_primitives": nonnegative_integer,
+            "n_informal_knowledge_dag_nodes": nonnegative_integer,
+            "n_formal_realization_dag_nodes": nonnegative_integer,
+            "n_lean_realization_dag_nodes": nonnegative_integer,
+            "n_route_alignment_edges": nonnegative_integer,
+            "n_rows_with_context_packet_inventory": nonnegative_integer,
+            "n_row_schema_valid": nonnegative_integer,
+            "n_row_schema_invalid": nonnegative_integer,
+            "request_schema": {"type": "object"},
+            "response_payload_schema": {"type": "object"},
+            "response_schema": {"type": "object"},
+            "row_schema": {"type": "object"},
+            "request_packets": object_array,
+            "rows": object_array,
+            "standalone_seed": {"type": "object"},
+            "by_acceptance_status": {"type": "object"},
+            "all_ok": {"type": "boolean"},
+            "errors": string_array,
+            "llm_route_planner_fingerprint": {"type": "string"},
+            "proof_evidence_status": {
+                "type": "string",
+                "const": PROOF_EVIDENCE_STATUS,
+            },
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
+            "limitations": string_array,
+        },
+    }
+
+
 def llm_route_planner_response_json_schema() -> dict[str, object]:
     response_payload_schema = llm_route_planner_response_payload_schema()
     return {
@@ -2163,6 +2338,37 @@ def validate_llm_route_planner_request(
             errors.append(str(mismatch["error"]))
     errors.extend(_llm_generation_policy_errors(row))
     errors.extend(_context_packet_inventory_errors(row))
+    return sorted(set(errors))
+
+
+def validate_llm_route_planner_manifest(
+    manifest: Mapping[str, object],
+    schema: Mapping[str, object] | None = None,
+) -> list[str]:
+    """Validate an LLM route-planner manifest artifact."""
+
+    errors = _validate_with_schema(
+        manifest,
+        schema or llm_route_planner_manifest_json_schema(),
+    )
+    if int(manifest.get("n_request_packets", 0) or 0) != len(
+        _dict_tuple(manifest.get("request_packets", []))
+    ):
+        errors.append("n_request_packets must match request_packets length")
+    if int(manifest.get("n_rows", 0) or 0) != len(
+        _dict_tuple(manifest.get("rows", []))
+    ):
+        errors.append("n_rows must match rows length")
+    if int(manifest.get("n_row_schema_valid", 0) or 0) + int(
+        manifest.get("n_row_schema_invalid", 0) or 0
+    ) != int(manifest.get("n_rows", 0) or 0):
+        errors.append("row schema valid/invalid counts must sum to n_rows")
+    if int(manifest.get("n_request_schema_valid", 0) or 0) + int(
+        manifest.get("n_request_schema_invalid", 0) or 0
+    ) != int(manifest.get("n_request_packets", 0) or 0):
+        errors.append(
+            "request schema valid/invalid counts must sum to n_request_packets"
+        )
     return sorted(set(errors))
 
 
@@ -13281,6 +13487,12 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "formalization_gap_planner_llm_route_planner_manifest.json").write_text(
         json.dumps(payload, indent=2, default=str),
+        encoding="utf-8",
+    )
+    (
+        out_dir / "formalization_gap_planner_llm_route_planner_manifest.schema.json"
+    ).write_text(
+        json.dumps(llm_route_planner_manifest_json_schema(), indent=2),
         encoding="utf-8",
     )
     (out_dir / "formalization_gap_planner_llm_route_planner_requests.jsonl").write_text(

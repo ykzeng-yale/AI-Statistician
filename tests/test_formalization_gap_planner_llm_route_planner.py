@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ai_statistician.cli import main
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
@@ -16,9 +17,11 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     PROOF_EVIDENCE_BOUNDARY,
     _generator_model_for_request,
     export_formalization_gap_planner_llm_route_planner,
+    llm_route_planner_manifest_json_schema,
     llm_route_planner_response_payload_schema,
     llm_route_planner_row_json_schema,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
+    validate_llm_route_planner_manifest,
     validate_llm_route_planner_request,
     validate_llm_route_planner_response_payload,
     validate_llm_route_planner_row,
@@ -4090,6 +4093,22 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "target_primitives" in contract["planner_next_actions"][0]
     assert "resource_contract_ids" in contract["planner_next_actions"][0]
     assert validate_llm_route_planner_response_payload(_llm_response_payload()) == []
+    manifest_schema_path = (
+        out_dir / "formalization_gap_planner_llm_route_planner_manifest.schema.json"
+    )
+    assert manifest_schema_path.exists()
+    manifest_schema = json.loads(manifest_schema_path.read_text(encoding="utf-8"))
+    assert manifest_schema["$id"] == LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID
+    assert llm_route_planner_manifest_json_schema()["$id"] == (
+        LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID
+    )
+    assert validate_llm_route_planner_manifest(payload, manifest_schema) == []
+    drifted_manifest = dict(payload)
+    drifted_manifest["n_rows"] = 999
+    assert (
+        "n_rows must match rows length"
+        in validate_llm_route_planner_manifest(drifted_manifest, manifest_schema)
+    )
     assert payload["row_schema"]["$id"] == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID
     assert (
         out_dir

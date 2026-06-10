@@ -184,7 +184,12 @@ external prover teams. The planner publishes both the
 wrapper response schema and
 `formalization_gap_planner_llm_route_planner_response_payload.schema.json`, so
 external prover teams can validate the exact JSON payload they return before it
-is wrapped into an AI Statistician response row. That payload schema is
+is wrapped into an AI Statistician response row. It also publishes
+`formalization_gap_planner_llm_route_planner_manifest.schema.json`, and the
+publication bundle audit validates packaged planner manifests against that
+schema, so request/row counts, embedded schemas, model-tier preflight counters,
+route-adoption summaries, and proof-boundary metadata are checkable without the
+AI Statistician runtime. That payload schema is
 structured around informal DAG nodes, formal realization nodes or the legacy
 Lean realization alias, route-alignment edges, the AND/OR minimal-delta cost
 graph, residual interpretations, search requests, planner next actions, source
