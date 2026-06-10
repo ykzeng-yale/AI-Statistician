@@ -315,6 +315,7 @@ def test_cross_prover_matrix_counts_quality_control_route_adoption_blockers() ->
                             "llm_route_planner_route_adoption_blockers": [
                                 "search_requests_pending_evidence",
                                 "planner_next_actions_pending_evidence",
+                                "source_grounding_obligations_pending",
                                 "quality_control_obligations_pending",
                             ],
                         },
@@ -358,10 +359,16 @@ def test_cross_prover_matrix_counts_quality_control_route_adoption_blockers() ->
 
     assert payload["n_total_packets_with_llm_route_adoption_status"] == 2
     assert payload["n_total_packets_llm_route_adoption_pending_refinement"] == 2
-    assert payload["n_total_packet_llm_route_adoption_blockers"] == 6
+    assert payload["n_total_packet_llm_route_adoption_blockers"] == 8
     assert (
         payload[
             "n_total_packet_llm_route_adoption_pending_quality_control_blockers"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_total_packet_llm_route_adoption_pending_source_grounding_blockers"
         ]
         == 2
     )
@@ -374,13 +381,29 @@ def test_cross_prover_matrix_counts_quality_control_route_adoption_blockers() ->
         ]
         == 2
     )
+    assert (
+        payload["target_summary"][
+            "n_total_packet_llm_route_adoption_pending_source_grounding_blockers"
+        ]
+        == 2
+    )
     assert all(
         row["n_packet_llm_route_adoption_pending_quality_control_blockers"]
         == 1
         for row in payload["matrix_rows"]
     )
     assert all(
+        row["n_packet_llm_route_adoption_pending_source_grounding_blockers"]
+        == 1
+        for row in payload["matrix_rows"]
+    )
+    assert all(
         row["n_packet_llm_route_adoption_pending_quality_control_blockers"]
+        == 1
+        for row in payload["target_summary"]["target_rows"]
+    )
+    assert all(
+        row["n_packet_llm_route_adoption_pending_source_grounding_blockers"]
         == 1
         for row in payload["target_summary"]["target_rows"]
     )

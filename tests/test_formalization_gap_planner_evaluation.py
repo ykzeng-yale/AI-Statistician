@@ -328,6 +328,7 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
                             ),
                             "llm_route_planner_route_adoption_blockers": [
                                 "quality_control_obligations_pending",
+                                "source_grounding_obligations_pending",
                                 "search_requests_pending_evidence",
                             ],
                             "llm_route_planner_acceptance_status": (
@@ -415,28 +416,44 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert payload["n_rows_pending_refinement_before_route_adoption"] == 1
     assert payload["n_rows_awaiting_llm_route_planner_response"] == 0
     assert payload["n_rows_rejected_llm_route_plan"] == 0
-    assert payload["n_llm_route_adoption_blockers"] == 2
+    assert payload["n_llm_route_adoption_blockers"] == 3
     assert payload["n_llm_route_adoption_pending_quality_control_blockers"] == 1
+    assert payload["n_llm_route_adoption_pending_source_grounding_blockers"] == 1
     assert payload["llm_route_adoption_blockers"] == (
         "quality_control_obligations_pending",
         "search_requests_pending_evidence",
+        "source_grounding_obligations_pending",
     )
     assert payload["llm_route_adoption_blocker_counts"] == {
         "quality_control_obligations_pending": 1,
         "search_requests_pending_evidence": 1,
+        "source_grounding_obligations_pending": 1,
     }
     assert payload["evaluation_by_llm_route_adoption_status"] == {
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": {
             "n_rows": 1,
             "n_ok": 0,
             "n_matched_ground_truth": 1,
-            "n_route_adoption_blockers": 2,
+            "n_route_adoption_blockers": 3,
             "mean_route_recall": 1.0,
             "mean_delta_precision": 1.0,
         }
     }
     assert payload["evaluation_by_llm_route_adoption_blocker"][
         "quality_control_obligations_pending"
+    ] == {
+        "n_rows": 1,
+        "n_blocker_occurrences": 1,
+        "n_ok": 0,
+        "n_matched_ground_truth": 1,
+        "by_route_adoption_status": {
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+        },
+        "mean_route_recall": 1.0,
+        "mean_delta_precision": 1.0,
+    }
+    assert payload["evaluation_by_llm_route_adoption_blocker"][
+        "source_grounding_obligations_pending"
     ] == {
         "n_rows": 1,
         "n_blocker_occurrences": 1,
@@ -530,6 +547,7 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert row["llm_route_planner_route_adoption_blockers"] == (
         "quality_control_obligations_pending",
         "search_requests_pending_evidence",
+        "source_grounding_obligations_pending",
     )
     assert row["llm_route_planner_has_generator_metadata"] is True
     assert row["llm_route_planner_generator_metadata_keys"] == (

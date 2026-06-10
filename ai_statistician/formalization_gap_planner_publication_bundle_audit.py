@@ -14100,6 +14100,12 @@ def _evaluation_route_adoption_manifest_errors(
         if "quality_control_obligations_pending"
         in _str_tuple(row.get("llm_route_planner_route_adoption_blockers", []))
     )
+    expected_source_grounding_blockers = sum(
+        1
+        for row in _dict_tuple(rows)
+        if "source_grounding_obligations_pending"
+        in _str_tuple(row.get("llm_route_planner_route_adoption_blockers", []))
+    )
     expected_blockers = set(_evaluation_route_adoption_blockers_from_rows(rows))
     expected_blocker_counts = _evaluation_route_adoption_blocker_counts_from_rows(rows)
     expected_by_blocker = _evaluation_route_adoption_blocker_summary_from_rows(rows)
@@ -14118,6 +14124,13 @@ def _evaluation_route_adoption_manifest_errors(
     observed_quality_control_blockers = int(
         manifest.get(
             "n_llm_route_adoption_pending_quality_control_blockers",
+            -1,
+        )
+        or 0
+    )
+    observed_source_grounding_blockers = int(
+        manifest.get(
+            "n_llm_route_adoption_pending_source_grounding_blockers",
             -1,
         )
         or 0
@@ -14177,6 +14190,12 @@ def _evaluation_route_adoption_manifest_errors(
             "n_llm_route_adoption_pending_quality_control_blockers mismatch: "
             f"observed={observed_quality_control_blockers} "
             f"expected={expected_quality_control_blockers}"
+        )
+    if observed_source_grounding_blockers != expected_source_grounding_blockers:
+        errors.append(
+            "n_llm_route_adoption_pending_source_grounding_blockers mismatch: "
+            f"observed={observed_source_grounding_blockers} "
+            f"expected={expected_source_grounding_blockers}"
         )
     if observed_blockers != expected_blockers:
         errors.append(
@@ -14332,6 +14351,7 @@ def _ablation_study_row_has_route_adoption_metrics(row: dict[str, Any]) -> bool:
             "route_adoption_pending_refinement_rate",
             "mean_route_adoption_blockers",
             "mean_route_adoption_pending_quality_control_blockers",
+            "mean_route_adoption_pending_source_grounding_blockers",
             "relative_route_adoption_ready_drop",
         )
     )

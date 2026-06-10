@@ -2152,6 +2152,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_rows_pending_refinement_before_route_adoption",
             "n_llm_route_adoption_blockers",
             "n_llm_route_adoption_pending_quality_control_blockers",
+            "n_llm_route_adoption_pending_source_grounding_blockers",
             "llm_route_adoption_blockers",
             "llm_route_adoption_blocker_counts",
             "llm_route_adoption_status_counts",
@@ -2197,6 +2198,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_rows_rejected_llm_route_plan": nonnegative_integer,
             "n_llm_route_adoption_blockers": nonnegative_integer,
             "n_llm_route_adoption_pending_quality_control_blockers": (
+                nonnegative_integer
+            ),
+            "n_llm_route_adoption_pending_source_grounding_blockers": (
                 nonnegative_integer
             ),
             "llm_route_adoption_blockers": string_array,
@@ -4058,6 +4062,7 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         "n_rows_rejected_llm_route_plan": 0,
         "n_llm_route_adoption_blockers": 0,
         "n_llm_route_adoption_pending_quality_control_blockers": 0,
+        "n_llm_route_adoption_pending_source_grounding_blockers": 0,
         "llm_route_adoption_blockers": (),
         "llm_route_adoption_blocker_counts": {},
         "llm_route_adoption_status_counts": {},
@@ -4280,6 +4285,20 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
                     1
                     for row in rows
                     if "quality_control_obligations_pending"
+                    in _str_tuple(
+                        row.get("llm_route_planner_route_adoption_blockers", [])
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_adoption_pending_source_grounding_blockers": int(
+            payload.get(
+                "n_llm_route_adoption_pending_source_grounding_blockers",
+                sum(
+                    1
+                    for row in rows
+                    if "source_grounding_obligations_pending"
                     in _str_tuple(
                         row.get("llm_route_planner_route_adoption_blockers", [])
                     )
@@ -5047,6 +5066,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('evaluation_summary', {}).get('n_rows_ready_for_route_adoption')}/"
             f"{payload.get('evaluation_summary', {}).get('n_rows_pending_refinement_before_route_adoption')}/"
             f"{payload.get('evaluation_summary', {}).get('n_llm_route_adoption_blockers')} "
+            f"source_grounding={payload.get('evaluation_summary', {}).get('n_llm_route_adoption_pending_source_grounding_blockers')} "
             f"quality_controls={payload.get('evaluation_summary', {}).get('n_llm_route_adoption_pending_quality_control_blockers')}"
         ),
         (

@@ -61,6 +61,7 @@ QUALITY_CONTROL_FIELDS = (
     "stop_conditions",
 )
 ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
+ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING = "source_grounding_obligations_pending"
 
 
 @dataclass(frozen=True)
@@ -297,6 +298,12 @@ def export_formalization_gap_planner_prover_adapter_contract(
             1
             for packet in packets
             if ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS
+            in packet.llm_route_planner_route_adoption_blockers
+        ),
+        "n_packet_llm_route_adoption_pending_source_grounding_blockers": sum(
+            1
+            for packet in packets
+            if ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING
             in packet.llm_route_planner_route_adoption_blockers
         ),
         "by_packet_llm_route_adoption_status": dict(
@@ -1429,6 +1436,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Packet quality-control fields: {payload.get('packet_quality_control_fields')}",
         "- LLM route-adoption pending quality-control blockers: "
         f"{payload.get('n_packet_llm_route_adoption_pending_quality_control_blockers')}",
+        "- LLM route-adoption pending source-grounding blockers: "
+        f"{payload.get('n_packet_llm_route_adoption_pending_source_grounding_blockers')}",
         f"- Responses: {payload.get('n_response_present')}/{payload.get('n_packets')}",
         f"- Contract OK responses: {payload.get('n_response_contract_ok')}",
         (

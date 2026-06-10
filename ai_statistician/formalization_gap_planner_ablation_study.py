@@ -36,6 +36,7 @@ ABLATION_VARIANTS = (
     "no_route_planner",
 )
 ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
+ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING = "source_grounding_obligations_pending"
 
 
 @dataclass(frozen=True)
@@ -65,6 +66,7 @@ class FormalizationGapPlannerAblationStudyRow:
     route_adoption_pending_refinement_rate: float
     mean_route_adoption_blockers: float
     mean_route_adoption_pending_quality_control_blockers: float
+    mean_route_adoption_pending_source_grounding_blockers: float
     relative_route_recall_drop: float
     relative_delta_recall_drop: float
     relative_residual_recall_drop: float
@@ -268,6 +270,7 @@ def ablation_study_row_json_schema() -> dict[str, object]:
         "route_adoption_pending_refinement_rate",
         "mean_route_adoption_blockers",
         "mean_route_adoption_pending_quality_control_blockers",
+        "mean_route_adoption_pending_source_grounding_blockers",
         "relative_route_recall_drop",
         "relative_delta_recall_drop",
         "relative_residual_recall_drop",
@@ -318,6 +321,9 @@ def ablation_study_row_json_schema() -> dict[str, object]:
             "route_adoption_pending_refinement_rate": rate,
             "mean_route_adoption_blockers": nonnegative_number,
             "mean_route_adoption_pending_quality_control_blockers": (
+                nonnegative_number
+            ),
+            "mean_route_adoption_pending_source_grounding_blockers": (
                 nonnegative_number
             ),
             "relative_route_recall_drop": nonnegative_number,
@@ -416,6 +422,7 @@ def _ablation_row(
             adoption_pending,
             adoption_blockers,
             adoption_quality_control_blockers,
+            adoption_source_grounding_blockers,
         ) = (
             _route_adoption_metrics(variant, row, removed)
         )
@@ -441,6 +448,9 @@ def _ablation_row(
                 "route_adoption_blockers": adoption_blockers,
                 "route_adoption_quality_control_blockers": (
                     adoption_quality_control_blockers
+                ),
+                "route_adoption_source_grounding_blockers": (
+                    adoption_source_grounding_blockers
                 ),
             }
         )
@@ -490,6 +500,10 @@ def _ablation_row(
         ),
         mean_route_adoption_pending_quality_control_blockers=_mean(
             metric["route_adoption_quality_control_blockers"]
+            for metric in metrics
+        ),
+        mean_route_adoption_pending_source_grounding_blockers=_mean(
+            metric["route_adoption_source_grounding_blockers"]
             for metric in metrics
         ),
         relative_route_recall_drop=0.0,
@@ -597,26 +611,36 @@ def _route_adoption_metrics(
     variant: str,
     evaluation_row: dict[str, Any],
     removed: set[str],
-) -> tuple[float, float, float, float]:
+) -> tuple[float, float, float, float, float]:
     blockers = _str_tuple(
         evaluation_row.get("llm_route_planner_route_adoption_blockers", [])
     )
     quality_control_blockers = float(
         1 if ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS in blockers else 0
     )
+    source_grounding_blockers = float(
+        1 if ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING in blockers else 0
+    )
     if variant != "full_planner_observed" and removed:
-        return (0.0, 1.0, float(max(1, len(blockers))), quality_control_blockers)
+        return (
+            0.0,
+            1.0,
+            float(max(1, len(blockers))),
+            quality_control_blockers,
+            source_grounding_blockers,
+        )
     status = str(
         evaluation_row.get("llm_route_planner_route_adoption_status", "")
     ).strip()
     if status == "READY_FOR_STANDALONE_REPLAY":
-        return (1.0, 0.0, 0.0, 0.0)
+        return (1.0, 0.0, 0.0, 0.0, 0.0)
     if status == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION":
         return (
             0.0,
             1.0,
             float(max(1, len(blockers))),
             quality_control_blockers,
+            source_grounding_blockers,
         )
     if status in {
         "AWAITING_LLM_ROUTE_PLANNER_RESPONSE",
@@ -627,8 +651,15 @@ def _route_adoption_metrics(
             1.0,
             float(max(1, len(blockers))),
             quality_control_blockers,
+            source_grounding_blockers,
         )
-    return (0.0, 0.0, float(len(blockers)), quality_control_blockers)
+    return (
+        0.0,
+        0.0,
+        float(len(blockers)),
+        quality_control_blockers,
+        source_grounding_blockers,
+    )
 
 
 def _next_action_rate(
@@ -850,6 +881,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"- Route-adoption ready/pending/blockers: {row.get('route_adoption_ready_rate')}/{row.get('route_adoption_pending_refinement_rate')}/{row.get('mean_route_adoption_blockers')}",
                 "- Route-adoption pending quality-control blockers: "
                 f"{row.get('mean_route_adoption_pending_quality_control_blockers')}",
+                "- Route-adoption pending source-grounding blockers: "
+                f"{row.get('mean_route_adoption_pending_source_grounding_blockers')}",
                 f"- Impacted routes: {row.get('n_impacted_routes')}",
                 f"- Interpretation: {row.get('interpretation')}",
                 "",

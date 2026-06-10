@@ -314,6 +314,7 @@ def test_prover_adapter_contract_rejects_kernel_ready_mapping_for_pending_llm_ro
                             "llm_route_planner_route_adoption_blockers": [
                                 "search_requests_pending_evidence",
                                 "planner_next_actions_pending_evidence",
+                                "source_grounding_obligations_pending",
                                 "quality_control_obligations_pending",
                             ],
                         },
@@ -383,10 +384,16 @@ def test_prover_adapter_contract_rejects_kernel_ready_mapping_for_pending_llm_ro
     assert not payload["all_ok"]
     assert payload["n_packets_with_llm_route_adoption_status"] == 1
     assert payload["n_packets_llm_route_adoption_pending_refinement"] == 1
-    assert payload["n_packet_llm_route_adoption_blockers"] == 3
+    assert payload["n_packet_llm_route_adoption_blockers"] == 4
     assert (
         payload[
             "n_packet_llm_route_adoption_pending_quality_control_blockers"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_packet_llm_route_adoption_pending_source_grounding_blockers"
         ]
         == 1
     )
@@ -400,6 +407,7 @@ def test_prover_adapter_contract_rejects_kernel_ready_mapping_for_pending_llm_ro
     assert list(packet["llm_route_planner_route_adoption_blockers"]) == [
         "search_requests_pending_evidence",
         "planner_next_actions_pending_evidence",
+        "source_grounding_obligations_pending",
         "quality_control_obligations_pending",
     ]
     validation = payload["response_validation_rows"][0]
