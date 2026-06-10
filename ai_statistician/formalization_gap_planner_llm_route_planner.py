@@ -7570,6 +7570,7 @@ def _rows_for_route(
             continue
         candidate_ids = {
             str(row.get("route_id", "")),
+            str(row.get("target_id", "")),
             str(row.get("standalone_route_id", "")),
             str(row.get("goal_plan_id", "")),
         }

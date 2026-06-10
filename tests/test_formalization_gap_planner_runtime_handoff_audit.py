@@ -16,6 +16,7 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     target_intake_path = root / "target_intake.json"
     handoffs_path = root / "handoffs.jsonl"
     out_dir = root / "audit"
+    target_intake_dir = root / "target_intake_dir"
     registry_dir = root / "component_resource_registry"
     shutil.rmtree(root, ignore_errors=True)
     root.mkdir(parents=True, exist_ok=True)
@@ -98,6 +99,7 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
         "bridge_id": "runtime_formalization_gap_planner_bridge:mixed_seed",
         "standalone_seed_path": str(seed_path),
         "target_intake_path": str(target_intake_path),
+        "target_intake_dir": str(target_intake_dir),
         "target_prover_family": handoff_target,
         "library_snapshot_ref": "portable:runtime-mixed-targets",
         "recommended_llm_provider": "anthropic",
@@ -113,10 +115,16 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
             f"formalization-gap-planner-standalone-plan --input {seed_path} "
             f"--out {root / 'standalone_plan'}"
         ),
+        "target_intake_cli": (
+            "python3 -m ai_statistician.cli "
+            f"formalization-gap-planner-target-intake --input {target_intake_path} "
+            f"--out {target_intake_dir}"
+        ),
         "llm_route_planner_prompt_cli": (
             "python3 -m ai_statistician.cli "
             f"formalization-gap-planner-llm-route-planner --input {seed_path} "
             "--provider anthropic --model-tier auto --max-repair-attempts 1 "
+            f"--formalization-gap-planner-target-intake-dir {target_intake_dir} "
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{registry_dir} --out {root / 'llm_prompt'}"
         ),
@@ -124,6 +132,7 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
             "python3 -m ai_statistician.cli "
             f"formalization-gap-planner-llm-route-planner --input {seed_path} "
             "--provider anthropic --model-tier auto --max-repair-attempts 1 "
+            f"--formalization-gap-planner-target-intake-dir {target_intake_dir} "
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{registry_dir} --invoke-provider --out {root / 'llm_live'}"
         ),

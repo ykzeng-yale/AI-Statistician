@@ -433,7 +433,11 @@ def _target_intake_row(target: dict[str, Any]) -> FormalizationGapPlannerTargetI
     if any(row.get("coverage_status") == "needs_search" for row in primitive_rows):
         review_flags.append("library_coverage_search_required")
     errors = tuple(f"{field} missing" for field in missing_required)
-    route_id = "target_intake_route:" + stable_hash([target_id, statement, primitive_names])[:16]
+    route_id = _first_text(target, "standalone_route_id", "route_id", "source_route_id")
+    if not route_id:
+        route_id = "target_intake_route:" + stable_hash(
+            [target_id, statement, primitive_names]
+        )[:16]
     return FormalizationGapPlannerTargetIntakeRow(
         schema_version=FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_SCHEMA_VERSION,
         target_intake_id="formalization_gap_planner_target_intake:"
