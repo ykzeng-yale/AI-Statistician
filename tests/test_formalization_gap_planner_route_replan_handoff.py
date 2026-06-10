@@ -96,6 +96,32 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         "prover_diagnostic_signature": "missing_source_statement",
         "proof_evidence_boundary": "not theorem proof evidence",
     }
+    llm_route_planner_hook_trace = {
+        "trace_source": "resource_response_ledger",
+        "resource_response_ledger_id": "conditional_rank_argument",
+        "resource_request_id": "request:conditional_rank_argument",
+        "route_id": plan_row["route_id"],
+        "goal_plan_id": plan_row["goal_plan_id"],
+        "target_primitives": ["conditional_rank_argument"],
+        "resource_id": "lean_lsp_mcp",
+        "acceptance_status": "ACCEPTED_WITH_ROUTE_REVISION",
+        "llm_route_planner_row_id": "llm_route_row:conditional_rank",
+        "llm_route_planner_request_id": "llm_route_request:conditional_rank",
+        "llm_route_planner_source_kind": "planner_next_action",
+        "llm_route_planner_source_index": 0,
+        "llm_route_planner_hook_kind": "proof_state_feedback",
+        "llm_route_planner_queries": [
+            "ask Lean LSP for conditional_rank_argument residual goals"
+        ],
+        "llm_route_planner_source_item": {
+            "action": "ask Lean LSP for conditional_rank_argument residual goals",
+            "resource_id": "lean_lsp_mcp",
+            "target_primitives": ["conditional_rank_argument"],
+        },
+        "llm_route_planner_response_trace_grounded": True,
+        "llm_route_planner_response_trace_mismatches": [],
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
     overlay_row = {
         "route_revision_overlay_id": "overlay:split_conformal",
         "goal_plan_id": plan_row["goal_plan_id"],
@@ -135,6 +161,7 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         ],
         "applied_hook_kinds": ["resource_response_ledger"],
         "applied_resource_response_traces": [resource_response_trace],
+        "applied_llm_route_planner_hook_traces": [llm_route_planner_hook_trace],
         "applied_prover_attempt_statuses": ["local_lean_failed"],
         "applied_prover_diagnostic_signatures": ["missing_source_statement"],
         "route_revision_reasons": ["residual proof state exposed a missing rank argument"],
@@ -220,6 +247,8 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert payload["n_standalone_seed_routes"] == 1
     assert payload["n_resource_response_awaiting_request_ids"] == 1
     assert payload["n_resource_response_rejected_request_ids"] == 1
+    assert payload["n_applied_llm_route_planner_hook_traces"] == 1
+    assert payload["n_routes_with_llm_route_planner_hook_trace"] == 1
     assert payload["n_source_snippets"] == 1
     assert payload["n_routes_with_source_snippets"] == 1
     assert payload["n_route_alignment_edges"] >= 1
@@ -265,6 +294,15 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert row["applied_resource_response_traces"][0]["resource_request_id"] == (
         "request:conditional_rank_argument"
     )
+    assert row["applied_llm_route_planner_hook_traces"][0][
+        "llm_route_planner_row_id"
+    ] == "llm_route_row:conditional_rank"
+    assert row["applied_llm_route_planner_hook_traces"][0][
+        "llm_route_planner_hook_kind"
+    ] == "proof_state_feedback"
+    assert row["applied_llm_route_planner_hook_traces"][0][
+        "llm_route_planner_source_index"
+    ] == 0
     assert row["resource_response_awaiting_request_ids"] == (
         "request:awaiting-literature",
     )
@@ -354,6 +392,12 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         "applied_resource_response_traces"
     ][0]["resource_id"] == "lean_lsp_mcp"
     assert seed["routes"][0]["replan_metadata"][
+        "applied_llm_route_planner_hook_traces"
+    ][0]["llm_route_planner_row_id"] == "llm_route_row:conditional_rank"
+    assert seed["routes"][0]["replan_metadata"][
+        "applied_llm_route_planner_hook_traces"
+    ][0]["llm_route_planner_source_item"]["resource_id"] == "lean_lsp_mcp"
+    assert seed["routes"][0]["replan_metadata"][
         "resource_response_awaiting_request_ids"
     ] == ["request:awaiting-literature"]
     assert seed["routes"][0]["replan_metadata"][
@@ -442,6 +486,11 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert next_plan["n_standalone_input_traces_with_replan_metadata"] == 1
     assert next_plan["n_standalone_input_traces_with_source_snippets"] == 1
     assert next_plan["n_standalone_input_trace_source_snippets"] == 1
+    assert (
+        next_plan["n_standalone_input_traces_with_llm_route_planner_hook_traces"]
+        == 1
+    )
+    assert next_plan["n_standalone_input_trace_llm_route_planner_hook_traces"] == 1
     assert next_plan["n_primitive_source_snippets"] == 1
     next_row = next_plan["rows"][0]
     trace = next_row["standalone_input_trace"]
@@ -464,6 +513,12 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert trace["applied_resource_response_traces"][0]["resource_request_id"] == (
         "request:conditional_rank_argument"
     )
+    assert trace["applied_llm_route_planner_hook_traces"][0][
+        "llm_route_planner_request_id"
+    ] == "llm_route_request:conditional_rank"
+    assert trace["applied_llm_route_planner_hook_traces"][0][
+        "llm_route_planner_queries"
+    ] == ["ask Lean LSP for conditional_rank_argument residual goals"]
     assert trace["resource_response_awaiting_request_ids"] == [
         "request:awaiting-literature"
     ]

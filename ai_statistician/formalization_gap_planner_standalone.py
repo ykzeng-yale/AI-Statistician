@@ -305,6 +305,22 @@ def export_formalization_gap_planner_standalone_plan(
             len(row.standalone_input_trace.get("llm_route_planner_generation_errors", []))
             for row in rows
         ),
+        "n_standalone_input_traces_with_llm_route_planner_hook_traces": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "applied_llm_route_planner_hook_traces"
+            )
+        ),
+        "n_standalone_input_trace_llm_route_planner_hook_traces": sum(
+            len(
+                row.standalone_input_trace.get(
+                    "applied_llm_route_planner_hook_traces",
+                    [],
+                )
+            )
+            for row in rows
+        ),
         "standalone_input_trace_by_llm_route_adoption_status": dict(
             sorted(by_llm_route_adoption_status.items())
         ),
@@ -1030,6 +1046,7 @@ def standalone_input_json_schema() -> dict[str, object]:
                         "type": "array",
                         "items": {"type": "object"},
                     },
+                    "applied_llm_route_planner_hook_traces": object_array,
                     "resource_response_awaiting_request_ids": string_array,
                     "resource_response_rejected_request_ids": string_array,
                     "applied_prover_attempt_statuses": string_array,
@@ -1656,6 +1673,9 @@ def _standalone_input_trace(
         "applied_hook_kinds": _str_list(metadata.get("applied_hook_kinds", [])),
         "applied_resource_response_traces": _dict_list(
             metadata.get("applied_resource_response_traces", [])
+        ),
+        "applied_llm_route_planner_hook_traces": _dict_list(
+            metadata.get("applied_llm_route_planner_hook_traces", [])
         ),
         "resource_response_awaiting_request_ids": _str_list(
             metadata.get("resource_response_awaiting_request_ids", [])
