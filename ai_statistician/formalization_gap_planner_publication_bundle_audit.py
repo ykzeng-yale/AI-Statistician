@@ -2277,6 +2277,12 @@ def _bundle_evaluation_summary_errors(
                     f"evaluation_summary.{field_name} mismatch: "
                     f"observed={observed_value} expected={expected_value}"
                 )
+        elif isinstance(expected_value, float):
+            if float(observed_value or 0.0) != expected_value:
+                errors.append(
+                    f"evaluation_summary.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
         elif isinstance(expected_value, tuple):
             observed_tuple = _str_tuple(observed_value)
             if observed_tuple != expected_value:
@@ -2605,6 +2611,21 @@ def _expected_bundle_evaluation_summary(bundle_dir: Path) -> dict[str, object]:
         ),
         "n_unaligned_primitives": int(
             evaluation_manifest.get("n_unaligned_primitives", 0) or 0
+        ),
+        "n_minimal_delta_route_options": sum(
+            int(row.get("minimal_delta_route_option_count", 0) or 0)
+            for row in rows
+        ),
+        "mean_minimal_delta_selected_route_cost": _mean_float(
+            row.get("minimal_delta_selected_route_cost", 0.0)
+            for row in rows
+            if row.get("minimal_delta_cost_graph_present") is True
+        ),
+        "n_kernel_verified_ground_truth": sum(
+            1 for row in rows if row.get("kernel_verified_ground_truth") is True
+        ),
+        "mean_alignment_coverage": _mean_float(
+            row.get("alignment_coverage", 0.0) for row in rows
         ),
         "n_realization_missing_selected_formal_primitives": sum(
             len(_str_tuple(row.get("realization_missing_selected_formal_primitives", [])))
@@ -15842,6 +15863,13 @@ def _int_mapping(value: Any) -> dict[str, int]:
         for key, item in sorted(value.items())
         if item is not None
     }
+
+
+def _mean_float(values: Any) -> float:
+    items = [float(value or 0.0) for value in values]
+    if not items:
+        return 0.0
+    return sum(items) / len(items)
 
 
 def _normalized_summary_dict(value: Any) -> dict[str, object]:

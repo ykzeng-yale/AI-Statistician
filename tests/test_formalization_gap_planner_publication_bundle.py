@@ -1733,6 +1733,13 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert payload["evaluation_summary"]["n_evaluation_rows"] == 1
     assert payload["evaluation_summary"]["n_evaluation_row_schema_valid"] == 1
     assert payload["evaluation_summary"]["n_evaluation_row_schema_invalid"] == 0
+    assert payload["evaluation_summary"]["n_minimal_delta_route_options"] == 0
+    assert (
+        payload["evaluation_summary"]["mean_minimal_delta_selected_route_cost"]
+        == 0.0
+    )
+    assert payload["evaluation_summary"]["n_kernel_verified_ground_truth"] == 0
+    assert payload["evaluation_summary"]["mean_alignment_coverage"] == 1.0
     assert (
         payload["evaluation_summary"][
             "n_rows_with_incomplete_cost_hint_baseline_coverage"

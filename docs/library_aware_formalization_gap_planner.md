@@ -331,9 +331,12 @@ non-Lean adapter teams can block kernel-attempt queues on unmet resource or
 response-validation obligations without parsing generic blocker strings.
 The publication-bundle manifest itself includes an `evaluation_summary` with
 the same realization, cost-hint, route-adoption, and quality-control counters,
-so public bundles expose semantic route weakening and readiness blockers before
-a consumer runs the separate audit command; the audit also recomputes and
-checks this top-level summary against the packaged evaluation artifacts.
+plus minimal-delta route-option totals, selected-route cost means,
+kernel-verified ground-truth counts, and mean alignment coverage. Public bundles
+therefore expose semantic route weakening, minimal-delta quality, and readiness
+blockers before a consumer runs the separate audit command; the audit also
+recomputes and checks this top-level summary against the packaged evaluation
+artifacts.
 The same bundle manifest also includes `llm_route_planner_summary` and
 `feedback_llm_route_planner_summary`, projecting request/row counts, response
 presence, accepted route plans, route-adoption status counts, and blocker

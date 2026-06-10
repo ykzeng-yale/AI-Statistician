@@ -2080,6 +2080,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_realization_omitted_cost_hint_primitives",
             "realization_cost_hint_baseline_primitives",
             "realization_omitted_cost_hint_primitives",
+            "n_minimal_delta_route_options",
+            "mean_minimal_delta_selected_route_cost",
+            "n_kernel_verified_ground_truth",
+            "mean_alignment_coverage",
             "n_rows_with_llm_route_planner_route_adoption_status",
             "n_rows_ready_for_route_adoption",
             "n_rows_pending_refinement_before_route_adoption",
@@ -2108,6 +2112,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_alignment_contract_ok": nonnegative_integer,
             "n_feedback_loop_ready": nonnegative_integer,
             "n_unaligned_primitives": nonnegative_integer,
+            "n_minimal_delta_route_options": nonnegative_integer,
+            "mean_minimal_delta_selected_route_cost": {"type": "number"},
+            "n_kernel_verified_ground_truth": nonnegative_integer,
+            "mean_alignment_coverage": {"type": "number"},
             "n_realization_missing_selected_formal_primitives": nonnegative_integer,
             "n_realization_missing_delta_alignment_primitives": nonnegative_integer,
             "n_rows_with_incomplete_cost_hint_baseline_coverage": nonnegative_integer,
@@ -3811,6 +3819,10 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         "n_alignment_contract_ok": 0,
         "n_feedback_loop_ready": 0,
         "n_unaligned_primitives": 0,
+        "n_minimal_delta_route_options": 0,
+        "mean_minimal_delta_selected_route_cost": 0.0,
+        "n_kernel_verified_ground_truth": 0,
+        "mean_alignment_coverage": 0.0,
         "n_realization_missing_selected_formal_primitives": 0,
         "n_realization_missing_delta_alignment_primitives": 0,
         "n_rows_with_incomplete_cost_hint_baseline_coverage": 0,
@@ -3864,6 +3876,40 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         ),
         "n_feedback_loop_ready": int(payload.get("n_feedback_loop_ready", 0) or 0),
         "n_unaligned_primitives": int(payload.get("n_unaligned_primitives", 0) or 0),
+        "n_minimal_delta_route_options": int(
+            payload.get(
+                "n_minimal_delta_route_options",
+                sum(
+                    int(row.get("minimal_delta_route_option_count", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "mean_minimal_delta_selected_route_cost": _manifest_float_or_row_mean(
+            payload,
+            rows,
+            "mean_minimal_delta_selected_route_cost",
+            "minimal_delta_selected_route_cost",
+            required_bool_field="minimal_delta_cost_graph_present",
+        ),
+        "n_kernel_verified_ground_truth": int(
+            payload.get(
+                "n_kernel_verified_ground_truth",
+                sum(
+                    1
+                    for row in rows
+                    if row.get("kernel_verified_ground_truth") is True
+                ),
+            )
+            or 0
+        ),
+        "mean_alignment_coverage": _manifest_float_or_row_mean(
+            payload,
+            rows,
+            "mean_alignment_coverage",
+            "alignment_coverage",
+        ),
         "n_realization_missing_selected_formal_primitives": _manifest_count_or_rows(
             payload,
             rows,
@@ -4327,6 +4373,26 @@ def _manifest_values_or_row_field(
     return tuple(dict.fromkeys(values))
 
 
+def _manifest_float_or_row_mean(
+    payload: dict[str, object],
+    rows: tuple[dict[str, Any], ...],
+    manifest_field: str,
+    row_field: str,
+    *,
+    required_bool_field: str | None = None,
+) -> float:
+    if manifest_field in payload:
+        return float(payload.get(manifest_field, 0.0) or 0.0)
+    values = [
+        float(row.get(row_field, 0.0) or 0.0)
+        for row in rows
+        if required_bool_field is None or row.get(required_bool_field) is True
+    ]
+    if not values:
+        return 0.0
+    return sum(values) / len(values)
+
+
 def _row_count_with_value(
     rows: tuple[dict[str, Any], ...],
     field_name: str,
@@ -4563,6 +4629,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('evaluation_summary', {}).get('n_realization_omitted_cost_hint_primitives')} "
             f"baseline={payload.get('evaluation_summary', {}).get('realization_cost_hint_baseline_primitives')} "
             f"omitted={payload.get('evaluation_summary', {}).get('realization_omitted_cost_hint_primitives')}"
+        ),
+        (
+            f"- Evaluation minimal delta/alignment: "
+            f"options={payload.get('evaluation_summary', {}).get('n_minimal_delta_route_options')} "
+            f"selected_cost="
+            f"{payload.get('evaluation_summary', {}).get('mean_minimal_delta_selected_route_cost')} "
+            f"alignment={payload.get('evaluation_summary', {}).get('mean_alignment_coverage')} "
+            f"kernel_truth="
+            f"{payload.get('evaluation_summary', {}).get('n_kernel_verified_ground_truth')}"
         ),
         (
             f"- Evaluation route adoption ready/pending/blockers: "

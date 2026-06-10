@@ -4210,6 +4210,19 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     bundle_manifest_payload = json.loads(
         bundle_manifest_path.read_text(encoding="utf-8")
     )
+    assert bundle_manifest_payload["evaluation_summary"][
+        "n_minimal_delta_route_options"
+    ] == 0
+    assert bundle_manifest_payload["evaluation_summary"][
+        "mean_minimal_delta_selected_route_cost"
+    ] == 0.0
+    assert bundle_manifest_payload["evaluation_summary"][
+        "n_kernel_verified_ground_truth"
+    ] == 0
+    assert (
+        bundle_manifest_payload["evaluation_summary"]["mean_alignment_coverage"]
+        == 1.0
+    )
     corrupted_bundle_manifest = json.loads(json.dumps(bundle_manifest_payload))
     corrupted_bundle_manifest["evaluation_summary"][
         "n_realization_omitted_cost_hint_primitives"
@@ -4217,6 +4230,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     corrupted_bundle_manifest["evaluation_summary"][
         "realization_omitted_cost_hint_primitives"
     ] = []
+    corrupted_bundle_manifest["evaluation_summary"]["mean_alignment_coverage"] = 0.0
     bundle_manifest_path.write_text(
         json.dumps(corrupted_bundle_manifest, indent=2),
         encoding="utf-8",
@@ -4232,6 +4246,15 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     }
     assert not rejected_bundle_summary_payload["all_ok"]
     assert "bundle_evaluation_summary_consistent" in bundle_summary_failed_names
+    rejected_bundle_summary_check = next(
+        row
+        for row in rejected_bundle_summary_payload["checks"]
+        if row["check_name"] == "bundle_evaluation_summary_consistent"
+    )
+    assert any(
+        "mean_alignment_coverage" in error
+        for error in rejected_bundle_summary_check.get("errors", [])
+    )
     bundle_manifest_path.write_text(
         json.dumps(bundle_manifest_payload, indent=2),
         encoding="utf-8",
