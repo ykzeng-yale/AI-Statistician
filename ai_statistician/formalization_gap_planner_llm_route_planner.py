@@ -2562,6 +2562,13 @@ def validate_llm_route_planner_response_payload_validation_manifest(
             "n_request_bound_payload_context_inventory_total_rows must match "
             "request_bound row inventory total"
         )
+    embedded_row_schema = manifest.get("response_payload_validation_row_schema", {})
+    for index, row in enumerate(rows):
+        row_errors = validate_llm_route_planner_response_payload_validation_row(
+            row,
+            embedded_row_schema if isinstance(embedded_row_schema, Mapping) else None,
+        )
+        errors.extend(f"rows[{index}].{error}" for error in row_errors)
     embedded_schema_ids = {
         "response_payload_schema": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
         "response_payload_validation_manifest_schema": (
@@ -3902,9 +3909,35 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
                 "type": "string",
                 "const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
             },
-            "response_payload_schema": {"type": "object"},
-            "response_payload_validation_manifest_schema": {"type": "object"},
-            "response_payload_validation_row_schema": {"type": "object"},
+            "response_payload_schema": {
+                "type": "object",
+                "required": ["$id"],
+                "properties": {
+                    "$id": {"const": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID}
+                },
+            },
+            "response_payload_validation_manifest_schema": {
+                "type": "object",
+                "required": ["$id"],
+                "properties": {
+                    "$id": {
+                        "const": (
+                            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID
+                        )
+                    }
+                },
+            },
+            "response_payload_validation_row_schema": {
+                "type": "object",
+                "required": ["$id"],
+                "properties": {
+                    "$id": {
+                        "const": (
+                            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID
+                        )
+                    }
+                },
+            },
             "n_payloads": {"type": "integer"},
             "n_valid_payloads": {"type": "integer"},
             "n_invalid_payloads": {"type": "integer"},

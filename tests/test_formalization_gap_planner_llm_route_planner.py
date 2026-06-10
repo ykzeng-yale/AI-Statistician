@@ -4494,6 +4494,17 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
         LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID
     )
     manifest_schema = payload["response_payload_validation_manifest_schema"]
+    assert manifest_schema["properties"]["response_payload_schema"]["properties"][
+        "$id"
+    ]["const"] == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID
+    assert manifest_schema["properties"][
+        "response_payload_validation_manifest_schema"
+    ]["properties"]["$id"]["const"] == (
+        LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID
+    )
+    assert manifest_schema["properties"]["response_payload_validation_row_schema"][
+        "properties"
+    ]["$id"]["const"] == LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID
     assert (
         validate_llm_route_planner_response_payload_validation_manifest(
             payload,
@@ -4554,6 +4565,15 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
         + LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID
         in validate_llm_route_planner_response_payload_validation_manifest(
             drifted_schema_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_row_manifest = deepcopy(payload)
+    drifted_row_manifest["rows"][0].pop("payload_schema_id")
+    assert (
+        "rows[0].payload_schema_id required"
+        in validate_llm_route_planner_response_payload_validation_manifest(
+            drifted_row_manifest,
             manifest_schema,
         )
     )
