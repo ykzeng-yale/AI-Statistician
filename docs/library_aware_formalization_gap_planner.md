@@ -423,7 +423,12 @@ compatible with the request target, plus structured
 `target_prover_family`, and source-field provenance. Response validation filters
 candidate declarations through those structured rows when present, so a Rocq
 route cannot cite a Lean-only declaration merely because both appeared in a
-mixed library context.
+mixed library context. Pending resource-request candidates are treated as search
+seeds, not as accepted library evidence: an LLM route may use them to ask for
+formal-library or prover feedback, but it cannot justify `already_exists`,
+`exact_exists`, or reuse coverage from them until a route-level formal context
+row, `formal_declaration_hits`, or the Lean legacy `lean_declaration_hits`
+appears in accepted context.
 
 For a paper supplement or external prover smoke test, the same public path can
 be run as one command:
@@ -1297,7 +1302,10 @@ The current implementation composes four existing AI Statistician artifacts:
    theorem objects, assumptions, procedure, claim, theorem shape, primitive
    seeds, literature queries, and formal-library grounding queries that define
    the target theorem context for route synthesis; they do not justify
-   source-backed mathematical claims. Resource-response ledger rows include bounded response summaries,
+   source-backed mathematical claims. Resource-request candidate declarations
+   are also only search hints; exact/reuse coverage requires accepted formal
+   declaration evidence or route-level formal context. Resource-response ledger
+   rows include bounded response summaries,
    source snippets or payload excerpts, response artifacts, contract status,
    route-evidence nodes, coverage updates, and residual goals, so a feedback
    LLM pass can revise from actual literature/tool evidence rather than only

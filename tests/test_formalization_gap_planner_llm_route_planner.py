@@ -415,6 +415,61 @@ def _make_rank_uniformity_near_exists_response() -> dict[str, object]:
     return response
 
 
+def _make_rank_uniformity_reuse_response(
+    declaration_row: dict[str, object],
+) -> dict[str, object]:
+    response = _llm_response_payload()
+    rank_node = response["lean_realization_dag_nodes"][1]
+    assert isinstance(rank_node, dict)
+    rank_node["coverage_bucket"] = "already_exists"
+    rank_node.pop("candidate_declarations", None)
+    rank_node["candidate_declaration_rows"] = [dict(declaration_row)]
+    rank_node["formalization_action"] = "reuse"
+    response["route_alignment_edges"][0]["alignment_status"] = "exact"
+    response["route_alignment_edges"][0]["alignment_rationale"] = (
+        "The response claims the rank primitive can be reused from a listed "
+        "formal declaration."
+    )
+    response["route_alignment_edges"].append(
+        {
+            "informal_node_id": "informal:exchangeability",
+            "formal_node_id": "formal:exchangeability",
+            "alignment_status": "exact",
+            "alignment_rationale": (
+                "The exchangeability assumption maps to the existing formal "
+                "declaration listed in the request context."
+            ),
+        }
+    )
+    minimal_delta = response["minimal_delta_plan"]
+    assert isinstance(minimal_delta, dict)
+    minimal_delta["route_cost"] = 0
+    minimal_delta["bridge_lemmas"] = []
+    rank_cost = minimal_delta["primitive_costs"][1]
+    assert isinstance(rank_cost, dict)
+    rank_cost["coverage_bucket"] = "already_exists"
+    rank_cost["base_cost"] = 0
+    rank_cost["total_cost"] = 0
+    rank_cost["cost_rationale"] = (
+        "The response claims the rank primitive is already covered."
+    )
+    graph = minimal_delta["and_or_cost_graph"]
+    assert isinstance(graph, dict)
+    route_options = graph["route_options"]
+    assert isinstance(route_options, list)
+    route_options[0]["route_cost"] = 0
+    route_options[0]["cost_rationale"] = (
+        "The response claims both selected primitives reuse existing declarations."
+    )
+    route_options[1]["route_cost"] = 7
+    standalone_rank = response["standalone_route"]["primitives"][1]
+    assert isinstance(standalone_rank, dict)
+    standalone_rank["coverage_status"] = "exact_exists"
+    standalone_rank.pop("candidate_declarations", None)
+    standalone_rank["candidate_declaration_rows"] = [dict(declaration_row)]
+    return response
+
+
 def _make_rank_uniformity_omitted_response(
     *,
     include_baseline_route_option: bool = False,
@@ -6857,6 +6912,74 @@ def test_llm_route_planner_rejects_existing_coverage_without_declaration() -> No
         "existing-library coverage requires grounded candidate_declarations" in error
         for error in row["errors"]
     )
+
+
+def test_llm_route_planner_rejects_reuse_from_resource_request_seed() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_resource_request_reuse"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_request_queue_dir = _write_resource_request_queue(root)
+    declaration_row = {
+        "declaration": "Probability.rankUniformityBridge",
+        "target_prover_family": "lean4",
+        "source_field": "resource_request_candidate_declarations",
+    }
+    bad_response = _make_rank_uniformity_reuse_response(declaration_row)
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_request_queue_dir=(
+            resource_request_queue_dir
+        ),
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "existing-library coverage uses provisional or unsupported formal declaration evidence"
+        in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_accepts_reuse_from_accepted_formal_hit() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_formal_hit_reuse"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    declaration_row = {
+        "declaration": "Probability.rankUniformityBridge",
+        "target_prover_family": "lean4",
+        "source_field": "formal_declaration_hits",
+    }
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    rank_primitive = input_payload["routes"][0]["primitives"][1]
+    rank_primitive["coverage_status"] = "exact_exists"
+    rank_primitive["candidate_declaration_rows"] = [declaration_row]
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    response = _make_rank_uniformity_reuse_response(declaration_row)
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
 
 
 def test_llm_route_planner_rejects_unknown_formal_coverage_without_search_request() -> None:

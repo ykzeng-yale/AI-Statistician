@@ -2329,6 +2329,7 @@ def _user_prompt(
             "If a needed source is not listed, emit a literature search_request instead of inventing a source_ref.",
             "Any informal node or standalone primitive with SEARCH_REQUESTED/source_search_pending status must have a matching literature/source search_request.",
             "Existing-library or reuse claims may cite only candidate_declarations or candidate_declaration_rows listed in context_packet.available_formal_declarations/available_formal_declaration_rows.",
+            "Resource-request candidate declarations are search seeds only; they cannot justify existing-library or reuse coverage until accepted formal_declaration_hits, lean_declaration_hits, or route-level formal context is available.",
             "Prefer candidate_declaration_rows over bare candidate_declarations so target_prover_family provenance is preserved.",
             "If a needed declaration is not listed, emit a formal_library search_request instead of inventing a candidate_declaration.",
             "Any formal-realization node or standalone primitive with unknown/formal-library-search-pending coverage must have a matching formal_library/library search_request unless it declares a formal gap boundary or concrete delta action.",
@@ -4674,6 +4675,9 @@ def _response_formal_declaration_grounding_errors(
     errors.extend(
         _response_candidate_declaration_row_provenance_errors(payload, request)
     )
+    errors.extend(
+        _response_existing_coverage_declaration_support_errors(payload, request)
+    )
     for index, node in enumerate(
         _formal_realization_nodes_from_payload(
             payload,
@@ -4698,8 +4702,147 @@ def _response_formal_declaration_grounding_errors(
             errors.append(
                 "standalone_route.primitives"
                 f"[{index}] existing-library coverage requires grounded candidate_declarations"
+        )
+    return errors
+
+
+def _response_existing_coverage_declaration_support_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    support_sources = _available_formal_declaration_existing_support_for_request(
+        request
+    )
+    if not support_sources:
+        return []
+
+    errors: list[str] = []
+    target_prover_family = str(request.get("target_prover_family", ""))
+    for index, node in enumerate(
+        _formal_realization_nodes_from_payload(
+            payload,
+            target_prover_family=target_prover_family,
+        )
+    ):
+        if not _formal_node_claims_existing_library(node):
+            continue
+        inherited_target = str(
+            node.get("target_prover_family", "")
+            or node.get("target_prover", "")
+            or payload.get("target_prover_family", "")
+            or target_prover_family
+        )
+        unsupported = _candidate_declarations_without_existing_support(
+            node,
+            support_sources=support_sources,
+            inherited_target_prover_family=inherited_target,
+        )
+        if unsupported:
+            errors.append(
+                "formal_realization_dag_nodes"
+                f"[{index}] existing-library coverage uses provisional or "
+                "unsupported formal declaration evidence: "
+                + "; ".join(unsupported[:8])
+            )
+
+    route = _standalone_route_from_payload(
+        payload,
+        target_prover_family=target_prover_family,
+    )
+    for index, primitive in enumerate(_dict_tuple(route.get("primitives", []))):
+        if not _route_primitive_claims_existing_library(primitive):
+            continue
+        inherited_target = str(
+            primitive.get("target_prover_family", "")
+            or primitive.get("target_prover", "")
+            or route.get("target_prover_family", "")
+            or route.get("target_prover", "")
+            or payload.get("target_prover_family", "")
+            or target_prover_family
+        )
+        unsupported = _candidate_declarations_without_existing_support(
+            primitive,
+            support_sources=support_sources,
+            inherited_target_prover_family=inherited_target,
+        )
+        if unsupported:
+            errors.append(
+                "standalone_route.primitives"
+                f"[{index}] existing-library coverage uses provisional or "
+                "unsupported formal declaration evidence: "
+                + "; ".join(unsupported[:8])
             )
     return errors
+
+
+def _candidate_declarations_without_existing_support(
+    node: Mapping[str, Any],
+    *,
+    support_sources: Mapping[tuple[str, str], set[str]],
+    inherited_target_prover_family: str,
+) -> list[str]:
+    unsupported: list[str] = []
+    for row in _node_candidate_declaration_rows(
+        node,
+        inherited_target_prover_family=inherited_target_prover_family,
+    ):
+        declaration = str(row.get("declaration", "")).strip()
+        declaration_key = _formal_declaration_key(declaration)
+        target_key = _target_prover_key(
+            row.get("target_prover_family", "") or inherited_target_prover_family
+        )
+        if not declaration_key:
+            continue
+        source_fields = support_sources.get((declaration_key, target_key), set())
+        if not source_fields and target_key:
+            source_fields = support_sources.get((declaration_key, ""), set())
+        if not any(
+            _formal_declaration_source_field_supports_existing_coverage(source_field)
+            for source_field in source_fields
+        ):
+            source_preview = str(row.get("source_field", "")).strip()
+            unsupported.append(
+                f"{declaration}@{row.get('target_prover_family', '')}"
+                + (f" source_field={source_preview}" if source_preview else "")
+            )
+    return unsupported
+
+
+def _node_candidate_declaration_rows(
+    node: Mapping[str, Any],
+    *,
+    inherited_target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    rows = list(
+        _candidate_declaration_rows(
+            node.get("candidate_declaration_rows", []),
+            inherited_target_prover_family=inherited_target_prover_family,
+            fallback_source_field="candidate_declaration_rows",
+        )
+    )
+    rows.extend(
+        {
+            "declaration": declaration,
+            "target_prover_family": inherited_target_prover_family,
+            "source_field": "candidate_declarations",
+        }
+        for declaration in _formal_declaration_values(
+            node.get("candidate_declarations", [])
+        )
+    )
+    compact: list[dict[str, object]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for row in rows:
+        key = (
+            _formal_declaration_key(row.get("declaration", "")),
+            _target_prover_key(row.get("target_prover_family", "")),
+            _formal_declaration_source_field_key(row.get("source_field", "")),
+        )
+        if not key[0] or key in seen:
+            continue
+        seen.add(key)
+        compact.append(row)
+    return tuple(compact)
 
 
 def _response_candidate_declaration_row_provenance_errors(
@@ -5327,6 +5470,83 @@ def _available_formal_declaration_row_provenance_for_request(
                 "available_formal_declarations"
             )
     return provenance
+
+
+def _available_formal_declaration_existing_support_for_request(
+    request: Mapping[str, Any],
+) -> dict[tuple[str, str], set[str]]:
+    context_packet = _dict_value(request, "context_packet")
+    structured_rows = _dict_tuple(
+        context_packet.get("available_formal_declaration_rows", [])
+    )
+    support: dict[tuple[str, str], set[str]] = {}
+    target_prover_family = str(request.get("target_prover_family", ""))
+    for row in _target_compatible_formal_declaration_rows(
+        structured_rows,
+        target_prover_family=target_prover_family,
+    ):
+        declaration_key = _formal_declaration_key(row.get("declaration", ""))
+        target_key = _target_prover_key(
+            row.get("target_prover_family", "") or target_prover_family
+        )
+        source_field = _formal_declaration_source_field_key(
+            row.get("source_field", "")
+        )
+        if declaration_key and source_field:
+            support.setdefault((declaration_key, target_key), set()).add(
+                source_field
+            )
+
+    if structured_rows:
+        return support
+
+    for declaration in _str_tuple(
+        context_packet.get("available_formal_declarations", [])
+    ):
+        declaration_key = _formal_declaration_key(declaration)
+        target_key = _target_prover_key(target_prover_family)
+        if declaration_key:
+            support.setdefault((declaration_key, target_key), set()).add(
+                "available_formal_declarations"
+            )
+    return support
+
+
+def _formal_declaration_source_field_supports_existing_coverage(
+    value: object,
+) -> bool:
+    key = _formal_declaration_source_field_key(value)
+    if not key:
+        return False
+    if key in {
+        "available_formal_declaration_rows",
+        "available_formal_declarations",
+    }:
+        return False
+    if (
+        "resource_request" in key
+        or key.startswith("request_payload_")
+        or key.startswith("pending_")
+    ):
+        return False
+    return (
+        key
+        in {
+            "candidate_declaration",
+            "candidate_declarations",
+            "candidate_declaration_rows",
+            "declaration",
+            "declaration_name",
+            "declaration_names",
+            "formal_declaration_hits",
+            "lean_declaration",
+            "lean_declarations",
+            "lean_declaration_hits",
+            "route_level_formal_context",
+        }
+        or key.endswith("_formal_context")
+        or key.endswith("_declaration_hits")
+    )
 
 
 def _collect_formal_declaration_rows(
