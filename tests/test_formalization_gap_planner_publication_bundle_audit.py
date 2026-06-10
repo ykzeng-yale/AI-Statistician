@@ -6523,6 +6523,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert (
         audit_payload[
+            "n_optional_llm_route_planner_seed_route_selection_contract_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_seed_route_selection_contract_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
             "n_optional_llm_route_planner_seed_route_selection_checked"
         ]
         == 1
@@ -6538,6 +6550,12 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         == "optional_llm_route_planner_seed_route_selection_summary"
         and row["ok"]
         and "selected=1" in row["observed"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_seed_route_selection_contract"
+        and row["ok"]
         for row in audit_payload["checks"]
     )
     assert any(
@@ -6738,6 +6756,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         audit_payload[
             "n_optional_feedback_llm_route_planner_seed_route_selection_summary_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_seed_route_selection_contract_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_seed_route_selection_contract_valid"
         ]
         == 1
     )
@@ -7929,6 +7959,7 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         for row in rejected_selection_payload["checks"]
         if row["check_name"]
         in {
+            "optional_llm_route_planner_seed_route_selection_contract",
             "optional_llm_route_planner_seed_route_selection_summary",
             "optional_llm_route_planner_row_0_seed_route_selection",
         }
@@ -7938,6 +7969,12 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         rejected_selection_payload[
             "n_optional_llm_route_planner_seed_route_selection_summary_valid"
+        ]
+        == 0
+    )
+    assert (
+        rejected_selection_payload[
+            "n_optional_llm_route_planner_seed_route_selection_contract_valid"
         ]
         == 0
     )

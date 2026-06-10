@@ -150,6 +150,7 @@ from .formalization_gap_planner_prover_adapter_contract import (
 from .formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID,
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
+    validate_llm_route_planner_seed_route_selection_payload,
     validate_standalone_input_payload,
 )
 from .formalization_gap_planner_source_grounding_audit import (
@@ -1163,6 +1164,19 @@ def audit_formalization_gap_planner_publication_bundle(
             == "optional_llm_route_planner_seed_route_selection_summary"
             and check.ok
         ),
+        "n_optional_llm_route_planner_seed_route_selection_contract_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_seed_route_selection_contract"
+        ),
+        "n_optional_llm_route_planner_seed_route_selection_contract_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_seed_route_selection_contract"
+            and check.ok
+        ),
         "n_optional_llm_route_planner_seed_route_selection_checked": sum(
             1
             for check in checks
@@ -1488,6 +1502,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name
             == "optional_feedback_llm_route_planner_seed_route_selection_summary"
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_seed_route_selection_contract_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_seed_route_selection_contract"
+        ),
+        "n_optional_feedback_llm_route_planner_seed_route_selection_contract_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_seed_route_selection_contract"
             and check.ok
         ),
         "n_optional_feedback_llm_route_planner_seed_route_selection_checked": sum(
@@ -6732,6 +6759,11 @@ def _llm_route_planner_optional_checks(
     requests, request_errors = _read_jsonl_dict_rows_no_error(requests_jsonl_path)
     rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
     seed_errors = validate_standalone_input_payload(seed_payload)
+    seed_route_selection_contract_errors = (
+        validate_llm_route_planner_seed_route_selection_payload(
+            seed_payload.get("llm_route_planner_seed_route_selection", {})
+        )
+    )
     manifest_schema_errors = validate_llm_route_planner_manifest(
         manifest,
         manifest_schema if manifest_schema else None,
@@ -6959,6 +6991,18 @@ def _llm_route_planner_optional_checks(
             "; ".join(seed_errors) if seed_errors else "ok",
             not seed_errors,
             errors=tuple(seed_errors),
+        ),
+        _check(
+            f"{check_prefix}_seed_route_selection_contract",
+            "optional_artifacts",
+            "LLM route-planner standalone seed route-selection summary validates against public route-selection contract",
+            (
+                "; ".join(seed_route_selection_contract_errors)
+                if seed_route_selection_contract_errors
+                else "ok"
+            ),
+            not seed_route_selection_contract_errors,
+            errors=tuple(seed_route_selection_contract_errors),
         ),
         _check(
             f"{check_prefix}_generic_formal_dag_fields",
@@ -16673,6 +16717,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional LLM route-planner seed DAG preserved: {payload.get('n_optional_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_llm_route_planner_seed_dag_checked')}",
         f"- Optional LLM route-planner seed search handoff preserved: {payload.get('n_optional_llm_route_planner_seed_search_handoff_valid')}/{payload.get('n_optional_llm_route_planner_seed_search_handoff_checked')}",
         f"- Optional LLM route-planner seed route-adoption readiness preserved: {payload.get('n_optional_llm_route_planner_seed_route_adoption_readiness_valid')}/{payload.get('n_optional_llm_route_planner_seed_route_adoption_readiness_checked')}",
+        f"- Optional LLM route-planner seed route-selection contract valid: {payload.get('n_optional_llm_route_planner_seed_route_selection_contract_valid')}/{payload.get('n_optional_llm_route_planner_seed_route_selection_contract_checked')}",
         f"- Optional LLM route-planner seed route-selection summary valid: {payload.get('n_optional_llm_route_planner_seed_route_selection_summary_valid')}/{payload.get('n_optional_llm_route_planner_seed_route_selection_summary_checked')}",
         f"- Optional LLM route-planner seed route-selection traces preserved: {payload.get('n_optional_llm_route_planner_seed_route_selection_valid')}/{payload.get('n_optional_llm_route_planner_seed_route_selection_checked')}",
         f"- Optional LLM route-planner request evidence bounds valid: {payload.get('n_optional_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_llm_route_planner_request_evidence_bound_checked')}",
@@ -16690,6 +16735,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional feedback LLM route-planner seed DAG preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_dag_checked')}",
         f"- Optional feedback LLM route-planner seed search handoff preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_search_handoff_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_search_handoff_checked')}",
         f"- Optional feedback LLM route-planner seed route-adoption readiness preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_adoption_readiness_checked')}",
+        f"- Optional feedback LLM route-planner seed route-selection contract valid: {payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_contract_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_contract_checked')}",
         f"- Optional feedback LLM route-planner seed route-selection summary valid: {payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_summary_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_summary_checked')}",
         f"- Optional feedback LLM route-planner seed route-selection traces preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_checked')}",
         f"- Optional feedback LLM route-planner request evidence bounds valid: {payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_checked')}",

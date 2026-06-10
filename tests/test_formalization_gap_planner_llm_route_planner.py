@@ -58,6 +58,7 @@ from ai_statistician.formalization_gap_planner_route_replan_handoff import (
 )
 from ai_statistician.formalization_gap_planner_standalone import (
     export_formalization_gap_planner_standalone_plan,
+    validate_llm_route_planner_seed_route_selection_payload,
     validate_standalone_input_payload,
 )
 from ai_statistician.formalization_gap_planner_source_grounding_audit import (
@@ -5504,6 +5505,8 @@ def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() ->
     selection = payload["standalone_seed"][
         "llm_route_planner_seed_route_selection"
     ]
+    assert validate_llm_route_planner_seed_route_selection_payload(selection) == []
+    assert validate_standalone_input_payload(payload["standalone_seed"]) == []
     assert selection["selection_status"] == "accepted_llm_routes_ranked"
     assert selection["selected_route_id"] == "rank_route_alt"
     assert selection["selected_seed_route_id"] == "rank_route_low_cost_seed"
@@ -5547,6 +5550,24 @@ def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() ->
         trace["llm_route_planner_seed_minimal_delta_route_cost"]
         for trace in traces
     ] == [4.0, 8.0]
+
+    corrupted_seed = deepcopy(payload["standalone_seed"])
+    corrupted_selection = corrupted_seed["llm_route_planner_seed_route_selection"]
+    corrupted_selection["n_route_candidates"] = 99
+    corrupted_selection["selection_rows"][0]["selected"] = False
+    selection_errors = validate_llm_route_planner_seed_route_selection_payload(
+        corrupted_selection
+    )
+    assert "n_route_candidates must match selection_rows length" in selection_errors
+    assert (
+        "selection_rows must mark exactly one selected route, found 0"
+        in selection_errors
+    )
+    standalone_errors = validate_standalone_input_payload(corrupted_seed)
+    assert any(
+        error.startswith("llm_route_planner_seed_route_selection.")
+        for error in standalone_errors
+    )
 
 
 def test_llm_route_planner_blocks_route_adoption_on_formal_gap_boundary() -> None:

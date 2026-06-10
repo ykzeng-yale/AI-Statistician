@@ -45,6 +45,13 @@ FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-seed-route-selection:1"
 )
+FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_KIND = (
+    "formalization_gap_planner_llm_route_planner_seed_route_selection"
+)
+FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS = (
+    "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+)
+LLM_ROUTE_PLANNER_READY_FOR_STANDALONE_REPLAY = "READY_FOR_STANDALONE_REPLAY"
 FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT = (
     "formalization_gap_planner_standalone_input"
 )
@@ -482,6 +489,14 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
     routes = _raw_routes(payload)
     if not routes:
         errors.append("routes missing")
+    seed_selection = payload.get("llm_route_planner_seed_route_selection")
+    if seed_selection is not None:
+        errors.extend(
+            "llm_route_planner_seed_route_selection." + error
+            for error in validate_llm_route_planner_seed_route_selection_payload(
+                seed_selection
+            )
+        )
     payload_target = str(payload.get("target_prover_family", "")).strip()
     mixed_payload_target_keys = _mixed_target_prover_keys(payload_target)
     payload_target_key = (
@@ -546,6 +561,15 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
                 f"{metadata_target} does not match routes[{idx}].target_prover_family "
                 f"{route_target}"
             )
+        errors.extend(
+            _llm_seed_route_selection_trace_errors(route, location=f"routes[{idx}]")
+        )
+        errors.extend(
+            _llm_seed_route_selection_trace_errors(
+                metadata,
+                location=f"routes[{idx}].replan_metadata",
+            )
+        )
         effective_target = route_target or metadata_target or payload_target
         effective_target_key = (
             route_target_key or metadata_target_key or payload_target_key
@@ -575,6 +599,231 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
                     expected_target_key=effective_target_key,
                 )
             )
+    return errors
+
+
+def validate_llm_route_planner_seed_route_selection_payload(
+    payload: Any,
+) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(payload, dict):
+        return ["payload must be a JSON object"]
+    required_fields = (
+        "selection_kind",
+        "selection_status",
+        "selection_policy",
+        "selected_route_id",
+        "n_route_candidates",
+        "selection_rows",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+    )
+    for field_name in required_fields:
+        if field_name not in payload:
+            errors.append(f"{field_name} missing")
+    if (
+        str(payload.get("selection_kind", ""))
+        != FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_KIND
+    ):
+        errors.append("selection_kind mismatch")
+    if str(payload.get("selection_status", "")) not in {
+        "accepted_llm_routes_ranked",
+        "fallback_routes_ranked",
+    }:
+        errors.append("selection_status unsupported")
+    if not str(payload.get("selection_policy", "")).strip():
+        errors.append("selection_policy missing")
+    if (
+        payload.get("proof_evidence_status")
+        != FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS
+    ):
+        errors.append("proof_evidence_status mismatch")
+    if not str(payload.get("proof_evidence_boundary", "")).strip():
+        errors.append("proof_evidence_boundary missing")
+
+    raw_rows = payload.get("selection_rows", [])
+    if not isinstance(raw_rows, list):
+        errors.append("selection_rows must be array")
+        selection_rows: list[dict[str, Any]] = []
+    else:
+        selection_rows = [row for row in raw_rows if isinstance(row, dict)]
+        if len(selection_rows) != len(raw_rows):
+            errors.append("selection_rows items must be objects")
+
+    candidate_count = _int_or_none(payload.get("n_route_candidates"))
+    if candidate_count is None or candidate_count < 0:
+        errors.append("n_route_candidates must be nonnegative integer")
+    elif candidate_count != len(selection_rows):
+        errors.append("n_route_candidates must match selection_rows length")
+    ready_count = _int_or_none(payload.get("n_ready_route_candidates", 0))
+    if ready_count is None or ready_count < 0:
+        errors.append("n_ready_route_candidates must be nonnegative integer")
+    else:
+        computed_ready_count = sum(
+            1
+            for row in selection_rows
+            if str(row.get("route_adoption_status", ""))
+            == LLM_ROUTE_PLANNER_READY_FOR_STANDALONE_REPLAY
+        )
+        if ready_count != computed_ready_count:
+            errors.append("n_ready_route_candidates must match selection_rows")
+    contract_valid_count = _int_or_none(
+        payload.get("n_contract_valid_route_candidates", 0)
+    )
+    if contract_valid_count is None or contract_valid_count < 0:
+        errors.append(
+            "n_contract_valid_route_candidates must be nonnegative integer"
+        )
+    else:
+        computed_contract_valid_count = sum(
+            1 for row in selection_rows if row.get("response_contract_ok") is True
+        )
+        if contract_valid_count != computed_contract_valid_count:
+            errors.append(
+                "n_contract_valid_route_candidates must match selection_rows"
+            )
+
+    ranks: list[int] = []
+    selected_rows: list[dict[str, Any]] = []
+    for idx, row in enumerate(selection_rows):
+        row_errors = _llm_seed_route_selection_row_errors(row)
+        errors.extend(f"selection_rows[{idx}].{error}" for error in row_errors)
+        rank = _int_or_none(row.get("selection_rank"))
+        if rank is not None:
+            ranks.append(rank)
+        if row.get("selected") is True:
+            selected_rows.append(row)
+    if ranks and sorted(ranks) != list(range(1, len(selection_rows) + 1)):
+        errors.append("selection_rows ranks must be consecutive from 1")
+    if selection_rows and len(selected_rows) != 1:
+        errors.append(
+            f"selection_rows must mark exactly one selected route, found {len(selected_rows)}"
+        )
+    if selected_rows:
+        selected = selected_rows[0]
+        if _int_or_none(selected.get("selection_rank")) != 1:
+            errors.append("selected selection_row must have rank 1")
+        expected_summary_fields = (
+            ("selected_route_id", "route_id"),
+            ("selected_seed_route_id", "seed_route_id"),
+            ("selected_llm_route_planner_row_id", "llm_route_planner_row_id"),
+            ("selected_request_id", "request_id"),
+            ("selected_route_adoption_status", "route_adoption_status"),
+        )
+        for summary_field, row_field in expected_summary_fields:
+            if str(payload.get(summary_field, "")) != str(selected.get(row_field, "")):
+                errors.append(f"{summary_field} must match selected selection_row")
+        selected_cost = _float_or_none(selected.get("minimal_delta_route_cost"))
+        summary_cost = _float_or_none(payload.get("selected_minimal_delta_route_cost"))
+        if payload.get("selected_minimal_delta_route_cost") is not None and (
+            summary_cost is None or summary_cost < 0
+        ):
+            errors.append(
+                "selected_minimal_delta_route_cost must be nonnegative number or null"
+            )
+        if selected_cost != summary_cost:
+            errors.append(
+                "selected_minimal_delta_route_cost must match selected selection_row"
+            )
+    return errors
+
+
+def _llm_seed_route_selection_row_errors(row: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    required_fields = (
+        "selection_rank",
+        "selected",
+        "selection_reason",
+        "source_order",
+        "route_id",
+        "seed_route_id",
+        "route_adoption_status",
+        "route_adoption_status_rank",
+        "route_adoption_blocker_count",
+        "route_adoption_blockers",
+        "acceptance_status",
+        "minimal_delta_route_cost",
+        "response_contract_ok",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+    )
+    for field_name in required_fields:
+        if field_name not in row:
+            errors.append(f"{field_name} missing")
+    rank = _int_or_none(row.get("selection_rank"))
+    if rank is None or rank < 1:
+        errors.append("selection_rank must be positive integer")
+    if not isinstance(row.get("selected"), bool):
+        errors.append("selected must be boolean")
+    if not str(row.get("selection_reason", "")).strip():
+        errors.append("selection_reason missing")
+    source_order = _int_or_none(row.get("source_order"))
+    if source_order is None or source_order < 0:
+        errors.append("source_order must be nonnegative integer")
+    status_rank = _int_or_none(row.get("route_adoption_status_rank"))
+    if status_rank is None or status_rank < 0:
+        errors.append("route_adoption_status_rank must be nonnegative integer")
+    blocker_count = _int_or_none(row.get("route_adoption_blocker_count"))
+    blockers = row.get("route_adoption_blockers", [])
+    if blocker_count is None or blocker_count < 0:
+        errors.append("route_adoption_blocker_count must be nonnegative integer")
+    if not isinstance(blockers, list) or any(
+        not isinstance(blocker, str) for blocker in blockers
+    ):
+        errors.append("route_adoption_blockers must be string array")
+    elif blocker_count != len(blockers):
+        errors.append("route_adoption_blocker_count must match route_adoption_blockers")
+    route_cost = _float_or_none(row.get("minimal_delta_route_cost"))
+    if row.get("minimal_delta_route_cost") is not None and (
+        route_cost is None or route_cost < 0
+    ):
+        errors.append("minimal_delta_route_cost must be nonnegative number or null")
+    if not isinstance(row.get("response_contract_ok"), bool):
+        errors.append("response_contract_ok must be boolean")
+    if (
+        row.get("proof_evidence_status")
+        != FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS
+    ):
+        errors.append("proof_evidence_status mismatch")
+    if not str(row.get("proof_evidence_boundary", "")).strip():
+        errors.append("proof_evidence_boundary missing")
+    return errors
+
+
+def _llm_seed_route_selection_trace_errors(
+    payload: Any,
+    *,
+    location: str,
+) -> list[str]:
+    if not isinstance(payload, dict):
+        return []
+    trace_fields = {
+        "llm_route_planner_seed_selected",
+        "llm_route_planner_seed_selection_rank",
+        "llm_route_planner_seed_selection_reason",
+        "llm_route_planner_seed_minimal_delta_route_cost",
+    }
+    if not trace_fields.intersection(payload):
+        return []
+    errors: list[str] = []
+    if "llm_route_planner_seed_selected" in payload and not isinstance(
+        payload.get("llm_route_planner_seed_selected"),
+        bool,
+    ):
+        errors.append(f"{location}.llm_route_planner_seed_selected must be boolean")
+    rank = _int_or_none(payload.get("llm_route_planner_seed_selection_rank"))
+    if rank is None or rank < 1:
+        errors.append(
+            f"{location}.llm_route_planner_seed_selection_rank must be positive integer"
+        )
+    if not str(payload.get("llm_route_planner_seed_selection_reason", "")).strip():
+        errors.append(f"{location}.llm_route_planner_seed_selection_reason missing")
+    cost = payload.get("llm_route_planner_seed_minimal_delta_route_cost")
+    parsed_cost = _float_or_none(cost)
+    if cost is not None and (parsed_cost is None or parsed_cost < 0):
+        errors.append(
+            f"{location}.llm_route_planner_seed_minimal_delta_route_cost must be nonnegative number or null"
+        )
     return errors
 
 
@@ -976,7 +1225,11 @@ def _llm_seed_route_selection_schema_def() -> dict[str, object]:
             "minimal_delta_route_cost": nullable_nonnegative_number,
             "minimal_delta_selected_route_option_id": {"type": "string"},
             "response_contract_ok": {"type": "boolean"},
-            "proof_evidence_status": {"const": PROOF_EVIDENCE_STATUS},
+            "proof_evidence_status": {
+                "const": (
+                    FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS
+                )
+            },
             "proof_evidence_boundary": {
                 "type": "string",
                 "minLength": 1,
@@ -999,7 +1252,7 @@ def _llm_seed_route_selection_schema_def() -> dict[str, object]:
         "properties": {
             "selection_kind": {
                 "const": (
-                    "formalization_gap_planner_llm_route_planner_seed_route_selection"
+                    FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_KIND
                 )
             },
             "selection_status": {
@@ -1025,7 +1278,11 @@ def _llm_seed_route_selection_schema_def() -> dict[str, object]:
                 "type": "array",
                 "items": selection_row_schema,
             },
-            "proof_evidence_status": {"const": PROOF_EVIDENCE_STATUS},
+            "proof_evidence_status": {
+                "const": (
+                    FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS
+                )
+            },
             "proof_evidence_boundary": {"type": "string", "minLength": 1},
         },
     }
@@ -2019,6 +2276,15 @@ def _bool_value(value: Any) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on"}
     return bool(value)
+
+
+def _int_or_none(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _int_value(value: Any) -> int:
