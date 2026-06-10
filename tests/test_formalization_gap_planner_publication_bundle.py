@@ -105,6 +105,8 @@ from ai_statistician.formalization_gap_planner_runtime_handoff_audit import (
     runtime_handoff_audit_row_json_schema,
 )
 from ai_statistician.formalization_gap_planner_standalone import (
+    FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID,
+    llm_route_planner_seed_route_selection_json_schema,
     standalone_input_json_schema,
 )
 from ai_statistician.formalization_gap_planner_route_stability_audit import (
@@ -2323,6 +2325,46 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert trace_schema_props["target_prover_family"]["type"] == "string"
     assert trace_schema_props["target_library_snapshot_ref"]["type"] == "string"
     assert trace_schema_props["trace_target_projection"]["type"] == "string"
+    standalone_schema_payload = json.loads(
+        (
+            out_dir
+            / "contract"
+            / "formalization_gap_planner_standalone_input.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    standalone_props = standalone_schema_payload["properties"]
+    standalone_route_props = standalone_schema_payload["$defs"]["route"]["properties"]
+    standalone_replan_props = standalone_schema_payload["$defs"]["replan_metadata"][
+        "properties"
+    ]
+    assert (
+        standalone_props["llm_route_planner_seed_route_selection"]["$ref"]
+        == "#/$defs/llm_route_planner_seed_route_selection"
+    )
+    assert standalone_route_props["llm_route_planner_seed_selected"]["type"] == "boolean"
+    assert (
+        standalone_route_props["llm_route_planner_seed_selection_rank"]["minimum"]
+        == 1
+    )
+    assert (
+        standalone_replan_props["llm_route_planner_seed_selection_reason"]["minLength"]
+        == 1
+    )
+    seed_route_selection_schema_payload = json.loads(
+        (
+            out_dir
+            / "contract"
+            / "formalization_gap_planner_llm_route_planner_seed_route_selection.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert (
+        seed_route_selection_schema_payload["$id"]
+        == FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID
+    )
+    assert (
+        seed_route_selection_schema_payload
+        == llm_route_planner_seed_route_selection_json_schema()
+    )
     schema_catalog_schema_payload = json.loads(
         (
             out_dir
@@ -2381,6 +2423,13 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "schema_id"
     ] == LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID
     assert "llm_route_planner_row_schema" in schema_catalog_entry_names
+    assert (
+        "llm_route_planner_seed_route_selection_schema"
+        in schema_catalog_entry_names
+    )
+    assert schema_catalog_entries_by_name[
+        "llm_route_planner_seed_route_selection_schema"
+    ]["schema_id"] == FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID
     assert "route_adoption_blocker_taxonomy_schema" in schema_catalog_entry_names
     assert "route_adoption_blocker_taxonomy_contract" in schema_catalog_entry_names
     assert "runtime_handoff_audit_row_schema" in schema_catalog_entry_names
@@ -2966,6 +3015,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert (
         "contract/formalization_gap_planner_llm_route_planner_row.schema.json"
+        in reproduction_payload["bundle_relative_artifacts"]
+    )
+    assert (
+        "contract/formalization_gap_planner_llm_route_planner_seed_route_selection.schema.json"
         in reproduction_payload["bundle_relative_artifacts"]
     )
     assert (

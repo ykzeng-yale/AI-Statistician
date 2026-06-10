@@ -148,6 +148,7 @@ from .formalization_gap_planner_prover_adapter_contract import (
     validate_prover_adapter_packet_row,
 )
 from .formalization_gap_planner_standalone import (
+    FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID,
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
     validate_standalone_input_payload,
 )
@@ -3034,6 +3035,11 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
     standalone_schema_path = (
         bundle_dir / "contract" / "formalization_gap_planner_standalone_input.schema.json"
     )
+    llm_route_planner_seed_route_selection_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_llm_route_planner_seed_route_selection.schema.json"
+    )
     target_intake_schema_path = (
         bundle_dir / "contract" / "formalization_gap_planner_target_intake.schema.json"
     )
@@ -3161,6 +3167,15 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             else {}
         )
     )
+    embedded_seed_route_selection_contract = contract.get(
+        "llm_route_planner_seed_route_selection_contract",
+        {},
+    )
+    embedded_seed_route_selection_contract = (
+        embedded_seed_route_selection_contract
+        if isinstance(embedded_seed_route_selection_contract, dict)
+        else {}
+    )
     row_schema_properties = llm_route_planner_row_schema.get("properties", {})
     row_schema_properties = (
         row_schema_properties if isinstance(row_schema_properties, dict) else {}
@@ -3226,6 +3241,9 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         cross_prover_target_summary_schema_path
     )
     standalone_schema = _read_json_no_error(standalone_schema_path)
+    llm_route_planner_seed_route_selection_schema = _read_json_no_error(
+        llm_route_planner_seed_route_selection_schema_path
+    )
     target_intake_schema = _read_json_no_error(target_intake_schema_path)
     target_intake_row_schema = _read_json_no_error(target_intake_row_schema_path)
     component_execution_plan_schema = _read_json_no_error(
@@ -3608,6 +3626,7 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
                 "llm_route_planner_row_schema",
                 "route_adoption_blocker_taxonomy_schema",
                 "route_adoption_blocker_taxonomy_contract",
+                "llm_route_planner_seed_route_selection_schema",
                 "portable_plan_row_schema",
             }.issubset(schema_catalog_entry_names),
         ),
@@ -4826,6 +4845,36 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             str(standalone_schema.get("$id", "")),
             standalone_schema.get("$id")
             == FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
+        ),
+        _check(
+            "llm_route_planner_seed_route_selection_schema_file",
+            "contract",
+            "LLM route-planner seed route-selection schema exists",
+            str(llm_route_planner_seed_route_selection_schema_path.exists()),
+            llm_route_planner_seed_route_selection_schema_path.exists(),
+        ),
+        _check(
+            "llm_route_planner_seed_route_selection_schema_id",
+            "contract",
+            FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID,
+            str(llm_route_planner_seed_route_selection_schema.get("$id", "")),
+            llm_route_planner_seed_route_selection_schema.get("$id")
+            == FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID,
+        ),
+        _check(
+            "portable_contract_has_llm_route_planner_seed_route_selection_contract",
+            "contract",
+            "llm_route_planner_seed_route_selection_contract",
+            str("llm_route_planner_seed_route_selection_contract" in contract),
+            "llm_route_planner_seed_route_selection_contract" in contract,
+        ),
+        _check(
+            "portable_contract_llm_route_planner_seed_route_selection_contract_id",
+            "contract",
+            FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID,
+            str(embedded_seed_route_selection_contract.get("$id", "")),
+            embedded_seed_route_selection_contract.get("$id")
+            == FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID,
         ),
         _check(
             "target_intake_schema_file",

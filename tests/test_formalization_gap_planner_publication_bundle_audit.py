@@ -54,6 +54,7 @@ from ai_statistician.formalization_gap_planner_resource_response_ledger import (
     resource_response_ledger_row_json_schema,
 )
 from ai_statistician.formalization_gap_planner_standalone import (
+    FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID,
     export_formalization_gap_planner_standalone_plan,
     standalone_input_json_schema,
 )
@@ -3233,6 +3234,27 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert any(
         row["check_name"] == "standalone_input_schema_id" and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "llm_route_planner_seed_route_selection_schema_id"
+        and row["observed"]
+        == FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "portable_contract_has_llm_route_planner_seed_route_selection_contract"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "portable_contract_llm_route_planner_seed_route_selection_contract_id"
+        and row["observed"]
+        == FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID
+        and row["ok"]
         for row in audit_payload["checks"]
     )
     assert any(

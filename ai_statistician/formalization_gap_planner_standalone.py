@@ -41,6 +41,10 @@ FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION = 1
 FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID = (
     "urn:ai-statistician:schemas:formalization-gap-planner-standalone-input:1"
 )
+FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-llm-route-planner-seed-route-selection:1"
+)
 FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT = (
     "formalization_gap_planner_standalone_input"
 )
@@ -581,6 +585,10 @@ def standalone_input_json_schema() -> dict[str, object]:
         "type": "array",
         "items": {"$ref": "#/$defs/candidate_declaration_row"},
     }
+    seed_route_selection_def = _llm_seed_route_selection_schema_def()
+    seed_route_selection_trace_properties = (
+        _llm_seed_route_selection_trace_properties()
+    )
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
@@ -602,6 +610,9 @@ def standalone_input_json_schema() -> dict[str, object]:
             "target_prover_family": {"type": "string"},
             "library_snapshot_ref": {"type": "string", "minLength": 1},
             "background_primitives": string_array,
+            "llm_route_planner_seed_route_selection": {
+                "$ref": "#/$defs/llm_route_planner_seed_route_selection"
+            },
             "routes": {
                 "type": "array",
                 "minItems": 1,
@@ -653,6 +664,7 @@ def standalone_input_json_schema() -> dict[str, object]:
                         "$ref": "#/$defs/realization_coverage_witness"
                     },
                     "replan_metadata": {"$ref": "#/$defs/replan_metadata"},
+                    **seed_route_selection_trace_properties,
                     "primitives": {
                         "type": "array",
                         "minItems": 1,
@@ -809,6 +821,7 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "llm_route_planner_realization_coverage_witness": {
                         "$ref": "#/$defs/realization_coverage_witness"
                     },
+                    **seed_route_selection_trace_properties,
                     "alignment_edge_primitives": string_array,
                     "proof_evidence_status": {"type": "string"},
                 },
@@ -866,6 +879,154 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "cost_rationale": {"type": "string"},
                 },
             },
+            "llm_route_planner_seed_route_selection": seed_route_selection_def,
+        },
+    }
+
+
+def llm_route_planner_seed_route_selection_json_schema() -> dict[str, object]:
+    """Schema for how accepted LLM routes are ranked into a standalone seed.
+
+    This is intentionally packaged separately from the full standalone input
+    schema so downstream prover adapters can validate the selection decision
+    trace without consuming the entire AI Statistician planner bundle.
+    """
+
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID,
+        "title": "Formalization Gap Planner LLM Route Planner Seed Route Selection",
+        "description": (
+            "Reusable contract for the ranked route-selection summary emitted "
+            "when LLM route-planner responses are turned into a standalone "
+            "formalization-gap-planner seed."
+        ),
+        **_llm_seed_route_selection_schema_def(),
+    }
+
+
+def _llm_seed_route_selection_trace_properties() -> dict[str, object]:
+    return {
+        "llm_route_planner_seed_selected": {"type": "boolean"},
+        "llm_route_planner_seed_selection_rank": {
+            "type": "integer",
+            "minimum": 1,
+        },
+        "llm_route_planner_seed_selection_reason": {
+            "type": "string",
+            "minLength": 1,
+        },
+        "llm_route_planner_seed_minimal_delta_route_cost": {
+            "anyOf": [
+                {"type": "number", "minimum": 0},
+                {"type": "null"},
+            ]
+        },
+    }
+
+
+def _llm_seed_route_selection_schema_def() -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    nullable_nonnegative_number = {
+        "anyOf": [
+            {"type": "number", "minimum": 0},
+            {"type": "null"},
+        ]
+    }
+    selection_row_schema = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "selection_rank",
+            "selected",
+            "selection_reason",
+            "source_order",
+            "route_id",
+            "seed_route_id",
+            "route_adoption_status",
+            "route_adoption_status_rank",
+            "route_adoption_blocker_count",
+            "route_adoption_blockers",
+            "acceptance_status",
+            "minimal_delta_route_cost",
+            "response_contract_ok",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ],
+        "properties": {
+            "selection_rank": {"type": "integer", "minimum": 1},
+            "selected": {"type": "boolean"},
+            "selection_reason": {"type": "string", "minLength": 1},
+            "source_order": {"type": "integer", "minimum": 0},
+            "route_id": {"type": "string"},
+            "seed_route_id": {"type": "string"},
+            "llm_route_planner_row_id": {"type": "string"},
+            "request_id": {"type": "string"},
+            "route_adoption_status": {"type": "string"},
+            "route_adoption_status_rank": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "route_adoption_blocker_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "route_adoption_blockers": string_array,
+            "acceptance_status": {"type": "string"},
+            "minimal_delta_route_cost": nullable_nonnegative_number,
+            "minimal_delta_selected_route_option_id": {"type": "string"},
+            "response_contract_ok": {"type": "boolean"},
+            "proof_evidence_status": {"const": PROOF_EVIDENCE_STATUS},
+            "proof_evidence_boundary": {
+                "type": "string",
+                "minLength": 1,
+            },
+        },
+    }
+    return {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "selection_kind",
+            "selection_status",
+            "selection_policy",
+            "selected_route_id",
+            "n_route_candidates",
+            "selection_rows",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ],
+        "properties": {
+            "selection_kind": {
+                "const": (
+                    "formalization_gap_planner_llm_route_planner_seed_route_selection"
+                )
+            },
+            "selection_status": {
+                "enum": [
+                    "accepted_llm_routes_ranked",
+                    "fallback_routes_ranked",
+                ]
+            },
+            "selection_policy": {"type": "string", "minLength": 1},
+            "selected_route_id": {"type": "string"},
+            "selected_seed_route_id": {"type": "string"},
+            "selected_llm_route_planner_row_id": {"type": "string"},
+            "selected_request_id": {"type": "string"},
+            "selected_route_adoption_status": {"type": "string"},
+            "selected_minimal_delta_route_cost": nullable_nonnegative_number,
+            "n_route_candidates": {"type": "integer", "minimum": 0},
+            "n_ready_route_candidates": {"type": "integer", "minimum": 0},
+            "n_contract_valid_route_candidates": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "selection_rows": {
+                "type": "array",
+                "items": selection_row_schema,
+            },
+            "proof_evidence_status": {"const": PROOF_EVIDENCE_STATUS},
+            "proof_evidence_boundary": {"type": "string", "minLength": 1},
         },
     }
 

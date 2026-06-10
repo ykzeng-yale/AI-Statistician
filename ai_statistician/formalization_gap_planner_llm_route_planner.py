@@ -19,6 +19,7 @@ from .formalization_gap_planner_local_formal_source_adapter import (
 from .formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
+    llm_route_planner_seed_route_selection_json_schema,
     standalone_input_json_schema,
     validate_standalone_input_payload,
 )
@@ -15526,6 +15527,10 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
     )
     (out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.schema.json").write_text(
         json.dumps(standalone_input_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (out_dir / "formalization_gap_planner_llm_route_planner_seed_route_selection.schema.json").write_text(
+        json.dumps(llm_route_planner_seed_route_selection_json_schema(), indent=2),
         encoding="utf-8",
     )
     (out_dir / "formalization_gap_planner_llm_route_planner.md").write_text(
