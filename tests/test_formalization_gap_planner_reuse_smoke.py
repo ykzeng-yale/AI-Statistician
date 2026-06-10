@@ -2666,6 +2666,32 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         == 1
     )
     assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_quality_control_obligation_inventories"
+        ]
+        == payload["n_llm_route_planner_quality_control_obligation_inventories"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_pending_quality_control_obligation_inventories"
+        ]
+        == payload[
+            "n_llm_route_planner_pending_quality_control_obligation_inventories"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_request_pending_quality_control_values"
+        ]
+        == payload["n_llm_route_planner_request_pending_quality_control_values"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_request_discharged_quality_control_values"
+        ]
+        == payload["n_llm_route_planner_request_discharged_quality_control_values"]
+    )
+    assert (
         payload["n_publication_bundle_llm_route_planner_summary_rows"]
         == payload["n_llm_route_planner_request_packets"]
         == 1
@@ -2770,6 +2796,38 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload["n_feedback_llm_route_planner_rows_with_context_packet_inventory"]
         == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_quality_control_obligation_inventories"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_quality_control_obligation_inventories"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_pending_quality_control_obligation_inventories"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_pending_quality_control_obligation_inventories"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_pending_quality_control_values"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_request_pending_quality_control_values"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_discharged_quality_control_values"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_request_discharged_quality_control_values"
+        ]
     )
     assert (
         payload[

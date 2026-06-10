@@ -152,6 +152,14 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_requests_with_context_packet_inventory",
         "n_request_context_inventory_total_rows",
         "n_rows_with_context_packet_inventory",
+        "n_requests_with_quality_control_obligation_inventory",
+        "n_requests_with_pending_quality_control_obligation_inventory",
+        "n_request_quality_control_obligation_fields",
+        "n_request_quality_control_obligation_values",
+        "n_request_pending_quality_control_fields",
+        "n_request_pending_quality_control_values",
+        "n_request_discharged_quality_control_fields",
+        "n_request_discharged_quality_control_values",
         "n_request_schema_valid",
         "n_request_schema_invalid",
         "n_response_present",
@@ -209,6 +217,14 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_requests_with_context_packet_inventory",
         "n_request_context_inventory_total_rows",
         "n_rows_with_context_packet_inventory",
+        "n_requests_with_quality_control_obligation_inventory",
+        "n_requests_with_pending_quality_control_obligation_inventory",
+        "n_request_quality_control_obligation_fields",
+        "n_request_quality_control_obligation_values",
+        "n_request_pending_quality_control_fields",
+        "n_request_pending_quality_control_values",
+        "n_request_discharged_quality_control_fields",
+        "n_request_discharged_quality_control_values",
         "n_request_schema_valid",
         "n_request_schema_invalid",
         "n_response_present",
@@ -1857,6 +1873,54 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_publication_bundle_llm_route_planner_summary_quality_control_obligation_inventories": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_requests_with_quality_control_obligation_inventory",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_pending_quality_control_obligation_inventories": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_requests_with_pending_quality_control_obligation_inventory",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_quality_control_obligation_fields": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_quality_control_obligation_fields",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_quality_control_obligation_values": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_quality_control_obligation_values",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_pending_quality_control_fields": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_pending_quality_control_fields",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_pending_quality_control_values": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_pending_quality_control_values",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_discharged_quality_control_fields": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_discharged_quality_control_fields",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_discharged_quality_control_values": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_discharged_quality_control_values",
+                0,
+            )
+        ),
         "n_publication_bundle_llm_route_planner_summary_rows": (
             publication_bundle_llm_route_planner_summary.get("n_rows", 0)
         ),
@@ -1962,6 +2026,54 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_feedback_llm_route_planner_summary_rows_with_context_packet_inventory": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_rows_with_context_packet_inventory",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_quality_control_obligation_inventories": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_requests_with_quality_control_obligation_inventory",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_pending_quality_control_obligation_inventories": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_requests_with_pending_quality_control_obligation_inventory",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_quality_control_obligation_fields": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_quality_control_obligation_fields",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_quality_control_obligation_values": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_quality_control_obligation_values",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_pending_quality_control_fields": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_pending_quality_control_fields",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_pending_quality_control_values": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_pending_quality_control_values",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_discharged_quality_control_fields": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_discharged_quality_control_fields",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_discharged_quality_control_values": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_discharged_quality_control_values",
                 0,
             )
         ),
@@ -2077,6 +2189,54 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_llm_route_planner_rows_with_context_packet_inventory": llm_route_planner_payload.get(
             "n_rows_with_context_packet_inventory",
             0,
+        ),
+        "n_llm_route_planner_quality_control_obligation_inventories": (
+            llm_route_planner_payload.get(
+                "n_requests_with_quality_control_obligation_inventory",
+                0,
+            )
+        ),
+        "n_llm_route_planner_pending_quality_control_obligation_inventories": (
+            llm_route_planner_payload.get(
+                "n_requests_with_pending_quality_control_obligation_inventory",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_quality_control_obligation_fields": (
+            llm_route_planner_payload.get(
+                "n_request_quality_control_obligation_fields",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_quality_control_obligation_values": (
+            llm_route_planner_payload.get(
+                "n_request_quality_control_obligation_values",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_pending_quality_control_fields": (
+            llm_route_planner_payload.get(
+                "n_request_pending_quality_control_fields",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_pending_quality_control_values": (
+            llm_route_planner_payload.get(
+                "n_request_pending_quality_control_values",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_discharged_quality_control_fields": (
+            llm_route_planner_payload.get(
+                "n_request_discharged_quality_control_fields",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_discharged_quality_control_values": (
+            llm_route_planner_payload.get(
+                "n_request_discharged_quality_control_values",
+                0,
+            )
         ),
         "llm_route_planner_model_tier_selection_mode": llm_route_planner_payload.get(
             "model_tier_selection_mode",
@@ -2397,6 +2557,54 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_rows_with_context_packet_inventory": (
             feedback_llm_route_planner_payload.get(
                 "n_rows_with_context_packet_inventory",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_quality_control_obligation_inventories": (
+            feedback_llm_route_planner_payload.get(
+                "n_requests_with_quality_control_obligation_inventory",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_pending_quality_control_obligation_inventories": (
+            feedback_llm_route_planner_payload.get(
+                "n_requests_with_pending_quality_control_obligation_inventory",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_quality_control_obligation_fields": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_quality_control_obligation_fields",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_quality_control_obligation_values": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_quality_control_obligation_values",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_pending_quality_control_fields": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_pending_quality_control_fields",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_pending_quality_control_values": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_pending_quality_control_values",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_discharged_quality_control_fields": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_discharged_quality_control_fields",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_discharged_quality_control_values": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_discharged_quality_control_values",
                 0,
             )
         ),

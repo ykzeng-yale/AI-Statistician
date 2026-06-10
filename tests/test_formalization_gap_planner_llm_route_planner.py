@@ -4943,6 +4943,19 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     assert pending_payload["n_route_adoption_ready"] == 0
     assert pending_payload["n_route_adoption_pending_refinement"] == 1
     assert pending_payload["n_route_adoption_pending_quality_control_blockers"] == 1
+    assert pending_payload["n_requests_with_quality_control_obligation_inventory"] == 1
+    assert (
+        pending_payload[
+            "n_requests_with_pending_quality_control_obligation_inventory"
+        ]
+        == 1
+    )
+    assert pending_payload["n_request_quality_control_obligation_fields"] == 5
+    assert pending_payload["n_request_quality_control_obligation_values"] == 5
+    assert pending_payload["n_request_pending_quality_control_fields"] == 5
+    assert pending_payload["n_request_pending_quality_control_values"] == 5
+    assert pending_payload["n_request_discharged_quality_control_fields"] == 0
+    assert pending_payload["n_request_discharged_quality_control_values"] == 0
     pending_row = pending_payload["rows"][0]
     assert pending_row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
     assert pending_row["route_adoption_status"] == (
@@ -4958,6 +4971,27 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     assert pending_summary["pending_quality_controls"]["required_quality_signals"] == [
         "diagnostic_signature"
     ]
+    pending_inventory = pending_payload["request_packets"][0]["context_packet"][
+        "context_packet_inventory"
+    ]
+    assert pending_inventory["quality_control_obligation_present"] is True
+    assert pending_inventory["quality_control_obligation_pending"] is True
+    assert pending_inventory["quality_control_obligation_discharged"] is False
+    assert pending_inventory["quality_control_obligation_field_count"] == 5
+    assert pending_inventory["quality_control_obligation_value_count"] == 5
+    assert pending_inventory["pending_quality_control_field_count"] == 5
+    assert pending_inventory["pending_quality_control_value_count"] == 5
+    assert pending_inventory["discharged_quality_control_field_count"] == 0
+    assert pending_inventory["discharged_quality_control_value_count"] == 0
+    drifted_pending_request = deepcopy(pending_payload["request_packets"][0])
+    drifted_pending_request["context_packet"]["context_packet_inventory"][
+        "pending_quality_control_value_count"
+    ] = 0
+    assert (
+        "context_packet.context_packet_inventory."
+        "pending_quality_control_value_count must match quality_control_obligations"
+        in validate_llm_route_planner_request(drifted_pending_request)
+    )
     assert (
         pending_payload["standalone_seed"]["routes"][0]["replan_metadata"][
             "llm_route_planner_route_adoption_blockers"
@@ -5049,6 +5083,19 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     assert discharged_payload["n_route_adoption_ready"] == 1
     assert discharged_payload["n_route_adoption_pending_refinement"] == 0
     assert discharged_payload["n_route_adoption_pending_quality_control_blockers"] == 0
+    assert discharged_payload["n_requests_with_quality_control_obligation_inventory"] == 1
+    assert (
+        discharged_payload[
+            "n_requests_with_pending_quality_control_obligation_inventory"
+        ]
+        == 0
+    )
+    assert discharged_payload["n_request_quality_control_obligation_fields"] == 5
+    assert discharged_payload["n_request_quality_control_obligation_values"] == 5
+    assert discharged_payload["n_request_pending_quality_control_fields"] == 0
+    assert discharged_payload["n_request_pending_quality_control_values"] == 0
+    assert discharged_payload["n_request_discharged_quality_control_fields"] == 5
+    assert discharged_payload["n_request_discharged_quality_control_values"] == 5
     discharged_row = discharged_payload["rows"][0]
     assert discharged_row["route_adoption_status"] == "READY_FOR_STANDALONE_REPLAY"
     assert discharged_row["route_adoption_blockers"] == ()
@@ -5058,6 +5105,18 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     assert discharged_summary["pending"] is False
     assert discharged_summary["discharged"] is True
     assert discharged_summary["pending_quality_controls"] == {}
+    discharged_inventory = discharged_payload["request_packets"][0]["context_packet"][
+        "context_packet_inventory"
+    ]
+    assert discharged_inventory["quality_control_obligation_present"] is True
+    assert discharged_inventory["quality_control_obligation_pending"] is False
+    assert discharged_inventory["quality_control_obligation_discharged"] is True
+    assert discharged_inventory["quality_control_obligation_field_count"] == 5
+    assert discharged_inventory["quality_control_obligation_value_count"] == 5
+    assert discharged_inventory["pending_quality_control_field_count"] == 0
+    assert discharged_inventory["pending_quality_control_value_count"] == 0
+    assert discharged_inventory["discharged_quality_control_field_count"] == 5
+    assert discharged_inventory["discharged_quality_control_value_count"] == 5
     assert not any(
         hook.get("llm_route_planner_review_source")
         == "quality_control_obligations"

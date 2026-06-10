@@ -2165,6 +2165,14 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_context_packet_inventory",
             "n_request_context_inventory_total_rows",
             "n_rows_with_context_packet_inventory",
+            "n_requests_with_quality_control_obligation_inventory",
+            "n_requests_with_pending_quality_control_obligation_inventory",
+            "n_request_quality_control_obligation_fields",
+            "n_request_quality_control_obligation_values",
+            "n_request_pending_quality_control_fields",
+            "n_request_pending_quality_control_values",
+            "n_request_discharged_quality_control_fields",
+            "n_request_discharged_quality_control_values",
             "n_rows",
             "n_response_present",
             "n_response_contract_ok",
@@ -2194,6 +2202,18 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_context_packet_inventory": nonnegative_integer,
             "n_request_context_inventory_total_rows": nonnegative_integer,
             "n_rows_with_context_packet_inventory": nonnegative_integer,
+            "n_requests_with_quality_control_obligation_inventory": (
+                nonnegative_integer
+            ),
+            "n_requests_with_pending_quality_control_obligation_inventory": (
+                nonnegative_integer
+            ),
+            "n_request_quality_control_obligation_fields": nonnegative_integer,
+            "n_request_quality_control_obligation_values": nonnegative_integer,
+            "n_request_pending_quality_control_fields": nonnegative_integer,
+            "n_request_pending_quality_control_values": nonnegative_integer,
+            "n_request_discharged_quality_control_fields": nonnegative_integer,
+            "n_request_discharged_quality_control_values": nonnegative_integer,
             "n_rows": nonnegative_integer,
             "n_response_present": nonnegative_integer,
             "n_response_contract_ok": nonnegative_integer,
@@ -4104,6 +4124,14 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_requests_with_context_packet_inventory": 0,
         "n_request_context_inventory_total_rows": 0,
         "n_rows_with_context_packet_inventory": 0,
+        "n_requests_with_quality_control_obligation_inventory": 0,
+        "n_requests_with_pending_quality_control_obligation_inventory": 0,
+        "n_request_quality_control_obligation_fields": 0,
+        "n_request_quality_control_obligation_values": 0,
+        "n_request_pending_quality_control_fields": 0,
+        "n_request_pending_quality_control_values": 0,
+        "n_request_discharged_quality_control_fields": 0,
+        "n_request_discharged_quality_control_values": 0,
         "n_rows": 0,
         "n_response_present": 0,
         "n_response_contract_ok": 0,
@@ -4154,6 +4182,38 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                 sum(1 for row in rows if row.get("context_packet_inventory")),
             )
             or 0
+        ),
+        "n_requests_with_quality_control_obligation_inventory": int(
+            payload.get(
+                "n_requests_with_quality_control_obligation_inventory",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_pending_quality_control_obligation_inventory": int(
+            payload.get(
+                "n_requests_with_pending_quality_control_obligation_inventory",
+                0,
+            )
+            or 0
+        ),
+        "n_request_quality_control_obligation_fields": int(
+            payload.get("n_request_quality_control_obligation_fields", 0) or 0
+        ),
+        "n_request_quality_control_obligation_values": int(
+            payload.get("n_request_quality_control_obligation_values", 0) or 0
+        ),
+        "n_request_pending_quality_control_fields": int(
+            payload.get("n_request_pending_quality_control_fields", 0) or 0
+        ),
+        "n_request_pending_quality_control_values": int(
+            payload.get("n_request_pending_quality_control_values", 0) or 0
+        ),
+        "n_request_discharged_quality_control_fields": int(
+            payload.get("n_request_discharged_quality_control_fields", 0) or 0
+        ),
+        "n_request_discharged_quality_control_values": int(
+            payload.get("n_request_discharged_quality_control_values", 0) or 0
         ),
         "n_rows": int(payload.get("n_rows", len(rows)) or 0),
         "n_response_present": int(

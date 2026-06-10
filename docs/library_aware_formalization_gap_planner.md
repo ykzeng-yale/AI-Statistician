@@ -345,14 +345,20 @@ summaries also expose request-context inventory coverage counts and row snapshot
 counts, so a public bundle shows whether packaged primary and feedback
 route-planner prompts carried the compact `context_packet_inventory` needed for
 evidence-bounded LLM route repair, and whether the planner JSONL rows preserved
-that same request-context snapshot for standalone reuse. They also preserve the
-generic informal DAG, formal realization DAG, Lean legacy realization alias, and
-route-alignment edge counts from the packaged planner manifests, so non-Lean
-prover routes remain visible in the public summary without relying on
-Lean-specific names.
+that same request-context snapshot for standalone reuse. They also expose
+request-inventory quality-control obligation counts, including pending and
+discharged field/value totals, so public bundles show whether route-planner
+prompts still require prover/resource evidence before adoption. They also
+preserve the generic informal DAG, formal realization DAG, Lean legacy
+realization alias, and route-alignment edge counts from the packaged planner
+manifests, so non-Lean prover routes remain visible in the public summary
+without relying on Lean-specific names.
 The publication-bundle audit recomputes those two summaries from the packaged
 route-planner manifest/JSONL files, so a reused bundle cannot silently drift
 between copied LLM planning artifacts and the top-level manifest.
+The reuse-smoke manifest forwards the same primary and feedback
+quality-control inventory counters, so one smoke output can compare raw
+route-planner requests with the packaged publication-bundle summaries.
 The one-command reuse-smoke manifest also promotes LLM route-planner
 realization-coverage counters for both primary and feedback planner passes, so
 a public artifact consumer can distinguish staged prompt-only requests from

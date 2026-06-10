@@ -2413,6 +2413,38 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_requests_with_quality_control_obligation_inventory": int(
+            payload.get(
+                "n_requests_with_quality_control_obligation_inventory",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_pending_quality_control_obligation_inventory": int(
+            payload.get(
+                "n_requests_with_pending_quality_control_obligation_inventory",
+                0,
+            )
+            or 0
+        ),
+        "n_request_quality_control_obligation_fields": int(
+            payload.get("n_request_quality_control_obligation_fields", 0) or 0
+        ),
+        "n_request_quality_control_obligation_values": int(
+            payload.get("n_request_quality_control_obligation_values", 0) or 0
+        ),
+        "n_request_pending_quality_control_fields": int(
+            payload.get("n_request_pending_quality_control_fields", 0) or 0
+        ),
+        "n_request_pending_quality_control_values": int(
+            payload.get("n_request_pending_quality_control_values", 0) or 0
+        ),
+        "n_request_discharged_quality_control_fields": int(
+            payload.get("n_request_discharged_quality_control_fields", 0) or 0
+        ),
+        "n_request_discharged_quality_control_values": int(
+            payload.get("n_request_discharged_quality_control_values", 0) or 0
+        ),
         "n_rows": int(payload.get("n_rows", len(rows)) or 0),
         "n_response_present": int(
             payload.get(

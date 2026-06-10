@@ -6119,6 +6119,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         ]
         == 1
     )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_requests_with_quality_control_obligation_inventory"
+        ]
+        == 0
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_request_pending_quality_control_values"
+        ]
+        == 0
+    )
     assert bundle_manifest["llm_route_planner_summary"]["n_rows"] == 1
     assert bundle_manifest["llm_route_planner_summary"]["n_response_present"] == 1
     assert (

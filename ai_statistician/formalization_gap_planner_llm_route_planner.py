@@ -1231,6 +1231,80 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for packet in request_packets
         ),
+        "n_requests_with_quality_control_obligation_inventory": sum(
+            1
+            for packet in request_packets
+            if _request_context_packet_inventory(packet).get(
+                "quality_control_obligation_present",
+            )
+        ),
+        "n_requests_with_pending_quality_control_obligation_inventory": sum(
+            1
+            for packet in request_packets
+            if _request_context_packet_inventory(packet).get(
+                "quality_control_obligation_pending",
+            )
+        ),
+        "n_request_quality_control_obligation_fields": sum(
+            int(
+                _request_context_packet_inventory(packet).get(
+                    "quality_control_obligation_field_count",
+                    0,
+                )
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_quality_control_obligation_values": sum(
+            int(
+                _request_context_packet_inventory(packet).get(
+                    "quality_control_obligation_value_count",
+                    0,
+                )
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_pending_quality_control_fields": sum(
+            int(
+                _request_context_packet_inventory(packet).get(
+                    "pending_quality_control_field_count",
+                    0,
+                )
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_pending_quality_control_values": sum(
+            int(
+                _request_context_packet_inventory(packet).get(
+                    "pending_quality_control_value_count",
+                    0,
+                )
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_discharged_quality_control_fields": sum(
+            int(
+                _request_context_packet_inventory(packet).get(
+                    "discharged_quality_control_field_count",
+                    0,
+                )
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_discharged_quality_control_values": sum(
+            int(
+                _request_context_packet_inventory(packet).get(
+                    "discharged_quality_control_value_count",
+                    0,
+                )
+                or 0
+            )
+            for packet in request_packets
+        ),
         "n_request_schema_valid": sum(
             1 for request_errors in request_schema_errors if not request_errors
         ),
@@ -2431,6 +2505,15 @@ def _context_packet_inventory(
         "component_resource_registry_context",
     )
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
+    quality_controls = _dict_value(quality_control_obligations, "quality_controls")
+    pending_quality_controls = _dict_value(
+        quality_control_obligations,
+        "pending_quality_controls",
+    )
+    discharged_quality_controls = _dict_value(
+        quality_control_obligations,
+        "discharged_quality_controls",
+    )
     return {
         "inventory_kind": CONTEXT_PACKET_INVENTORY_KIND,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
@@ -2474,6 +2557,24 @@ def _context_packet_inventory(
         ),
         "quality_control_obligation_present": bool(
             quality_control_obligations.get("present", False)
+        ),
+        "quality_control_obligation_pending": bool(
+            quality_control_obligations.get("pending", False)
+        ),
+        "quality_control_obligation_discharged": bool(
+            quality_control_obligations.get("discharged", False)
+        ),
+        "quality_control_obligation_field_count": len(quality_controls),
+        "quality_control_obligation_value_count": _quality_control_value_count(
+            quality_controls
+        ),
+        "pending_quality_control_field_count": len(pending_quality_controls),
+        "pending_quality_control_value_count": _quality_control_value_count(
+            pending_quality_controls
+        ),
+        "discharged_quality_control_field_count": len(discharged_quality_controls),
+        "discharged_quality_control_value_count": _quality_control_value_count(
+            discharged_quality_controls
         ),
     }
 
@@ -2580,6 +2681,59 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             "feedback_loop_summary_recommended_next_action_count must match "
             "context_packet.feedback_loop_summary"
         )
+    quality_control_obligations = _quality_control_obligation_summary(context_packet)
+    quality_controls = _dict_value(quality_control_obligations, "quality_controls")
+    pending_quality_controls = _dict_value(
+        quality_control_obligations,
+        "pending_quality_controls",
+    )
+    discharged_quality_controls = _dict_value(
+        quality_control_obligations,
+        "discharged_quality_controls",
+    )
+    quality_control_count_checks = (
+        (
+            "quality_control_obligation_present",
+            bool(quality_control_obligations.get("present", False)),
+        ),
+        (
+            "quality_control_obligation_pending",
+            bool(quality_control_obligations.get("pending", False)),
+        ),
+        (
+            "quality_control_obligation_discharged",
+            bool(quality_control_obligations.get("discharged", False)),
+        ),
+        ("quality_control_obligation_field_count", len(quality_controls)),
+        (
+            "quality_control_obligation_value_count",
+            _quality_control_value_count(quality_controls),
+        ),
+        ("pending_quality_control_field_count", len(pending_quality_controls)),
+        (
+            "pending_quality_control_value_count",
+            _quality_control_value_count(pending_quality_controls),
+        ),
+        ("discharged_quality_control_field_count", len(discharged_quality_controls)),
+        (
+            "discharged_quality_control_value_count",
+            _quality_control_value_count(discharged_quality_controls),
+        ),
+    )
+    for field_name, expected_value in quality_control_count_checks:
+        actual_value = inventory.get(
+            field_name,
+            False if isinstance(expected_value, bool) else 0,
+        )
+        if isinstance(expected_value, bool):
+            matches = bool(actual_value) == expected_value
+        else:
+            matches = int(actual_value or 0) == expected_value
+        if not matches:
+            errors.append(
+                "context_packet.context_packet_inventory."
+                f"{field_name} must match quality_control_obligations"
+            )
     return errors
 
 
@@ -4265,6 +4419,10 @@ def _quality_controls_to_lists(
         for field_name in QUALITY_CONTROL_FIELDS
         if _str_tuple(controls.get(field_name, []))
     }
+
+
+def _quality_control_value_count(controls: Mapping[str, Any]) -> int:
+    return sum(len(_str_tuple(values)) for values in controls.values())
 
 
 def _response_contract_errors(
@@ -9067,6 +9225,14 @@ def _component_resource_context_from_request(
     context = _dict_value(request, "context_packet")
     registry_context = context.get("component_resource_registry_context", {})
     return dict(registry_context) if isinstance(registry_context, Mapping) else {}
+
+
+def _request_context_packet_inventory(
+    request: Mapping[str, Any],
+) -> dict[str, object]:
+    context = _dict_value(request, "context_packet")
+    inventory = context.get("context_packet_inventory", {})
+    return dict(inventory) if isinstance(inventory, Mapping) else {}
 
 
 def _feedback_loop_summary(
