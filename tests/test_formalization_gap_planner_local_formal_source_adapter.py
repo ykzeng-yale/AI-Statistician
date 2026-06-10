@@ -9,6 +9,7 @@ from ai_statistician.formal_source_index import (
     build_formal_source_index,
 )
 from ai_statistician.formalization_gap_planner_local_formal_source_adapter import (
+    LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
     export_formalization_gap_planner_local_formal_source_adapter_responses,
 )
 from ai_statistician.formalization_gap_planner_refinement_evidence import (
@@ -102,6 +103,11 @@ def test_local_formal_source_adapter_emits_formal_grounding_responses() -> None:
     assert payload["n_lean_library_grounding_rows"] == 0
     assert payload["n_local_formal_source_responses"] == 1
     assert payload["n_merged_responses"] == 2
+    assert payload["n_responses_with_legacy_lean_declaration_hits"] == 1
+    assert (
+        payload["legacy_formal_source_adapter_field_aliases"]
+        == LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES
+    )
     assert payload["n_local_response_schema_valid"] == 1
     assert payload["n_local_response_schema_invalid"] == 0
     assert payload["n_merged_response_schema_valid"] == 2
@@ -137,6 +143,10 @@ def test_local_formal_source_adapter_emits_formal_grounding_responses() -> None:
     assert (
         adapter_dir / "formalization_gap_planner_refinement_tool_response.schema.json"
     ).exists()
+    report_text = (
+        adapter_dir / "formalization_gap_planner_local_formal_source_adapter.md"
+    ).read_text(encoding="utf-8")
+    assert "`lean_declaration_hits` is a Lean compatibility alias" in report_text
 
 
 def test_local_formal_source_adapter_keeps_non_lean_hits_generic() -> None:
@@ -193,6 +203,11 @@ def test_local_formal_source_adapter_keeps_non_lean_hits_generic() -> None:
     assert payload["all_ok"]
     assert payload["n_formal_library_grounding_rows"] == 1
     assert payload["n_lean_library_grounding_rows"] == 0
+    assert payload["n_responses_with_legacy_lean_declaration_hits"] == 0
+    assert (
+        payload["legacy_formal_source_adapter_field_aliases"]
+        == LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES
+    )
     response = payload["responses"][0]
     assert response["target_prover_family"] == "rocq"
     assert response["coverage_updates"]["rank_uniformity"] == "exact_exists"

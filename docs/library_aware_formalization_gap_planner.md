@@ -747,7 +747,11 @@ as schema-valid dispatch packets. Resource-request rows also carry a structured
 `dispatch_spec` in both the row and nested `request_payload`, giving external
 MCP/CLI runners a normalized dispatch kind, adapter surface, command, hint,
 expected response artifact, and response-JSONL contract without importing AI
-Statistician internals. The
+Statistician internals. The local formal-source adapter manifest publishes
+`legacy_formal_source_adapter_field_aliases` mapping `lean_declaration_hits` to
+`formal_declaration_hits` and counts responses that still emit the Lean
+compatibility alias, so external prover consumers can gate on the portable
+field without scanning every response row. The
 resource-response-ledger command validates local or frontier resource outputs
 against those request packets and writes
 `formalization_gap_planner_resource_response_ledger.jsonl`,

@@ -25,6 +25,9 @@ PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_LOCAL_FORMAL_SOURCE_ADAPTER_NOT_PROOF_EVIDENCE"
 )
 ADAPTER_TOOL_NAME = "local_formal_source_index_adapter"
+LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES = {
+    "lean_declaration_hits": "formal_declaration_hits",
+}
 
 
 def export_formalization_gap_planner_local_formal_source_adapter_responses(
@@ -148,6 +151,9 @@ def export_formalization_gap_planner_local_formal_source_adapter_responses(
         "n_base_responses": len(base_responses),
         "n_local_formal_source_responses": len(responses),
         "n_merged_responses": len(merged_responses),
+        "n_responses_with_legacy_lean_declaration_hits": sum(
+            1 for response in responses if response.get("lean_declaration_hits")
+        ),
         "n_local_response_schema_valid": n_local_response_schema_valid,
         "n_local_response_schema_invalid": len(local_response_schema_errors)
         - n_local_response_schema_valid,
@@ -172,6 +178,9 @@ def export_formalization_gap_planner_local_formal_source_adapter_responses(
         "by_coverage_status": dict(sorted(by_coverage_status.items())),
         "responses": responses,
         "refinement_tool_response_schema": response_schema,
+        "legacy_formal_source_adapter_field_aliases": dict(
+            LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES
+        ),
         "merged_response_ids": [
             str(row.get("refinement_item_id", "")) for row in merged_responses
         ],
@@ -440,6 +449,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Lean-grounding rows: {payload.get('n_lean_library_grounding_rows')}",
         f"- Local responses: {payload.get('n_local_formal_source_responses')}",
         f"- Merged responses: {payload.get('n_merged_responses')}",
+        f"- Responses with Lean legacy declaration alias: {payload.get('n_responses_with_legacy_lean_declaration_hits')}",
         f"- Local response schema valid: {payload.get('n_local_response_schema_valid')}/{payload.get('n_local_formal_source_responses')}",
         f"- Merged response schema valid: {payload.get('n_merged_response_schema_valid')}/{payload.get('n_merged_responses')}",
         f"- Hits: {payload.get('n_hits')}",
@@ -451,6 +461,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "## Boundary",
         "",
         str(payload.get("proof_evidence_boundary", PROOF_EVIDENCE_BOUNDARY)),
+        "",
+        "## Legacy Aliases",
+        "",
+        "`lean_declaration_hits` is a Lean compatibility alias for "
+        "`formal_declaration_hits`; non-Lean target-prover rows leave the "
+        "legacy alias empty.",
         "",
         "## Coverage",
         "",
