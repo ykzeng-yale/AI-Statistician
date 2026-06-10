@@ -3008,8 +3008,11 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
         replan_llm_dir,
         provider_name="static",
         static_response_json=replan_response_json,
+        formalization_gap_planner_route_replan_handoff_dir=handoff_dir,
     )
     assert replan_payload["all_ok"]
+    assert replan_payload["n_requests_with_route_replan_handoff_rows"] == 1
+    assert replan_payload["n_request_route_replan_handoff_rows"] == 1
     assert tuple(replan_payload["request_packets"][0]["residual_goals"]) == (
         "rank_uniformity: missing finite tie-breaking side condition",
     )
@@ -3017,7 +3020,25 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
     assert tuple(replan_context["residual_goals"]) == (
         "rank_uniformity: missing finite tie-breaking side condition",
     )
+    handoff_rows = replan_context["route_replan_handoff_rows"]
+    assert len(handoff_rows) == 1
+    assert handoff_rows[0]["route_replan_handoff_id"].startswith(
+        "formalization_gap_planner_route_replan_handoff:"
+    )
+    assert handoff_rows[0]["route_revision_overlay_id"] == (
+        handoff_row["route_revision_overlay_id"]
+    )
+    assert handoff_rows[0]["next_commands"]
     assert replan_context["feedback_loop_summary"]["residual_goal_count"] == 1
+    assert replan_context["feedback_loop_summary"]["evidence_counts"][
+        "route_replan_handoff_rows"
+    ] == 1
+    assert any(
+        action["source"] == "route_replan_handoff"
+        for action in replan_context["feedback_loop_summary"][
+            "recommended_next_actions"
+        ]
+    )
     prior_metadata = replan_context["feedback_loop_summary"]["prior_replan_metadata"]
     assert tuple(
         prior_metadata["quality_controls"]["resource_contract_ids"]
@@ -3026,6 +3047,9 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
         prior_metadata["quality_controls"]["response_validation_signals"]
     ) == ("residual_goals_or_diagnostics_present",)
     assert "prior_replan_metadata" in replan_payload["request_packets"][0][
+        "prompt_messages"
+    ]["user"]
+    assert "route_replan_handoff_rows" in replan_payload["request_packets"][0][
         "prompt_messages"
     ]["user"]
     replan_row = replan_payload["rows"][0]

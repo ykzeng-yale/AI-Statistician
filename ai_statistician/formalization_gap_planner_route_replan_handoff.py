@@ -148,6 +148,7 @@ def export_formalization_gap_planner_route_replan_handoff(
             route_revision_overlay_dir=(
                 formalization_gap_planner_route_revision_overlay_dir
             ),
+            route_replan_handoff_dir=out_dir,
         )
         for overlay_row in overlay_rows
     ]
@@ -509,6 +510,7 @@ def _handoff_row(
     stability_row: dict[str, Any] | None,
     *,
     route_revision_overlay_dir: Path,
+    route_replan_handoff_dir: Path | None,
 ) -> FormalizationGapPlannerRouteReplanHandoffRow:
     errors: list[str] = []
     plan_row = plan_row or {}
@@ -683,7 +685,10 @@ def _handoff_row(
         unaligned_primitives=unaligned_primitives,
         standalone_route_id=standalone_route_id,
         standalone_route=standalone_route,
-        next_commands=_next_commands(route_revision_overlay_dir),
+        next_commands=_next_commands(
+            route_revision_overlay_dir=route_revision_overlay_dir,
+            route_replan_handoff_dir=route_replan_handoff_dir,
+        ),
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
         proof_evidence_boundary=PROOF_EVIDENCE_BOUNDARY,
         ok=not errors,
@@ -691,14 +696,24 @@ def _handoff_row(
     )
 
 
-def _next_commands(route_revision_overlay_dir: Path) -> tuple[str, ...]:
+def _next_commands(
+    *,
+    route_revision_overlay_dir: Path,
+    route_replan_handoff_dir: Path | None,
+) -> tuple[str, ...]:
     seed_path = "formalization_gap_planner_route_replan_standalone_seed.json"
     registry_dir = "<formalization_gap_planner_component_resource_registry_dir>"
     overlay_arg = shlex.quote(str(route_revision_overlay_dir))
+    handoff_arg = (
+        shlex.quote(str(route_replan_handoff_dir))
+        if route_replan_handoff_dir is not None
+        else "<formalization_gap_planner_route_replan_handoff_dir>"
+    )
     common_llm_args = (
         f"--input {seed_path} --provider anthropic --model-tier auto "
         "--max-repair-attempts 1 "
         f"--formalization-gap-planner-route-revision-overlay-dir {overlay_arg} "
+        f"--formalization-gap-planner-route-replan-handoff-dir {handoff_arg} "
         "--formalization-gap-planner-component-resource-registry-dir "
         f"{registry_dir}"
     )

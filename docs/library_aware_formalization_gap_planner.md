@@ -840,6 +840,7 @@ python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner \
   --model-tier auto \
   --max-repair-attempts 1 \
   --formalization-gap-planner-route-revision-overlay-dir runs/current/formalization_gap_planner_route_revision_overlay \
+  --formalization-gap-planner-route-replan-handoff-dir runs/current/formalization_gap_planner_route_replan_handoff \
   --formalization-gap-planner-component-resource-registry-dir runs/current/formalization_gap_planner_component_resource_registry \
   --out runs/current/formalization_gap_planner_route_replan_llm_route_planner
 
@@ -1499,9 +1500,10 @@ The current implementation composes four existing AI Statistician artifacts:
    the seed so downstream planner reruns can validate the handoff input. Each
    handoff row also stages prompt-only and explicit live LLM route-planner
    commands using Anthropic `--model-tier auto`, the route-revision overlay
-   directory, and the component-resource registry directory, so the next
-   synthesis pass remains feedback-aware and resource-aware instead of falling
-   back to a standalone-only rerun.
+   directory, the route-replan handoff directory itself, and the
+   component-resource registry directory, so the next synthesis pass remains
+   feedback-aware and resource-aware instead of falling back to a standalone-only
+   rerun.
 
 24. `formalization_gap_planner_route_replan_handoff_audit`
    Validates the handoff manifest and standalone seed, checks proof-boundary
@@ -1512,7 +1514,8 @@ The current implementation composes four existing AI Statistician artifacts:
    to check that the roundtrip regenerates selected-primitive alignment and
    carries the seed provenance forward in `standalone_input_trace`. It also
    checks that each row exposes prompt-only and live LLM route-planner commands
-   with route-revision overlay context and component-resource registry context.
+   with route-revision overlay context, route-replan handoff context, and
+   component-resource registry context.
    It is a replayability audit, not theorem proof evidence. It exports
    `formalization_gap_planner_route_replan_handoff_audit_row.schema.json` so
    downstream bundle consumers can validate each audit check row without

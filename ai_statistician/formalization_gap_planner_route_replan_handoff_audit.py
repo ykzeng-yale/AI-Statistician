@@ -703,6 +703,7 @@ def _next_llm_command_ok(row: dict[str, Any], *, invoke_provider: bool) -> bool:
         "--model-tier auto",
         "--max-repair-attempts 1",
         "--formalization-gap-planner-route-revision-overlay-dir",
+        "--formalization-gap-planner-route-replan-handoff-dir",
         "--formalization-gap-planner-component-resource-registry-dir",
     )
     if not all(fragment in command for fragment in required_fragments):

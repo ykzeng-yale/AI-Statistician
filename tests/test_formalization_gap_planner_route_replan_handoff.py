@@ -242,6 +242,8 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert "--max-repair-attempts 1" in next_commands
     assert "--formalization-gap-planner-route-revision-overlay-dir" in next_commands
     assert str(overlay_dir) in next_commands
+    assert "--formalization-gap-planner-route-replan-handoff-dir" in next_commands
+    assert str(handoff_dir) in next_commands
     assert "--formalization-gap-planner-component-resource-registry-dir" in next_commands
     llm_commands = [
         command

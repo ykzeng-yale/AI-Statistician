@@ -3435,6 +3435,8 @@ def _reproduction_payload(
                 "<work_dir>/formalization_gap_planner_refinement_evidence "
                 "--formalization-gap-planner-route-revision-overlay-dir "
                 "<work_dir>/formalization_gap_planner_route_revision_overlay "
+                "--formalization-gap-planner-route-replan-handoff-dir "
+                "<work_dir>/formalization_gap_planner_route_replan_handoff "
                 "--formalization-gap-planner-interactive-session-dir "
                 "<work_dir>/formalization_gap_planner_interactive_session "
                 "--formalization-gap-planner-component-resource-registry-dir "

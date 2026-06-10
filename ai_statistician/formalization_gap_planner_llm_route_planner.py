@@ -607,6 +607,7 @@ def export_formalization_gap_planner_llm_route_planner(
     formalization_gap_planner_resource_response_ledger_dir: Path | None = None,
     formalization_gap_planner_refinement_evidence_dir: Path | None = None,
     formalization_gap_planner_route_revision_overlay_dir: Path | None = None,
+    formalization_gap_planner_route_replan_handoff_dir: Path | None = None,
     formalization_gap_planner_interactive_session_dir: Path | None = None,
     formalization_gap_planner_component_resource_registry_dir: Path | None = None,
 ) -> dict[str, object]:
@@ -640,6 +641,9 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
         formalization_gap_planner_route_revision_overlay_dir=(
             formalization_gap_planner_route_revision_overlay_dir
+        ),
+        formalization_gap_planner_route_replan_handoff_dir=(
+            formalization_gap_planner_route_replan_handoff_dir
         ),
         formalization_gap_planner_interactive_session_dir=(
             formalization_gap_planner_interactive_session_dir
@@ -920,6 +924,27 @@ def export_formalization_gap_planner_llm_route_planner(
             if _dict_tuple(
                 _dict_value(packet, "context_packet").get("route_revision_overlay_rows", [])
             )
+        ),
+        "n_requests_with_route_replan_handoff_rows": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "route_replan_handoff_rows",
+                    [],
+                )
+            )
+        ),
+        "n_request_route_replan_handoff_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "route_replan_handoff_rows",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
         ),
         "n_requests_with_interactive_session_rows": sum(
             1
@@ -2112,6 +2137,10 @@ def _request_packet(
             context_payloads.get("route_revision_overlay", {}),
             route_match_ids,
         ),
+        "route_replan_handoff_rows": _rows_for_route(
+            context_payloads.get("route_replan_handoff", {}),
+            route_match_ids,
+        ),
         "interactive_session_rows": _rows_for_route(
             context_payloads.get("interactive_session", {}),
             route_match_ids,
@@ -2289,6 +2318,7 @@ def _user_prompt(
             "planner_next_actions.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
             "Use context_packet.component_resource_registry_context only to choose bounded search/prover next actions; registry rows are not evidence that a tool was called.",
             "When context_packet.feedback_loop_summary is present, treat it as the route-repair brief derived from raw residual/resource/interactive rows; it is planning context, not proof evidence.",
+            "When context_packet.route_replan_handoff_rows is present, preserve its applied evidence ids, quality controls, and next_commands as prior handoff context; route-replan handoff rows are planning input, not proof evidence.",
             "Resource-response ledger rows with awaiting, rejected, absent-response, failed-contract, or unmet-contract-minimum status are status-only; do not use them as residual-goal or route-repair evidence.",
             "Residual interpretations may cover only residual_goals listed in the request packet.",
             "If request residual_goals are present, every residual goal must have an interpretation and a route_repair or repair_action.",
@@ -7485,6 +7515,7 @@ def _context_payloads(
     formalization_gap_planner_resource_response_ledger_dir: Path | None,
     formalization_gap_planner_refinement_evidence_dir: Path | None,
     formalization_gap_planner_route_revision_overlay_dir: Path | None,
+    formalization_gap_planner_route_replan_handoff_dir: Path | None,
     formalization_gap_planner_interactive_session_dir: Path | None,
     formalization_gap_planner_component_resource_registry_dir: Path | None,
 ) -> dict[str, Any]:
@@ -7527,6 +7558,11 @@ def _context_payloads(
         "route_revision_overlay": _optional_manifest(
             formalization_gap_planner_route_revision_overlay_dir,
             "formalization_gap_planner_route_revision_overlay_manifest.json",
+            errors,
+        ),
+        "route_replan_handoff": _optional_manifest(
+            formalization_gap_planner_route_replan_handoff_dir,
+            "formalization_gap_planner_route_replan_handoff_manifest.json",
             errors,
         ),
         "interactive_session": _optional_manifest(
@@ -7744,6 +7780,7 @@ def _feedback_loop_summary(
         "resource_response_ledger_rows",
         "refinement_evidence_rows",
         "route_revision_overlay_rows",
+        "route_replan_handoff_rows",
         "interactive_session_rows",
         "interactive_decision_policy_rows",
         "current_goal_plan_rows",
@@ -8373,6 +8410,34 @@ def _feedback_next_actions(
                 ),
             }
         )
+    for row in rows_by_field.get("route_replan_handoff_rows", ()):
+        if not (
+            _str_tuple(row.get("next_commands", []))
+            or _str_tuple(row.get("residual_goals", []))
+            or _str_tuple(row.get("applied_refinement_evidence_ids", []))
+        ):
+            continue
+        actions.append(
+            {
+                "source": "route_replan_handoff",
+                "owner": "route_planner",
+                "action": "continue_from_route_replan_handoff",
+                "route_replan_handoff_id": str(
+                    row.get("route_replan_handoff_id", "")
+                ).strip(),
+                "route_revision_overlay_id": str(
+                    row.get("route_revision_overlay_id", "")
+                ).strip(),
+                "applied_refinement_evidence_ids": list(
+                    _str_tuple(row.get("applied_refinement_evidence_ids", []))[:12]
+                ),
+                "residual_goals": list(
+                    _str_tuple(row.get("residual_goals", []))[:12]
+                ),
+                "quality_controls": _dict_value(row, "quality_controls"),
+                "commands": list(_str_tuple(row.get("next_commands", []))[:8]),
+            }
+        )
     if not actions and residual_goals:
         actions.append(
             {
@@ -8628,6 +8693,8 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "target_intake_id",
         "target_id",
         "standalone_route_id",
+        "route_replan_handoff_id",
+        "route_revision_overlay_id",
         "refinement_evidence_id",
         "refinement_item_id",
         "display_name",
@@ -8717,8 +8784,13 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "revised_route_alignment_edges",
         "revision_status",
         "applied_hook_kinds",
+        "applied_proposal_ids",
         "applied_refinement_evidence_ids",
+        "applied_llm_route_planner_hook_traces",
         "applied_resource_response_traces",
+        "applied_prover_attempt_statuses",
+        "applied_prover_diagnostic_signatures",
+        "quality_controls",
         "resource_response_summary",
         "resource_response_summary_by_acceptance_status",
         "resource_response_awaiting_request_ids",

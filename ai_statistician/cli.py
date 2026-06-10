@@ -2484,6 +2484,11 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
             if args.formalization_gap_planner_route_revision_overlay_dir
             else None
         ),
+        formalization_gap_planner_route_replan_handoff_dir=(
+            Path(args.formalization_gap_planner_route_replan_handoff_dir)
+            if args.formalization_gap_planner_route_replan_handoff_dir
+            else None
+        ),
         formalization_gap_planner_interactive_session_dir=(
             Path(args.formalization_gap_planner_interactive_session_dir)
             if args.formalization_gap_planner_interactive_session_dir
@@ -7789,6 +7794,10 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_llm_route_planner.add_argument(
         "--formalization-gap-planner-route-revision-overlay-dir",
         help="optional route-revision overlay directory carrying accepted route repairs",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formalization-gap-planner-route-replan-handoff-dir",
+        help="optional route-replan handoff directory carrying replay and next-command context",
     )
     formalization_gap_planner_llm_route_planner.add_argument(
         "--formalization-gap-planner-interactive-session-dir",
