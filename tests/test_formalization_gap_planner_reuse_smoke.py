@@ -2274,6 +2274,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         == 1
     )
     assert payload["n_evaluation_llm_route_adoption_blockers"] == 5
+    assert (
+        payload[
+            "n_evaluation_llm_route_adoption_pending_quality_control_blockers"
+        ]
+        == 0
+    )
     assert set(payload["evaluation_llm_route_adoption_blockers"]) == {
         "omitted_cost_hint_primitives_require_review",
         "planner_next_actions_pending_evidence",
@@ -2327,6 +2333,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "n_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers"
         ]
         == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_adoption_pending_quality_control_blockers"
+        ]
+        == 0
     )
     assert payload["n_llm_route_planner_route_adoption_omitted_cost_hint_primitives"] > 0
     assert payload["n_llm_route_planner_awaiting"] == 0
@@ -2385,6 +2397,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "n_feedback_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers"
         ]
         == 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_route_adoption_pending_quality_control_blockers"
+        ]
+        == 1
     )
     assert (
         payload[

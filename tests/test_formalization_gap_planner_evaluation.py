@@ -304,7 +304,8 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
                                 "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
                             ),
                             "llm_route_planner_route_adoption_blockers": [
-                                "search_requests_pending_evidence"
+                                "quality_control_obligations_pending",
+                                "search_requests_pending_evidence",
                             ],
                             "llm_route_planner_acceptance_status": (
                                 "ACCEPTED_SOURCE_GROUNDED_ROUTE_PLAN"
@@ -391,8 +392,10 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert payload["n_rows_pending_refinement_before_route_adoption"] == 1
     assert payload["n_rows_awaiting_llm_route_planner_response"] == 0
     assert payload["n_rows_rejected_llm_route_plan"] == 0
-    assert payload["n_llm_route_adoption_blockers"] == 1
+    assert payload["n_llm_route_adoption_blockers"] == 2
+    assert payload["n_llm_route_adoption_pending_quality_control_blockers"] == 1
     assert payload["llm_route_adoption_blockers"] == (
+        "quality_control_obligations_pending",
         "search_requests_pending_evidence",
     )
     assert payload["evaluation_by_llm_route_adoption_status"] == {
@@ -400,7 +403,7 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "n_rows": 1,
             "n_ok": 0,
             "n_matched_ground_truth": 1,
-            "n_route_adoption_blockers": 1,
+            "n_route_adoption_blockers": 2,
             "mean_route_recall": 1.0,
             "mean_delta_precision": 1.0,
         }
@@ -485,6 +488,7 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
     assert row["llm_route_planner_route_adoption_blockers"] == (
+        "quality_control_obligations_pending",
         "search_requests_pending_evidence",
     )
     assert row["llm_route_planner_has_generator_metadata"] is True

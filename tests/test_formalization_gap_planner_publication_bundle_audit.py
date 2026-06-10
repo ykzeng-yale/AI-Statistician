@@ -1647,6 +1647,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_rows_awaiting_llm_route_planner_response": 0,
                 "n_rows_rejected_llm_route_plan": 0,
                 "n_llm_route_adoption_blockers": 2,
+                "n_llm_route_adoption_pending_quality_control_blockers": 0,
                 "llm_route_adoption_blockers": [
                     "search_requests_pending_evidence",
                     "uncertainty_flags_require_review",

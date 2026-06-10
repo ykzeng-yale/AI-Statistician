@@ -28,6 +28,7 @@ ROUTE_ADOPTION_READY_STATUS = "READY_FOR_STANDALONE_REPLAY"
 ROUTE_ADOPTION_PENDING_STATUS = "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
 ROUTE_ADOPTION_AWAITING_STATUS = "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
 ROUTE_ADOPTION_REJECTED_STATUS = "REJECTED_LLM_ROUTE_PLAN"
+ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
 QUALITY_CONTROL_FIELDS = (
     "resource_contract_ids",
     "required_quality_signals",
@@ -303,6 +304,12 @@ def evaluate_formalization_gap_planner(
         "n_llm_route_adoption_blockers": sum(
             len(row.llm_route_planner_route_adoption_blockers)
             for row in evaluation_rows
+        ),
+        "n_llm_route_adoption_pending_quality_control_blockers": sum(
+            1
+            for row in evaluation_rows
+            if ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS
+            in row.llm_route_planner_route_adoption_blockers
         ),
         "llm_route_adoption_blockers": llm_route_adoption_blockers,
         "evaluation_by_llm_route_adoption_status": by_llm_route_adoption_status,

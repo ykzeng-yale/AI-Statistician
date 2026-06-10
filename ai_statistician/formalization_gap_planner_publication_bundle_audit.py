@@ -12734,6 +12734,12 @@ def _evaluation_route_adoption_manifest_errors(
         len(_str_tuple(row.get("llm_route_planner_route_adoption_blockers", [])))
         for row in _dict_tuple(rows)
     )
+    expected_quality_control_blockers = sum(
+        1
+        for row in _dict_tuple(rows)
+        if "quality_control_obligations_pending"
+        in _str_tuple(row.get("llm_route_planner_route_adoption_blockers", []))
+    )
     expected_blockers = set(_evaluation_route_adoption_blockers_from_rows(rows))
     observed_status_count = int(
         manifest.get("n_rows_with_llm_route_planner_route_adoption_status", -1) or 0
@@ -12747,6 +12753,13 @@ def _evaluation_route_adoption_manifest_errors(
     )
     observed_rejected = int(manifest.get("n_rows_rejected_llm_route_plan", -1) or 0)
     observed_blocker_total = int(manifest.get("n_llm_route_adoption_blockers", -1) or 0)
+    observed_quality_control_blockers = int(
+        manifest.get(
+            "n_llm_route_adoption_pending_quality_control_blockers",
+            -1,
+        )
+        or 0
+    )
     observed_blockers = set(_str_tuple(manifest.get("llm_route_adoption_blockers", [])))
     observed_by_status = manifest.get("evaluation_by_llm_route_adoption_status", {})
     observed_by_status = observed_by_status if isinstance(observed_by_status, dict) else {}
@@ -12784,6 +12797,12 @@ def _evaluation_route_adoption_manifest_errors(
         errors.append(
             "n_llm_route_adoption_blockers mismatch: "
             f"observed={observed_blocker_total} expected={expected_blocker_total}"
+        )
+    if observed_quality_control_blockers != expected_quality_control_blockers:
+        errors.append(
+            "n_llm_route_adoption_pending_quality_control_blockers mismatch: "
+            f"observed={observed_quality_control_blockers} "
+            f"expected={expected_quality_control_blockers}"
         )
     if observed_blockers != expected_blockers:
         errors.append(

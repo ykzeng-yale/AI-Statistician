@@ -2070,6 +2070,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_rows_ready_for_route_adoption",
             "n_rows_pending_refinement_before_route_adoption",
             "n_llm_route_adoption_blockers",
+            "n_llm_route_adoption_pending_quality_control_blockers",
             "llm_route_adoption_blockers",
             "llm_route_adoption_status_counts",
             "n_rows_with_quality_controls",
@@ -2106,6 +2107,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_rows_awaiting_llm_route_planner_response": nonnegative_integer,
             "n_rows_rejected_llm_route_plan": nonnegative_integer,
             "n_llm_route_adoption_blockers": nonnegative_integer,
+            "n_llm_route_adoption_pending_quality_control_blockers": (
+                nonnegative_integer
+            ),
             "llm_route_adoption_blockers": string_array,
             "llm_route_adoption_status_counts": {
                 "type": "object",
@@ -3724,6 +3728,7 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         "n_rows_awaiting_llm_route_planner_response": 0,
         "n_rows_rejected_llm_route_plan": 0,
         "n_llm_route_adoption_blockers": 0,
+        "n_llm_route_adoption_pending_quality_control_blockers": 0,
         "llm_route_adoption_blockers": (),
         "llm_route_adoption_status_counts": {},
         "n_rows_with_quality_controls": 0,
@@ -3875,6 +3880,20 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
             rows,
             "n_llm_route_adoption_blockers",
             "llm_route_planner_route_adoption_blockers",
+        ),
+        "n_llm_route_adoption_pending_quality_control_blockers": int(
+            payload.get(
+                "n_llm_route_adoption_pending_quality_control_blockers",
+                sum(
+                    1
+                    for row in rows
+                    if "quality_control_obligations_pending"
+                    in _str_tuple(
+                        row.get("llm_route_planner_route_adoption_blockers", [])
+                    )
+                ),
+            )
+            or 0
         ),
         "llm_route_adoption_blockers": _manifest_values_or_row_field(
             payload,
@@ -4120,7 +4139,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Evaluation route adoption ready/pending/blockers: "
             f"{payload.get('evaluation_summary', {}).get('n_rows_ready_for_route_adoption')}/"
             f"{payload.get('evaluation_summary', {}).get('n_rows_pending_refinement_before_route_adoption')}/"
-            f"{payload.get('evaluation_summary', {}).get('n_llm_route_adoption_blockers')}"
+            f"{payload.get('evaluation_summary', {}).get('n_llm_route_adoption_blockers')} "
+            f"quality_controls={payload.get('evaluation_summary', {}).get('n_llm_route_adoption_pending_quality_control_blockers')}"
         ),
         (
             f"- Evaluation quality controls: "

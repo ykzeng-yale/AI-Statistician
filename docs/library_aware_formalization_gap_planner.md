@@ -300,10 +300,14 @@ Evaluation rows then surface `minimal_delta_cost_graph_present`,
 `quality_controls` fields and aggregate counts for resource contracts, response
 validation signals, and stop conditions. Benchmark and publication artifacts can
 therefore inspect minimal-route, realization-coverage, and bounded-tool-policy
-evidence without depending on Lean-specific internals. The publication-bundle
-audit recomputes these quality-control aggregates from packaged evaluation JSONL
-rows, and also recomputes omitted cost-hint counters, rejecting bundles whose
-evaluation manifest drops or mutates them.
+evidence without depending on Lean-specific internals. Evaluation and
+publication summaries also expose
+`n_llm_route_adoption_pending_quality_control_blockers`, so unmet tool-policy
+obligations can be reported separately from literature, prover, or cost-hint
+blockers. The publication-bundle audit recomputes these quality-control
+aggregates from packaged evaluation JSONL rows, and also recomputes omitted
+cost-hint counters, rejecting bundles whose evaluation manifest drops or mutates
+them.
 The publication-bundle manifest itself includes an `evaluation_summary` with
 the same realization, cost-hint, route-adoption, and quality-control counters,
 so public bundles expose semantic route weakening and readiness blockers before

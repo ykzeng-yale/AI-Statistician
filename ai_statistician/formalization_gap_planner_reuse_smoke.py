@@ -169,6 +169,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_route_adoption_pending_feedback_replan_blockers",
         "n_route_adoption_pending_realization_coverage_blockers",
         "n_route_adoption_pending_omitted_cost_hint_primitive_blockers",
+        "n_route_adoption_pending_quality_control_blockers",
         "n_route_adoption_omitted_cost_hint_primitives",
         "n_rejected",
         "n_informal_knowledge_dag_nodes",
@@ -221,6 +222,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_route_adoption_pending_feedback_replan_blockers",
         "n_route_adoption_pending_realization_coverage_blockers",
         "n_route_adoption_pending_omitted_cost_hint_primitive_blockers",
+        "n_route_adoption_pending_quality_control_blockers",
         "n_route_adoption_omitted_cost_hint_primitives",
         "n_rejected",
         "n_informal_knowledge_dag_nodes",
@@ -1945,6 +1947,12 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_llm_route_planner_route_adoption_pending_quality_control_blockers": (
+            llm_route_planner_payload.get(
+                "n_route_adoption_pending_quality_control_blockers",
+                0,
+            )
+        ),
         "n_llm_route_planner_route_adoption_omitted_cost_hint_primitives": (
             llm_route_planner_payload.get(
                 "n_route_adoption_omitted_cost_hint_primitives",
@@ -2242,6 +2250,12 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers": (
             feedback_llm_route_planner_payload.get(
                 "n_route_adoption_pending_omitted_cost_hint_primitive_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_adoption_pending_quality_control_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_route_adoption_pending_quality_control_blockers",
                 0,
             )
         ),
@@ -2992,6 +3006,12 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_evaluation_llm_route_adoption_blockers": evaluation_payload.get(
             "n_llm_route_adoption_blockers",
             0,
+        ),
+        "n_evaluation_llm_route_adoption_pending_quality_control_blockers": (
+            evaluation_payload.get(
+                "n_llm_route_adoption_pending_quality_control_blockers",
+                0,
+            )
         ),
         "evaluation_llm_route_adoption_blockers": evaluation_payload.get(
             "llm_route_adoption_blockers",
@@ -5426,7 +5446,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"replan={payload.get('n_llm_route_planner_route_adoption_pending_feedback_replan_blockers')} "
             f"realization={payload.get('n_llm_route_planner_route_adoption_pending_realization_coverage_blockers')} "
             f"omitted_cost_hint={payload.get('n_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers')}/"
-            f"{payload.get('n_llm_route_planner_route_adoption_omitted_cost_hint_primitives')}"
+            f"{payload.get('n_llm_route_planner_route_adoption_omitted_cost_hint_primitives')} "
+            f"quality_controls={payload.get('n_llm_route_planner_route_adoption_pending_quality_control_blockers')}"
         ),
         (
             f"- LLM route planner resource registry context/resources/contracts: "
@@ -5549,7 +5570,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"replan={payload.get('n_feedback_llm_route_planner_route_adoption_pending_feedback_replan_blockers')} "
             f"realization={payload.get('n_feedback_llm_route_planner_route_adoption_pending_realization_coverage_blockers')} "
             f"omitted_cost_hint={payload.get('n_feedback_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers')}/"
-            f"{payload.get('n_feedback_llm_route_planner_route_adoption_omitted_cost_hint_primitives')}"
+            f"{payload.get('n_feedback_llm_route_planner_route_adoption_omitted_cost_hint_primitives')} "
+            f"quality_controls={payload.get('n_feedback_llm_route_planner_route_adoption_pending_quality_control_blockers')}"
         ),
         (
             f"- Feedback LLM route planner context coverage/source/request_queue/response_ledger/refinement/overlay/session/policy: "
@@ -5732,6 +5754,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_evaluation_rows_ready_for_route_adoption')}/"
             f"{payload.get('n_evaluation_rows_pending_refinement_before_route_adoption')}/"
             f"{payload.get('n_evaluation_llm_route_adoption_blockers')} "
+            f"quality_controls={payload.get('n_evaluation_llm_route_adoption_pending_quality_control_blockers')} "
             f"statuses={payload.get('evaluation_by_llm_route_adoption_status')}"
         ),
         f"- Evaluation mean route recall: {payload.get('mean_evaluation_route_recall')}",
