@@ -49,8 +49,10 @@ from .formalizer_llm import (
 )
 from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+    CLAUDE_MODEL_TIERS,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     claude_model_tier_mismatch,
+    claude_model_tier_policy_violations,
     resolve_generator_model,
 )
 from .formal_source_index import FormalSourceHit, FormalSourceRetriever
@@ -1902,7 +1904,14 @@ def _runtime_llm_topology(
         provider = str(row.get("provider_name", ""))
         by_tier[tier] = by_tier.get(tier, 0) + 1
         by_provider[provider] = by_provider.get(provider, 0) + 1
-    violations = _llm_topology_policy_violations(agents)
+    resolved_claude_models_by_tier = _resolved_claude_models_by_tier()
+    resolved_claude_model_tier_policy_violations = (
+        claude_model_tier_policy_violations(resolved_claude_models_by_tier)
+    )
+    violations = _llm_topology_policy_violations(agents) + [
+        "resolved Claude model tier policy violation: " + violation
+        for violation in resolved_claude_model_tier_policy_violations
+    ]
     manifest = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "artifact_kind": "RuntimeLLMTopologyManifest",
@@ -1911,6 +1920,15 @@ def _runtime_llm_topology(
             "default_live_provider": "anthropic",
             "supported_generator_providers": ["anthropic", "openai", "static"],
             "claude_model_selection": ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+            "resolved_claude_models_by_tier": resolved_claude_models_by_tier,
+            "resolved_claude_model_tier_policy_status": (
+                "OK"
+                if not resolved_claude_model_tier_policy_violations
+                else "POLICY_VIOLATION"
+            ),
+            "resolved_claude_model_tier_policy_violations": (
+                resolved_claude_model_tier_policy_violations
+            ),
             "primary_cost_split": "sonnet_for_architect_theory_formalizer__haiku_for_simulation_algorithm_critic",
             "backend_boundary": (
                 "LLM backends generate structured proposals only. AgentRuntime owns "
@@ -1936,6 +1954,9 @@ def _runtime_llm_topology(
             "anthropic_model_tier_mismatches": sum(
                 1 for row in enabled if _anthropic_model_tier_mismatch(row)
             ),
+            "resolved_claude_model_tier_policy_violations": len(
+                resolved_claude_model_tier_policy_violations
+            ),
         },
         "boundary": (
             "This manifest is runtime/model provenance and cost-control metadata. "
@@ -1950,6 +1971,17 @@ def _runtime_llm_topology(
         ]
     )[:20]
     return manifest
+
+
+def _resolved_claude_models_by_tier() -> dict[str, str]:
+    return {
+        tier: resolve_generator_model(
+            provider_name="anthropic",
+            requested_model="",
+            model_tier=tier,
+        )
+        for tier in CLAUDE_MODEL_TIERS
+    }
 
 
 def _llm_topology_policy_violations(agents: list[dict[str, Any]]) -> list[str]:

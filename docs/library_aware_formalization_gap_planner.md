@@ -177,6 +177,9 @@ request/response contracts still run against explicit `openai` live generation
 or `static` replay. Runtime topology validation records the intended model tier
 for each LLM subsystem and rejects recognized Anthropic family drift, for example
 a Haiku-designated helper configured with a Sonnet or Opus model. The packaged
+topology manifest also records the resolved Claude Haiku/Sonnet/Opus model map
+and rejects reported tier-policy collapse, so cost-aware routing is auditable
+even when only a subset of agents or planner prompts is staged. The packaged
 `ai_statistician_llm_model_policy` contract also records that empty worker
 `model` fields resolve from provider and `model_tier` when each request is
 built, so tier-specific Claude overrides apply to direct worker construction as

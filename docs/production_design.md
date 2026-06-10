@@ -21,7 +21,10 @@ Haiku for lower-cost intake, simulation-design, algorithm-planning, and critic
 packets. Runtime topology validation records provider/model provenance and
 rejects recognized Anthropic family mismatches, so a Haiku-designated helper does
 not silently run on Sonnet or Opus unless the topology policy is intentionally
-changed. LLM worker configs carry a `model_tier` and may leave `model` empty;
+changed. The topology manifest also records the request-time resolved Claude
+model map for Haiku/Sonnet/Opus and fails the same tier-policy/collapse audit
+used by `ai_statistician doctor`, even when only a subset of LLM agents is
+enabled. LLM worker configs carry a `model_tier` and may leave `model` empty;
 the concrete provider model is resolved when a request is built, so
 tier-specific environment overrides apply to direct worker construction as well
 as CLI-created agents. As of the 2026-06-10 model-source check, the pinned

@@ -489,6 +489,31 @@ def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
             "supported generator providers changed: "
             + ",".join(sorted(supported))
         )
+    resolved_status = str(
+        policy.get("resolved_claude_model_tier_policy_status", "")
+    )
+    if resolved_status and resolved_status != "OK":
+        errors.append(
+            "resolved Claude model tier policy status is not OK: "
+            + resolved_status
+        )
+    resolved_violations = policy.get(
+        "resolved_claude_model_tier_policy_violations",
+        [],
+    )
+    if isinstance(resolved_violations, list) and resolved_violations:
+        errors.append(
+            "resolved Claude model tier policy violations: "
+            + "; ".join(str(item) for item in resolved_violations)
+        )
+    resolved_models = policy.get("resolved_claude_models_by_tier", {})
+    if isinstance(resolved_models, Mapping):
+        missing_tiers = sorted({"haiku", "sonnet", "opus"} - set(resolved_models))
+        if missing_tiers:
+            errors.append(
+                "resolved Claude model tier map missing: "
+                + ",".join(missing_tiers)
+            )
     agents = topology.get("llm_agents", []) if isinstance(topology.get("llm_agents"), list) else []
     for agent in agents:
         if not isinstance(agent, Mapping) or not agent.get("enabled"):
