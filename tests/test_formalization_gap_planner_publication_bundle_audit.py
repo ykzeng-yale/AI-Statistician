@@ -22,6 +22,9 @@ from ai_statistician.formalization_gap_planner_library_coverage_map import (
     export_formalization_gap_planner_library_coverage_map,
     library_coverage_map_row_json_schema,
 )
+from ai_statistician.formalization_gap_planner_local_formal_source_adapter import (
+    LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
+)
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
@@ -1296,22 +1299,22 @@ def _write_local_adapter_fixture(
     artifact_name: str,
     local_count_field: str,
     response: dict[str, object],
+    manifest_extra: dict[str, object] | None = None,
 ) -> None:
     adapter_dir.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "component_name": artifact_name,
+        local_count_field: 1,
+        "n_merged_responses": 1,
+        "n_local_response_schema_valid": 1,
+        "n_local_response_schema_invalid": 0,
+        "n_merged_response_schema_valid": 1,
+        "n_merged_response_schema_invalid": 0,
+        "all_ok": True,
+    }
+    manifest.update(manifest_extra or {})
     (adapter_dir / f"{artifact_name}_manifest.json").write_text(
-        json.dumps(
-            {
-                "component_name": artifact_name,
-                local_count_field: 1,
-                "n_merged_responses": 1,
-                "n_local_response_schema_valid": 1,
-                "n_local_response_schema_invalid": 0,
-                "n_merged_response_schema_valid": 1,
-                "n_merged_response_schema_invalid": 0,
-                "all_ok": True,
-            },
-            indent=2,
-        ),
+        json.dumps(manifest, indent=2),
         encoding="utf-8",
     )
     (adapter_dir / f"{artifact_name}_responses.jsonl").write_text(
@@ -2360,6 +2363,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "proof_evidence_status": "FORMALIZATION_GAP_PLANNER_LOCAL_FORMAL_SOURCE_ADAPTER_NOT_PROOF_EVIDENCE",
             "proof_evidence_boundary": "not theorem proof evidence",
         },
+        manifest_extra={
+            "legacy_formal_source_adapter_field_aliases": (
+                LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES
+            ),
+            "n_responses_with_legacy_lean_declaration_hits": 1,
+        },
     )
     _write_local_adapter_fixture(
         local_proof_state_adapter_dir,
@@ -3208,6 +3217,20 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert audit_payload["n_optional_refinement_adapter_response_schema_valid"] == 1
     assert audit_payload["n_optional_local_adapter_response_schema_checked"] == 6
     assert audit_payload["n_optional_local_adapter_response_schema_valid"] == 6
+    assert audit_payload["n_optional_local_formal_source_alias_contract_checked"] == 2
+    assert audit_payload["n_optional_local_formal_source_alias_contract_valid"] == 2
+    assert any(
+        row["check_name"] == "optional_local_formal_source_adapter_legacy_alias_contract"
+        and row["ok"]
+        and "formal_declaration_hits" in row["observed"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "optional_local_formal_source_adapter_legacy_alias_count"
+        and row["ok"]
+        and "manifest=1 jsonl=1" in row["observed"]
+        for row in audit_payload["checks"]
+    )
     assert any(
         row["check_name"] == "standalone_input_schema_id" and row["ok"]
         for row in audit_payload["checks"]

@@ -50,6 +50,9 @@ from .formalization_gap_planner_library_coverage_map import (
     LIBRARY_COVERAGE_MAP_ROW_SCHEMA_ID,
     validate_library_coverage_map_row,
 )
+from .formalization_gap_planner_local_formal_source_adapter import (
+    LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
+)
 from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
@@ -1592,6 +1595,21 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name.startswith("optional_local_adapter_response_")
             and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_local_formal_source_alias_contract_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_local_formal_source_adapter_legacy_alias_"
+            )
+        ),
+        "n_optional_local_formal_source_alias_contract_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_local_formal_source_adapter_legacy_alias_"
+            )
             and check.ok
         ),
         "n_optional_proof_state_triage_row_schema_checked": sum(
@@ -11344,6 +11362,40 @@ def _local_adapter_optional_checks(
             len(merged_rows) == int(manifest.get("n_merged_responses", 0) or 0),
         ),
     ]
+    if artifact_name == "formalization_gap_planner_local_formal_source_adapter":
+        n_local_rows_with_lean_alias = sum(
+            1 for row in local_rows if _dict_tuple(row.get("lean_declaration_hits", []))
+        )
+        checks.extend(
+            [
+                _check(
+                    "optional_local_formal_source_adapter_legacy_alias_contract",
+                    "optional_artifacts",
+                    "local formal-source adapter manifest publishes Lean declaration-hit legacy alias contract",
+                    str(manifest.get("legacy_formal_source_adapter_field_aliases", {})),
+                    manifest.get("legacy_formal_source_adapter_field_aliases")
+                    == LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
+                ),
+                _check(
+                    "optional_local_formal_source_adapter_legacy_alias_count",
+                    "optional_artifacts",
+                    "local formal-source adapter manifest Lean-alias response count matches local rows",
+                    (
+                        "manifest="
+                        f"{manifest.get('n_responses_with_legacy_lean_declaration_hits', 0)} "
+                        f"jsonl={n_local_rows_with_lean_alias}"
+                    ),
+                    int(
+                        manifest.get(
+                            "n_responses_with_legacy_lean_declaration_hits",
+                            0,
+                        )
+                        or 0
+                    )
+                    == n_local_rows_with_lean_alias,
+                ),
+            ]
+        )
     for scope, rows in (("local", local_rows), ("merged", merged_rows)):
         for idx, row in enumerate(rows):
             schema_errors = validate_refinement_tool_response_row(row)

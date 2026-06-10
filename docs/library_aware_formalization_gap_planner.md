@@ -828,7 +828,10 @@ into the standalone seed metadata. The reuse-smoke manifest also exposes
 `local_formal_source_adapter_legacy_field_aliases` and
 `n_local_formal_source_legacy_lean_declaration_hit_responses`, so a public
 smoke run can verify whether local formal-source evidence is using the portable
-`formal_declaration_hits` contract or only the Lean compatibility alias.
+`formal_declaration_hits` contract or only the Lean compatibility alias. The
+publication-bundle audit validates the same local formal-source adapter alias
+map and checks that the manifest alias-response count matches the packaged
+local response rows.
 
 Planner quality can be scored against a curated or held-out theorem-route file:
 
