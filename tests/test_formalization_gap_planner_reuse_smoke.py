@@ -364,6 +364,30 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == 0
     )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_declared_target_prover_payloads"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_target_prover_mismatches"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "llm_route_planner_response_payload_validation_by_payload_target_prover_family"
+        ]
+        == {}
+    )
+    assert (
+        payload[
+            "llm_route_planner_response_payload_validation_by_request_context_target_prover_family"
+        ]
+        == {}
+    )
     assert payload["n_llm_route_planner_provider_failures"] == 0
     assert payload["n_llm_route_planner_rows_with_generator_metadata"] == 0
     assert payload["n_llm_route_planner_rows_with_generation_errors"] == 0
@@ -2334,6 +2358,30 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_llm_route_planner_response_payload_validation_declared_target_prover_payloads"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_target_prover_mismatches"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "llm_route_planner_response_payload_validation_by_payload_target_prover_family"
+        ]
+        == {"lean4": 2}
+    )
+    assert (
+        payload[
+            "llm_route_planner_response_payload_validation_by_request_context_target_prover_family"
+        ]
+        == {"lean4": 2}
+    )
+    assert (
+        payload[
             "n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata"
         ]
         == 1
@@ -3068,6 +3116,10 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "llm_route_planner_response_payload_validation_manifest"
         ]
     ).exists()
+    report_text = (
+        out_dir / "formalization_gap_planner_reuse_smoke.md"
+    ).read_text(encoding="utf-8")
+    assert "target_mismatch=0" in report_text
     assert (
         out_dir
         / "formalization_gap_planner_publication_bundle"

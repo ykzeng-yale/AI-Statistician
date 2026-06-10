@@ -146,6 +146,8 @@ The publication-bundle audit checks those counters against JSONL rows
 when the optional validator artifact is packaged. The public planner path records
 `*_provider_execution_mode`, live-call counters, and generation preflight block
 counts/errors so staged packets are distinguishable from paid provider calls
+and the reuse-smoke manifest/report lifts the validator target-prover counts
+and mismatch counter into top-level fields for release gating.
 and schema/model-tier-invalid requests are visible before any live Claude call.
 If no LLM response is accepted, the emitted standalone seed falls back to the
 original route content but still records route-level LLM provenance:

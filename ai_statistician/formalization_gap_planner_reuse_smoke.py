@@ -1781,6 +1781,30 @@ def run_formalization_gap_planner_reuse_smoke(
                 "n_request_bound_payload_context_inventory_total_rows",
             )
         ),
+        "n_llm_route_planner_response_payload_validation_declared_target_prover_payloads": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_payloads_with_declared_target_prover_family",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_target_prover_mismatches": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payloads_with_target_prover_family_mismatch",
+            )
+        ),
+        "llm_route_planner_response_payload_validation_by_payload_target_prover_family": (
+            _optional_dict(
+                llm_response_payload_validation_payload,
+                "by_payload_target_prover_family",
+            )
+        ),
+        "llm_route_planner_response_payload_validation_by_request_context_target_prover_family": (
+            _optional_dict(
+                llm_response_payload_validation_payload,
+                "by_request_context_target_prover_family",
+            )
+        ),
         "n_llm_route_planner_response_payload_validation_schema_errors": (
             _optional_int(
                 llm_response_payload_validation_payload,
@@ -4979,6 +5003,15 @@ def _optional_int(payload: dict[str, object] | None, key: str) -> int:
     return int(payload.get(key, 0) or 0)
 
 
+def _optional_dict(payload: dict[str, object] | None, key: str) -> dict[str, object]:
+    if payload is None:
+        return {}
+    value = payload.get(key, {})
+    if not isinstance(value, dict):
+        return {}
+    return dict(value)
+
+
 def _evaluation_ground_truth_path(
     plan_payload: dict[str, Any],
     out_dir: Path,
@@ -6142,6 +6175,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_llm_route_planner_response_payload_validation_invalid_payloads')} "
             f"request_bound={payload.get('n_llm_route_planner_response_payload_validation_request_bound_payloads')}/"
             f"{payload.get('n_llm_route_planner_response_payload_validation_payloads')} "
+            f"target_mismatch={payload.get('n_llm_route_planner_response_payload_validation_target_prover_mismatches')} "
             f"present={payload.get('has_llm_route_planner_response_payload_validation')}"
         ),
         (
