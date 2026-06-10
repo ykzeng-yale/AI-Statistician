@@ -480,6 +480,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     ] == payload[
         "n_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers"
     ]
+    assert "n_formal_realization_dag_nodes" in llm_stage_summary
     assert llm_stage_summary["n_route_adoption_omitted_cost_hint_primitives"] == (
         payload["n_llm_route_planner_route_adoption_omitted_cost_hint_primitives"]
     )
@@ -493,6 +494,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "formalization_gap_planner_feedback_llm_route_planner"
     ]["summary"]
     assert feedback_llm_stage_summary["model_tier_selection_mode"] == "auto"
+    assert "n_formal_realization_dag_nodes" in feedback_llm_stage_summary
     assert feedback_llm_stage_summary["by_request_model_tier"] == payload[
         "feedback_llm_route_planner_by_request_model_tier"
     ]
@@ -2531,6 +2533,14 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert payload["n_resource_request_with_candidate_declaration_rows"] > 0
     assert payload["n_resource_request_candidate_declaration_rows"] > 0
     stage_by_name = {stage["stage_name"]: stage for stage in payload["stages"]}
+    llm_stage_summary = stage_by_name[
+        "formalization_gap_planner_llm_route_planner"
+    ]["summary"]
+    feedback_llm_stage_summary = stage_by_name[
+        "formalization_gap_planner_feedback_llm_route_planner"
+    ]["summary"]
+    assert llm_stage_summary["n_formal_realization_dag_nodes"] > 0
+    assert feedback_llm_stage_summary["n_formal_realization_dag_nodes"] > 0
     validation_summary = stage_by_name[
         "formalization_gap_planner_llm_route_planner_response_payload_validation"
     ]["summary"]

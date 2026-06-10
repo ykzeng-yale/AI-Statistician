@@ -350,7 +350,10 @@ The one-command reuse-smoke manifest also promotes LLM route-planner
 realization-coverage counters for both primary and feedback planner passes, so
 a public artifact consumer can distinguish staged prompt-only requests from
 accepted routes whose selected and delta primitives are fully covered by
-standalone/formal DAG nodes and alignment edges. It also forwards the packaged
+standalone/formal DAG nodes and alignment edges. Its stage summaries include
+the generic `n_formal_realization_dag_nodes` counter as well as the Lean legacy
+alias count, so non-Lean prover outputs are visible without relying on
+Lean-specific fields. It also forwards the packaged
 publication-bundle LLM route-planner summaries and their audit-consistency
 counters, so one smoke output can show that the public bundle view matches the
 copied primary and feedback LLM planning artifacts. The same manifest now exposes
