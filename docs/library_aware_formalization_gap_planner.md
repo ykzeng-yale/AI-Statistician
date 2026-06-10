@@ -342,7 +342,11 @@ summaries also expose request-context inventory coverage counts and row snapshot
 counts, so a public bundle shows whether packaged primary and feedback
 route-planner prompts carried the compact `context_packet_inventory` needed for
 evidence-bounded LLM route repair, and whether the planner JSONL rows preserved
-that same request-context snapshot for standalone reuse.
+that same request-context snapshot for standalone reuse. They also preserve the
+generic informal DAG, formal realization DAG, Lean legacy realization alias, and
+route-alignment edge counts from the packaged planner manifests, so non-Lean
+prover routes remain visible in the public summary without relying on
+Lean-specific names.
 The publication-bundle audit recomputes those two summaries from the packaged
 route-planner manifest/JSONL files, so a reused bundle cannot silently drift
 between copied LLM planning artifacts and the top-level manifest.

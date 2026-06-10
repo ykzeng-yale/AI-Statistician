@@ -2156,6 +2156,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_rows",
             "n_response_present",
             "n_response_contract_ok",
+            "n_informal_knowledge_dag_nodes",
+            "n_formal_realization_dag_nodes",
+            "n_lean_realization_dag_nodes",
+            "n_route_alignment_edges",
             "n_accepted_route_plans",
             "n_route_adoption_ready",
             "n_route_adoption_pending_refinement",
@@ -2182,6 +2186,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_response_present": nonnegative_integer,
             "n_response_contract_ok": nonnegative_integer,
             "n_provider_failures": nonnegative_integer,
+            "n_informal_knowledge_dag_nodes": nonnegative_integer,
+            "n_formal_realization_dag_nodes": nonnegative_integer,
+            "n_lean_realization_dag_nodes": nonnegative_integer,
+            "n_route_alignment_edges": nonnegative_integer,
             "n_accepted_route_plans": nonnegative_integer,
             "n_route_adoption_ready": nonnegative_integer,
             "n_route_adoption_pending_refinement": nonnegative_integer,
@@ -4050,6 +4058,10 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_response_present": 0,
         "n_response_contract_ok": 0,
         "n_provider_failures": 0,
+        "n_informal_knowledge_dag_nodes": 0,
+        "n_formal_realization_dag_nodes": 0,
+        "n_lean_realization_dag_nodes": 0,
+        "n_route_alignment_edges": 0,
         "n_accepted_route_plans": 0,
         "n_route_adoption_ready": 0,
         "n_route_adoption_pending_refinement": 0,
@@ -4116,6 +4128,34 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             payload.get(
                 "n_provider_failures",
                 sum(1 for row in rows if bool(row.get("provider_failure", False))),
+            )
+            or 0
+        ),
+        "n_informal_knowledge_dag_nodes": int(
+            payload.get(
+                "n_informal_knowledge_dag_nodes",
+                _jsonl_row_collection_count(rows, "informal_knowledge_dag_nodes"),
+            )
+            or 0
+        ),
+        "n_formal_realization_dag_nodes": int(
+            payload.get(
+                "n_formal_realization_dag_nodes",
+                _jsonl_row_collection_count(rows, "formal_realization_dag_nodes"),
+            )
+            or 0
+        ),
+        "n_lean_realization_dag_nodes": int(
+            payload.get(
+                "n_lean_realization_dag_nodes",
+                _jsonl_row_collection_count(rows, "lean_realization_dag_nodes"),
+            )
+            or 0
+        ),
+        "n_route_alignment_edges": int(
+            payload.get(
+                "n_route_alignment_edges",
+                _jsonl_row_collection_count(rows, "route_alignment_edges"),
             )
             or 0
         ),
@@ -4372,6 +4412,20 @@ def _str_tuple(value: Any) -> tuple[str, ...]:
     if isinstance(value, (list, tuple, set)):
         return tuple(str(item) for item in value if str(item))
     return ()
+
+
+def _jsonl_row_collection_count(
+    rows: tuple[dict[str, Any], ...],
+    field_name: str,
+) -> int:
+    count = 0
+    for row in rows:
+        values = row.get(field_name)
+        if isinstance(values, dict):
+            count += 1
+        elif isinstance(values, (list, tuple, set)):
+            count += sum(1 for value in values if isinstance(value, dict))
+    return count
 
 
 def _read_json_no_error(path: Path) -> dict[str, object]:

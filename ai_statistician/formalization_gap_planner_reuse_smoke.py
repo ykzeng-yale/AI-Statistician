@@ -1869,6 +1869,30 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_publication_bundle_llm_route_planner_summary_informal_knowledge_dag_nodes": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_informal_knowledge_dag_nodes",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_formal_realization_dag_nodes": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_formal_realization_dag_nodes",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_lean_realization_dag_nodes": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_lean_realization_dag_nodes",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_route_alignment_edges": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_route_alignment_edges",
+                0,
+            )
+        ),
         "n_publication_bundle_llm_route_planner_summary_accepted_route_plans": (
             publication_bundle_llm_route_planner_summary.get(
                 "n_accepted_route_plans",
@@ -1953,6 +1977,30 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_feedback_llm_route_planner_summary_response_contract_ok": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_response_contract_ok",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_informal_knowledge_dag_nodes": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_informal_knowledge_dag_nodes",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_formal_realization_dag_nodes": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_formal_realization_dag_nodes",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_lean_realization_dag_nodes": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_lean_realization_dag_nodes",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_route_alignment_edges": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_route_alignment_edges",
                 0,
             )
         ),
@@ -2121,6 +2169,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_llm_route_planner_response_contract_ok": llm_route_planner_payload.get(
             "n_response_contract_ok",
             0,
+        ),
+        "n_llm_route_planner_informal_knowledge_dag_nodes": (
+            llm_route_planner_payload.get("n_informal_knowledge_dag_nodes", 0)
+        ),
+        "n_llm_route_planner_formal_realization_dag_nodes": (
+            llm_route_planner_payload.get("n_formal_realization_dag_nodes", 0)
+        ),
+        "n_llm_route_planner_lean_realization_dag_nodes": (
+            llm_route_planner_payload.get("n_lean_realization_dag_nodes", 0)
+        ),
+        "n_llm_route_planner_route_alignment_edges": (
+            llm_route_planner_payload.get("n_route_alignment_edges", 0)
         ),
         "n_llm_route_planner_accepted_route_plans": llm_route_planner_payload.get(
             "n_accepted_route_plans",
@@ -2447,6 +2507,27 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_response_contract_ok": feedback_llm_route_planner_payload.get(
             "n_response_contract_ok",
             0,
+        ),
+        "n_feedback_llm_route_planner_informal_knowledge_dag_nodes": (
+            feedback_llm_route_planner_payload.get(
+                "n_informal_knowledge_dag_nodes",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_formal_realization_dag_nodes": (
+            feedback_llm_route_planner_payload.get(
+                "n_formal_realization_dag_nodes",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_lean_realization_dag_nodes": (
+            feedback_llm_route_planner_payload.get(
+                "n_lean_realization_dag_nodes",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_route_alignment_edges": (
+            feedback_llm_route_planner_payload.get("n_route_alignment_edges", 0)
         ),
         "n_feedback_llm_route_planner_accepted_route_plans": feedback_llm_route_planner_payload.get(
             "n_accepted_route_plans",

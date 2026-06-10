@@ -2431,6 +2431,46 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_informal_knowledge_dag_nodes": int(
+            payload.get(
+                "n_informal_knowledge_dag_nodes",
+                sum(
+                    len(_dict_tuple(row.get("informal_knowledge_dag_nodes")))
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_formal_realization_dag_nodes": int(
+            payload.get(
+                "n_formal_realization_dag_nodes",
+                sum(
+                    len(_dict_tuple(row.get("formal_realization_dag_nodes")))
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_lean_realization_dag_nodes": int(
+            payload.get(
+                "n_lean_realization_dag_nodes",
+                sum(
+                    len(_dict_tuple(row.get("lean_realization_dag_nodes")))
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_route_alignment_edges": int(
+            payload.get(
+                "n_route_alignment_edges",
+                sum(
+                    len(_dict_tuple(row.get("route_alignment_edges")))
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
         "n_accepted_route_plans": int(
             payload.get(
                 "n_accepted_route_plans",

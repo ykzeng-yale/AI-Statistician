@@ -2684,6 +2684,34 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_llm_route_planner_summary_informal_knowledge_dag_nodes"
+        ]
+        == payload["n_llm_route_planner_informal_knowledge_dag_nodes"]
+        >= 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_formal_realization_dag_nodes"
+        ]
+        == payload["n_llm_route_planner_formal_realization_dag_nodes"]
+        >= 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_lean_realization_dag_nodes"
+        ]
+        == payload["n_llm_route_planner_lean_realization_dag_nodes"]
+        >= 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_route_alignment_edges"
+        ]
+        == payload["n_llm_route_planner_route_alignment_edges"]
+        >= 1
+    )
+    assert (
+        payload[
             "n_publication_bundle_llm_route_planner_summary_accepted_route_plans"
         ]
         == payload["n_llm_route_planner_accepted_route_plans"]
@@ -2749,6 +2777,34 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload["n_feedback_llm_route_planner_response_present"]
         == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_informal_knowledge_dag_nodes"
+        ]
+        == payload["n_feedback_llm_route_planner_informal_knowledge_dag_nodes"]
+        >= 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_formal_realization_dag_nodes"
+        ]
+        == payload["n_feedback_llm_route_planner_formal_realization_dag_nodes"]
+        >= 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_lean_realization_dag_nodes"
+        ]
+        == payload["n_feedback_llm_route_planner_lean_realization_dag_nodes"]
+        >= 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_route_alignment_edges"
+        ]
+        == payload["n_feedback_llm_route_planner_route_alignment_edges"]
+        >= 1
     )
     assert (
         payload[
