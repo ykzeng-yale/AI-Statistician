@@ -1972,6 +1972,18 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_publication_bundle_llm_route_planner_summary_prior_llm_hook_traces": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_requests_with_prior_llm_hook_traces": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
+                0,
+            )
+        ),
         "n_publication_bundle_llm_route_planner_summary_rows": (
             publication_bundle_llm_route_planner_summary.get("n_rows", 0)
         ),
@@ -2125,6 +2137,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_feedback_llm_route_planner_summary_request_discharged_quality_control_values": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_request_discharged_quality_control_values",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_prior_llm_hook_traces": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_prior_llm_hook_traces": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
                 0,
             )
         ),
@@ -2571,6 +2595,18 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_llm_route_planner_feedback_loop_prior_llm_hook_traces": (
+            llm_route_planner_payload.get(
+                "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
+                0,
+            )
+        ),
+        "n_llm_route_planner_requests_with_feedback_loop_prior_llm_hook_traces": (
+            llm_route_planner_payload.get(
+                "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
+                0,
+            )
+        ),
         "n_llm_route_planner_requests_with_component_resource_registry_context": (
             llm_route_planner_payload.get(
                 "n_requests_with_component_resource_registry_context",
@@ -2969,6 +3005,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_feedback_loop_omitted_cost_hint_primitives": (
             feedback_llm_route_planner_payload.get(
                 "n_feedback_loop_summary_omitted_cost_hint_primitives",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_feedback_loop_prior_llm_hook_traces": (
+            feedback_llm_route_planner_payload.get(
+                "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_requests_with_feedback_loop_prior_llm_hook_traces": (
+            feedback_llm_route_planner_payload.get(
+                "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
                 0,
             )
         ),

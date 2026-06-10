@@ -2238,6 +2238,8 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_pending_quality_control_values",
             "n_request_discharged_quality_control_fields",
             "n_request_discharged_quality_control_values",
+            "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
+            "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_rows",
             "n_response_present",
             "n_response_contract_ok",
@@ -2280,6 +2282,12 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_pending_quality_control_values": nonnegative_integer,
             "n_request_discharged_quality_control_fields": nonnegative_integer,
             "n_request_discharged_quality_control_values": nonnegative_integer,
+            "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": (
+                nonnegative_integer
+            ),
+            "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces": (
+                nonnegative_integer
+            ),
             "n_rows": nonnegative_integer,
             "n_response_present": nonnegative_integer,
             "n_response_contract_ok": nonnegative_integer,
@@ -4350,6 +4358,8 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_pending_quality_control_values": 0,
         "n_request_discharged_quality_control_fields": 0,
         "n_request_discharged_quality_control_values": 0,
+        "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
+        "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_rows": 0,
         "n_response_present": 0,
         "n_response_contract_ok": 0,
@@ -4433,6 +4443,20 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         ),
         "n_request_discharged_quality_control_values": int(
             payload.get("n_request_discharged_quality_control_values", 0) or 0
+        ),
+        "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": int(
+            payload.get(
+                "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces": int(
+            payload.get(
+                "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
+                0,
+            )
+            or 0
         ),
         "n_rows": int(payload.get("n_rows", len(rows)) or 0),
         "n_response_present": int(

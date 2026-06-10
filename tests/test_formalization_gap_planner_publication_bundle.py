@@ -711,6 +711,18 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         == 0
     )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_feedback_loop_summary_prior_llm_route_planner_hook_traces"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces"
+        ]
+        == 0
+    )
     assert manifest["llm_route_planner_summary"]["n_rows"] == 1
     assert manifest["llm_route_planner_summary"]["n_response_present"] == 0
     assert manifest["llm_route_planner_summary"][
@@ -762,6 +774,18 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert (
         manifest["feedback_llm_route_planner_summary"][
             "n_request_pending_quality_control_values"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_feedback_loop_summary_prior_llm_route_planner_hook_traces"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces"
         ]
         == 0
     )
@@ -1884,11 +1908,23 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert payload["llm_route_planner_summary"]["requested"] is False
     assert payload["llm_route_planner_summary"]["n_request_packets"] == 0
     assert payload["llm_route_planner_summary"]["n_rows"] == 0
+    assert (
+        payload["llm_route_planner_summary"][
+            "n_feedback_loop_summary_prior_llm_route_planner_hook_traces"
+        ]
+        == 0
+    )
     assert payload["llm_route_planner_summary"]["route_adoption_blocker_counts"] == {}
     assert payload["llm_route_planner_summary"]["by_route_adoption_status"] == {}
     assert payload["feedback_llm_route_planner_summary"]["requested"] is False
     assert payload["feedback_llm_route_planner_summary"]["n_request_packets"] == 0
     assert payload["feedback_llm_route_planner_summary"]["n_rows"] == 0
+    assert (
+        payload["feedback_llm_route_planner_summary"][
+            "n_feedback_loop_summary_prior_llm_route_planner_hook_traces"
+        ]
+        == 0
+    )
     assert (
         payload["feedback_llm_route_planner_summary"][
             "route_adoption_blocker_counts"

@@ -2845,6 +2845,20 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         == payload["n_llm_route_planner_request_discharged_quality_control_values"]
     )
     assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_prior_llm_hook_traces"
+        ]
+        == payload["n_llm_route_planner_feedback_loop_prior_llm_hook_traces"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_requests_with_prior_llm_hook_traces"
+        ]
+        == payload[
+            "n_llm_route_planner_requests_with_feedback_loop_prior_llm_hook_traces"
+        ]
+    )
+    assert (
         payload["n_publication_bundle_llm_route_planner_summary_rows"]
         == payload["n_llm_route_planner_request_packets"]
         == 1
@@ -2980,6 +2994,22 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload[
             "n_feedback_llm_route_planner_request_discharged_quality_control_values"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_prior_llm_hook_traces"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_feedback_loop_prior_llm_hook_traces"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_prior_llm_hook_traces"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_requests_with_feedback_loop_prior_llm_hook_traces"
         ]
     )
     assert (

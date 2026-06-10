@@ -2579,6 +2579,20 @@ def _expected_bundle_llm_route_planner_summary(
         "n_request_discharged_quality_control_values": int(
             payload.get("n_request_discharged_quality_control_values", 0) or 0
         ),
+        "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": int(
+            payload.get(
+                "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces": int(
+            payload.get(
+                "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
+                0,
+            )
+            or 0
+        ),
         "n_rows": int(payload.get("n_rows", len(rows)) or 0),
         "n_response_present": int(
             payload.get(

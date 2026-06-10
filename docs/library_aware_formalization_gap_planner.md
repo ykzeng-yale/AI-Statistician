@@ -298,6 +298,9 @@ hidden inside opaque metadata. Its compact
 `applied_llm_route_planner_hook_traces`, so a feedback-driven route repair
 prompt can see which earlier LLM search/action request produced the residual or
 resource-response evidence it is repairing.
+Publication-bundle LLM route-planner summaries and the reuse-smoke top-level
+manifest expose the matching prior-hook-trace counters, and the bundle audit
+recomputes them from the packaged planner manifest so summary drift is rejected.
 The route-replan handoff audit checks that `quality_controls` survive from
 handoff rows into both the standalone route and its `replan_metadata`, and that
 roundtrip standalone traces preserve the same metadata controls.
