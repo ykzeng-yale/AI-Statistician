@@ -1400,6 +1400,33 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for packet in request_packets
         ),
+        "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "feedback_loop_summary",
+                        ),
+                        "prior_replan_metadata",
+                    ).get("applied_llm_route_planner_hook_traces", [])
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "feedback_loop_summary",
+                    ),
+                    "prior_replan_metadata",
+                ).get("applied_llm_route_planner_hook_traces", [])
+            )
+        ),
         "n_requests_with_component_resource_registry_context": sum(
             1
             for packet in request_packets
@@ -3839,6 +3866,14 @@ def _context_packet_inventory(
         "feedback_loop_summary_recommended_next_action_count": len(
             _dict_tuple(feedback_summary.get("recommended_next_actions", []))
         ),
+        "feedback_loop_summary_prior_llm_route_planner_hook_trace_count": len(
+            _dict_tuple(
+                _dict_value(
+                    feedback_summary,
+                    "prior_replan_metadata",
+                ).get("applied_llm_route_planner_hook_traces", [])
+            )
+        ),
         "quality_control_obligation_present": bool(
             quality_control_obligations.get("present", False)
         ),
@@ -3976,6 +4011,21 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             "context_packet.context_packet_inventory."
             "feedback_loop_summary_recommended_next_action_count must match "
             "context_packet.feedback_loop_summary"
+        )
+    prior_metadata = _dict_value(feedback_summary, "prior_replan_metadata")
+    if int(
+        inventory.get(
+            "feedback_loop_summary_prior_llm_route_planner_hook_trace_count",
+            0,
+        )
+        or 0
+    ) != len(
+        _dict_tuple(prior_metadata.get("applied_llm_route_planner_hook_traces", []))
+    ):
+        errors.append(
+            "context_packet.context_packet_inventory."
+            "feedback_loop_summary_prior_llm_route_planner_hook_trace_count "
+            "must match context_packet.feedback_loop_summary.prior_replan_metadata"
         )
     route_planning_brief = _dict_value(context_packet, "route_planning_brief")
     if bool(inventory.get("route_planning_brief_present", False)) != bool(
@@ -11366,6 +11416,7 @@ def _feedback_loop_summary(
                 "revised_selected_primitives",
                 "residual_goals",
                 "quality_controls",
+                "applied_llm_route_planner_hook_traces",
                 "alignment_edge_primitives",
                 "llm_route_planner_realization_coverage_witness",
                 "realization_coverage_witness",

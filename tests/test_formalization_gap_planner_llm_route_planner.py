@@ -1968,6 +1968,44 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
     assert handoff_seed_route["replan_metadata"][
         "applied_llm_route_planner_hook_traces"
     ] == [hook_trace]
+    replan_prompt_dir = root / "llm_route_planner_from_action_only_handoff"
+    replan_prompt_payload = export_formalization_gap_planner_llm_route_planner(
+        handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json",
+        replan_prompt_dir,
+        provider_name="prompt_only",
+        formalization_gap_planner_route_replan_handoff_dir=handoff_dir,
+    )
+    assert replan_prompt_payload["all_ok"]
+    assert (
+        replan_prompt_payload[
+            "n_feedback_loop_summary_prior_llm_route_planner_hook_traces"
+        ]
+        == 1
+    )
+    assert (
+        replan_prompt_payload[
+            "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces"
+        ]
+        == 1
+    )
+    replan_request = replan_prompt_payload["request_packets"][0]
+    replan_feedback_summary = replan_request["context_packet"][
+        "feedback_loop_summary"
+    ]
+    replan_inventory = replan_request["context_packet"]["context_packet_inventory"]
+    assert (
+        replan_inventory[
+            "feedback_loop_summary_prior_llm_route_planner_hook_trace_count"
+        ]
+        == 1
+    )
+    assert replan_feedback_summary["prior_replan_metadata"][
+        "applied_llm_route_planner_hook_traces"
+    ] == [hook_trace]
+    assert (
+        "applied_llm_route_planner_hook_traces"
+        in replan_request["prompt_messages"]["user"]
+    )
 
 
 def test_llm_route_planner_materializes_explicit_search_target_primitives() -> None:

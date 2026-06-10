@@ -293,7 +293,11 @@ an executable discharge path rather than remaining hidden in adoption metadata.
 The same second-pass request packet carries route-level and
 `replan_metadata.residual_goals` into `request.residual_goals`, so residual
 interpretation requirements survive the standalone handoff instead of being
-hidden inside opaque metadata.
+hidden inside opaque metadata. Its compact
+`feedback_loop_summary.prior_replan_metadata` also preserves
+`applied_llm_route_planner_hook_traces`, so a feedback-driven route repair
+prompt can see which earlier LLM search/action request produced the residual or
+resource-response evidence it is repairing.
 The route-replan handoff audit checks that `quality_controls` survive from
 handoff rows into both the standalone route and its `replan_metadata`, and that
 roundtrip standalone traces preserve the same metadata controls.
