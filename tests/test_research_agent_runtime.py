@@ -2033,12 +2033,25 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert runtime_handoff_audit["n_llm_prompt_primitive_cost_hints"] > 0
     assert runtime_handoff_audit["n_llm_prompt_route_option_cost_hints"] > 0
     assert runtime_handoff_audit["n_llm_prompt_model_tier_mismatches"] == 0
+    assert (
+        runtime_handoff_audit["n_llm_prompt_model_tier_haiku"]
+        + runtime_handoff_audit["n_llm_prompt_model_tier_sonnet"]
+        + runtime_handoff_audit["n_llm_prompt_model_tier_opus"]
+        == runtime_handoff_audit["n_llm_prompt_packets"]
+    )
     assert runtime_handoff_audit["n_seed_candidate_declaration_rows"] > 0
     assert (
         runtime_handoff_audit["n_seed_primitives_with_candidate_declaration_rows"] > 0
     )
     assert all(
         summary["seed_candidate_declaration_rows"] > 0
+        for summary in runtime_handoff_audit["smoke_summaries"]
+    )
+    assert all(
+        summary["llm_prompt_model_tier_haiku"]
+        + summary["llm_prompt_model_tier_sonnet"]
+        + summary["llm_prompt_model_tier_opus"]
+        == summary["llm_prompt_packets"]
         for summary in runtime_handoff_audit["smoke_summaries"]
     )
     assert runtime_handoff_audit["by_category"]["target_prover"] == 6
@@ -2064,6 +2077,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "Registry context in prompts:" in runtime_handoff_report
     assert "Minimal-delta cost hints in prompts:" in runtime_handoff_report
     assert "LLM prompt model-tier mismatches:" in runtime_handoff_report
+    assert "LLM prompt model tiers:" in runtime_handoff_report
     standalone_seed = gap_planner_bridge["standalone_seed"]
     assert validate_standalone_input_payload(standalone_seed) == []
     assert standalone_seed["component_name"] == "formalization_gap_planner_standalone_input"
