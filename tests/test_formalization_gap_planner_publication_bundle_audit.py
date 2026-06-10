@@ -7603,6 +7603,79 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
 
 
+def test_publication_bundle_audit_rejects_bundle_llm_summary_drift() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_audit_llm_summary_drift"
+    )
+    bundle_dir = root / "bundle"
+    shutil.rmtree(root, ignore_errors=True)
+    primary_llm_dir = _write_accepted_llm_route_planner_artifact(root / "primary_llm")
+    feedback_llm_dir = _write_accepted_llm_route_planner_artifact(root / "feedback_llm")
+
+    export_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        formalization_gap_planner_llm_route_planner_dir=primary_llm_dir,
+        formalization_gap_planner_feedback_llm_route_planner_dir=feedback_llm_dir,
+    )
+    manifest_path = bundle_dir / "formalization_gap_planner_publication_bundle_manifest.json"
+    original_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    corrupted_primary = json.loads(json.dumps(original_manifest))
+    corrupted_primary["llm_route_planner_summary"][
+        "n_route_adoption_blockers"
+    ] = 0
+    corrupted_primary["llm_route_planner_summary"][
+        "route_adoption_blocker_counts"
+    ] = {}
+    corrupted_primary["llm_route_planner_summary"]["by_route_adoption_blocker"] = {}
+    manifest_path.write_text(
+        json.dumps(corrupted_primary, indent=2),
+        encoding="utf-8",
+    )
+    rejected_primary = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_primary_llm_summary_drift",
+    )
+    primary_failed_names = {
+        row["check_name"] for row in rejected_primary["checks"] if not row["ok"]
+    }
+    assert not rejected_primary["all_ok"]
+    assert "bundle_llm_route_planner_summary_consistent" in primary_failed_names
+    assert rejected_primary["n_bundle_llm_route_planner_summary_checked"] == 1
+    assert rejected_primary["n_bundle_llm_route_planner_summary_valid"] == 0
+    assert rejected_primary["n_bundle_feedback_llm_route_planner_summary_valid"] == 1
+
+    corrupted_feedback = json.loads(json.dumps(original_manifest))
+    corrupted_feedback["feedback_llm_route_planner_summary"][
+        "n_accepted_route_plans"
+    ] = 0
+    corrupted_feedback["feedback_llm_route_planner_summary"][
+        "route_adoption_blocker_counts"
+    ] = {}
+    corrupted_feedback["feedback_llm_route_planner_summary"][
+        "by_route_adoption_blocker"
+    ] = {}
+    manifest_path.write_text(
+        json.dumps(corrupted_feedback, indent=2),
+        encoding="utf-8",
+    )
+    rejected_feedback = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_feedback_llm_summary_drift",
+    )
+    feedback_failed_names = {
+        row["check_name"] for row in rejected_feedback["checks"] if not row["ok"]
+    }
+    assert not rejected_feedback["all_ok"]
+    assert (
+        "bundle_feedback_llm_route_planner_summary_consistent"
+        in feedback_failed_names
+    )
+    assert rejected_feedback["n_bundle_llm_route_planner_summary_valid"] == 1
+    assert rejected_feedback["n_bundle_feedback_llm_route_planner_summary_checked"] == 1
+    assert rejected_feedback["n_bundle_feedback_llm_route_planner_summary_valid"] == 0
+
+
 def test_publication_bundle_audit_rejects_schema_mismatch() -> None:
     root = Path("runs/test_formalization_gap_planner_publication_bundle_audit_rejects")
     bundle_dir = root / "bundle"
