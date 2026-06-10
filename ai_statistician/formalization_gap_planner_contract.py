@@ -57,11 +57,22 @@ INTERACTIVE_ROUTE_STAGES = (
     "target_intake",
     "literature_evidence_search",
     "informal_route_dag",
-    "lean_coverage_mapping",
+    "formal_library_coverage_mapping",
     "minimal_delta_planning",
     "leaf_prover_attempts",
     "residual_feedback_revision",
 )
+LEGACY_ROUTE_STAGE_ALIASES = {
+    "lean_coverage_mapping": "formal_library_coverage_mapping",
+}
+LEGACY_EVALUATION_METRIC_ALIASES = {
+    "lean_effort_new_declarations": "target_prover_effort_new_declarations",
+    "lean_effort_failed_attempts": "target_prover_effort_failed_attempts",
+}
+LEGACY_ABLATION_ALIASES = {
+    "no_lean_rag": "no_formal_grounding",
+    "no_lsp_feedback": "no_proof_state_feedback",
+}
 
 
 def planner_contract(library_snapshot_ref: str) -> dict[str, object]:
@@ -115,6 +126,7 @@ def portable_work_packet_contract() -> dict[str, object]:
 def interactive_route_synthesis_contract() -> dict[str, object]:
     return {
         "loop": list(INTERACTIVE_ROUTE_STAGES),
+        "legacy_stage_aliases": dict(LEGACY_ROUTE_STAGE_ALIASES),
         "bounded_expansion_policy": [
             "start from the target theorem and expand literature only until the proof route stabilizes",
             "stop adding papers when no new required primitive or assumption is introduced",
@@ -181,23 +193,25 @@ def evaluation_protocol() -> dict[str, object]:
         "primary_metrics": [
             "route_recall",
             "delta_precision",
-            "lean_effort_new_declarations",
-            "lean_effort_failed_attempts",
+            "target_prover_effort_new_declarations",
+            "target_prover_effort_failed_attempts",
             "coverage_classification_accuracy",
             "source_faithfulness",
             "downstream_kernel_verified_success",
         ],
+        "legacy_metric_aliases": dict(LEGACY_EVALUATION_METRIC_ALIASES),
         "minimality_proxy": (
             "remove each proposed delta node and check whether the theorem route still "
             "has a kernel-verified proof or a lower-cost alternative"
         ),
         "ablations": [
             "no_literature_evidence",
-            "no_lean_rag",
-            "no_lsp_feedback",
+            "no_formal_grounding",
+            "no_proof_state_feedback",
             "no_route_planner",
             "whole_field_formalization_baseline",
         ],
+        "legacy_ablation_aliases": dict(LEGACY_ABLATION_ALIASES),
         "benchmark_design": [
             "hide existing proved theorem routes and ask the planner to rediscover the minimal delta",
             "compare predicted route nodes against actual target-prover dependencies and proof obligations",

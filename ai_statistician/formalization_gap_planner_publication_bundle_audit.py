@@ -3211,6 +3211,38 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         )
         else {}
     )
+    interactive_route_contract = (
+        contract.get("interactive_route_synthesis_contract", {})
+        if isinstance(contract.get("interactive_route_synthesis_contract", {}), dict)
+        else {}
+    )
+    evaluation_protocol_contract = (
+        contract.get("evaluation_protocol", {})
+        if isinstance(contract.get("evaluation_protocol", {}), dict)
+        else {}
+    )
+    interactive_route_loop = _str_tuple(interactive_route_contract.get("loop", []))
+    interactive_route_stage_aliases = (
+        interactive_route_contract.get("legacy_stage_aliases", {})
+        if isinstance(interactive_route_contract.get("legacy_stage_aliases", {}), dict)
+        else {}
+    )
+    evaluation_primary_metrics = _str_tuple(
+        evaluation_protocol_contract.get("primary_metrics", [])
+    )
+    evaluation_metric_aliases = (
+        evaluation_protocol_contract.get("legacy_metric_aliases", {})
+        if isinstance(evaluation_protocol_contract.get("legacy_metric_aliases", {}), dict)
+        else {}
+    )
+    evaluation_ablations = _str_tuple(
+        evaluation_protocol_contract.get("ablations", [])
+    )
+    evaluation_ablation_aliases = (
+        evaluation_protocol_contract.get("legacy_ablation_aliases", {})
+        if isinstance(evaluation_protocol_contract.get("legacy_ablation_aliases", {}), dict)
+        else {}
+    )
     schema_catalog_entries = [
         row
         for row in schema_catalog.get("schema_entries", [])
@@ -3366,6 +3398,37 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             "llm_model_policy_contract",
             str("llm_model_policy_contract" in contract),
             "llm_model_policy_contract" in contract,
+        ),
+        _check(
+            "portable_contract_target_prover_neutral_terms",
+            "contract",
+            "target-prover-neutral route/evaluation terms with Lean legacy aliases",
+            json.dumps(
+                {
+                    "loop": interactive_route_loop,
+                    "metrics": evaluation_primary_metrics,
+                    "ablations": evaluation_ablations,
+                    "stage_aliases": interactive_route_stage_aliases,
+                    "metric_aliases": evaluation_metric_aliases,
+                    "ablation_aliases": evaluation_ablation_aliases,
+                },
+                sort_keys=True,
+            ),
+            "formal_library_coverage_mapping" in interactive_route_loop
+            and "lean_coverage_mapping" not in interactive_route_loop
+            and interactive_route_stage_aliases.get("lean_coverage_mapping")
+            == "formal_library_coverage_mapping"
+            and "target_prover_effort_new_declarations"
+            in evaluation_primary_metrics
+            and "target_prover_effort_failed_attempts" in evaluation_primary_metrics
+            and "lean_effort_new_declarations" not in evaluation_primary_metrics
+            and evaluation_metric_aliases.get("lean_effort_new_declarations")
+            == "target_prover_effort_new_declarations"
+            and "no_formal_grounding" in evaluation_ablations
+            and "no_proof_state_feedback" in evaluation_ablations
+            and "no_lean_rag" not in evaluation_ablations
+            and evaluation_ablation_aliases.get("no_lean_rag")
+            == "no_formal_grounding",
         ),
         _check(
             "portable_plan_row_schema_file",

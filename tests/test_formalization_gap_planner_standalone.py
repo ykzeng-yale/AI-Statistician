@@ -120,6 +120,30 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
     assert payload["n_goal_plan_row_schema_invalid"] == 0
     assert payload["route_alignment_edge_schema"]["$id"] == ROUTE_ALIGNMENT_EDGE_SCHEMA_ID
     assert payload["goal_plan_row_schema"]["$id"] == PORTABLE_FORMALIZATION_GAP_PLAN_ROW_SCHEMA_ID
+    route_contract = payload["interactive_route_synthesis_contract"]
+    assert "formal_library_coverage_mapping" in route_contract["loop"]
+    assert "lean_coverage_mapping" not in route_contract["loop"]
+    assert route_contract["legacy_stage_aliases"] == {
+        "lean_coverage_mapping": "formal_library_coverage_mapping"
+    }
+    evaluation_protocol = payload["evaluation_protocol"]
+    assert "target_prover_effort_new_declarations" in evaluation_protocol[
+        "primary_metrics"
+    ]
+    assert "target_prover_effort_failed_attempts" in evaluation_protocol[
+        "primary_metrics"
+    ]
+    assert "lean_effort_new_declarations" not in evaluation_protocol[
+        "primary_metrics"
+    ]
+    assert evaluation_protocol["legacy_metric_aliases"][
+        "lean_effort_new_declarations"
+    ] == "target_prover_effort_new_declarations"
+    assert "no_formal_grounding" in evaluation_protocol["ablations"]
+    assert "no_lean_rag" not in evaluation_protocol["ablations"]
+    assert evaluation_protocol["legacy_ablation_aliases"]["no_lean_rag"] == (
+        "no_formal_grounding"
+    )
     assert not validate_portable_gap_plan_payload(payload)
     row = payload["rows"][0]
     assert validate_portable_gap_plan_row(row, portable_gap_plan_row_json_schema()) == []

@@ -2463,6 +2463,30 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
             encoding="utf-8"
         )
     )
+    route_contract = contract_payload["interactive_route_synthesis_contract"]
+    assert "formal_library_coverage_mapping" in route_contract["loop"]
+    assert "lean_coverage_mapping" not in route_contract["loop"]
+    assert route_contract["legacy_stage_aliases"][
+        "lean_coverage_mapping"
+    ] == "formal_library_coverage_mapping"
+    evaluation_protocol = contract_payload["evaluation_protocol"]
+    assert "target_prover_effort_new_declarations" in evaluation_protocol[
+        "primary_metrics"
+    ]
+    assert "target_prover_effort_failed_attempts" in evaluation_protocol[
+        "primary_metrics"
+    ]
+    assert "lean_effort_new_declarations" not in evaluation_protocol[
+        "primary_metrics"
+    ]
+    assert evaluation_protocol["legacy_metric_aliases"][
+        "lean_effort_new_declarations"
+    ] == "target_prover_effort_new_declarations"
+    assert "no_formal_grounding" in evaluation_protocol["ablations"]
+    assert "no_lean_rag" not in evaluation_protocol["ablations"]
+    assert evaluation_protocol["legacy_ablation_aliases"]["no_lean_rag"] == (
+        "no_formal_grounding"
+    )
     assert "prover_adapter_packet_contract" in contract_payload
     assert "prover_adapter_response_validation_row_contract" in contract_payload
     assert "prover_adapter_response_contract" in contract_payload

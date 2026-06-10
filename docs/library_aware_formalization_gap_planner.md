@@ -887,7 +887,7 @@ benchmark evidence about planning quality, not theorem proof evidence.
 The ablation study compares the observed planner with counterfactual
 `no_literature_evidence`, `no_formal_grounding`, `no_proof_state_feedback`, and
 `no_route_planner` variants. `no_formal_grounding` is the prover-neutral
-successor to the legacy `no_lean_grounding` label. It is a diagnostic for which
+successor to the legacy `no_lean_rag` label. It is a diagnostic for which
 signal families matter for route recall, formalization-delta recall, reuse,
 feedback readiness, and
 route-adoption readiness under the current evidence bound. It also separates
@@ -902,6 +902,14 @@ runs can be filtered by adoption readiness without parsing nested planner
 artifacts. The publication-bundle audit recomputes the ablation
 `largest_route_adoption_ready_drop_variant` from packaged JSONL rows and rejects
 bundles whose manifest-level route-adoption aggregate drifts from those rows.
+
+The portable public contract uses target-prover-neutral route/evaluation names:
+`formal_library_coverage_mapping`,
+`target_prover_effort_new_declarations`, and
+`target_prover_effort_failed_attempts`. Legacy labels such as
+`lean_coverage_mapping`, `lean_effort_new_declarations`,
+`lean_effort_failed_attempts`, and `no_lean_rag` are recorded only as aliases to
+those target-prover-neutral terms.
 
 The adapter registry command records which refinement tools can satisfy each
 hook, which response fields they must emit, and whether local commands,

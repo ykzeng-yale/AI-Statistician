@@ -3392,6 +3392,13 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "portable_contract_target_prover_neutral_terms"
+        and "formal_library_coverage_mapping" in row["observed"]
+        and "target_prover_effort_new_declarations" in row["observed"]
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "target_intake_row_schema_id"
         and row["observed"] == target_intake_row_json_schema()["$id"]
         and row["ok"]
