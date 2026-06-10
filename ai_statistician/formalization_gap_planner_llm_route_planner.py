@@ -12745,6 +12745,9 @@ def _compact_standalone_input_trace(value: object) -> dict[str, object]:
         "llm_route_planner_route_adoption_blockers": list(
             _str_tuple(trace.get("llm_route_planner_route_adoption_blockers", []))
         ),
+        "llm_route_planner_seed_adoptable_for_standalone_replay": bool(
+            trace.get("llm_route_planner_seed_adoptable_for_standalone_replay", False)
+        ),
         "has_minimal_delta_and_or_cost_graph": bool(
             trace.get("has_minimal_delta_and_or_cost_graph", False)
         ),
@@ -12952,6 +12955,13 @@ def _standalone_seed_route_selection_rows(
             {
                 "selection_rank": rank,
                 "selected": rank == 1,
+                "adoptable_for_standalone_replay": (
+                    _seed_selection_row_adoptable_for_standalone_replay(
+                        response_contract_ok=row.response_contract_ok,
+                        route_adoption_status=row.route_adoption_status,
+                        route_adoption_blockers=row.route_adoption_blockers,
+                    )
+                ),
                 "selection_reason": (
                     "ranked by route_adoption_status, minimal_delta_plan.route_cost, "
                     "route_adoption_blocker_count, then original request order"
@@ -12984,10 +12994,35 @@ def _fallback_seed_route_selection_rows(
     rows: list[dict[str, object]] = []
     for index, route in enumerate(routes):
         metadata = _dict_value(route, "replan_metadata")
+        route_adoption_blockers = _str_tuple(
+            route.get(
+                "llm_route_planner_route_adoption_blockers",
+                metadata.get("llm_route_planner_route_adoption_blockers", []),
+            )
+        )
+        response_contract_ok = bool(
+            route.get(
+                "llm_route_planner_response_contract_ok",
+                metadata.get("llm_route_planner_response_contract_ok", False),
+            )
+        )
+        route_adoption_status = str(
+            route.get(
+                "llm_route_planner_route_adoption_status",
+                metadata.get("llm_route_planner_route_adoption_status", ""),
+            )
+        )
         rows.append(
             {
                 "selection_rank": index + 1,
                 "selected": index == 0,
+                "adoptable_for_standalone_replay": (
+                    _seed_selection_row_adoptable_for_standalone_replay(
+                        response_contract_ok=response_contract_ok,
+                        route_adoption_status=route_adoption_status,
+                        route_adoption_blockers=route_adoption_blockers,
+                    )
+                ),
                 "selection_reason": (
                     "no accepted LLM route was available; fallback routes keep "
                     "standalone input order"
@@ -13003,24 +13038,18 @@ def _fallback_seed_route_selection_rows(
                     route.get("llm_route_planner_row_id", "")
                 ),
                 "request_id": str(metadata.get("llm_route_planner_request_id", "")),
-                "route_adoption_status": str(
-                    route.get("llm_route_planner_route_adoption_status", "")
-                ),
+                "route_adoption_status": route_adoption_status,
                 "route_adoption_status_rank": _route_adoption_status_rank(
-                    route.get("llm_route_planner_route_adoption_status", "")
+                    route_adoption_status
                 ),
-                "route_adoption_blocker_count": len(
-                    _str_tuple(route.get("llm_route_planner_route_adoption_blockers", []))
-                ),
-                "route_adoption_blockers": list(
-                    _str_tuple(route.get("llm_route_planner_route_adoption_blockers", []))
-                ),
+                "route_adoption_blocker_count": len(route_adoption_blockers),
+                "route_adoption_blockers": list(route_adoption_blockers),
                 "acceptance_status": str(
                     route.get("llm_route_planner_acceptance_status", "")
                 ),
                 "minimal_delta_route_cost": None,
                 "minimal_delta_selected_route_option_id": "",
-                "response_contract_ok": False,
+                "response_contract_ok": response_contract_ok,
                 "proof_evidence_status": PROOF_EVIDENCE_STATUS,
                 "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
             }
@@ -13056,6 +13085,9 @@ def _standalone_seed_route_selection_summary(
         "selected_route_adoption_status": str(
             selected.get("route_adoption_status", "")
         ),
+        "selected_route_adoptable_for_standalone_replay": bool(
+            selected.get("adoptable_for_standalone_replay", False)
+        ),
         "selected_minimal_delta_route_cost": selected.get(
             "minimal_delta_route_cost",
             None,
@@ -13065,6 +13097,17 @@ def _standalone_seed_route_selection_summary(
             1
             for row in selection_rows
             if str(row.get("route_adoption_status", "")) == ROUTE_ADOPTION_READY_STATUS
+        ),
+        "n_adoptable_route_candidates": sum(
+            1
+            for row in selection_rows
+            if bool(row.get("adoptable_for_standalone_replay", False))
+        ),
+        "n_selected_route_candidates_not_adoptable": sum(
+            1
+            for row in selection_rows
+            if bool(row.get("selected", False))
+            and not bool(row.get("adoptable_for_standalone_replay", False))
         ),
         "n_contract_valid_route_candidates": sum(
             1 for row in selection_rows if bool(row.get("response_contract_ok", False))
@@ -13087,6 +13130,9 @@ def _apply_seed_route_selection(
     route["llm_route_planner_seed_selection_reason"] = str(
         selection_row.get("selection_reason", "")
     )
+    route["llm_route_planner_seed_adoptable_for_standalone_replay"] = bool(
+        selection_row.get("adoptable_for_standalone_replay", False)
+    )
     route["llm_route_planner_seed_minimal_delta_route_cost"] = selection_row.get(
         "minimal_delta_route_cost",
         None,
@@ -13101,12 +13147,28 @@ def _apply_seed_route_selection(
         "llm_route_planner_seed_selection_reason": str(
             selection_row.get("selection_reason", "")
         ),
+        "llm_route_planner_seed_adoptable_for_standalone_replay": bool(
+            selection_row.get("adoptable_for_standalone_replay", False)
+        ),
         "llm_route_planner_seed_minimal_delta_route_cost": selection_row.get(
             "minimal_delta_route_cost",
             None,
         ),
     }
     route["replan_metadata"] = metadata
+
+
+def _seed_selection_row_adoptable_for_standalone_replay(
+    *,
+    response_contract_ok: bool,
+    route_adoption_status: object,
+    route_adoption_blockers: Iterable[object],
+) -> bool:
+    return (
+        bool(response_contract_ok)
+        and str(route_adoption_status or "") == ROUTE_ADOPTION_READY_STATUS
+        and not tuple(route_adoption_blockers)
+    )
 
 
 def _seed_route_selection_sort_key(

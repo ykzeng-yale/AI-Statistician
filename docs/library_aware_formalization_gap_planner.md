@@ -585,6 +585,14 @@ responses. The route-planner manifest also exposes
 `route_adoption_blocker_counts` and `by_route_adoption_blocker`, so downstream
 evaluation, publication bundles, and independent prover integrations can audit
 which blocker classes caused pending adoption without re-parsing every row.
+LLM seed selection also publishes
+`adoptable_for_standalone_replay` on each ranked selection row, plus
+`selected_route_adoptable_for_standalone_replay`,
+`n_adoptable_route_candidates`, and
+`n_selected_route_candidates_not_adoptable` in the selection summary. The same
+boolean is copied to route-level seed metadata and standalone-plan traces. This
+keeps "best available seed for replay/audit" separate from "route is ready to
+adopt without further evidence."
 Publication and reuse-smoke LLM-route summaries also surface
 `n_route_adoption_pending_formal_gap_boundary_blockers`, keeping declared
 formal-boundary gaps visible beside source-grounding, quality-control,

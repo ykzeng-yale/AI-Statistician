@@ -322,6 +322,18 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_goal_plan_standalone_input_traces_with_llm_seed_selection"] == 1
     assert payload["n_goal_plan_standalone_input_traces_llm_seed_selected"] == 1
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_llm_seed_adoptable_for_standalone_replay"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_llm_seed_selected_not_adoptable"
+        ]
+        == 1
+    )
     assert payload[
         "goal_plan_standalone_input_trace_by_llm_seed_selection_rank"
     ] == {"1": 1}
@@ -2504,6 +2516,18 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert payload["n_goal_plan_standalone_input_traces_with_llm_seed_selection"] == 1
     assert payload["n_goal_plan_standalone_input_traces_llm_seed_selected"] == 1
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_llm_seed_adoptable_for_standalone_replay"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_llm_seed_selected_not_adoptable"
+        ]
+        == 1
+    )
     assert payload[
         "goal_plan_standalone_input_trace_by_llm_seed_selection_rank"
     ] == {"1": 1}
@@ -3563,6 +3587,18 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
     )
     assert payload["n_goal_plan_standalone_input_traces_with_llm_seed_selection"] == 1
     assert payload["n_goal_plan_standalone_input_traces_llm_seed_selected"] == 1
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_llm_seed_adoptable_for_standalone_replay"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_llm_seed_selected_not_adoptable"
+        ]
+        == 1
+    )
     assert payload[
         "goal_plan_standalone_input_trace_by_llm_seed_selection_rank"
     ] == {"1": 1}

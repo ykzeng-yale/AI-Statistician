@@ -361,6 +361,21 @@ def export_formalization_gap_planner_standalone_plan(
             for row in rows
             if row.standalone_input_trace.get("llm_route_planner_seed_selected")
         ),
+        "n_standalone_input_traces_llm_seed_adoptable_for_standalone_replay": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "llm_route_planner_seed_adoptable_for_standalone_replay"
+            )
+        ),
+        "n_standalone_input_traces_llm_seed_selected_not_adoptable": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get("llm_route_planner_seed_selected")
+            and not row.standalone_input_trace.get(
+                "llm_route_planner_seed_adoptable_for_standalone_replay"
+            )
+        ),
         "standalone_input_trace_by_llm_seed_selection_rank": dict(
             sorted(by_llm_seed_selection_rank.items())
         ),
@@ -629,7 +644,10 @@ def validate_llm_route_planner_seed_route_selection_payload(
         "selection_status",
         "selection_policy",
         "selected_route_id",
+        "selected_route_adoptable_for_standalone_replay",
         "n_route_candidates",
+        "n_adoptable_route_candidates",
+        "n_selected_route_candidates_not_adoptable",
         "selection_rows",
         "proof_evidence_status",
         "proof_evidence_boundary",
@@ -649,6 +667,13 @@ def validate_llm_route_planner_seed_route_selection_payload(
         errors.append("selection_status unsupported")
     if not str(payload.get("selection_policy", "")).strip():
         errors.append("selection_policy missing")
+    if not isinstance(
+        payload.get("selected_route_adoptable_for_standalone_replay"),
+        bool,
+    ):
+        errors.append(
+            "selected_route_adoptable_for_standalone_replay must be boolean"
+        )
     if (
         payload.get("proof_evidence_status")
         != FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS
@@ -698,6 +723,37 @@ def validate_llm_route_planner_seed_route_selection_payload(
             errors.append(
                 "n_contract_valid_route_candidates must match selection_rows"
             )
+    adoptable_count = _int_or_none(
+        payload.get("n_adoptable_route_candidates", 0)
+    )
+    if adoptable_count is None or adoptable_count < 0:
+        errors.append("n_adoptable_route_candidates must be nonnegative integer")
+    else:
+        computed_adoptable_count = sum(
+            1
+            for row in selection_rows
+            if row.get("adoptable_for_standalone_replay") is True
+        )
+        if adoptable_count != computed_adoptable_count:
+            errors.append("n_adoptable_route_candidates must match selection_rows")
+    selected_not_adoptable_count = _int_or_none(
+        payload.get("n_selected_route_candidates_not_adoptable", 0)
+    )
+    if selected_not_adoptable_count is None or selected_not_adoptable_count < 0:
+        errors.append(
+            "n_selected_route_candidates_not_adoptable must be nonnegative integer"
+        )
+    else:
+        computed_selected_not_adoptable_count = sum(
+            1
+            for row in selection_rows
+            if row.get("selected") is True
+            and row.get("adoptable_for_standalone_replay") is not True
+        )
+        if selected_not_adoptable_count != computed_selected_not_adoptable_count:
+            errors.append(
+                "n_selected_route_candidates_not_adoptable must match selection_rows"
+            )
 
     ranks: list[int] = []
     selected_rows: list[dict[str, Any]] = []
@@ -729,6 +785,12 @@ def validate_llm_route_planner_seed_route_selection_payload(
         for summary_field, row_field in expected_summary_fields:
             if str(payload.get(summary_field, "")) != str(selected.get(row_field, "")):
                 errors.append(f"{summary_field} must match selected selection_row")
+        if payload.get("selected_route_adoptable_for_standalone_replay") != selected.get(
+            "adoptable_for_standalone_replay"
+        ):
+            errors.append(
+                "selected_route_adoptable_for_standalone_replay must match selected selection_row"
+            )
         selected_cost = _float_or_none(selected.get("minimal_delta_route_cost"))
         summary_cost = _float_or_none(payload.get("selected_minimal_delta_route_cost"))
         if payload.get("selected_minimal_delta_route_cost") is not None and (
@@ -749,6 +811,7 @@ def _llm_seed_route_selection_row_errors(row: dict[str, Any]) -> list[str]:
     required_fields = (
         "selection_rank",
         "selected",
+        "adoptable_for_standalone_replay",
         "selection_reason",
         "source_order",
         "route_id",
@@ -771,6 +834,8 @@ def _llm_seed_route_selection_row_errors(row: dict[str, Any]) -> list[str]:
         errors.append("selection_rank must be positive integer")
     if not isinstance(row.get("selected"), bool):
         errors.append("selected must be boolean")
+    if not isinstance(row.get("adoptable_for_standalone_replay"), bool):
+        errors.append("adoptable_for_standalone_replay must be boolean")
     if not str(row.get("selection_reason", "")).strip():
         errors.append("selection_reason missing")
     source_order = _int_or_none(row.get("source_order"))
@@ -815,6 +880,7 @@ def _llm_seed_route_selection_trace_errors(
         return []
     trace_fields = {
         "llm_route_planner_seed_selected",
+        "llm_route_planner_seed_adoptable_for_standalone_replay",
         "llm_route_planner_seed_selection_rank",
         "llm_route_planner_seed_selection_reason",
         "llm_route_planner_seed_minimal_delta_route_cost",
@@ -827,6 +893,16 @@ def _llm_seed_route_selection_trace_errors(
         bool,
     ):
         errors.append(f"{location}.llm_route_planner_seed_selected must be boolean")
+    if (
+        "llm_route_planner_seed_adoptable_for_standalone_replay" in payload
+        and not isinstance(
+            payload.get("llm_route_planner_seed_adoptable_for_standalone_replay"),
+            bool,
+        )
+    ):
+        errors.append(
+            f"{location}.llm_route_planner_seed_adoptable_for_standalone_replay must be boolean"
+        )
     rank = _int_or_none(payload.get("llm_route_planner_seed_selection_rank"))
     if rank is None or rank < 1:
         errors.append(
@@ -1174,6 +1250,9 @@ def llm_route_planner_seed_route_selection_json_schema() -> dict[str, object]:
 def _llm_seed_route_selection_trace_properties() -> dict[str, object]:
     return {
         "llm_route_planner_seed_selected": {"type": "boolean"},
+        "llm_route_planner_seed_adoptable_for_standalone_replay": {
+            "type": "boolean"
+        },
         "llm_route_planner_seed_selection_rank": {
             "type": "integer",
             "minimum": 1,
@@ -1205,6 +1284,7 @@ def _llm_seed_route_selection_schema_def() -> dict[str, object]:
         "required": [
             "selection_rank",
             "selected",
+            "adoptable_for_standalone_replay",
             "selection_reason",
             "source_order",
             "route_id",
@@ -1222,6 +1302,7 @@ def _llm_seed_route_selection_schema_def() -> dict[str, object]:
         "properties": {
             "selection_rank": {"type": "integer", "minimum": 1},
             "selected": {"type": "boolean"},
+            "adoptable_for_standalone_replay": {"type": "boolean"},
             "selection_reason": {"type": "string", "minLength": 1},
             "source_order": {"type": "integer", "minimum": 0},
             "route_id": {"type": "string"},
@@ -1261,7 +1342,10 @@ def _llm_seed_route_selection_schema_def() -> dict[str, object]:
             "selection_status",
             "selection_policy",
             "selected_route_id",
+            "selected_route_adoptable_for_standalone_replay",
             "n_route_candidates",
+            "n_adoptable_route_candidates",
+            "n_selected_route_candidates_not_adoptable",
             "selection_rows",
             "proof_evidence_status",
             "proof_evidence_boundary",
@@ -1284,9 +1368,17 @@ def _llm_seed_route_selection_schema_def() -> dict[str, object]:
             "selected_llm_route_planner_row_id": {"type": "string"},
             "selected_request_id": {"type": "string"},
             "selected_route_adoption_status": {"type": "string"},
+            "selected_route_adoptable_for_standalone_replay": {
+                "type": "boolean"
+            },
             "selected_minimal_delta_route_cost": nullable_nonnegative_number,
             "n_route_candidates": {"type": "integer", "minimum": 0},
             "n_ready_route_candidates": {"type": "integer", "minimum": 0},
+            "n_adoptable_route_candidates": {"type": "integer", "minimum": 0},
+            "n_selected_route_candidates_not_adoptable": {
+                "type": "integer",
+                "minimum": 0,
+            },
             "n_contract_valid_route_candidates": {
                 "type": "integer",
                 "minimum": 0,
@@ -1640,6 +1732,15 @@ def _standalone_input_trace(
             metadata.get(
                 "llm_route_planner_seed_selected",
                 raw_route.get("llm_route_planner_seed_selected", False),
+            )
+        ),
+        "llm_route_planner_seed_adoptable_for_standalone_replay": _bool_value(
+            metadata.get(
+                "llm_route_planner_seed_adoptable_for_standalone_replay",
+                raw_route.get(
+                    "llm_route_planner_seed_adoptable_for_standalone_replay",
+                    False,
+                ),
             )
         ),
         "llm_route_planner_seed_selection_rank": llm_seed_selection_rank,
