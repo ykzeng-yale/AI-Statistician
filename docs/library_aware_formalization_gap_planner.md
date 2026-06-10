@@ -409,7 +409,11 @@ planner next actions, quality-control evidence, or uncertainty review. Only
 handoff blockers under the current evidence bound.
 Residual-only repair responses are labeled `ACCEPTED_WITH_RESIDUAL_REPAIR` and
 remain pending with `residual_interpretations_require_route_replay` until the
-repair is replayed or discharged by later evidence. The standalone seed and each
+repair is replayed or discharged by later evidence. The standalone seed also
+materializes each residual interpretation as a `route_revision` refinement hook
+and `llm_route_revision_requested` trigger, so a residual-only LLM repair
+response schedules bounded route replay without parsing raw model prose. The
+standalone seed and each
 standalone-plan `standalone_input_trace` preserve the same fields, so a public
 consumer can filter adoption-ready route plans without reopening raw LLM
 responses. Blocker labels are part of the published

@@ -3350,6 +3350,7 @@ def test_llm_route_planner_accepts_grounded_residual_interpretation() -> None:
             "residual_goal": "missing finite tie-breaking side condition",
             "interpretation": "The proof route has not fixed deterministic tie handling.",
             "route_repair": "Add a tie-breaking side condition before replay.",
+            "target_primitives": ["rank_uniformity"],
             "source_refs": [residual_source_ref],
         }
     ]
@@ -3398,6 +3399,7 @@ def test_llm_route_planner_marks_residual_repair_as_pending_replay() -> None:
             "residual_goal": "missing finite tie-breaking side condition",
             "interpretation": "The proof route has not fixed deterministic tie handling.",
             "route_repair": "Add a tie-breaking side condition before replay.",
+            "target_primitives": ["rank_uniformity"],
             "source_refs": [residual_source_ref],
         }
     ]
@@ -3423,6 +3425,54 @@ def test_llm_route_planner_marks_residual_repair_as_pending_replay() -> None:
     assert "residual_interpretations_require_route_replay" in row[
         "route_adoption_blockers"
     ]
+    seed_route = payload["standalone_seed"]["routes"][0]
+    residual_hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_residual_interpretation_index") == 0
+    )
+    assert residual_hook["hook_kind"] == "route_revision"
+    assert residual_hook["target_primitives"] == ["rank_uniformity"]
+    assert "missing finite tie-breaking side condition" in residual_hook["queries"]
+    assert residual_hook["llm_route_planner_residual_interpretation"][
+        "route_repair"
+    ] == "Add a tie-breaking side condition before replay."
+    residual_trigger = next(
+        trigger
+        for trigger in seed_route["route_revision_triggers"]
+        if trigger.get("llm_route_planner_residual_interpretation_index") == 0
+    )
+    assert residual_trigger["trigger_kind"] == "llm_route_revision_requested"
+    assert residual_trigger["target_primitives"] == ["rank_uniformity"]
+    assert residual_trigger["condition"] == "missing finite tie-breaking side condition"
+    assert (
+        "Add a tie-breaking side condition before replay."
+        in residual_trigger["next_action"]
+    )
+
+    plan_dir = root / "standalone_plan_from_residual_repair_seed"
+    refinement_queue_dir = root / "refinement_queue_from_residual_repair_seed"
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    queue_payload = export_formalization_gap_planner_refinement_queue(
+        plan_dir,
+        refinement_queue_dir,
+    )
+    assert queue_payload["all_ok"]
+    residual_queue_row = next(
+        item
+        for item in queue_payload["rows"]
+        if item["hook_kind"] == "route_revision"
+        and item["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_residual_interpretation_index"
+        )
+        == 0
+    )
+    assert residual_queue_row["target_primitives"] == ("rank_uniformity",)
+    assert "llm_route_revision_requested" in residual_queue_row["trigger_kinds"]
 
 
 def test_llm_route_planner_rejects_unsourced_residual_repair() -> None:

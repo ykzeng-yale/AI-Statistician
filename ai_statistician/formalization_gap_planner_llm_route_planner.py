@@ -10190,6 +10190,15 @@ def _accepted_route_for_seed(
         ),
         key_fields=("hook_kind", "queries", "acceptance_record"),
     )
+    llm_refinement_hooks = _merge_dict_rows(
+        llm_refinement_hooks,
+        _llm_refinement_hooks_for_residual_interpretations(
+            row.residual_interpretations,
+            selected_primitives=selected_primitives,
+            target_prover_family=row.target_prover_family,
+        ),
+        key_fields=("hook_kind", "queries", "acceptance_record"),
+    )
     llm_route_revision_triggers = _llm_route_revision_triggers_for_search_requests(
         row.search_requests,
     )
@@ -10197,6 +10206,14 @@ def _accepted_route_for_seed(
         llm_route_revision_triggers,
         _llm_route_revision_triggers_for_planner_next_actions(
             row.planner_next_actions,
+        ),
+        key_fields=("trigger_kind", "condition", "next_action"),
+    )
+    llm_route_revision_triggers = _merge_dict_rows(
+        llm_route_revision_triggers,
+        _llm_route_revision_triggers_for_residual_interpretations(
+            row.residual_interpretations,
+            selected_primitives=selected_primitives,
         ),
         key_fields=("trigger_kind", "condition", "next_action"),
     )
@@ -10541,6 +10558,140 @@ def _llm_route_revision_triggers_for_planner_next_actions(
         tuple(),
         key_fields=("trigger_kind", "condition", "next_action"),
     )
+
+
+def _llm_refinement_hooks_for_residual_interpretations(
+    residual_interpretations: tuple[dict[str, object], ...],
+    *,
+    selected_primitives: tuple[str, ...],
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    hooks: list[dict[str, object]] = []
+    for index, residual in enumerate(residual_interpretations):
+        queries = _residual_interpretation_queries(residual)
+        if not queries:
+            continue
+        resource_binding_summary = _llm_resource_binding_summary(residual)
+        hooks.append(
+            {
+                "hook_kind": "route_revision",
+                "recommended_tools": list(
+                    _recommended_tools_for_llm_hook(
+                        "route_revision",
+                        target_prover_family=target_prover_family,
+                    )
+                ),
+                "queries": list(queries),
+                "target_primitives": list(
+                    _target_primitives_for_llm_residual_interpretation(
+                        residual,
+                        selected_primitives=selected_primitives,
+                    )
+                ),
+                "acceptance_record": _acceptance_record_for_llm_hook("route_revision"),
+                "llm_route_planner_residual_interpretation_index": index,
+                "llm_route_planner_residual_interpretation": dict(residual),
+                "quality_controls": _quality_control_payload_for_row(residual),
+                "resource_request_ids": list(
+                    resource_binding_summary["resource_request_ids"]
+                ),
+                "resource_ids": list(resource_binding_summary["resource_ids"]),
+                "resource_request_bindings": [
+                    dict(item)
+                    for item in resource_binding_summary["resource_request_bindings"]
+                ],
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    return _merge_dict_rows(
+        tuple(hooks),
+        tuple(),
+        key_fields=("hook_kind", "queries", "acceptance_record"),
+    )
+
+
+def _llm_route_revision_triggers_for_residual_interpretations(
+    residual_interpretations: tuple[dict[str, object], ...],
+    *,
+    selected_primitives: tuple[str, ...],
+) -> tuple[dict[str, object], ...]:
+    triggers: list[dict[str, object]] = []
+    for index, residual in enumerate(residual_interpretations):
+        queries = _residual_interpretation_queries(residual)
+        if not queries:
+            continue
+        resource_binding_summary = _llm_resource_binding_summary(residual)
+        residual_goal = str(residual.get("residual_goal", "")).strip()
+        repair_action = str(
+            residual.get("route_repair") or residual.get("repair_action") or ""
+        ).strip()
+        triggers.append(
+            {
+                "trigger_kind": "llm_route_revision_requested",
+                "condition": residual_goal or queries[0],
+                "next_action": _next_action_for_llm_hook(
+                    "route_revision",
+                    query=repair_action or "; ".join(queries),
+                ),
+                "target_primitives": list(
+                    _target_primitives_for_llm_residual_interpretation(
+                        residual,
+                        selected_primitives=selected_primitives,
+                    )
+                ),
+                "llm_route_planner_residual_interpretation_index": index,
+                "llm_route_planner_residual_interpretation": dict(residual),
+                "quality_controls": _quality_control_payload_for_row(residual),
+                "resource_request_ids": list(
+                    resource_binding_summary["resource_request_ids"]
+                ),
+                "resource_ids": list(resource_binding_summary["resource_ids"]),
+                "resource_request_bindings": [
+                    dict(item)
+                    for item in resource_binding_summary["resource_request_bindings"]
+                ],
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+            }
+        )
+    return _merge_dict_rows(
+        tuple(triggers),
+        tuple(),
+        key_fields=("trigger_kind", "condition", "next_action"),
+    )
+
+
+def _residual_interpretation_queries(
+    residual: Mapping[str, object],
+) -> tuple[str, ...]:
+    return _str_tuple(
+        [
+            residual.get("residual_goal", ""),
+            residual.get("route_repair", ""),
+            residual.get("repair_action", ""),
+            residual.get("interpretation", ""),
+        ]
+    )
+
+
+def _target_primitives_for_llm_residual_interpretation(
+    residual: Mapping[str, object],
+    *,
+    selected_primitives: tuple[str, ...],
+) -> tuple[str, ...]:
+    explicit = _explicit_target_primitives_for_llm_row(
+        residual,
+        selected_primitives=selected_primitives,
+    )
+    if explicit:
+        return explicit
+    text = _primitive_key(" ".join(_residual_interpretation_queries(residual)))
+    matched = [
+        primitive
+        for primitive in selected_primitives
+        if _primitive_key(primitive) and _primitive_key(primitive) in text
+    ]
+    return _str_tuple(matched or selected_primitives[:6])
 
 
 def _llm_resource_binding_summary(

@@ -755,6 +755,8 @@ def _llm_route_planner_hook_trace(hook: dict[str, Any]) -> dict[str, object]:
         "planner_next_actions",
         "llm_route_planner_planner_next_action_index",
         "llm_route_planner_planner_next_action",
+        "llm_route_planner_residual_interpretation_index",
+        "llm_route_planner_residual_interpretation",
     ):
         if field_name in hook:
             trace[field_name] = hook[field_name]
