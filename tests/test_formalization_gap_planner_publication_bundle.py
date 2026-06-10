@@ -779,6 +779,22 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert optional_by_name[
         "formalization_gap_planner_llm_route_planner_response_payload_validation"
     ]["ok"]
+    validation_summary = manifest[
+        "llm_route_planner_response_payload_validation_summary"
+    ]
+    assert validation_summary["requested"] is True
+    assert validation_summary["n_payloads"] == 1
+    assert validation_summary["n_valid_payloads"] == 1
+    assert validation_summary["n_invalid_payloads"] == 0
+    assert validation_summary["n_payloads_with_declared_target_prover_family"] == 0
+    assert (
+        validation_summary[
+            "n_request_bound_payloads_with_target_prover_family_mismatch"
+        ]
+        == 0
+    )
+    assert validation_summary["by_payload_target_prover_family"] == {}
+    assert validation_summary["by_request_context_target_prover_family"] == {}
     assert (
         out_dir
         / "artifacts"
@@ -2152,6 +2168,17 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert (
         publication_bundle_manifest_schema_payload["$id"]
         == publication_bundle_manifest_json_schema()["$id"]
+    )
+    assert (
+        "llm_route_planner_response_payload_validation_summary"
+        in publication_bundle_manifest_schema_payload["required"]
+    )
+    validation_summary_schema = publication_bundle_manifest_schema_payload[
+        "properties"
+    ]["llm_route_planner_response_payload_validation_summary"]
+    assert (
+        "n_request_bound_payloads_with_target_prover_family_mismatch"
+        in validation_summary_schema["required"]
     )
     assert "path" in publication_bundle_manifest_schema_payload["properties"][
         "core_artifacts"

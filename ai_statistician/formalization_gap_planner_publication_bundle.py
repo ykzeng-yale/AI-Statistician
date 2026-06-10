@@ -1775,6 +1775,11 @@ def export_formalization_gap_planner_publication_bundle(
         "feedback_llm_route_planner_summary": _llm_route_planner_manifest_summary(
             formalization_gap_planner_feedback_llm_route_planner_dir
         ),
+        "llm_route_planner_response_payload_validation_summary": (
+            _llm_route_planner_response_payload_validation_summary(
+                formalization_gap_planner_llm_route_planner_response_payload_validation_dir
+            )
+        ),
         "adapter_registry_summary": {
             "n_adapters": adapter_registry_payload.get("n_adapters", 0),
             "n_adapter_row_schema_valid": adapter_registry_payload.get(
@@ -2265,6 +2270,62 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "all_ok": {"type": "boolean"},
         },
     }
+    response_payload_validation_summary_schema = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "requested",
+            "n_payloads",
+            "n_valid_payloads",
+            "n_invalid_payloads",
+            "n_request_context_packets",
+            "n_request_contexts_with_context_packet_inventory",
+            "n_request_context_inventory_total_rows",
+            "n_request_bound_payloads",
+            "n_request_bound_payloads_with_context_packet_inventory",
+            "n_request_bound_payload_context_inventory_total_rows",
+            "n_payloads_with_declared_target_prover_family",
+            "n_request_bound_payloads_with_target_prover_family_mismatch",
+            "by_payload_target_prover_family",
+            "by_request_context_target_prover_family",
+            "n_schema_errors",
+            "n_request_context_errors",
+            "all_ok",
+        ],
+        "properties": {
+            "requested": {"type": "boolean"},
+            "manifest_path": {"type": "string"},
+            "jsonl_path": {"type": "string"},
+            "n_payloads": nonnegative_integer,
+            "n_valid_payloads": nonnegative_integer,
+            "n_invalid_payloads": nonnegative_integer,
+            "n_request_context_packets": nonnegative_integer,
+            "n_request_contexts_with_context_packet_inventory": nonnegative_integer,
+            "n_request_context_inventory_total_rows": nonnegative_integer,
+            "n_request_bound_payloads": nonnegative_integer,
+            "n_request_bound_payloads_with_context_packet_inventory": (
+                nonnegative_integer
+            ),
+            "n_request_bound_payload_context_inventory_total_rows": (
+                nonnegative_integer
+            ),
+            "n_payloads_with_declared_target_prover_family": nonnegative_integer,
+            "n_request_bound_payloads_with_target_prover_family_mismatch": (
+                nonnegative_integer
+            ),
+            "by_payload_target_prover_family": {
+                "type": "object",
+                "additionalProperties": nonnegative_integer,
+            },
+            "by_request_context_target_prover_family": {
+                "type": "object",
+                "additionalProperties": nonnegative_integer,
+            },
+            "n_schema_errors": nonnegative_integer,
+            "n_request_context_errors": nonnegative_integer,
+            "all_ok": {"type": "boolean"},
+        },
+    }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_MANIFEST_SCHEMA_ID,
@@ -2282,6 +2343,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "evaluation_summary",
             "llm_route_planner_summary",
             "feedback_llm_route_planner_summary",
+            "llm_route_planner_response_payload_validation_summary",
             "schema_catalog_summary",
             "all_ok",
             "proof_evidence_status",
@@ -2306,6 +2368,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "evaluation_summary": evaluation_summary_schema,
             "llm_route_planner_summary": llm_route_planner_summary_schema,
             "feedback_llm_route_planner_summary": llm_route_planner_summary_schema,
+            "llm_route_planner_response_payload_validation_summary": (
+                response_payload_validation_summary_schema
+            ),
             "schema_catalog_summary": {"type": "object"},
             "portable_reuse_targets": string_array,
             "all_ok": {"type": "boolean"},
@@ -4365,6 +4430,99 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         ),
         "n_row_schema_valid": int(payload.get("n_row_schema_valid", 0) or 0),
         "n_row_schema_invalid": int(payload.get("n_row_schema_invalid", 0) or 0),
+        "all_ok": bool(payload.get("all_ok", False)),
+    }
+
+
+def _llm_route_planner_response_payload_validation_summary(
+    source_dir: Path | None,
+) -> dict[str, object]:
+    zero_summary: dict[str, object] = {
+        "requested": False,
+        "manifest_path": "",
+        "jsonl_path": "",
+        "n_payloads": 0,
+        "n_valid_payloads": 0,
+        "n_invalid_payloads": 0,
+        "n_request_context_packets": 0,
+        "n_request_contexts_with_context_packet_inventory": 0,
+        "n_request_context_inventory_total_rows": 0,
+        "n_request_bound_payloads": 0,
+        "n_request_bound_payloads_with_context_packet_inventory": 0,
+        "n_request_bound_payload_context_inventory_total_rows": 0,
+        "n_payloads_with_declared_target_prover_family": 0,
+        "n_request_bound_payloads_with_target_prover_family_mismatch": 0,
+        "by_payload_target_prover_family": {},
+        "by_request_context_target_prover_family": {},
+        "n_schema_errors": 0,
+        "n_request_context_errors": 0,
+        "all_ok": False,
+    }
+    if source_dir is None:
+        return zero_summary
+    manifest_path = (
+        source_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+    )
+    jsonl_path = (
+        source_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation.jsonl"
+    )
+    payload = _read_json_no_error(manifest_path)
+    by_payload_target = payload.get("by_payload_target_prover_family", {})
+    by_request_target = payload.get("by_request_context_target_prover_family", {})
+    return {
+        **zero_summary,
+        "requested": True,
+        "manifest_path": str(manifest_path),
+        "jsonl_path": str(jsonl_path),
+        "n_payloads": int(payload.get("n_payloads", 0) or 0),
+        "n_valid_payloads": int(payload.get("n_valid_payloads", 0) or 0),
+        "n_invalid_payloads": int(payload.get("n_invalid_payloads", 0) or 0),
+        "n_request_context_packets": int(
+            payload.get("n_request_context_packets", 0) or 0
+        ),
+        "n_request_contexts_with_context_packet_inventory": int(
+            payload.get("n_request_contexts_with_context_packet_inventory", 0)
+            or 0
+        ),
+        "n_request_context_inventory_total_rows": int(
+            payload.get("n_request_context_inventory_total_rows", 0) or 0
+        ),
+        "n_request_bound_payloads": int(
+            payload.get("n_request_bound_payloads", 0) or 0
+        ),
+        "n_request_bound_payloads_with_context_packet_inventory": int(
+            payload.get(
+                "n_request_bound_payloads_with_context_packet_inventory",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payload_context_inventory_total_rows": int(
+            payload.get("n_request_bound_payload_context_inventory_total_rows", 0)
+            or 0
+        ),
+        "n_payloads_with_declared_target_prover_family": int(
+            payload.get("n_payloads_with_declared_target_prover_family", 0) or 0
+        ),
+        "n_request_bound_payloads_with_target_prover_family_mismatch": int(
+            payload.get(
+                "n_request_bound_payloads_with_target_prover_family_mismatch",
+                0,
+            )
+            or 0
+        ),
+        "by_payload_target_prover_family": (
+            dict(by_payload_target) if isinstance(by_payload_target, dict) else {}
+        ),
+        "by_request_context_target_prover_family": (
+            dict(by_request_target) if isinstance(by_request_target, dict) else {}
+        ),
+        "n_schema_errors": int(payload.get("n_schema_errors", 0) or 0),
+        "n_request_context_errors": int(
+            payload.get("n_request_context_errors", 0) or 0
+        ),
         "all_ok": bool(payload.get("all_ok", False)),
     }
 
