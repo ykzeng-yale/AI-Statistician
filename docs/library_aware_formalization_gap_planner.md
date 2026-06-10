@@ -151,6 +151,12 @@ a Haiku-designated helper configured with a Sonnet or Opus model. LLM
 route-planner rows also reject provider-returned Anthropic model drift, so a
 Haiku-selected request cannot be accepted if the backend reports a Sonnet or
 Opus response model. In
+addition to the manifest-level policy, every LLM route-planner request packet
+now carries a request-scoped `llm_generation_policy` snapshot with the selected
+provider, resolved model, selected/requested tier, Claude pinned model policy,
+auto-tier rules, and explicit `codex`/`codex_exec` exclusion. This lets an
+external prover team audit a single JSONL request without reopening the full
+publication bundle or assuming the local runtime configuration is available. In
 `--model-tier auto`, the route planner also reads target-intake rows: missing
 proof sources, library-search-required review flags, proof-state probes, complex
 theorem shapes, many `formal_library_grounding_queries`, or large normalized

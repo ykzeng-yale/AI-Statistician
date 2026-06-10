@@ -666,6 +666,14 @@ def export_formalization_gap_planner_llm_route_planner(
     by_model_tier = Counter(
         str(packet.get("model_tier", "") or "unknown") for packet in request_packets
     )
+    request_generation_policy_tier_matches = [
+        packet
+        for packet in request_packets
+        if _dict_value(packet, "llm_generation_policy").get("selected_model_tier")
+        == packet.get("model_tier")
+        and _dict_value(packet, "llm_generation_policy").get("resolved_model")
+        == packet.get("model")
+    ]
     request_model_tier_mismatches = _request_model_tier_mismatches(request_packets)
     request_schema = llm_route_planner_request_json_schema()
     response_payload_schema = llm_route_planner_response_payload_schema()
@@ -776,6 +784,26 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_request_model_tier_sonnet": by_model_tier.get("sonnet", 0),
         "n_request_model_tier_opus": by_model_tier.get("opus", 0),
         "by_request_model_tier": dict(sorted(by_model_tier.items())),
+        "n_requests_with_llm_generation_policy": sum(
+            1 for packet in request_packets if packet.get("llm_generation_policy")
+        ),
+        "n_request_llm_generation_policy_tier_model_matches": len(
+            request_generation_policy_tier_matches
+        ),
+        "n_request_llm_generation_policy_codex_exclusions": sum(
+            1
+            for packet in request_packets
+            if {"codex", "codex_exec"}.issubset(
+                set(
+                    _str_tuple(
+                        _dict_value(packet, "llm_generation_policy").get(
+                            "prohibited_generator_providers",
+                            [],
+                        )
+                    )
+                )
+            )
+        ),
         "n_request_model_tier_mismatches": len(request_model_tier_mismatches),
         "request_model_tier_mismatches": request_model_tier_mismatches,
         "n_generation_preflight_blocked": len(generation_preflight_errors),
@@ -1529,6 +1557,7 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
             "provider_name",
             "model_tier",
             "model_selection_rationale",
+            "llm_generation_policy",
             "target_prover_family",
             "library_snapshot_ref",
             "target_route",
@@ -1551,6 +1580,7 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
             "model": {"type": "string"},
             "model_tier": {"type": "string", "enum": ["haiku", "sonnet", "opus"]},
             "model_selection_rationale": {"type": "string", "minLength": 1},
+            "llm_generation_policy": {"type": "object"},
             "target_prover_family": {"type": "string", "minLength": 1},
             "library_snapshot_ref": {"type": "string", "minLength": 1},
             "target_route": {"type": "object"},
@@ -1923,6 +1953,7 @@ def validate_llm_route_planner_request(
         mismatch = _request_model_tier_mismatch(row)
         if mismatch:
             errors.append(str(mismatch["error"]))
+    errors.extend(_llm_generation_policy_errors(row))
     return sorted(set(errors))
 
 
@@ -2170,6 +2201,13 @@ def _request_packet(
         "model": resolved_model,
         "model_tier": selected_model_tier,
         "model_selection_rationale": model_selection_rationale,
+        "llm_generation_policy": _llm_generation_policy_snapshot(
+            provider_name=provider_name,
+            resolved_model=resolved_model,
+            selected_model_tier=selected_model_tier,
+            requested_model_tier=model_tier,
+            model_selection_rationale=model_selection_rationale,
+        ),
         "target_prover_family": target_prover_family,
         "library_snapshot_ref": library_snapshot_ref,
         "target_route": dict(route),
@@ -3078,6 +3116,90 @@ def _model_for_provider_tier(
         requested_model,
         model_tier=model_tier,
     )
+
+
+def _llm_generation_policy_snapshot(
+    *,
+    provider_name: str,
+    resolved_model: str,
+    selected_model_tier: str,
+    requested_model_tier: str,
+    model_selection_rationale: str,
+) -> dict[str, object]:
+    claude_selection = dict(ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY)
+    return {
+        "policy_id": LLM_ROUTE_PLANNER_MODEL_TIER_POLICY_ID,
+        "policy_kind": "request_scoped_generator_only_llm_policy",
+        "provider_name": provider_name,
+        "resolved_model": resolved_model,
+        "selected_model_tier": selected_model_tier,
+        "requested_model_tier": requested_model_tier,
+        "model_selection_rationale": model_selection_rationale,
+        "default_mode": LLM_ROUTE_PLANNER_MODEL_TIER_POLICY["default_mode"],
+        "auto_tier_rules": list(LLM_ROUTE_PLANNER_MODEL_TIER_POLICY["auto_tier_rules"]),
+        "route_planner_provider_names": list(LLM_ROUTE_PLANNER_PROVIDER_NAMES),
+        "supported_live_generator_providers": ["anthropic", "openai", "static"],
+        "prohibited_generator_providers": ["codex", "codex_exec"],
+        "codex_policy": (
+            "Codex/Codex exec are not accepted as pure LLM route-planner "
+            "providers because this system requires a stable generator-only "
+            "API boundary."
+        ),
+        "claude_model_selection": claude_selection,
+        "claude_models_by_tier": dict(claude_selection.get("models_by_tier", {})),
+        "claude_cost_split": dict(claude_selection.get("cost_split", {})),
+        "claude_model_source_checked_date": str(
+            claude_selection.get("source_checked_date", "")
+        ),
+        "claude_model_id_versioning": str(
+            claude_selection.get("model_id_versioning", "")
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _llm_generation_policy_errors(row: Mapping[str, object]) -> list[str]:
+    policy = row.get("llm_generation_policy", {})
+    if not isinstance(policy, Mapping):
+        return ["llm_generation_policy must be object"]
+    errors: list[str] = []
+    if str(policy.get("policy_id", "")).strip() != LLM_ROUTE_PLANNER_MODEL_TIER_POLICY_ID:
+        errors.append(
+            "llm_generation_policy.policy_id must equal "
+            + LLM_ROUTE_PLANNER_MODEL_TIER_POLICY_ID
+        )
+    if str(policy.get("provider_name", "")).strip() != str(
+        row.get("provider_name", "")
+    ).strip():
+        errors.append("llm_generation_policy.provider_name must match provider_name")
+    if str(policy.get("resolved_model", "")).strip() != str(row.get("model", "")).strip():
+        errors.append("llm_generation_policy.resolved_model must match model")
+    if str(policy.get("selected_model_tier", "")).strip() != str(
+        row.get("model_tier", "")
+    ).strip():
+        errors.append("llm_generation_policy.selected_model_tier must match model_tier")
+    prohibited = set(_str_tuple(policy.get("prohibited_generator_providers", [])))
+    if not {"codex", "codex_exec"}.issubset(prohibited):
+        errors.append(
+            "llm_generation_policy.prohibited_generator_providers must include "
+            "codex and codex_exec"
+        )
+    supported = set(_str_tuple(policy.get("supported_live_generator_providers", [])))
+    if supported and {"codex", "codex_exec"}.intersection(supported):
+        errors.append(
+            "llm_generation_policy.supported_live_generator_providers must not "
+            "include codex or codex_exec"
+        )
+    if policy.get("proof_evidence_status") != PROOF_EVIDENCE_STATUS:
+        errors.append("llm_generation_policy.proof_evidence_status mismatch")
+    if "not theorem proof evidence" not in str(
+        policy.get("proof_evidence_boundary", "")
+    ).lower():
+        errors.append(
+            "llm_generation_policy.proof_evidence_boundary must say not theorem proof evidence"
+        )
+    return errors
 
 
 def _request_model_tier_mismatches(

@@ -977,7 +977,11 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["n_response_present"] == 0
     assert payload["n_awaiting_llm_response"] == 1
     assert payload["n_request_schema_valid"] == 1
+    assert payload["n_requests_with_llm_generation_policy"] == 1
+    assert payload["n_request_llm_generation_policy_tier_model_matches"] == 1
+    assert payload["n_request_llm_generation_policy_codex_exclusions"] == 1
     assert payload["request_schema"]["$id"] == LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID
+    assert "llm_generation_policy" in payload["request_schema"]["required"]
     request = payload["request_packets"][0]
     assert "LLM route planner" in request["prompt_messages"]["system"]
     assert "required_output_contract" in request["prompt_messages"]["user"]
@@ -1031,6 +1035,39 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert request["provider_name"] == "anthropic"
     assert request["model"] == "claude-sonnet-4-6"
     assert request["model_tier"] == "sonnet"
+    generation_policy = request["llm_generation_policy"]
+    assert generation_policy["policy_kind"] == (
+        "request_scoped_generator_only_llm_policy"
+    )
+    assert generation_policy["provider_name"] == "anthropic"
+    assert generation_policy["resolved_model"] == request["model"]
+    assert generation_policy["selected_model_tier"] == request["model_tier"]
+    assert generation_policy["requested_model_tier"] == "auto"
+    assert generation_policy["claude_models_by_tier"] == {
+        "haiku": "claude-haiku-4-5-20251001",
+        "sonnet": "claude-sonnet-4-6",
+        "opus": "claude-opus-4-8",
+    }
+    assert "not evergreen aliases" in generation_policy["claude_model_id_versioning"]
+    assert {"codex", "codex_exec"}.issubset(
+        set(generation_policy["prohibited_generator_providers"])
+    )
+    assert {"codex", "codex_exec"}.isdisjoint(
+        set(generation_policy["supported_live_generator_providers"])
+    )
+    assert generation_policy["proof_evidence_status"] == (
+        "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+    )
+    assert validate_llm_route_planner_request(request) == []
+    drifted_request = dict(request)
+    drifted_request["llm_generation_policy"] = {
+        **generation_policy,
+        "resolved_model": "claude-haiku-4-5-20251001",
+    }
+    assert (
+        "llm_generation_policy.resolved_model must match model"
+        in validate_llm_route_planner_request(drifted_request)
+    )
 
 
 def test_llm_route_planner_prompt_only_remains_explicit_no_provider_mode() -> None:
