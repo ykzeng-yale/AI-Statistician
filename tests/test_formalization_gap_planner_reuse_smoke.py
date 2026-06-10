@@ -2513,6 +2513,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     resource_request_summary = stage_by_name[
         "formalization_gap_planner_resource_request_queue"
     ]["summary"]
+    publication_bundle_summary = stage_by_name[
+        "formalization_gap_planner_publication_bundle"
+    ]["summary"]
+    publication_bundle_audit_summary = stage_by_name[
+        "formalization_gap_planner_publication_bundle_audit"
+    ]["summary"]
     assert coverage_summary["n_candidate_declaration_rows"] == payload[
         "n_library_coverage_candidate_declaration_rows"
     ]
@@ -2525,6 +2531,28 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert resource_request_summary["n_candidate_declaration_rows"] == payload[
         "n_resource_request_candidate_declaration_rows"
     ]
+    assert publication_bundle_summary["llm_route_planner_summary"][
+        "n_accepted_route_plans"
+    ] == payload["n_publication_bundle_llm_route_planner_summary_accepted_route_plans"]
+    assert publication_bundle_summary["feedback_llm_route_planner_summary"][
+        "n_accepted_route_plans"
+    ] == payload[
+        "n_publication_bundle_feedback_llm_route_planner_summary_accepted_route_plans"
+    ]
+    assert (
+        publication_bundle_audit_summary[
+            "n_bundle_llm_route_planner_summary_valid"
+        ]
+        == payload["n_publication_bundle_llm_route_planner_summary_valid"]
+        == 1
+    )
+    assert (
+        publication_bundle_audit_summary[
+            "n_bundle_feedback_llm_route_planner_summary_valid"
+        ]
+        == payload["n_publication_bundle_feedback_llm_route_planner_summary_valid"]
+        == 1
+    )
     assert (
         payload[
             "n_feedback_llm_route_planner_feedback_loop_incomplete_realization_coverage"
