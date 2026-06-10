@@ -12481,17 +12481,36 @@ def _standalone_seed(
     input_payload: Mapping[str, Any],
     rows: tuple[FormalizationGapPlannerLLMRoutePlannerRow, ...],
 ) -> dict[str, object]:
-    accepted_routes = [
-        _accepted_route_for_seed(row)
-        for row in rows
-        if row.response_contract_ok and row.standalone_route
-    ]
-    routes = accepted_routes or _fallback_routes_for_seed(input_payload, rows)
+    accepted_rows = tuple(
+        row for row in rows if row.response_contract_ok and row.standalone_route
+    )
+    if accepted_rows:
+        selection_rows = _standalone_seed_route_selection_rows(accepted_rows)
+        rows_by_id = {row.llm_route_planner_row_id: row for row in accepted_rows}
+        routes = []
+        for selection_row in selection_rows:
+            row = rows_by_id[str(selection_row["llm_route_planner_row_id"])]
+            route = _accepted_route_for_seed(row)
+            _apply_seed_route_selection(route, selection_row)
+            routes.append(route)
+        selection_status = "accepted_llm_routes_ranked"
+    else:
+        routes = _fallback_routes_for_seed(input_payload, rows)
+        selection_rows = _fallback_seed_route_selection_rows(routes)
+        for route, selection_row in zip(routes, selection_rows):
+            _apply_seed_route_selection(route, selection_row)
+        selection_status = "fallback_routes_ranked"
     seed: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
         "component_name": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
         "library_snapshot_ref": str(input_payload.get("library_snapshot_ref", "")),
         "routes": routes,
+        "llm_route_planner_seed_route_selection": (
+            _standalone_seed_route_selection_summary(
+                selection_rows,
+                selection_status=selection_status,
+            )
+        ),
         "llm_route_planner_source": LLM_ROUTE_PLANNER_COMPONENT,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
@@ -12500,6 +12519,218 @@ def _standalone_seed(
     if seed_target:
         seed["target_prover_family"] = seed_target
     return seed
+
+
+def _standalone_seed_route_selection_rows(
+    rows: tuple[FormalizationGapPlannerLLMRoutePlannerRow, ...],
+) -> tuple[dict[str, object], ...]:
+    indexed_rows = tuple(enumerate(rows))
+    ranked = sorted(
+        indexed_rows,
+        key=lambda item: _seed_route_selection_sort_key(item[1], item[0]),
+    )
+    selection_rows: list[dict[str, object]] = []
+    for rank, (original_index, row) in enumerate(ranked, start=1):
+        route_cost = _minimal_delta_route_cost(row.minimal_delta_plan)
+        selected_route_option_id = str(
+            _dict_value(row.minimal_delta_plan, "and_or_cost_graph").get(
+                "selected_route_option_id",
+                "",
+            )
+        )
+        selection_rows.append(
+            {
+                "selection_rank": rank,
+                "selected": rank == 1,
+                "selection_reason": (
+                    "ranked by route_adoption_status, minimal_delta_plan.route_cost, "
+                    "route_adoption_blocker_count, then original request order"
+                ),
+                "source_order": original_index,
+                "route_id": row.route_id,
+                "seed_route_id": str(row.standalone_route.get("route_id", "")),
+                "llm_route_planner_row_id": row.llm_route_planner_row_id,
+                "request_id": row.request_id,
+                "route_adoption_status": row.route_adoption_status,
+                "route_adoption_status_rank": _route_adoption_status_rank(
+                    row.route_adoption_status
+                ),
+                "route_adoption_blocker_count": len(row.route_adoption_blockers),
+                "route_adoption_blockers": list(row.route_adoption_blockers),
+                "acceptance_status": row.acceptance_status,
+                "minimal_delta_route_cost": route_cost,
+                "minimal_delta_selected_route_option_id": selected_route_option_id,
+                "response_contract_ok": row.response_contract_ok,
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    return tuple(selection_rows)
+
+
+def _fallback_seed_route_selection_rows(
+    routes: list[dict[str, object]],
+) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    for index, route in enumerate(routes):
+        metadata = _dict_value(route, "replan_metadata")
+        rows.append(
+            {
+                "selection_rank": index + 1,
+                "selected": index == 0,
+                "selection_reason": (
+                    "no accepted LLM route was available; fallback routes keep "
+                    "standalone input order"
+                ),
+                "source_order": index,
+                "route_id": str(
+                    route.get("route_id")
+                    or metadata.get("source_route_id")
+                    or f"fallback_route_{index}"
+                ),
+                "seed_route_id": str(route.get("route_id", "")),
+                "llm_route_planner_row_id": str(
+                    route.get("llm_route_planner_row_id", "")
+                ),
+                "request_id": str(metadata.get("llm_route_planner_request_id", "")),
+                "route_adoption_status": str(
+                    route.get("llm_route_planner_route_adoption_status", "")
+                ),
+                "route_adoption_status_rank": _route_adoption_status_rank(
+                    route.get("llm_route_planner_route_adoption_status", "")
+                ),
+                "route_adoption_blocker_count": len(
+                    _str_tuple(route.get("llm_route_planner_route_adoption_blockers", []))
+                ),
+                "route_adoption_blockers": list(
+                    _str_tuple(route.get("llm_route_planner_route_adoption_blockers", []))
+                ),
+                "acceptance_status": str(
+                    route.get("llm_route_planner_acceptance_status", "")
+                ),
+                "minimal_delta_route_cost": None,
+                "minimal_delta_selected_route_option_id": "",
+                "response_contract_ok": False,
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    return tuple(rows)
+
+
+def _standalone_seed_route_selection_summary(
+    selection_rows: tuple[dict[str, object], ...],
+    *,
+    selection_status: str,
+) -> dict[str, object]:
+    selected = next(
+        (row for row in selection_rows if bool(row.get("selected", False))),
+        {},
+    )
+    return {
+        "selection_kind": (
+            "formalization_gap_planner_llm_route_planner_seed_route_selection"
+        ),
+        "selection_status": selection_status,
+        "selection_policy": (
+            "prefer READY_FOR_STANDALONE_REPLAY routes, then lower "
+            "minimal_delta_plan.route_cost, fewer route-adoption blockers, and "
+            "finally original request order"
+        ),
+        "selected_route_id": str(selected.get("route_id", "")),
+        "selected_seed_route_id": str(selected.get("seed_route_id", "")),
+        "selected_llm_route_planner_row_id": str(
+            selected.get("llm_route_planner_row_id", "")
+        ),
+        "selected_request_id": str(selected.get("request_id", "")),
+        "selected_route_adoption_status": str(
+            selected.get("route_adoption_status", "")
+        ),
+        "selected_minimal_delta_route_cost": selected.get(
+            "minimal_delta_route_cost",
+            None,
+        ),
+        "n_route_candidates": len(selection_rows),
+        "n_ready_route_candidates": sum(
+            1
+            for row in selection_rows
+            if str(row.get("route_adoption_status", "")) == ROUTE_ADOPTION_READY_STATUS
+        ),
+        "n_contract_valid_route_candidates": sum(
+            1 for row in selection_rows if bool(row.get("response_contract_ok", False))
+        ),
+        "selection_rows": [dict(row) for row in selection_rows],
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _apply_seed_route_selection(
+    route: dict[str, object],
+    selection_row: Mapping[str, object],
+) -> None:
+    selected = bool(selection_row.get("selected", False))
+    route["llm_route_planner_seed_selected"] = selected
+    route["llm_route_planner_seed_selection_rank"] = int(
+        selection_row.get("selection_rank", 0) or 0
+    )
+    route["llm_route_planner_seed_selection_reason"] = str(
+        selection_row.get("selection_reason", "")
+    )
+    route["llm_route_planner_seed_minimal_delta_route_cost"] = selection_row.get(
+        "minimal_delta_route_cost",
+        None,
+    )
+    metadata = _dict_value(route, "replan_metadata")
+    metadata = {
+        **metadata,
+        "llm_route_planner_seed_selected": selected,
+        "llm_route_planner_seed_selection_rank": int(
+            selection_row.get("selection_rank", 0) or 0
+        ),
+        "llm_route_planner_seed_selection_reason": str(
+            selection_row.get("selection_reason", "")
+        ),
+        "llm_route_planner_seed_minimal_delta_route_cost": selection_row.get(
+            "minimal_delta_route_cost",
+            None,
+        ),
+    }
+    route["replan_metadata"] = metadata
+
+
+def _seed_route_selection_sort_key(
+    row: FormalizationGapPlannerLLMRoutePlannerRow,
+    source_order: int,
+) -> tuple[float, float, float, int, str]:
+    route_cost = _minimal_delta_route_cost(row.minimal_delta_plan)
+    return (
+        float(_route_adoption_status_rank(row.route_adoption_status)),
+        float("inf") if route_cost is None else float(route_cost),
+        float(len(row.route_adoption_blockers)),
+        source_order,
+        row.route_id,
+    )
+
+
+def _route_adoption_status_rank(status: object) -> int:
+    status_text = str(status or "")
+    if status_text == ROUTE_ADOPTION_READY_STATUS:
+        return 0
+    if status_text == ROUTE_ADOPTION_PENDING_STATUS:
+        return 1
+    if status_text == ROUTE_ADOPTION_AWAITING_STATUS:
+        return 2
+    if status_text == ROUTE_ADOPTION_REJECTED_STATUS:
+        return 3
+    return 4
+
+
+def _minimal_delta_route_cost(minimal_delta_plan: Mapping[str, object]) -> float | None:
+    cost = minimal_delta_plan.get("route_cost")
+    if not _is_nonnegative_number(cost):
+        return None
+    return float(cost)
 
 
 def _fallback_routes_for_seed(

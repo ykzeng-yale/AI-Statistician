@@ -87,6 +87,11 @@ Pass criteria:
   primitive against a published schema, so release audits can see whether the
   current library coverage is exact reuse, near reuse, wrapper work, bridge
   work, source-port work, new theory, or unknown alignment
+- LLM route-planner standalone seeds publish a deterministic route-selection
+  summary across accepted candidates, ranking first by route-adoption readiness
+  and then by minimal-delta route cost, blocker count, and original request
+  order; this keeps replay focused on the cheapest source-backed extension
+  rather than whichever valid LLM response happened to arrive first
 - claim-ledger proof statuses report whether kernel evidence came from the trace
   verifier or from a matching `proof_audit_manifest.json` overlay
 - claim-ledger formal gaps can also be upgraded by a matching

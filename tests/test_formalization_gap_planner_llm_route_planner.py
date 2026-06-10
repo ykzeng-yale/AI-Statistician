@@ -5415,6 +5415,103 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
     assert trace["llm_route_planner_route_adoption_blockers"] == []
 
 
+def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_seed_route_selection")
+    out_dir = root / "llm_route_planner"
+    response_json = root / "responses.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    alternative_route = deepcopy(input_payload["routes"][0])
+    alternative_route["route_id"] = "rank_route_alt"
+    alternative_route["display_name"] = "distribution_free_rank_bound_alt"
+    input_payload["routes"].append(alternative_route)
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+
+    high_cost = _llm_response_payload()
+    high_cost["search_requests"] = []
+    high_cost["planner_next_actions"] = []
+    high_cost["uncertainty_flags"] = []
+    high_cost["semantic_alignment_risks"] = []
+    high_cost["standalone_route"]["route_id"] = "rank_route_high_cost_seed"
+    high_cost["standalone_route"]["display_name"] = "rank route high cost"
+    high_cost_delta = high_cost["minimal_delta_plan"]
+    assert isinstance(high_cost_delta, dict)
+    high_cost_delta["route_cost"] = 8
+    high_rank_cost = high_cost_delta["primitive_costs"][1]
+    assert isinstance(high_rank_cost, dict)
+    high_rank_cost["proof_difficulty_cost"] = 4
+    high_rank_cost["total_cost"] = 8
+    high_rank_cost["cost_rationale"] = (
+        "The bridge requires an extra proof-difficulty allowance."
+    )
+    high_cost_graph = high_cost_delta["and_or_cost_graph"]
+    assert isinstance(high_cost_graph, dict)
+    for option in high_cost_graph["route_options"]:
+        assert isinstance(option, dict)
+        option["route_cost"] = 8 if option["selected"] else 9
+
+    low_cost = _llm_response_payload()
+    low_cost["search_requests"] = []
+    low_cost["planner_next_actions"] = []
+    low_cost["uncertainty_flags"] = []
+    low_cost["semantic_alignment_risks"] = []
+    low_cost["standalone_route"]["route_id"] = "rank_route_low_cost_seed"
+    low_cost["standalone_route"]["display_name"] = "rank route low cost"
+
+    response_json.write_text(
+        json.dumps(
+            [
+                {
+                    "route_id": "rank_route",
+                    "response_payload": high_cost,
+                    "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+                },
+                {
+                    "route_id": "rank_route_alt",
+                    "response_payload": low_cost,
+                    "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+                },
+            ],
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    selection = payload["standalone_seed"][
+        "llm_route_planner_seed_route_selection"
+    ]
+    assert selection["selection_status"] == "accepted_llm_routes_ranked"
+    assert selection["selected_route_id"] == "rank_route_alt"
+    assert selection["selected_seed_route_id"] == "rank_route_low_cost_seed"
+    assert selection["selected_minimal_delta_route_cost"] == 4.0
+    assert [row["route_id"] for row in selection["selection_rows"]] == [
+        "rank_route_alt",
+        "rank_route",
+    ]
+    seed_routes = payload["standalone_seed"]["routes"]
+    assert [route["route_id"] for route in seed_routes] == [
+        "rank_route_low_cost_seed",
+        "rank_route_high_cost_seed",
+    ]
+    assert seed_routes[0]["llm_route_planner_seed_selected"] is True
+    assert seed_routes[0]["llm_route_planner_seed_selection_rank"] == 1
+    assert seed_routes[0]["replan_metadata"][
+        "llm_route_planner_seed_minimal_delta_route_cost"
+    ] == 4.0
+    assert seed_routes[1]["llm_route_planner_seed_selected"] is False
+    assert seed_routes[1]["llm_route_planner_seed_selection_rank"] == 2
+
+
 def test_llm_route_planner_blocks_route_adoption_on_formal_gap_boundary() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_boundary_blocker")
     out_dir = root / "llm_route_planner"
