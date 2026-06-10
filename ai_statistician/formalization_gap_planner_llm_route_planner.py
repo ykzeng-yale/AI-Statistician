@@ -4597,6 +4597,13 @@ def _row_for_request(
         "context_packet_inventory",
     )
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
+    realization_coverage_witness = _realization_coverage_witness(
+        request=request,
+        minimal_delta=minimal_delta_plan,
+        standalone_route=standalone_route,
+        formal_nodes=formal_nodes,
+        alignment_edges=route_alignment_edges,
+    )
     route_adoption_status, route_adoption_blockers = _route_adoption_readiness(
         request_errors=tuple(request_errors),
         response_present=response_present,
@@ -4612,6 +4619,7 @@ def _row_for_request(
             payload.get("residual_interpretations", [])
         ),
         feedback_summary=feedback_summary,
+        realization_coverage_witness=realization_coverage_witness,
         omitted_cost_hint_primitives=_omitted_cost_hint_primitives(
             minimal_delta_plan,
             request,
@@ -4659,13 +4667,7 @@ def _row_for_request(
         standalone_route=standalone_route,
         source_refs=_route_source_refs(payload),
         source_snippets=_route_source_snippets(payload),
-        realization_coverage_witness=_realization_coverage_witness(
-            request=request,
-            minimal_delta=minimal_delta_plan,
-            standalone_route=standalone_route,
-            formal_nodes=formal_nodes,
-            alignment_edges=route_alignment_edges,
-        ),
+        realization_coverage_witness=realization_coverage_witness,
         quality_control_obligations=dict(quality_control_obligations),
         feedback_loop_summary=dict(feedback_summary),
         context_packet_inventory=dict(context_packet_inventory),
@@ -4703,6 +4705,7 @@ def _route_adoption_readiness(
     semantic_alignment_risks: tuple[str, ...],
     residual_interpretations: tuple[dict[str, object], ...],
     feedback_summary: Mapping[str, object],
+    realization_coverage_witness: Mapping[str, object],
     omitted_cost_hint_primitives: tuple[str, ...],
     formal_gap_boundary_obligations: tuple[str, ...],
     quality_control_obligations_pending: bool,
@@ -4750,7 +4753,10 @@ def _route_adoption_readiness(
     if _truthy(feedback_summary.get("replan_required")):
         blockers.append(ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN)
     realization_coverage = _dict_value(feedback_summary, "realization_coverage")
-    if realization_coverage.get("complete") is False:
+    if (
+        realization_coverage.get("complete") is False
+        or realization_coverage_witness.get("realization_coverage_complete") is False
+    ):
         blockers.append(ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE)
     if omitted_cost_hint_primitives:
         blockers.append(ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES)

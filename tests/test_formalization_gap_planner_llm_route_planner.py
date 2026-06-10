@@ -16,6 +16,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY,
     _generator_model_for_request,
+    _route_adoption_readiness,
     export_formalization_gap_planner_llm_route_planner,
     llm_route_planner_manifest_json_schema,
     llm_route_planner_response_payload_schema,
@@ -5206,6 +5207,27 @@ def test_llm_route_planner_blocks_route_adoption_on_formal_gap_boundary() -> Non
     assert seed_route["replan_metadata"][
         "llm_route_planner_route_adoption_blockers"
     ] == ["formal_gap_boundaries_require_resolution"]
+
+
+def test_route_adoption_readiness_uses_current_realization_witness() -> None:
+    status, blockers = _route_adoption_readiness(
+        response_present=True,
+        provider_failure=False,
+        response_contract_ok=True,
+        search_requests=(),
+        planner_next_actions=(),
+        uncertainty_flags=(),
+        semantic_alignment_risks=(),
+        residual_interpretations=(),
+        feedback_summary={},
+        realization_coverage_witness={"realization_coverage_complete": False},
+        omitted_cost_hint_primitives=(),
+        formal_gap_boundary_obligations=(),
+        quality_control_obligations_pending=False,
+    )
+
+    assert status == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    assert blockers == ("realization_coverage_incomplete",)
 
 
 def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> None:
