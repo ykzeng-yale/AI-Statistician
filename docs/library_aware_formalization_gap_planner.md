@@ -568,7 +568,10 @@ cost hints, zero Claude tier mismatches, and an accounted Haiku/Sonnet/Opus
 request-tier distribution. This makes the runtime bridge fail closed if the
 library-aware cost surface is accidentally dropped before an LLM call, and it
 lets a public handoff audit show whether auto-tiering stayed cheap or upgraded
-to Sonnet because the route still needed source/library search.
+to Sonnet because the route still needed source/library search. When the runtime
+handoff audit is packaged, the publication-bundle audit checks that the tier
+distribution accounts for every staged prompt packet and that reported Claude
+tier mismatches remain zero.
 
 The reuse-smoke manifest names both the route-replan standalone seed and its
 `formalization_gap_planner_route_replan_standalone_seed.schema.json`, so an

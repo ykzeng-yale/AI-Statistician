@@ -1371,6 +1371,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
                 "n_standalone_smoke_ok": 1,
                 "n_llm_prompt_smoke_ok": 1,
                 "n_llm_prompt_packets": 1,
+                "n_llm_prompt_model_tier_mismatches": 0,
+                "n_llm_prompt_model_tier_haiku": 0,
+                "n_llm_prompt_model_tier_sonnet": 1,
+                "n_llm_prompt_model_tier_opus": 0,
                 "n_component_resource_registry_smoke_ok": 1,
                 "n_component_resource_registry_components_in_prompt": 2,
                 "n_component_resource_registry_resources_in_prompt": 3,
@@ -1825,6 +1829,18 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         == 0
     )
     assert payload["n_optional_artifact_files_copied"] == 126
+    assert payload["runtime_handoff_audit_summary"][
+        "n_llm_prompt_model_tier_mismatches"
+    ] == 0
+    assert payload["runtime_handoff_audit_summary"][
+        "n_llm_prompt_model_tier_haiku"
+    ] == 0
+    assert payload["runtime_handoff_audit_summary"][
+        "n_llm_prompt_model_tier_sonnet"
+    ] == 1
+    assert payload["runtime_handoff_audit_summary"][
+        "n_llm_prompt_model_tier_opus"
+    ] == 0
     assert payload["schema_catalog_summary"]["all_ok"]
     assert payload["schema_catalog_summary"]["n_schema_catalog_contract_errors"] == 0
     assert "not theorem proof evidence" in payload["proof_evidence_boundary"]
@@ -3230,6 +3246,13 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert packaged_runtime_handoff_audit[
         "n_component_resource_registry_contracts_in_prompt"
     ] > 0
+    assert packaged_runtime_handoff_audit["n_llm_prompt_model_tier_sonnet"] == 1
+    assert (
+        packaged_runtime_handoff_audit["n_llm_prompt_model_tier_haiku"]
+        + packaged_runtime_handoff_audit["n_llm_prompt_model_tier_sonnet"]
+        + packaged_runtime_handoff_audit["n_llm_prompt_model_tier_opus"]
+        == packaged_runtime_handoff_audit["n_llm_prompt_packets"]
+    )
     assert (
         out_dir
         / "artifacts"

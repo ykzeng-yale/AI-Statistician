@@ -1799,6 +1799,7 @@ def audit_formalization_gap_planner_publication_bundle(
             in {
                 "optional_runtime_handoff_audit_cost_control",
                 "optional_runtime_handoff_audit_prompt_smoke",
+                "optional_runtime_handoff_audit_prompt_tier_accounting",
                 "optional_runtime_handoff_audit_standalone_smoke",
                 "optional_runtime_handoff_audit_no_failures",
             }
@@ -1810,6 +1811,7 @@ def audit_formalization_gap_planner_publication_bundle(
             in {
                 "optional_runtime_handoff_audit_cost_control",
                 "optional_runtime_handoff_audit_prompt_smoke",
+                "optional_runtime_handoff_audit_prompt_tier_accounting",
                 "optional_runtime_handoff_audit_standalone_smoke",
                 "optional_runtime_handoff_audit_no_failures",
             }
@@ -14605,6 +14607,11 @@ def _runtime_handoff_audit_optional_checks(
     rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
     n_handoffs = int(manifest.get("n_handoffs", 0) or 0)
     n_checks = int(manifest.get("n_checks", 0) or 0)
+    n_prompt_packets = int(manifest.get("n_llm_prompt_packets", 0) or 0)
+    n_tier_haiku = int(manifest.get("n_llm_prompt_model_tier_haiku", 0) or 0)
+    n_tier_sonnet = int(manifest.get("n_llm_prompt_model_tier_sonnet", 0) or 0)
+    n_tier_opus = int(manifest.get("n_llm_prompt_model_tier_opus", 0) or 0)
+    n_tier_accounted = n_tier_haiku + n_tier_sonnet + n_tier_opus
     checks = [
         _check(
             "optional_runtime_handoff_audit_row_schema_file",
@@ -14660,11 +14667,26 @@ def _runtime_handoff_audit_optional_checks(
             "prompt-only route-planner smoke staged requests without provider invocation",
             (
                 f"prompt_smoke={manifest.get('n_llm_prompt_smoke_ok', 0)}/"
-                f"{n_handoffs}; packets={manifest.get('n_llm_prompt_packets', 0)}"
+                f"{n_handoffs}; packets={n_prompt_packets}"
             ),
             n_handoffs > 0
             and int(manifest.get("n_llm_prompt_smoke_ok", 0) or 0) == n_handoffs
-            and int(manifest.get("n_llm_prompt_packets", 0) or 0) >= n_handoffs,
+            and n_prompt_packets >= n_handoffs,
+        ),
+        _check(
+            "optional_runtime_handoff_audit_prompt_tier_accounting",
+            "optional_artifacts",
+            "runtime handoff prompt packets expose accounted Claude tier distribution",
+            (
+                f"packets={n_prompt_packets}; "
+                f"haiku={n_tier_haiku}; sonnet={n_tier_sonnet}; "
+                f"opus={n_tier_opus}; "
+                f"mismatches={manifest.get('n_llm_prompt_model_tier_mismatches', 0)}"
+            ),
+            n_prompt_packets > 0
+            and n_tier_accounted == n_prompt_packets
+            and int(manifest.get("n_llm_prompt_model_tier_mismatches", 0) or 0)
+            == 0,
         ),
         _check(
             "optional_runtime_handoff_audit_component_resource_registry_smoke",
