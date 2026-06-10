@@ -127,6 +127,7 @@ from ai_statistician.formalization_gap_planner_publication_bundle_audit import (
 from ai_statistician.formalization_gap_planner_target_intake import (
     target_intake_row_json_schema,
 )
+from ai_statistician.model_backend import ANTHROPIC_MODEL_SOURCE_CHECKED_DATE
 
 
 def _write_llm_route_planner_fixture_input(root: Path) -> Path:
@@ -2291,6 +2292,11 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "sonnet": "claude-sonnet-4-6",
         "opus": "claude-opus-4-8",
     }
+    assert (
+        llm_model_policy["source_checked_date"]
+        == ANTHROPIC_MODEL_SOURCE_CHECKED_DATE
+        == "2026-06-10"
+    )
     assert llm_model_policy["latest_claude_family_models_outside_cost_tiers"] == {
         "fable": "claude-fable-5",
         "mythos_limited_availability": "claude-mythos-5",

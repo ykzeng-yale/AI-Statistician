@@ -237,7 +237,7 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
         "sonnet": "claude-sonnet-4-6",
         "opus": "claude-opus-4-8",
     }
-    assert ANTHROPIC_MODEL_SOURCE_CHECKED_DATE == "2026-06-09"
+    assert ANTHROPIC_MODEL_SOURCE_CHECKED_DATE == "2026-06-10"
     assert (
         ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY[
             "models_outside_opus_sonnet_haiku_cost_tiers"
