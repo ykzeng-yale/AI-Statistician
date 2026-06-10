@@ -7042,6 +7042,60 @@ def test_llm_route_planner_rejects_reuse_from_resource_request_seed() -> None:
     )
 
 
+def test_llm_route_planner_rejects_wrong_primitive_formal_hit_reuse() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_wrong_primitive_hit"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    declaration_row = {
+        "declaration": "Probability.rankUniformityBridge",
+        "target_prover_family": "lean4",
+        "source_field": "formal_declaration_hits",
+    }
+    bad_response = _llm_response_payload()
+    bad_response["lean_realization_dag_nodes"][0].pop(
+        "candidate_declarations", None
+    )
+    bad_response["lean_realization_dag_nodes"][0][
+        "candidate_declaration_rows"
+    ] = [declaration_row]
+    bad_response["standalone_route"]["primitives"][0].pop(
+        "candidate_declarations", None
+    )
+    bad_response["standalone_route"]["primitives"][0][
+        "candidate_declaration_rows"
+    ] = [declaration_row]
+    bad_response["residual_interpretations"] = [
+        {
+            "residual_goal": "rank_uniformity: deterministic tie handling",
+            "interpretation": "Accepted feedback says rank uniformity still needs deterministic tie handling.",
+            "route_repair": "Keep rank_uniformity as a bridge until the side condition is replayed.",
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert "primitive-scoped formal declaration evidence" in error_text
+    assert "not exchangeability" in error_text
+
+
 def test_llm_route_planner_accepts_reuse_from_accepted_formal_hit() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_accepts_formal_hit_reuse"

@@ -434,7 +434,11 @@ seeds, not as accepted library evidence: an LLM route may use them to ask for
 formal-library or prover feedback, but it cannot justify `already_exists`,
 `exact_exists`, or reuse coverage from them until a route-level formal context
 row, `formal_declaration_hits`, or the Lean legacy `lean_declaration_hits`
-appears in accepted context.
+appears in accepted context. Accepted declaration hits are also primitive-scoped
+when the evidence row names `primitive`, `target_primitives`, or coverage-update
+keys. A hit scoped to `rank_uniformity` may be used as a premise or search hint
+for another primitive, but it cannot justify exact/reuse coverage for
+`exchangeability` without matching declaration evidence for that primitive.
 
 For a paper supplement or external prover smoke test, the same public path can
 be run as one command:

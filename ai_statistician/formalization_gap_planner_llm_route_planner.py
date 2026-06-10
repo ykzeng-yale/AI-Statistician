@@ -2330,6 +2330,7 @@ def _user_prompt(
             "Any informal node or standalone primitive with SEARCH_REQUESTED/source_search_pending status must have a matching literature/source search_request.",
             "Existing-library or reuse claims may cite only candidate_declarations or candidate_declaration_rows listed in context_packet.available_formal_declarations/available_formal_declaration_rows.",
             "Resource-request candidate declarations are search seeds only; they cannot justify existing-library or reuse coverage until accepted formal_declaration_hits, lean_declaration_hits, or route-level formal context is available.",
+            "Primitive-scoped formal_declaration_hits and lean_declaration_hits may justify existing-library or reuse coverage only for the matching primitive; use bridge/prover feedback/search when a declaration is merely a premise for a different primitive.",
             "Prefer candidate_declaration_rows over bare candidate_declarations so target_prover_family provenance is preserved.",
             "If a needed declaration is not listed, emit a formal_library search_request instead of inventing a candidate_declaration.",
             "Any formal-realization node or standalone primitive with unknown/formal-library-search-pending coverage must have a matching formal_library/library search_request unless it declares a formal gap boundary or concrete delta action.",
@@ -4715,6 +4716,9 @@ def _response_existing_coverage_declaration_support_errors(
     )
     if not support_sources:
         return []
+    primitive_support = _available_formal_declaration_primitive_support_for_request(
+        request
+    )
 
     errors: list[str] = []
     target_prover_family = str(request.get("target_prover_family", ""))
@@ -4735,6 +4739,8 @@ def _response_existing_coverage_declaration_support_errors(
         unsupported = _candidate_declarations_without_existing_support(
             node,
             support_sources=support_sources,
+            primitive_support=primitive_support,
+            primitive=str(node.get("primitive", "")),
             inherited_target_prover_family=inherited_target,
         )
         if unsupported:
@@ -4763,6 +4769,8 @@ def _response_existing_coverage_declaration_support_errors(
         unsupported = _candidate_declarations_without_existing_support(
             primitive,
             support_sources=support_sources,
+            primitive_support=primitive_support,
+            primitive=str(primitive.get("primitive", "")),
             inherited_target_prover_family=inherited_target,
         )
         if unsupported:
@@ -4779,9 +4787,12 @@ def _candidate_declarations_without_existing_support(
     node: Mapping[str, Any],
     *,
     support_sources: Mapping[tuple[str, str], set[str]],
+    primitive_support: Mapping[tuple[str, str], set[str]],
+    primitive: str,
     inherited_target_prover_family: str,
 ) -> list[str]:
     unsupported: list[str] = []
+    primitive_key = _primitive_key(primitive)
     for row in _node_candidate_declaration_rows(
         node,
         inherited_target_prover_family=inherited_target_prover_family,
@@ -4804,6 +4815,21 @@ def _candidate_declarations_without_existing_support(
             unsupported.append(
                 f"{declaration}@{row.get('target_prover_family', '')}"
                 + (f" source_field={source_preview}" if source_preview else "")
+            )
+            continue
+        supported_primitives = primitive_support.get((declaration_key, target_key), set())
+        if not supported_primitives and target_key:
+            supported_primitives = primitive_support.get((declaration_key, ""), set())
+        if (
+            primitive_key
+            and supported_primitives
+            and primitive_key not in supported_primitives
+        ):
+            unsupported.append(
+                f"{declaration}@{row.get('target_prover_family', '')} "
+                "has primitive-scoped formal declaration evidence for "
+                + ", ".join(sorted(supported_primitives)[:8])
+                + f", not {primitive_key}"
             )
     return unsupported
 
@@ -5510,6 +5536,104 @@ def _available_formal_declaration_existing_support_for_request(
                 "available_formal_declarations"
             )
     return support
+
+
+def _available_formal_declaration_primitive_support_for_request(
+    request: Mapping[str, Any],
+) -> dict[tuple[str, str], set[str]]:
+    support: dict[tuple[str, str], set[str]] = {}
+    _collect_formal_declaration_primitive_support(
+        _dict_value(request, "context_packet"),
+        support,
+        inherited_target_prover_family=str(request.get("target_prover_family", "")),
+        inherited_primitives=tuple(),
+    )
+    return support
+
+
+def _collect_formal_declaration_primitive_support(
+    value: Any,
+    support: dict[tuple[str, str], set[str]],
+    *,
+    inherited_target_prover_family: str,
+    inherited_primitives: tuple[str, ...],
+) -> None:
+    if isinstance(value, Mapping):
+        current_target = str(
+            value.get("target_prover_family")
+            or value.get("target_prover")
+            or inherited_target_prover_family
+        )
+        scoped_primitives = tuple(
+            dict.fromkeys(
+                [
+                    *inherited_primitives,
+                    *_primitive_scope_values(value),
+                ]
+            )
+        )
+        for field_name in ("formal_declaration_hits", "lean_declaration_hits"):
+            for row in _dict_tuple(value.get(field_name, [])):
+                row_primitives = tuple(
+                    dict.fromkeys(
+                        [
+                            *scoped_primitives,
+                            *_primitive_scope_values(row),
+                        ]
+                    )
+                )
+                if not row_primitives:
+                    continue
+                declaration = str(
+                    row.get("declaration")
+                    or row.get("declaration_name")
+                    or row.get("candidate_declaration")
+                    or row.get("lean_declaration")
+                    or row.get("name")
+                    or row.get("full_name")
+                    or ""
+                ).strip()
+                declaration_key = _formal_declaration_key(declaration)
+                target_key = _target_prover_key(
+                    row.get("target_prover_family", "")
+                    or row.get("target_prover", "")
+                    or current_target
+                )
+                if declaration_key:
+                    support.setdefault((declaration_key, target_key), set()).update(
+                        row_primitives
+                    )
+        for item in value.values():
+            _collect_formal_declaration_primitive_support(
+                item,
+                support,
+                inherited_target_prover_family=current_target,
+                inherited_primitives=scoped_primitives,
+            )
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            _collect_formal_declaration_primitive_support(
+                item,
+                support,
+                inherited_target_prover_family=inherited_target_prover_family,
+                inherited_primitives=inherited_primitives,
+            )
+
+
+def _primitive_scope_values(value: Mapping[str, Any]) -> tuple[str, ...]:
+    primitives: list[str] = []
+    primitives.extend(_primitive_values(value.get("primitive", "")))
+    primitives.extend(_primitive_values(value.get("target_primitives", [])))
+    primitives.extend(_primitive_values(value.get("supported_target_primitives", [])))
+    coverage_updates = _dict_value(value, "coverage_updates")
+    primitives.extend(str(primitive) for primitive in coverage_updates.keys())
+    return tuple(
+        dict.fromkeys(
+            primitive
+            for primitive in (_primitive_key(item) for item in primitives)
+            if primitive
+        )
+    )
 
 
 def _formal_declaration_source_field_supports_existing_coverage(
