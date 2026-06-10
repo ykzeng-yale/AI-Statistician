@@ -2218,6 +2218,18 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     feedback_response["minimal_delta_plan"]["and_or_cost_graph"]["route_options"][0][
         "cost_rationale"
     ] = "Add a target-prover exchangeability wrapper and one focused rank bridge."
+    for option in feedback_response["minimal_delta_plan"]["and_or_cost_graph"][
+        "route_options"
+    ]:
+        if (
+            option["route_option_id"]
+            == "route_option:current_route_min_delta_baseline"
+        ):
+            option["route_cost"] = 166
+            option["cost_rationale"] = (
+                "Request-bound baseline preserving the full current target route "
+                "includes the target-prover exchangeability wrapper."
+            )
     feedback_response["standalone_route"]["primitives"][0][
         "coverage_status"
     ] = "wrapper_needed"
@@ -2434,7 +2446,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         payload[
             "n_feedback_llm_route_planner_route_adoption_pending_omitted_cost_hint_primitive_blockers"
         ]
-        == 0
+        == 1
     )
     assert (
         payload[
@@ -2446,7 +2458,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         payload[
             "n_feedback_llm_route_planner_route_adoption_omitted_cost_hint_primitives"
         ]
-        == 0
+        > 0
     )
     assert payload["n_feedback_llm_route_planner_awaiting"] == 0
     assert payload["n_feedback_llm_route_planner_search_requests"] == 1

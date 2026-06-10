@@ -10239,6 +10239,13 @@ def _accepted_route_for_seed(
         ),
         key_fields=("hook_kind", "queries", "acceptance_record"),
     )
+    llm_refinement_hooks = _merge_dict_rows(
+        llm_refinement_hooks,
+        _llm_refinement_hooks_for_realization_coverage_witness(
+            row.realization_coverage_witness,
+        ),
+        key_fields=("hook_kind", "queries", "acceptance_record"),
+    )
     llm_route_revision_triggers = _llm_route_revision_triggers_for_search_requests(
         row.search_requests,
     )
@@ -10279,6 +10286,13 @@ def _accepted_route_for_seed(
         _llm_route_revision_triggers_for_feedback_summary(
             row.feedback_loop_summary,
             selected_primitives=selected_primitives,
+        ),
+        key_fields=("trigger_kind", "condition", "next_action"),
+    )
+    llm_route_revision_triggers = _merge_dict_rows(
+        llm_route_revision_triggers,
+        _llm_route_revision_triggers_for_realization_coverage_witness(
+            row.realization_coverage_witness,
         ),
         key_fields=("trigger_kind", "condition", "next_action"),
     )
@@ -11338,6 +11352,134 @@ def _quality_control_payload_for_feedback_action(
             )
         )
     return payload
+
+
+def _llm_refinement_hooks_for_realization_coverage_witness(
+    realization_coverage_witness: Mapping[str, object],
+) -> tuple[dict[str, object], ...]:
+    realization_coverage = _realization_coverage_summary_for_witness(
+        realization_coverage_witness
+    )
+    hooks: list[dict[str, object]] = []
+    for index, action in enumerate(
+        _realization_feedback_next_actions(realization_coverage)
+    ):
+        queries = _realization_coverage_action_queries(action)
+        if not queries:
+            continue
+        hooks.append(
+            {
+                "hook_kind": "route_revision",
+                "recommended_tools": list(
+                    _recommended_tools_for_llm_hook("route_revision")
+                ),
+                "queries": list(queries),
+                "target_primitives": list(_str_tuple(action.get("target_primitives", []))),
+                "acceptance_record": (
+                    "revise or explicitly justify realization-coverage witness "
+                    "gaps before standalone route adoption"
+                ),
+                "llm_route_planner_realization_coverage_action_index": index,
+                "llm_route_planner_realization_coverage_action": dict(action),
+                "llm_route_planner_realization_coverage_witness": dict(
+                    realization_coverage_witness
+                ),
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    return _merge_dict_rows(
+        tuple(hooks),
+        tuple(),
+        key_fields=("hook_kind", "queries", "acceptance_record"),
+    )
+
+
+def _llm_route_revision_triggers_for_realization_coverage_witness(
+    realization_coverage_witness: Mapping[str, object],
+) -> tuple[dict[str, object], ...]:
+    realization_coverage = _realization_coverage_summary_for_witness(
+        realization_coverage_witness
+    )
+    triggers: list[dict[str, object]] = []
+    for index, action in enumerate(
+        _realization_feedback_next_actions(realization_coverage)
+    ):
+        queries = _realization_coverage_action_queries(action)
+        if not queries:
+            continue
+        triggers.append(
+            {
+                "trigger_kind": _trigger_kind_for_realization_coverage_action(action),
+                "condition": "; ".join(queries),
+                "next_action": _next_action_for_llm_hook(
+                    "route_revision",
+                    query="; ".join(queries),
+                ),
+                "target_primitives": list(_str_tuple(action.get("target_primitives", []))),
+                "llm_route_planner_realization_coverage_action_index": index,
+                "llm_route_planner_realization_coverage_action": dict(action),
+                "llm_route_planner_realization_coverage_witness": dict(
+                    realization_coverage_witness
+                ),
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+            }
+        )
+    return _merge_dict_rows(
+        tuple(triggers),
+        tuple(),
+        key_fields=("trigger_kind", "condition", "next_action"),
+    )
+
+
+def _realization_coverage_summary_for_witness(
+    realization_coverage_witness: Mapping[str, object],
+) -> dict[str, object]:
+    witness = _compact_realization_witness(realization_coverage_witness)
+    if not witness:
+        return {}
+    return {
+        "complete": bool(witness.get("realization_coverage_complete", False)),
+        "missing_selected_formal_primitives": list(
+            _str_tuple(
+                witness.get("selected_primitives_missing_formal_realization_node", [])
+            )
+        ),
+        "missing_delta_alignment_primitives": list(
+            _str_tuple(witness.get("delta_primitives_missing_route_alignment_edge", []))
+        ),
+        "cost_hint_baseline_primitives": list(
+            _str_tuple(witness.get("cost_hint_baseline_primitives", []))
+        ),
+        "omitted_cost_hint_primitives": list(
+            _str_tuple(witness.get("omitted_cost_hint_primitives", []))
+        ),
+        "cost_hint_baseline_coverage_complete": bool(
+            witness.get("cost_hint_baseline_coverage_complete", True)
+        ),
+        "witnesses": [dict(witness)],
+    }
+
+
+def _realization_coverage_action_queries(
+    action: Mapping[str, object],
+) -> tuple[str, ...]:
+    return _str_tuple(
+        [
+            action.get("action", ""),
+            action.get("reason", ""),
+            *(_str_tuple(action.get("target_primitives", []))),
+        ]
+    )
+
+
+def _trigger_kind_for_realization_coverage_action(
+    action: Mapping[str, object],
+) -> str:
+    action_name = str(action.get("action", "")).strip()
+    if action_name == "review_or_restore_omitted_cost_hint_primitives":
+        return "omitted_cost_hint_primitives_review_required"
+    return "realization_coverage_repair_required"
 
 
 def _llm_resource_binding_summary(

@@ -7118,6 +7118,24 @@ def test_llm_route_planner_blocks_route_adoption_when_cost_hint_primitive_omitte
     assert seed_route["replan_metadata"][
         "llm_route_planner_realization_coverage_witness"
     ]["omitted_cost_hint_primitives"] == ["rank_uniformity"]
+    omitted_hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_realization_coverage_action", {}).get(
+            "action"
+        )
+        == "review_or_restore_omitted_cost_hint_primitives"
+    )
+    assert omitted_hook["hook_kind"] == "route_revision"
+    assert omitted_hook["target_primitives"] == ["rank_uniformity"]
+    assert omitted_hook["llm_route_planner_realization_coverage_witness"][
+        "omitted_cost_hint_primitives"
+    ] == ["rank_uniformity"]
+    assert any(
+        trigger.get("trigger_kind")
+        == "omitted_cost_hint_primitives_review_required"
+        for trigger in seed_route["route_revision_triggers"]
+    )
     seed_json = root / "standalone_seed.json"
     seed_json.write_text(json.dumps(payload["standalone_seed"]), encoding="utf-8")
     plan_payload = export_formalization_gap_planner_standalone_plan(
@@ -7125,6 +7143,25 @@ def test_llm_route_planner_blocks_route_adoption_when_cost_hint_primitive_omitte
         root / "standalone_plan_from_omitted_cost_hint_seed",
     )
     assert plan_payload["all_ok"]
+    refinement_queue_payload = export_formalization_gap_planner_refinement_queue(
+        root / "standalone_plan_from_omitted_cost_hint_seed",
+        root / "refinement_queue_from_omitted_cost_hint_seed",
+    )
+    assert refinement_queue_payload["all_ok"]
+    omitted_queue_row = next(
+        row
+        for row in refinement_queue_payload["rows"]
+        if row["hook_kind"] == "route_revision"
+        and row["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_realization_coverage_action", {}
+        ).get("action")
+        == "review_or_restore_omitted_cost_hint_primitives"
+    )
+    assert omitted_queue_row["target_primitives"] == ("rank_uniformity",)
+    assert (
+        "omitted_cost_hint_primitives_review_required"
+        in omitted_queue_row["trigger_kinds"]
+    )
     trace_witness = plan_payload["rows"][0]["standalone_input_trace"][
         "realization_coverage_witness"
     ]

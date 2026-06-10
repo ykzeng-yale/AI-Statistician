@@ -258,8 +258,11 @@ option, omitting a hinted primitive keeps route adoption pending under
 `omitted_cost_hint_primitives_require_review` until that semantic route change
 has been reviewed. The omitted primitive list is copied into
 `realization_coverage_witness`, then preserved in accepted seeds and compact
-standalone input traces for public replay. Feedback-loop summaries aggregate
-the same omitted primitive list and emit a
+standalone input traces for public replay. Current-response witnesses with
+omitted cost-hint primitives also materialize a `route_revision` hook and
+`omitted_cost_hint_primitives_review_required` trigger, so the semantic route
+weakening has an executable review item before adoption. Feedback-loop summaries
+aggregate the same omitted primitive list and emit a
 `review_or_restore_omitted_cost_hint_primitives` repair action, so the next LLM
 route-planning pass treats a semantic route weakening as Sonnet-tier route
 repair even when standalone/formal realization coverage is otherwise complete.
