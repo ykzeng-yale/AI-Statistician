@@ -539,6 +539,42 @@ def test_formal_subclaim_prover_prioritizes_agent_requested_kernel_smoke() -> No
     assert control["n_selected_proof_obligations"] == 1
 
 
+def test_formal_subclaim_prover_excludes_already_verified_obligations_from_selection_pool() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[0]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+
+    class SeenVerifier(MockProofVerifier):
+        def __init__(self) -> None:
+            self.seen_obligation_ids: list[str] = []
+
+        async def verify(self, obligation, proof_body, retrieval_hits):  # type: ignore[no-untyped-def]
+            self.seen_obligation_ids.append(obligation.id)
+            return await super().verify(obligation, proof_body, retrieval_hits)
+
+    verifier = SeenVerifier()
+    prover = FormalSubclaimProver(verifier=verifier, max_proof_obligations=2)
+    subclaims = asyncio.run(
+        prover.prove(
+            problem,
+            theorem_goals,
+            prioritized_proof_obligation_ids=("variance_nonneg", "event_indicator_expectation"),
+            excluded_proof_obligation_ids=("variance_nonneg",),
+        )
+    )
+    registered_rows = [row for row in subclaims if row.claim_type == "lean_obligation"]
+    control = prover.proof_obligation_control()
+
+    assert "variance_nonneg" in control["candidate_proof_obligation_ids"]
+    assert control["excluded_proof_obligation_ids"] == ["variance_nonneg"]
+    assert control["excluded_candidate_proof_obligation_ids"] == ["variance_nonneg"]
+    assert "variance_nonneg" not in control["eligible_proof_obligation_ids_before_limit"]
+    assert "variance_nonneg" not in control["selected_proof_obligation_ids"]
+    assert "variance_nonneg" not in control["deferred_proof_obligation_ids_due_to_max"]
+    assert [row.proof_obligation_id for row in registered_rows] == verifier.seen_obligation_ids
+    assert "variance_nonneg" not in verifier.seen_obligation_ids
+
+
 def test_formal_subclaim_prover_classifies_local_lean_timeout_separately() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     problem = ProblemFormalizer().formalize(question)
@@ -815,9 +851,13 @@ def test_formalization_runtime_suppresses_llm_requests_already_kernel_verified_i
     assert control["llm_requested_proof_obligation_ids"] == ["variance_nonneg"]
     assert control["llm_prioritized_proof_obligation_ids"] == []
     assert control["llm_suppressed_kernel_verified_proof_obligation_ids"] == ["variance_nonneg"]
+    assert control["excluded_proof_obligation_ids"] == ["variance_nonneg"]
+    assert control["excluded_candidate_proof_obligation_ids"] == ["variance_nonneg"]
     assert control["prioritized_proof_obligation_ids"] == ["event_indicator_expectation"]
+    assert "variance_nonneg" not in control["eligible_proof_obligation_ids_before_limit"]
     assert control["selected_priority_proof_obligation_ids"] == ["event_indicator_expectation"]
     assert "variance_nonneg" not in control["selected_proof_obligation_ids"]
+    assert "variance_nonneg" not in control["deferred_proof_obligation_ids_due_to_max"]
 
 
 def test_proof_audit_learning_export_marks_kernel_verified_obligations_as_memory(tmp_path: Path) -> None:

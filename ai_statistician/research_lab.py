@@ -5185,6 +5185,9 @@ class FormalSubclaimProver:
         self._last_deferred_priority_obligation_ids_due_to_max: tuple[str, ...] = ()
         self._last_requested_candidate_intersection: tuple[str, ...] = ()
         self._last_requested_non_candidate_ids: tuple[str, ...] = ()
+        self._last_excluded_obligation_ids: tuple[str, ...] = ()
+        self._last_excluded_candidate_obligation_ids: tuple[str, ...] = ()
+        self._last_selection_excluded_all_candidates = False
         self._last_selection_filtered_all_candidates = False
 
     def formal_source_retriever(self) -> Any:
@@ -5215,8 +5218,16 @@ class FormalSubclaimProver:
             ),
             "requested_candidate_intersection": list(self._last_requested_candidate_intersection),
             "requested_non_candidate_proof_obligation_ids": list(self._last_requested_non_candidate_ids),
+            "excluded_proof_obligation_ids": list(self._last_excluded_obligation_ids),
+            "excluded_candidate_proof_obligation_ids": list(
+                self._last_excluded_candidate_obligation_ids
+            ),
             "proof_selection_filtered_all_candidates": self._last_selection_filtered_all_candidates,
+            "proof_selection_excluded_all_candidates": self._last_selection_excluded_all_candidates,
             "n_candidate_proof_obligations": len(self._last_candidate_obligation_ids),
+            "n_eligible_proof_obligations_after_exclusion": len(
+                self._last_eligible_obligation_ids_before_limit
+            ),
             "n_selected_proof_obligations": len(self._last_selected_obligation_ids),
             "selection_boundary": (
                 "Proof-obligation controls limit registered proof-bank subclaim verification only. "
@@ -5279,6 +5290,7 @@ class FormalSubclaimProver:
         theorem_goals: list[TheoremGoal],
         *,
         prioritized_proof_obligation_ids: tuple[str, ...] = (),
+        excluded_proof_obligation_ids: tuple[str, ...] = (),
     ) -> list[FormalSubclaim]:
         subclaims: list[FormalSubclaim] = []
         candidate_obligation_ids = self.candidate_proof_obligation_ids(problem, theorem_goals)
@@ -5289,6 +5301,9 @@ class FormalSubclaimProver:
         self._last_deferred_obligation_ids_due_to_max = ()
         self._last_deferred_priority_obligation_ids_due_to_max = ()
         self._last_selection_filtered_all_candidates = False
+        self._last_excluded_obligation_ids = ()
+        self._last_excluded_candidate_obligation_ids = ()
+        self._last_selection_excluded_all_candidates = False
         obligation_ids = candidate_obligation_ids
         if self.proof_obligation_ids:
             requested = set(self.proof_obligation_ids)
@@ -5299,6 +5314,19 @@ class FormalSubclaimProver:
             )
             self._last_selection_filtered_all_candidates = bool(
                 candidate_obligation_ids and self.proof_obligation_ids and not obligation_ids
+            )
+        excluded_ids = tuple(
+            dict.fromkeys(str(row).strip() for row in excluded_proof_obligation_ids if str(row).strip())
+        )
+        self._last_excluded_obligation_ids = excluded_ids
+        if excluded_ids:
+            excluded_set = set(excluded_ids)
+            self._last_excluded_candidate_obligation_ids = tuple(
+                row for row in obligation_ids if row in excluded_set
+            )
+            obligation_ids = tuple(row for row in obligation_ids if row not in excluded_set)
+            self._last_selection_excluded_all_candidates = bool(
+                candidate_obligation_ids and self._last_excluded_candidate_obligation_ids and not obligation_ids
             )
         priority_ids = tuple(
             dict.fromkeys(

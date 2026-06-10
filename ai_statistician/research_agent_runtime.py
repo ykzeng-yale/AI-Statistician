@@ -1011,6 +1011,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     *memory_prioritized_proof_obligation_ids,
                     *llm_prioritized_proof_obligation_ids,
                 ),
+                excluded_proof_obligation_ids=memory_kernel_verified_proof_obligation_ids,
             )
         )
         proof_obligation_control = self.prover.proof_obligation_control()
@@ -3800,6 +3801,8 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             "selected_proof_obligation_ids": [],
             "selected_priority_proof_obligation_ids": [],
             "eligible_proof_obligation_ids_before_limit": [],
+            "excluded_proof_obligation_ids": [],
+            "excluded_candidate_proof_obligation_ids": [],
             "deferred_proof_obligation_ids_due_to_max": [],
             "deferred_priority_proof_obligation_ids_due_to_max": [],
             "selection_boundary": (
@@ -3938,6 +3941,14 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 proof_control["eligible_proof_obligation_ids_before_limit"] = sorted(
                     set(proof_control.get("eligible_proof_obligation_ids_before_limit", []) or [])
                     | {str(row) for row in control.get("eligible_proof_obligation_ids_before_limit", []) or []}
+                )
+                proof_control["excluded_proof_obligation_ids"] = sorted(
+                    set(proof_control.get("excluded_proof_obligation_ids", []) or [])
+                    | {str(row) for row in control.get("excluded_proof_obligation_ids", []) or []}
+                )
+                proof_control["excluded_candidate_proof_obligation_ids"] = sorted(
+                    set(proof_control.get("excluded_candidate_proof_obligation_ids", []) or [])
+                    | {str(row) for row in control.get("excluded_candidate_proof_obligation_ids", []) or []}
                 )
                 proof_control["deferred_proof_obligation_ids_due_to_max"] = sorted(
                     set(proof_control.get("deferred_proof_obligation_ids_due_to_max", []) or [])
