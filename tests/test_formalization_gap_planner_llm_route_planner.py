@@ -2134,6 +2134,111 @@ def test_llm_route_planner_materializes_bare_feedback_replan_required() -> None:
     ]["recommended_next_actions"] == []
 
 
+def test_llm_route_planner_materializes_feedback_replan_with_resource_actions() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_feedback_replan_with_actions"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_request_queue_dir = _write_resource_request_queue(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    manifest_path = (
+        resource_response_ledger_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    row = manifest["rows"][0]
+    row["acceptance_status"] = "ACCEPTED_RESOURCE_RESPONSE"
+    row["route_revision_recommended"] = False
+    row["route_revision_reasons"] = []
+    row["residual_goals"] = []
+    row["replan_required"] = True
+    row["response_payload"]["route_revision_recommended"] = False
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["residual_interpretations"] = []
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_request_queue_dir=(
+            resource_request_queue_dir
+        ),
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_route_adoption_pending_feedback_action_blockers"] == 1
+    assert payload["n_route_adoption_pending_resource_request_queue_blockers"] == 1
+    assert payload["n_route_adoption_pending_feedback_replan_blockers"] == 1
+    summary = payload["request_packets"][0]["context_packet"]["feedback_loop_summary"]
+    assert summary["replan_required"] is True
+    assert [
+        action["source"] for action in summary["recommended_next_actions"]
+    ] == ["resource_request_queue"]
+    seed_route = payload["standalone_seed"]["routes"][0]
+    assert any(
+        hook.get("llm_route_planner_feedback_next_action", {}).get("source")
+        == "resource_request_queue"
+        for hook in seed_route["interactive_refinement_hooks"]
+    )
+    assert any(
+        hook.get("llm_route_planner_feedback_replan_required") is True
+        and hook["hook_kind"] == "route_revision"
+        for hook in seed_route["interactive_refinement_hooks"]
+    )
+    assert any(
+        trigger.get("trigger_kind") == "queued_resource_response_required"
+        for trigger in seed_route["route_revision_triggers"]
+    )
+    assert any(
+        trigger.get("trigger_kind") == "feedback_loop_replan_required"
+        for trigger in seed_route["route_revision_triggers"]
+    )
+
+    plan_dir = root / "standalone_plan_from_feedback_replan_with_actions_seed"
+    refinement_queue_dir = (
+        root / "refinement_queue_from_feedback_replan_with_actions_seed"
+    )
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    queue_payload = export_formalization_gap_planner_refinement_queue(
+        plan_dir,
+        refinement_queue_dir,
+    )
+    assert queue_payload["all_ok"]
+    assert any(
+        row["hook_kind"] == "literature_discovery"
+        and "queued_resource_response_required" in row["trigger_kinds"]
+        for row in queue_payload["rows"]
+    )
+    assert any(
+        row["hook_kind"] == "route_revision"
+        and row["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_feedback_replan_required"
+        )
+        is True
+        and "feedback_loop_replan_required" in row["trigger_kinds"]
+        for row in queue_payload["rows"]
+    )
+
+
 def test_llm_route_planner_feedback_coverage_updates_raise_cost_hint_floor() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_feedback_cost_hint"

@@ -11269,9 +11269,26 @@ def _llm_route_revision_triggers_for_feedback_replan_required(
 def _feedback_replan_requires_standalone_hook(
     feedback_summary: Mapping[str, object],
 ) -> bool:
-    return _truthy(feedback_summary.get("replan_required")) and not _dict_tuple(
-        feedback_summary.get("recommended_next_actions", [])
+    if not _truthy(feedback_summary.get("replan_required")):
+        return False
+    return not any(
+        _feedback_action_is_route_revision_work(action)
+        for action in _dict_tuple(feedback_summary.get("recommended_next_actions", []))
     )
+
+
+def _feedback_action_is_route_revision_work(action: Mapping[str, object]) -> bool:
+    source = _primitive_key(str(action.get("source", "")))
+    action_name = _primitive_key(str(action.get("action", "")))
+    if source in {"route_revision_overlay", "route_replan_handoff"}:
+        return True
+    if action_name in {
+        "route_revision_recommended",
+        "apply_route_revision_overlay",
+        "continue_from_route_replan_handoff",
+    }:
+        return True
+    return _hook_kind_for_llm_feedback_action(action) == "route_revision"
 
 
 def _feedback_replan_queries(
@@ -11324,6 +11341,16 @@ def _target_primitives_for_feedback_replan_required(
 
 
 def _hook_kind_for_llm_feedback_action(action: Mapping[str, object]) -> str:
+    source = _primitive_key(str(action.get("source", "")))
+    action_name = _primitive_key(str(action.get("action", "")))
+    if source in {"route_revision_overlay", "route_replan_handoff"}:
+        return "route_revision"
+    if action_name in {
+        "route_revision_recommended",
+        "apply_route_revision_overlay",
+        "continue_from_route_replan_handoff",
+    }:
+        return "route_revision"
     refs = _structured_resource_refs(action)
     text = _primitive_key(
         " ".join(
