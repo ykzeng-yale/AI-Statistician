@@ -606,6 +606,7 @@ def _build_algorithm_engineer_agent_from_args(args: argparse.Namespace, *, defau
         provider=provider,
         config=AlgorithmEngineerConfig(
             model=model,
+            model_tier="haiku",
             max_tokens=getattr(args, "algorithm_max_tokens", 5000),
             temperature=getattr(args, "algorithm_temperature", 0.1),
             provider_name=provider_name,
@@ -638,6 +639,7 @@ def _build_simulation_engineer_agent_from_args(args: argparse.Namespace, *, defa
         provider=provider,
         config=SimulationEngineerConfig(
             model=model,
+            model_tier="haiku",
             max_tokens=getattr(args, "simulation_max_tokens", 5000),
             temperature=getattr(args, "simulation_temperature", 0.1),
             provider_name=provider_name,
@@ -670,6 +672,7 @@ def _build_formalizer_agent_from_args(args: argparse.Namespace, *, default_model
         provider=provider,
         config=FormalizerConfig(
             model=model,
+            model_tier="sonnet",
             max_tokens=getattr(args, "formalizer_max_tokens", 6000),
             temperature=getattr(args, "formalizer_temperature", 0.1),
             provider_name=provider_name,
@@ -702,6 +705,7 @@ def _build_critic_evaluator_agent_from_args(args: argparse.Namespace, *, default
         provider=provider,
         config=CriticEvaluatorConfig(
             model=model,
+            model_tier="haiku",
             max_tokens=getattr(args, "critic_max_tokens", 5000),
             temperature=getattr(args, "critic_temperature", 0.1),
             provider_name=provider_name,
@@ -734,6 +738,7 @@ def _build_architect_coordinator_agent_from_args(args: argparse.Namespace, *, de
         provider=provider,
         config=ArchitectCoordinatorConfig(
             model=model,
+            model_tier="sonnet",
             max_tokens=getattr(args, "architect_max_tokens", 5000),
             temperature=getattr(args, "architect_temperature", 0.1),
             provider_name=provider_name,
@@ -818,6 +823,7 @@ def _theory_proposer_from_args(args: argparse.Namespace):
             getattr(args, "llm_model", ""),
             model_tier="haiku",
         ),
+        model_tier="haiku",
         provider_name=provider_name,
         max_tokens=getattr(args, "llm_max_tokens", 700),
     )
@@ -5551,6 +5557,7 @@ async def _research_loop(args: argparse.Namespace) -> int:
             provider=provider,
             config=ResearchArchitectConfig(
                 model=model,
+                model_tier="sonnet",
                 max_tokens=args.llm_theory_max_tokens,
                 temperature=args.llm_theory_temperature,
                 provider_name=provider_name,
@@ -6039,6 +6046,7 @@ def _research_architect_theory_develop(args: argparse.Namespace) -> int:
         provider=provider,
         config=ResearchArchitectConfig(
             model=model,
+            model_tier="sonnet",
             max_tokens=args.max_tokens,
             temperature=args.temperature,
             provider_name=provider_name,
@@ -6093,6 +6101,7 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
         provider=provider,
         config=ResearchArchitectConfig(
             model=model,
+            model_tier="sonnet",
             max_tokens=args.max_tokens,
             temperature=args.temperature,
             provider_name=provider_name,

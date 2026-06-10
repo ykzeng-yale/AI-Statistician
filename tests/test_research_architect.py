@@ -36,6 +36,7 @@ from ai_statistician.research_lab import (
 )
 from ai_statistician.research_loop import ResearchLoopCoordinator
 from ai_statistician.research_schema import OpenResearchQuestion
+from ai_statistician.theory_proposal import GeneratorTheoryProposer
 
 
 class SequentialGeneratorBackend:
@@ -231,6 +232,74 @@ def test_llm_theory_developer_repairs_invalid_json_packet_before_accepting() -> 
     assert "required_output_contract" in provider.requests[1].user_prompt
     assert "Keep all fields concise" in provider.requests[1].user_prompt
     assert provider.requests[1].user_prompt.count("x") < 2500
+
+
+def test_llm_theory_developer_resolves_model_tier_at_request_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
+        "claude-sonnet-policy-test",
+    )
+    provider = SequentialGeneratorBackend([_sample_response()])
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(provider_name="anthropic"),
+    )
+
+    packet = developer.derive(
+        OpenResearchQuestion(
+            id="tier_policy",
+            title="Tier policy",
+            description="Check dynamic Claude tier resolution.",
+            tags=("runtime",),
+        )
+    )
+
+    request = provider.requests[0]
+    assert request.model == "claude-sonnet-policy-test"
+    assert request.metadata["provider_name"] == "anthropic"
+    assert request.metadata["model_tier"] == "sonnet"
+    assert request.metadata["resolved_model"] == "claude-sonnet-policy-test"
+    assert packet["provider"] == "anthropic"
+    assert packet["model"] == "claude-sonnet-policy-test"
+    assert packet["model_tier"] == "sonnet"
+
+
+def test_generator_theory_proposer_resolves_haiku_tier_at_request_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "AI_STATISTICIAN_CLAUDE_HAIKU_MODEL",
+        "claude-haiku-policy-test",
+    )
+    provider = SequentialGeneratorBackend(
+        [
+            {
+                "dgp_family": "normal",
+                "estimator_family": "sample_mean",
+                "true_params": {"mean": 0.0, "variance": 1.0},
+                "tags": ["mean"],
+                "confidence": 0.8,
+                "rationale": "normal sample mean",
+            }
+        ]
+    )
+    proposer = GeneratorTheoryProposer(
+        provider=provider,
+        provider_name="anthropic",
+    )
+
+    proposal = proposer.propose({"question": "estimate a normal mean"})
+
+    request = provider.requests[0]
+    assert request.model == "claude-haiku-policy-test"
+    assert request.metadata["provider_name"] == "anthropic"
+    assert request.metadata["model_tier"] == "haiku"
+    assert request.metadata["resolved_model"] == "claude-haiku-policy-test"
+    assert proposal.source == "anthropic:claude-haiku-policy-test"
+    assert proposal.dgp_family == "normal"
+    assert proposal.estimator_family == "sample_mean"
 
 
 def test_research_architect_cli_static_provider_exports_artifacts() -> None:

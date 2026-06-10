@@ -21,7 +21,11 @@ Haiku for lower-cost intake, simulation-design, algorithm-planning, and critic
 packets. Runtime topology validation records provider/model provenance and
 rejects recognized Anthropic family mismatches, so a Haiku-designated helper does
 not silently run on Sonnet or Opus unless the topology policy is intentionally
-changed. As of the 2026-06-10 model-source check, the pinned default Claude API
+changed. LLM worker configs carry a `model_tier` and may leave `model` empty;
+the concrete provider model is resolved when a request is built, so
+tier-specific environment overrides apply to direct worker construction as well
+as CLI-created agents. As of the 2026-06-10 model-source check, the pinned
+default Claude API
 IDs are Haiku `claude-haiku-4-5-20251001`, Sonnet `claude-sonnet-4-6`, and Opus
 `claude-opus-4-8`; Claude 4.6+ dateless IDs are treated as pinned snapshots, not
 evergreen aliases. Claude Fable/Mythos family IDs are tracked as outside the

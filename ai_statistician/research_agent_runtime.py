@@ -51,6 +51,7 @@ from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     claude_model_tier_mismatch,
+    resolve_generator_model,
 )
 from .formal_source_index import FormalSourceHit, FormalSourceRetriever
 from .proof_bank import get_obligation
@@ -2018,13 +2019,21 @@ def _llm_agent_topology_row(
     config = getattr(agent, "config", None)
     provider = getattr(agent, "provider", None)
     provider_name = str(getattr(config, "provider_name", "") or getattr(provider, "provider_name", "") or "")
+    config_model_tier = str(getattr(config, "model_tier", "") or model_tier)
+    requested_model = str(getattr(config, "model", "") or "")
+    resolved_model = resolve_generator_model(
+        provider_name=provider_name,
+        requested_model=requested_model,
+        model_tier=config_model_tier,
+    )
     return {
         "subsystem": subsystem,
         "enabled": True,
         "provider_name": provider_name,
         "backend_provider_name": str(getattr(provider, "provider_name", provider_name) or ""),
-        "model": str(getattr(config, "model", "") or ""),
-        "model_tier": model_tier,
+        "model": resolved_model,
+        "configured_model": requested_model,
+        "model_tier": config_model_tier,
         "role": role,
         "generator_only": True,
         "acts_in_environment": False,

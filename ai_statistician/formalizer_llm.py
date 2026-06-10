@@ -7,7 +7,7 @@ from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
-from .model_backend import GeneratorBackend, GeneratorRequest, default_generator_model
+from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
 
 
@@ -28,7 +28,8 @@ FORMALIZER_MAX_TEXT_CHARS = 420
 
 @dataclass(frozen=True)
 class FormalizerConfig:
-    model: str = default_generator_model("anthropic", model_tier="sonnet")
+    model: str = ""
+    model_tier: str = "sonnet"
     max_tokens: int = 6000
     temperature: float = 0.1
     provider_name: str = "anthropic"
@@ -67,21 +68,33 @@ class LLMFormalizerProofEngineerAgent:
             theorem_goals=theorem_goals,
             proof_bank_obligation_catalog=proof_bank_obligation_catalog,
         )
+        request_model = resolve_generator_model(
+            provider_name=self.config.provider_name,
+            requested_model=self.config.model,
+            model_tier=self.config.model_tier,
+        )
         request = GeneratorRequest(
             system_prompt=FORMALIZER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            model=self.config.model,
+            model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
             schema=FORMALIZER_JSON_SCHEMA,
-            metadata={"subsystem": "FormalizerProofEngineer", "agent": "LLMFormalizerProofEngineerAgent"},
+            metadata={
+                "subsystem": "FormalizerProofEngineer",
+                "agent": "LLMFormalizerProofEngineerAgent",
+                "provider_name": self.config.provider_name,
+                "model_tier": self.config.model_tier,
+                "resolved_model": request_model,
+            },
         )
 
         def build_packet(payload: Mapping[str, Any], response: Any, raw_text: str) -> dict[str, Any]:
             return _normalize_formalizer_packet(
                 payload,
                 question=question,
-                model=response.model or self.config.model,
+                model=response.model or request_model,
+                model_tier=self.config.model_tier,
                 provider_name=self.config.provider_name or response.provider,
                 raw_response=raw_text,
             )
@@ -343,6 +356,7 @@ def _normalize_formalizer_packet(
     *,
     question: OpenResearchQuestion,
     model: str,
+    model_tier: str,
     provider_name: str,
     raw_response: str,
 ) -> dict[str, Any]:
@@ -356,6 +370,7 @@ def _normalize_formalizer_packet(
             "question_id": question.id,
             "provider": provider_name,
             "model": model,
+            "model_tier": model_tier,
             "body": body,
         }
     )[:24]
@@ -367,6 +382,7 @@ def _normalize_formalizer_packet(
         "source_agent": "LLMFormalizerProofEngineerAgent",
         "provider": provider_name,
         "model": model,
+        "model_tier": model_tier,
         "question": {
             "id": question.id,
             "title": question.title,

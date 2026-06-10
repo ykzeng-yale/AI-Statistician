@@ -46,6 +46,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_learning_memory_proof_obligation_ids,
     _runtime_formalization_gap_planner_bridge,
     _runtime_formalization_gap_planner_target_intake_payload,
+    _llm_agent_topology_row,
     _run_generated_python_sandbox,
     _run_split_conformal_interval_prototype,
     run_research_agent_runtime,
@@ -2195,6 +2196,33 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert system_overlay["n_real_kernel_verified_subclaims"] == 0
     assert system_overlay["n_non_real_kernel_verified_subclaims"] == 0
     assert Path(system_overlay["manifest_path"]).exists()
+
+
+def test_runtime_topology_resolves_empty_config_model_from_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
+        "claude-sonnet-topology-test",
+    )
+    developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(provider_name="anthropic"),
+    )
+
+    row = _llm_agent_topology_row(
+        "TheoryDeveloper",
+        developer,
+        model_tier="sonnet",
+        role="deductive statistical theory discovery",
+    )
+
+    assert row["enabled"] is True
+    assert row["provider_name"] == "anthropic"
+    assert row["backend_provider_name"] == "static"
+    assert row["configured_model"] == ""
+    assert row["model"] == "claude-sonnet-topology-test"
+    assert row["model_tier"] == "sonnet"
 
 
 def test_research_agent_runtime_records_capability_eval_mode_in_manifest() -> None:

@@ -165,6 +165,28 @@ def default_generator_model(
     return ""
 
 
+def resolve_generator_model(
+    *,
+    provider_name: str,
+    requested_model: str = "",
+    model_tier: str = "sonnet",
+    env: Mapping[str, str] | None = None,
+) -> str:
+    """Resolve a generator model at call time from provider and tier policy.
+
+    LLM worker configs may leave ``requested_model`` empty so environment
+    overrides and the Claude Haiku/Sonnet/Opus split are evaluated when a
+    request is actually built, not when a module is imported.
+    """
+
+    return default_generator_model(
+        provider_name,
+        requested_model,
+        env=env,
+        model_tier=model_tier,
+    )
+
+
 def claude_model_tier_for_model(model: str) -> str:
     """Infer the Claude tier family from a model id."""
 

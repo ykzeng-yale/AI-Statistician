@@ -10,7 +10,7 @@ from .model_backend import (
     AnthropicGeneratorBackend,
     GeneratorBackend,
     GeneratorRequest,
-    default_generator_model,
+    resolve_generator_model,
 )
 
 
@@ -71,29 +71,46 @@ class GeneratorTheoryProposer:
         *,
         provider: GeneratorBackend,
         model: str = "",
+        model_tier: str = "haiku",
         provider_name: str = "",
         max_tokens: int = 700,
     ) -> None:
         self.provider = provider
         self.model = model
+        self.model_tier = model_tier
         self.provider_name = provider_name
         self.max_tokens = max_tokens
 
     def propose(self, raw_question: dict[str, Any]) -> TheoryProposal:
+        provider_name = self.provider_name or getattr(self.provider, "provider_name", "")
+        request_model = resolve_generator_model(
+            provider_name=provider_name,
+            requested_model=self.model,
+            model_tier=self.model_tier,
+        )
         response = self.provider.generate(
             GeneratorRequest(
                 system_prompt=SYSTEM_PROMPT,
                 user_prompt="Classify this statistical question:\n" + json.dumps(raw_question, indent=2),
-                model=self.model,
+                model=request_model,
                 max_tokens=self.max_tokens,
                 temperature=0,
                 schema=THEORY_PROPOSAL_JSON_SCHEMA,
-                metadata={"subsystem": "TheoryIntake", "agent": "GeneratorTheoryProposer"},
+                metadata={
+                    "subsystem": "TheoryIntake",
+                    "agent": "GeneratorTheoryProposer",
+                    "provider_name": provider_name,
+                    "model_tier": self.model_tier,
+                    "resolved_model": request_model,
+                },
             )
         )
         payload = _extract_json(response.text)
         provider_name = self.provider_name or response.provider
-        return proposal_from_payload(payload, source=f"{provider_name}:{self.model or 'default'}").validated()
+        return proposal_from_payload(
+            payload,
+            source=f"{provider_name}:{response.model or request_model or 'default'}",
+        ).validated()
 
 
 class AnthropicTheoryProposer(GeneratorTheoryProposer):
@@ -109,7 +126,8 @@ class AnthropicTheoryProposer(GeneratorTheoryProposer):
         super().__init__(
             provider=AnthropicGeneratorBackend(api_key=api_key or os.environ.get("ANTHROPIC_API_KEY")),
             max_tokens=max_tokens,
-            model=default_generator_model("anthropic", model, model_tier="haiku"),
+            model=model,
+            model_tier="haiku",
             provider_name="anthropic",
         )
 

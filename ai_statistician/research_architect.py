@@ -13,7 +13,7 @@ from .model_backend import (
     GeneratorBackend,
     GeneratorRequest,
     StaticJSONGeneratorBackend,
-    default_generator_model,
+    resolve_generator_model,
 )
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .research_schema import OpenResearchQuestion, ResearchReport
@@ -78,7 +78,8 @@ class AnthropicArchitectLLMProvider(AnthropicGeneratorBackend):
 
 @dataclass(frozen=True)
 class ResearchArchitectConfig:
-    model: str = default_generator_model("anthropic", model_tier="sonnet")
+    model: str = ""
+    model_tier: str = "sonnet"
     max_tokens: int = 4500
     temperature: float = 0.2
     provider_name: str = "anthropic"
@@ -125,21 +126,33 @@ class LLMTheoryDeveloperAgent:
             question,
             architect_context=architect_context or {},
         )
+        request_model = resolve_generator_model(
+            provider_name=self.config.provider_name,
+            requested_model=self.config.model,
+            model_tier=self.config.model_tier,
+        )
         request = GeneratorRequest(
             system_prompt=THEORY_DEVELOPER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            model=self.config.model,
+            model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
             schema=THEORY_DEVELOPER_JSON_SCHEMA,
-            metadata={"subsystem": "TheoryDeveloper", "agent": "LLMTheoryDeveloperAgent"},
+            metadata={
+                "subsystem": "TheoryDeveloper",
+                "agent": "LLMTheoryDeveloperAgent",
+                "provider_name": self.config.provider_name,
+                "model_tier": self.config.model_tier,
+                "resolved_model": request_model,
+            },
         )
 
         def build_packet(raw_payload: Mapping[str, Any], response: Any, raw_text: str) -> dict[str, Any]:
             return _normalize_theory_packet(
                 raw_payload,
                 question=question,
-                model=response.model or self.config.model,
+                model=response.model or request_model,
+                model_tier=self.config.model_tier,
                 provider_name=self.config.provider_name or response.provider,
                 raw_response=raw_text,
             )
@@ -800,6 +813,7 @@ def _normalize_theory_packet(
     *,
     question: OpenResearchQuestion,
     model: str,
+    model_tier: str,
     provider_name: str,
     raw_response: str,
 ) -> dict[str, Any]:
@@ -813,6 +827,7 @@ def _normalize_theory_packet(
             "question_id": question.id,
             "provider": provider_name,
             "model": model,
+            "model_tier": model_tier,
             "body": body,
         }
     )[:24]
@@ -824,6 +839,7 @@ def _normalize_theory_packet(
         "source_agent": "LLMTheoryDeveloperAgent",
         "provider": provider_name,
         "model": model,
+        "model_tier": model_tier,
         "question": {
             "id": question.id,
             "title": question.title,

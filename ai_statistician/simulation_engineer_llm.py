@@ -7,7 +7,7 @@ from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
-from .model_backend import GeneratorBackend, GeneratorRequest, default_generator_model
+from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
 
 
@@ -23,7 +23,8 @@ SIMULATION_ENGINEER_BOUNDARY = (
 
 @dataclass(frozen=True)
 class SimulationEngineerConfig:
-    model: str = default_generator_model("anthropic", model_tier="haiku")
+    model: str = ""
+    model_tier: str = "haiku"
     max_tokens: int = 5000
     temperature: float = 0.1
     provider_name: str = "anthropic"
@@ -60,21 +61,33 @@ class LLMSimulationEngineerAgent:
             n_runs=n_runs,
             seed=seed,
         )
+        request_model = resolve_generator_model(
+            provider_name=self.config.provider_name,
+            requested_model=self.config.model,
+            model_tier=self.config.model_tier,
+        )
         request = GeneratorRequest(
             system_prompt=SIMULATION_ENGINEER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            model=self.config.model,
+            model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
             schema=SIMULATION_ENGINEER_JSON_SCHEMA,
-            metadata={"subsystem": "SimulatorEngineer", "agent": "LLMSimulationEngineerAgent"},
+            metadata={
+                "subsystem": "SimulatorEngineer",
+                "agent": "LLMSimulationEngineerAgent",
+                "provider_name": self.config.provider_name,
+                "model_tier": self.config.model_tier,
+                "resolved_model": request_model,
+            },
         )
 
         def build_packet(payload: Mapping[str, Any], response: Any, raw_text: str) -> dict[str, Any]:
             return _normalize_simulation_packet(
                 payload,
                 question=question,
-                model=response.model or self.config.model,
+                model=response.model or request_model,
+                model_tier=self.config.model_tier,
                 provider_name=self.config.provider_name or response.provider,
                 raw_response=raw_text,
                 n_runs=n_runs,
@@ -246,6 +259,7 @@ def _normalize_simulation_packet(
     *,
     question: OpenResearchQuestion,
     model: str,
+    model_tier: str,
     provider_name: str,
     raw_response: str,
     n_runs: int,
@@ -277,6 +291,7 @@ def _normalize_simulation_packet(
             "question_id": question.id,
             "provider": provider_name,
             "model": model,
+            "model_tier": model_tier,
             "body": body,
             "n_runs": n_runs,
             "seed": seed,
@@ -290,6 +305,7 @@ def _normalize_simulation_packet(
         "source_agent": "LLMSimulationEngineerAgent",
         "provider": provider_name,
         "model": model,
+        "model_tier": model_tier,
         "question": {
             "id": question.id,
             "title": question.title,

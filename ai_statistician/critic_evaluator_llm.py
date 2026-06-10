@@ -7,7 +7,7 @@ from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
-from .model_backend import GeneratorBackend, GeneratorRequest, default_generator_model
+from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
 
 
@@ -23,7 +23,8 @@ CRITIC_EVALUATOR_BOUNDARY = (
 
 @dataclass(frozen=True)
 class CriticEvaluatorConfig:
-    model: str = default_generator_model("anthropic", model_tier="haiku")
+    model: str = ""
+    model_tier: str = "haiku"
     max_tokens: int = 5000
     temperature: float = 0.1
     provider_name: str = "anthropic"
@@ -64,21 +65,33 @@ class LLMCriticEvaluatorAgent:
             deterministic_agenda=deterministic_agenda,
             deterministic_learning_rows=deterministic_learning_rows,
         )
+        request_model = resolve_generator_model(
+            provider_name=self.config.provider_name,
+            requested_model=self.config.model,
+            model_tier=self.config.model_tier,
+        )
         request = GeneratorRequest(
             system_prompt=CRITIC_EVALUATOR_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            model=self.config.model,
+            model=request_model,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
             schema=CRITIC_EVALUATOR_JSON_SCHEMA,
-            metadata={"subsystem": "CriticEvaluator", "agent": "LLMCriticEvaluatorAgent"},
+            metadata={
+                "subsystem": "CriticEvaluator",
+                "agent": "LLMCriticEvaluatorAgent",
+                "provider_name": self.config.provider_name,
+                "model_tier": self.config.model_tier,
+                "resolved_model": request_model,
+            },
         )
 
         def build_packet(payload: Mapping[str, Any], response: Any, raw_text: str) -> dict[str, Any]:
             return _normalize_critic_packet(
                 payload,
                 question=question,
-                model=response.model or self.config.model,
+                model=response.model or request_model,
+                model_tier=self.config.model_tier,
                 provider_name=self.config.provider_name or response.provider,
                 raw_response=raw_text,
             )
@@ -247,6 +260,7 @@ def _normalize_critic_packet(
     *,
     question: OpenResearchQuestion,
     model: str,
+    model_tier: str,
     provider_name: str,
     raw_response: str,
 ) -> dict[str, Any]:
@@ -260,6 +274,7 @@ def _normalize_critic_packet(
             "question_id": question.id,
             "provider": provider_name,
             "model": model,
+            "model_tier": model_tier,
             "body": body,
         }
     )[:24]
@@ -271,6 +286,7 @@ def _normalize_critic_packet(
         "source_agent": "LLMCriticEvaluatorAgent",
         "provider": provider_name,
         "model": model,
+        "model_tier": model_tier,
         "question": {
             "id": question.id,
             "title": question.title,
