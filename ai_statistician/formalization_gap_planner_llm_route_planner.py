@@ -4721,6 +4721,9 @@ def _response_existing_coverage_declaration_support_errors(
     primitive_support = _available_formal_declaration_primitive_support_for_request(
         request
     )
+    primitive_non_support = (
+        _available_formal_declaration_primitive_non_support_for_request(request)
+    )
 
     errors: list[str] = []
     target_prover_family = str(request.get("target_prover_family", ""))
@@ -4742,6 +4745,7 @@ def _response_existing_coverage_declaration_support_errors(
             node,
             support_sources=support_sources,
             primitive_support=primitive_support,
+            primitive_non_support=primitive_non_support,
             primitive=str(node.get("primitive", "")),
             inherited_target_prover_family=inherited_target,
         )
@@ -4772,6 +4776,7 @@ def _response_existing_coverage_declaration_support_errors(
             primitive,
             support_sources=support_sources,
             primitive_support=primitive_support,
+            primitive_non_support=primitive_non_support,
             primitive=str(primitive.get("primitive", "")),
             inherited_target_prover_family=inherited_target,
         )
@@ -4790,6 +4795,7 @@ def _candidate_declarations_without_existing_support(
     *,
     support_sources: Mapping[tuple[str, str], set[str]],
     primitive_support: Mapping[tuple[str, str], set[str]],
+    primitive_non_support: Mapping[tuple[str, str], set[str]],
     primitive: str,
     inherited_target_prover_family: str,
 ) -> list[str]:
@@ -4832,6 +4838,18 @@ def _candidate_declarations_without_existing_support(
                 "has primitive-scoped formal declaration evidence for "
                 + ", ".join(sorted(supported_primitives)[:8])
                 + f", not {primitive_key}"
+            )
+            continue
+        unsupported_primitives = primitive_non_support.get(
+            (declaration_key, target_key), set()
+        )
+        if not unsupported_primitives and target_key:
+            unsupported_primitives = primitive_non_support.get((declaration_key, ""), set())
+        if primitive_key and primitive_key in unsupported_primitives:
+            unsupported.append(
+                f"{declaration}@{row.get('target_prover_family', '')} "
+                "has formal declaration evidence marked unsupported for "
+                f"{primitive_key}"
             )
     return unsupported
 
@@ -5375,6 +5393,7 @@ def _available_formal_declaration_rows_for_context(
 ) -> tuple[dict[str, object], ...]:
     rows: list[dict[str, object]] = []
     primitive_support: dict[tuple[str, str], set[str]] = {}
+    primitive_non_support: dict[tuple[str, str], set[str]] = {}
     route_target = str(
         route.get("target_prover_family")
         or route.get("target_prover")
@@ -5401,6 +5420,16 @@ def _available_formal_declaration_rows_for_context(
         primitive_support,
         inherited_target_prover_family=target_prover_family,
         inherited_primitives=tuple(),
+    )
+    _collect_formal_declaration_primitive_non_support(
+        route,
+        primitive_non_support,
+        inherited_target_prover_family=route_target,
+    )
+    _collect_formal_declaration_primitive_non_support(
+        context_packet,
+        primitive_non_support,
+        inherited_target_prover_family=target_prover_family,
     )
     compact: list[dict[str, object]] = []
     by_key: dict[tuple[str, str], dict[str, object]] = {}
@@ -5444,9 +5473,16 @@ def _available_formal_declaration_rows_for_context(
         if len(source_fields) > 1:
             row["source_fields"] = list(source_fields)
         scoped_primitives = sorted(primitive_support.get(key, set()))
+        unsupported_primitives = sorted(primitive_non_support.get(key, set()))
         if scoped_primitives:
-            row["target_primitives"] = scoped_primitives
+            row["target_primitives"] = sorted(
+                set(scoped_primitives).union(unsupported_primitives)
+            )
             row["supported_target_primitives"] = scoped_primitives
+        elif unsupported_primitives:
+            row["target_primitives"] = unsupported_primitives
+        if unsupported_primitives:
+            row["unsupported_target_primitives"] = unsupported_primitives
     return tuple(compact)
 
 
@@ -5617,6 +5653,18 @@ def _available_formal_declaration_primitive_support_for_request(
     return support
 
 
+def _available_formal_declaration_primitive_non_support_for_request(
+    request: Mapping[str, Any],
+) -> dict[tuple[str, str], set[str]]:
+    non_support: dict[tuple[str, str], set[str]] = {}
+    _collect_formal_declaration_primitive_non_support(
+        _dict_value(request, "context_packet"),
+        non_support,
+        inherited_target_prover_family=str(request.get("target_prover_family", "")),
+    )
+    return non_support
+
+
 def _collect_formal_declaration_primitive_support(
     value: Any,
     support: dict[tuple[str, str], set[str]],
@@ -5634,19 +5682,15 @@ def _collect_formal_declaration_primitive_support(
             dict.fromkeys(
                 [
                     *inherited_primitives,
-                    *_primitive_scope_values(value),
+                    *_primitive_positive_scope_values(value),
                 ]
             )
         )
         for field_name in ("formal_declaration_hits", "lean_declaration_hits"):
             for row in _dict_tuple(value.get(field_name, [])):
+                row_scope = _primitive_positive_scope_values(row)
                 row_primitives = tuple(
-                    dict.fromkeys(
-                        [
-                            *scoped_primitives,
-                            *_primitive_scope_values(row),
-                        ]
-                    )
+                    dict.fromkeys(row_scope if row_scope else scoped_primitives)
                 )
                 if not row_primitives:
                     continue
@@ -5686,17 +5730,101 @@ def _collect_formal_declaration_primitive_support(
             )
 
 
-def _primitive_scope_values(value: Mapping[str, Any]) -> tuple[str, ...]:
+def _collect_formal_declaration_primitive_non_support(
+    value: Any,
+    non_support: dict[tuple[str, str], set[str]],
+    *,
+    inherited_target_prover_family: str,
+) -> None:
+    if isinstance(value, Mapping):
+        current_target = str(
+            value.get("target_prover_family")
+            or value.get("target_prover")
+            or inherited_target_prover_family
+        )
+        for field_name in ("formal_declaration_hits", "lean_declaration_hits"):
+            for row in _dict_tuple(value.get(field_name, [])):
+                row_primitives = _primitive_negative_scope_values(row)
+                if not row_primitives:
+                    continue
+                declaration = str(
+                    row.get("declaration")
+                    or row.get("declaration_name")
+                    or row.get("candidate_declaration")
+                    or row.get("lean_declaration")
+                    or row.get("name")
+                    or row.get("full_name")
+                    or ""
+                ).strip()
+                declaration_key = _formal_declaration_key(declaration)
+                target_key = _target_prover_key(
+                    row.get("target_prover_family", "")
+                    or row.get("target_prover", "")
+                    or current_target
+                )
+                if declaration_key:
+                    non_support.setdefault((declaration_key, target_key), set()).update(
+                        row_primitives
+                    )
+        for item in value.values():
+            _collect_formal_declaration_primitive_non_support(
+                item,
+                non_support,
+                inherited_target_prover_family=current_target,
+            )
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            _collect_formal_declaration_primitive_non_support(
+                item,
+                non_support,
+                inherited_target_prover_family=inherited_target_prover_family,
+            )
+
+
+def _primitive_positive_scope_values(value: Mapping[str, Any]) -> tuple[str, ...]:
     primitives: list[str] = []
-    primitives.extend(_primitive_values(value.get("primitive", "")))
-    primitives.extend(_primitive_values(value.get("target_primitives", [])))
-    primitives.extend(_primitive_values(value.get("supported_target_primitives", [])))
+    supported = _primitive_values(value.get("supported_target_primitives", []))
+    unsupported = {
+        _primitive_key(primitive)
+        for primitive in _primitive_values(value.get("unsupported_target_primitives", []))
+        if _primitive_key(primitive)
+    }
+    if supported:
+        primitives.extend(supported)
+    elif unsupported:
+        candidates = [
+            *_primitive_values(value.get("primitive", "")),
+            *_primitive_values(value.get("target_primitives", [])),
+        ]
+        primitives.extend(
+            primitive
+            for primitive in candidates
+            if _primitive_key(primitive) not in unsupported
+        )
+    else:
+        primitives.extend(_primitive_values(value.get("primitive", "")))
+        primitives.extend(_primitive_values(value.get("target_primitives", [])))
     coverage_updates = _dict_value(value, "coverage_updates")
     primitives.extend(str(primitive) for primitive in coverage_updates.keys())
     return tuple(
         dict.fromkeys(
             primitive
             for primitive in (_primitive_key(item) for item in primitives)
+            if primitive
+        )
+    )
+
+
+def _primitive_negative_scope_values(value: Mapping[str, Any]) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            primitive
+            for primitive in (
+                _primitive_key(item)
+                for item in _primitive_values(
+                    value.get("unsupported_target_primitives", [])
+                )
+            )
             if primitive
         )
     )

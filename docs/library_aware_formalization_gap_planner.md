@@ -445,7 +445,11 @@ appears in accepted context. Accepted declaration hits are also primitive-scoped
 when the evidence row names `primitive`, `target_primitives`, or coverage-update
 keys. A hit scoped to `rank_uniformity` may be used as a premise or search hint
 for another primitive, but it cannot justify exact/reuse coverage for
-`exchangeability` without matching declaration evidence for that primitive.
+`exchangeability` without matching declaration evidence for that primitive. If
+a formal declaration hit distinguishes `supported_target_primitives` from
+`unsupported_target_primitives`, validation treats `target_primitives` as the
+query scope, not positive support; exact/reuse coverage is rejected for any
+primitive explicitly marked unsupported.
 
 For a paper supplement or external prover smoke test, the same public path can
 be run as one command:

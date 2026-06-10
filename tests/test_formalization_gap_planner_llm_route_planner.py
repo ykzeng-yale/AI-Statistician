@@ -7230,6 +7230,43 @@ def test_llm_route_planner_rejects_wrong_primitive_formal_hit_reuse() -> None:
     assert "not exchangeability" in error_text
 
 
+def test_llm_route_planner_rejects_unsupported_primitive_formal_hit_reuse() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_unsupported_primitive_hit"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    declaration_row = {
+        "declaration": "Probability.exchangeable",
+        "target_prover_family": "lean4",
+        "source_field": "formal_declaration_hits",
+        "target_primitives": ["rank_uniformity"],
+        "unsupported_target_primitives": ["rank_uniformity"],
+    }
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["primitives"][1]["formal_declaration_hits"] = [
+        declaration_row
+    ]
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+
+    bad_response = _make_rank_uniformity_reuse_response(declaration_row)
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert "marked unsupported for rank_uniformity" in error_text
+
+
 def test_llm_route_planner_accepts_reuse_from_accepted_formal_hit() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_accepts_formal_hit_reuse"
