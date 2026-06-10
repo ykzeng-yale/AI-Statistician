@@ -6054,12 +6054,63 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
             payload_validation_dir
         ),
     )
+    bundle_manifest = json.loads(
+        (
+            bundle_dir / "formalization_gap_planner_publication_bundle_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert bundle_manifest["llm_route_planner_summary"]["requested"] is True
+    assert bundle_manifest["llm_route_planner_summary"]["n_request_packets"] == 1
+    assert bundle_manifest["llm_route_planner_summary"]["n_rows"] == 1
+    assert bundle_manifest["llm_route_planner_summary"]["n_response_present"] == 1
+    assert (
+        bundle_manifest["llm_route_planner_summary"]["n_response_contract_ok"]
+        == 1
+    )
+    assert bundle_manifest["llm_route_planner_summary"]["n_accepted_route_plans"] == 1
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_route_adoption_pending_refinement"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "route_adoption_blocker_counts"
+        ]["search_requests_pending_evidence"]
+        == 1
+    )
+    assert bundle_manifest["feedback_llm_route_planner_summary"]["requested"] is True
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"]["n_accepted_route_plans"]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "route_adoption_blocker_counts"
+        ]["search_requests_pending_evidence"]
+        == 1
+    )
     audit_payload = audit_formalization_gap_planner_publication_bundle(
         bundle_dir,
         root / "audit",
     )
 
     assert audit_payload["all_ok"]
+    assert audit_payload["n_bundle_llm_route_planner_summary_checked"] == 1
+    assert audit_payload["n_bundle_llm_route_planner_summary_valid"] == 1
+    assert audit_payload["n_bundle_feedback_llm_route_planner_summary_checked"] == 1
+    assert audit_payload["n_bundle_feedback_llm_route_planner_summary_valid"] == 1
+    assert any(
+        row["check_name"] == "bundle_llm_route_planner_summary_consistent"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "bundle_feedback_llm_route_planner_summary_consistent"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
     assert any(
         row["check_name"] == "optional_llm_route_planner_response_payload_schema_id"
         and row["ok"]

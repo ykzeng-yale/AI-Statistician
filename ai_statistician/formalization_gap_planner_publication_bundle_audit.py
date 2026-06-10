@@ -463,6 +463,30 @@ def audit_formalization_gap_planner_publication_bundle(
         "n_error_severity": sum(
             1 for check in checks if not check.ok and check.severity == "error"
         ),
+        "n_bundle_llm_route_planner_summary_checked": sum(
+            1
+            for check in checks
+            if check.check_name == "bundle_llm_route_planner_summary_consistent"
+        ),
+        "n_bundle_llm_route_planner_summary_valid": sum(
+            1
+            for check in checks
+            if check.check_name == "bundle_llm_route_planner_summary_consistent"
+            and check.ok
+        ),
+        "n_bundle_feedback_llm_route_planner_summary_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_feedback_llm_route_planner_summary_consistent"
+        ),
+        "n_bundle_feedback_llm_route_planner_summary_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_feedback_llm_route_planner_summary_consistent"
+            and check.ok
+        ),
         "n_component_execution_plan_schema_checked": sum(
             1
             for check in checks
@@ -2118,6 +2142,20 @@ def _manifest_checks(
         bundle_dir,
         manifest,
     )
+    llm_route_planner_summary_errors = _bundle_llm_route_planner_summary_errors(
+        bundle_dir,
+        manifest,
+        summary_field="llm_route_planner_summary",
+        artifact_name="formalization_gap_planner_llm_route_planner",
+    )
+    feedback_llm_route_planner_summary_errors = (
+        _bundle_llm_route_planner_summary_errors(
+            bundle_dir,
+            manifest,
+            summary_field="feedback_llm_route_planner_summary",
+            artifact_name="formalization_gap_planner_feedback_llm_route_planner",
+        )
+    )
     checks = [
         _check(
             "bundle_manifest_exists",
@@ -2179,6 +2217,26 @@ def _manifest_checks(
             ),
             not evaluation_summary_errors,
             errors=evaluation_summary_errors,
+        ),
+        _check(
+            "bundle_llm_route_planner_summary_consistent",
+            "manifest",
+            "llm_route_planner_summary matches packaged LLM route-planner artifacts",
+            "ok" if not llm_route_planner_summary_errors else "; ".join(
+                llm_route_planner_summary_errors[:3]
+            ),
+            not llm_route_planner_summary_errors,
+            errors=llm_route_planner_summary_errors,
+        ),
+        _check(
+            "bundle_feedback_llm_route_planner_summary_consistent",
+            "manifest",
+            "feedback_llm_route_planner_summary matches packaged feedback LLM route-planner artifacts",
+            "ok" if not feedback_llm_route_planner_summary_errors else "; ".join(
+                feedback_llm_route_planner_summary_errors[:3]
+            ),
+            not feedback_llm_route_planner_summary_errors,
+            errors=feedback_llm_route_planner_summary_errors,
         ),
         _check(
             "bundle_root_is_directory",
@@ -2248,6 +2306,205 @@ def _bundle_evaluation_summary_errors(
                 f"observed={observed_value} expected={expected_value}"
             )
     return tuple(errors)
+
+
+def _bundle_llm_route_planner_summary_errors(
+    bundle_dir: Path,
+    manifest: dict[str, Any],
+    *,
+    summary_field: str,
+    artifact_name: str,
+) -> tuple[str, ...]:
+    observed = manifest.get(summary_field, {})
+    if not isinstance(observed, dict):
+        return (f"{summary_field} missing or not an object",)
+    expected = _expected_bundle_llm_route_planner_summary(bundle_dir, artifact_name)
+    errors: list[str] = []
+    for field_name, expected_value in expected.items():
+        if field_name not in observed:
+            errors.append(f"{summary_field}.{field_name} missing")
+            continue
+        observed_value = observed.get(field_name)
+        if isinstance(expected_value, bool):
+            if bool(observed_value) != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, int):
+            if int(observed_value or 0) != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, tuple):
+            observed_tuple = _str_tuple(observed_value)
+            if observed_tuple != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={sorted(observed_tuple)} expected={sorted(expected_value)}"
+                )
+        elif isinstance(expected_value, dict):
+            observed_dict = observed_value if isinstance(observed_value, dict) else {}
+            has_nested_summary = any(
+                isinstance(value, dict)
+                for value in tuple(expected_value.values())
+                + tuple(observed_dict.values())
+            )
+            if has_nested_summary:
+                normalized_observed = _normalized_summary_dict(observed_dict)
+                normalized_expected = _normalized_summary_dict(expected_value)
+            else:
+                normalized_observed = _int_mapping(observed_dict)
+                normalized_expected = _int_mapping(expected_value)
+            if normalized_observed != normalized_expected:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={normalized_observed} expected={normalized_expected}"
+                )
+        elif str(observed_value) != str(expected_value):
+            errors.append(
+                f"{summary_field}.{field_name} mismatch: "
+                f"observed={observed_value} expected={expected_value}"
+            )
+    return tuple(errors)
+
+
+def _expected_bundle_llm_route_planner_summary(
+    bundle_dir: Path,
+    artifact_name: str,
+) -> dict[str, object]:
+    artifact_dir = bundle_dir / "artifacts" / artifact_name
+    manifest_path = (
+        artifact_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+    )
+    rows_path = artifact_dir / "formalization_gap_planner_llm_route_planner.jsonl"
+    payload = _read_json_no_error(manifest_path)
+    rows, _row_errors = _read_jsonl_dict_rows_no_error(rows_path)
+    route_adoption_status_counts = _llm_route_planner_status_counts_for_summary(
+        payload,
+        rows,
+    )
+    route_adoption_blocker_counts = _llm_route_planner_blocker_counts_for_summary(
+        payload,
+        rows,
+    )
+    return {
+        "requested": manifest_path.exists(),
+        "n_request_packets": int(payload.get("n_request_packets", len(rows)) or 0),
+        "n_rows": int(payload.get("n_rows", len(rows)) or 0),
+        "n_response_present": int(
+            payload.get(
+                "n_response_present",
+                sum(1 for row in rows if bool(row.get("response_present", False))),
+            )
+            or 0
+        ),
+        "n_response_contract_ok": int(
+            payload.get(
+                "n_response_contract_ok",
+                sum(
+                    1
+                    for row in rows
+                    if bool(row.get("response_contract_ok", False))
+                ),
+            )
+            or 0
+        ),
+        "n_provider_failures": int(
+            payload.get(
+                "n_provider_failures",
+                sum(1 for row in rows if bool(row.get("provider_failure", False))),
+            )
+            or 0
+        ),
+        "n_accepted_route_plans": int(
+            payload.get(
+                "n_accepted_route_plans",
+                sum(
+                    1
+                    for row in rows
+                    if str(row.get("acceptance_status", "")).startswith("ACCEPTED_")
+                ),
+            )
+            or 0
+        ),
+        "n_route_adoption_ready": route_adoption_status_counts.get(
+            ROUTE_ADOPTION_READY_STATUS,
+            0,
+        ),
+        "n_route_adoption_pending_refinement": route_adoption_status_counts.get(
+            ROUTE_ADOPTION_PENDING_STATUS,
+            0,
+        ),
+        "n_route_adoption_awaiting_llm_response": route_adoption_status_counts.get(
+            ROUTE_ADOPTION_AWAITING_STATUS,
+            0,
+        ),
+        "n_route_adoption_rejected": route_adoption_status_counts.get(
+            ROUTE_ADOPTION_REJECTED_STATUS,
+            0,
+        ),
+        "n_route_adoption_blockers": sum(route_adoption_blocker_counts.values()),
+        "route_adoption_blockers": tuple(route_adoption_blocker_counts),
+        "route_adoption_blocker_counts": dict(route_adoption_blocker_counts),
+        "by_route_adoption_status": dict(route_adoption_status_counts),
+        "by_route_adoption_blocker": _llm_route_planner_blocker_summary_for_summary(
+            payload,
+            rows,
+        ),
+        "n_row_schema_valid": int(payload.get("n_row_schema_valid", 0) or 0),
+        "n_row_schema_invalid": int(payload.get("n_row_schema_invalid", 0) or 0),
+        "all_ok": bool(payload.get("all_ok", False)),
+    }
+
+
+def _llm_route_planner_status_counts_for_summary(
+    payload: dict[str, object],
+    rows: list[dict[str, Any]],
+) -> dict[str, int]:
+    manifest_counts = payload.get("by_route_adoption_status", {})
+    if isinstance(manifest_counts, dict) and manifest_counts:
+        return {
+            str(status): int(count or 0)
+            for status, count in sorted(manifest_counts.items())
+        }
+    return dict(
+        sorted(
+            Counter(
+                str(row.get("route_adoption_status", "")).strip()
+                for row in rows
+                if str(row.get("route_adoption_status", "")).strip()
+            ).items()
+        )
+    )
+
+
+def _llm_route_planner_blocker_counts_for_summary(
+    payload: dict[str, object],
+    rows: list[dict[str, Any]],
+) -> dict[str, int]:
+    manifest_counts = payload.get("route_adoption_blocker_counts", {})
+    if isinstance(manifest_counts, dict) and manifest_counts:
+        return {
+            str(blocker): int(count or 0)
+            for blocker, count in sorted(manifest_counts.items())
+        }
+    return _llm_route_adoption_blocker_counts_from_rows(rows)
+
+
+def _llm_route_planner_blocker_summary_for_summary(
+    payload: dict[str, object],
+    rows: list[dict[str, Any]],
+) -> dict[str, dict[str, object]]:
+    manifest_summary = payload.get("by_route_adoption_blocker", {})
+    if isinstance(manifest_summary, dict) and manifest_summary:
+        return {
+            str(blocker): dict(summary)
+            for blocker, summary in sorted(manifest_summary.items())
+            if isinstance(summary, dict)
+        }
+    return _llm_route_adoption_blocker_summary_from_rows(rows)
 
 
 def _expected_bundle_evaluation_summary(bundle_dir: Path) -> dict[str, object]:
@@ -15542,6 +15799,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional evaluation route-adoption manifest valid: {payload.get('n_optional_evaluation_route_adoption_manifest_valid')}/{payload.get('n_optional_evaluation_route_adoption_manifest_checked')}",
         f"- Optional evaluation quality-control rows valid: {payload.get('n_optional_evaluation_quality_control_row_valid')}/{payload.get('n_optional_evaluation_quality_control_row_checked')}",
         f"- Optional evaluation quality-control manifest valid: {payload.get('n_optional_evaluation_quality_control_manifest_valid')}/{payload.get('n_optional_evaluation_quality_control_manifest_checked')}",
+        f"- Bundle LLM route-planner summary valid: {payload.get('n_bundle_llm_route_planner_summary_valid')}/{payload.get('n_bundle_llm_route_planner_summary_checked')}",
+        f"- Bundle feedback LLM route-planner summary valid: {payload.get('n_bundle_feedback_llm_route_planner_summary_valid')}/{payload.get('n_bundle_feedback_llm_route_planner_summary_checked')}",
         (
             "- Optional evaluation route-adoption ready/pending/blockers: "
             f"{payload.get('n_optional_evaluation_rows_ready_for_route_adoption')}/"

@@ -62,7 +62,11 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    ROUTE_ADOPTION_AWAITING_STATUS,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
+    ROUTE_ADOPTION_PENDING_STATUS,
+    ROUTE_ADOPTION_READY_STATUS,
+    ROUTE_ADOPTION_REJECTED_STATUS,
     llm_route_planner_request_json_schema,
     llm_route_planner_response_payload_validation_manifest_json_schema,
     llm_route_planner_response_payload_validation_row_json_schema,
@@ -1746,6 +1750,12 @@ def export_formalization_gap_planner_publication_bundle(
         "evaluation_summary": _evaluation_manifest_summary(
             formalization_gap_planner_evaluation_dir
         ),
+        "llm_route_planner_summary": _llm_route_planner_manifest_summary(
+            formalization_gap_planner_llm_route_planner_dir
+        ),
+        "feedback_llm_route_planner_summary": _llm_route_planner_manifest_summary(
+            formalization_gap_planner_feedback_llm_route_planner_dir
+        ),
         "adapter_registry_summary": {
             "n_adapters": adapter_registry_payload.get("n_adapters", 0),
             "n_adapter_row_schema_valid": adapter_registry_payload.get(
@@ -2134,6 +2144,62 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "all_ok": {"type": "boolean"},
         },
     }
+    llm_route_planner_summary_schema = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "requested",
+            "n_request_packets",
+            "n_rows",
+            "n_response_present",
+            "n_response_contract_ok",
+            "n_accepted_route_plans",
+            "n_route_adoption_ready",
+            "n_route_adoption_pending_refinement",
+            "n_route_adoption_awaiting_llm_response",
+            "n_route_adoption_rejected",
+            "n_route_adoption_blockers",
+            "route_adoption_blockers",
+            "route_adoption_blocker_counts",
+            "by_route_adoption_status",
+            "by_route_adoption_blocker",
+            "n_row_schema_valid",
+            "n_row_schema_invalid",
+            "all_ok",
+        ],
+        "properties": {
+            "requested": {"type": "boolean"},
+            "manifest_path": {"type": "string"},
+            "jsonl_path": {"type": "string"},
+            "n_request_packets": nonnegative_integer,
+            "n_rows": nonnegative_integer,
+            "n_response_present": nonnegative_integer,
+            "n_response_contract_ok": nonnegative_integer,
+            "n_provider_failures": nonnegative_integer,
+            "n_accepted_route_plans": nonnegative_integer,
+            "n_route_adoption_ready": nonnegative_integer,
+            "n_route_adoption_pending_refinement": nonnegative_integer,
+            "n_route_adoption_awaiting_llm_response": nonnegative_integer,
+            "n_route_adoption_rejected": nonnegative_integer,
+            "n_route_adoption_blockers": nonnegative_integer,
+            "route_adoption_blockers": string_array,
+            "route_adoption_blocker_counts": {
+                "type": "object",
+                "additionalProperties": nonnegative_integer,
+            },
+            "by_route_adoption_status": {
+                "type": "object",
+                "additionalProperties": nonnegative_integer,
+            },
+            "by_route_adoption_blocker": {
+                "type": "object",
+                "additionalProperties": {"type": "object"},
+            },
+            "n_row_schema_valid": nonnegative_integer,
+            "n_row_schema_invalid": nonnegative_integer,
+            "all_ok": {"type": "boolean"},
+        },
+    }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_MANIFEST_SCHEMA_ID,
@@ -2149,6 +2215,8 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "core_artifacts",
             "optional_artifacts",
             "evaluation_summary",
+            "llm_route_planner_summary",
+            "feedback_llm_route_planner_summary",
             "schema_catalog_summary",
             "all_ok",
             "proof_evidence_status",
@@ -2171,6 +2239,8 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 "items": optional_artifact_schema,
             },
             "evaluation_summary": evaluation_summary_schema,
+            "llm_route_planner_summary": llm_route_planner_summary_schema,
+            "feedback_llm_route_planner_summary": llm_route_planner_summary_schema,
             "schema_catalog_summary": {"type": "object"},
             "portable_reuse_targets": string_array,
             "all_ok": {"type": "boolean"},
@@ -3961,6 +4031,196 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
     }
 
 
+def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, object]:
+    zero_summary: dict[str, object] = {
+        "requested": False,
+        "manifest_path": "",
+        "jsonl_path": "",
+        "n_request_packets": 0,
+        "n_rows": 0,
+        "n_response_present": 0,
+        "n_response_contract_ok": 0,
+        "n_provider_failures": 0,
+        "n_accepted_route_plans": 0,
+        "n_route_adoption_ready": 0,
+        "n_route_adoption_pending_refinement": 0,
+        "n_route_adoption_awaiting_llm_response": 0,
+        "n_route_adoption_rejected": 0,
+        "n_route_adoption_blockers": 0,
+        "route_adoption_blockers": (),
+        "route_adoption_blocker_counts": {},
+        "by_route_adoption_status": {},
+        "by_route_adoption_blocker": {},
+        "n_row_schema_valid": 0,
+        "n_row_schema_invalid": 0,
+        "all_ok": False,
+    }
+    if source_dir is None:
+        return zero_summary
+    manifest_path = source_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+    rows_path = source_dir / "formalization_gap_planner_llm_route_planner.jsonl"
+    payload = _read_json_no_error(manifest_path)
+    rows = _read_jsonl_dict_rows_no_error(rows_path)
+    route_adoption_status_counts = _llm_route_planner_status_counts(payload, rows)
+    route_adoption_blocker_counts = _llm_route_planner_blocker_counts(payload, rows)
+    return {
+        **zero_summary,
+        "requested": True,
+        "manifest_path": str(manifest_path),
+        "jsonl_path": str(rows_path),
+        "n_request_packets": int(
+            payload.get("n_request_packets", len(rows)) or 0
+        ),
+        "n_rows": int(payload.get("n_rows", len(rows)) or 0),
+        "n_response_present": int(
+            payload.get(
+                "n_response_present",
+                sum(1 for row in rows if bool(row.get("response_present", False))),
+            )
+            or 0
+        ),
+        "n_response_contract_ok": int(
+            payload.get(
+                "n_response_contract_ok",
+                sum(
+                    1
+                    for row in rows
+                    if bool(row.get("response_contract_ok", False))
+                ),
+            )
+            or 0
+        ),
+        "n_provider_failures": int(
+            payload.get(
+                "n_provider_failures",
+                sum(1 for row in rows if bool(row.get("provider_failure", False))),
+            )
+            or 0
+        ),
+        "n_accepted_route_plans": int(
+            payload.get(
+                "n_accepted_route_plans",
+                sum(
+                    1
+                    for row in rows
+                    if str(row.get("acceptance_status", "")).startswith("ACCEPTED_")
+                ),
+            )
+            or 0
+        ),
+        "n_route_adoption_ready": route_adoption_status_counts.get(
+            ROUTE_ADOPTION_READY_STATUS,
+            0,
+        ),
+        "n_route_adoption_pending_refinement": route_adoption_status_counts.get(
+            ROUTE_ADOPTION_PENDING_STATUS,
+            0,
+        ),
+        "n_route_adoption_awaiting_llm_response": route_adoption_status_counts.get(
+            ROUTE_ADOPTION_AWAITING_STATUS,
+            0,
+        ),
+        "n_route_adoption_rejected": route_adoption_status_counts.get(
+            ROUTE_ADOPTION_REJECTED_STATUS,
+            0,
+        ),
+        "n_route_adoption_blockers": sum(route_adoption_blocker_counts.values()),
+        "route_adoption_blockers": tuple(route_adoption_blocker_counts),
+        "route_adoption_blocker_counts": route_adoption_blocker_counts,
+        "by_route_adoption_status": route_adoption_status_counts,
+        "by_route_adoption_blocker": _llm_route_planner_blocker_summary(
+            payload,
+            rows,
+        ),
+        "n_row_schema_valid": int(payload.get("n_row_schema_valid", 0) or 0),
+        "n_row_schema_invalid": int(payload.get("n_row_schema_invalid", 0) or 0),
+        "all_ok": bool(payload.get("all_ok", False)),
+    }
+
+
+def _llm_route_planner_status_counts(
+    payload: dict[str, object],
+    rows: tuple[dict[str, Any], ...],
+) -> dict[str, int]:
+    manifest_counts = payload.get("by_route_adoption_status", {})
+    if isinstance(manifest_counts, dict) and manifest_counts:
+        return {
+            str(status): int(count or 0)
+            for status, count in sorted(manifest_counts.items())
+        }
+    counts: dict[str, int] = {}
+    for row in rows:
+        status = str(row.get("route_adoption_status", "")).strip()
+        if status:
+            counts[status] = counts.get(status, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _llm_route_planner_blocker_counts(
+    payload: dict[str, object],
+    rows: tuple[dict[str, Any], ...],
+) -> dict[str, int]:
+    manifest_counts = payload.get("route_adoption_blocker_counts", {})
+    if isinstance(manifest_counts, dict) and manifest_counts:
+        return {
+            str(blocker): int(count or 0)
+            for blocker, count in sorted(manifest_counts.items())
+        }
+    counts: dict[str, int] = {}
+    for row in rows:
+        for blocker in _str_tuple(row.get("route_adoption_blockers", [])):
+            counts[blocker] = counts.get(blocker, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _llm_route_planner_blocker_summary(
+    payload: dict[str, object],
+    rows: tuple[dict[str, Any], ...],
+) -> dict[str, dict[str, object]]:
+    manifest_summary = payload.get("by_route_adoption_blocker", {})
+    if isinstance(manifest_summary, dict) and manifest_summary:
+        return {
+            str(blocker): dict(summary)
+            for blocker, summary in sorted(manifest_summary.items())
+            if isinstance(summary, dict)
+        }
+    counts = _llm_route_planner_blocker_counts({}, rows)
+    summaries: dict[str, dict[str, object]] = {}
+    for blocker, count in counts.items():
+        blocker_rows = [
+            row
+            for row in rows
+            if blocker in _str_tuple(row.get("route_adoption_blockers", []))
+        ]
+        by_status: dict[str, int] = {}
+        by_acceptance: dict[str, int] = {}
+        for row in blocker_rows:
+            status = str(row.get("route_adoption_status", "")).strip()
+            if status:
+                by_status[status] = by_status.get(status, 0) + 1
+            acceptance = str(row.get("acceptance_status", "")).strip()
+            if acceptance:
+                by_acceptance[acceptance] = by_acceptance.get(acceptance, 0) + 1
+        summaries[blocker] = {
+            "n_rows": len(blocker_rows),
+            "n_blocker_occurrences": count,
+            "by_route_adoption_status": dict(sorted(by_status.items())),
+            "by_acceptance_status": dict(sorted(by_acceptance.items())),
+            "n_response_present": sum(
+                1 for row in blocker_rows if bool(row.get("response_present", False))
+            ),
+            "n_response_contract_ok": sum(
+                1
+                for row in blocker_rows
+                if bool(row.get("response_contract_ok", False))
+            ),
+            "n_provider_failures": sum(
+                1 for row in blocker_rows if bool(row.get("provider_failure", False))
+            ),
+        }
+    return summaries
+
+
 def _manifest_count_or_rows(
     payload: dict[str, object],
     rows: tuple[dict[str, Any], ...],
@@ -4100,6 +4360,24 @@ def _read_json_no_error(path: Path) -> dict[str, object]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _read_jsonl_dict_rows_no_error(path: Path) -> tuple[dict[str, Any], ...]:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except Exception:
+        return ()
+    rows: list[dict[str, Any]] = []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except Exception:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return tuple(rows)
+
+
 def _copy_docs(docs_dir: Path, errors: list[str]) -> tuple[str, ...]:
     copied: list[str] = []
     repo_root = Path(__file__).resolve().parents[1]
@@ -4217,6 +4495,18 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Evaluation quality controls: "
             f"rows={payload.get('evaluation_summary', {}).get('n_rows_with_quality_controls')} "
             f"fields={payload.get('evaluation_summary', {}).get('quality_control_fields')}"
+        ),
+        (
+            f"- LLM route planner ready/pending/blockers: "
+            f"{payload.get('llm_route_planner_summary', {}).get('n_route_adoption_ready')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_route_adoption_pending_refinement')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_route_adoption_blockers')}"
+        ),
+        (
+            f"- Feedback LLM route planner ready/pending/blockers: "
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_ready')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_pending_refinement')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_blockers')}"
         ),
         (
             f"- Adapter registry row schema valid: "

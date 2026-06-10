@@ -330,6 +330,13 @@ the same realization, cost-hint, route-adoption, and quality-control counters,
 so public bundles expose semantic route weakening and readiness blockers before
 a consumer runs the separate audit command; the audit also recomputes and
 checks this top-level summary against the packaged evaluation artifacts.
+The same bundle manifest also includes `llm_route_planner_summary` and
+`feedback_llm_route_planner_summary`, projecting request/row counts, response
+presence, accepted route plans, route-adoption status counts, and blocker
+summaries from packaged primary and feedback LLM route-planner artifacts.
+The publication-bundle audit recomputes those two summaries from the packaged
+route-planner manifest/JSONL files, so a reused bundle cannot silently drift
+between copied LLM planning artifacts and the top-level manifest.
 The one-command reuse-smoke manifest also promotes LLM route-planner
 realization-coverage counters for both primary and feedback planner passes, so
 a public artifact consumer can distinguish staged prompt-only requests from
