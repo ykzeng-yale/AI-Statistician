@@ -4,6 +4,10 @@ import json
 import shutil
 from pathlib import Path
 
+from ai_statistician.formalization_gap_planner_contract import (
+    LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
+    PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+)
 from ai_statistician.formalization_gap_planner_cross_prover_matrix_audit import (
     audit_formalization_gap_planner_cross_prover_matrix,
     cross_prover_matrix_audit_row_json_schema,
@@ -132,6 +136,12 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
     assert payload["n_total_packets_llm_route_adoption_ready"] == 0
     assert payload["n_total_packets_llm_route_adoption_pending_refinement"] == 0
     assert payload["n_total_packet_llm_route_adoption_blockers"] == 0
+    assert (
+        payload[
+            "n_total_packet_llm_route_adoption_pending_quality_control_blockers"
+        ]
+        == 0
+    )
     assert payload["by_total_packet_llm_route_adoption_status"] == {}
     assert payload["n_awaiting_adapter_mapping"] == payload["n_total_packets"]
     assert payload["n_unmatched_adapter_responses"] == 0
@@ -173,6 +183,12 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         payload["target_summary"]["n_total_packets_with_llm_route_adoption_status"]
         == 0
     )
+    assert (
+        payload["target_summary"][
+            "n_total_packet_llm_route_adoption_pending_quality_control_blockers"
+        ]
+        == 0
+    )
     assert payload["target_summary"][
         "by_total_packet_llm_route_adoption_status"
     ] == {}
@@ -193,6 +209,10 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         )
         and row["n_packets_with_llm_route_adoption_status"] == 0
         and row["n_packet_llm_route_adoption_blockers"] == 0
+        and row[
+            "n_packet_llm_route_adoption_pending_quality_control_blockers"
+        ]
+        == 0
         and row["n_unmatched_adapter_responses"] == 0
         for row in payload["matrix_rows"]
     )
@@ -265,3 +285,102 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         / "rocq"
         / "formalization_gap_planner_prover_adapter_contract_manifest.json"
     ).exists()
+
+
+def test_cross_prover_matrix_counts_quality_control_route_adoption_blockers() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_cross_prover_matrix_quality_blockers"
+    )
+    plan_dir = root / "plan"
+    out_dir = root / "matrix"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
+                "portable_schema_id": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+                "library_snapshot_ref": "lean_fixture_snapshot",
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:pending",
+                        "route_id": "route:pending",
+                        "display_name": "pending quality-control route",
+                        "target_prover_family": "lean4",
+                        "standalone_input_trace": {
+                            "source_route_id": "route:pending",
+                            "llm_route_planner_route_adoption_status": (
+                                "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+                            ),
+                            "llm_route_planner_route_adoption_blockers": [
+                                "search_requests_pending_evidence",
+                                "planner_next_actions_pending_evidence",
+                                "quality_control_obligations_pending",
+                            ],
+                        },
+                        "route_alignment_edges": [
+                            {
+                                "source": "informal:rank_uniformity",
+                                "target": "formal:rank_uniformity_bridge",
+                                "kind": "aligned_to_formal_realization_candidate",
+                                "edge_type": "informal_to_formal_alignment",
+                                "primitive": "rank_uniformity",
+                                "action_class": "bridge_lemma",
+                                "alignment_status": "bridge_delta",
+                                "proof_evidence_status": (
+                                    "GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_NOT_PROOF_EVIDENCE"
+                                ),
+                                "proof_evidence_boundary": "not theorem proof evidence",
+                            }
+                        ],
+                        "portable_work_packets": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "action_class": "bridge_lemma",
+                                "expected_cost": "small",
+                                "worker_packet_kind": "prove_bridge_lemma",
+                                "required_gate": "target prover kernel verification",
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = audit_formalization_gap_planner_cross_prover_matrix(
+        plan_dir,
+        out_dir,
+        target_prover_families=("rocq", "isabelle"),
+    )
+
+    assert payload["n_total_packets_with_llm_route_adoption_status"] == 2
+    assert payload["n_total_packets_llm_route_adoption_pending_refinement"] == 2
+    assert payload["n_total_packet_llm_route_adoption_blockers"] == 6
+    assert (
+        payload[
+            "n_total_packet_llm_route_adoption_pending_quality_control_blockers"
+        ]
+        == 2
+    )
+    assert payload["by_total_packet_llm_route_adoption_status"] == {
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 2
+    }
+    assert (
+        payload["target_summary"][
+            "n_total_packet_llm_route_adoption_pending_quality_control_blockers"
+        ]
+        == 2
+    )
+    assert all(
+        row["n_packet_llm_route_adoption_pending_quality_control_blockers"]
+        == 1
+        for row in payload["matrix_rows"]
+    )
+    assert all(
+        row["n_packet_llm_route_adoption_pending_quality_control_blockers"]
+        == 1
+        for row in payload["target_summary"]["target_rows"]
+    )

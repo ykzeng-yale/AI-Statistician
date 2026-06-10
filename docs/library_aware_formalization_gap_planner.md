@@ -308,6 +308,12 @@ blockers. The publication-bundle audit recomputes these quality-control
 aggregates from packaged evaluation JSONL rows, and also recomputes omitted
 cost-hint counters, rejecting bundles whose evaluation manifest drops or mutates
 them.
+Prover-adapter contracts additionally expose
+`n_packet_llm_route_adoption_pending_quality_control_blockers`, and the
+cross-prover matrix/target summary aggregate it as
+`n_total_packet_llm_route_adoption_pending_quality_control_blockers`, so
+non-Lean adapter teams can block kernel-attempt queues on unmet resource or
+response-validation obligations without parsing generic blocker strings.
 The publication-bundle manifest itself includes an `evaluation_summary` with
 the same realization, cost-hint, route-adoption, and quality-control counters,
 so public bundles expose semantic route weakening and readiness blockers before

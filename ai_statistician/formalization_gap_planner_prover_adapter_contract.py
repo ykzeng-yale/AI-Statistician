@@ -60,6 +60,7 @@ QUALITY_CONTROL_FIELDS = (
     "response_validation_signals",
     "stop_conditions",
 )
+ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
 
 
 @dataclass(frozen=True)
@@ -291,6 +292,12 @@ def export_formalization_gap_planner_prover_adapter_contract(
         "n_packet_llm_route_adoption_blockers": sum(
             len(packet.llm_route_planner_route_adoption_blockers)
             for packet in packets
+        ),
+        "n_packet_llm_route_adoption_pending_quality_control_blockers": sum(
+            1
+            for packet in packets
+            if ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS
+            in packet.llm_route_planner_route_adoption_blockers
         ),
         "by_packet_llm_route_adoption_status": dict(
             sorted(
@@ -1420,6 +1427,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Packets with replan metadata trace: {payload.get('n_packets_with_replan_metadata_trace')}",
         f"- Packets with quality controls: {payload.get('n_packets_with_quality_controls')}",
         f"- Packet quality-control fields: {payload.get('packet_quality_control_fields')}",
+        "- LLM route-adoption pending quality-control blockers: "
+        f"{payload.get('n_packet_llm_route_adoption_pending_quality_control_blockers')}",
         f"- Responses: {payload.get('n_response_present')}/{payload.get('n_packets')}",
         f"- Contract OK responses: {payload.get('n_response_contract_ok')}",
         (

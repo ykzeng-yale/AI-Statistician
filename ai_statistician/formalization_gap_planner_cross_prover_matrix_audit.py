@@ -38,6 +38,7 @@ PROOF_EVIDENCE_BOUNDARY = (
     "They are not theorem proof evidence."
 )
 DEFAULT_REUSE_TARGETS = ("lean4", "rocq", "isabelle", "agda")
+ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
 
 
 @dataclass(frozen=True)
@@ -73,6 +74,7 @@ class FormalizationGapPlannerCrossProverMatrixRow:
     n_packets_llm_route_adoption_rejected: int
     n_packets_llm_route_adoption_awaiting_response: int
     n_packet_llm_route_adoption_blockers: int
+    n_packet_llm_route_adoption_pending_quality_control_blockers: int
     by_packet_llm_route_adoption_status: dict[str, int]
     n_response_present: int
     n_awaiting_adapter_mapping: int
@@ -284,6 +286,10 @@ def audit_formalization_gap_planner_cross_prover_matrix(
         "n_total_packet_llm_route_adoption_blockers": sum(
             row.n_packet_llm_route_adoption_blockers for row in rows
         ),
+        "n_total_packet_llm_route_adoption_pending_quality_control_blockers": sum(
+            row.n_packet_llm_route_adoption_pending_quality_control_blockers
+            for row in rows
+        ),
         "by_total_packet_llm_route_adoption_status": dict(
             sorted(route_adoption_status_counts.items())
         ),
@@ -478,6 +484,7 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
             "n_total_packets_llm_route_adoption_rejected",
             "n_total_packets_llm_route_adoption_awaiting_response",
             "n_total_packet_llm_route_adoption_blockers",
+            "n_total_packet_llm_route_adoption_pending_quality_control_blockers",
             "by_total_packet_llm_route_adoption_status",
             "proof_evidence_status",
             "proof_evidence_boundary",
@@ -517,6 +524,9 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                 "type": "integer"
             },
             "n_total_packet_llm_route_adoption_blockers": {"type": "integer"},
+            "n_total_packet_llm_route_adoption_pending_quality_control_blockers": {
+                "type": "integer"
+            },
             "by_total_packet_llm_route_adoption_status": {"type": "object"},
             "n_unmatched_adapter_responses": {"type": "integer"},
             "target_rows": {
@@ -556,6 +566,7 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                     "n_packets_llm_route_adoption_rejected",
                     "n_packets_llm_route_adoption_awaiting_response",
                     "n_packet_llm_route_adoption_blockers",
+                    "n_packet_llm_route_adoption_pending_quality_control_blockers",
                     "by_packet_llm_route_adoption_status",
                     "aggregate_packet_jsonl_path",
                     "aggregate_response_validation_jsonl_path",
@@ -594,6 +605,9 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                         "type": "integer"
                     },
                     "n_packet_llm_route_adoption_blockers": {"type": "integer"},
+                    "n_packet_llm_route_adoption_pending_quality_control_blockers": {
+                        "type": "integer"
+                    },
                     "by_packet_llm_route_adoption_status": {"type": "object"},
                     "n_response_validation_rows": {"type": "integer"},
                     "n_unmatched_adapter_responses": {"type": "integer"},
@@ -823,6 +837,20 @@ def validate_cross_prover_target_summary_payload(
         errors.append(
             "n_total_packet_llm_route_adoption_blockers must equal target route-adoption blocker total"
         )
+    if payload.get(
+        "n_total_packet_llm_route_adoption_pending_quality_control_blockers"
+    ) != sum(
+        _int(
+            row.get(
+                "n_packet_llm_route_adoption_pending_quality_control_blockers"
+            )
+        )
+        for row in rows
+    ):
+        errors.append(
+            "n_total_packet_llm_route_adoption_pending_quality_control_blockers "
+            "must equal target route-adoption quality-control blocker total"
+        )
     expected_status_counts = _sum_route_adoption_status_counts(rows)
     raw_status_counts = payload.get("by_total_packet_llm_route_adoption_status", {})
     observed_status_counts = (
@@ -900,6 +928,7 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
             "n_packets_llm_route_adoption_rejected",
             "n_packets_llm_route_adoption_awaiting_response",
             "n_packet_llm_route_adoption_blockers",
+            "n_packet_llm_route_adoption_pending_quality_control_blockers",
             "by_packet_llm_route_adoption_status",
             "n_response_present",
             "n_awaiting_adapter_mapping",
@@ -948,6 +977,9 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
             "n_packets_llm_route_adoption_rejected": {"type": "integer"},
             "n_packets_llm_route_adoption_awaiting_response": {"type": "integer"},
             "n_packet_llm_route_adoption_blockers": {"type": "integer"},
+            "n_packet_llm_route_adoption_pending_quality_control_blockers": {
+                "type": "integer"
+            },
             "by_packet_llm_route_adoption_status": {"type": "object"},
             "n_response_present": {"type": "integer"},
             "n_awaiting_adapter_mapping": {"type": "integer"},
@@ -1092,6 +1124,11 @@ def _matrix_row(
         n_packet_llm_route_adoption_blockers=_int(
             contract_payload.get("n_packet_llm_route_adoption_blockers")
         ),
+        n_packet_llm_route_adoption_pending_quality_control_blockers=_int(
+            contract_payload.get(
+                "n_packet_llm_route_adoption_pending_quality_control_blockers"
+            )
+        ),
         by_packet_llm_route_adoption_status={
             str(status): _int(count)
             for status, count in dict(
@@ -1168,6 +1205,14 @@ def _target_summary_payload(
             str(packet.get("llm_route_planner_route_adoption_status", ""))
             for packet in target_packet_rows
             if str(packet.get("llm_route_planner_route_adoption_status", ""))
+        )
+        n_route_adoption_quality_control_blockers = sum(
+            1
+            for packet in target_packet_rows
+            if ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS
+            in _str_tuple(
+                packet.get("llm_route_planner_route_adoption_blockers", [])
+            )
         )
         target_rows.append(
             {
@@ -1251,6 +1296,9 @@ def _target_summary_payload(
                         )
                     )
                     for packet in target_packet_rows
+                ),
+                "n_packet_llm_route_adoption_pending_quality_control_blockers": (
+                    n_route_adoption_quality_control_blockers
                 ),
                 "by_packet_llm_route_adoption_status": dict(
                     sorted(route_adoption_status_counts.items())
@@ -1356,6 +1404,14 @@ def _target_summary_payload(
         ),
         "n_total_packet_llm_route_adoption_blockers": sum(
             _int(row["n_packet_llm_route_adoption_blockers"])
+            for row in target_rows
+        ),
+        "n_total_packet_llm_route_adoption_pending_quality_control_blockers": sum(
+            _int(
+                row[
+                    "n_packet_llm_route_adoption_pending_quality_control_blockers"
+                ]
+            )
             for row in target_rows
         ),
         "by_total_packet_llm_route_adoption_status": (
@@ -1707,6 +1763,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- LLM route-adoption ready packets: {payload.get('n_total_packets_llm_route_adoption_ready')}",
         f"- LLM route-adoption pending packets: {payload.get('n_total_packets_llm_route_adoption_pending_refinement')}",
         f"- LLM route-adoption blockers: {payload.get('n_total_packet_llm_route_adoption_blockers')}",
+        "- LLM route-adoption pending quality-control blockers: "
+        f"{payload.get('n_total_packet_llm_route_adoption_pending_quality_control_blockers')}",
         f"- Awaiting adapter mappings: {payload.get('n_awaiting_adapter_mapping')}",
         f"- Rejected mappings: {payload.get('n_rejected')}",
         f"- Packet count consistent: {payload.get('packet_count_consistent')}",

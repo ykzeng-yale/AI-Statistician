@@ -155,6 +155,12 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
     }
     assert payload["n_packets_with_llm_route_adoption_status"] == 0
     assert payload["n_packet_llm_route_adoption_blockers"] == 0
+    assert (
+        payload[
+            "n_packet_llm_route_adoption_pending_quality_control_blockers"
+        ]
+        == 0
+    )
     assert payload["n_packet_schema_valid"] == payload["n_packets"]
     assert payload["n_response_present"] == 1
     assert payload["n_response_contract_ok"] == 1
@@ -308,6 +314,7 @@ def test_prover_adapter_contract_rejects_kernel_ready_mapping_for_pending_llm_ro
                             "llm_route_planner_route_adoption_blockers": [
                                 "search_requests_pending_evidence",
                                 "planner_next_actions_pending_evidence",
+                                "quality_control_obligations_pending",
                             ],
                         },
                         "route_alignment_edges": [
@@ -376,7 +383,13 @@ def test_prover_adapter_contract_rejects_kernel_ready_mapping_for_pending_llm_ro
     assert not payload["all_ok"]
     assert payload["n_packets_with_llm_route_adoption_status"] == 1
     assert payload["n_packets_llm_route_adoption_pending_refinement"] == 1
-    assert payload["n_packet_llm_route_adoption_blockers"] == 2
+    assert payload["n_packet_llm_route_adoption_blockers"] == 3
+    assert (
+        payload[
+            "n_packet_llm_route_adoption_pending_quality_control_blockers"
+        ]
+        == 1
+    )
     assert payload["by_packet_llm_route_adoption_status"] == {
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
     }
@@ -387,6 +400,7 @@ def test_prover_adapter_contract_rejects_kernel_ready_mapping_for_pending_llm_ro
     assert list(packet["llm_route_planner_route_adoption_blockers"]) == [
         "search_requests_pending_evidence",
         "planner_next_actions_pending_evidence",
+        "quality_control_obligations_pending",
     ]
     validation = payload["response_validation_rows"][0]
     assert validation["acceptance_status"] == (
