@@ -80,6 +80,9 @@ PROOF_EVIDENCE_BOUNDARY = (
     "and minimal-delta plans, but they are not theorem proof evidence. Proof "
     "claims require target-prover kernel replay."
 )
+REPAIR_ATTEMPT_LEDGER_KIND = (
+    "formalization_gap_planner_llm_route_planner_repair_attempt_ledger"
+)
 ROUTE_ADOPTION_READY_STATUS = "READY_FOR_STANDALONE_REPLAY"
 ROUTE_ADOPTION_PENDING_STATUS = "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
 ROUTE_ADOPTION_AWAITING_STATUS = "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
@@ -753,6 +756,7 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     provider_failure: bool
     repair_attempts: int
     repair_error_history: tuple[dict[str, object], ...]
+    repair_attempt_ledger: tuple[dict[str, object], ...]
     generation_errors: tuple[str, ...]
     acceptance_status: str
     route_adoption_status: str
@@ -920,6 +924,11 @@ def export_formalization_gap_planner_llm_route_planner(
     by_route_adoption_status = Counter(row.route_adoption_status for row in rows)
     by_route_adoption_blocker = _route_adoption_blocker_summary(rows)
     route_adoption_blocker_counts = _route_adoption_blocker_counts(rows)
+    repair_attempt_ledger = tuple(
+        ledger_row
+        for row in rows
+        for ledger_row in row.repair_attempt_ledger
+    )
     standalone_seed = _standalone_seed(input_payload, rows)
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
@@ -1490,6 +1499,19 @@ def export_formalization_gap_planner_llm_route_planner(
             and int(row.get("repair_attempts", 0) or 0) > 0
             and not row.get("generation_errors")
         ),
+        "n_repair_attempt_ledger_rows": len(repair_attempt_ledger),
+        "n_requests_with_repair_attempt_ledger": len(
+            {
+                str(row.get("request_id", ""))
+                for row in repair_attempt_ledger
+                if str(row.get("request_id", "")).strip()
+            }
+        ),
+        "n_repair_attempt_ledger_error_items": sum(
+            int(row.get("error_count", 0) or 0)
+            for row in repair_attempt_ledger
+        ),
+        "repair_attempt_ledger": repair_attempt_ledger,
         "n_response_schema_valid": sum(
             1 for response_errors in response_schema_errors if not response_errors
         ),
@@ -2069,6 +2091,10 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_schema_valid",
             "n_request_schema_invalid",
             "n_raw_responses",
+            "n_repair_attempt_ledger_rows",
+            "n_requests_with_repair_attempt_ledger",
+            "n_repair_attempt_ledger_error_items",
+            "repair_attempt_ledger",
             "n_response_schema_valid",
             "n_response_schema_invalid",
             "n_rows",
@@ -2165,6 +2191,10 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_schema_valid": nonnegative_integer,
             "n_request_schema_invalid": nonnegative_integer,
             "n_raw_responses": nonnegative_integer,
+            "n_repair_attempt_ledger_rows": nonnegative_integer,
+            "n_requests_with_repair_attempt_ledger": nonnegative_integer,
+            "n_repair_attempt_ledger_error_items": nonnegative_integer,
+            "repair_attempt_ledger": object_array,
             "n_response_schema_valid": nonnegative_integer,
             "n_response_schema_invalid": nonnegative_integer,
             "n_rows": nonnegative_integer,
@@ -2311,6 +2341,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "provider_failure",
             "repair_attempts",
             "repair_error_history",
+            "repair_attempt_ledger",
             "generation_errors",
             "acceptance_status",
             "route_adoption_status",
@@ -2362,6 +2393,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "provider_failure": {"type": "boolean"},
             "repair_attempts": {"type": "integer", "minimum": 0},
             "repair_error_history": object_array,
+            "repair_attempt_ledger": object_array,
             "generation_errors": string_array,
             "acceptance_status": {"type": "string", "minLength": 1},
             "route_adoption_status": {
@@ -2663,13 +2695,12 @@ def validate_llm_route_planner_manifest(
         manifest,
         schema or llm_route_planner_manifest_json_schema(),
     )
+    manifest_rows = _dict_tuple(manifest.get("rows", []))
     if int(manifest.get("n_request_packets", 0) or 0) != len(
         _dict_tuple(manifest.get("request_packets", []))
     ):
         errors.append("n_request_packets must match request_packets length")
-    if int(manifest.get("n_rows", 0) or 0) != len(
-        _dict_tuple(manifest.get("rows", []))
-    ):
+    if int(manifest.get("n_rows", 0) or 0) != len(manifest_rows):
         errors.append("n_rows must match rows length")
     if int(manifest.get("n_row_schema_valid", 0) or 0) + int(
         manifest.get("n_row_schema_invalid", 0) or 0
@@ -2709,6 +2740,36 @@ def validate_llm_route_planner_manifest(
     ) != n_requests_with_context_aliases:
         errors.append(
             "n_requests_with_legacy_context_field_aliases must match request_packets"
+        )
+    repair_attempt_ledger = _dict_tuple(manifest.get("repair_attempt_ledger", []))
+    row_repair_attempt_ledger = tuple(
+        ledger_row
+        for row in manifest_rows
+        for ledger_row in _dict_tuple(row.get("repair_attempt_ledger", []))
+    )
+    if int(manifest.get("n_repair_attempt_ledger_rows", 0) or 0) != len(
+        repair_attempt_ledger
+    ):
+        errors.append("n_repair_attempt_ledger_rows must match repair_attempt_ledger")
+    if tuple(repair_attempt_ledger) != row_repair_attempt_ledger:
+        errors.append("repair_attempt_ledger must match row repair_attempt_ledger")
+    if int(
+        manifest.get("n_requests_with_repair_attempt_ledger", 0) or 0
+    ) != len(
+        {
+            str(row.get("request_id", ""))
+            for row in repair_attempt_ledger
+            if str(row.get("request_id", "")).strip()
+        }
+    ):
+        errors.append(
+            "n_requests_with_repair_attempt_ledger must match repair_attempt_ledger"
+        )
+    if int(
+        manifest.get("n_repair_attempt_ledger_error_items", 0) or 0
+    ) != sum(int(row.get("error_count", 0) or 0) for row in repair_attempt_ledger):
+        errors.append(
+            "n_repair_attempt_ledger_error_items must match repair_attempt_ledger"
         )
     embedded_schema_ids = {
         "request_schema": LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
@@ -3046,10 +3107,50 @@ def validate_llm_route_planner_row(
     model_tier_mismatch = _row_model_tier_mismatch_error(row)
     if model_tier_mismatch:
         errors.append(model_tier_mismatch)
-    if int(row.get("repair_attempts", 0) or 0) < len(
-        _dict_tuple(row.get("repair_error_history", []))
+    repair_attempts = _nonnegative_int(row.get("repair_attempts", 0))
+    repair_error_history = _dict_tuple(row.get("repair_error_history", []))
+    history_attempts = tuple(
+        _nonnegative_int(item.get("attempt", index), default=index)
+        for index, item in enumerate(repair_error_history)
+    )
+    if history_attempts and max(history_attempts) > repair_attempts:
+        errors.append(
+            "repair_error_history attempt cannot exceed repair_attempts"
+        )
+    repair_attempt_ledger = _dict_tuple(row.get("repair_attempt_ledger", []))
+    if len(repair_attempt_ledger) != len(repair_error_history):
+        errors.append(
+            "repair_attempt_ledger length must match repair_error_history length"
+        )
+    for index, (history_item, ledger_item) in enumerate(
+        zip(repair_error_history, repair_attempt_ledger)
     ):
-        errors.append("repair_attempts cannot be smaller than repair_error_history length")
+        history_attempt = _nonnegative_int(
+            history_item.get("attempt", index),
+            default=index,
+        )
+        ledger_attempt = _nonnegative_int(
+            ledger_item.get("failed_attempt_index", -1),
+            default=-1,
+        )
+        if ledger_attempt != history_attempt:
+            errors.append(
+                f"repair_attempt_ledger[{index}].failed_attempt_index must match repair_error_history"
+            )
+        history_errors = _str_tuple(history_item.get("errors", []))
+        ledger_errors = _str_tuple(ledger_item.get("errors", []))
+        if ledger_errors != history_errors:
+            errors.append(
+                f"repair_attempt_ledger[{index}].errors must match repair_error_history"
+            )
+        if int(ledger_item.get("error_count", 0) or 0) != len(ledger_errors):
+            errors.append(
+                f"repair_attempt_ledger[{index}].error_count must match errors"
+            )
+        if str(ledger_item.get("ledger_kind", "")) != REPAIR_ATTEMPT_LEDGER_KIND:
+            errors.append(
+                f"repair_attempt_ledger[{index}].ledger_kind must equal {REPAIR_ATTEMPT_LEDGER_KIND}"
+            )
     if row.get("response_contract_ok") and _str_tuple(row.get("generation_errors", [])):
         errors.append("accepted response cannot retain generation_errors")
     if row.get("response_present") and not row.get("response_contract_ok"):
@@ -3743,17 +3844,18 @@ def _generate_responses(
                 if not validation_errors:
                     last_response = candidate
                     break
-                last_response = {
-                    **candidate,
-                    "generation_errors": tuple(sorted(set(validation_errors))),
+                unique_validation_errors = tuple(sorted(set(validation_errors)))
+                repair_entry: dict[str, object] = {
+                    "attempt": attempt,
+                    "errors": unique_validation_errors[:12],
                 }
-                repair_history.append(
-                    {
-                        "attempt": attempt,
-                        "errors": tuple(sorted(set(validation_errors)))[:12],
-                    }
-                )
                 if attempt >= repair_budget:
+                    repair_history.append(repair_entry)
+                    last_response = {
+                        **candidate,
+                        "repair_error_history": tuple(repair_history),
+                        "generation_errors": unique_validation_errors,
+                    }
                     break
                 user_prompt = _repair_user_prompt(
                     original_user_prompt=str(prompt.get("user", "")),
@@ -3761,6 +3863,9 @@ def _generate_responses(
                     validation_errors=validation_errors,
                     attempt=attempt + 1,
                 )
+                repair_entry["next_repair_attempt"] = attempt + 1
+                repair_entry["repair_prompt_fingerprint"] = stable_hash(user_prompt)
+                repair_history.append(repair_entry)
             except Exception as exc:
                 exception_text = f"{type(exc).__name__}: {exc}"
                 if attempt >= repair_budget:
@@ -3796,12 +3901,6 @@ def _generate_responses(
                     }
                     break
                 provider_error = "provider exception: " + exception_text
-                repair_history.append(
-                    {
-                        "attempt": attempt,
-                        "errors": (provider_error,),
-                    }
-                )
                 user_prompt = _repair_user_prompt(
                     original_user_prompt=str(prompt.get("user", "")),
                     previous_response_text=str(
@@ -3809,6 +3908,14 @@ def _generate_responses(
                     ),
                     validation_errors=[provider_error],
                     attempt=attempt + 1,
+                )
+                repair_history.append(
+                    {
+                        "attempt": attempt,
+                        "errors": (provider_error,),
+                        "next_repair_attempt": attempt + 1,
+                        "repair_prompt_fingerprint": stable_hash(user_prompt),
+                    }
                 )
         if last_response is not None:
             responses.append(last_response)
@@ -4901,6 +5008,86 @@ def _generator_model_for_request(
     return default_generator_model(provider_name, requested_model)
 
 
+def _nonnegative_int(value: object, *, default: int = 0) -> int:
+    try:
+        parsed = int(value or 0)
+    except (TypeError, ValueError):
+        return default
+    return max(0, parsed)
+
+
+def _repair_attempt_ledger_rows(
+    *,
+    request: Mapping[str, Any],
+    response: Mapping[str, Any],
+    response_contract_ok: bool,
+    acceptance_status: str,
+) -> tuple[dict[str, object], ...]:
+    history = _dict_tuple(response.get("repair_error_history", []))
+    if not history:
+        return tuple()
+    request_id = str(response.get("request_id") or request.get("request_id") or "")
+    route_id = str(response.get("route_id") or request.get("route_id") or "")
+    provider_name = str(
+        response.get("provider_name") or request.get("provider_name") or ""
+    )
+    model = str(response.get("model") or request.get("model") or "")
+    model_tier = str(request.get("model_tier", ""))
+    target_prover_family = str(request.get("target_prover_family", ""))
+    final_repair_attempts = _nonnegative_int(response.get("repair_attempts", 0))
+    provider_failure = bool(response.get("provider_failure", False))
+    rows: list[dict[str, object]] = []
+    for ordinal, item in enumerate(history):
+        failed_attempt_index = _nonnegative_int(
+            item.get("attempt", ordinal),
+            default=ordinal,
+        )
+        errors = _str_tuple(item.get("errors", []))
+        next_attempt = item.get("next_repair_attempt", "")
+        if next_attempt == "":
+            next_attempt_index: int | str = ""
+        else:
+            next_attempt_index = _nonnegative_int(next_attempt)
+        row = {
+            "ledger_kind": REPAIR_ATTEMPT_LEDGER_KIND,
+            "repair_attempt_row_id": (
+                "formalization_gap_planner_llm_route_planner_repair_attempt:"
+                + stable_hash(
+                    [
+                        request_id,
+                        route_id,
+                        provider_name,
+                        model,
+                        failed_attempt_index,
+                        errors,
+                    ]
+                )[:20]
+            ),
+            "request_id": request_id,
+            "route_id": route_id,
+            "provider_name": provider_name,
+            "model": model,
+            "model_tier": model_tier,
+            "target_prover_family": target_prover_family,
+            "failed_attempt_index": failed_attempt_index,
+            "next_repair_attempt": next_attempt_index,
+            "repair_prompt_fingerprint": str(
+                item.get("repair_prompt_fingerprint", "")
+            ),
+            "error_count": len(errors),
+            "errors": list(errors),
+            "error_fingerprint": stable_hash(errors),
+            "final_repair_attempts": final_repair_attempts,
+            "final_response_contract_ok": response_contract_ok,
+            "final_acceptance_status": acceptance_status,
+            "provider_failure": provider_failure,
+            "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        }
+        rows.append(row)
+    return tuple(rows)
+
+
 def _row_for_request(
     request: Mapping[str, Any],
     *,
@@ -5026,6 +5213,12 @@ def _row_for_request(
             quality_control_obligations.get("pending", False)
         ),
     )
+    repair_attempt_ledger = _repair_attempt_ledger_rows(
+        request=request,
+        response=response or {},
+        response_contract_ok=response_contract_ok,
+        acceptance_status=acceptance_status,
+    )
     return FormalizationGapPlannerLLMRoutePlannerRow(
         schema_version=FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
         llm_route_planner_row_id="formalization_gap_planner_llm_route_plan:"
@@ -5074,6 +5267,7 @@ def _row_for_request(
         repair_error_history=_dict_tuple(
             (response or {}).get("repair_error_history", [])
         ),
+        repair_attempt_ledger=repair_attempt_ledger,
         generation_errors=generation_errors,
         acceptance_status=acceptance_status,
         route_adoption_status=route_adoption_status,
@@ -14503,6 +14697,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Generation preflight blocks: {payload.get('n_generation_preflight_blocked')}",
         f"- Repair attempts: {payload.get('n_generated_response_repair_attempts')}",
         f"- Repaired responses: {payload.get('n_generated_responses_repaired')}",
+        f"- Repair ledger rows: {payload.get('n_repair_attempt_ledger_rows')}",
         f"- Responses present: {payload.get('n_response_present')}",
         f"- Provider failures: {payload.get('n_provider_failures')}",
         f"- Rows with generator metadata: {payload.get('n_rows_with_generator_metadata')}",

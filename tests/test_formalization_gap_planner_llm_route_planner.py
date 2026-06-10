@@ -4268,6 +4268,12 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     )
     assert "legacy_context_field_aliases" in manifest_schema["required"]
     assert "n_requests_with_legacy_context_field_aliases" in manifest_schema["required"]
+    assert "repair_attempt_ledger" in manifest_schema["required"]
+    assert "n_repair_attempt_ledger_rows" in manifest_schema["required"]
+    assert payload["repair_attempt_ledger"] == ()
+    assert payload["n_repair_attempt_ledger_rows"] == 0
+    assert payload["n_requests_with_repair_attempt_ledger"] == 0
+    assert payload["n_repair_attempt_ledger_error_items"] == 0
     assert (
         manifest_schema["properties"]["legacy_context_field_aliases"][
             "properties"
@@ -4314,6 +4320,15 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_requests_with_legacy_context_field_aliases must match request_packets"
         in validate_llm_route_planner_manifest(
             drifted_alias_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_repair_ledger_manifest = deepcopy(payload)
+    drifted_repair_ledger_manifest["n_repair_attempt_ledger_rows"] = 1
+    assert (
+        "n_repair_attempt_ledger_rows must match repair_attempt_ledger"
+        in validate_llm_route_planner_manifest(
+            drifted_repair_ledger_manifest,
             manifest_schema,
         )
     )
@@ -7146,6 +7161,9 @@ def test_llm_route_planner_repairs_invalid_provider_response_with_local_validato
     assert payload["n_raw_responses"] == 1
     assert payload["n_generated_response_repair_attempts"] == 1
     assert payload["n_generated_responses_repaired"] == 1
+    assert payload["n_repair_attempt_ledger_rows"] == 1
+    assert payload["n_requests_with_repair_attempt_ledger"] == 1
+    assert payload["n_repair_attempt_ledger_error_items"] >= 1
     assert payload["n_response_contract_ok"] == 1
     assert payload["n_accepted_route_plans"] == 1
     assert len(requests) == 2
@@ -7159,7 +7177,32 @@ def test_llm_route_planner_repairs_invalid_provider_response_with_local_validato
     assert row["acceptance_status"] == "ACCEPTED_WITH_SEARCH_REQUESTS"
     assert row["repair_attempts"] == 1
     assert row["repair_error_history"]
+    assert row["repair_error_history"][0]["next_repair_attempt"] == 1
+    assert row["repair_error_history"][0]["repair_prompt_fingerprint"]
     assert any("kernel_verified" in " ".join(item["errors"]) for item in row["repair_error_history"])
+    assert row["repair_attempt_ledger"] == payload["repair_attempt_ledger"]
+    repair_ledger_row = row["repair_attempt_ledger"][0]
+    assert repair_ledger_row["ledger_kind"] == (
+        "formalization_gap_planner_llm_route_planner_repair_attempt_ledger"
+    )
+    assert repair_ledger_row["request_id"] == row["request_id"]
+    assert repair_ledger_row["failed_attempt_index"] == 0
+    assert repair_ledger_row["next_repair_attempt"] == 1
+    assert repair_ledger_row["final_repair_attempts"] == 1
+    assert repair_ledger_row["final_response_contract_ok"] is True
+    assert repair_ledger_row["final_acceptance_status"] == (
+        "ACCEPTED_WITH_SEARCH_REQUESTS"
+    )
+    assert repair_ledger_row["repair_prompt_fingerprint"] == (
+        row["repair_error_history"][0]["repair_prompt_fingerprint"]
+    )
+    assert any("kernel_verified" in error for error in repair_ledger_row["errors"])
+    drifted_row = deepcopy(row)
+    drifted_row["repair_attempt_ledger"][0]["error_count"] = 0
+    assert (
+        "repair_attempt_ledger[0].error_count must match errors"
+        in validate_llm_route_planner_row(drifted_row)
+    )
     assert not row["generation_errors"]
     manifest = json.loads(
         (
@@ -7168,9 +7211,75 @@ def test_llm_route_planner_repairs_invalid_provider_response_with_local_validato
     )
     generated = manifest["request_packets"][0]
     assert generated["model_tier"] == "sonnet"
+    assert manifest["n_repair_attempt_ledger_rows"] == 1
+    assert manifest["n_requests_with_repair_attempt_ledger"] == 1
+    assert manifest["repair_attempt_ledger"][0] == manifest["rows"][0][
+        "repair_attempt_ledger"
+    ][0]
     manifest_row = manifest["rows"][0]
     assert manifest_row["repair_attempts"] == 1
     assert manifest_row["generation_errors"] == []
+    manifest["repair_attempt_ledger"] = []
+    assert (
+        "repair_attempt_ledger must match row repair_attempt_ledger"
+        in validate_llm_route_planner_manifest(manifest)
+    )
+    report = (
+        out_dir / "formalization_gap_planner_llm_route_planner.md"
+    ).read_text(encoding="utf-8")
+    assert "- Repair ledger rows: 1" in report
+
+
+def test_llm_route_planner_preserves_exhausted_repair_attempt_ledger() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_repair_exhausted")
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+
+    class InvalidAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            return GeneratorResponse(
+                text=json.dumps(
+                    {
+                        "kernel_verified": True,
+                        "informal_knowledge_dag_nodes": [],
+                    }
+                ),
+                provider="anthropic",
+                model=request.model,
+                metadata={"generator_only": True, "tools_available": False},
+            )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=InvalidAnthropicBackend(),
+        max_repair_attempts=1,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_generated_response_repair_attempts"] == 1
+    assert payload["n_generated_responses_repaired"] == 0
+    assert payload["n_repair_attempt_ledger_rows"] == 2
+    assert payload["n_response_contract_ok"] == 0
+    assert payload["n_row_schema_valid"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["repair_attempts"] == 1
+    assert [item["attempt"] for item in row["repair_error_history"]] == [0, 1]
+    assert [item["failed_attempt_index"] for item in row["repair_attempt_ledger"]] == [
+        0,
+        1,
+    ]
+    assert row["repair_attempt_ledger"][0]["next_repair_attempt"] == 1
+    assert row["repair_attempt_ledger"][1]["next_repair_attempt"] == ""
+    assert any("kernel_verified" in error for error in row["generation_errors"])
+    assert validate_llm_route_planner_row(row) == []
 
 
 def test_llm_route_planner_cli_validates_reviewed_static_response() -> None:

@@ -145,12 +145,19 @@ from the reusable validator output without reopening the raw response payload.
 The publication-bundle audit checks those counters against JSONL rows
 when the optional validator artifact is packaged, and the publication-bundle
 manifest lifts the same validation target-count summary into
-`llm_route_planner_response_payload_validation_summary`. The public planner path records
-`*_provider_execution_mode`, live-call counters, and generation preflight block
-counts/errors so staged packets are distinguishable from paid provider calls
-and the reuse-smoke manifest/report lifts the validator target-prover counts
-and mismatch counter into top-level fields for release gating.
-and schema/model-tier-invalid requests are visible before any live Claude call.
+`llm_route_planner_response_payload_validation_summary`. The public planner path
+records `*_provider_execution_mode`, live-call counters, and generation
+preflight block counts/errors so staged packets are distinguishable from paid
+provider calls and schema/model-tier-invalid requests are visible before any
+live Claude call. The reuse-smoke manifest/report lifts the validator
+target-prover counts and mismatch counter into top-level fields for release
+gating. When a live generator response fails local validation and the planner
+spends a repair attempt, the planner manifest and rows now publish a
+`repair_attempt_ledger` with the failed attempt index, bounded validator errors,
+error fingerprint, next repair attempt, repair-prompt fingerprint, final
+acceptance status, and proof-evidence boundary. The manifest validates ledger
+counts against row-level ledgers, so external benchmark or publication consumers
+can audit Claude repair behavior without parsing raw model prose.
 If no LLM response is accepted, the emitted standalone seed falls back to the
 original route content but still records route-level LLM provenance:
 row/request id, provider/model/tier, acceptance status, route-adoption status,
