@@ -584,6 +584,7 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     source_refs: tuple[str, ...]
     source_snippets: tuple[dict[str, object], ...]
     realization_coverage_witness: dict[str, object]
+    quality_control_obligations: dict[str, object]
     raw_response_text: str
     generator_metadata: dict[str, object]
     provider_failure: bool
@@ -1706,6 +1707,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "source_refs",
             "source_snippets",
             "realization_coverage_witness",
+            "quality_control_obligations",
             "raw_response_text",
             "generator_metadata",
             "provider_failure",
@@ -1754,6 +1756,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "realization_coverage_witness": {
                 "$ref": "#/$defs/realization_coverage_witness"
             },
+            "quality_control_obligations": {"type": "object"},
             "raw_response_text": {"type": "string"},
             "generator_metadata": {"type": "object"},
             "provider_failure": {"type": "boolean"},
@@ -3618,6 +3621,8 @@ def _row_for_request(
     )
     minimal_delta_plan = _dict_value(payload, "minimal_delta_plan")
     route_alignment_edges = _dict_tuple(payload.get("route_alignment_edges", []))
+    context_packet = _dict_value(request, "context_packet")
+    quality_control_obligations = _quality_control_obligation_summary(context_packet)
     route_adoption_status, route_adoption_blockers = _route_adoption_readiness(
         request_errors=tuple(request_errors),
         response_present=response_present,
@@ -3633,15 +3638,15 @@ def _row_for_request(
             payload.get("residual_interpretations", [])
         ),
         feedback_summary=_dict_value(
-            _dict_value(request, "context_packet"),
+            context_packet,
             "feedback_loop_summary",
         ),
         omitted_cost_hint_primitives=_omitted_cost_hint_primitives(
             minimal_delta_plan,
             request,
         ),
-        quality_control_obligations_pending=_quality_control_obligations_pending(
-            _dict_value(request, "context_packet"),
+        quality_control_obligations_pending=bool(
+            quality_control_obligations.get("pending", False)
         ),
     )
     return FormalizationGapPlannerLLMRoutePlannerRow(
@@ -3686,6 +3691,7 @@ def _row_for_request(
             formal_nodes=formal_nodes,
             alignment_edges=route_alignment_edges,
         ),
+        quality_control_obligations=dict(quality_control_obligations),
         raw_response_text=raw_text,
         generator_metadata=_jsonable_mapping(
             (response or {}).get("generator_metadata", {})
@@ -10211,6 +10217,16 @@ def _accepted_route_for_seed(
         ),
         key_fields=("hook_kind", "queries", "acceptance_record"),
     )
+    llm_refinement_hooks = _merge_dict_rows(
+        llm_refinement_hooks,
+        _llm_refinement_hooks_for_quality_control_obligations(
+            row.quality_control_obligations,
+            selected_primitives=selected_primitives,
+            theorem_statement=str(route.get("theorem_statement", "")),
+            target_prover_family=row.target_prover_family,
+        ),
+        key_fields=("hook_kind", "queries", "acceptance_record"),
+    )
     llm_route_revision_triggers = _llm_route_revision_triggers_for_search_requests(
         row.search_requests,
     )
@@ -10234,6 +10250,14 @@ def _accepted_route_for_seed(
         _llm_route_revision_triggers_for_route_review_flags(
             uncertainty_flags=row.uncertainty_flags,
             semantic_alignment_risks=row.semantic_alignment_risks,
+            selected_primitives=selected_primitives,
+        ),
+        key_fields=("trigger_kind", "condition", "next_action"),
+    )
+    llm_route_revision_triggers = _merge_dict_rows(
+        llm_route_revision_triggers,
+        _llm_route_revision_triggers_for_quality_control_obligations(
+            row.quality_control_obligations,
             selected_primitives=selected_primitives,
         ),
         key_fields=("trigger_kind", "condition", "next_action"),
@@ -10286,6 +10310,9 @@ def _accepted_route_for_seed(
         ],
         "llm_route_planner_minimal_delta_plan": dict(row.minimal_delta_plan),
         "llm_route_planner_realization_coverage_witness": realization_coverage_witness,
+        "llm_route_planner_quality_control_obligations": dict(
+            row.quality_control_obligations
+        ),
         "llm_route_planner_errors": list(row.errors),
         "llm_route_planner_generation_errors": list(row.generation_errors),
         "llm_route_planner_request_contract_blocked": (
@@ -10318,6 +10345,13 @@ def _accepted_route_for_seed(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+    quality_controls_for_metadata = _dict_value(
+        row.quality_control_obligations,
+        "quality_controls",
+    )
+    if quality_controls_for_metadata:
+        metadata["quality_controls"] = quality_controls_for_metadata
+        route["quality_controls"] = quality_controls_for_metadata
     if revised_lean_nodes:
         metadata["revised_lean_realization_dag_nodes"] = [
             dict(node) for node in revised_lean_nodes
@@ -10829,6 +10863,170 @@ def _target_primitives_for_llm_route_review_flags(
         if _primitive_key(primitive) and _primitive_key(primitive) in text
     ]
     return _str_tuple(matched or selected_primitives[:6])
+
+
+def _llm_refinement_hooks_for_quality_control_obligations(
+    quality_control_obligations: Mapping[str, object],
+    *,
+    selected_primitives: tuple[str, ...],
+    theorem_statement: str,
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    pending_quality_controls = _dict_value(
+        quality_control_obligations,
+        "pending_quality_controls",
+    )
+    if not pending_quality_controls:
+        return tuple()
+    hook_kind = _hook_kind_for_llm_quality_control_obligations(
+        pending_quality_controls
+    )
+    queries = _quality_control_obligation_queries(
+        pending_quality_controls,
+        theorem_statement=theorem_statement,
+        hook_kind=hook_kind,
+    )
+    if not queries:
+        return tuple()
+    return (
+        {
+            "hook_kind": hook_kind,
+            "recommended_tools": list(
+                _recommended_tools_for_llm_hook(
+                    hook_kind,
+                    target_prover_family=target_prover_family,
+                )
+            ),
+            "queries": list(queries),
+            "target_primitives": list(selected_primitives[:6]),
+            "acceptance_record": (
+                "discharge pending quality controls with an admissible resource "
+                "response or refinement-evidence row before route adoption"
+            ),
+            "quality_controls": dict(pending_quality_controls),
+            "llm_route_planner_quality_control_obligations": dict(
+                quality_control_obligations
+            ),
+            "llm_route_planner_review_source": "quality_control_obligations",
+            "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        },
+    )
+
+
+def _llm_route_revision_triggers_for_quality_control_obligations(
+    quality_control_obligations: Mapping[str, object],
+    *,
+    selected_primitives: tuple[str, ...],
+) -> tuple[dict[str, object], ...]:
+    pending_quality_controls = _dict_value(
+        quality_control_obligations,
+        "pending_quality_controls",
+    )
+    if not pending_quality_controls:
+        return tuple()
+    hook_kind = _hook_kind_for_llm_quality_control_obligations(
+        pending_quality_controls
+    )
+    queries = _quality_control_obligation_queries(
+        pending_quality_controls,
+        theorem_statement="",
+        hook_kind=hook_kind,
+    )
+    if not queries:
+        return tuple()
+    return (
+        {
+            "trigger_kind": "quality_control_evidence_required",
+            "condition": "; ".join(queries),
+            "next_action": _next_action_for_llm_hook(
+                hook_kind,
+                query="; ".join(queries),
+            ),
+            "target_primitives": list(selected_primitives[:6]),
+            "quality_controls": dict(pending_quality_controls),
+            "llm_route_planner_quality_control_obligations": dict(
+                quality_control_obligations
+            ),
+            "llm_route_planner_review_source": "quality_control_obligations",
+            "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        },
+    )
+
+
+def _hook_kind_for_llm_quality_control_obligations(
+    pending_quality_controls: Mapping[str, object],
+) -> str:
+    text = _primitive_key(
+        " ".join(
+            [
+                *pending_quality_controls.keys(),
+                *[
+                    item
+                    for values in pending_quality_controls.values()
+                    for item in _str_tuple(values)
+                ],
+            ]
+        )
+    )
+    if any(
+        token in text
+        for token in (
+            "proof_state",
+            "prover",
+            "diagnostic",
+            "lean_lsp",
+            "lsp",
+            "kernel",
+        )
+    ):
+        return "proof_state_feedback"
+    if any(token in text for token in ("lean_search", "leansearch", "leanfinder", "loogle")):
+        return "lean_library_grounding"
+    if any(
+        token in text
+        for token in (
+            "formal_library",
+            "formal_source",
+            "library",
+            "declaration",
+        )
+    ):
+        return "formal_library_grounding"
+    if any(
+        token in text
+        for token in (
+            "literature",
+            "source",
+            "paper",
+            "paperclip",
+            "paperqa",
+            "textbook",
+        )
+    ):
+        return "literature_discovery"
+    return "route_revision"
+
+
+def _quality_control_obligation_queries(
+    pending_quality_controls: Mapping[str, object],
+    *,
+    theorem_statement: str,
+    hook_kind: str,
+) -> tuple[str, ...]:
+    summary_parts = [
+        f"{field_name}={', '.join(_str_tuple(values))}"
+        for field_name, values in pending_quality_controls.items()
+        if _str_tuple(values)
+    ]
+    return _str_tuple(
+        [
+            "discharge pending quality controls: " + "; ".join(summary_parts)
+            if summary_parts
+            else "",
+            theorem_statement if hook_kind == "proof_state_feedback" else "",
+        ]
+    )
 
 
 def _llm_resource_binding_summary(

@@ -725,6 +725,7 @@ def _trigger_matches_hook(trigger_kind: str, hook_kind: str) -> bool:
             "literature_route_evidence_needed",
             "source_port_or_external_declaration_needed",
             "new_theory_risk_review",
+            "quality_control_evidence_required",
         }
     if _is_formal_library_grounding_hook(hook_kind):
         return trigger_kind in {
@@ -734,11 +735,13 @@ def _trigger_matches_hook(trigger_kind: str, hook_kind: str) -> bool:
             "source_port_or_external_declaration_needed",
             "blocked_by_formal_side_condition",
             "new_theory_risk_review",
+            "quality_control_evidence_required",
         }
     if hook_kind == "proof_state_feedback":
         return trigger_kind in {
             "lean_leaf_attempt_required",
             "blocked_by_formal_side_condition",
+            "quality_control_evidence_required",
         }
     if hook_kind == "route_revision":
         return True
@@ -759,6 +762,7 @@ def _llm_route_planner_hook_trace(hook: dict[str, Any]) -> dict[str, object]:
         "llm_route_planner_residual_interpretation",
         "llm_route_planner_uncertainty_flags",
         "llm_route_planner_semantic_alignment_risks",
+        "llm_route_planner_quality_control_obligations",
         "llm_route_planner_review_source",
     ):
         if field_name in hook:

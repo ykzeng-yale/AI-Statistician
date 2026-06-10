@@ -4652,6 +4652,52 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
         ]
         == ["quality_control_obligations_pending"]
     )
+    seed_route = pending_payload["standalone_seed"]["routes"][0]
+    assert seed_route["replan_metadata"]["quality_controls"] == quality_controls
+    assert seed_route["replan_metadata"][
+        "llm_route_planner_quality_control_obligations"
+    ]["pending"] is True
+    quality_hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_review_source")
+        == "quality_control_obligations"
+    )
+    assert quality_hook["hook_kind"] == "proof_state_feedback"
+    assert quality_hook["quality_controls"] == quality_controls
+    assert "diagnostic_signature" in " ".join(quality_hook["queries"])
+    assert any(
+        trigger.get("trigger_kind") == "quality_control_evidence_required"
+        for trigger in seed_route["route_revision_triggers"]
+    )
+
+    plan_dir = root / "standalone_plan_from_pending_quality_control_seed"
+    refinement_queue_dir = root / "refinement_queue_from_pending_quality_control_seed"
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    queue_payload = export_formalization_gap_planner_refinement_queue(
+        plan_dir,
+        refinement_queue_dir,
+    )
+    assert queue_payload["all_ok"]
+    quality_queue_row = next(
+        row
+        for row in queue_payload["rows"]
+        if row["hook_kind"] == "proof_state_feedback"
+        and row["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_review_source"
+        )
+        == "quality_control_obligations"
+    )
+    assert quality_queue_row["quality_controls"]["required_quality_signals"] == (
+        "diagnostic_signature",
+    )
+    assert (
+        "quality_control_evidence_required" in quality_queue_row["trigger_kinds"]
+    )
 
     ledger_dir.mkdir(parents=True, exist_ok=True)
     (
@@ -4700,6 +4746,13 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     assert discharged_summary["pending"] is False
     assert discharged_summary["discharged"] is True
     assert discharged_summary["pending_quality_controls"] == {}
+    assert not any(
+        hook.get("llm_route_planner_review_source")
+        == "quality_control_obligations"
+        for hook in discharged_payload["standalone_seed"]["routes"][0][
+            "interactive_refinement_hooks"
+        ]
+    )
 
 
 def test_llm_route_planner_blocks_route_adoption_on_feedback_redispatch_actions() -> None:

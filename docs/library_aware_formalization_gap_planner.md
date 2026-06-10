@@ -223,6 +223,11 @@ conditions and no admissible resource-response or refinement-evidence row
 discharges the same normalized controls, the accepted LLM route stays
 `PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION` with the
 `quality_control_obligations_pending` blocker.
+Pending controls also materialize an interactive refinement hook whose
+`quality_controls` object is the exact missing normalized contract. For example,
+a `lean_lsp:proof_state_feedback` contract schedules proof-state feedback with a
+`quality_control_evidence_required` route-revision trigger, so the blocker has
+an executable discharge path rather than remaining hidden in adoption metadata.
 The same second-pass request packet carries route-level and
 `replan_metadata.residual_goals` into `request.residual_goals`, so residual
 interpretation requirements survive the standalone handoff instead of being
