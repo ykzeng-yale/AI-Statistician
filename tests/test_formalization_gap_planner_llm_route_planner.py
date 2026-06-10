@@ -22,6 +22,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     llm_route_planner_manifest_json_schema,
     llm_route_planner_response_payload_schema,
     llm_route_planner_row_json_schema,
+    route_adoption_blocker_taxonomy_json_schema,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
     validate_llm_route_planner_manifest,
     validate_llm_route_planner_request,
@@ -5235,6 +5236,7 @@ def test_route_adoption_readiness_uses_current_realization_witness() -> None:
 
 def test_route_adoption_taxonomy_publishes_blocker_trigger_fields() -> None:
     payload = route_adoption_blocker_taxonomy_payload()
+    schema = route_adoption_blocker_taxonomy_json_schema()
 
     assert validate_route_adoption_blocker_taxonomy_payload(payload) == ()
     trigger_fields = payload["blocker_trigger_fields"][
@@ -5244,6 +5246,11 @@ def test_route_adoption_taxonomy_publishes_blocker_trigger_fields() -> None:
         "rows[].realization_coverage_witness.realization_coverage_complete"
         in trigger_fields
     )
+    trigger_schema = schema["properties"]["blocker_trigger_fields"]
+    assert trigger_schema["additionalProperties"] is False
+    assert trigger_schema["properties"][
+        ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE
+    ]["const"] == trigger_fields
 
     corrupted_payload = deepcopy(payload)
     corrupted_payload["blocker_trigger_fields"][
@@ -5253,6 +5260,18 @@ def test_route_adoption_taxonomy_publishes_blocker_trigger_fields() -> None:
         "blocker_trigger_fields must list at least one trigger field" in error
         for error in validate_route_adoption_blocker_taxonomy_payload(
             corrupted_payload
+        )
+    )
+
+    stale_payload = deepcopy(payload)
+    stale_payload["blocker_trigger_fields"][
+        ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE
+    ] = ["stale.realization_coverage_flag"]
+    assert any(
+        "blocker_trigger_fields values must match route adoption blocker trigger constants"
+        in error
+        for error in validate_route_adoption_blocker_taxonomy_payload(
+            stale_payload
         )
     )
 

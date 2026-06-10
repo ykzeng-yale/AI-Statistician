@@ -2324,6 +2324,14 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
 
 def route_adoption_blocker_taxonomy_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
+    trigger_field_properties = {
+        blocker: {
+            "type": "array",
+            "items": {"type": "string"},
+            "const": list(fields),
+        }
+        for blocker, fields in ROUTE_ADOPTION_BLOCKER_TRIGGER_FIELDS.items()
+    }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
@@ -2373,7 +2381,9 @@ def route_adoption_blocker_taxonomy_json_schema() -> dict[str, object]:
             },
             "blocker_trigger_fields": {
                 "type": "object",
-                "additionalProperties": string_array,
+                "additionalProperties": False,
+                "required": list(ROUTE_ADOPTION_BLOCKER_VALUES),
+                "properties": trigger_field_properties,
             },
             "proof_evidence_status": {"const": PROOF_EVIDENCE_STATUS},
             "proof_evidence_boundary": {
@@ -2465,6 +2475,17 @@ def validate_route_adoption_blocker_taxonomy_payload(
             errors.append(
                 "blocker_trigger_fields must list at least one trigger field for: "
                 + ", ".join(sorted(str(key) for key in empty_trigger_fields))
+            )
+        mismatched_trigger_fields = [
+            blocker
+            for blocker, expected in ROUTE_ADOPTION_BLOCKER_TRIGGER_FIELDS.items()
+            if _str_tuple(trigger_fields.get(blocker, [])) != tuple(expected)
+        ]
+        if mismatched_trigger_fields:
+            errors.append(
+                "blocker_trigger_fields values must match route adoption "
+                "blocker trigger constants for: "
+                + ", ".join(sorted(mismatched_trigger_fields))
             )
     if payload.get("proof_evidence_status") != PROOF_EVIDENCE_STATUS:
         errors.append("proof_evidence_status mismatch")
