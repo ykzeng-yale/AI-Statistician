@@ -756,6 +756,8 @@ def export_formalization_gap_planner_llm_route_planner(
     ]
     by_acceptance_status = Counter(row.acceptance_status for row in rows)
     by_route_adoption_status = Counter(row.route_adoption_status for row in rows)
+    by_route_adoption_blocker = _route_adoption_blocker_summary(rows)
+    route_adoption_blocker_counts = _route_adoption_blocker_counts(rows)
     standalone_seed = _standalone_seed(input_payload, rows)
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
@@ -1254,7 +1256,9 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
         "route_adoption_blocker_taxonomy_id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID,
         "route_adoption_blocker_values": list(ROUTE_ADOPTION_BLOCKER_VALUES),
+        "route_adoption_blocker_counts": route_adoption_blocker_counts,
         "by_route_adoption_status": dict(sorted(by_route_adoption_status.items())),
+        "by_route_adoption_blocker": by_route_adoption_blocker,
         "n_route_adoption_pending_search_request_blockers": sum(
             1
             for row in rows
@@ -2006,6 +2010,50 @@ def validate_llm_route_planner_request(
             errors.append(str(mismatch["error"]))
     errors.extend(_llm_generation_policy_errors(row))
     return sorted(set(errors))
+
+
+def _route_adoption_blocker_counts(
+    rows: tuple[FormalizationGapPlannerLLMRoutePlannerRow, ...],
+) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for row in rows:
+        counts.update(row.route_adoption_blockers)
+    return dict(sorted(counts.items()))
+
+
+def _route_adoption_blocker_summary(
+    rows: tuple[FormalizationGapPlannerLLMRoutePlannerRow, ...],
+) -> dict[str, dict[str, object]]:
+    counts = _route_adoption_blocker_counts(rows)
+    summaries: dict[str, dict[str, object]] = {}
+    for blocker in sorted(counts):
+        blocker_rows = [
+            row for row in rows if blocker in row.route_adoption_blockers
+        ]
+        summaries[blocker] = {
+            "n_rows": len(blocker_rows),
+            "n_blocker_occurrences": counts[blocker],
+            "by_route_adoption_status": dict(
+                sorted(
+                    Counter(
+                        row.route_adoption_status for row in blocker_rows
+                    ).items()
+                )
+            ),
+            "by_acceptance_status": dict(
+                sorted(Counter(row.acceptance_status for row in blocker_rows).items())
+            ),
+            "n_response_present": sum(
+                1 for row in blocker_rows if row.response_present
+            ),
+            "n_response_contract_ok": sum(
+                1 for row in blocker_rows if row.response_contract_ok
+            ),
+            "n_provider_failures": sum(
+                1 for row in blocker_rows if row.provider_failure
+            ),
+        }
+    return summaries
 
 
 def validate_llm_route_planner_response(
@@ -12928,6 +12976,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Accepted route plans: {payload.get('n_accepted_route_plans')}",
         f"- Route adoption ready: {payload.get('n_route_adoption_ready')}",
         f"- Route adoption pending refinement: {payload.get('n_route_adoption_pending_refinement')}",
+        f"- Route adoption blocker counts: {payload.get('route_adoption_blocker_counts')}",
         f"- Awaiting LLM response: {payload.get('n_awaiting_llm_response')}",
         f"- Rejected: {payload.get('n_rejected')}",
         f"- Informal DAG nodes: {payload.get('n_informal_knowledge_dag_nodes')}",

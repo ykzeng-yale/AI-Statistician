@@ -1046,6 +1046,14 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["n_request_route_option_cost_hints"] == 1
     assert payload["n_response_present"] == 0
     assert payload["n_awaiting_llm_response"] == 1
+    assert payload["route_adoption_blocker_counts"] == {
+        "llm_route_planner_response_missing": 1
+    }
+    assert payload["by_route_adoption_blocker"][
+        "llm_route_planner_response_missing"
+    ]["by_route_adoption_status"] == {
+        "AWAITING_LLM_ROUTE_PLANNER_RESPONSE": 1
+    }
     assert payload["n_request_schema_valid"] == 1
     assert payload["n_requests_with_llm_generation_policy"] == 1
     assert payload["n_request_llm_generation_policy_tier_model_matches"] == 1
@@ -4062,6 +4070,27 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     }
     assert payload["by_route_adoption_status"] == {
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+    }
+    assert payload["route_adoption_blocker_counts"] == {
+        "planner_next_actions_pending_evidence": 1,
+        "search_requests_pending_evidence": 1,
+        "semantic_alignment_risks_require_review": 1,
+        "uncertainty_flags_require_review": 1,
+    }
+    assert payload["by_route_adoption_blocker"][
+        "search_requests_pending_evidence"
+    ] == {
+        "n_rows": 1,
+        "n_blocker_occurrences": 1,
+        "by_route_adoption_status": {
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+        },
+        "by_acceptance_status": {
+            "ACCEPTED_WITH_SEARCH_REQUESTS": 1
+        },
+        "n_response_present": 1,
+        "n_response_contract_ok": 1,
+        "n_provider_failures": 0,
     }
     assert payload["n_informal_knowledge_dag_nodes"] == 2
     assert payload["n_lean_realization_dag_nodes"] == 2

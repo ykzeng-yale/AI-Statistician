@@ -434,7 +434,11 @@ action stored in the refinement-queue trace. The
 standalone seed and each
 standalone-plan `standalone_input_trace` preserve the same fields, so a public
 consumer can filter adoption-ready route plans without reopening raw LLM
-responses. Blocker labels are part of the published
+responses. The route-planner manifest also exposes
+`route_adoption_blocker_counts` and `by_route_adoption_blocker`, so downstream
+evaluation, publication bundles, and independent prover integrations can audit
+which blocker classes caused pending adoption without re-parsing every row.
+Blocker labels are part of the published
 `formalization_gap_planner_route_adoption_blocker_taxonomy:1` vocabulary, and
 publication bundles now package that vocabulary as
 `contract/formalization_gap_planner_route_adoption_blocker_taxonomy.json` plus
