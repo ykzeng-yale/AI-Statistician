@@ -2398,6 +2398,13 @@ def _expected_bundle_llm_route_planner_summary(
         "n_request_context_inventory_total_rows": int(
             payload.get("n_request_context_inventory_total_rows", 0) or 0
         ),
+        "n_rows_with_context_packet_inventory": int(
+            payload.get(
+                "n_rows_with_context_packet_inventory",
+                sum(1 for row in rows if row.get("context_packet_inventory")),
+            )
+            or 0
+        ),
         "n_rows": int(payload.get("n_rows", len(rows)) or 0),
         "n_response_present": int(
             payload.get(

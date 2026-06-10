@@ -6073,6 +6073,12 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         ]
         >= 1
     )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_rows_with_context_packet_inventory"
+        ]
+        == 1
+    )
     assert bundle_manifest["llm_route_planner_summary"]["n_rows"] == 1
     assert bundle_manifest["llm_route_planner_summary"]["n_response_present"] == 1
     assert (
@@ -6104,6 +6110,12 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
             "n_request_context_inventory_total_rows"
         ]
         >= 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_rows_with_context_packet_inventory"
+        ]
+        == 1
     )
     assert (
         bundle_manifest["feedback_llm_route_planner_summary"]["n_accepted_route_plans"]
@@ -7654,6 +7666,9 @@ def test_publication_bundle_audit_rejects_bundle_llm_summary_drift() -> None:
     corrupted_primary["llm_route_planner_summary"][
         "n_requests_with_context_packet_inventory"
     ] = 0
+    corrupted_primary["llm_route_planner_summary"][
+        "n_rows_with_context_packet_inventory"
+    ] = 0
     corrupted_primary["llm_route_planner_summary"]["by_route_adoption_blocker"] = {}
     manifest_path.write_text(
         json.dumps(corrupted_primary, indent=2),
@@ -7681,6 +7696,9 @@ def test_publication_bundle_audit_rejects_bundle_llm_summary_drift() -> None:
     ] = {}
     corrupted_feedback["feedback_llm_route_planner_summary"][
         "n_request_context_inventory_total_rows"
+    ] = 0
+    corrupted_feedback["feedback_llm_route_planner_summary"][
+        "n_rows_with_context_packet_inventory"
     ] = 0
     corrupted_feedback["feedback_llm_route_planner_summary"][
         "by_route_adoption_blocker"

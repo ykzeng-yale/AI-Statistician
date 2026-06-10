@@ -672,6 +672,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         >= 0
     )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_rows_with_context_packet_inventory"
+        ]
+        == 1
+    )
     assert manifest["llm_route_planner_summary"]["n_rows"] == 1
     assert manifest["llm_route_planner_summary"]["n_response_present"] == 0
     assert manifest["llm_route_planner_summary"]["n_accepted_route_plans"] == 0
@@ -694,6 +700,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
             "n_request_context_inventory_total_rows"
         ]
         >= 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_rows_with_context_packet_inventory"
+        ]
+        == 1
     )
     assert manifest["feedback_llm_route_planner_summary"]["n_rows"] == 1
     assert (

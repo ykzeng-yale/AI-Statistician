@@ -4144,6 +4144,7 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["n_route_alignment_edges"] == 1
     assert payload["n_rows_with_realization_coverage_witness"] == 1
     assert payload["n_rows_with_complete_realization_coverage"] == 1
+    assert payload["n_rows_with_context_packet_inventory"] == 1
     assert payload["n_selected_primitives_missing_formal_realization"] == 0
     assert payload["n_delta_primitives_missing_route_alignment"] == 0
     assert payload["n_source_snippets"] == 1
@@ -4162,6 +4163,12 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "semantic_alignment_risks_require_review",
     }
     assert "conformal_prediction_textbook" in row["source_refs"]
+    assert row["context_packet_inventory"] == payload["request_packets"][0][
+        "context_packet"
+    ]["context_packet_inventory"]
+    assert row["context_packet_inventory"]["inventory_kind"] == (
+        "formalization_gap_planner_llm_route_planner_context_packet_inventory"
+    )
     assert validate_llm_route_planner_row(
         row,
         llm_route_planner_row_json_schema(),
@@ -4171,6 +4178,8 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "lean_realization_dag_nodes" not in row_schema["required"]
     assert "source_snippets" in row_schema["required"]
     assert "realization_coverage_witness" in row_schema["required"]
+    assert "context_packet_inventory" in row_schema["required"]
+    assert row_schema["properties"]["context_packet_inventory"]["type"] == "object"
     assert row_schema["properties"]["realization_coverage_witness"] == {
         "$ref": "#/$defs/realization_coverage_witness"
     }

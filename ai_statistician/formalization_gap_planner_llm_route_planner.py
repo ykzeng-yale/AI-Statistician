@@ -602,6 +602,7 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     realization_coverage_witness: dict[str, object]
     quality_control_obligations: dict[str, object]
     feedback_loop_summary: dict[str, object]
+    context_packet_inventory: dict[str, object]
     raw_response_text: str
     generator_metadata: dict[str, object]
     provider_failure: bool
@@ -1415,6 +1416,9 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_rows_with_planner_next_actions": sum(
             1 for row in rows if row.planner_next_actions
         ),
+        "n_rows_with_context_packet_inventory": sum(
+            1 for row in rows if row.context_packet_inventory
+        ),
         "n_uncertainty_flags": sum(len(row.uncertainty_flags) for row in rows),
         "n_residual_interpretations": sum(
             len(row.residual_interpretations) for row in rows
@@ -1748,6 +1752,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "realization_coverage_witness",
             "quality_control_obligations",
             "feedback_loop_summary",
+            "context_packet_inventory",
             "raw_response_text",
             "generator_metadata",
             "provider_failure",
@@ -1798,6 +1803,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             },
             "quality_control_obligations": {"type": "object"},
             "feedback_loop_summary": {"type": "object"},
+            "context_packet_inventory": {"type": "object"},
             "raw_response_text": {"type": "string"},
             "generator_metadata": {"type": "object"},
             "provider_failure": {"type": "boolean"},
@@ -2166,6 +2172,12 @@ def validate_llm_route_planner_row(
             errors.append("present non-contract response must be rejected")
     if row.get("response_contract_ok") and not row.get("standalone_route"):
         errors.append("accepted response must include standalone_route")
+    inventory = _dict_value(row, "context_packet_inventory")
+    if inventory.get("inventory_kind") != CONTEXT_PACKET_INVENTORY_KIND:
+        errors.append(
+            "context_packet_inventory.inventory_kind must equal "
+            + CONTEXT_PACKET_INVENTORY_KIND
+        )
     if row.get("provider_failure"):
         if not _str_tuple(row.get("generation_errors", [])):
             errors.append("provider_failure row must include generation_errors")
@@ -3882,6 +3894,10 @@ def _row_for_request(
     route_alignment_edges = _dict_tuple(payload.get("route_alignment_edges", []))
     context_packet = _dict_value(request, "context_packet")
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    context_packet_inventory = _dict_value(
+        context_packet,
+        "context_packet_inventory",
+    )
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     route_adoption_status, route_adoption_blockers = _route_adoption_readiness(
         request_errors=tuple(request_errors),
@@ -3950,6 +3966,7 @@ def _row_for_request(
         ),
         quality_control_obligations=dict(quality_control_obligations),
         feedback_loop_summary=dict(feedback_summary),
+        context_packet_inventory=dict(context_packet_inventory),
         raw_response_text=raw_text,
         generator_metadata=_jsonable_mapping(
             (response or {}).get("generator_metadata", {})

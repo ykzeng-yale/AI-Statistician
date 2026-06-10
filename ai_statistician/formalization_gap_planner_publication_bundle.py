@@ -2152,6 +2152,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_packets",
             "n_requests_with_context_packet_inventory",
             "n_request_context_inventory_total_rows",
+            "n_rows_with_context_packet_inventory",
             "n_rows",
             "n_response_present",
             "n_response_contract_ok",
@@ -2176,6 +2177,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_packets": nonnegative_integer,
             "n_requests_with_context_packet_inventory": nonnegative_integer,
             "n_request_context_inventory_total_rows": nonnegative_integer,
+            "n_rows_with_context_packet_inventory": nonnegative_integer,
             "n_rows": nonnegative_integer,
             "n_response_present": nonnegative_integer,
             "n_response_contract_ok": nonnegative_integer,
@@ -4043,6 +4045,7 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_packets": 0,
         "n_requests_with_context_packet_inventory": 0,
         "n_request_context_inventory_total_rows": 0,
+        "n_rows_with_context_packet_inventory": 0,
         "n_rows": 0,
         "n_response_present": 0,
         "n_response_contract_ok": 0,
@@ -4082,6 +4085,13 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         ),
         "n_request_context_inventory_total_rows": int(
             payload.get("n_request_context_inventory_total_rows", 0) or 0
+        ),
+        "n_rows_with_context_packet_inventory": int(
+            payload.get(
+                "n_rows_with_context_packet_inventory",
+                sum(1 for row in rows if row.get("context_packet_inventory")),
+            )
+            or 0
         ),
         "n_rows": int(payload.get("n_rows", len(rows)) or 0),
         "n_response_present": int(
