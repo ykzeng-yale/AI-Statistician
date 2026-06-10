@@ -10241,6 +10241,15 @@ def _accepted_route_for_seed(
     )
     llm_refinement_hooks = _merge_dict_rows(
         llm_refinement_hooks,
+        _llm_refinement_hooks_for_feedback_replan_required(
+            row.feedback_loop_summary,
+            selected_primitives=selected_primitives,
+            target_prover_family=row.target_prover_family,
+        ),
+        key_fields=("hook_kind", "queries", "acceptance_record"),
+    )
+    llm_refinement_hooks = _merge_dict_rows(
+        llm_refinement_hooks,
         _llm_refinement_hooks_for_realization_coverage_witness(
             row.realization_coverage_witness,
         ),
@@ -10284,6 +10293,14 @@ def _accepted_route_for_seed(
     llm_route_revision_triggers = _merge_dict_rows(
         llm_route_revision_triggers,
         _llm_route_revision_triggers_for_feedback_summary(
+            row.feedback_loop_summary,
+            selected_primitives=selected_primitives,
+        ),
+        key_fields=("trigger_kind", "condition", "next_action"),
+    )
+    llm_route_revision_triggers = _merge_dict_rows(
+        llm_route_revision_triggers,
+        _llm_route_revision_triggers_for_feedback_replan_required(
             row.feedback_loop_summary,
             selected_primitives=selected_primitives,
         ),
@@ -11183,6 +11200,127 @@ def _llm_route_revision_triggers_for_feedback_summary(
         tuple(),
         key_fields=("trigger_kind", "condition", "next_action"),
     )
+
+
+def _llm_refinement_hooks_for_feedback_replan_required(
+    feedback_summary: Mapping[str, object],
+    *,
+    selected_primitives: tuple[str, ...],
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    if not _feedback_replan_requires_standalone_hook(feedback_summary):
+        return tuple()
+    queries = _feedback_replan_queries(feedback_summary)
+    return (
+        {
+            "hook_kind": "route_revision",
+            "recommended_tools": list(
+                _recommended_tools_for_llm_hook(
+                    "route_revision",
+                    target_prover_family=target_prover_family,
+                )
+            ),
+            "queries": list(queries),
+            "target_primitives": list(
+                _target_primitives_for_feedback_replan_required(
+                    feedback_summary,
+                    selected_primitives=selected_primitives,
+                )
+            ),
+            "acceptance_record": _acceptance_record_for_llm_hook("route_revision"),
+            "llm_route_planner_feedback_replan_required": True,
+            "llm_route_planner_feedback_loop_summary": dict(feedback_summary),
+            "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        },
+    )
+
+
+def _llm_route_revision_triggers_for_feedback_replan_required(
+    feedback_summary: Mapping[str, object],
+    *,
+    selected_primitives: tuple[str, ...],
+) -> tuple[dict[str, object], ...]:
+    if not _feedback_replan_requires_standalone_hook(feedback_summary):
+        return tuple()
+    queries = _feedback_replan_queries(feedback_summary)
+    condition = "; ".join(queries)
+    return (
+        {
+            "trigger_kind": ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN,
+            "condition": condition,
+            "next_action": _next_action_for_llm_hook(
+                "route_revision",
+                query=condition,
+            ),
+            "target_primitives": list(
+                _target_primitives_for_feedback_replan_required(
+                    feedback_summary,
+                    selected_primitives=selected_primitives,
+                )
+            ),
+            "llm_route_planner_feedback_replan_required": True,
+            "llm_route_planner_feedback_loop_summary": dict(feedback_summary),
+            "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        },
+    )
+
+
+def _feedback_replan_requires_standalone_hook(
+    feedback_summary: Mapping[str, object],
+) -> bool:
+    return _truthy(feedback_summary.get("replan_required")) and not _dict_tuple(
+        feedback_summary.get("recommended_next_actions", [])
+    )
+
+
+def _feedback_replan_queries(
+    feedback_summary: Mapping[str, object],
+) -> tuple[str, ...]:
+    queries = _unique_strings(
+        [
+            *_str_tuple(feedback_summary.get("route_revision_reasons", [])),
+            *_str_tuple(feedback_summary.get("repair_focus", [])),
+            *_str_tuple(feedback_summary.get("residual_goals", [])),
+        ]
+    )
+    return queries or ("feedback loop requested route replan before adoption",)
+
+
+def _target_primitives_for_feedback_replan_required(
+    feedback_summary: Mapping[str, object],
+    *,
+    selected_primitives: tuple[str, ...],
+) -> tuple[str, ...]:
+    realization_coverage = _dict_value(feedback_summary, "realization_coverage")
+    explicit = _unique_strings(
+        [
+            *_str_tuple(
+                realization_coverage.get("missing_selected_formal_primitives", [])
+            ),
+            *_str_tuple(
+                realization_coverage.get("missing_delta_alignment_primitives", [])
+            ),
+            *_str_tuple(realization_coverage.get("omitted_cost_hint_primitives", [])),
+        ]
+    )
+    if explicit:
+        return explicit
+    text = _primitive_key(
+        " ".join(
+            [
+                *_str_tuple(feedback_summary.get("route_revision_reasons", [])),
+                *_str_tuple(feedback_summary.get("repair_focus", [])),
+                *_str_tuple(feedback_summary.get("residual_goals", [])),
+            ]
+        )
+    )
+    matched = [
+        primitive
+        for primitive in selected_primitives
+        if _primitive_key(primitive) and _primitive_key(primitive) in text
+    ]
+    return _str_tuple(matched or selected_primitives[:6])
 
 
 def _hook_kind_for_llm_feedback_action(action: Mapping[str, object]) -> str:

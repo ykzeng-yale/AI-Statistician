@@ -766,6 +766,8 @@ def _llm_route_planner_hook_trace(hook: dict[str, Any]) -> dict[str, object]:
         "llm_route_planner_planner_next_action",
         "llm_route_planner_feedback_next_action_index",
         "llm_route_planner_feedback_next_action",
+        "llm_route_planner_feedback_replan_required",
+        "llm_route_planner_feedback_loop_summary",
         "llm_route_planner_realization_coverage_action_index",
         "llm_route_planner_realization_coverage_action",
         "llm_route_planner_realization_coverage_witness",
