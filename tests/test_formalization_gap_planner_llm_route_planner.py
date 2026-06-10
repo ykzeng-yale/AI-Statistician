@@ -7170,6 +7170,8 @@ def test_llm_route_planner_repairs_invalid_provider_response_with_local_validato
     assert requests[0].metadata["repair_attempt"] == 0
     assert requests[1].metadata["repair_attempt"] == 1
     assert "Repair your previous formalization-gap planner response" in requests[1].user_prompt
+    assert "repair_guidance_rows" in requests[1].user_prompt
+    assert "proof_boundary_violation" in requests[1].user_prompt
     assert "kernel_verified" in requests[1].user_prompt
     raw_response = payload["request_packets"][0]
     assert raw_response["model_tier"] == "sonnet"
@@ -7179,6 +7181,10 @@ def test_llm_route_planner_repairs_invalid_provider_response_with_local_validato
     assert row["repair_error_history"]
     assert row["repair_error_history"][0]["next_repair_attempt"] == 1
     assert row["repair_error_history"][0]["repair_prompt_fingerprint"]
+    assert "proof_boundary_violation" in row["repair_error_history"][0][
+        "repair_guidance_categories"
+    ]
+    assert row["repair_error_history"][0]["repair_guidance_fingerprint"]
     assert any("kernel_verified" in " ".join(item["errors"]) for item in row["repair_error_history"])
     assert row["repair_attempt_ledger"] == payload["repair_attempt_ledger"]
     repair_ledger_row = row["repair_attempt_ledger"][0]
@@ -7196,12 +7202,27 @@ def test_llm_route_planner_repairs_invalid_provider_response_with_local_validato
     assert repair_ledger_row["repair_prompt_fingerprint"] == (
         row["repair_error_history"][0]["repair_prompt_fingerprint"]
     )
+    assert "proof_boundary_violation" in repair_ledger_row[
+        "repair_guidance_categories"
+    ]
+    assert repair_ledger_row["repair_guidance_fingerprint"] == (
+        row["repair_error_history"][0]["repair_guidance_fingerprint"]
+    )
     assert any("kernel_verified" in error for error in repair_ledger_row["errors"])
     drifted_row = deepcopy(row)
     drifted_row["repair_attempt_ledger"][0]["error_count"] = 0
     assert (
         "repair_attempt_ledger[0].error_count must match errors"
         in validate_llm_route_planner_row(drifted_row)
+    )
+    drifted_guidance_row = deepcopy(row)
+    drifted_guidance_row["repair_attempt_ledger"][0][
+        "repair_guidance_categories"
+    ] = []
+    assert (
+        "repair_attempt_ledger[0].repair_guidance_categories must match "
+        "repair_error_history"
+        in validate_llm_route_planner_row(drifted_guidance_row)
     )
     assert not row["generation_errors"]
     manifest = json.loads(
@@ -7278,6 +7299,10 @@ def test_llm_route_planner_preserves_exhausted_repair_attempt_ledger() -> None:
     ]
     assert row["repair_attempt_ledger"][0]["next_repair_attempt"] == 1
     assert row["repair_attempt_ledger"][1]["next_repair_attempt"] == ""
+    assert all(
+        "proof_boundary_violation" in item["repair_guidance_categories"]
+        for item in row["repair_attempt_ledger"]
+    )
     assert any("kernel_verified" in error for error in row["generation_errors"])
     assert validate_llm_route_planner_row(row) == []
 

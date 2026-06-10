@@ -154,10 +154,14 @@ target-prover counts and mismatch counter into top-level fields for release
 gating. When a live generator response fails local validation and the planner
 spends a repair attempt, the planner manifest and rows now publish a
 `repair_attempt_ledger` with the failed attempt index, bounded validator errors,
-error fingerprint, next repair attempt, repair-prompt fingerprint, final
-acceptance status, and proof-evidence boundary. The manifest validates ledger
-counts against row-level ledgers, so external benchmark or publication consumers
-can audit Claude repair behavior without parsing raw model prose.
+error fingerprint, structured repair-guidance categories, repair-guidance
+fingerprint, next repair attempt, repair-prompt fingerprint, final acceptance
+status, and proof-evidence boundary. Those same guidance rows are included in
+the retry prompt so the model sees a targeted repair plan for source grounding,
+formal-library grounding, residual repair, proof-boundary violations, or
+minimal-delta accounting. The manifest validates ledger counts against row-level
+ledgers, so external benchmark or publication consumers can audit Claude repair
+behavior without parsing raw model prose.
 If no LLM response is accepted, the emitted standalone seed falls back to the
 original route content but still records route-level LLM provenance:
 row/request id, provider/model/tier, acceptance status, route-adoption status,
