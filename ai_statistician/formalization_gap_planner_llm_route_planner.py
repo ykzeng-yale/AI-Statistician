@@ -2500,10 +2500,93 @@ def validate_llm_route_planner_response_payload_validation_manifest(
 ) -> list[str]:
     """Validate the reusable response-payload validation manifest contract."""
 
-    return _validate_with_schema(
+    errors = _validate_with_schema(
         manifest,
         schema or llm_route_planner_response_payload_validation_manifest_json_schema(),
     )
+    rows = _dict_tuple(manifest.get("rows", []))
+    valid_rows = sum(1 for row in rows if bool(row.get("ok", False)))
+    invalid_rows = len(rows) - valid_rows
+    schema_errors = sum(int(row.get("n_schema_errors", 0) or 0) for row in rows)
+    request_context_errors = sum(
+        int(row.get("n_request_context_errors", 0) or 0) for row in rows
+    )
+    request_bound_rows = tuple(
+        row
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+    )
+    request_bound_rows_with_inventory = tuple(
+        row
+        for row in request_bound_rows
+        if bool(row.get("request_context_inventory_present", False))
+    )
+    request_bound_inventory_total_rows = sum(
+        int(row.get("request_context_inventory_total_rows", 0) or 0)
+        for row in request_bound_rows
+    )
+    if int(manifest.get("n_payloads", 0) or 0) != len(rows):
+        errors.append("n_payloads must match rows length")
+    if int(manifest.get("n_valid_payloads", 0) or 0) != valid_rows:
+        errors.append("n_valid_payloads must match rows with ok=true")
+    if int(manifest.get("n_invalid_payloads", 0) or 0) != invalid_rows:
+        errors.append("n_invalid_payloads must match rows with ok=false")
+    if int(manifest.get("n_schema_errors", 0) or 0) != schema_errors:
+        errors.append("n_schema_errors must match row n_schema_errors sum")
+    if int(manifest.get("n_request_context_errors", 0) or 0) != (
+        request_context_errors
+    ):
+        errors.append(
+            "n_request_context_errors must match row n_request_context_errors sum"
+        )
+    if int(manifest.get("n_request_bound_payloads", 0) or 0) != len(
+        request_bound_rows
+    ):
+        errors.append(
+            "n_request_bound_payloads must match request_bound validation rows"
+        )
+    if int(
+        manifest.get("n_request_bound_payloads_with_context_packet_inventory", 0)
+        or 0
+    ) != len(request_bound_rows_with_inventory):
+        errors.append(
+            "n_request_bound_payloads_with_context_packet_inventory must match "
+            "request_bound rows with context_packet_inventory"
+        )
+    if int(
+        manifest.get("n_request_bound_payload_context_inventory_total_rows", 0)
+        or 0
+    ) != request_bound_inventory_total_rows:
+        errors.append(
+            "n_request_bound_payload_context_inventory_total_rows must match "
+            "request_bound row inventory total"
+        )
+    embedded_schema_ids = {
+        "response_payload_schema": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
+        "response_payload_validation_manifest_schema": (
+            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID
+        ),
+        "response_payload_validation_row_schema": (
+            LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID
+        ),
+    }
+    for field_name, expected_schema_id in embedded_schema_ids.items():
+        embedded_schema = manifest.get(field_name, {})
+        if not isinstance(embedded_schema, Mapping):
+            errors.append(f"{field_name} must be object")
+            continue
+        observed_schema_id = str(embedded_schema.get("$id", "") or "")
+        if observed_schema_id != expected_schema_id:
+            errors.append(f"{field_name}.$id must equal {expected_schema_id}")
+    if bool(manifest.get("all_ok", False)):
+        if not rows:
+            errors.append("all_ok validation manifest must include at least one row")
+        if not all(bool(row.get("ok", False)) for row in rows):
+            errors.append("all_ok validation manifest cannot contain failed rows")
+        if _str_tuple(manifest.get("errors", [])):
+            errors.append("all_ok validation manifest must not carry errors")
+    return sorted(set(errors))
 
 
 def validate_llm_route_planner_response_payload_validation_row(

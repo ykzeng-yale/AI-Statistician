@@ -24,6 +24,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     validate_llm_route_planner_manifest,
     validate_llm_route_planner_request,
     validate_llm_route_planner_response_payload,
+    validate_llm_route_planner_response_payload_validation_manifest,
     validate_llm_route_planner_row,
 )
 from ai_statistician.formalization_gap_planner_component_resource_registry import (
@@ -4492,6 +4493,14 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert payload["response_payload_validation_row_schema"]["$id"] == (
         LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID
     )
+    manifest_schema = payload["response_payload_validation_manifest_schema"]
+    assert (
+        validate_llm_route_planner_response_payload_validation_manifest(
+            payload,
+            manifest_schema,
+        )
+        == []
+    )
     assert payload["n_payloads"] == 1
     assert payload["n_valid_payloads"] == 1
     assert payload["n_invalid_payloads"] == 0
@@ -4527,6 +4536,27 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
         out_dir
         / "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json"
     ).exists()
+    drifted_count_manifest = deepcopy(payload)
+    drifted_count_manifest["n_valid_payloads"] = 0
+    assert (
+        "n_valid_payloads must match rows with ok=true"
+        in validate_llm_route_planner_response_payload_validation_manifest(
+            drifted_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_schema_manifest = deepcopy(payload)
+    drifted_schema_manifest["response_payload_validation_row_schema"][
+        "$id"
+    ] = "urn:wrong-validation-row-schema"
+    assert (
+        "response_payload_validation_row_schema.$id must equal "
+        + LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID
+        in validate_llm_route_planner_response_payload_validation_manifest(
+            drifted_schema_manifest,
+            manifest_schema,
+        )
+    )
 
 
 def test_llm_route_planner_response_payload_validator_rejects_wrapper_payload() -> None:
