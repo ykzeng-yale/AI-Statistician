@@ -6535,6 +6535,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert (
         audit_payload[
+            "n_optional_llm_route_planner_seed_route_selection_schema_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_seed_route_selection_schema_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
             "n_optional_llm_route_planner_seed_route_selection_checked"
         ]
         == 1
@@ -6555,6 +6567,14 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert any(
         row["check_name"]
         == "optional_llm_route_planner_seed_route_selection_contract"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_seed_route_selection_schema_id"
+        and row["observed"]
+        == FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID
         and row["ok"]
         for row in audit_payload["checks"]
     )
@@ -6768,6 +6788,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         audit_payload[
             "n_optional_feedback_llm_route_planner_seed_route_selection_contract_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_seed_route_selection_schema_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_seed_route_selection_schema_valid"
         ]
         == 1
     )
@@ -7753,6 +7785,48 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
     )
     seed_payload = json.loads(seed_path.read_text(encoding="utf-8"))
+    seed_route_selection_schema_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner"
+        / "formalization_gap_planner_llm_route_planner_seed_route_selection.schema.json"
+    )
+    seed_route_selection_schema_payload = json.loads(
+        seed_route_selection_schema_path.read_text(encoding="utf-8")
+    )
+
+    corrupted_seed_route_selection_schema = json.loads(
+        json.dumps(seed_route_selection_schema_payload)
+    )
+    corrupted_seed_route_selection_schema["$id"] = "urn:wrong:seed-route-selection"
+    seed_route_selection_schema_path.write_text(
+        json.dumps(corrupted_seed_route_selection_schema, indent=2),
+        encoding="utf-8",
+    )
+    rejected_seed_route_selection_schema_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_seed_route_selection_schema_drift",
+        )
+    )
+    seed_route_selection_schema_checks = [
+        row
+        for row in rejected_seed_route_selection_schema_payload["checks"]
+        if row["check_name"]
+        == "optional_llm_route_planner_seed_route_selection_schema_id"
+    ]
+    assert seed_route_selection_schema_checks
+    assert not seed_route_selection_schema_checks[0]["ok"]
+    assert (
+        rejected_seed_route_selection_schema_payload[
+            "n_optional_llm_route_planner_seed_route_selection_schema_valid"
+        ]
+        == 0
+    )
+    seed_route_selection_schema_path.write_text(
+        json.dumps(seed_route_selection_schema_payload, indent=2),
+        encoding="utf-8",
+    )
 
     route_adoption_corrupted_seed = json.loads(json.dumps(seed_payload))
     route_adoption_corrupted_seed["routes"][0].pop(
