@@ -585,6 +585,7 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     source_snippets: tuple[dict[str, object], ...]
     realization_coverage_witness: dict[str, object]
     quality_control_obligations: dict[str, object]
+    feedback_loop_summary: dict[str, object]
     raw_response_text: str
     generator_metadata: dict[str, object]
     provider_failure: bool
@@ -1708,6 +1709,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "source_snippets",
             "realization_coverage_witness",
             "quality_control_obligations",
+            "feedback_loop_summary",
             "raw_response_text",
             "generator_metadata",
             "provider_failure",
@@ -1757,6 +1759,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                 "$ref": "#/$defs/realization_coverage_witness"
             },
             "quality_control_obligations": {"type": "object"},
+            "feedback_loop_summary": {"type": "object"},
             "raw_response_text": {"type": "string"},
             "generator_metadata": {"type": "object"},
             "provider_failure": {"type": "boolean"},
@@ -3622,6 +3625,7 @@ def _row_for_request(
     minimal_delta_plan = _dict_value(payload, "minimal_delta_plan")
     route_alignment_edges = _dict_tuple(payload.get("route_alignment_edges", []))
     context_packet = _dict_value(request, "context_packet")
+    feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     route_adoption_status, route_adoption_blockers = _route_adoption_readiness(
         request_errors=tuple(request_errors),
@@ -3637,10 +3641,7 @@ def _row_for_request(
         residual_interpretations=_dict_tuple(
             payload.get("residual_interpretations", [])
         ),
-        feedback_summary=_dict_value(
-            context_packet,
-            "feedback_loop_summary",
-        ),
+        feedback_summary=feedback_summary,
         omitted_cost_hint_primitives=_omitted_cost_hint_primitives(
             minimal_delta_plan,
             request,
@@ -3692,6 +3693,7 @@ def _row_for_request(
             alignment_edges=route_alignment_edges,
         ),
         quality_control_obligations=dict(quality_control_obligations),
+        feedback_loop_summary=dict(feedback_summary),
         raw_response_text=raw_text,
         generator_metadata=_jsonable_mapping(
             (response or {}).get("generator_metadata", {})
@@ -10227,6 +10229,16 @@ def _accepted_route_for_seed(
         ),
         key_fields=("hook_kind", "queries", "acceptance_record"),
     )
+    llm_refinement_hooks = _merge_dict_rows(
+        llm_refinement_hooks,
+        _llm_refinement_hooks_for_feedback_summary(
+            row.feedback_loop_summary,
+            selected_primitives=selected_primitives,
+            theorem_statement=str(route.get("theorem_statement", "")),
+            target_prover_family=row.target_prover_family,
+        ),
+        key_fields=("hook_kind", "queries", "acceptance_record"),
+    )
     llm_route_revision_triggers = _llm_route_revision_triggers_for_search_requests(
         row.search_requests,
     )
@@ -10258,6 +10270,14 @@ def _accepted_route_for_seed(
         llm_route_revision_triggers,
         _llm_route_revision_triggers_for_quality_control_obligations(
             row.quality_control_obligations,
+            selected_primitives=selected_primitives,
+        ),
+        key_fields=("trigger_kind", "condition", "next_action"),
+    )
+    llm_route_revision_triggers = _merge_dict_rows(
+        llm_route_revision_triggers,
+        _llm_route_revision_triggers_for_feedback_summary(
+            row.feedback_loop_summary,
             selected_primitives=selected_primitives,
         ),
         key_fields=("trigger_kind", "condition", "next_action"),
@@ -10313,6 +10333,7 @@ def _accepted_route_for_seed(
         "llm_route_planner_quality_control_obligations": dict(
             row.quality_control_obligations
         ),
+        "llm_route_planner_feedback_loop_summary": dict(row.feedback_loop_summary),
         "llm_route_planner_errors": list(row.errors),
         "llm_route_planner_generation_errors": list(row.generation_errors),
         "llm_route_planner_request_contract_blocked": (
@@ -11027,6 +11048,296 @@ def _quality_control_obligation_queries(
             theorem_statement if hook_kind == "proof_state_feedback" else "",
         ]
     )
+
+
+def _llm_refinement_hooks_for_feedback_summary(
+    feedback_summary: Mapping[str, object],
+    *,
+    selected_primitives: tuple[str, ...],
+    theorem_statement: str,
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    hooks: list[dict[str, object]] = []
+    for index, action in enumerate(
+        _dict_tuple(feedback_summary.get("recommended_next_actions", []))
+    ):
+        hook_kind = _hook_kind_for_llm_feedback_action(action)
+        queries = _feedback_action_queries(
+            action,
+            theorem_statement=theorem_statement,
+            hook_kind=hook_kind,
+        )
+        if not queries and not _planner_action_resource_refs(action):
+            continue
+        resource_binding_summary = _llm_resource_binding_summary(action)
+        hooks.append(
+            {
+                "hook_kind": hook_kind,
+                "recommended_tools": list(
+                    _recommended_tools_for_llm_hook(
+                        hook_kind,
+                        target_prover_family=target_prover_family,
+                    )
+                ),
+                "queries": list(queries),
+                "target_primitives": list(
+                    _target_primitives_for_llm_feedback_action(
+                        action,
+                        selected_primitives=selected_primitives,
+                    )
+                ),
+                "acceptance_record": _acceptance_record_for_llm_feedback_action(
+                    action,
+                    hook_kind,
+                ),
+                "llm_route_planner_feedback_next_action_index": index,
+                "llm_route_planner_feedback_next_action": dict(action),
+                "quality_controls": _quality_control_payload_for_feedback_action(
+                    action
+                ),
+                "resource_request_ids": list(
+                    resource_binding_summary["resource_request_ids"]
+                ),
+                "resource_ids": list(resource_binding_summary["resource_ids"]),
+                "resource_request_bindings": [
+                    dict(item)
+                    for item in resource_binding_summary["resource_request_bindings"]
+                ],
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    return _merge_dict_rows(
+        tuple(hooks),
+        tuple(),
+        key_fields=("hook_kind", "queries", "acceptance_record"),
+    )
+
+
+def _llm_route_revision_triggers_for_feedback_summary(
+    feedback_summary: Mapping[str, object],
+    *,
+    selected_primitives: tuple[str, ...],
+) -> tuple[dict[str, object], ...]:
+    triggers: list[dict[str, object]] = []
+    for index, action in enumerate(
+        _dict_tuple(feedback_summary.get("recommended_next_actions", []))
+    ):
+        hook_kind = _hook_kind_for_llm_feedback_action(action)
+        queries = _feedback_action_queries(
+            action,
+            theorem_statement="",
+            hook_kind=hook_kind,
+        )
+        if not queries and not _planner_action_resource_refs(action):
+            continue
+        resource_binding_summary = _llm_resource_binding_summary(action)
+        triggers.append(
+            {
+                "trigger_kind": _trigger_kind_for_llm_feedback_action(action, hook_kind),
+                "condition": "; ".join(queries)
+                or str(action.get("action", "")).strip()
+                or str(action.get("source", "")).strip(),
+                "next_action": _next_action_for_llm_hook(
+                    hook_kind,
+                    query="; ".join(queries),
+                ),
+                "target_primitives": list(
+                    _target_primitives_for_llm_feedback_action(
+                        action,
+                        selected_primitives=selected_primitives,
+                    )
+                ),
+                "llm_route_planner_feedback_next_action_index": index,
+                "llm_route_planner_feedback_next_action": dict(action),
+                "quality_controls": _quality_control_payload_for_feedback_action(
+                    action
+                ),
+                "resource_request_ids": list(
+                    resource_binding_summary["resource_request_ids"]
+                ),
+                "resource_ids": list(resource_binding_summary["resource_ids"]),
+                "resource_request_bindings": [
+                    dict(item)
+                    for item in resource_binding_summary["resource_request_bindings"]
+                ],
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+            }
+        )
+    return _merge_dict_rows(
+        tuple(triggers),
+        tuple(),
+        key_fields=("trigger_kind", "condition", "next_action"),
+    )
+
+
+def _hook_kind_for_llm_feedback_action(action: Mapping[str, object]) -> str:
+    refs = _structured_resource_refs(action)
+    text = _primitive_key(
+        " ".join(
+            [
+                *_feedback_action_text_values(action),
+                *refs.get("resource_ids", []),
+                *refs.get("tool_owner_ids", []),
+                *refs.get("resource_contract_ids", []),
+                str(action.get("source", "")),
+            ]
+        )
+    )
+    if any(
+        token in text
+        for token in (
+            "literature",
+            "source",
+            "paper",
+            "paperclip",
+            "paperqa",
+            "textbook",
+            "semantic_scholar",
+        )
+    ):
+        return "literature_discovery"
+    if any(
+        token in text
+        for token in (
+            "proof_state",
+            "prover",
+            "diagnostic",
+            "lean_lsp",
+            "lsp",
+            "lake",
+            "kernel",
+        )
+    ):
+        return "proof_state_feedback"
+    if any(token in text for token in ("lean_search", "leansearch", "leanfinder", "loogle")):
+        return "lean_library_grounding"
+    if any(
+        token in text
+        for token in (
+            "formal_library",
+            "formal_source",
+            "library",
+            "declaration",
+        )
+    ):
+        return "formal_library_grounding"
+    return "route_revision"
+
+
+def _trigger_kind_for_llm_feedback_action(
+    action: Mapping[str, object],
+    hook_kind: str,
+) -> str:
+    source = str(action.get("source", "")).strip()
+    action_name = str(action.get("action", "")).strip()
+    if source == "resource_request_queue":
+        return "queued_resource_response_required"
+    if action_name == "redispatch_resource_response_with_request_playbook":
+        return "resource_response_playbook_redispatch_required"
+    return _trigger_kind_for_llm_hook(hook_kind)
+
+
+def _acceptance_record_for_llm_feedback_action(
+    action: Mapping[str, object],
+    hook_kind: str,
+) -> str:
+    source = str(action.get("source", "")).strip()
+    action_name = str(action.get("action", "")).strip()
+    if source == "resource_request_queue":
+        return (
+            "dispatch the queued resource request and ledger an admissible "
+            "response before route adoption"
+        )
+    if action_name == "redispatch_resource_response_with_request_playbook":
+        return (
+            "redispatch the resource response with its request playbook and "
+            "validate grounding before route adoption"
+        )
+    return _acceptance_record_for_llm_hook(hook_kind)
+
+
+def _feedback_action_queries(
+    action: Mapping[str, object],
+    *,
+    theorem_statement: str,
+    hook_kind: str,
+) -> tuple[str, ...]:
+    return _str_tuple(
+        [
+            *_feedback_action_text_values(action),
+            theorem_statement if hook_kind == "proof_state_feedback" else "",
+        ]
+    )
+
+
+def _feedback_action_text_values(action: Mapping[str, object]) -> tuple[str, ...]:
+    values: list[str] = []
+    for field_name in (
+        "operator_prompt",
+        "execution_command",
+        "mcp_or_cli_hint",
+        "reason",
+        "action",
+        "request_phase",
+        "acceptance_gate",
+        "expected_response_artifact",
+        "response_summary",
+        "route_replan_handoff_id",
+        "route_revision_overlay_id",
+        "resource_request_id",
+    ):
+        values.extend(_str_tuple(action.get(field_name, [])))
+    for field_name in (
+        "acceptance_checklist",
+        "rejection_triggers",
+        "response_contract_fields",
+        "matched_response_contract_fields",
+        "missing_response_contract_fields",
+        "resource_contracts",
+        "commands",
+        "residual_goals",
+        "reasons",
+    ):
+        values.extend(_str_tuple(action.get(field_name, [])))
+    return _str_tuple(values)
+
+
+def _target_primitives_for_llm_feedback_action(
+    action: Mapping[str, object],
+    *,
+    selected_primitives: tuple[str, ...],
+) -> tuple[str, ...]:
+    explicit = _explicit_target_primitives_for_llm_row(
+        action,
+        selected_primitives=selected_primitives,
+    )
+    if explicit:
+        return explicit
+    text = _primitive_key(" ".join(_feedback_action_text_values(action)))
+    matched = [
+        primitive
+        for primitive in selected_primitives
+        if _primitive_key(primitive) and _primitive_key(primitive) in text
+    ]
+    return _str_tuple(matched or selected_primitives[:6])
+
+
+def _quality_control_payload_for_feedback_action(
+    action: Mapping[str, object],
+) -> dict[str, object]:
+    payload = _quality_control_payload_for_row(action)
+    resource_contracts = _str_tuple(action.get("resource_contracts", []))
+    if resource_contracts:
+        payload["resource_contract_ids"] = list(
+            dict.fromkeys(
+                [
+                    *_str_tuple(payload.get("resource_contract_ids", [])),
+                    *resource_contracts,
+                ]
+            )
+        )
+    return payload
 
 
 def _llm_resource_binding_summary(

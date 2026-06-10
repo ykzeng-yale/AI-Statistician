@@ -4834,6 +4834,46 @@ def test_llm_route_planner_blocks_route_adoption_on_feedback_redispatch_actions(
         "feedback_summary_actions_pending_resolution",
         "resource_response_playbook_redispatch_pending",
     }
+    redispatch_hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_feedback_next_action", {}).get("action")
+        == "redispatch_resource_response_with_request_playbook"
+    )
+    assert redispatch_hook["hook_kind"] == "literature_discovery"
+    assert redispatch_hook["llm_route_planner_feedback_next_action_index"] == 0
+    assert "route_revision_recommended" in " ".join(redispatch_hook["queries"])
+    assert any(
+        trigger.get("trigger_kind")
+        == "resource_response_playbook_redispatch_required"
+        for trigger in seed_route["route_revision_triggers"]
+    )
+
+    plan_dir = root / "standalone_plan_from_feedback_redispatch_seed"
+    refinement_queue_dir = root / "refinement_queue_from_feedback_redispatch_seed"
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    queue_payload = export_formalization_gap_planner_refinement_queue(
+        plan_dir,
+        refinement_queue_dir,
+    )
+    assert queue_payload["all_ok"]
+    redispatch_queue_row = next(
+        row
+        for row in queue_payload["rows"]
+        if row["hook_kind"] == "literature_discovery"
+        and row["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_feedback_next_action", {}
+        ).get("action")
+        == "redispatch_resource_response_with_request_playbook"
+    )
+    assert (
+        "resource_response_playbook_redispatch_required"
+        in redispatch_queue_row["trigger_kinds"]
+    )
 
 
 def test_llm_route_planner_blocks_route_adoption_on_pending_resource_request_queue() -> None:
@@ -4880,6 +4920,50 @@ def test_llm_route_planner_blocks_route_adoption_on_pending_resource_request_que
         "feedback_summary_actions_pending_resolution",
         "resource_request_queue_pending_response",
     }
+    seed_route = payload["standalone_seed"]["routes"][0]
+    queue_hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_feedback_next_action", {}).get("source")
+        == "resource_request_queue"
+    )
+    assert queue_hook["hook_kind"] == "literature_discovery"
+    assert queue_hook["resource_request_ids"] == ["resource-request:rank_route"]
+    assert "paperclip_cli_mcp" in queue_hook["resource_ids"]
+    assert queue_hook["quality_controls"]["resource_contract_ids"] == [
+        "paperclip:source_snippet_contract"
+    ]
+    assert queue_hook["llm_route_planner_feedback_next_action"][
+        "request_playbook_present"
+    ] is True
+    assert any(
+        trigger.get("trigger_kind") == "queued_resource_response_required"
+        for trigger in seed_route["route_revision_triggers"]
+    )
+
+    plan_dir = root / "standalone_plan_from_resource_queue_seed"
+    refinement_queue_dir = root / "refinement_queue_from_resource_queue_seed"
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    queue_payload = export_formalization_gap_planner_refinement_queue(
+        plan_dir,
+        refinement_queue_dir,
+    )
+    assert queue_payload["all_ok"]
+    queue_item = next(
+        item
+        for item in queue_payload["rows"]
+        if item["hook_kind"] == "literature_discovery"
+        and item["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_feedback_next_action", {}
+        ).get("source")
+        == "resource_request_queue"
+    )
+    assert queue_item["resource_request_ids"] == ("resource-request:rank_route",)
+    assert "queued_resource_response_required" in queue_item["trigger_kinds"]
 
 
 def test_llm_route_planner_accepts_candidate_declaration_rows_only_response() -> None:

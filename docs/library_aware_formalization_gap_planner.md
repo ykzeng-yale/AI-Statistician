@@ -423,7 +423,11 @@ same handoff rule applies to `uncertainty_flags` and
 `route_revision` hooks plus `llm_uncertainty_review_required` or
 `llm_semantic_alignment_review_required` triggers, and semantic-risk-only rows
 are labeled `ACCEPTED_WITH_SEMANTIC_ALIGNMENT_RISKS` instead of being mistaken
-for adoption-ready plans. The
+for adoption-ready plans. Feedback-loop `recommended_next_actions` are also
+materialized as hooks: queued resource requests carry
+`queued_resource_response_required`, and request-playbook redispatches carry
+`resource_response_playbook_redispatch_required`, with the original feedback
+action stored in the refinement-queue trace. The
 standalone seed and each
 standalone-plan `standalone_input_trace` preserve the same fields, so a public
 consumer can filter adoption-ready route plans without reopening raw LLM
