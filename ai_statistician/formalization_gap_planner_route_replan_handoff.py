@@ -11,6 +11,7 @@ from typing import Any
 
 from .fingerprint import stable_hash
 from .formalization_gap_planner_contract import (
+    LEGACY_FORMAL_REALIZATION_FIELD_ALIASES,
     LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
     PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY as PLANNER_PROOF_EVIDENCE_BOUNDARY,
@@ -241,6 +242,9 @@ def export_formalization_gap_planner_route_replan_handoff(
         ),
         "n_revised_informal_knowledge_dag_nodes": sum(
             len(row.revised_informal_knowledge_dag_nodes) for row in rows
+        ),
+        "legacy_formal_realization_field_aliases": dict(
+            LEGACY_FORMAL_REALIZATION_FIELD_ALIASES
         ),
         "n_revised_lean_realization_dag_nodes": sum(
             len(row.revised_lean_realization_dag_nodes) for row in rows

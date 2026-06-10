@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import Any
 
 from .fingerprint import stable_hash
+from .formalization_gap_planner_contract import (
+    LEGACY_FORMAL_REALIZATION_FIELD_ALIASES,
+)
 
 
 FORMALIZATION_GAP_PLANNER_ROUTE_REVISION_OVERLAY_SCHEMA_VERSION = 2
@@ -305,6 +308,9 @@ def export_formalization_gap_planner_route_revision_overlay(
         ),
         "n_informal_dag_nodes": sum(
             len(row.revised_informal_knowledge_dag_nodes) for row in rows
+        ),
+        "legacy_formal_realization_field_aliases": dict(
+            LEGACY_FORMAL_REALIZATION_FIELD_ALIASES
         ),
         "n_lean_realization_dag_nodes": sum(
             len(row.revised_lean_realization_dag_nodes) for row in rows

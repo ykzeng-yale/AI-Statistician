@@ -9,6 +9,7 @@ from typing import Any
 
 from .fingerprint import stable_hash
 from .formalization_gap_planner_contract import (
+    LEGACY_FORMAL_REALIZATION_FIELD_ALIASES,
     LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
     OPTIMIZATION_OBJECTIVES,
     PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
@@ -186,6 +187,9 @@ def export_formalization_gap_planner_standalone_plan(
         "planner_contract": planner_contract(library_snapshot_ref),
         "interactive_route_synthesis_contract": interactive_route_synthesis_contract(),
         "evaluation_protocol": evaluation_protocol(),
+        "legacy_formal_realization_field_aliases": dict(
+            LEGACY_FORMAL_REALIZATION_FIELD_ALIASES
+        ),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "standalone_input_schema_id": FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
         "standalone_input_path": str(input_json),

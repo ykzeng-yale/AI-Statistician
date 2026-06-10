@@ -4,6 +4,9 @@ import json
 import shutil
 from pathlib import Path
 
+from ai_statistician.formalization_gap_planner_contract import (
+    LEGACY_FORMAL_REALIZATION_FIELD_ALIASES,
+)
 from ai_statistician.formalization_gap_planner_refinement_adapters import (
     export_formalization_gap_planner_refinement_adapter_responses,
 )
@@ -166,6 +169,10 @@ def test_route_revision_overlay_applies_adapter_evidence_to_plan() -> None:
     assert (
         overlay_payload["route_revision_overlay_row_schema"]["$id"]
         == "urn:ai-statistician:schemas:formalization-gap-planner-route-revision-overlay-row:1"
+    )
+    assert (
+        overlay_payload["legacy_formal_realization_field_aliases"]
+        == LEGACY_FORMAL_REALIZATION_FIELD_ALIASES
     )
     assert overlay_payload["n_formal_realization_dag_nodes"] == overlay_payload[
         "n_lean_realization_dag_nodes"

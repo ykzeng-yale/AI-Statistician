@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 from ai_statistician.formalization_gap_planner_contract import (
+    LEGACY_FORMAL_REALIZATION_FIELD_ALIASES,
     PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
     PORTABLE_FORMALIZATION_GAP_PLAN_ROW_SCHEMA_ID,
     ROUTE_ALIGNMENT_EDGE_SCHEMA_ID,
@@ -99,6 +100,10 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
     assert payload["portable_schema_id"] == PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID
     assert payload["standalone_input_schema_id"] == FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID
     assert payload["target_prover_family"] == "rocq"
+    assert (
+        payload["legacy_formal_realization_field_aliases"]
+        == LEGACY_FORMAL_REALIZATION_FIELD_ALIASES
+    )
     assert payload["n_goal_plans"] == 1
     assert payload["n_existing_reuse_nodes"] == 1
     assert payload["n_wrapper_nodes"] == 1
@@ -685,12 +690,25 @@ def test_standalone_gap_planner_reports_mixed_route_targets() -> None:
     assert plan_payload["by_target_prover_family"] == {"lean4": 1, "rocq": 1}
     portable_schema = portable_gap_plan_json_schema()
     portable_props = portable_schema["properties"]
+    assert "legacy_formal_realization_field_aliases" in portable_schema["required"]
+    assert (
+        portable_props["legacy_formal_realization_field_aliases"]["properties"][
+            "lean_realization_dag_nodes"
+        ]["const"]
+        == "formal_realization_dag_nodes"
+    )
     assert portable_props["n_target_prover_families"]["type"] == "integer"
     assert (
         portable_props["by_target_prover_family"]["additionalProperties"]["type"]
         == "integer"
     )
     assert validate_portable_gap_plan_payload(plan_payload) == []
+    malformed_aliases = dict(plan_payload)
+    malformed_aliases["legacy_formal_realization_field_aliases"] = {}
+    assert (
+        "legacy_formal_realization_field_aliases does not match contract aliases"
+        in validate_portable_gap_plan_payload(malformed_aliases)
+    )
     malformed = dict(plan_payload)
     malformed["by_target_prover_family"] = {"lean4": 2}
     assert (

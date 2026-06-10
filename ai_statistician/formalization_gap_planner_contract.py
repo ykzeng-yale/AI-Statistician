@@ -73,6 +73,11 @@ LEGACY_ABLATION_ALIASES = {
     "no_lean_rag": "no_formal_grounding",
     "no_lsp_feedback": "no_proof_state_feedback",
 }
+LEGACY_FORMAL_REALIZATION_FIELD_ALIASES = {
+    "lean_realization_dag_nodes": "formal_realization_dag_nodes",
+    "lean_realization_dag_edges": "formal_realization_dag_edges",
+    "revised_lean_realization_dag_nodes": "revised_formal_realization_dag_nodes",
+}
 
 
 def planner_contract(library_snapshot_ref: str) -> dict[str, object]:
@@ -244,6 +249,7 @@ def portable_gap_plan_json_schema() -> dict[str, object]:
             "planner_contract",
             "interactive_route_synthesis_contract",
             "evaluation_protocol",
+            "legacy_formal_realization_field_aliases",
             "rows",
             "proof_evidence_status",
             "proof_evidence_boundary",
@@ -266,6 +272,14 @@ def portable_gap_plan_json_schema() -> dict[str, object]:
             "planner_contract": {"type": "object"},
             "interactive_route_synthesis_contract": {"type": "object"},
             "evaluation_protocol": {"type": "object"},
+            "legacy_formal_realization_field_aliases": {
+                "type": "object",
+                "required": sorted(LEGACY_FORMAL_REALIZATION_FIELD_ALIASES),
+                "properties": {
+                    key: {"type": "string", "const": value}
+                    for key, value in LEGACY_FORMAL_REALIZATION_FIELD_ALIASES.items()
+                },
+            },
             "n_goal_plans": {"type": "integer", "minimum": 0},
             "n_target_prover_families": {"type": "integer", "minimum": 0},
             "by_target_prover_family": {
@@ -784,6 +798,11 @@ def validate_portable_gap_plan_payload(payload: dict[str, Any]) -> list[str]:
     for field_name in ("interactive_route_synthesis_contract", "evaluation_protocol"):
         if not isinstance(payload.get(field_name), dict):
             errors.append(f"{field_name} missing")
+    aliases = payload.get("legacy_formal_realization_field_aliases")
+    if aliases != LEGACY_FORMAL_REALIZATION_FIELD_ALIASES:
+        errors.append(
+            "legacy_formal_realization_field_aliases does not match contract aliases"
+        )
     if not str(payload.get("library_snapshot_ref", "")):
         errors.append("library_snapshot_ref missing")
     if payload.get("proof_evidence_status") != PROOF_EVIDENCE_STATUS:

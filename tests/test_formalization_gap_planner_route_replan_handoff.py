@@ -10,6 +10,7 @@ from ai_statistician.formalization_gap_planner_route_replan_handoff import (
     validate_route_replan_handoff_row,
 )
 from ai_statistician.formalization_gap_planner_contract import (
+    LEGACY_FORMAL_REALIZATION_FIELD_ALIASES,
     LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
     PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
 )
@@ -231,6 +232,10 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert (
         payload["route_replan_handoff_row_schema"]["$id"]
         == "urn:ai-statistician:schemas:formalization-gap-planner-route-replan-handoff-row:1"
+    )
+    assert (
+        payload["legacy_formal_realization_field_aliases"]
+        == LEGACY_FORMAL_REALIZATION_FIELD_ALIASES
     )
     row = payload["rows"][0]
     assert row["requires_replan"]

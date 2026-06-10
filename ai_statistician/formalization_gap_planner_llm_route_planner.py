@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .formalization_gap_planner_contract import (
+    LEGACY_FORMAL_REALIZATION_FIELD_ALIASES,
+)
 from .formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
@@ -311,7 +314,9 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY_ID = (
 )
 LLM_ROUTE_PLANNER_MODEL_TIERS = ("auto", "haiku", "sonnet", "opus")
 LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES = {
-    "lean_realization_dag_nodes": "formal_realization_dag_nodes",
+    "lean_realization_dag_nodes": LEGACY_FORMAL_REALIZATION_FIELD_ALIASES[
+        "lean_realization_dag_nodes"
+    ],
 }
 SOURCE_SNIPPET_MIN_SUPPORT_TOKENS = 3
 SOURCE_SNIPPET_MIN_TWO_TOKEN_SUPPORT_CHARS = 18

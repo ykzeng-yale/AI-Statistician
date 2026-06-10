@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 from ai_statistician.formalization_gap_planner_contract import (
+    LEGACY_FORMAL_REALIZATION_FIELD_ALIASES,
     validate_portable_gap_plan_payload,
 )
 from ai_statistician.goal_conditioned_minimal_formalization_plan import (
@@ -87,6 +88,10 @@ def test_goal_conditioned_plan_preserves_route_target_prover_family() -> None:
     assert payload["all_ok"]
     assert payload["target_prover_family"] == "rocq"
     assert payload["by_target_prover_family"] == {"rocq": 1}
+    assert (
+        payload["legacy_formal_realization_field_aliases"]
+        == LEGACY_FORMAL_REALIZATION_FIELD_ALIASES
+    )
     assert payload["n_formal_realization_dag_nodes"] > 0
     assert payload["n_formal_realization_dag_edges"] > 0
     assert payload["n_lean_realization_dag_nodes"] == 0

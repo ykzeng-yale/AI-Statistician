@@ -10,6 +10,7 @@ from typing import Any
 
 from .fingerprint import stable_hash
 from .formalization_gap_planner_contract import (
+    LEGACY_FORMAL_REALIZATION_FIELD_ALIASES,
     portable_gap_plan_row_json_schema,
     route_alignment_edge_json_schema,
     validate_portable_gap_plan_row,
@@ -240,6 +241,9 @@ def export_goal_conditioned_minimal_formalization_plan(
         ),
         "interactive_route_synthesis_contract": _interactive_route_synthesis_contract(),
         "evaluation_protocol": _evaluation_protocol(),
+        "legacy_formal_realization_field_aliases": dict(
+            LEGACY_FORMAL_REALIZATION_FIELD_ALIASES
+        ),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "formalization_delta_plan_dir": str(formalization_delta_plan_dir),
         "formalization_delta_plan_manifest": str(delta_manifest_path),
