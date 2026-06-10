@@ -6296,6 +6296,38 @@ def test_llm_route_planner_rejects_source_backed_node_without_source_ref() -> No
     assert any("SOURCE_BACKED requires grounded source_refs" in error for error in row["errors"])
 
 
+def test_llm_route_planner_rejects_source_backed_primitive_without_source_ref() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_source_backed_primitive_without_ref"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    rank_primitive = bad_response["standalone_route"]["primitives"][1]
+    rank_primitive["source_search_status"] = "SOURCE_BACKED"
+    rank_primitive["source_refs"] = []
+    rank_primitive["source_snippets"] = []
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "standalone_route.primitives[1] SOURCE_BACKED requires primitive-level"
+        in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_search_requested_without_search_request() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_search_status_without_request"

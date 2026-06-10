@@ -165,7 +165,10 @@ route synthesis. Accepted LLM rows must include
 source-grounded informal DAG nodes, formal-realization DAG nodes, alignment
 rationales, a minimality rationale, a versioned minimal-delta cost witness, and
 an explicit proof-evidence boundary; `kernel_verified=true` claims are
-rejected. Each row also carries a `realization_coverage_witness` summarizing
+rejected. Primitive-level `SOURCE_BACKED` claims in `standalone_route` must
+carry primitive-level `source_refs` or `source_snippets`; broad route-level
+source refs do not silently certify each primitive. Each row also carries a
+`realization_coverage_witness` summarizing
 whether the selected primitives have standalone-route nodes and formal
 realization nodes, whether delta primitives have route-alignment edges, and
 whether any introduced primitive lacks an alignment edge. The witness also

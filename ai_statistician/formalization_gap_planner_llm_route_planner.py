@@ -2324,6 +2324,7 @@ def _user_prompt(
             "standalone_route.theorem_statement must preserve the requested target theorem identity; route repairs may add explicit side-condition notes but must not switch to a different theorem.",
             "Every informal DAG node must have source_refs, a source_search_status, or a formal_gap_boundary.",
             "SOURCE_BACKED claims may cite only source_refs listed in context_packet.available_source_refs.",
+            "Any standalone_route primitive marked SOURCE_BACKED must carry primitive-level source_refs or source_snippets; route-level source_refs do not silently justify that primitive.",
             "When context_packet.available_source_snippets contains relevant excerpts, reuse those source_snippets in informal DAG nodes or standalone_route primitives instead of paraphrasing unsupported evidence.",
             "source_snippets may cite only source_refs listed in context_packet.available_source_refs.",
             "Partial source_snippets are checked against both their own target_primitives and their enclosing informal/route primitive scope; omitting target_primitives inside a primitive-specific node does not make the source evidence support that primitive.",
@@ -5941,6 +5942,20 @@ def _response_source_ref_grounding_errors(
         if status == "source_backed" and not refs:
             errors.append(
                 f"informal_knowledge_dag_nodes[{index}] SOURCE_BACKED requires grounded source_refs"
+            )
+    route = _dict_value(payload, "standalone_route")
+    for index, primitive in enumerate(_dict_tuple(route.get("primitives", []))):
+        status = _source_ref_key(primitive.get("source_search_status", ""))
+        refs = _str_tuple(
+            [
+                *_str_tuple(primitive.get("source_refs", [])),
+                *_source_refs_from_snippets(primitive.get("source_snippets", [])),
+            ]
+        )
+        if status == "source_backed" and not refs:
+            errors.append(
+                "standalone_route.primitives"
+                f"[{index}] SOURCE_BACKED requires primitive-level source_refs or source_snippets"
             )
     return errors
 
