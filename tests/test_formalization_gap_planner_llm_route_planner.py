@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from copy import deepcopy
 from pathlib import Path
 
 from ai_statistician.cli import main
@@ -1039,6 +1040,7 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["invoke_provider"] is False
     assert payload["by_request_model_tier"] == {"sonnet": 1}
     assert payload["n_request_packets"] == 1
+    assert payload["n_requests_with_context_packet_inventory"] == 1
     assert payload["n_requests_with_available_source_snippets"] == 1
     assert payload["n_request_available_source_snippets"] == 1
     assert payload["n_requests_with_minimal_delta_cost_hints"] == 1
@@ -1068,24 +1070,51 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     )
     assert "minimal_delta_cost_policy" in request["prompt_messages"]["user"]
     assert "primitive_costs" in request["prompt_messages"]["user"]
-    assert request["context_packet"]["current_route"]["route_id"] == "rank_route"
-    assert "conformal_prediction_textbook" in set(
-        request["context_packet"]["available_source_refs"]
+    context = request["context_packet"]
+    assert context["current_route"]["route_id"] == "rank_route"
+    inventory = context["context_packet_inventory"]
+    assert inventory["inventory_kind"] == (
+        "formalization_gap_planner_llm_route_planner_context_packet_inventory"
     )
-    assert request["context_packet"]["available_source_snippets"][0][
+    assert inventory["proof_evidence_boundary"] == PROOF_EVIDENCE_BOUNDARY
+    assert payload["n_request_context_inventory_total_rows"] == inventory[
+        "total_context_rows"
+    ]
+    assert inventory["row_counts"]["target_intake_rows"] == len(
+        context["target_intake_rows"]
+    )
+    assert inventory["row_counts"]["library_coverage_rows"] == len(
+        context["library_coverage_rows"]
+    )
+    assert inventory["available_source_snippet_count"] == len(
+        context["available_source_snippets"]
+    )
+    assert inventory["resource_request_playbook_count"] == 0
+    assert inventory["primitive_cost_hint_count"] == 2
+    assert inventory["route_option_cost_hint_count"] == 1
+    assert inventory["feedback_loop_summary_present"] is bool(
+        context["feedback_loop_summary"]
+    )
+    assert "conformal_prediction_textbook" in set(
+        context["available_source_refs"]
+    )
+    assert context["available_source_snippets"][0][
         "source_ref"
     ] == "conformal_prediction_textbook"
-    assert "Exchangeability implies a uniform rank statistic" in request["context_packet"][
+    assert "Exchangeability implies a uniform rank statistic" in context[
         "available_source_snippets"
     ][0]["claim"]
     assert "Probability.exchangeable" in set(
-        request["context_packet"]["available_formal_declarations"]
+        context["available_formal_declarations"]
     )
-    declaration_rows = request["context_packet"]["available_formal_declaration_rows"]
+    declaration_rows = context["available_formal_declaration_rows"]
+    assert inventory["available_formal_declaration_row_count"] == len(
+        declaration_rows
+    )
     assert {
         (row["declaration"], row["target_prover_family"]) for row in declaration_rows
     } >= {("Probability.exchangeable", "lean4")}
-    cost_hints = request["context_packet"]["minimal_delta_cost_hints"]
+    cost_hints = context["minimal_delta_cost_hints"]
     assert cost_hints["cost_policy_id"] == (
         "formalization_gap_planner_minimal_delta_cost_policy:1"
     )
@@ -1103,6 +1132,7 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert "available_formal_declarations" in request["prompt_messages"]["user"]
     assert "minimal_delta_cost_hints" in request["prompt_messages"]["user"]
     assert "minimum_base_cost" in request["prompt_messages"]["user"]
+    assert "context_packet_inventory" in request["prompt_messages"]["user"]
     assert (
         out_dir
         / "formalization_gap_planner_llm_route_planner_manifest.json"
@@ -1137,6 +1167,15 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
     )
     assert validate_llm_route_planner_request(request) == []
+    drifted_inventory_request = deepcopy(request)
+    drifted_inventory_request["context_packet"]["context_packet_inventory"][
+        "available_source_snippet_count"
+    ] = 999
+    assert (
+        "context_packet.context_packet_inventory.available_source_snippet_count "
+        "must match context_packet"
+        in validate_llm_route_planner_request(drifted_inventory_request)
+    )
     drifted_request = dict(request)
     drifted_request["llm_generation_policy"] = {
         **generation_policy,
@@ -1970,6 +2009,10 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     assert payload["n_request_available_source_snippets"] >= 2
     request = payload["request_packets"][0]
     context = request["context_packet"]
+    inventory = context["context_packet_inventory"]
+    assert inventory["row_counts"]["resource_response_ledger_rows"] == 1
+    assert inventory["residual_goal_count"] == 1
+    assert inventory["feedback_loop_summary_replan_required"] is True
     ledger_row = context["resource_response_ledger_rows"][0]
     assert ledger_row["response_present"] is True
     assert ledger_row["response_contract_ok"] is True
@@ -2842,6 +2885,10 @@ def test_llm_route_planner_stages_pending_resource_request_queue() -> None:
     assert payload["n_requests_with_feedback_loop_summary"] == 1
     request = payload["request_packets"][0]
     context = request["context_packet"]
+    inventory = context["context_packet_inventory"]
+    assert inventory["row_counts"]["resource_request_queue_rows"] == 1
+    assert inventory["resource_request_playbook_count"] == 1
+    assert inventory["feedback_loop_summary_recommended_next_action_count"] >= 1
     queue_row = context["resource_request_queue_rows"][0]
     assert queue_row["resource_request_id"] == "resource-request:rank_route"
     assert queue_row["resource_id"] == "paperclip_cli_mcp"

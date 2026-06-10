@@ -397,6 +397,16 @@ adds explicit repair actions for missing formal realization nodes or missing
 route-alignment edges. It does not replace raw rows and is not proof evidence;
 it gives the LLM planner a compact view of what changed and what still needs
 search, library grounding, proof-state feedback, or route revision.
+Each request packet also includes `context_packet.context_packet_inventory`, a
+validator-checked compact inventory of the same prompt context: row counts for
+target intake, source grounding, library coverage, resource queues, response
+ledgers, refinement evidence, route revisions, interactive decisions, and goal
+plans, plus counts for residual goals, source snippets, formal declarations,
+resource playbooks, cost hints, registry resources, feedback actions, and
+quality-control obligations. The inventory is only a navigation aid for the LLM
+and downstream auditors; raw `context_packet` rows remain the source of truth,
+and request validation rejects inventory drift when counts disagree with the
+raw packet.
 Admissible resource-response and refinement-evidence `coverage_updates` also
 feed the next request's `minimal_delta_cost_hints`. A declaration hit therefore
 does not by itself lower the route cost to exact reuse: if accepted feedback

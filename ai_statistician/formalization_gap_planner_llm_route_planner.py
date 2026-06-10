@@ -128,6 +128,22 @@ QUALITY_CONTROL_FIELDS = (
     "response_validation_signals",
     "stop_conditions",
 )
+CONTEXT_PACKET_INVENTORY_KIND = (
+    "formalization_gap_planner_llm_route_planner_context_packet_inventory"
+)
+CONTEXT_PACKET_ROW_FIELDS = (
+    "target_intake_rows",
+    "library_coverage_rows",
+    "source_grounding_rows",
+    "resource_request_queue_rows",
+    "resource_response_ledger_rows",
+    "refinement_evidence_rows",
+    "route_revision_overlay_rows",
+    "route_replan_handoff_rows",
+    "interactive_session_rows",
+    "interactive_decision_policy_rows",
+    "current_goal_plan_rows",
+)
 ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID = (
     "formalization_gap_planner_route_adoption_blocker_taxonomy:1"
 )
@@ -775,6 +791,24 @@ def export_formalization_gap_planner_llm_route_planner(
         "invoke_provider": invoke_provider,
         "n_routes": len(routes),
         "n_request_packets": len(request_packets),
+        "n_requests_with_context_packet_inventory": sum(
+            1
+            for packet in request_packets
+            if _dict_value(
+                _dict_value(packet, "context_packet"),
+                "context_packet_inventory",
+            )
+        ),
+        "n_request_context_inventory_total_rows": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "context_packet_inventory",
+                ).get("total_context_rows", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
         "n_requests_with_available_source_snippets": sum(
             1
             for packet in request_packets
@@ -2009,6 +2043,7 @@ def validate_llm_route_planner_request(
         if mismatch:
             errors.append(str(mismatch["error"]))
     errors.extend(_llm_generation_policy_errors(row))
+    errors.extend(_context_packet_inventory_errors(row))
     return sorted(set(errors))
 
 
@@ -2269,6 +2304,10 @@ def _request_packet(
         context_packet,
         residual_goals=residual_goals,
     )
+    context_packet["context_packet_inventory"] = _context_packet_inventory(
+        context_packet,
+        residual_goals=residual_goals,
+    )
     selected_model_tier, model_selection_rationale = (
         _llm_route_planner_model_tier_decision(
             route,
@@ -2323,6 +2362,174 @@ def _request_packet(
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         "prompt_fingerprint": stable_hash(prompt_messages),
     }
+
+
+def _context_packet_inventory(
+    context_packet: Mapping[str, Any],
+    *,
+    residual_goals: tuple[str, ...],
+) -> dict[str, object]:
+    row_counts = {
+        field_name: len(_dict_tuple(context_packet.get(field_name, [])))
+        for field_name in CONTEXT_PACKET_ROW_FIELDS
+    }
+    feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    cost_hints = _dict_value(context_packet, "minimal_delta_cost_hints")
+    registry_context = _dict_value(
+        context_packet,
+        "component_resource_registry_context",
+    )
+    quality_control_obligations = _quality_control_obligation_summary(context_packet)
+    return {
+        "inventory_kind": CONTEXT_PACKET_INVENTORY_KIND,
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "row_counts": row_counts,
+        "total_context_rows": sum(row_counts.values()),
+        "residual_goal_count": len(residual_goals),
+        "available_source_ref_count": len(
+            _str_tuple(context_packet.get("available_source_refs", []))
+        ),
+        "available_source_snippet_count": len(
+            _dict_tuple(context_packet.get("available_source_snippets", []))
+        ),
+        "available_formal_declaration_count": len(
+            _str_tuple(context_packet.get("available_formal_declarations", []))
+        ),
+        "available_formal_declaration_row_count": len(
+            _dict_tuple(context_packet.get("available_formal_declaration_rows", []))
+        ),
+        "resource_request_playbook_count": len(
+            _dict_tuple(context_packet.get("resource_request_playbooks", []))
+        ),
+        "primitive_cost_hint_count": len(
+            _dict_tuple(cost_hints.get("primitive_cost_hints", []))
+        ),
+        "route_option_cost_hint_count": len(
+            _dict_tuple(cost_hints.get("route_option_hints", []))
+        ),
+        "component_resource_count": len(
+            _dict_tuple(registry_context.get("resource_rows", []))
+        ),
+        "component_resource_contract_count": len(
+            _dict_tuple(registry_context.get("resource_contract_rows", []))
+        ),
+        "feedback_loop_summary_present": bool(feedback_summary),
+        "feedback_loop_summary_replan_required": bool(
+            feedback_summary.get("replan_required", False)
+        ),
+        "feedback_loop_summary_recommended_next_action_count": len(
+            _dict_tuple(feedback_summary.get("recommended_next_actions", []))
+        ),
+        "quality_control_obligation_present": bool(
+            quality_control_obligations.get("present", False)
+        ),
+    }
+
+
+def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
+    context_packet = _dict_value(row, "context_packet")
+    inventory = _dict_value(context_packet, "context_packet_inventory")
+    if not inventory:
+        return []
+    errors: list[str] = []
+    if inventory.get("inventory_kind") != CONTEXT_PACKET_INVENTORY_KIND:
+        errors.append(
+            "context_packet.context_packet_inventory.inventory_kind must equal "
+            + CONTEXT_PACKET_INVENTORY_KIND
+        )
+    row_counts = _dict_value(inventory, "row_counts")
+    total_context_rows = 0
+    for field_name in CONTEXT_PACKET_ROW_FIELDS:
+        expected_count = len(_dict_tuple(context_packet.get(field_name, [])))
+        actual_count = int(row_counts.get(field_name, 0) or 0)
+        total_context_rows += expected_count
+        if actual_count != expected_count:
+            errors.append(
+                "context_packet.context_packet_inventory.row_counts."
+                f"{field_name} must match context_packet.{field_name}"
+            )
+    if int(inventory.get("total_context_rows", 0) or 0) != total_context_rows:
+        errors.append(
+            "context_packet.context_packet_inventory.total_context_rows must "
+            "match summed context row counts"
+        )
+    scalar_count_checks = (
+        (
+            "residual_goal_count",
+            len(_str_tuple(context_packet.get("residual_goals", []))),
+        ),
+        (
+            "available_source_ref_count",
+            len(_str_tuple(context_packet.get("available_source_refs", []))),
+        ),
+        (
+            "available_source_snippet_count",
+            len(_dict_tuple(context_packet.get("available_source_snippets", []))),
+        ),
+        (
+            "available_formal_declaration_count",
+            len(_str_tuple(context_packet.get("available_formal_declarations", []))),
+        ),
+        (
+            "available_formal_declaration_row_count",
+            len(
+                _dict_tuple(
+                    context_packet.get("available_formal_declaration_rows", [])
+                )
+            ),
+        ),
+        (
+            "resource_request_playbook_count",
+            len(_dict_tuple(context_packet.get("resource_request_playbooks", []))),
+        ),
+    )
+    for field_name, expected_count in scalar_count_checks:
+        if int(inventory.get(field_name, 0) or 0) != expected_count:
+            errors.append(
+                "context_packet.context_packet_inventory."
+                f"{field_name} must match context_packet"
+            )
+    cost_hints = _dict_value(context_packet, "minimal_delta_cost_hints")
+    if int(inventory.get("primitive_cost_hint_count", 0) or 0) != len(
+        _dict_tuple(cost_hints.get("primitive_cost_hints", []))
+    ):
+        errors.append(
+            "context_packet.context_packet_inventory.primitive_cost_hint_count "
+            "must match context_packet.minimal_delta_cost_hints"
+        )
+    if int(inventory.get("route_option_cost_hint_count", 0) or 0) != len(
+        _dict_tuple(cost_hints.get("route_option_hints", []))
+    ):
+        errors.append(
+            "context_packet.context_packet_inventory.route_option_cost_hint_count "
+            "must match context_packet.minimal_delta_cost_hints"
+        )
+    feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    if bool(inventory.get("feedback_loop_summary_present", False)) != bool(
+        feedback_summary
+    ):
+        errors.append(
+            "context_packet.context_packet_inventory.feedback_loop_summary_present "
+            "must match context_packet.feedback_loop_summary"
+        )
+    if bool(inventory.get("feedback_loop_summary_replan_required", False)) != bool(
+        feedback_summary.get("replan_required", False)
+    ):
+        errors.append(
+            "context_packet.context_packet_inventory."
+            "feedback_loop_summary_replan_required must match "
+            "context_packet.feedback_loop_summary"
+        )
+    if int(
+        inventory.get("feedback_loop_summary_recommended_next_action_count", 0) or 0
+    ) != len(_dict_tuple(feedback_summary.get("recommended_next_actions", []))):
+        errors.append(
+            "context_packet.context_packet_inventory."
+            "feedback_loop_summary_recommended_next_action_count must match "
+            "context_packet.feedback_loop_summary"
+        )
+    return errors
 
 
 def _output_contract_for_target_prover(target_prover_family: str) -> dict[str, object]:
@@ -2394,6 +2601,7 @@ def _user_prompt(
             "search_requests.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
             "Every planner_next_actions row must include owner and action, and the row must resolve to a supported literature/formal-library/proof-state/route-revision hook family.",
             "planner_next_actions.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
+            "Use context_packet.context_packet_inventory as the compact inventory of available evidence and feedback rows; raw context_packet rows remain the source of truth if a count is surprising.",
             "Use context_packet.component_resource_registry_context only to choose bounded search/prover next actions; registry rows are not evidence that a tool was called.",
             "When context_packet.feedback_loop_summary is present, treat it as the route-repair brief derived from raw residual/resource/interactive rows; it is planning context, not proof evidence.",
             "When context_packet.route_replan_handoff_rows is present, preserve its applied evidence ids, quality controls, and next_commands as prior handoff context; route-replan handoff rows are planning input, not proof evidence.",
