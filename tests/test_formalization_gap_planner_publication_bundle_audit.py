@@ -6622,11 +6622,36 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         ]
         == 1
     )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_seed_route_selection_candidates"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_seed_route_selection_adoptable_candidates"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_seed_route_selection_selected_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_seed_route_selection_selected_not_adoptable"
+        ]
+        == 1
+    )
     assert any(
         row["check_name"]
         == "optional_llm_route_planner_seed_route_selection_summary"
         and row["ok"]
         and "selected=1" in row["observed"]
+        and "selected_not_adoptable=1" in row["observed"]
         for row in audit_payload["checks"]
     )
     assert any(
@@ -6877,6 +6902,30 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         audit_payload[
             "n_optional_feedback_llm_route_planner_seed_route_selection_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_seed_route_selection_candidates"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_seed_route_selection_adoptable_candidates"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_seed_route_selection_selected_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_seed_route_selection_selected_not_adoptable"
         ]
         == 1
     )
@@ -8081,9 +8130,15 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     selection_corrupted_seed["routes"][0][
         "llm_route_planner_seed_minimal_delta_route_cost"
     ] = 999
+    selection_corrupted_seed["routes"][0][
+        "llm_route_planner_seed_adoptable_for_standalone_replay"
+    ] = True
     selection_corrupted_seed["routes"][0]["replan_metadata"][
         "llm_route_planner_seed_selection_rank"
     ] = 2
+    selection_corrupted_seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_seed_adoptable_for_standalone_replay"
+    ] = True
     seed_path.write_text(
         json.dumps(selection_corrupted_seed, indent=2),
         encoding="utf-8",

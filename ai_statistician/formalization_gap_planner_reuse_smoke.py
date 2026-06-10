@@ -3244,6 +3244,22 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_optional_llm_route_planner_seed_route_selection_valid",
             0,
         ),
+        "n_publication_bundle_optional_llm_route_planner_seed_route_selection_candidates": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_seed_route_selection_candidates",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_seed_route_selection_adoptable_candidates": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_seed_route_selection_adoptable_candidates",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_seed_route_selection_selected_adoptable": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_seed_route_selection_selected_adoptable",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_seed_route_selection_selected_not_adoptable": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_seed_route_selection_selected_not_adoptable",
+            0,
+        ),
         "n_publication_bundle_optional_feedback_llm_route_planner_request_schema_checked": publication_bundle_audit_payload.get(
             "n_optional_feedback_llm_route_planner_request_schema_checked",
             0,
@@ -3354,6 +3370,22 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_valid": publication_bundle_audit_payload.get(
             "n_optional_feedback_llm_route_planner_seed_route_selection_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_candidates": publication_bundle_audit_payload.get(
+            "n_optional_feedback_llm_route_planner_seed_route_selection_candidates",
+            0,
+        ),
+        "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_adoptable_candidates": publication_bundle_audit_payload.get(
+            "n_optional_feedback_llm_route_planner_seed_route_selection_adoptable_candidates",
+            0,
+        ),
+        "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_selected_adoptable": publication_bundle_audit_payload.get(
+            "n_optional_feedback_llm_route_planner_seed_route_selection_selected_adoptable",
+            0,
+        ),
+        "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_selected_not_adoptable": publication_bundle_audit_payload.get(
+            "n_optional_feedback_llm_route_planner_seed_route_selection_selected_not_adoptable",
             0,
         ),
         "n_publication_bundle_optional_llm_route_planner_response_payload_validation_manifest_contract_checked": publication_bundle_audit_payload.get(
@@ -6379,6 +6411,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_optional_llm_route_planner_seed_route_selection_contract_checked')} "
             f"{payload.get('n_publication_bundle_optional_llm_route_planner_seed_route_selection_summary_valid')}/"
             f"{payload.get('n_publication_bundle_optional_llm_route_planner_seed_route_selection_summary_checked')} "
+            f"adoptable={payload.get('n_publication_bundle_optional_llm_route_planner_seed_route_selection_adoptable_candidates')}/"
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_seed_route_selection_candidates')} "
+            f"selected_adoptable={payload.get('n_publication_bundle_optional_llm_route_planner_seed_route_selection_selected_adoptable')} "
+            f"selected_not_adoptable={payload.get('n_publication_bundle_optional_llm_route_planner_seed_route_selection_selected_not_adoptable')} "
             f"traces={payload.get('n_publication_bundle_optional_llm_route_planner_seed_route_selection_valid')}/"
             f"{payload.get('n_publication_bundle_optional_llm_route_planner_seed_route_selection_checked')} "
             f"feedback_schema={payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_schema_valid')}/"
@@ -6387,6 +6423,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_contract_checked')} "
             f"feedback={payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_summary_valid')}/"
             f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_summary_checked')} "
+            f"feedback_adoptable={payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_adoptable_candidates')}/"
+            f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_candidates')} "
+            f"feedback_selected_adoptable={payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_selected_adoptable')} "
+            f"feedback_selected_not_adoptable={payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_selected_not_adoptable')} "
             f"feedback_traces={payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_valid')}/"
             f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_checked')}"
         ),

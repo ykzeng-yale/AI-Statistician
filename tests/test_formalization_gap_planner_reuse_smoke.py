@@ -791,6 +791,30 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_route_selection_candidates"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_route_selection_adoptable_candidates"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_route_selection_selected_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_route_selection_selected_not_adoptable"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_publication_bundle_optional_feedback_llm_route_planner_request_schema_valid"
         ]
         == payload[
@@ -887,6 +911,30 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_checked"
         ]
         == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_candidates"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_adoptable_candidates"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_selected_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_selected_not_adoptable"
+        ]
+        == 1
     )
     assert (
         payload[
@@ -3263,6 +3311,30 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         == 1
     )
     assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_route_selection_candidates"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_route_selection_adoptable_candidates"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_route_selection_selected_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_route_selection_selected_not_adoptable"
+        ]
+        == 1
+    )
+    assert (
         payload["n_publication_bundle_optional_feedback_llm_route_planner_row_schema_valid"]
         == payload["n_publication_bundle_optional_feedback_llm_route_planner_row_schema_checked"]
         == 1
@@ -3354,6 +3426,30 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload[
             "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_candidates"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_adoptable_candidates"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_selected_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_selection_selected_not_adoptable"
         ]
         == 1
     )

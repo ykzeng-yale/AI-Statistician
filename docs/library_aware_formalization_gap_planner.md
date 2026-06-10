@@ -593,6 +593,10 @@ LLM seed selection also publishes
 boolean is copied to route-level seed metadata and standalone-plan traces. This
 keeps "best available seed for replay/audit" separate from "route is ready to
 adopt without further evidence."
+Publication-bundle audits and reuse-smoke reports lift the same seed-selection
+counts as first-class fields, including candidate count, adoptable candidates,
+selected-adoptable, and selected-not-adoptable, so external consumers can gate
+route adoption without opening nested seed artifacts.
 Publication and reuse-smoke LLM-route summaries also surface
 `n_route_adoption_pending_formal_gap_boundary_blockers`, keeping declared
 formal-boundary gaps visible beside source-grounding, quality-control,

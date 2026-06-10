@@ -460,6 +460,18 @@ def audit_formalization_gap_planner_publication_bundle(
             optional_ablation_study_rows
         )
     )
+    optional_llm_seed_route_selection_counts = (
+        _optional_llm_seed_route_selection_counts(
+            bundle_dir,
+            artifact_name="formalization_gap_planner_llm_route_planner",
+        )
+    )
+    optional_feedback_llm_seed_route_selection_counts = (
+        _optional_llm_seed_route_selection_counts(
+            bundle_dir,
+            artifact_name="formalization_gap_planner_feedback_llm_route_planner",
+        )
+    )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_AUDIT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1204,6 +1216,18 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_seed_route_selection")
             and check.ok
         ),
+        "n_optional_llm_route_planner_seed_route_selection_candidates": optional_llm_seed_route_selection_counts[
+            "n_route_candidates"
+        ],
+        "n_optional_llm_route_planner_seed_route_selection_adoptable_candidates": optional_llm_seed_route_selection_counts[
+            "n_adoptable_route_candidates"
+        ],
+        "n_optional_llm_route_planner_seed_route_selection_selected_adoptable": optional_llm_seed_route_selection_counts[
+            "n_selected_route_adoptable_for_standalone_replay"
+        ],
+        "n_optional_llm_route_planner_seed_route_selection_selected_not_adoptable": optional_llm_seed_route_selection_counts[
+            "n_selected_route_candidates_not_adoptable"
+        ],
         "n_optional_llm_route_planner_generic_formal_dag_checked": sum(
             1
             for check in checks
@@ -1561,6 +1585,18 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_seed_route_selection")
             and check.ok
         ),
+        "n_optional_feedback_llm_route_planner_seed_route_selection_candidates": optional_feedback_llm_seed_route_selection_counts[
+            "n_route_candidates"
+        ],
+        "n_optional_feedback_llm_route_planner_seed_route_selection_adoptable_candidates": optional_feedback_llm_seed_route_selection_counts[
+            "n_adoptable_route_candidates"
+        ],
+        "n_optional_feedback_llm_route_planner_seed_route_selection_selected_adoptable": optional_feedback_llm_seed_route_selection_counts[
+            "n_selected_route_adoptable_for_standalone_replay"
+        ],
+        "n_optional_feedback_llm_route_planner_seed_route_selection_selected_not_adoptable": optional_feedback_llm_seed_route_selection_counts[
+            "n_selected_route_candidates_not_adoptable"
+        ],
         "n_optional_feedback_llm_route_planner_generic_formal_dag_checked": sum(
             1
             for check in checks
@@ -9481,6 +9517,27 @@ def _llm_seed_route_selection_summary_errors(
         errors.append(
             f"seed route-selection summary must select exactly one route, found {len(selected_rows)}"
         )
+    adoptable_count = _int_or_none(selection.get("n_adoptable_route_candidates"))
+    computed_adoptable_count = sum(
+        1
+        for row in selection_rows
+        if bool(row.get("adoptable_for_standalone_replay", False))
+    )
+    if adoptable_count != computed_adoptable_count:
+        errors.append("seed route-selection adoptable candidate count mismatch")
+    selected_not_adoptable_count = _int_or_none(
+        selection.get("n_selected_route_candidates_not_adoptable")
+    )
+    computed_selected_not_adoptable_count = sum(
+        1
+        for row in selection_rows
+        if bool(row.get("selected", False))
+        and not bool(row.get("adoptable_for_standalone_replay", False))
+    )
+    if selected_not_adoptable_count != computed_selected_not_adoptable_count:
+        errors.append(
+            "seed route-selection selected-not-adoptable count mismatch"
+        )
     ranks = [_int_or_none(row.get("selection_rank")) for row in selection_rows]
     if any(rank is None for rank in ranks) or sorted(
         rank for rank in ranks if rank is not None
@@ -9526,6 +9583,12 @@ def _llm_seed_route_selection_summary_errors(
             errors.append("seed route-selection selected row id mismatch")
         if int(selected.get("selection_rank", 0) or 0) != 1:
             errors.append("seed route-selection selected row must have rank 1")
+        if bool(selection.get("selected_route_adoptable_for_standalone_replay", False)) != bool(
+            selected.get("adoptable_for_standalone_replay", False)
+        ):
+            errors.append(
+                "seed route-selection selected adoptability summary mismatch"
+            )
     return tuple(errors)
 
 
@@ -9534,6 +9597,7 @@ def _llm_seed_route_selection_summary_observed(
     rows: list[dict[str, Any]],
 ) -> str:
     selection = _dict_value(seed_payload, "llm_route_planner_seed_route_selection")
+    counts = _llm_seed_route_selection_counts(seed_payload)
     selection_rows = _dict_tuple(selection.get("selection_rows", []))
     selected_rows = [row for row in selection_rows if bool(row.get("selected", False))]
     accepted_rows = [row for row in rows if _llm_route_planner_row_accepted(row)]
@@ -9541,10 +9605,74 @@ def _llm_seed_route_selection_summary_observed(
         f"status={selection.get('selection_status', '')}; "
         f"candidates={len(selection_rows)}/{selection.get('n_route_candidates', 0)}; "
         f"selected={len(selected_rows)}; "
+        f"adoptable={counts['n_adoptable_route_candidates']}; "
+        f"selected_adoptable={counts['n_selected_route_adoptable_for_standalone_replay']}; "
+        f"selected_not_adoptable={counts['n_selected_route_candidates_not_adoptable']}; "
         f"selected_seed_route_id={selection.get('selected_seed_route_id', '')}; "
         f"accepted_rows={len(accepted_rows)}; "
         f"contract_valid={selection.get('n_contract_valid_route_candidates', 0)}"
     )
+
+
+def _optional_llm_seed_route_selection_counts(
+    bundle_dir: Path,
+    *,
+    artifact_name: str,
+) -> dict[str, int]:
+    seed_path = (
+        bundle_dir
+        / "artifacts"
+        / artifact_name
+        / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
+    )
+    return _llm_seed_route_selection_counts(_read_json_no_error(seed_path))
+
+
+def _llm_seed_route_selection_counts(seed_payload: dict[str, Any]) -> dict[str, int]:
+    selection = _dict_value(seed_payload, "llm_route_planner_seed_route_selection")
+    selection_rows = _dict_tuple(selection.get("selection_rows", []))
+    selected_rows = [row for row in selection_rows if bool(row.get("selected", False))]
+    computed_adoptable = sum(
+        1
+        for row in selection_rows
+        if bool(row.get("adoptable_for_standalone_replay", False))
+    )
+    computed_selected_not_adoptable = sum(
+        1
+        for row in selection_rows
+        if bool(row.get("selected", False))
+        and not bool(row.get("adoptable_for_standalone_replay", False))
+    )
+    selected_adoptable = sum(
+        1
+        for row in selected_rows
+        if bool(row.get("adoptable_for_standalone_replay", False))
+    )
+    route_candidates = _int_or_none(selection.get("n_route_candidates"))
+    adoptable_candidates = _int_or_none(
+        selection.get("n_adoptable_route_candidates")
+    )
+    selected_not_adoptable = _int_or_none(
+        selection.get("n_selected_route_candidates_not_adoptable")
+    )
+    return {
+        "n_route_candidates": int(route_candidates or len(selection_rows)),
+        "n_adoptable_route_candidates": int(
+            adoptable_candidates
+            if adoptable_candidates is not None
+            else computed_adoptable
+        ),
+        "n_selected_route_adoptable_for_standalone_replay": int(
+            bool(selection.get("selected_route_adoptable_for_standalone_replay", False))
+            if selection
+            else bool(selected_adoptable)
+        ),
+        "n_selected_route_candidates_not_adoptable": int(
+            selected_not_adoptable
+            if selected_not_adoptable is not None
+            else computed_selected_not_adoptable
+        ),
+    }
 
 
 def _llm_seed_route_selection_errors(
@@ -9576,6 +9704,27 @@ def _llm_seed_route_selection_errors(
         errors.append("seed route and metadata selected flag mismatch")
     if route_selected and route_rank != 1:
         errors.append("selected seed route must have selection rank 1")
+    row_adoptable = (
+        bool(row.get("response_contract_ok", False))
+        and str(row.get("route_adoption_status", ""))
+        == "READY_FOR_STANDALONE_REPLAY"
+        and not _str_tuple(row.get("route_adoption_blockers", []))
+    )
+    route_adoptable = bool(
+        seed_route.get("llm_route_planner_seed_adoptable_for_standalone_replay", False)
+    )
+    metadata_adoptable = bool(
+        metadata.get(
+            "llm_route_planner_seed_adoptable_for_standalone_replay",
+            False,
+        )
+    )
+    if route_adoptable != row_adoptable:
+        errors.append("seed route adoptability flag mismatch")
+    if metadata_adoptable != row_adoptable:
+        errors.append("seed metadata adoptability flag mismatch")
+    if route_adoptable != metadata_adoptable:
+        errors.append("seed route and metadata adoptability flag mismatch")
     if not str(seed_route.get("llm_route_planner_seed_selection_reason", "")).strip():
         errors.append("seed route selection reason missing")
     if not str(
@@ -9609,6 +9758,8 @@ def _llm_seed_route_selection_observed(
         f"row_id={row.get('llm_route_planner_row_id', '')}; "
         f"seed_selected={seed_route.get('llm_route_planner_seed_selected', '')}; "
         f"metadata_selected={metadata.get('llm_route_planner_seed_selected', '')}; "
+        f"seed_adoptable={seed_route.get('llm_route_planner_seed_adoptable_for_standalone_replay', '')}; "
+        f"metadata_adoptable={metadata.get('llm_route_planner_seed_adoptable_for_standalone_replay', '')}; "
         f"seed_rank={seed_route.get('llm_route_planner_seed_selection_rank', '')}; "
         f"metadata_rank={metadata.get('llm_route_planner_seed_selection_rank', '')}; "
         f"row_cost={row_cost}; "
@@ -16828,6 +16979,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional LLM route-planner seed route-selection schema valid: {payload.get('n_optional_llm_route_planner_seed_route_selection_schema_valid')}/{payload.get('n_optional_llm_route_planner_seed_route_selection_schema_checked')}",
         f"- Optional LLM route-planner seed route-selection contract valid: {payload.get('n_optional_llm_route_planner_seed_route_selection_contract_valid')}/{payload.get('n_optional_llm_route_planner_seed_route_selection_contract_checked')}",
         f"- Optional LLM route-planner seed route-selection summary valid: {payload.get('n_optional_llm_route_planner_seed_route_selection_summary_valid')}/{payload.get('n_optional_llm_route_planner_seed_route_selection_summary_checked')}",
+        f"- Optional LLM route-planner seed route-selection candidates/adoptable/selected-adoptable/selected-not-adoptable: {payload.get('n_optional_llm_route_planner_seed_route_selection_candidates')}/{payload.get('n_optional_llm_route_planner_seed_route_selection_adoptable_candidates')}/{payload.get('n_optional_llm_route_planner_seed_route_selection_selected_adoptable')}/{payload.get('n_optional_llm_route_planner_seed_route_selection_selected_not_adoptable')}",
         f"- Optional LLM route-planner seed route-selection traces preserved: {payload.get('n_optional_llm_route_planner_seed_route_selection_valid')}/{payload.get('n_optional_llm_route_planner_seed_route_selection_checked')}",
         f"- Optional LLM route-planner request evidence bounds valid: {payload.get('n_optional_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_llm_route_planner_request_evidence_bound_checked')}",
         f"- Optional LLM route-planner request registry context valid: {payload.get('n_optional_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_llm_route_planner_request_registry_context_checked')}",
@@ -16847,6 +16999,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional feedback LLM route-planner seed route-selection schema valid: {payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_schema_checked')}",
         f"- Optional feedback LLM route-planner seed route-selection contract valid: {payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_contract_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_contract_checked')}",
         f"- Optional feedback LLM route-planner seed route-selection summary valid: {payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_summary_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_summary_checked')}",
+        f"- Optional feedback LLM route-planner seed route-selection candidates/adoptable/selected-adoptable/selected-not-adoptable: {payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_candidates')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_adoptable_candidates')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_selected_adoptable')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_selected_not_adoptable')}",
         f"- Optional feedback LLM route-planner seed route-selection traces preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_route_selection_checked')}",
         f"- Optional feedback LLM route-planner request evidence bounds valid: {payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_evidence_bound_checked')}",
         f"- Optional feedback LLM route-planner request registry context valid: {payload.get('n_optional_feedback_llm_route_planner_request_registry_context_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_registry_context_checked')}",
