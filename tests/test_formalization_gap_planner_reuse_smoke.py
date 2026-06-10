@@ -2372,6 +2372,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert payload["n_llm_route_planner_accepted_route_plans"] == 1
     assert payload["n_llm_route_planner_route_adoption_ready"] == 0
     assert payload["n_llm_route_planner_route_adoption_pending_refinement"] == 1
+    assert payload["llm_route_planner_route_adoption_blocker_counts"][
+        "search_requests_pending_evidence"
+    ] == 1
+    assert payload["llm_route_planner_by_route_adoption_blocker"][
+        "search_requests_pending_evidence"
+    ]["n_rows"] == 1
     assert payload["n_llm_route_planner_route_adoption_pending_search_request_blockers"] == 1
     assert payload["n_llm_route_planner_route_adoption_pending_feedback_action_blockers"] == 0
     assert (
@@ -2416,6 +2422,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         payload["n_feedback_llm_route_planner_route_adoption_pending_refinement"]
         == 1
     )
+    assert payload["feedback_llm_route_planner_route_adoption_blocker_counts"][
+        "feedback_loop_replan_required"
+    ] == 1
+    assert payload["feedback_llm_route_planner_by_route_adoption_blocker"][
+        "feedback_summary_actions_pending_resolution"
+    ]["n_rows"] == 1
     assert (
         payload[
             "n_feedback_llm_route_planner_route_adoption_pending_search_request_blockers"
@@ -2586,6 +2598,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_optional_llm_route_planner_route_adoption_blocker_summary_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_route_adoption_blocker_summary_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_publication_bundle_optional_llm_route_planner_seed_model_provenance_valid"
         ]
         == payload[
@@ -2631,6 +2652,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload[
             "n_publication_bundle_optional_feedback_llm_route_planner_generation_preflight_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_route_adoption_blocker_summary_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_route_adoption_blocker_summary_checked"
         ]
         == 1
     )

@@ -1205,6 +1205,19 @@ def audit_formalization_gap_planner_publication_bundle(
             == "optional_llm_route_planner_generation_preflight_policy"
             and check.ok
         ),
+        "n_optional_llm_route_planner_route_adoption_blocker_summary_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_route_adoption_blocker_summary"
+        ),
+        "n_optional_llm_route_planner_route_adoption_blocker_summary_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_route_adoption_blocker_summary"
+            and check.ok
+        ),
         "n_optional_llm_route_planner_response_payload_validation_manifest_contract_checked": sum(
             1
             for check in checks
@@ -1493,6 +1506,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name
             == "optional_feedback_llm_route_planner_generation_preflight_policy"
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_route_adoption_blocker_summary_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_route_adoption_blocker_summary"
+        ),
+        "n_optional_feedback_llm_route_planner_route_adoption_blocker_summary_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_feedback_llm_route_planner_route_adoption_blocker_summary"
             and check.ok
         ),
         "n_optional_adapter_registry_audit_check_contract_checked": sum(
@@ -6153,6 +6179,14 @@ def _llm_route_planner_optional_checks(
             len(rows) == int(manifest.get("n_rows", 0) or 0),
         ),
         _check(
+            f"{check_prefix}_route_adoption_blocker_summary",
+            "optional_artifacts",
+            "LLM route-planner manifest blocker summaries match JSONL rows",
+            _llm_route_adoption_blocker_summary_observed(manifest, rows),
+            not _llm_route_adoption_blocker_summary_errors(manifest, rows),
+            errors=_llm_route_adoption_blocker_summary_errors(manifest, rows),
+        ),
+        _check(
             f"{check_prefix}_standalone_seed_contract",
             "optional_artifacts",
             "LLM route-planner standalone seed validates against standalone contract",
@@ -6406,6 +6440,136 @@ def _llm_generation_preflight_observed(manifest: dict[str, Any]) -> str:
         f"rows={len(preflight_rows)}; "
         f"request_schema_invalid={manifest.get('n_request_schema_invalid', 0)}"
     )
+
+
+def _llm_route_adoption_blocker_summary_errors(
+    manifest: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    expected_counts = _llm_route_adoption_blocker_counts_from_rows(rows)
+    expected_summary = _llm_route_adoption_blocker_summary_from_rows(rows)
+    observed_counts = _int_mapping(manifest.get("route_adoption_blocker_counts", {}))
+    observed_by_blocker = manifest.get("by_route_adoption_blocker", {})
+    observed_by_blocker = (
+        observed_by_blocker if isinstance(observed_by_blocker, dict) else {}
+    )
+    if observed_counts != expected_counts:
+        errors.append(
+            "route_adoption_blocker_counts mismatch: "
+            f"observed={observed_counts} expected={expected_counts}"
+        )
+    observed_keys = {
+        str(key)
+        for key, value in observed_by_blocker.items()
+        if isinstance(value, dict)
+    }
+    if observed_keys != set(expected_summary):
+        errors.append(
+            "by_route_adoption_blocker keys mismatch: "
+            f"observed={sorted(observed_keys)} expected={sorted(expected_summary)}"
+        )
+    for blocker, expected in expected_summary.items():
+        observed = observed_by_blocker.get(blocker, {})
+        if not isinstance(observed, dict):
+            errors.append(f"by_route_adoption_blocker[{blocker}] missing")
+            continue
+        for field_name in (
+            "n_rows",
+            "n_blocker_occurrences",
+            "n_response_present",
+            "n_response_contract_ok",
+            "n_provider_failures",
+        ):
+            observed_value = int(observed.get(field_name, -1) or 0)
+            expected_value = int(expected.get(field_name, 0) or 0)
+            if observed_value != expected_value:
+                errors.append(
+                    f"by_route_adoption_blocker[{blocker}].{field_name} "
+                    f"mismatch: observed={observed_value} expected={expected_value}"
+                )
+        for field_name in ("by_route_adoption_status", "by_acceptance_status"):
+            observed_map = _int_mapping(observed.get(field_name, {}))
+            expected_map = _int_mapping(expected.get(field_name, {}))
+            if observed_map != expected_map:
+                errors.append(
+                    f"by_route_adoption_blocker[{blocker}].{field_name} "
+                    f"mismatch: observed={observed_map} expected={expected_map}"
+                )
+    return tuple(errors)
+
+
+def _llm_route_adoption_blocker_summary_observed(
+    manifest: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> str:
+    observed_counts = _int_mapping(manifest.get("route_adoption_blocker_counts", {}))
+    expected_counts = _llm_route_adoption_blocker_counts_from_rows(rows)
+    observed_by_blocker = manifest.get("by_route_adoption_blocker", {})
+    observed_by_blocker = (
+        observed_by_blocker if isinstance(observed_by_blocker, dict) else {}
+    )
+    return (
+        f"counts={observed_counts}; expected={expected_counts}; "
+        f"by_keys={sorted(str(key) for key in observed_by_blocker)}"
+    )
+
+
+def _llm_route_adoption_blocker_counts_from_rows(
+    rows: list[dict[str, Any]],
+) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for row in rows:
+        counts.update(_str_tuple(row.get("route_adoption_blockers", [])))
+    return dict(sorted(counts.items()))
+
+
+def _llm_route_adoption_blocker_summary_from_rows(
+    rows: list[dict[str, Any]],
+) -> dict[str, dict[str, object]]:
+    row_tuple = _dict_tuple(rows)
+    counts = _llm_route_adoption_blocker_counts_from_rows(list(row_tuple))
+    summaries: dict[str, dict[str, object]] = {}
+    for blocker, count in counts.items():
+        blocker_rows = [
+            row
+            for row in row_tuple
+            if blocker in _str_tuple(row.get("route_adoption_blockers", []))
+        ]
+        summaries[blocker] = {
+            "n_rows": len(blocker_rows),
+            "n_blocker_occurrences": count,
+            "by_route_adoption_status": dict(
+                sorted(
+                    Counter(
+                        str(row.get("route_adoption_status", "")).strip()
+                        for row in blocker_rows
+                        if str(row.get("route_adoption_status", "")).strip()
+                    ).items()
+                )
+            ),
+            "by_acceptance_status": dict(
+                sorted(
+                    Counter(
+                        str(row.get("acceptance_status", "")).strip()
+                        for row in blocker_rows
+                        if str(row.get("acceptance_status", "")).strip()
+                    ).items()
+                )
+            ),
+            "n_response_present": sum(
+                1 for row in blocker_rows if bool(row.get("response_present", False))
+            ),
+            "n_response_contract_ok": sum(
+                1
+                for row in blocker_rows
+                if bool(row.get("response_contract_ok", False))
+            ),
+            "n_provider_failures": sum(
+                1 for row in blocker_rows if bool(row.get("provider_failure", False))
+            ),
+        }
+    return summaries
 
 
 def _llm_request_generation_policy_errors(
@@ -15414,6 +15578,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional LLM route-planner request generation policy valid: {payload.get('n_optional_llm_route_planner_request_generation_policy_valid')}/{payload.get('n_optional_llm_route_planner_request_generation_policy_checked')}",
         f"- Optional LLM route-planner request model-tier mismatch policy valid: {payload.get('n_optional_llm_route_planner_request_model_tier_mismatch_valid')}/{payload.get('n_optional_llm_route_planner_request_model_tier_mismatch_checked')}",
         f"- Optional LLM route-planner generation preflight policy valid: {payload.get('n_optional_llm_route_planner_generation_preflight_valid')}/{payload.get('n_optional_llm_route_planner_generation_preflight_checked')}",
+        f"- Optional LLM route-planner blocker summary valid: {payload.get('n_optional_llm_route_planner_route_adoption_blocker_summary_valid')}/{payload.get('n_optional_llm_route_planner_route_adoption_blocker_summary_checked')}",
         f"- Optional feedback LLM route-planner requests valid: {payload.get('n_optional_feedback_llm_route_planner_request_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_schema_checked')}",
         f"- Optional feedback LLM route-planner rows valid: {payload.get('n_optional_feedback_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_row_schema_checked')}",
         f"- Optional feedback LLM route-planner seed provenance preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_provenance_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_provenance_checked')}",
@@ -15428,6 +15593,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional feedback LLM route-planner request generation policy valid: {payload.get('n_optional_feedback_llm_route_planner_request_generation_policy_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_generation_policy_checked')}",
         f"- Optional feedback LLM route-planner request model-tier mismatch policy valid: {payload.get('n_optional_feedback_llm_route_planner_request_model_tier_mismatch_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_model_tier_mismatch_checked')}",
         f"- Optional feedback LLM route-planner generation preflight policy valid: {payload.get('n_optional_feedback_llm_route_planner_generation_preflight_valid')}/{payload.get('n_optional_feedback_llm_route_planner_generation_preflight_checked')}",
+        f"- Optional feedback LLM route-planner blocker summary valid: {payload.get('n_optional_feedback_llm_route_planner_route_adoption_blocker_summary_valid')}/{payload.get('n_optional_feedback_llm_route_planner_route_adoption_blocker_summary_checked')}",
         f"- Optional interactive-session schema valid: {payload.get('n_optional_interactive_session_row_schema_valid')}/{payload.get('n_optional_interactive_session_row_schema_checked')}",
         f"- Optional interactive-session resource-response status consistent: {payload.get('n_optional_interactive_session_resource_response_status_valid')}/{payload.get('n_optional_interactive_session_resource_response_status_checked')}",
         f"- Optional interactive-session generic prover fields valid: {payload.get('n_optional_interactive_session_generic_prover_fields_valid')}/{payload.get('n_optional_interactive_session_generic_prover_fields_checked')}",

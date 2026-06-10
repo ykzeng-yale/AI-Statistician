@@ -6310,6 +6310,24 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert (
         audit_payload[
+            "n_optional_llm_route_planner_route_adoption_blocker_summary_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_route_adoption_blocker_summary_valid"
+        ]
+        == 1
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_route_adoption_blocker_summary"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert (
+        audit_payload[
             "n_optional_feedback_llm_route_planner_seed_provenance_checked"
         ]
         == 1
@@ -6477,6 +6495,24 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
             "n_optional_feedback_llm_route_planner_generation_preflight_valid"
         ]
         == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_route_adoption_blocker_summary_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_feedback_llm_route_planner_route_adoption_blocker_summary_valid"
+        ]
+        == 1
+    )
+    assert any(
+        row["check_name"]
+        == "optional_feedback_llm_route_planner_route_adoption_blocker_summary"
+        and row["ok"]
+        for row in audit_payload["checks"]
     )
     assert any(
         row["check_name"] == "optional_llm_route_planner_row_0_seed_provenance"

@@ -1887,6 +1887,12 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_route_adoption_rejected",
             0,
         ),
+        "llm_route_planner_route_adoption_blocker_counts": (
+            llm_route_planner_payload.get("route_adoption_blocker_counts", {})
+        ),
+        "llm_route_planner_by_route_adoption_blocker": (
+            llm_route_planner_payload.get("by_route_adoption_blocker", {})
+        ),
         "n_llm_route_planner_route_adoption_pending_search_request_blockers": (
             llm_route_planner_payload.get(
                 "n_route_adoption_pending_search_request_blockers",
@@ -2193,6 +2199,12 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_route_adoption_rejected": (
             feedback_llm_route_planner_payload.get("n_route_adoption_rejected", 0)
         ),
+        "feedback_llm_route_planner_route_adoption_blocker_counts": (
+            feedback_llm_route_planner_payload.get("route_adoption_blocker_counts", {})
+        ),
+        "feedback_llm_route_planner_by_route_adoption_blocker": (
+            feedback_llm_route_planner_payload.get("by_route_adoption_blocker", {})
+        ),
         "n_feedback_llm_route_planner_route_adoption_pending_search_request_blockers": (
             feedback_llm_route_planner_payload.get(
                 "n_route_adoption_pending_search_request_blockers",
@@ -2439,6 +2451,14 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_optional_llm_route_planner_generation_preflight_valid",
             0,
         ),
+        "n_publication_bundle_optional_llm_route_planner_route_adoption_blocker_summary_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_route_adoption_blocker_summary_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_route_adoption_blocker_summary_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_route_adoption_blocker_summary_valid",
+            0,
+        ),
         "n_publication_bundle_optional_llm_route_planner_row_schema_checked": publication_bundle_audit_payload.get(
             "n_optional_llm_route_planner_row_schema_checked",
             0,
@@ -2509,6 +2529,14 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_publication_bundle_optional_feedback_llm_route_planner_generation_preflight_valid": publication_bundle_audit_payload.get(
             "n_optional_feedback_llm_route_planner_generation_preflight_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_feedback_llm_route_planner_route_adoption_blocker_summary_checked": publication_bundle_audit_payload.get(
+            "n_optional_feedback_llm_route_planner_route_adoption_blocker_summary_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_feedback_llm_route_planner_route_adoption_blocker_summary_valid": publication_bundle_audit_payload.get(
+            "n_optional_feedback_llm_route_planner_route_adoption_blocker_summary_valid",
             0,
         ),
         "n_publication_bundle_optional_feedback_llm_route_planner_row_schema_checked": publication_bundle_audit_payload.get(
