@@ -51,6 +51,7 @@ from .formalization_gap_planner_library_coverage_map import (
     validate_library_coverage_map_row,
 )
 from .formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
     LLM_ROUTE_PLANNER_PLANNER_NEXT_ACTION_HOOK_ALIASES,
@@ -4351,6 +4352,20 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             == LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
         ),
         _check(
+            "llm_route_planner_manifest_schema_legacy_alias_contract",
+            "contract",
+            "lean_realization_dag_nodes aliases formal_realization_dag_nodes",
+            _llm_legacy_response_alias_schema_observed(
+                llm_route_planner_manifest_schema
+            ),
+            not _llm_legacy_response_alias_schema_errors(
+                llm_route_planner_manifest_schema
+            ),
+            errors=_llm_legacy_response_alias_schema_errors(
+                llm_route_planner_manifest_schema
+            ),
+        ),
+        _check(
             "llm_route_planner_response_schema_rejects_kernel_claim",
             "contract",
             "kernel_verified const false",
@@ -6642,6 +6657,14 @@ def _llm_route_planner_optional_checks(
             "; ".join(manifest_schema_errors) if manifest_schema_errors else "ok",
             not manifest_schema_errors,
             errors=tuple(manifest_schema_errors),
+        ),
+        _check(
+            f"{check_prefix}_legacy_response_alias_contract",
+            "optional_artifacts",
+            "LLM route-planner manifest records Lean legacy response-field aliases",
+            _llm_legacy_response_alias_observed(manifest),
+            not _llm_legacy_response_alias_errors(manifest),
+            errors=_llm_legacy_response_alias_errors(manifest),
         ),
         _check(
             f"{check_prefix}_request_schema_file",
@@ -9490,6 +9513,78 @@ def _llm_realization_witness_schema_observed(schema: dict[str, Any]) -> str:
         f"required={len(required)}; "
         f"has_complete={bool(_dict_value(witness.get('properties', {}), 'realization_coverage_complete'))}"
     )
+
+
+def _llm_legacy_response_alias_schema_errors(
+    schema: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    required = set(_str_tuple(schema.get("required", [])))
+    if "legacy_response_field_aliases" not in required:
+        errors.append("manifest schema must require legacy_response_field_aliases")
+    alias_schema = _dict_value(
+        _dict_value(schema, "properties"),
+        "legacy_response_field_aliases",
+    )
+    alias_required = set(_str_tuple(alias_schema.get("required", [])))
+    if "lean_realization_dag_nodes" not in alias_required:
+        errors.append(
+            "legacy_response_field_aliases schema must require lean_realization_dag_nodes"
+        )
+    actual = (
+        _dict_value(
+            _dict_value(alias_schema, "properties"),
+            "lean_realization_dag_nodes",
+        ).get("const")
+    )
+    expected = LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES[
+        "lean_realization_dag_nodes"
+    ]
+    if actual != expected:
+        errors.append(
+            "legacy_response_field_aliases.lean_realization_dag_nodes "
+            f"must const {expected}"
+        )
+    return tuple(errors)
+
+
+def _llm_legacy_response_alias_schema_observed(schema: dict[str, Any]) -> str:
+    alias_schema = _dict_value(
+        _dict_value(schema, "properties"),
+        "legacy_response_field_aliases",
+    )
+    actual = (
+        _dict_value(
+            _dict_value(alias_schema, "properties"),
+            "lean_realization_dag_nodes",
+        ).get("const", "")
+    )
+    return (
+        f"required={'legacy_response_field_aliases' in set(_str_tuple(schema.get('required', [])))}; "
+        f"lean_realization_dag_nodes={actual}"
+    )
+
+
+def _llm_legacy_response_alias_errors(
+    manifest: dict[str, Any],
+) -> tuple[str, ...]:
+    aliases = manifest.get("legacy_response_field_aliases", {})
+    if not isinstance(aliases, dict):
+        return ("legacy_response_field_aliases must be an object",)
+    expected = dict(LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES)
+    if aliases != expected:
+        return (
+            "legacy_response_field_aliases must equal "
+            f"{json.dumps(expected, sort_keys=True)}",
+        )
+    return ()
+
+
+def _llm_legacy_response_alias_observed(manifest: dict[str, Any]) -> str:
+    aliases = manifest.get("legacy_response_field_aliases", {})
+    if isinstance(aliases, dict):
+        return json.dumps(aliases, sort_keys=True)
+    return str(type(aliases).__name__)
 
 
 def _llm_generic_formal_dag_errors(

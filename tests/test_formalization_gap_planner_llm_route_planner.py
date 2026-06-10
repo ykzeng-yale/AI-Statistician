@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ai_statistician.cli import main
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
@@ -4317,6 +4318,11 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     }
     assert payload["n_informal_knowledge_dag_nodes"] == 2
     assert payload["n_lean_realization_dag_nodes"] == 2
+    assert (
+        payload["legacy_response_field_aliases"]
+        == LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES
+        == {"lean_realization_dag_nodes": "formal_realization_dag_nodes"}
+    )
     assert payload["n_route_alignment_edges"] == 1
     assert payload["n_rows_with_realization_coverage_witness"] == 1
     assert payload["n_rows_with_complete_realization_coverage"] == 1
@@ -4368,6 +4374,14 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "omitted_cost_hint_primitives" in witness_schema["required"]
     assert "cost_hint_baseline_coverage_complete" in witness_schema["required"]
     assert "delta_primitives_missing_route_alignment_edge" in witness_schema["required"]
+    manifest_schema = llm_route_planner_manifest_json_schema()
+    assert "legacy_response_field_aliases" in manifest_schema["required"]
+    assert (
+        manifest_schema["properties"]["legacy_response_field_aliases"][
+            "properties"
+        ]["lean_realization_dag_nodes"]["const"]
+        == "formal_realization_dag_nodes"
+    )
     assert "realization_coverage_complete" in witness_schema["required"]
     assert witness_schema["properties"]["realization_coverage_complete"]["type"] == "boolean"
     assert (

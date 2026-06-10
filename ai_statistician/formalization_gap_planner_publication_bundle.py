@@ -2203,6 +2203,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_response_contract_ok",
             "n_informal_knowledge_dag_nodes",
             "n_formal_realization_dag_nodes",
+            "legacy_response_field_aliases",
             "n_lean_realization_dag_nodes",
             "n_route_alignment_edges",
             "n_accepted_route_plans",
@@ -2245,6 +2246,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_provider_failures": nonnegative_integer,
             "n_informal_knowledge_dag_nodes": nonnegative_integer,
             "n_formal_realization_dag_nodes": nonnegative_integer,
+            "legacy_response_field_aliases": {"type": "object"},
             "n_lean_realization_dag_nodes": nonnegative_integer,
             "n_route_alignment_edges": nonnegative_integer,
             "n_accepted_route_plans": nonnegative_integer,
@@ -4281,6 +4283,7 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_provider_failures": 0,
         "n_informal_knowledge_dag_nodes": 0,
         "n_formal_realization_dag_nodes": 0,
+        "legacy_response_field_aliases": {},
         "n_lean_realization_dag_nodes": 0,
         "n_route_alignment_edges": 0,
         "n_accepted_route_plans": 0,
@@ -4397,6 +4400,11 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                 _jsonl_row_collection_count(rows, "formal_realization_dag_nodes"),
             )
             or 0
+        ),
+        "legacy_response_field_aliases": (
+            payload.get("legacy_response_field_aliases", {})
+            if isinstance(payload.get("legacy_response_field_aliases", {}), dict)
+            else {}
         ),
         "n_lean_realization_dag_nodes": int(
             payload.get(

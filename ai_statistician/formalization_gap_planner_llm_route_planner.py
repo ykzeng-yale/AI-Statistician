@@ -310,6 +310,9 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY_ID = (
     "formalization_gap_planner_llm_route_planner_model_tier_policy:1"
 )
 LLM_ROUTE_PLANNER_MODEL_TIERS = ("auto", "haiku", "sonnet", "opus")
+LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES = {
+    "lean_realization_dag_nodes": "formal_realization_dag_nodes",
+}
 SOURCE_SNIPPET_MIN_SUPPORT_TOKENS = 3
 SOURCE_SNIPPET_MIN_TWO_TOKEN_SUPPORT_CHARS = 18
 FORMAL_GAP_BOUNDARY_MIN_SUPPORT_TOKENS = 3
@@ -915,6 +918,9 @@ def export_formalization_gap_planner_llm_route_planner(
         "model": model,
         "model_tier_selection_mode": normalized_model_tier,
         "llm_route_planner_model_tier_policy": LLM_ROUTE_PLANNER_MODEL_TIER_POLICY,
+        "legacy_response_field_aliases": dict(
+            LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES
+        ),
         "max_repair_attempts": max(0, int(max_repair_attempts)),
         "invoke_provider": invoke_provider,
         "n_routes": len(routes),
@@ -2004,6 +2010,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "provider_name",
             "model_tier_selection_mode",
             "llm_route_planner_model_tier_policy",
+            "legacy_response_field_aliases",
             "invoke_provider",
             "n_routes",
             "n_request_packets",
@@ -2077,6 +2084,16 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "model": {"type": "string"},
             "model_tier_selection_mode": {"type": "string", "minLength": 1},
             "llm_route_planner_model_tier_policy": {"type": "object"},
+            "legacy_response_field_aliases": {
+                "type": "object",
+                "required": ["lean_realization_dag_nodes"],
+                "properties": {
+                    "lean_realization_dag_nodes": {
+                        "type": "string",
+                        "const": "formal_realization_dag_nodes",
+                    }
+                },
+            },
             "max_repair_attempts": nonnegative_integer,
             "invoke_provider": {"type": "boolean"},
             "n_routes": nonnegative_integer,

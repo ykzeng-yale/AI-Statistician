@@ -3252,6 +3252,13 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "llm_route_planner_manifest_schema_legacy_alias_contract"
+        and "lean_realization_dag_nodes" in row["observed"]
+        and "formal_realization_dag_nodes" in row["observed"]
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "schema_catalog_payload_schema_id"
         and row["observed"] == schema_catalog_json_schema()["$id"]
         and row["ok"]
@@ -6289,6 +6296,13 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "optional_llm_route_planner_legacy_response_alias_contract"
+        and "lean_realization_dag_nodes" in row["observed"]
+        and "formal_realization_dag_nodes" in row["observed"]
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"]
         == "optional_llm_route_planner_response_payload_validation_manifest_schema_id"
         and row["ok"]
@@ -6315,6 +6329,14 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert any(
         row["check_name"]
         == "optional_feedback_llm_route_planner_response_payload_schema_id"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_feedback_llm_route_planner_legacy_response_alias_contract"
+        and "lean_realization_dag_nodes" in row["observed"]
+        and "formal_realization_dag_nodes" in row["observed"]
         and row["ok"]
         for row in audit_payload["checks"]
     )

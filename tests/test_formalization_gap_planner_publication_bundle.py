@@ -714,6 +714,9 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         "n_formal_realization_dag_nodes"
     ] == 0
     assert manifest["llm_route_planner_summary"][
+        "legacy_response_field_aliases"
+    ] == {"lean_realization_dag_nodes": "formal_realization_dag_nodes"}
+    assert manifest["llm_route_planner_summary"][
         "n_lean_realization_dag_nodes"
     ] == 0
     assert manifest["llm_route_planner_summary"]["n_route_alignment_edges"] == 0
@@ -763,6 +766,9 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert manifest["feedback_llm_route_planner_summary"][
         "n_formal_realization_dag_nodes"
     ] == 0
+    assert manifest["feedback_llm_route_planner_summary"][
+        "legacy_response_field_aliases"
+    ] == {"lean_realization_dag_nodes": "formal_realization_dag_nodes"}
     assert manifest["feedback_llm_route_planner_summary"][
         "n_lean_realization_dag_nodes"
     ] == 0

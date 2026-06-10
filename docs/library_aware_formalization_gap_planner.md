@@ -910,6 +910,11 @@ The portable public contract uses target-prover-neutral route/evaluation names:
 `lean_coverage_mapping`, `lean_effort_new_declarations`,
 `lean_effort_failed_attempts`, and `no_lean_rag` are recorded only as aliases to
 those target-prover-neutral terms.
+LLM route-planner manifests similarly publish
+`legacy_response_field_aliases`, currently mapping
+`lean_realization_dag_nodes` to `formal_realization_dag_nodes`; reusable clients
+should consume the generic field and treat the Lean field as backward-compatible
+input only.
 
 The adapter registry command records which refinement tools can satisfy each
 hook, which response fields they must emit, and whether local commands,
