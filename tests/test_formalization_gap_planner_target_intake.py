@@ -10,6 +10,7 @@ from ai_statistician.formalization_gap_planner_standalone import (
 from ai_statistician.formalization_gap_planner_target_intake import (
     FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_SCHEMA_ID,
     FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_ROW_SCHEMA_ID,
+    LEGACY_TARGET_INTAKE_FIELD_ALIASES,
     normalize_formalization_gap_planner_target_intake,
     target_intake_row_json_schema,
     validate_target_intake_row,
@@ -65,6 +66,10 @@ def test_target_intake_seeds_standalone_gap_plan() -> None:
 
     assert intake_payload["all_ok"]
     assert intake_payload["schema_id"] == FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_SCHEMA_ID
+    assert (
+        intake_payload["legacy_target_intake_field_aliases"]
+        == LEGACY_TARGET_INTAKE_FIELD_ALIASES
+    )
     assert intake_payload["n_targets"] == 1
     assert intake_payload["n_primitive_seed_rows"] >= 5
     assert intake_payload["n_formal_library_grounding_queries"] == intake_payload[
@@ -83,6 +88,14 @@ def test_target_intake_seeds_standalone_gap_plan() -> None:
     legacy_row = dict(row)
     legacy_row.pop("formal_library_grounding_queries")
     assert validate_target_intake_row(legacy_row) == []
+    portable_row = dict(row)
+    portable_row.pop("lean_grounding_queries")
+    assert validate_target_intake_row(portable_row) == []
+    drifted_alias_row = dict(row)
+    drifted_alias_row["lean_grounding_queries"] = ["different Lean-only query"]
+    assert "lean_grounding_queries must match formal_library_grounding_queries" in (
+        validate_target_intake_row(drifted_alias_row)
+    )
     malformed_row = dict(row)
     malformed_row.pop("standalone_route_id")
     assert "standalone_route_id required" in validate_target_intake_row(malformed_row)
@@ -112,6 +125,9 @@ def test_target_intake_seeds_standalone_gap_plan() -> None:
     assert row_schema_path.exists()
     row_schema = json.loads(row_schema_path.read_text(encoding="utf-8"))
     assert row_schema["$id"] == FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_ROW_SCHEMA_ID
+    assert row_schema["legacy_field_aliases"] == LEGACY_TARGET_INTAKE_FIELD_ALIASES
+    assert "formal_library_grounding_queries" in row_schema["required"]
+    assert "lean_grounding_queries" not in row_schema["required"]
     assert row_schema["$id"] == target_intake_row_json_schema()["$id"]
 
 

@@ -127,6 +127,7 @@ from ai_statistician.formalization_gap_planner_publication_bundle_audit import (
     _resource_request_dispatch_spec_errors,
 )
 from ai_statistician.formalization_gap_planner_target_intake import (
+    LEGACY_TARGET_INTAKE_FIELD_ALIASES,
     target_intake_row_json_schema,
 )
 from ai_statistician.model_backend import (
@@ -2257,13 +2258,22 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
             / "formalization_gap_planner_component_resource_contract_row.schema.json"
         ).read_text(encoding="utf-8")
     )["$id"] == component_resource_contract_row_json_schema()["$id"]
-    assert json.loads(
+    target_intake_row_schema_payload = json.loads(
         (
             out_dir
             / "contract"
             / "formalization_gap_planner_target_intake_row.schema.json"
         ).read_text(encoding="utf-8")
-    )["$id"] == target_intake_row_json_schema()["$id"]
+    )
+    assert target_intake_row_schema_payload["$id"] == target_intake_row_json_schema()["$id"]
+    assert (
+        target_intake_row_schema_payload["legacy_field_aliases"]
+        == LEGACY_TARGET_INTAKE_FIELD_ALIASES
+    )
+    assert "formal_library_grounding_queries" in target_intake_row_schema_payload[
+        "required"
+    ]
+    assert "lean_grounding_queries" not in target_intake_row_schema_payload["required"]
     portable_row_schema = json.loads(
         (
             out_dir

@@ -24,6 +24,9 @@ FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_ROW_SCHEMA_ID = (
 FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_COMPONENT = (
     "formalization_gap_planner_target_intake"
 )
+LEGACY_TARGET_INTAKE_FIELD_ALIASES = {
+    "lean_grounding_queries": "formal_library_grounding_queries",
+}
 PROOF_EVIDENCE_STATUS = "FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_NOT_PROOF_EVIDENCE"
 PROOF_EVIDENCE_BOUNDARY = (
     "Formalization gap planner target-intake rows normalize theorem requests "
@@ -130,6 +133,9 @@ def normalize_formalization_gap_planner_target_intake(
         "schema_version": FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_SCHEMA_VERSION,
         "schema_id": FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_SCHEMA_ID,
         "target_intake_row_schema_id": FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_ROW_SCHEMA_ID,
+        "legacy_target_intake_field_aliases": dict(
+            LEGACY_TARGET_INTAKE_FIELD_ALIASES
+        ),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "component_name": FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_COMPONENT,
         "input_path": str(input_path),
@@ -259,6 +265,7 @@ def target_intake_row_json_schema() -> dict[str, object]:
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_ROW_SCHEMA_ID,
+        "legacy_field_aliases": dict(LEGACY_TARGET_INTAKE_FIELD_ALIASES),
         "title": "Formalization Gap Planner Target Intake Row",
         "description": (
             "Portable normalized theorem-request row emitted by target intake. "
@@ -288,7 +295,7 @@ def target_intake_row_json_schema() -> dict[str, object]:
             "background_primitives",
             "standalone_route_id",
             "literature_queries",
-            "lean_grounding_queries",
+            "formal_library_grounding_queries",
             "proof_state_probe_required",
             "missing_required_fields",
             "review_flags",
@@ -344,6 +351,7 @@ def validate_target_intake_row(
     row_schema = schema or target_intake_row_json_schema()
     if not isinstance(row, dict):
         return ["target intake row must be an object"]
+    row = _target_intake_row_with_legacy_aliases(row)
     errors: list[str] = []
     required = row_schema.get("required", [])
     if isinstance(required, list):
@@ -359,6 +367,28 @@ def validate_target_intake_row(
                 errors.extend(
                     _schema_property_errors(field_name, row[field_name], field_schema)
                 )
+    alias_errors = _legacy_alias_errors(row, LEGACY_TARGET_INTAKE_FIELD_ALIASES)
+    errors.extend(alias_errors)
+    return errors
+
+
+def _target_intake_row_with_legacy_aliases(row: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(row)
+    for legacy_field, portable_field in LEGACY_TARGET_INTAKE_FIELD_ALIASES.items():
+        if portable_field not in normalized and legacy_field in normalized:
+            normalized[portable_field] = normalized[legacy_field]
+    return normalized
+
+
+def _legacy_alias_errors(
+    row: dict[str, Any],
+    aliases: dict[str, str],
+) -> list[str]:
+    errors: list[str] = []
+    for legacy_field, portable_field in aliases.items():
+        if legacy_field in row and portable_field in row:
+            if _str_tuple(row[legacy_field]) != _str_tuple(row[portable_field]):
+                errors.append(f"{legacy_field} must match {portable_field}")
     return errors
 
 

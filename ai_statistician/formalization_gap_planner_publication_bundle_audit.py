@@ -155,6 +155,7 @@ from .formalization_gap_planner_source_grounding_audit import (
 from .formalization_gap_planner_target_intake import (
     FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_SCHEMA_ID,
     FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_ROW_SCHEMA_ID,
+    LEGACY_TARGET_INTAKE_FIELD_ALIASES,
     normalize_formalization_gap_planner_target_intake,
     validate_target_intake_row,
 )
@@ -15763,6 +15764,7 @@ def _target_intake_row_contract_errors(row: dict[str, Any]) -> tuple[str, ...]:
         "standalone_route_id",
         "primitive_seed_rows",
         "literature_queries",
+        "formal_library_grounding_queries",
         "proof_evidence_status",
         "proof_evidence_boundary",
         "ok",
@@ -15789,13 +15791,10 @@ def _target_intake_row_contract_errors(row: dict[str, Any]) -> tuple[str, ...]:
     ):
         if field_name in row and not isinstance(row.get(field_name), list):
             errors.append(f"{field_name} must be an array")
-    if (
-        "formal_library_grounding_queries" not in row
-        and "lean_grounding_queries" not in row
-    ):
-        errors.append(
-            "formal_library_grounding_queries or lean_grounding_queries required"
-        )
+    for legacy_field, portable_field in LEGACY_TARGET_INTAKE_FIELD_ALIASES.items():
+        if legacy_field in row and portable_field in row:
+            if _str_tuple(row[legacy_field]) != _str_tuple(row[portable_field]):
+                errors.append(f"{legacy_field} must match {portable_field}")
     if row.get("primitive_seed_rows") == []:
         errors.append("primitive_seed_rows must not be empty")
     if "NOT_PROOF_EVIDENCE" not in str(row.get("proof_evidence_status", "")):

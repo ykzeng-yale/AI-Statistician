@@ -701,7 +701,9 @@ the model sees normalized objects, assumptions, procedure, claim, theorem shape,
 primitive seeds, literature queries, and `formal_library_grounding_queries`
 while preserving the boundary that target intake is route-synthesis context,
 not proof evidence. `lean_grounding_queries` is still emitted as a legacy alias
-for older Lean-only consumers.
+for older Lean-only consumers, and the target-intake manifest plus row schema
+publish `legacy_target_intake_field_aliases` / `legacy_field_aliases` mapping
+that alias back to `formal_library_grounding_queries`.
 The portable-plan audit validates schema identity, two-DAG structure,
 AND/OR graph shape, work packets, interactive hooks, and absence of
 kernel-proof claims. The library-coverage-map command exports one row per
