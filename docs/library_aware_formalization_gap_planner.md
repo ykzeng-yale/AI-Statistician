@@ -333,7 +333,11 @@ checks this top-level summary against the packaged evaluation artifacts.
 The same bundle manifest also includes `llm_route_planner_summary` and
 `feedback_llm_route_planner_summary`, projecting request/row counts, response
 presence, accepted route plans, route-adoption status counts, and blocker
-summaries from packaged primary and feedback LLM route-planner artifacts.
+summaries from packaged primary and feedback LLM route-planner artifacts. These
+summaries also expose request-context inventory coverage counts, so a public
+bundle shows whether packaged primary and feedback route-planner prompts carried
+the compact `context_packet_inventory` needed for evidence-bounded LLM route
+repair.
 The publication-bundle audit recomputes those two summaries from the packaged
 route-planner manifest/JSONL files, so a reused bundle cannot silently drift
 between copied LLM planning artifacts and the top-level manifest.

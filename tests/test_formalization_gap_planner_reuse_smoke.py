@@ -2599,6 +2599,20 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         == 1
     )
     assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_context_packet_inventories"
+        ]
+        == payload["n_llm_route_planner_context_packet_inventories"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_context_inventory_total_rows"
+        ]
+        == payload["n_llm_route_planner_context_inventory_total_rows"]
+        >= 1
+    )
+    assert (
         payload["n_publication_bundle_llm_route_planner_summary_rows"]
         == payload["n_llm_route_planner_request_packets"]
         == 1
@@ -2654,6 +2668,20 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload["n_feedback_llm_route_planner_request_packets"]
         == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_context_packet_inventories"
+        ]
+        == payload["n_feedback_llm_route_planner_context_packet_inventories"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_context_inventory_total_rows"
+        ]
+        == payload["n_feedback_llm_route_planner_context_inventory_total_rows"]
+        >= 1
     )
     assert (
         payload[

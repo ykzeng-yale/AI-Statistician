@@ -149,6 +149,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_request_model_tier_mismatches",
         "n_routes",
         "n_request_packets",
+        "n_requests_with_context_packet_inventory",
+        "n_request_context_inventory_total_rows",
         "n_request_schema_valid",
         "n_request_schema_invalid",
         "n_response_present",
@@ -202,6 +204,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_request_model_tier_mismatches",
         "n_routes",
         "n_request_packets",
+        "n_requests_with_context_packet_inventory",
+        "n_request_context_inventory_total_rows",
         "n_request_schema_valid",
         "n_request_schema_invalid",
         "n_response_present",
@@ -1801,6 +1805,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_llm_route_planner_summary_request_packets": (
             publication_bundle_llm_route_planner_summary.get("n_request_packets", 0)
         ),
+        "n_publication_bundle_llm_route_planner_summary_context_packet_inventories": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_requests_with_context_packet_inventory",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_context_inventory_total_rows": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_context_inventory_total_rows",
+                0,
+            )
+        ),
         "n_publication_bundle_llm_route_planner_summary_rows": (
             publication_bundle_llm_route_planner_summary.get("n_rows", 0)
         ),
@@ -1864,6 +1880,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_feedback_llm_route_planner_summary_request_packets": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_request_packets",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_context_packet_inventories": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_requests_with_context_packet_inventory",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_context_inventory_total_rows": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_context_inventory_total_rows",
                 0,
             )
         ),
@@ -1942,6 +1970,14 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_llm_route_planner_request_packets": llm_route_planner_payload.get(
             "n_request_packets",
+            0,
+        ),
+        "n_llm_route_planner_context_packet_inventories": llm_route_planner_payload.get(
+            "n_requests_with_context_packet_inventory",
+            0,
+        ),
+        "n_llm_route_planner_context_inventory_total_rows": llm_route_planner_payload.get(
+            "n_request_context_inventory_total_rows",
             0,
         ),
         "llm_route_planner_model_tier_selection_mode": llm_route_planner_payload.get(
@@ -2235,6 +2271,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_request_packets": feedback_llm_route_planner_payload.get(
             "n_request_packets",
             0,
+        ),
+        "n_feedback_llm_route_planner_context_packet_inventories": (
+            feedback_llm_route_planner_payload.get(
+                "n_requests_with_context_packet_inventory",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_context_inventory_total_rows": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_context_inventory_total_rows",
+                0,
+            )
         ),
         "feedback_llm_route_planner_model_tier_selection_mode": (
             feedback_llm_route_planner_payload.get(

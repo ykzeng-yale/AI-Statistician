@@ -2392,6 +2392,12 @@ def _expected_bundle_llm_route_planner_summary(
     return {
         "requested": manifest_path.exists(),
         "n_request_packets": int(payload.get("n_request_packets", len(rows)) or 0),
+        "n_requests_with_context_packet_inventory": int(
+            payload.get("n_requests_with_context_packet_inventory", 0) or 0
+        ),
+        "n_request_context_inventory_total_rows": int(
+            payload.get("n_request_context_inventory_total_rows", 0) or 0
+        ),
         "n_rows": int(payload.get("n_rows", len(rows)) or 0),
         "n_response_present": int(
             payload.get(
