@@ -5372,6 +5372,7 @@ def _available_formal_declaration_rows_for_context(
     target_prover_family: str,
 ) -> tuple[dict[str, object], ...]:
     rows: list[dict[str, object]] = []
+    primitive_support: dict[tuple[str, str], set[str]] = {}
     route_target = str(
         route.get("target_prover_family")
         or route.get("target_prover")
@@ -5387,24 +5388,63 @@ def _available_formal_declaration_rows_for_context(
         rows,
         inherited_target_prover_family=target_prover_family,
     )
+    _collect_formal_declaration_primitive_support(
+        route,
+        primitive_support,
+        inherited_target_prover_family=route_target,
+        inherited_primitives=tuple(),
+    )
+    _collect_formal_declaration_primitive_support(
+        context_packet,
+        primitive_support,
+        inherited_target_prover_family=target_prover_family,
+        inherited_primitives=tuple(),
+    )
     compact: list[dict[str, object]] = []
-    seen: set[tuple[str, str]] = set()
+    by_key: dict[tuple[str, str], dict[str, object]] = {}
+    source_fields_by_key: dict[tuple[str, str], list[str]] = {}
     for row in rows:
         declaration = str(row.get("declaration", "")).strip()
         if not declaration:
             continue
         row_target = str(row.get("target_prover_family", "")).strip()
         key = (_formal_declaration_key(declaration), _target_prover_key(row_target))
-        if key in seen:
+        source_field = str(row.get("source_field", "")).strip()
+        source_fields = source_fields_by_key.setdefault(key, [])
+        if (
+            source_field
+            and _formal_declaration_source_field_rank(source_field) > 0
+            and source_field not in source_fields
+        ):
+            source_fields.append(source_field)
+        current = by_key.get(key)
+        if current is not None:
+            if _formal_declaration_source_field_rank(
+                source_field
+            ) > _formal_declaration_source_field_rank(
+                current.get("source_field", "")
+            ):
+                current["source_field"] = source_field
             continue
-        seen.add(key)
-        compact.append(
-            {
-                "declaration": declaration,
-                "target_prover_family": row_target,
-                "source_field": str(row.get("source_field", "")),
-            }
+        current = {
+            "declaration": declaration,
+            "target_prover_family": row_target,
+            "source_field": source_field,
+        }
+        by_key[key] = current
+        compact.append(current)
+    for row in compact:
+        key = (
+            _formal_declaration_key(row.get("declaration", "")),
+            _target_prover_key(row.get("target_prover_family", "")),
         )
+        source_fields = source_fields_by_key.get(key, [])
+        if len(source_fields) > 1:
+            row["source_fields"] = list(source_fields)
+        scoped_primitives = sorted(primitive_support.get(key, set()))
+        if scoped_primitives:
+            row["target_primitives"] = scoped_primitives
+            row["supported_target_primitives"] = scoped_primitives
     return tuple(compact)
 
 
@@ -5476,10 +5516,8 @@ def _available_formal_declaration_row_provenance_for_request(
         )
         if not declaration_key:
             continue
-        source_fields = {
-            _formal_declaration_source_field_key(row.get("source_field", "")),
-            "available_formal_declaration_rows",
-        }
+        source_fields = set(_formal_declaration_row_source_fields(row))
+        source_fields.add("available_formal_declaration_rows")
         source_fields.discard("")
         provenance.setdefault((declaration_key, target_key), set()).update(
             source_fields
@@ -5515,12 +5553,10 @@ def _available_formal_declaration_existing_support_for_request(
         target_key = _target_prover_key(
             row.get("target_prover_family", "") or target_prover_family
         )
-        source_field = _formal_declaration_source_field_key(
-            row.get("source_field", "")
-        )
-        if declaration_key and source_field:
-            support.setdefault((declaration_key, target_key), set()).add(
-                source_field
+        source_fields = _formal_declaration_row_source_fields(row)
+        if declaration_key and source_fields:
+            support.setdefault((declaration_key, target_key), set()).update(
+                source_fields
             )
 
     if structured_rows:
@@ -5536,6 +5572,34 @@ def _available_formal_declaration_existing_support_for_request(
                 "available_formal_declarations"
             )
     return support
+
+
+def _formal_declaration_row_source_fields(row: Mapping[str, Any]) -> tuple[str, ...]:
+    fields: list[str] = []
+    fields.append(str(row.get("source_field", "")).strip())
+    fields.extend(_str_tuple(row.get("source_fields", [])))
+    return tuple(
+        dict.fromkeys(
+            field
+            for field in (
+                _formal_declaration_source_field_key(value) for value in fields
+            )
+            if field
+        )
+    )
+
+
+def _formal_declaration_source_field_rank(value: object) -> int:
+    key = _formal_declaration_source_field_key(value)
+    if not key:
+        return 0
+    if key in {"declaration", "declaration_name", "declaration_names"}:
+        return 0
+    if _formal_declaration_source_field_supports_existing_coverage(key):
+        return 3
+    if "resource_request" in key or key.startswith("pending_"):
+        return 1
+    return 2
 
 
 def _available_formal_declaration_primitive_support_for_request(
@@ -5659,9 +5723,6 @@ def _formal_declaration_source_field_supports_existing_coverage(
             "candidate_declaration",
             "candidate_declarations",
             "candidate_declaration_rows",
-            "declaration",
-            "declaration_name",
-            "declaration_names",
             "formal_declaration_hits",
             "lean_declaration",
             "lean_declarations",
@@ -5678,12 +5739,21 @@ def _collect_formal_declaration_rows(
     rows: list[dict[str, object]],
     *,
     inherited_target_prover_family: str,
+    suppress_generic_declaration_fields: bool = False,
 ) -> None:
     if isinstance(value, Mapping):
         current_target = str(
             value.get("target_prover_family")
             or value.get("target_prover")
             or inherited_target_prover_family
+        )
+        suppress_here = suppress_generic_declaration_fields or any(
+            str(value.get(field_name, "")).strip()
+            for field_name in (
+                "resource_request_id",
+                "action_resource_plan_id",
+                "primitive_action_id",
+            )
         )
         for key, item in value.items():
             key_text = str(key)
@@ -5707,7 +5777,7 @@ def _collect_formal_declaration_rows(
                 "declaration_names",
                 "lean_declaration",
                 "lean_declarations",
-            }:
+            } and not suppress_here:
                 rows.extend(
                     {
                         "declaration": declaration,
@@ -5720,14 +5790,31 @@ def _collect_formal_declaration_rows(
                 item,
                 rows,
                 inherited_target_prover_family=current_target,
+                suppress_generic_declaration_fields=(
+                    suppress_here
+                    or key_text
+                    in {
+                        "candidate_declaration_rows",
+                        "formal_declaration_hits",
+                        "lean_declaration_hits",
+                        "request_payload",
+                        "request_playbook",
+                        "resource_request_playbooks",
+                        "resource_request_queue_rows",
+                        "input_summary",
+                    }
+                ),
             )
     elif isinstance(value, (list, tuple, set)):
         for item in value:
             _collect_formal_declaration_rows(
                 item,
                 rows,
-            inherited_target_prover_family=inherited_target_prover_family,
-        )
+                inherited_target_prover_family=inherited_target_prover_family,
+                suppress_generic_declaration_fields=(
+                    suppress_generic_declaration_fields
+                ),
+            )
 
 
 def _append_formal_declaration_rows(

@@ -426,10 +426,14 @@ Formal-library reuse is likewise target-aware. The request context exposes a
 legacy flat `available_formal_declarations` list containing declarations
 compatible with the request target, plus structured
 `available_formal_declaration_rows` with `declaration`,
-`target_prover_family`, and source-field provenance. Response validation filters
-candidate declarations through those structured rows when present, so a Rocq
-route cannot cite a Lean-only declaration merely because both appeared in a
-mixed library context. Pending resource-request candidates are treated as search
+`target_prover_family`, source-field provenance, and when available
+`target_primitives`/`supported_target_primitives`. When the same declaration
+arrives through both pending resource-request candidates and accepted
+declaration hits, the row preserves all `source_fields` but surfaces the accepted
+hit as the primary `source_field`. Response validation filters candidate
+declarations through those structured rows when present, so a Rocq route cannot
+cite a Lean-only declaration merely because both appeared in a mixed library
+context. Pending resource-request candidates are treated as search
 seeds, not as accepted library evidence: an LLM route may use them to ask for
 formal-library or prover feedback, but it cannot justify `already_exists`,
 `exact_exists`, or reuse coverage from them until a route-level formal context

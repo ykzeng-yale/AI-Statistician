@@ -2078,6 +2078,50 @@ def test_llm_route_planner_feedback_coverage_updates_raise_cost_hint_floor() -> 
     assert rank_hint["minimum_cost_marker"] == "bridge_needed"
 
 
+def test_llm_route_planner_merges_declaration_row_provenance_and_scope() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_declaration_row_scope"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_request_queue_dir = _write_resource_request_queue(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_resource_request_queue_dir=(
+            resource_request_queue_dir
+        ),
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    request = payload["request_packets"][0]
+    declaration_rows = request["context_packet"]["available_formal_declaration_rows"]
+    rank_rows = [
+        row
+        for row in declaration_rows
+        if row["declaration"] == "Probability.rankUniformityBridge"
+    ]
+    assert len(rank_rows) == 1
+    rank_row = rank_rows[0]
+    assert rank_row["source_field"] == "formal_declaration_hits"
+    assert set(rank_row["source_fields"]) == {
+        "resource_request_candidate_declarations",
+        "formal_declaration_hits",
+    }
+    assert rank_row["target_primitives"] == ["rank_uniformity"]
+    assert rank_row["supported_target_primitives"] == ["rank_uniformity"]
+    prompt_text = request["prompt_messages"]["user"]
+    assert "source_fields" in prompt_text
+    assert "target_primitives" in prompt_text
+
+
 def test_llm_route_planner_rejects_reuse_under_feedback_coverage_update() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_feedback_underprice"
