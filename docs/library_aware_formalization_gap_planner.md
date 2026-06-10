@@ -362,11 +362,14 @@ it gives the LLM planner a compact view of what changed and what still needs
 search, library grounding, proof-state feedback, or route revision.
 
 Accepted LLM route-planner responses also materialize their bounded
-`search_requests` as portable refinement work. A `literature` request becomes a
-`literature_discovery` hook, a `formal_library` request becomes a
-`lean_library_grounding` hook, and a `prover_feedback` request becomes a
-`proof_state_feedback` hook. The accepted standalone seed records these hooks
-and matching route-revision triggers under both route-level fields and
+`search_requests` and `planner_next_actions` as portable refinement work. A
+`literature` request becomes a `literature_discovery` hook, a `formal_library`
+request becomes a `lean_library_grounding` hook, and a `prover_feedback` request
+becomes a `proof_state_feedback` hook. Planner next actions become their own
+hooks and route-revision triggers even when the same response also contains
+search requests, so an explicit Lean/LSP/prover action is not hidden inside a
+generic search item. The accepted standalone seed records these hooks and
+matching route-revision triggers under both route-level fields and
 `replan_metadata`, so the standalone planner and refinement queue can dispatch
 the requested work without parsing raw LLM text. The request remains planning
 evidence only; its response must still enter through source grounding,

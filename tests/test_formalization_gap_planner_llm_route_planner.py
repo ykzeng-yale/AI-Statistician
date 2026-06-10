@@ -4487,6 +4487,19 @@ def test_llm_route_planner_search_requests_materialize_refinement_work_items() -
     assert seed_route["replan_metadata"][
         "llm_route_planner_interactive_refinement_hooks"
     ][0]["hook_kind"] == "proof_state_feedback"
+    assert seed_route["replan_metadata"]["llm_route_planner_planner_next_actions"][
+        0
+    ]["owner"] == "lean_lsp_mcp"
+    assert any(
+        hook.get("llm_route_planner_planner_next_action", {}).get("owner")
+        == "lean_lsp_mcp"
+        for hook in seed_route["interactive_refinement_hooks"]
+    )
+    assert any(
+        trigger.get("llm_route_planner_planner_next_action", {}).get("owner")
+        == "lean_lsp_mcp"
+        for trigger in seed_route["route_revision_triggers"]
+    )
 
     plan_dir = root / "standalone_plan_from_llm_seed"
     refinement_queue_dir = root / "refinement_queue_from_llm_seed"
@@ -4507,11 +4520,28 @@ def test_llm_route_planner_search_requests_materialize_refinement_work_items() -
         refinement_queue_dir,
     )
     assert queue_payload["all_ok"]
-    assert queue_payload["n_proof_state_feedback_items"] >= 1
+    assert queue_payload["n_proof_state_feedback_items"] >= 2
     assert any(
         row["hook_kind"] == "proof_state_feedback"
         and "try rank_uniformity bridge against Probability.exchangeable"
         in row["queries"]
+        for row in queue_payload["rows"]
+    )
+    assert any(
+        row["hook_kind"] == "proof_state_feedback"
+        and row["llm_route_planner_hook_trace"]
+        .get("llm_route_planner_search_request", {})
+        .get("request_kind")
+        == "prover_feedback"
+        for row in queue_payload["rows"]
+    )
+    assert any(
+        row["hook_kind"] == "proof_state_feedback"
+        and row["llm_route_planner_hook_trace"]
+        .get("llm_route_planner_planner_next_action", {})
+        .get("owner")
+        == "lean_lsp_mcp"
+        and "attempt the rank_uniformity bridge lemma" in row["queries"]
         for row in queue_payload["rows"]
     )
 

@@ -9110,28 +9110,26 @@ def _accepted_route_for_seed(
         theorem_statement=str(route.get("theorem_statement", "")),
         target_prover_family=row.target_prover_family,
     )
-    if not row.search_requests:
-        llm_refinement_hooks = _merge_dict_rows(
-            llm_refinement_hooks,
-            _llm_refinement_hooks_for_planner_next_actions(
-                row.planner_next_actions,
-                selected_primitives=selected_primitives,
-                theorem_statement=str(route.get("theorem_statement", "")),
-                target_prover_family=row.target_prover_family,
-            ),
-            key_fields=("hook_kind", "queries", "acceptance_record"),
-        )
+    llm_refinement_hooks = _merge_dict_rows(
+        llm_refinement_hooks,
+        _llm_refinement_hooks_for_planner_next_actions(
+            row.planner_next_actions,
+            selected_primitives=selected_primitives,
+            theorem_statement=str(route.get("theorem_statement", "")),
+            target_prover_family=row.target_prover_family,
+        ),
+        key_fields=("hook_kind", "queries", "acceptance_record"),
+    )
     llm_route_revision_triggers = _llm_route_revision_triggers_for_search_requests(
         row.search_requests,
     )
-    if not row.search_requests:
-        llm_route_revision_triggers = _merge_dict_rows(
-            llm_route_revision_triggers,
-            _llm_route_revision_triggers_for_planner_next_actions(
-                row.planner_next_actions,
-            ),
-            key_fields=("trigger_kind", "condition", "next_action"),
-        )
+    llm_route_revision_triggers = _merge_dict_rows(
+        llm_route_revision_triggers,
+        _llm_route_revision_triggers_for_planner_next_actions(
+            row.planner_next_actions,
+        ),
+        key_fields=("trigger_kind", "condition", "next_action"),
+    )
     route_refinement_hooks = _merge_dict_rows(
         _dict_tuple(route.get("interactive_refinement_hooks", [])),
         llm_refinement_hooks,
@@ -9164,6 +9162,9 @@ def _accepted_route_for_seed(
             row.route_adoption_blockers
         ),
         "llm_route_planner_search_requests": [dict(item) for item in row.search_requests],
+        "llm_route_planner_planner_next_actions": [
+            dict(item) for item in row.planner_next_actions
+        ],
         "llm_route_planner_interactive_refinement_hooks": [
             dict(item) for item in llm_refinement_hooks
         ],
