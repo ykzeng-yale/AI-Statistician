@@ -166,6 +166,9 @@ def export_formalization_gap_planner_refinement_evidence(
         "n_contract_ok": sum(1 for row in rows if row.response_contract_ok),
         "n_rows_with_target_primitives": sum(1 for row in rows if row.target_primitives),
         "n_target_primitives": sum(len(row.target_primitives) for row in rows),
+        "n_rows_with_quality_controls": sum(
+            1 for row in rows if row.quality_controls
+        ),
         "n_literature_evidence": by_hook_kind.get("literature_discovery", 0),
         "n_source_snippets": sum(len(row.source_snippets) for row in rows),
         "n_literature_rows_with_source_snippets": sum(
@@ -528,8 +531,9 @@ def _evidence_row(
         queue_row.get("resource_request_bindings", [])
     )
     queue_target_primitives = _str_tuple(queue_row.get("target_primitives", []))
-    quality_controls = _quality_controls_from_resource_request_bindings(
-        resource_request_bindings
+    quality_controls = _merge_quality_controls(
+        _quality_controls_from_payload(queue_row.get("quality_controls", {})),
+        _quality_controls_from_resource_request_bindings(resource_request_bindings),
     )
     llm_route_planner_hook_trace = _dict_value(
         queue_row,

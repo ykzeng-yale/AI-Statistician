@@ -1137,6 +1137,11 @@ compatibility without reopening the full coverage-map manifest.
 Action-resource plans and resource-request dispatch payloads preserve those
 rows as well, which keeps MCP/CLI requests self-contained for external prover
 workers and publication-bundle replay.
+Refinement-queue rows also publish a normalized `quality_controls` object
+derived from LLM hooks and resource-request bindings. Downstream literature,
+formal-source, and prover-feedback executors can read required quality signals,
+quality gates, response-validation signals, stop conditions, and resource
+contracts directly from the work item instead of parsing nested LLM traces.
 
 `route_revision_triggers` and `interactive_refinement_hooks` record when the
 system should search more literature, search more Lean, request LSP/prover
@@ -1425,7 +1430,9 @@ The current implementation composes four existing AI Statistician artifacts:
 14. `formalization_gap_planner_refinement_queue`
    Turns route-revision triggers and interactive hooks into auditable work
    orders for literature tools, Lean search, LSP/prover diagnostics, and
-   route-DAG revision.
+   route-DAG revision. Each generated row carries normalized quality-control
+   policy from LLM route-planner hooks and resource bindings so downstream
+   executors can preserve contract gates without reopening raw prompt traces.
 
 15. `formalization_gap_planner_refinement_adapter_responses`
    Produces conservative local response JSONL from route-truth benchmark labels

@@ -67,6 +67,7 @@ class FormalizationGapPlannerRefinementQueueRow:
     resource_request_ids: tuple[str, ...]
     resource_ids: tuple[str, ...]
     resource_request_bindings: tuple[dict[str, object], ...]
+    quality_controls: dict[str, tuple[str, ...]]
     llm_route_planner_hook_trace: dict[str, object]
     evaluation_signal: str
     evaluation_route_missing_primitives: tuple[str, ...]
@@ -231,6 +232,7 @@ def export_formalization_gap_planner_refinement_queue(
             for row in rows
             if _is_failed_prover_feedback(row.prover_feedback_status)
         ),
+        "n_with_quality_controls": sum(1 for row in rows if row.quality_controls),
         "n_item_schema_valid": n_item_schema_valid,
         "n_item_schema_invalid": n_item_schema_invalid,
         "refinement_work_item_schema": work_item_schema,
@@ -284,6 +286,10 @@ def refinement_work_item_json_schema() -> dict[str, object]:
 
     string_array = {"type": "array", "items": {"type": "string"}}
     object_array = {"type": "array", "items": {"type": "object"}}
+    quality_controls = {
+        "type": "object",
+        "additionalProperties": string_array,
+    }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": REFINEMENT_WORK_ITEM_SCHEMA_ID,
@@ -345,6 +351,7 @@ def refinement_work_item_json_schema() -> dict[str, object]:
             "resource_request_ids": string_array,
             "resource_ids": string_array,
             "resource_request_bindings": object_array,
+            "quality_controls": quality_controls,
             "llm_route_planner_hook_trace": {"type": "object"},
             "evaluation_signal": {"type": "string"},
             "evaluation_route_missing_primitives": string_array,
@@ -419,6 +426,9 @@ def _schema_property_errors(
     elif expected_type == "boolean":
         if not isinstance(value, bool):
             errors.append(f"{field_name} must be boolean")
+    elif expected_type == "object":
+        if not isinstance(value, dict):
+            errors.append(f"{field_name} must be object")
     elif expected_type == "array":
         if not isinstance(value, (list, tuple)):
             errors.append(f"{field_name} must be array")
@@ -484,6 +494,10 @@ def _refinement_row(
     resource_ids = _str_tuple(hook.get("resource_ids", []))
     resource_request_bindings = _dict_tuple(
         hook.get("resource_request_bindings", [])
+    )
+    quality_controls = _quality_controls_from_hook(
+        hook,
+        resource_request_bindings=resource_request_bindings,
     )
     llm_route_planner_hook_trace = _llm_route_planner_hook_trace(hook)
     evaluation_signal = _evaluation_signal(evaluation_row)
@@ -552,6 +566,7 @@ def _refinement_row(
         resource_request_ids=resource_request_ids,
         resource_ids=resource_ids,
         resource_request_bindings=resource_request_bindings,
+        quality_controls=quality_controls,
         llm_route_planner_hook_trace=llm_route_planner_hook_trace,
         evaluation_signal=evaluation_signal,
         evaluation_route_missing_primitives=_str_tuple(
@@ -746,6 +761,68 @@ def _llm_route_planner_hook_trace(hook: dict[str, Any]) -> dict[str, object]:
     if len(trace) == 1:
         return {}
     return trace
+
+
+def _quality_controls_from_hook(
+    hook: dict[str, Any],
+    *,
+    resource_request_bindings: tuple[dict[str, object], ...],
+) -> dict[str, tuple[str, ...]]:
+    return _merge_quality_controls(
+        _quality_controls_from_payload(hook.get("quality_controls", {})),
+        _quality_controls_from_resource_request_bindings(resource_request_bindings),
+    )
+
+
+def _merge_quality_controls(
+    *values: dict[str, tuple[str, ...]],
+) -> dict[str, tuple[str, ...]]:
+    merged: dict[str, list[str]] = {}
+    for item in values:
+        if not isinstance(item, dict):
+            continue
+        for field_name in (
+            "resource_contract_ids",
+            "required_quality_signals",
+            "quality_gates",
+            "response_validation_signals",
+            "stop_conditions",
+        ):
+            field_values = _str_tuple(item.get(field_name, []))
+            if field_values:
+                merged.setdefault(field_name, []).extend(field_values)
+    return {
+        field_name: _str_tuple(field_values)
+        for field_name, field_values in merged.items()
+        if _str_tuple(field_values)
+    }
+
+
+def _quality_controls_from_payload(value: Any) -> dict[str, tuple[str, ...]]:
+    if not isinstance(value, dict):
+        return {}
+    return _merge_quality_controls(
+        {
+            field_name: _str_tuple(value.get(field_name, []))
+            for field_name in (
+                "resource_contract_ids",
+                "required_quality_signals",
+                "quality_gates",
+                "response_validation_signals",
+                "stop_conditions",
+            )
+        }
+    )
+
+
+def _quality_controls_from_resource_request_bindings(
+    bindings: tuple[dict[str, object], ...],
+) -> dict[str, tuple[str, ...]]:
+    controls = [
+        _quality_controls_from_payload(binding.get("quality_controls", {}))
+        for binding in bindings
+    ]
+    return _merge_quality_controls(*controls)
 
 
 def _queries_for_hook(

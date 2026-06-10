@@ -48,6 +48,28 @@ def test_refinement_queue_emits_public_work_item_schema() -> None:
                                 "hook_kind": "formal_library_grounding",
                                 "queries": ["bridge lemma formal declaration"],
                                 "recommended_tools": ["local formal-source index"],
+                                "quality_controls": {
+                                    "resource_contract_ids": [
+                                        "formal_source_index:declaration_search"
+                                    ],
+                                    "required_quality_signals": [
+                                        "candidate_declaration_rows"
+                                    ],
+                                    "quality_gates": ["response_schema_valid"],
+                                },
+                                "resource_request_bindings": [
+                                    {
+                                        "resource_id": "local_formal_source_index",
+                                        "quality_controls": {
+                                            "response_validation_signals": [
+                                                "candidate_declarations_present"
+                                            ],
+                                            "stop_conditions": [
+                                                "candidate declaration accepted or rejected"
+                                            ],
+                                        },
+                                    }
+                                ],
                             }
                         ],
                         "route_revision_triggers": [
@@ -71,6 +93,7 @@ def test_refinement_queue_emits_public_work_item_schema() -> None:
     assert payload["n_refinement_items"] == 1
     assert payload["n_formal_library_grounding_items"] == 1
     assert payload["n_lean_library_grounding_items"] == 0
+    assert payload["n_with_quality_controls"] == 1
     assert payload["n_item_schema_valid"] == payload["n_refinement_items"]
     assert payload["n_item_schema_invalid"] == 0
     assert (
@@ -80,6 +103,13 @@ def test_refinement_queue_emits_public_work_item_schema() -> None:
     row = payload["rows"][0]
     assert row["hook_kind"] == "formal_library_grounding"
     assert row["target_prover_family"] == "lean4"
+    assert row["quality_controls"] == {
+        "quality_gates": ("response_schema_valid",),
+        "required_quality_signals": ("candidate_declaration_rows",),
+        "resource_contract_ids": ("formal_source_index:declaration_search",),
+        "response_validation_signals": ("candidate_declarations_present",),
+        "stop_conditions": ("candidate declaration accepted or rejected",),
+    }
     assert payload["by_target_prover_family"] == {"lean4": 1}
     assert "formal_library_grounding" in refinement_work_item_json_schema()["properties"][
         "hook_kind"
@@ -88,6 +118,12 @@ def test_refinement_queue_emits_public_work_item_schema() -> None:
     invalid.pop("recommended_tools")
     assert "recommended_tools required" in validate_refinement_work_item_row(
         invalid,
+        refinement_work_item_json_schema(),
+    )
+    invalid_controls = dict(row)
+    invalid_controls["quality_controls"] = "not-an-object"
+    assert "quality_controls must be object" in validate_refinement_work_item_row(
+        invalid_controls,
         refinement_work_item_json_schema(),
     )
     assert (out_dir / "formalization_gap_planner_refinement_work_item.schema.json").exists()

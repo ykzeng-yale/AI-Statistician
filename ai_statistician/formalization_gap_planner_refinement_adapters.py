@@ -214,8 +214,11 @@ def _base_response(
         value = queue_row.get(field_name, [])
         if value:
             response[field_name] = value
-    quality_controls = _quality_controls_from_resource_request_bindings(
-        _dict_tuple(queue_row.get("resource_request_bindings", []))
+    quality_controls = _merge_quality_controls(
+        _quality_controls_from_payload(queue_row.get("quality_controls", {})),
+        _quality_controls_from_resource_request_bindings(
+            _dict_tuple(queue_row.get("resource_request_bindings", []))
+        ),
     )
     if quality_controls:
         response["quality_controls"] = quality_controls
@@ -640,10 +643,36 @@ def _dict_tuple(values: Any) -> tuple[dict[str, object], ...]:
 def _quality_controls_from_resource_request_bindings(
     bindings: tuple[dict[str, object], ...],
 ) -> dict[str, tuple[str, ...]]:
+    controls = [
+        _quality_controls_from_payload(binding.get("quality_controls", {}))
+        for binding in bindings
+    ]
+    return _merge_quality_controls(*controls)
+
+
+def _quality_controls_from_payload(value: Any) -> dict[str, tuple[str, ...]]:
+    if not isinstance(value, dict):
+        return {}
+    return _merge_quality_controls(
+        {
+            field_name: _str_tuple(value.get(field_name, []))
+            for field_name in (
+                "resource_contract_ids",
+                "required_quality_signals",
+                "quality_gates",
+                "response_validation_signals",
+                "stop_conditions",
+            )
+        }
+    )
+
+
+def _merge_quality_controls(
+    *values: dict[str, tuple[str, ...]],
+) -> dict[str, tuple[str, ...]]:
     merged: dict[str, list[str]] = {}
-    for binding in bindings:
-        quality_controls = binding.get("quality_controls", {})
-        if not isinstance(quality_controls, dict):
+    for controls in values:
+        if not isinstance(controls, dict):
             continue
         for field_name in (
             "resource_contract_ids",
@@ -652,13 +681,13 @@ def _quality_controls_from_resource_request_bindings(
             "response_validation_signals",
             "stop_conditions",
         ):
-            values = _str_tuple(quality_controls.get(field_name, []))
-            if values:
-                merged.setdefault(field_name, []).extend(values)
+            field_values = _str_tuple(controls.get(field_name, []))
+            if field_values:
+                merged.setdefault(field_name, []).extend(field_values)
     return {
-        field_name: _str_tuple(values)
-        for field_name, values in merged.items()
-        if _str_tuple(values)
+        field_name: _str_tuple(field_values)
+        for field_name, field_values in merged.items()
+        if _str_tuple(field_values)
     }
 
 

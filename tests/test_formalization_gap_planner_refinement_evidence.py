@@ -87,3 +87,61 @@ def test_refinement_evidence_rejects_expanded_target_primitives() -> None:
         "rank_uniformity",
         "spectral_gap",
     )
+
+
+def test_refinement_evidence_preserves_queue_level_quality_controls() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_refinement_evidence_queue_controls"
+    )
+    queue_dir = root / "queue"
+    evidence_dir = root / "evidence"
+    shutil.rmtree(root, ignore_errors=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    queue_row = {
+        "refinement_item_id": "refinement:literature-controls",
+        "goal_plan_id": "goal:test",
+        "route_id": "route:test",
+        "display_name": "demo:rank_uniformity",
+        "hook_kind": "literature_discovery",
+        "refinement_stage": "source_grounding",
+        "owner_agent": "research_librarian",
+        "target_primitives": ["rank_uniformity"],
+        "resource_request_bindings": [],
+        "quality_controls": {
+            "resource_contract_ids": ["paperqa:literature_evidence"],
+            "required_quality_signals": ["source_snippets"],
+            "quality_gates": ["response_schema_valid"],
+            "response_validation_signals": ["source_refs_present"],
+            "stop_conditions": ["source evidence accepted or search exhausted"],
+        },
+    }
+    (
+        queue_dir / "formalization_gap_planner_refinement_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_refinement_queue",
+                "rows": [queue_row],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_refinement_evidence(
+        queue_dir,
+        evidence_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_awaiting_tool_response"] == 1
+    assert payload["n_rows_with_quality_controls"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "AWAITING_REFINEMENT_TOOL_RESPONSE"
+    assert row["quality_controls"] == {
+        "quality_gates": ("response_schema_valid",),
+        "required_quality_signals": ("source_snippets",),
+        "resource_contract_ids": ("paperqa:literature_evidence",),
+        "response_validation_signals": ("source_refs_present",),
+        "stop_conditions": ("source evidence accepted or search exhausted",),
+    }
