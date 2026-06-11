@@ -172,6 +172,23 @@ def export_formalization_gap_planner_resource_response_ledger(
     by_acceptance_status = Counter(row.acceptance_status for row in rows)
     by_resource_id = Counter(row.resource_id for row in rows)
     by_expected_artifact = Counter(row.expected_response_artifact for row in rows)
+    declaration_hit_target_error_counts = tuple(
+        len(
+            _declaration_hit_target_errors(
+                _target_prover_key(row.target_prover_family),
+                row.formal_declaration_hits,
+                field_name="formal_declaration_hits",
+            )
+        )
+        + len(
+            _declaration_hit_target_errors(
+                _target_prover_key(row.target_prover_family),
+                row.lean_declaration_hits,
+                field_name="lean_declaration_hits",
+            )
+        )
+        for row in rows
+    )
     target_summary = target_prover_family_summary(
         rows,
         fallback_target_prover_family=request_manifest.get("target_prover_family", ""),
@@ -273,6 +290,12 @@ def export_formalization_gap_planner_resource_response_ledger(
         ),
         "n_rows_with_legacy_lean_declaration_hits": sum(
             1 for row in rows if row.lean_declaration_hits
+        ),
+        "n_declaration_hit_target_mismatch_rows": sum(
+            1 for count in declaration_hit_target_error_counts if count
+        ),
+        "n_declaration_hit_target_mismatches": sum(
+            declaration_hit_target_error_counts
         ),
         "n_rows_with_target_primitives": sum(
             1 for row in rows if row.target_primitives
@@ -1592,16 +1615,63 @@ def _declaration_hit_target_errors(
     if not row_target:
         return errors
     for index, declaration_row in enumerate(rows):
-        declaration_target = _target_prover_key(
+        explicit_target = _target_prover_key(
             declaration_row.get("target_prover_family", "")
             or declaration_row.get("target_prover", "")
         )
-        if declaration_target and declaration_target != row_target:
+        source_type_target = _declaration_hit_source_type_target_key(declaration_row)
+        if explicit_target and explicit_target != row_target:
             errors.append(
                 f"{field_name}[{index}].target_prover_family must match "
                 "row target_prover_family"
             )
+        if (
+            not explicit_target
+            and source_type_target
+            and source_type_target != row_target
+        ):
+            errors.append(
+                f"{field_name}[{index}].source_type implies {source_type_target} "
+                "but row target_prover_family is "
+                f"{row_target}"
+            )
     return errors
+
+
+def _declaration_hit_source_type_target_key(row: dict[str, object]) -> str:
+    source_type = (
+        row.get("source_type")
+        or row.get("source_kind")
+        or row.get("library_family")
+        or row.get("source_prover_family")
+        or row.get("prover_family")
+        or ""
+    )
+    return _source_type_target_prover_key(source_type)
+
+
+def _source_type_target_prover_key(value: object) -> str:
+    key = _target_prover_key(value)
+    if not key:
+        return ""
+    tokens = {
+        token
+        for token in re.split(r"[^a-z0-9]+", key)
+        if token
+    }
+    if key in {"mathlib", "lean4_library"} or {"lean", "lean4", "mathlib"} & tokens:
+        return "lean4"
+    if key in {"coq", "coq8", "coq_library", "rocq_library"} or {
+        "coq",
+        "coq8",
+        "rocq",
+    } & tokens:
+        return "rocq"
+    if key in {"isabelle_hol", "isabelle_library"} or "isabelle" in tokens:
+        return "isabelle"
+    if key in {"agda_library"} or "agda" in tokens:
+        return "agda"
+    return ""
 
 
 def _target_prover_key(value: object) -> str:
