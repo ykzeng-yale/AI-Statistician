@@ -644,7 +644,12 @@ declaration hits, the row preserves all `source_fields` but surfaces the accepte
 hit as the primary `source_field`. Response validation filters candidate
 declarations through those structured rows when present, so a Rocq route cannot
 cite a Lean-only declaration merely because both appeared in a mixed library
-context. Pending resource-request candidates are treated as search
+context. Accepted response `candidate_declaration_rows` preserve bounded
+scope/provenance fields such as `source_fields`, `target_primitives`,
+`supported_target_primitives`, `unsupported_target_primitives`, `source_refs`,
+and `matched_terms` in the standalone seed, so external prover adapters can
+audit the declaration support without recovering the raw LLM response. Pending
+resource-request candidates are treated as search
 seeds, not as accepted library evidence: an LLM route may use them to ask for
 formal-library or prover feedback, but it cannot justify `already_exists`,
 `exact_exists`, or reuse coverage from them until a route-level formal context

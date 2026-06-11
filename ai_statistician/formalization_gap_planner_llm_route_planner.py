@@ -15447,32 +15447,77 @@ def _candidate_declaration_rows(
         ).strip()
         if not declaration:
             continue
-        rows.append(
-            {
-                "declaration": declaration,
-                "target_prover_family": str(
-                    value.get("target_prover_family", "")
-                    or value.get("target_prover", "")
-                    or inherited_target_prover_family
-                ).strip(),
-                "source_field": str(
-                    value.get("source_field", "") or fallback_source_field
-                ).strip(),
-            }
-        )
-    compact: list[dict[str, object]] = []
-    seen: set[tuple[str, str, str]] = set()
+        row: dict[str, object] = {
+            "declaration": declaration,
+            "target_prover_family": str(
+                value.get("target_prover_family", "")
+                or value.get("target_prover", "")
+                or inherited_target_prover_family
+            ).strip(),
+            "source_field": str(
+                value.get("source_field", "") or fallback_source_field
+            ).strip(),
+        }
+        for field_name in (
+            "source_fields",
+            "target_primitives",
+            "supported_target_primitives",
+            "unsupported_target_primitives",
+            "source_refs",
+            "matched_terms",
+        ):
+            values = _candidate_declaration_row_list_field_values(
+                field_name,
+                value.get(field_name, []),
+            )
+            if values:
+                row[field_name] = list(values)
+        rows.append(row)
+    compact_by_key: dict[tuple[str, str, str], dict[str, object]] = {}
     for row in rows:
         key = (
             _formal_declaration_key(row.get("declaration", "")),
             _target_prover_key(row.get("target_prover_family", "")),
             str(row.get("source_field", "")),
         )
-        if not key[0] or key in seen:
+        if not key[0]:
             continue
-        seen.add(key)
-        compact.append(row)
-    return tuple(compact)
+        if key not in compact_by_key:
+            compact_by_key[key] = dict(row)
+            continue
+        existing = compact_by_key[key]
+        for field_name in (
+            "source_fields",
+            "target_primitives",
+            "supported_target_primitives",
+            "unsupported_target_primitives",
+            "source_refs",
+            "matched_terms",
+        ):
+            merged = tuple(
+                dict.fromkeys(
+                    [
+                        *_str_tuple(existing.get(field_name, [])),
+                        *_str_tuple(row.get(field_name, [])),
+                    ]
+                )
+            )
+            if merged:
+                existing[field_name] = list(merged)
+    return tuple(compact_by_key.values())
+
+
+def _candidate_declaration_row_list_field_values(
+    field_name: str,
+    value: Any,
+) -> tuple[str, ...]:
+    if field_name in {
+        "target_primitives",
+        "supported_target_primitives",
+        "unsupported_target_primitives",
+    }:
+        return _primitive_values(value)
+    return _str_tuple(value)
 
 
 def _route_source_refs(payload: Mapping[str, Any]) -> tuple[str, ...]:

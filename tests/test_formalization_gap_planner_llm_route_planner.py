@@ -6404,6 +6404,58 @@ def test_llm_route_planner_accepts_candidate_declaration_rows_only_response() ->
     ]
 
 
+def test_llm_route_planner_preserves_candidate_declaration_row_scope_in_seed() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_candidate_row_scope_seed"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    declaration_row = {
+        "declaration": "Probability.exchangeable",
+        "target_prover_family": "lean4",
+        "source_field": "available_formal_declaration_rows",
+        "source_fields": [
+            "available_formal_declaration_rows",
+            "candidate_declarations",
+        ],
+        "target_primitives": ["exchangeability"],
+        "supported_target_primitives": ["exchangeability"],
+        "unsupported_target_primitives": ["rank_uniformity"],
+        "source_refs": ["conformal_prediction_textbook"],
+        "matched_terms": ["exchangeability"],
+    }
+    response["lean_realization_dag_nodes"][0].pop("candidate_declarations", None)
+    response["lean_realization_dag_nodes"][0]["candidate_declaration_rows"] = [
+        declaration_row
+    ]
+    response["standalone_route"]["primitives"][0].pop("candidate_declarations", None)
+    response["standalone_route"]["primitives"][0]["candidate_declaration_rows"] = [
+        declaration_row
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["formal_realization_dag_nodes"][0][
+        "candidate_declaration_rows"
+    ] == [declaration_row]
+    seed_route = payload["standalone_seed"]["routes"][0]
+    assert seed_route["primitives"][0]["candidate_declaration_rows"] == [
+        declaration_row
+    ]
+
+
 def test_llm_route_planner_accepts_introduced_reuse_with_candidate_declaration_rows() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_introduced_candidate_rows"
