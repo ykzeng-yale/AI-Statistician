@@ -751,6 +751,7 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     model: str
     model_tier: str
     model_selection_rationale: str
+    model_tier_decision_evidence: dict[str, object]
     target_prover_family: str
     library_snapshot_ref: str
     prompt_fingerprint: str
@@ -873,6 +874,26 @@ def export_formalization_gap_planner_llm_route_planner(
     )
     by_model_tier = Counter(
         str(packet.get("model_tier", "") or "unknown") for packet in request_packets
+    )
+    by_model_tier_decision_basis = Counter(
+        str(
+            _dict_value(packet, "model_tier_decision_evidence").get(
+                "decision_basis",
+                "",
+            )
+            or "missing"
+        )
+        for packet in request_packets
+    )
+    invalid_model_tier_decision_evidence = tuple(
+        packet
+        for packet in request_packets
+        if _model_tier_decision_evidence_errors(
+            _dict_value(packet, "model_tier_decision_evidence"),
+            selected_model_tier=str(packet.get("model_tier", "")),
+            effective_model_tier=str(packet.get("model_tier", "")),
+            allow_repair_escalation=False,
+        )
     )
     request_generation_policy_tier_matches = [
         packet
@@ -1068,6 +1089,37 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_request_model_tier_sonnet": by_model_tier.get("sonnet", 0),
         "n_request_model_tier_opus": by_model_tier.get("opus", 0),
         "by_request_model_tier": dict(sorted(by_model_tier.items())),
+        "n_requests_with_model_tier_decision_evidence": sum(
+            1
+            for packet in request_packets
+            if _dict_value(packet, "model_tier_decision_evidence")
+        ),
+        "n_request_model_tier_decision_auto_haiku_bounded": (
+            by_model_tier_decision_basis.get("auto_haiku_bounded_route", 0)
+        ),
+        "n_request_model_tier_decision_auto_sonnet_triggered": (
+            by_model_tier_decision_basis.get("auto_sonnet_triggers", 0)
+        ),
+        "n_request_model_tier_decision_operator_override": (
+            by_model_tier_decision_basis.get("operator_override", 0)
+        ),
+        "n_request_model_tier_decision_sonnet_triggers": sum(
+            len(
+                _str_tuple(
+                    _dict_value(packet, "model_tier_decision_evidence").get(
+                        "sonnet_triggers",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_request_model_tier_decision_evidence_invalid": len(
+            invalid_model_tier_decision_evidence
+        ),
+        "by_request_model_tier_decision_basis": dict(
+            sorted(by_model_tier_decision_basis.items())
+        ),
         "n_requests_with_llm_generation_policy": sum(
             1 for packet in request_packets if packet.get("llm_generation_policy")
         ),
@@ -2171,6 +2223,7 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
             "provider_name",
             "model_tier",
             "model_selection_rationale",
+            "model_tier_decision_evidence",
             "llm_generation_policy",
             "target_prover_family",
             "library_snapshot_ref",
@@ -2194,6 +2247,7 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
             "model": {"type": "string"},
             "model_tier": {"type": "string", "enum": ["haiku", "sonnet", "opus"]},
             "model_selection_rationale": {"type": "string", "minLength": 1},
+            "model_tier_decision_evidence": {"type": "object"},
             "llm_generation_policy": {"type": "object"},
             "target_prover_family": {"type": "string", "minLength": 1},
             "library_snapshot_ref": {"type": "string", "minLength": 1},
@@ -2245,6 +2299,13 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_model_tier_sonnet",
             "n_request_model_tier_opus",
             "by_request_model_tier",
+            "n_requests_with_model_tier_decision_evidence",
+            "n_request_model_tier_decision_auto_haiku_bounded",
+            "n_request_model_tier_decision_auto_sonnet_triggered",
+            "n_request_model_tier_decision_operator_override",
+            "n_request_model_tier_decision_sonnet_triggers",
+            "n_request_model_tier_decision_evidence_invalid",
+            "by_request_model_tier_decision_basis",
             "n_request_model_tier_mismatches",
             "request_model_tier_mismatches",
             "n_generation_preflight_blocked",
@@ -2351,6 +2412,13 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_model_tier_sonnet": nonnegative_integer,
             "n_request_model_tier_opus": nonnegative_integer,
             "by_request_model_tier": {"type": "object"},
+            "n_requests_with_model_tier_decision_evidence": nonnegative_integer,
+            "n_request_model_tier_decision_auto_haiku_bounded": nonnegative_integer,
+            "n_request_model_tier_decision_auto_sonnet_triggered": nonnegative_integer,
+            "n_request_model_tier_decision_operator_override": nonnegative_integer,
+            "n_request_model_tier_decision_sonnet_triggers": nonnegative_integer,
+            "n_request_model_tier_decision_evidence_invalid": nonnegative_integer,
+            "by_request_model_tier_decision_basis": {"type": "object"},
             "n_request_model_tier_mismatches": nonnegative_integer,
             "request_model_tier_mismatches": object_array,
             "n_generation_preflight_blocked": nonnegative_integer,
@@ -2518,6 +2586,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "model",
             "model_tier",
             "model_selection_rationale",
+            "model_tier_decision_evidence",
             "target_prover_family",
             "library_snapshot_ref",
             "prompt_fingerprint",
@@ -2567,6 +2636,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "model": {"type": "string"},
             "model_tier": {"type": "string", "enum": ["haiku", "sonnet", "opus"]},
             "model_selection_rationale": {"type": "string", "minLength": 1},
+            "model_tier_decision_evidence": {"type": "object"},
             "target_prover_family": {"type": "string", "minLength": 1},
             "library_snapshot_ref": {"type": "string", "minLength": 1},
             "prompt_fingerprint": {"type": "string", "minLength": 1},
@@ -2883,6 +2953,14 @@ def validate_llm_route_planner_request(
         mismatch = _request_model_tier_mismatch(row)
         if mismatch:
             errors.append(str(mismatch["error"]))
+    errors.extend(
+        _model_tier_decision_evidence_errors(
+            _dict_value(row, "model_tier_decision_evidence"),
+            selected_model_tier=str(row.get("model_tier", "")),
+            effective_model_tier=str(row.get("model_tier", "")),
+            allow_repair_escalation=False,
+        )
+    )
     errors.extend(_llm_generation_policy_errors(row))
     errors.extend(_context_packet_inventory_errors(row))
     return sorted(set(errors))
@@ -2991,6 +3069,69 @@ def validate_llm_route_planner_manifest(
     ) != n_route_planning_evidence_gaps:
         errors.append(
             "n_request_route_planning_evidence_gaps must match request_packets"
+        )
+    decision_evidence_rows = tuple(
+        _dict_value(packet, "model_tier_decision_evidence")
+        for packet in request_packets
+    )
+    decision_basis_counts = Counter(
+        str(row.get("decision_basis", "") or "missing")
+        for row in decision_evidence_rows
+    )
+    if int(
+        manifest.get("n_requests_with_model_tier_decision_evidence", 0) or 0
+    ) != sum(1 for row in decision_evidence_rows if row):
+        errors.append(
+            "n_requests_with_model_tier_decision_evidence must match request_packets"
+        )
+    if int(
+        manifest.get("n_request_model_tier_decision_auto_haiku_bounded", 0) or 0
+    ) != decision_basis_counts.get("auto_haiku_bounded_route", 0):
+        errors.append(
+            "n_request_model_tier_decision_auto_haiku_bounded must match request_packets"
+        )
+    if int(
+        manifest.get("n_request_model_tier_decision_auto_sonnet_triggered", 0) or 0
+    ) != decision_basis_counts.get("auto_sonnet_triggers", 0):
+        errors.append(
+            "n_request_model_tier_decision_auto_sonnet_triggered must match request_packets"
+        )
+    if int(
+        manifest.get("n_request_model_tier_decision_operator_override", 0) or 0
+    ) != decision_basis_counts.get("operator_override", 0):
+        errors.append(
+            "n_request_model_tier_decision_operator_override must match request_packets"
+        )
+    if int(
+        manifest.get("n_request_model_tier_decision_sonnet_triggers", 0) or 0
+    ) != sum(
+        len(_str_tuple(row.get("sonnet_triggers", [])))
+        for row in decision_evidence_rows
+    ):
+        errors.append(
+            "n_request_model_tier_decision_sonnet_triggers must match request_packets"
+        )
+    invalid_decision_evidence = [
+        row
+        for packet, row in zip(request_packets, decision_evidence_rows)
+        if _model_tier_decision_evidence_errors(
+            row,
+            selected_model_tier=str(packet.get("model_tier", "")),
+            effective_model_tier=str(packet.get("model_tier", "")),
+            allow_repair_escalation=False,
+        )
+    ]
+    if int(
+        manifest.get("n_request_model_tier_decision_evidence_invalid", 0) or 0
+    ) != len(invalid_decision_evidence):
+        errors.append(
+            "n_request_model_tier_decision_evidence_invalid must match request_packets"
+        )
+    if dict(manifest.get("by_request_model_tier_decision_basis", {}) or {}) != dict(
+        sorted(decision_basis_counts.items())
+    ):
+        errors.append(
+            "by_request_model_tier_decision_basis must match request_packets"
         )
     repair_attempt_ledger = _dict_tuple(manifest.get("repair_attempt_ledger", []))
     row_repair_attempt_ledger = tuple(
@@ -3428,6 +3569,14 @@ def validate_llm_route_planner_row(
     if row.get("response_contract_ok") and not row.get("standalone_route"):
         errors.append("accepted response must include standalone_route")
     generator_metadata = _dict_value(row, "generator_metadata")
+    errors.extend(
+        _model_tier_decision_evidence_errors(
+            _dict_value(row, "model_tier_decision_evidence"),
+            selected_model_tier=str(row.get("model_tier", "")),
+            effective_model_tier=str(row.get("model_tier", "")),
+            allow_repair_escalation=True,
+        )
+    )
     if generator_metadata.get("model_tier_escalated"):
         requested_tier = str(
             generator_metadata.get("requested_model_tier", "")
@@ -3604,7 +3753,11 @@ def _request_packet(
         context_packet,
         residual_goals=residual_goals,
     )
-    selected_model_tier, model_selection_rationale = (
+    (
+        selected_model_tier,
+        model_selection_rationale,
+        model_tier_decision_evidence,
+    ) = (
         _llm_route_planner_model_tier_decision(
             route,
             context_packet,
@@ -3639,6 +3792,7 @@ def _request_packet(
         "model": resolved_model,
         "model_tier": selected_model_tier,
         "model_selection_rationale": model_selection_rationale,
+        "model_tier_decision_evidence": model_tier_decision_evidence,
         "llm_generation_policy": _llm_generation_policy_snapshot(
             provider_name=provider_name,
             resolved_model=resolved_model,
@@ -6052,45 +6206,43 @@ def _llm_route_planner_model_tier_decision(
     context_packet: Mapping[str, Any],
     *,
     requested_model_tier: str,
-) -> tuple[str, str]:
+) -> tuple[str, str, dict[str, object]]:
     requested = _normalize_model_tier(requested_model_tier)
+    primitives = _dict_tuple(route.get("primitives", []))
+    residual_goals = _str_tuple(context_packet.get("residual_goals", []))
+    source_refs = _route_and_primitive_source_refs(route)
+    theorem_statement = str(route.get("theorem_statement", ""))
+    route_markers = _route_coverage_action_markers(primitives)
+    hard_markers = sorted(route_markers & _complex_route_markers())
+    base_evidence = _model_tier_decision_evidence_base(
+        route=route,
+        requested_model_tier=requested,
+        primitives=primitives,
+        residual_goals=residual_goals,
+        source_refs=source_refs,
+        theorem_statement=theorem_statement,
+        route_markers=route_markers,
+        hard_markers=hard_markers,
+    )
     if requested in {"haiku", "sonnet", "opus"}:
+        evidence = dict(base_evidence)
+        evidence.update(
+            {
+                "selected_model_tier": requested,
+                "effective_model_tier": requested,
+                "selection_mode": "operator_requested",
+                "decision_basis": "operator_override",
+                "sonnet_triggers": [],
+                "haiku_safety_checks": {},
+            }
+        )
         return (
             requested,
             f"operator requested Claude {requested} tier for this route-planner run",
+            evidence,
         )
 
-    residual_goals = _str_tuple(context_packet.get("residual_goals", []))
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
-    primitives = _dict_tuple(route.get("primitives", []))
-    theorem_statement = str(route.get("theorem_statement", ""))
-    source_refs = _route_and_primitive_source_refs(route)
-    complex_markers = {
-        "bridge",
-        "bridge_needed",
-        "source_port",
-        "source_port_needed",
-        "definition_or_theory_missing",
-        "new_definition",
-        "new_definition_needed",
-        "new_theory",
-        "new_theory_needed",
-        "first_principles",
-        "first_principles_needed",
-        "missing",
-        "unknown",
-    }
-    route_markers = {
-        _primitive_key(marker)
-        for primitive in primitives
-        for marker in (
-            primitive.get("coverage_status", ""),
-            primitive.get("coverage_bucket", ""),
-            primitive.get("formalization_action", ""),
-            primitive.get("alignment_status", ""),
-        )
-        if _primitive_key(marker)
-    }
     sonnet_reasons: list[str] = []
     if residual_goals:
         sonnet_reasons.append(f"{len(residual_goals)} prover residual goal(s)")
@@ -6105,7 +6257,6 @@ def _llm_route_planner_model_tier_decision(
     sonnet_reasons.extend(_seed_route_risk_sonnet_reasons(route, primitives))
     cost_hint_reasons = _minimal_delta_cost_hint_sonnet_reasons(context_packet)
     sonnet_reasons.extend(cost_hint_reasons)
-    hard_markers = sorted(route_markers & complex_markers)
     if hard_markers:
         sonnet_reasons.append(
             "complex coverage/action marker(s): " + ", ".join(hard_markers[:6])
@@ -6117,17 +6268,115 @@ def _llm_route_planner_model_tier_decision(
     if len(theorem_statement) > 600:
         sonnet_reasons.append("long theorem statement")
     if sonnet_reasons:
+        evidence = dict(base_evidence)
+        evidence.update(
+            {
+                "selected_model_tier": "sonnet",
+                "effective_model_tier": "sonnet",
+                "selection_mode": "auto",
+                "decision_basis": "auto_sonnet_triggers",
+                "sonnet_triggers": list(sonnet_reasons),
+                "haiku_safety_checks": {},
+            }
+        )
         return (
             "sonnet",
             "auto selected Claude Sonnet because " + "; ".join(sonnet_reasons),
+            evidence,
         )
+    haiku_checks = {
+        "no_residual_goals": not residual_goals,
+        "primitive_count_at_most_four": len(primitives) <= 4,
+        "source_ref_count_at_most_six": len(source_refs) <= 6,
+        "theorem_statement_at_most_600_chars": len(theorem_statement) <= 600,
+        "no_complex_coverage_or_action_markers": not hard_markers,
+    }
+    evidence = dict(base_evidence)
+    evidence.update(
+        {
+            "selected_model_tier": "haiku",
+            "effective_model_tier": "haiku",
+            "selection_mode": "auto",
+            "decision_basis": "auto_haiku_bounded_route",
+            "sonnet_triggers": [],
+            "haiku_safety_checks": haiku_checks,
+        }
+    )
     return (
         "haiku",
         (
             "auto selected Claude Haiku for a small route with no residual goals "
             "and only reuse/near/wrapper-level coverage markers"
         ),
+        evidence,
     )
+
+
+def _complex_route_markers() -> set[str]:
+    return {
+        "bridge",
+        "bridge_needed",
+        "source_port",
+        "source_port_needed",
+        "definition_or_theory_missing",
+        "new_definition",
+        "new_definition_needed",
+        "new_theory",
+        "new_theory_needed",
+        "first_principles",
+        "first_principles_needed",
+        "missing",
+        "unknown",
+    }
+
+
+def _route_coverage_action_markers(
+    primitives: tuple[Mapping[str, Any], ...],
+) -> set[str]:
+    return {
+        _primitive_key(marker)
+        for primitive in primitives
+        for marker in (
+            primitive.get("coverage_status", ""),
+            primitive.get("coverage_bucket", ""),
+            primitive.get("formalization_action", ""),
+            primitive.get("alignment_status", ""),
+        )
+        if _primitive_key(marker)
+    }
+
+
+def _model_tier_decision_evidence_base(
+    *,
+    route: Mapping[str, Any],
+    requested_model_tier: str,
+    primitives: tuple[Mapping[str, Any], ...],
+    residual_goals: tuple[str, ...],
+    source_refs: tuple[str, ...],
+    theorem_statement: str,
+    route_markers: set[str],
+    hard_markers: list[str],
+) -> dict[str, object]:
+    return {
+        "evidence_kind": "formalization_gap_planner_llm_route_planner_model_tier_decision",
+        "policy_id": LLM_ROUTE_PLANNER_MODEL_TIER_POLICY_ID,
+        "requested_model_tier": requested_model_tier,
+        "route_id": str(route.get("route_id", "")),
+        "display_name": str(route.get("display_name", "")),
+        "model_tier_escalated": False,
+        "route_signal_counts": {
+            "primitive_count": len(primitives),
+            "residual_goal_count": len(residual_goals),
+            "source_ref_count": len(source_refs),
+            "theorem_statement_chars": len(theorem_statement),
+            "coverage_action_marker_count": len(route_markers),
+            "complex_coverage_action_marker_count": len(hard_markers),
+        },
+        "coverage_action_markers": sorted(route_markers),
+        "complex_coverage_action_markers": list(hard_markers),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
 
 
 def _seed_route_risk_sonnet_reasons(
@@ -6472,6 +6721,123 @@ def _effective_model_selection_rationale(
     return rationale
 
 
+def _effective_model_tier_decision_evidence(
+    request: Mapping[str, Any],
+    response: Mapping[str, Any],
+    *,
+    effective_model_tier: str,
+) -> dict[str, object]:
+    evidence = dict(_dict_value(request, "model_tier_decision_evidence"))
+    if not evidence:
+        return {}
+    generator_metadata = _dict_value(response, "generator_metadata")
+    escalated = bool(
+        response.get("model_tier_escalated")
+        or generator_metadata.get("model_tier_escalated")
+    )
+    reason = str(
+        response.get("model_tier_escalation_reason")
+        or generator_metadata.get("model_tier_escalation_reason")
+        or ""
+    ).strip()
+    evidence["effective_model_tier"] = str(effective_model_tier or "").strip().lower()
+    evidence["model_tier_escalated"] = escalated
+    if escalated and reason:
+        evidence["model_tier_escalation_reason"] = reason
+    return evidence
+
+
+def _model_tier_decision_evidence_errors(
+    evidence: Mapping[str, object],
+    *,
+    selected_model_tier: str,
+    effective_model_tier: str,
+    allow_repair_escalation: bool,
+) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(evidence, Mapping) or not evidence:
+        return ["model_tier_decision_evidence missing"]
+    prefix = "model_tier_decision_evidence"
+    if str(evidence.get("evidence_kind", "")).strip() != (
+        "formalization_gap_planner_llm_route_planner_model_tier_decision"
+    ):
+        errors.append(f"{prefix}.evidence_kind mismatch")
+    if str(evidence.get("policy_id", "")).strip() != LLM_ROUTE_PLANNER_MODEL_TIER_POLICY_ID:
+        errors.append(f"{prefix}.policy_id mismatch")
+    if evidence.get("proof_evidence_status") != PROOF_EVIDENCE_STATUS:
+        errors.append(f"{prefix}.proof_evidence_status mismatch")
+    if "not theorem proof evidence" not in str(
+        evidence.get("proof_evidence_boundary", "")
+    ).lower():
+        errors.append(f"{prefix}.proof_evidence_boundary must say not theorem proof evidence")
+
+    requested = str(evidence.get("requested_model_tier", "")).strip().lower()
+    selected = str(evidence.get("selected_model_tier", "")).strip().lower()
+    effective = str(evidence.get("effective_model_tier", "")).strip().lower()
+    expected_selected = str(selected_model_tier or "").strip().lower()
+    expected_effective = str(effective_model_tier or "").strip().lower()
+    if requested not in LLM_ROUTE_PLANNER_MODEL_TIERS:
+        errors.append(f"{prefix}.requested_model_tier must be a planner tier")
+    if selected not in {"haiku", "sonnet", "opus"}:
+        errors.append(f"{prefix}.selected_model_tier must be haiku, sonnet, or opus")
+    if selected and expected_selected and selected != expected_selected:
+        if not (
+            allow_repair_escalation
+            and selected == "haiku"
+            and expected_selected == "sonnet"
+            and bool(evidence.get("model_tier_escalated", False))
+        ):
+            errors.append(f"{prefix}.selected_model_tier must match selected tier")
+    if effective and expected_effective and effective != expected_effective:
+        errors.append(f"{prefix}.effective_model_tier must match effective tier")
+    if effective and effective not in {"haiku", "sonnet", "opus"}:
+        errors.append(f"{prefix}.effective_model_tier must be haiku, sonnet, or opus")
+
+    decision_basis = str(evidence.get("decision_basis", "")).strip()
+    if decision_basis not in {
+        "operator_override",
+        "auto_sonnet_triggers",
+        "auto_haiku_bounded_route",
+    }:
+        errors.append(f"{prefix}.decision_basis unsupported")
+    selection_mode = str(evidence.get("selection_mode", "")).strip()
+    if decision_basis == "operator_override" and selection_mode != "operator_requested":
+        errors.append(f"{prefix}.selection_mode must be operator_requested")
+    if decision_basis.startswith("auto_") and selection_mode != "auto":
+        errors.append(f"{prefix}.selection_mode must be auto")
+
+    sonnet_triggers = _str_tuple(evidence.get("sonnet_triggers", []))
+    if decision_basis == "auto_sonnet_triggers":
+        if selected != "sonnet":
+            errors.append(f"{prefix}.auto_sonnet_triggers must select sonnet")
+        if not sonnet_triggers:
+            errors.append(f"{prefix}.sonnet_triggers required for auto Sonnet")
+    if decision_basis == "auto_haiku_bounded_route":
+        if selected != "haiku":
+            errors.append(f"{prefix}.auto_haiku_bounded_route must select haiku")
+        checks = _dict_value(evidence, "haiku_safety_checks")
+        if not checks:
+            errors.append(f"{prefix}.haiku_safety_checks required for auto Haiku")
+        failed_checks = sorted(
+            str(key)
+            for key, value in checks.items()
+            if value is not True
+        )
+        if failed_checks:
+            errors.append(
+                f"{prefix}.haiku_safety_checks failed: "
+                + ", ".join(failed_checks)
+            )
+        if sonnet_triggers:
+            errors.append(f"{prefix}.auto Haiku must not carry sonnet_triggers")
+    if bool(evidence.get("model_tier_escalated", False)):
+        if not allow_repair_escalation:
+            errors.append(f"{prefix}.model_tier_escalated not allowed in request")
+        if selected != "haiku" or effective != "sonnet":
+            errors.append(f"{prefix}.model_tier_escalated must be haiku-to-sonnet")
+    return errors
+
+
 def _row_for_request(
     request: Mapping[str, Any],
     *,
@@ -6623,6 +6989,11 @@ def _row_for_request(
         model_selection_rationale=_effective_model_selection_rationale(
             request,
             response or {},
+        ),
+        model_tier_decision_evidence=_effective_model_tier_decision_evidence(
+            request,
+            response or {},
+            effective_model_tier=effective_model_tier,
         ),
         target_prover_family=str(request.get("target_prover_family", "")),
         library_snapshot_ref=str(request.get("library_snapshot_ref", "")),
@@ -16492,6 +16863,8 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Requests: {payload.get('n_request_schema_valid')}/{payload.get('n_request_packets')}",
         f"- Model tier mode: {payload.get('model_tier_selection_mode')}",
         f"- Request tiers: {payload.get('by_request_model_tier')}",
+        f"- Request tier-decision basis: {payload.get('by_request_model_tier_decision_basis')}",
+        f"- Invalid tier-decision evidence: {payload.get('n_request_model_tier_decision_evidence_invalid')}",
         f"- Request model-tier mismatches: {payload.get('n_request_model_tier_mismatches')}",
         f"- Generation preflight blocks: {payload.get('n_generation_preflight_blocked')}",
         f"- Repair attempts: {payload.get('n_generated_response_repair_attempts')}",

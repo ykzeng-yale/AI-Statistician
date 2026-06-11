@@ -202,7 +202,12 @@ now carries a request-scoped `llm_generation_policy` snapshot with the selected
 provider, resolved model, selected/requested tier, Claude pinned model policy,
 auto-tier rules, and explicit `codex`/`codex_exec` exclusion. This lets an
 external prover team audit a single JSONL request without reopening the full
-publication bundle or assuming the local runtime configuration is available. In
+publication bundle or assuming the local runtime configuration is available.
+Each request and row also carries `model_tier_decision_evidence`: structured
+counts, coverage/action markers, Sonnet trigger reasons, Haiku bounded-route
+safety checks, and any Haiku-to-Sonnet repair escalation. This keeps the
+cost-aware Claude routing decision auditable as data rather than only as a
+free-text rationale. In
 the same request packet, `context_packet.legacy_context_field_aliases` is
 target-aware: Lean requests map legacy context fields such as
 `lean_grounding_queries` and `lean_declaration_hits` back to portable
@@ -445,9 +450,9 @@ that same request-context snapshot for standalone reuse. They also expose
 request-inventory quality-control obligation counts, including pending and
 discharged field/value totals, so public bundles show whether route-planner
 prompts still require prover/resource evidence before adoption. They also
-expose Haiku-to-Sonnet repair-escalation counts from the primary and feedback
-LLM route-planner manifests, so cost-aware routing remains auditable in public
-supplements. They also
+expose Haiku-to-Sonnet repair-escalation counts and structured tier-decision
+evidence counts from the primary and feedback LLM route-planner manifests, so
+cost-aware routing remains auditable in public supplements. They also
 preserve the generic informal DAG, formal realization DAG, Lean legacy
 realization alias, and route-alignment edge counts from the packaged planner
 manifests, so non-Lean prover routes remain visible in the public summary

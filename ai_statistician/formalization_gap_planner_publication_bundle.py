@@ -2252,6 +2252,13 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_generated_responses_haiku_to_sonnet_escalated",
             "n_repair_attempt_ledger_model_tier_escalations",
             "n_rows_with_model_tier_escalation",
+            "n_requests_with_model_tier_decision_evidence",
+            "n_request_model_tier_decision_auto_haiku_bounded",
+            "n_request_model_tier_decision_auto_sonnet_triggered",
+            "n_request_model_tier_decision_operator_override",
+            "n_request_model_tier_decision_sonnet_triggers",
+            "n_request_model_tier_decision_evidence_invalid",
+            "by_request_model_tier_decision_basis",
             "n_informal_knowledge_dag_nodes",
             "n_formal_realization_dag_nodes",
             "legacy_response_field_aliases",
@@ -2310,6 +2317,23 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_rows_with_model_tier_escalation": nonnegative_integer,
+            "n_requests_with_model_tier_decision_evidence": nonnegative_integer,
+            "n_request_model_tier_decision_auto_haiku_bounded": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_auto_sonnet_triggered": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_operator_override": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_sonnet_triggers": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_evidence_invalid": (
+                nonnegative_integer
+            ),
+            "by_request_model_tier_decision_basis": {"type": "object"},
             "n_informal_knowledge_dag_nodes": nonnegative_integer,
             "n_formal_realization_dag_nodes": nonnegative_integer,
             "legacy_response_field_aliases": {"type": "object"},
@@ -4404,6 +4428,13 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_generated_responses_haiku_to_sonnet_escalated": 0,
         "n_repair_attempt_ledger_model_tier_escalations": 0,
         "n_rows_with_model_tier_escalation": 0,
+        "n_requests_with_model_tier_decision_evidence": 0,
+        "n_request_model_tier_decision_auto_haiku_bounded": 0,
+        "n_request_model_tier_decision_auto_sonnet_triggered": 0,
+        "n_request_model_tier_decision_operator_override": 0,
+        "n_request_model_tier_decision_sonnet_triggers": 0,
+        "n_request_model_tier_decision_evidence_invalid": 0,
+        "by_request_model_tier_decision_basis": {},
         "n_informal_knowledge_dag_nodes": 0,
         "n_formal_realization_dag_nodes": 0,
         "legacy_response_field_aliases": {},
@@ -4430,6 +4461,8 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
     rows_path = source_dir / "formalization_gap_planner_llm_route_planner.jsonl"
     payload = _read_json_no_error(manifest_path)
     rows = _read_jsonl_dict_rows_no_error(rows_path)
+    request_packets = _dict_tuple(payload.get("request_packets", []))
+    decision_basis_counts = _llm_route_planner_decision_basis_counts(request_packets)
     route_adoption_status_counts = _llm_route_planner_status_counts(payload, rows)
     route_adoption_blocker_counts = _llm_route_planner_blocker_counts(payload, rows)
     return {
@@ -4557,6 +4590,65 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                 sum(1 for row in rows if _llm_row_model_tier_escalated(row)),
             )
             or 0
+        ),
+        "n_requests_with_model_tier_decision_evidence": int(
+            payload.get(
+                "n_requests_with_model_tier_decision_evidence",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_value(packet, "model_tier_decision_evidence")
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_auto_haiku_bounded": int(
+            payload.get(
+                "n_request_model_tier_decision_auto_haiku_bounded",
+                decision_basis_counts.get("auto_haiku_bounded_route", 0),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_auto_sonnet_triggered": int(
+            payload.get(
+                "n_request_model_tier_decision_auto_sonnet_triggered",
+                decision_basis_counts.get("auto_sonnet_triggers", 0),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_operator_override": int(
+            payload.get(
+                "n_request_model_tier_decision_operator_override",
+                decision_basis_counts.get("operator_override", 0),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_sonnet_triggers": int(
+            payload.get(
+                "n_request_model_tier_decision_sonnet_triggers",
+                sum(
+                    len(
+                        _str_tuple(
+                            _dict_value(
+                                packet,
+                                "model_tier_decision_evidence",
+                            ).get("sonnet_triggers", [])
+                        )
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_evidence_invalid": int(
+            payload.get("n_request_model_tier_decision_evidence_invalid", 0) or 0
+        ),
+        "by_request_model_tier_decision_basis": dict(
+            payload.get(
+                "by_request_model_tier_decision_basis",
+                decision_basis_counts,
+            )
+            or {}
         ),
         "n_informal_knowledge_dag_nodes": int(
             payload.get(
@@ -4775,6 +4867,23 @@ def _llm_row_haiku_to_sonnet_escalated(row: Mapping[str, Any]) -> bool:
         or ""
     ).strip().lower()
     return requested == "haiku" and effective == "sonnet"
+
+
+def _llm_route_planner_decision_basis_counts(
+    request_packets: tuple[dict[str, Any], ...],
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for packet in request_packets:
+        basis = str(
+            _dict_value(packet, "model_tier_decision_evidence").get(
+                "decision_basis",
+                "",
+            )
+            or "missing"
+        ).strip()
+        if basis:
+            counts[basis] = counts.get(basis, 0) + 1
+    return dict(sorted(counts.items()))
 
 
 def _llm_route_planner_blocker_counts(
@@ -4997,6 +5106,11 @@ def _dict_tuple(value: Any) -> tuple[dict[str, Any], ...]:
     if not isinstance(value, (list, tuple, set)):
         return ()
     return tuple(dict(item) for item in value if isinstance(item, dict))
+
+
+def _dict_value(mapping: Mapping[str, Any], key: str) -> dict[str, Any]:
+    value = mapping.get(key, {}) if isinstance(mapping, Mapping) else {}
+    return dict(value) if isinstance(value, Mapping) else {}
 
 
 def _jsonl_row_collection_count(

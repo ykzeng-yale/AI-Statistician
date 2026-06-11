@@ -4521,6 +4521,8 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "source_snippets" in row_schema["required"]
     assert "realization_coverage_witness" in row_schema["required"]
     assert "context_packet_inventory" in row_schema["required"]
+    assert "model_tier_decision_evidence" in row_schema["required"]
+    assert row_schema["properties"]["model_tier_decision_evidence"]["type"] == "object"
     assert row_schema["properties"]["context_packet_inventory"]["type"] == "object"
     assert row_schema["properties"]["realization_coverage_witness"] == {
         "$ref": "#/$defs/realization_coverage_witness"
@@ -4582,6 +4584,19 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         missing_generic_row,
         row_schema,
     )
+    corrupted_decision_row = deepcopy(row)
+    corrupted_decision_row["model_tier_decision_evidence"][
+        "decision_basis"
+    ] = "auto_haiku_bounded_route"
+    decision_errors = validate_llm_route_planner_row(
+        corrupted_decision_row,
+        row_schema,
+    )
+    assert any("auto_haiku_bounded_route must select haiku" in error for error in decision_errors)
+    corrupted_request = deepcopy(payload["request_packets"][0])
+    corrupted_request["model_tier_decision_evidence"]["sonnet_triggers"] = []
+    request_decision_errors = validate_llm_route_planner_request(corrupted_request)
+    assert any("sonnet_triggers required for auto Sonnet" in error for error in request_decision_errors)
     assert (
         payload["standalone_seed"]["routes"][0]["display_name"]
         == "distribution_free_rank_bound_llm_revision"
@@ -7087,6 +7102,15 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert payload["provider_name"] == "anthropic"
     assert payload["model_tier_selection_mode"] == "auto"
     assert payload["by_request_model_tier"] == {"sonnet": 1}
+    assert payload["n_requests_with_model_tier_decision_evidence"] == 1
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 0
+    assert payload["n_request_model_tier_decision_operator_override"] == 0
+    assert payload["n_request_model_tier_decision_sonnet_triggers"] >= 1
+    assert payload["n_request_model_tier_decision_evidence_invalid"] == 0
+    assert payload["by_request_model_tier_decision_basis"] == {
+        "auto_sonnet_triggers": 1
+    }
     assert payload["n_raw_responses"] == 1
     assert payload["n_response_present"] == 1
     assert payload["n_provider_failures"] == 0
@@ -7103,9 +7127,22 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert row["generator_metadata"]["schema_supplied"] is True
     assert row["generator_metadata"]["retry_count"] == 1
     assert "bridge_needed" in row["model_selection_rationale"]
+    assert row["model_tier_decision_evidence"]["selected_model_tier"] == "sonnet"
+    assert row["model_tier_decision_evidence"]["effective_model_tier"] == "sonnet"
+    assert (
+        row["model_tier_decision_evidence"]["decision_basis"]
+        == "auto_sonnet_triggers"
+    )
+    assert any(
+        "bridge_needed" in trigger
+        for trigger in row["model_tier_decision_evidence"]["sonnet_triggers"]
+    )
     packet = payload["request_packets"][0]
     assert packet["model"] == "claude-sonnet-4-6"
     assert packet["model_tier"] == "sonnet"
+    assert packet["model_tier_decision_evidence"] == row[
+        "model_tier_decision_evidence"
+    ]
     assert packet["minimal_delta_cost_policy"]["proof_boundary"]
     assert packet["prompt_messages"]["user"].count("available_source_snippets") >= 1
     assert payload["llm_route_planner_model_tier_policy"]["claude_model_selection"]["models_by_tier"] == {
@@ -7251,13 +7288,35 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
 
     assert payload["all_ok"]
     assert payload["by_request_model_tier"] == {"haiku": 1}
+    assert payload["n_requests_with_model_tier_decision_evidence"] == 1
+    assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 1
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 0
+    assert payload["n_request_model_tier_decision_sonnet_triggers"] == 0
+    assert payload["n_request_model_tier_decision_evidence_invalid"] == 0
+    assert payload["by_request_model_tier_decision_basis"] == {
+        "auto_haiku_bounded_route": 1
+    }
     packet = payload["request_packets"][0]
     assert packet["model_tier"] == "haiku"
     assert packet["model"] == "claude-haiku-4-5-20251001"
     assert "small route" in packet["model_selection_rationale"]
+    assert (
+        packet["model_tier_decision_evidence"]["decision_basis"]
+        == "auto_haiku_bounded_route"
+    )
+    assert packet["model_tier_decision_evidence"]["haiku_safety_checks"] == {
+        "no_residual_goals": True,
+        "primitive_count_at_most_four": True,
+        "source_ref_count_at_most_six": True,
+        "theorem_statement_at_most_600_chars": True,
+        "no_complex_coverage_or_action_markers": True,
+    }
     row = payload["rows"][0]
     assert row["model_tier"] == "haiku"
     assert row["model"] == "claude-haiku-4-5-20251001"
+    assert row["model_tier_decision_evidence"] == packet[
+        "model_tier_decision_evidence"
+    ]
     request = captured["request"]
     assert request.model == "claude-haiku-4-5-20251001"
     assert request.metadata["model_tier"] == "haiku"
@@ -7312,6 +7371,7 @@ def test_llm_route_planner_escalates_failed_haiku_repair_to_sonnet() -> None:
     assert payload["n_generated_responses_haiku_to_sonnet_escalated"] == 1
     assert payload["n_repair_attempt_ledger_model_tier_escalations"] == 1
     assert payload["n_rows_with_model_tier_escalation"] == 1
+    assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 1
     assert len(requests) == 2
     assert requests[0].model == "claude-haiku-4-5-20251001"
     assert requests[0].metadata["model_tier"] == "haiku"
@@ -7326,6 +7386,9 @@ def test_llm_route_planner_escalates_failed_haiku_repair_to_sonnet() -> None:
     assert row["generator_metadata"]["requested_model_tier"] == "haiku"
     assert row["generator_metadata"]["effective_model_tier"] == "sonnet"
     assert row["generator_metadata"]["model_tier_escalated"] is True
+    assert row["model_tier_decision_evidence"]["selected_model_tier"] == "haiku"
+    assert row["model_tier_decision_evidence"]["effective_model_tier"] == "sonnet"
+    assert row["model_tier_decision_evidence"]["model_tier_escalated"] is True
     assert "auto escalated Claude Haiku repair attempt to Sonnet" in row[
         "model_selection_rationale"
     ]
