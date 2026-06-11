@@ -11948,6 +11948,12 @@ def _resource_response_contract_field_accounting_errors(
         errors.append(
             "candidate_declaration_rows mismatch between ledger row and request row"
         )
+    if set(_str_tuple(row.get("actionable_work_items", []))) != set(
+        _str_tuple(request_row.get("actionable_work_items", []))
+    ):
+        errors.append(
+            "actionable_work_items mismatch between ledger row and request row"
+        )
     expected_fields = set(_str_tuple(request_row.get("response_contract_fields", [])))
     row_response_contract_fields = set(
         _str_tuple(row.get("response_contract_fields", []))
@@ -13401,6 +13407,7 @@ _RESOURCE_RESPONSE_TRACE_STRING_ARRAY_FIELDS = (
     "matched_response_contract_fields",
     "missing_response_contract_fields",
     "response_artifacts",
+    "actionable_work_items",
 )
 _RESOURCE_RESPONSE_TRACE_BOOLEAN_FIELDS = (
     "response_present",

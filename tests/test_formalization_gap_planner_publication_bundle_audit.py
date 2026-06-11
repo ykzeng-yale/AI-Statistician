@@ -1392,6 +1392,156 @@ def _write_local_adapter_fixture(
     )
 
 
+def _resource_response_trace_from_ledger_row(
+    ledger_row: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "resource_response_ledger_id": ledger_row["resource_response_ledger_id"],
+        "resource_request_id": ledger_row["resource_request_id"],
+        "action_resource_plan_id": ledger_row["action_resource_plan_id"],
+        "primitive_action_id": ledger_row["primitive_action_id"],
+        "coverage_map_id": ledger_row["coverage_map_id"],
+        "goal_plan_id": ledger_row["goal_plan_id"],
+        "route_id": ledger_row["route_id"],
+        "primitive": ledger_row["primitive"],
+        "target_primitives": ledger_row["target_primitives"],
+        "actionable_work_items": ledger_row["actionable_work_items"],
+        "resource_id": ledger_row["resource_id"],
+        "request_phase": ledger_row["request_phase"],
+        "expected_response_artifact": ledger_row["expected_response_artifact"],
+        "acceptance_gate": ledger_row["acceptance_gate"],
+        "dispatch_spec": ledger_row["dispatch_spec"],
+        "response_present": ledger_row["response_present"],
+        "response_contract_fields": ledger_row["response_contract_fields"],
+        "response_contract_minimum_met": ledger_row[
+            "response_contract_minimum_met"
+        ],
+        "response_contract_ok": ledger_row["response_contract_ok"],
+        "acceptance_status": ledger_row["acceptance_status"],
+        "matched_response_contract_fields": ledger_row[
+            "matched_response_contract_fields"
+        ],
+        "missing_response_contract_fields": ledger_row[
+            "missing_response_contract_fields"
+        ],
+        "response_artifacts": ledger_row["response_artifacts"],
+        "route_revision_recommended": ledger_row["route_revision_recommended"],
+        "prover_attempt_status": ledger_row["prover_attempt_status"],
+        "prover_diagnostic_signature": ledger_row["prover_diagnostic_signature"],
+        "proof_evidence_status": ledger_row["proof_evidence_status"],
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+
+
+def _route_revision_overlay_row_from_ledger_payload(
+    ledger_payload: dict[str, object],
+    resource_response_trace: dict[str, object],
+) -> dict[str, object]:
+    ledger_rows = ledger_payload["rows"]
+    assert isinstance(ledger_rows, list)
+    ledger_row = ledger_rows[0]
+    assert isinstance(ledger_row, dict)
+    ledger_id = str(ledger_row["resource_response_ledger_id"])
+    return {
+        "schema_version": 2,
+        "route_revision_overlay_id": "overlay:awaiting-ledger",
+        "goal_plan_id": ledger_row["goal_plan_id"],
+        "route_id": ledger_row["route_id"],
+        "display_name": ledger_row["display_name"],
+        "revision_status": "ROUTE_REVISION_APPLIED",
+        "original_selected_primitives": ["rank_uniformity"],
+        "revised_selected_primitives": ["rank_uniformity"],
+        "added_primitives": [],
+        "removed_primitives": [],
+        "original_delta_primitives": ["rank_uniformity"],
+        "revised_delta_primitives": ["rank_uniformity"],
+        "added_delta_primitives": [],
+        "applied_proposal_ids": ["proposal:awaiting-ledger"],
+        "applied_refinement_evidence_ids": [f"resource_response_ledger:{ledger_id}"],
+        "applied_hook_kinds": ["resource_response_ledger"],
+        "applied_resource_response_traces": [resource_response_trace],
+        "route_revision_reasons": ["awaiting ledger row should not be accepted"],
+        "route_revision_summaries": ["invalid provenance fixture"],
+        "source_refs": [],
+        "lean_declaration_hits": [],
+        "residual_goals": [],
+        "applied_prover_attempt_statuses": [],
+        "applied_prover_diagnostic_signatures": [],
+        "revised_informal_knowledge_dag_nodes": [
+            {
+                "node_id": "informal:rank_uniformity",
+                "label": "rank_uniformity",
+                "primitive": "rank_uniformity",
+            }
+        ],
+        "revised_lean_realization_dag_nodes": [
+            {
+                "node_id": "lean:rank_uniformity",
+                "label": "rank_uniformity",
+                "primitive": "rank_uniformity",
+            }
+        ],
+        "revised_route_alignment_edges": [
+            {
+                "source": "informal:rank_uniformity",
+                "target": "lean:rank_uniformity",
+                "kind": "aligned_to_formal_realization_candidate",
+                "primitive": "rank_uniformity",
+                "alignment_status": "bridge_delta",
+            }
+        ],
+        "unaligned_primitives": [],
+        "next_required_gate": "rerun planner and prover replay",
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_ROUTE_REVISION_OVERLAY_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": "not theorem proof evidence",
+        "ok": True,
+        "errors": [],
+    }
+
+
+def _write_route_revision_overlay_artifact(
+    route_revision_overlay_dir: Path,
+    overlay_row: dict[str, object],
+) -> None:
+    route_revision_overlay_dir.mkdir(parents=True, exist_ok=True)
+    (
+        route_revision_overlay_dir
+        / "formalization_gap_planner_route_revision_overlay_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_route_revision_overlay",
+                "n_overlay_rows": 1,
+                "n_row_schema_valid": 1,
+                "n_row_schema_invalid": 0,
+                "n_rows_with_alignment_contract": 1,
+                "n_unaligned_primitives": 0,
+                "n_resource_response_ledger_route_revision_proposals": 1,
+                "all_ok": True,
+                "rows": [overlay_row],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        route_revision_overlay_dir
+        / "formalization_gap_planner_route_revision_overlay.jsonl"
+    ).write_text(json.dumps(overlay_row, sort_keys=True) + "\n", encoding="utf-8")
+    (
+        route_revision_overlay_dir
+        / "formalization_gap_planner_route_revision_overlay_row.schema.json"
+    ).write_text(
+        json.dumps(route_revision_overlay_row_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (
+        route_revision_overlay_dir / "formalization_gap_planner_route_revision_overlay.md"
+    ).write_text("# route revision overlay\nnot theorem proof evidence\n", encoding="utf-8")
+
+
 def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     root = Path("runs/test_formalization_gap_planner_publication_bundle_audit")
     bundle_dir = root / "bundle"
@@ -2472,6 +2622,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "resource_request_id": "request:rank_uniformity",
         "resource_id": "local_lean_proof_state_adapter",
         "target_primitives": ["rank_uniformity"],
+        "actionable_work_items": [
+            "rank_uniformity: prove bridge from exchangeable scores to uniform rank"
+        ],
         "request_phase": "local_first",
         "expected_response_artifact": "proof_state_or_prover_feedback_response",
         "acceptance_status": "ACCEPTED_WITH_ROUTE_REVISION",
@@ -5031,6 +5184,123 @@ def test_publication_bundle_audit_rejects_stale_resource_response_contract_accou
     assert "response_contract_minimum_met" in "; ".join(accounting_check["errors"])
 
 
+def test_publication_bundle_audit_rejects_resource_response_actionable_work_expansion() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_audit_response_actionables"
+    )
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    coverage_dir = root / "coverage"
+    action_queue_dir = root / "action_queue"
+    component_resource_registry_dir = root / "component_resource_registry"
+    action_resource_plan_dir = root / "action_resource_plan"
+    request_queue_dir = root / "request_queue"
+    response_ledger_dir = root / "response_ledger"
+    bundle_dir = root / "bundle"
+    audit_dir = root / "audit"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "mathlib4:fixture",
+                "routes": [
+                    {
+                        "display_name": "rank route",
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                                "expected_premises": ["exchangeability"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    export_formalization_gap_planner_library_coverage_map(plan_dir, coverage_dir)
+    export_formalization_gap_planner_primitive_action_queue(
+        coverage_dir,
+        action_queue_dir,
+    )
+    export_formalization_gap_planner_component_resource_registry(
+        component_resource_registry_dir,
+    )
+    export_formalization_gap_planner_action_resource_plan(
+        action_queue_dir,
+        component_resource_registry_dir,
+        action_resource_plan_dir,
+    )
+    export_formalization_gap_planner_resource_request_queue(
+        action_resource_plan_dir,
+        request_queue_dir,
+    )
+    export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        response_ledger_dir,
+    )
+    export_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        formalization_gap_planner_resource_request_queue_dir=request_queue_dir,
+        formalization_gap_planner_resource_response_ledger_dir=response_ledger_dir,
+    )
+    ledger_jsonl = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_resource_response_ledger"
+        / "formalization_gap_planner_resource_response_ledger.jsonl"
+    )
+    rows = [
+        json.loads(line)
+        for line in ledger_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    rows[0]["actionable_work_items"] = [
+        "rank_uniformity: add unrelated asymptotic normality theorem"
+    ]
+    ledger_jsonl.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        audit_dir,
+    )
+
+    failed_names = {row["check_name"] for row in payload["checks"] if not row["ok"]}
+    assert not payload["all_ok"]
+    assert payload["n_optional_resource_response_ledger_row_schema_valid"] == payload[
+        "n_optional_resource_response_ledger_row_schema_checked"
+    ]
+    assert (
+        payload["n_optional_resource_response_request_ref_valid"]
+        == payload["n_optional_resource_response_request_ref_checked"]
+    )
+    assert (
+        payload["n_optional_resource_response_contract_field_accounting_valid"]
+        < payload[
+            "n_optional_resource_response_contract_field_accounting_checked"
+        ]
+    )
+    assert (
+        "optional_resource_response_ledger_row_0_contract_field_accounting"
+        in failed_names
+    )
+    accounting_check = next(
+        row
+        for row in payload["checks"]
+        if row["check_name"]
+        == "optional_resource_response_ledger_row_0_contract_field_accounting"
+    )
+    assert "actionable_work_items mismatch" in "; ".join(accounting_check["errors"])
+
+
 def test_publication_bundle_audit_rejects_accepted_resource_response_without_playbook_grounding() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_publication_bundle_audit_resource_response_playbook_grounding"
@@ -5213,39 +5483,7 @@ def test_publication_bundle_audit_rejects_unaccepted_route_revision_ledger_feedb
     )
     ledger_row = ledger_payload["rows"][0]
     ledger_id = ledger_row["resource_response_ledger_id"]
-    resource_response_trace = {
-        "resource_response_ledger_id": ledger_id,
-        "resource_request_id": ledger_row["resource_request_id"],
-        "action_resource_plan_id": ledger_row["action_resource_plan_id"],
-        "primitive_action_id": ledger_row["primitive_action_id"],
-        "coverage_map_id": ledger_row["coverage_map_id"],
-        "goal_plan_id": ledger_row["goal_plan_id"],
-        "route_id": ledger_row["route_id"],
-        "primitive": ledger_row["primitive"],
-        "target_primitives": ledger_row["target_primitives"],
-        "resource_id": ledger_row["resource_id"],
-        "request_phase": ledger_row["request_phase"],
-        "expected_response_artifact": ledger_row["expected_response_artifact"],
-        "acceptance_gate": ledger_row["acceptance_gate"],
-        "dispatch_spec": ledger_row["dispatch_spec"],
-        "response_present": ledger_row["response_present"],
-        "response_contract_fields": ledger_row["response_contract_fields"],
-        "response_contract_minimum_met": ledger_row["response_contract_minimum_met"],
-        "response_contract_ok": ledger_row["response_contract_ok"],
-        "acceptance_status": ledger_row["acceptance_status"],
-        "matched_response_contract_fields": ledger_row[
-            "matched_response_contract_fields"
-        ],
-        "missing_response_contract_fields": ledger_row[
-            "missing_response_contract_fields"
-        ],
-        "response_artifacts": ledger_row["response_artifacts"],
-        "route_revision_recommended": ledger_row["route_revision_recommended"],
-        "prover_attempt_status": ledger_row["prover_attempt_status"],
-        "prover_diagnostic_signature": ledger_row["prover_diagnostic_signature"],
-        "proof_evidence_status": ledger_row["proof_evidence_status"],
-        "proof_evidence_boundary": "not theorem proof evidence",
-    }
+    resource_response_trace = _resource_response_trace_from_ledger_row(ledger_row)
     route_revision_overlay_dir.mkdir(parents=True, exist_ok=True)
     overlay_row = {
         "schema_version": 2,
@@ -5363,6 +5601,103 @@ def test_publication_bundle_audit_rejects_unaccepted_route_revision_ledger_feedb
         "optional_route_revision_overlay_row_0_resource_response_traces"
         not in failed_names
     )
+
+
+def test_publication_bundle_audit_rejects_stale_route_revision_actionable_trace() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_audit_overlay_actionable_trace"
+    )
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    coverage_dir = root / "coverage"
+    action_queue_dir = root / "action_queue"
+    component_resource_registry_dir = root / "component_resource_registry"
+    action_resource_plan_dir = root / "action_resource_plan"
+    request_queue_dir = root / "request_queue"
+    response_ledger_dir = root / "response_ledger"
+    route_revision_overlay_dir = root / "route_revision_overlay"
+    bundle_dir = root / "bundle"
+    audit_dir = root / "audit"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "mathlib4:fixture",
+                "routes": [
+                    {
+                        "display_name": "rank route",
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                                "expected_premises": ["exchangeability"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    export_formalization_gap_planner_library_coverage_map(plan_dir, coverage_dir)
+    export_formalization_gap_planner_primitive_action_queue(
+        coverage_dir,
+        action_queue_dir,
+    )
+    export_formalization_gap_planner_component_resource_registry(
+        component_resource_registry_dir,
+    )
+    export_formalization_gap_planner_action_resource_plan(
+        action_queue_dir,
+        component_resource_registry_dir,
+        action_resource_plan_dir,
+    )
+    export_formalization_gap_planner_resource_request_queue(
+        action_resource_plan_dir,
+        request_queue_dir,
+    )
+    ledger_payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        response_ledger_dir,
+    )
+    ledger_row = ledger_payload["rows"][0]
+    resource_response_trace = _resource_response_trace_from_ledger_row(ledger_row)
+    resource_response_trace["actionable_work_items"] = [
+        "rank_uniformity: route unrelated asymptotic normality work"
+    ]
+    overlay_row = _route_revision_overlay_row_from_ledger_payload(
+        ledger_payload,
+        resource_response_trace,
+    )
+    _write_route_revision_overlay_artifact(route_revision_overlay_dir, overlay_row)
+    export_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        formalization_gap_planner_resource_request_queue_dir=request_queue_dir,
+        formalization_gap_planner_resource_response_ledger_dir=response_ledger_dir,
+        formalization_gap_planner_route_revision_overlay_dir=route_revision_overlay_dir,
+    )
+
+    payload = audit_formalization_gap_planner_publication_bundle(bundle_dir, audit_dir)
+
+    failed_names = {row["check_name"] for row in payload["checks"] if not row["ok"]}
+    assert not payload["all_ok"]
+    assert payload["n_optional_route_revision_resource_response_trace_checked"] == 1
+    assert payload["n_optional_route_revision_resource_response_trace_valid"] == 0
+    assert (
+        "optional_route_revision_overlay_row_0_resource_response_traces"
+        in failed_names
+    )
+    trace_check = next(
+        row
+        for row in payload["checks"]
+        if row["check_name"]
+        == "optional_route_revision_overlay_row_0_resource_response_traces"
+    )
+    assert "actionable_work_items mismatch" in "; ".join(trace_check["errors"])
 
 
 def test_publication_bundle_audit_rejects_stale_route_revision_resource_status() -> None:
