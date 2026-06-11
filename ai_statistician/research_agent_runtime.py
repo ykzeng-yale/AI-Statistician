@@ -1848,15 +1848,25 @@ def run_research_agent_runtime(
     }
     agenda_rows = _runtime_agenda_rows(results)
     learning_rows = _runtime_learning_rows(results)
+    theorem_reduction_closure_work_order_rows = (
+        _runtime_theorem_reduction_closure_work_order_rows(results)
+    )
     gap_planner_bridge_rows = _runtime_formalization_gap_planner_bridge_rows(results)
     agenda_path = out_dir / "runtime_next_action_agenda.jsonl"
     learning_path = out_dir / "runtime_learning_rows.jsonl"
+    theorem_reduction_closure_work_orders_path = (
+        out_dir / "runtime_theorem_reduction_closure_work_orders.jsonl"
+    )
     gap_planner_bridges_path = out_dir / "runtime_formalization_gap_planner_bridges.jsonl"
     gap_planner_seed_dir = out_dir / "runtime_formalization_gap_planner_seeds"
     gap_planner_target_intake_dir = out_dir / "runtime_formalization_gap_planner_target_intake"
     gap_planner_handoffs_path = out_dir / "runtime_formalization_gap_planner_handoffs.jsonl"
     _write_jsonl(agenda_path, agenda_rows)
     _write_jsonl(learning_path, learning_rows)
+    _write_jsonl(
+        theorem_reduction_closure_work_orders_path,
+        theorem_reduction_closure_work_order_rows,
+    )
     _write_runtime_formalization_gap_planner_seed_files(
         gap_planner_bridge_rows,
         seed_dir=gap_planner_seed_dir,
@@ -1873,6 +1883,9 @@ def run_research_agent_runtime(
     _write_jsonl(gap_planner_bridges_path, gap_planner_bridge_rows)
     manifest["artifacts"]["runtime_next_action_agenda_jsonl"] = str(agenda_path)
     manifest["artifacts"]["runtime_learning_rows_jsonl"] = str(learning_path)
+    manifest["artifacts"]["runtime_theorem_reduction_closure_work_orders_jsonl"] = str(
+        theorem_reduction_closure_work_orders_path
+    )
     manifest["artifacts"]["runtime_formalization_gap_planner_bridges_jsonl"] = str(
         gap_planner_bridges_path
     )
@@ -1887,6 +1900,9 @@ def run_research_agent_runtime(
     )
     manifest["n_runtime_next_action_items"] = len(agenda_rows)
     manifest["n_runtime_learning_rows"] = len(learning_rows)
+    manifest["n_runtime_theorem_reduction_closure_work_orders"] = len(
+        theorem_reduction_closure_work_order_rows
+    )
     manifest["n_runtime_formalization_gap_planner_bridges"] = len(
         gap_planner_bridge_rows
     )
@@ -2997,6 +3013,40 @@ def _runtime_learning_rows(results: list[dict[str, Any]]) -> list[dict[str, Any]
                 for item in artifact.get("learning_rows", []) or []:
                     if isinstance(item, Mapping):
                         rows.append(dict(item))
+    return rows
+
+
+def _runtime_theorem_reduction_closure_work_order_rows(
+    results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for result in results:
+        artifacts = result.get("blackboard", {}).get("artifacts", {})
+        if not isinstance(artifacts, Mapping):
+            continue
+        for artifact in artifacts.values():
+            if not (
+                isinstance(artifact, Mapping)
+                and artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
+            ):
+                continue
+            question = artifact.get("question", {}) if isinstance(artifact.get("question"), Mapping) else {}
+            for item in artifact.get("theorem_reduction_closure_work_orders", []) or []:
+                if not isinstance(item, Mapping):
+                    continue
+                row = dict(item)
+                row["source_formalization_manifest_id"] = str(
+                    artifact.get("manifest_id", "")
+                )
+                row["question_id"] = str(question.get("id", "") or "")
+                row["question_title"] = str(question.get("title", "") or "")
+                row["runtime_queue_status"] = "PENDING_LEAN_PROOF_ATTEMPT"
+                row["runtime_queue_boundary"] = (
+                    "This queue row is a proof task exported from live runtime. "
+                    "It is not proof evidence until AXLE/local Lean kernel verification "
+                    "accepts the theorem-level reduction."
+                )
+                rows.append(row)
     return rows
 
 

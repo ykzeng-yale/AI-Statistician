@@ -52,6 +52,7 @@ from ai_statistician.research_agent_runtime import (
     _formalizer_proof_bank_runtime_memory_summary,
     _runtime_formalization_gap_planner_bridge,
     _runtime_formalization_gap_planner_target_intake_payload,
+    _runtime_theorem_reduction_closure_work_order_rows,
     _runtime_failure_summary,
     _llm_agent_topology_row,
     _run_generated_python_sandbox,
@@ -1252,6 +1253,15 @@ def test_formalization_runtime_exports_theorem_reduction_closure_work_order() ->
     assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
     assert work_orders[0]["target_theorem_goal_ids"] == ["split_conformal_finite_sample_coverage"]
     assert set(work_orders[0]["verified_bridge_obligation_ids"]) == set(verified_ids)
+    queue_rows = _runtime_theorem_reduction_closure_work_order_rows(
+        [{"blackboard": {"artifacts": result.produced_artifacts}}]
+    )
+    assert len(queue_rows) == 1
+    assert queue_rows[0]["work_order_id"] == work_orders[0]["work_order_id"]
+    assert queue_rows[0]["source_formalization_manifest_id"] == manifest["manifest_id"]
+    assert queue_rows[0]["question_id"] == "conformal_prediction_coverage"
+    assert queue_rows[0]["runtime_queue_status"] == "PENDING_LEAN_PROOF_ATTEMPT"
+    assert "not proof evidence" in queue_rows[0]["runtime_queue_boundary"]
 
 
 def test_critic_routes_formal_gap_to_theorem_closure_after_proof_bank_exhausted() -> None:
@@ -2072,6 +2082,11 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert manifest["n_generated_code_sandbox_executed"] == 2
     assert manifest["n_unsafe_generated_code_rejected"] == 0
     assert Path(manifest["artifacts"]["runtime_llm_topology_json"]).exists()
+    theorem_closure_queue_path = Path(
+        manifest["artifacts"]["runtime_theorem_reduction_closure_work_orders_jsonl"]
+    )
+    assert theorem_closure_queue_path.exists()
+    assert manifest["n_runtime_theorem_reduction_closure_work_orders"] == 0
     bridges_path = Path(
         manifest["artifacts"]["runtime_formalization_gap_planner_bridges_jsonl"]
     )
