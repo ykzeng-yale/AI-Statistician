@@ -16174,6 +16174,13 @@ def _handoff_seed_provenance_ok(
             or _dict_tuple(metadata.get("lean_declaration_hits", []))
         ):
             return False
+        if _handoff_seed_declaration_target_mismatches(
+            row,
+            seed_route,
+            metadata,
+            target_prover_family=target_prover_family,
+        ):
+            return False
         if _declaration_set(
             _formal_declaration_hits_for_target(row, target_prover_family)
         ) != _declaration_set(
@@ -16207,6 +16214,7 @@ def _handoff_seed_provenance_observed(
         if "resource_response_ledger" in _str_tuple(row.get("applied_hook_kinds", []))
     )
     non_lean_legacy_hits = 0
+    declaration_target_mismatches = 0
     for row in rows:
         seed_route = seed_routes.get(str(row.get("standalone_route_id", "")), {})
         if not isinstance(seed_route, dict):
@@ -16226,11 +16234,20 @@ def _handoff_seed_provenance_observed(
             non_lean_legacy_hits += len(
                 _dict_tuple(metadata.get("lean_declaration_hits", []))
             )
+        declaration_target_mismatches += len(
+            _handoff_seed_declaration_target_mismatches(
+                row,
+                seed_route,
+                metadata,
+                target_prover_family=target_prover_family,
+            )
+        )
     return (
         f"matched_seed_routes={matched}/{len(rows)}; "
         f"resource_feedback_rows={resource_rows}; "
         f"diagnostic_signatures={len(_distinct_row_signatures(rows))}; "
-        f"non_lean_legacy_lean_declaration_hits={non_lean_legacy_hits}"
+        f"non_lean_legacy_lean_declaration_hits={non_lean_legacy_hits}; "
+        f"declaration_hit_target_mismatches={declaration_target_mismatches}"
     )
 
 
@@ -16271,6 +16288,74 @@ def _target_prover_family_values_from_declaration_hits(
             for hit in _dict_tuple(row.get(field_name, []))
         )
     return tuple(values)
+
+
+def _handoff_seed_declaration_target_mismatches(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+    metadata: dict[str, Any],
+    *,
+    target_prover_family: str,
+) -> tuple[str, ...]:
+    target_key = _target_prover_key(target_prover_family)
+    if not target_key:
+        return tuple()
+    mismatches: list[str] = []
+    for container_name, container in (
+        ("handoff_row", row),
+        ("seed_route", seed_route),
+        ("seed_replan_metadata", metadata),
+    ):
+        for field_name in ("formal_declaration_hits", "lean_declaration_hits"):
+            for index, hit in enumerate(_dict_tuple(container.get(field_name, []))):
+                hit_family = str(hit.get("target_prover_family", "") or "").strip()
+                if hit_family and _target_prover_key(hit_family) != target_key:
+                    mismatches.append(
+                        f"{container_name}.{field_name}[{index}] target_prover_family"
+                    )
+                    continue
+                source_type_family = _declaration_hit_source_type_target_key(hit)
+                if (
+                    not hit_family
+                    and source_type_family
+                    and source_type_family != target_key
+                ):
+                    mismatches.append(
+                        f"{container_name}.{field_name}[{index}] source_type"
+                    )
+    return tuple(mismatches)
+
+
+def _declaration_hit_source_type_target_key(row: dict[str, object]) -> str:
+    source_type = (
+        row.get("source_type")
+        or row.get("source_kind")
+        or row.get("library_family")
+        or row.get("source_prover_family")
+        or row.get("prover_family")
+        or ""
+    )
+    return _source_type_target_prover_key(source_type)
+
+
+def _source_type_target_prover_key(value: object) -> str:
+    key = _target_prover_key(value)
+    if not key:
+        return ""
+    tokens = {token for token in re.split(r"[^a-z0-9]+", key) if token}
+    if key in {"mathlib", "lean4_library"} or {"lean", "lean4", "mathlib"} & tokens:
+        return "lean4"
+    if key in {"coq", "coq8", "coq_library", "rocq_library"} or {
+        "coq",
+        "coq8",
+        "rocq",
+    } & tokens:
+        return "rocq"
+    if key in {"isabelle_hol", "isabelle_library"} or "isabelle" in tokens:
+        return "isabelle"
+    if key in {"agda_library"} or "agda" in tokens:
+        return "agda"
+    return ""
 
 
 def _formal_declaration_hits_for_target(

@@ -176,6 +176,50 @@ def test_handoff_seed_provenance_rejects_non_lean_legacy_declaration_alias() -> 
     assert not _handoff_seed_provenance_ok([row], bad_seed)
     bad_observed = _handoff_seed_provenance_observed([row], bad_seed)
     assert "non_lean_legacy_lean_declaration_hits=1" in bad_observed
+    assert "declaration_hit_target_mismatches=0" in bad_observed
+
+    bad_source_type_seed = json.loads(json.dumps(seed))
+    bad_source_type_seed["routes"][0]["replan_metadata"][
+        "formal_declaration_hits"
+    ] = [
+        {
+            "primitive": "rank_bridge",
+            "declaration": "Mathlib.Conformal.rankBridge",
+            "source_type": "lean_library",
+        }
+    ]
+
+    assert not _handoff_seed_provenance_ok([row], bad_source_type_seed)
+    bad_source_type_observed = _handoff_seed_provenance_observed(
+        [row],
+        bad_source_type_seed,
+    )
+    assert "non_lean_legacy_lean_declaration_hits=0" in bad_source_type_observed
+    assert "declaration_hit_target_mismatches=1" in bad_source_type_observed
+
+    coq_alias_seed = json.loads(json.dumps(seed))
+    coq_alias_seed["routes"][0]["replan_metadata"]["formal_declaration_hits"] = [
+        {
+            "primitive": "rank_bridge",
+            "declaration": "Rocq.Conformal.rank_bridge",
+            "target_prover_family": "coq",
+        }
+    ]
+    coq_alias_row = json.loads(json.dumps(row))
+    coq_alias_row["formal_declaration_hits"] = [
+        {
+            "primitive": "rank_bridge",
+            "declaration": "Rocq.Conformal.rank_bridge",
+            "target_prover_family": "coq",
+        }
+    ]
+
+    assert _handoff_seed_provenance_ok([coq_alias_row], coq_alias_seed)
+    coq_alias_observed = _handoff_seed_provenance_observed(
+        [coq_alias_row],
+        coq_alias_seed,
+    )
+    assert "declaration_hit_target_mismatches=0" in coq_alias_observed
 
 
 def test_publication_bundle_audit_checks_runtime_handoff_registry_context() -> None:
