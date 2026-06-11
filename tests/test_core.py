@@ -3526,6 +3526,27 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
         self.assertIn("minimal_wrapper", obligation.tags)
         self.assertNotIn("by sorry", content)
 
+    def test_split_conformal_bad_rank_reduction_bridge_closes_event_reduction(self) -> None:
+        obligation = get_obligation("split_conformal_bad_rank_reduction_bridge")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(
+            obligation.depends_on,
+            (
+                "finite_conformal_rank_coverage_counting",
+                "order_statistic_quantile_rule_bridge",
+                "coverage_lower_bound_of_complement_error",
+                "finite_union_budget_control",
+            ),
+        )
+        self.assertIn("theorem splitConformalCoverage_of_badRankBudget", content)
+        self.assertIn("covered : Set Ω", content)
+        self.assertIn("hCovered : covered = ({ω | rank ω ∈ BadRanks}ᶜ)", content)
+        self.assertIn("1 - α_total ≤ μ covered", content)
+        self.assertIn("measure_biUnion_finset_le", content)
+        self.assertIn("prob_compl_eq_one_sub", content)
+        self.assertIn("theorem_reduction_closure", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
     def test_finite_family_error_union_control_supports_simultaneous_bands(self) -> None:
         obligation = get_obligation("finite_family_absolute_error_union_control")
         content = splice_proof(obligation.formal_statement, obligation.proof_body)

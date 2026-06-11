@@ -1270,6 +1270,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   the finite bad-rank union/complement algebra to verify the coverage ingredient
   associated with an order-statistic bad-rank set, without proving the score
   exchangeability or quantile construction theorem.
+- `split_conformal_bad_rank_reduction_bridge`: a theorem-level reduction bridge
+  for live split-conformal closure work orders. Once the coverage event is
+  identified with the complement of a finite bad-rank event and the bad-rank
+  probabilities are budgeted, it proves coverage at least `1-alpha_total`. It
+  still leaves score exchangeability, rank uniformity, and the order-statistic
+  quantile construction as formal gaps.
 - `finite_family_absolute_error_union_control`: a finite-family estimator
   bridge: if each absolute-error event
   `{ω | radius i ≤ |X_i ω-theta_i|}` has local error budget `α_i`, then the

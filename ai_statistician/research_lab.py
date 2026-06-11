@@ -2334,6 +2334,7 @@ class TheoryPlanner:
                         "exchangeable_scores_uniform_rank_bridge",
                         "finite_conformal_rank_coverage_counting",
                         "order_statistic_quantile_rule_bridge",
+                        "split_conformal_bad_rank_reduction_bridge",
                     ),
                 )
             ]
@@ -4830,6 +4831,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "exchangeable_scores_uniform_rank_bridge",
         "finite_conformal_rank_coverage_counting",
         "order_statistic_quantile_rule_bridge",
+        "split_conformal_bad_rank_reduction_bridge",
     ),
     "right_censored_survival_inference": (
         "event_indicator_expectation",
