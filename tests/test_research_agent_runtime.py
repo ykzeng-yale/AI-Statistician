@@ -3332,6 +3332,27 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert "n_kernel_verified_subclaims" in manifest
     assert "n_formal_gaps" in manifest
     proof_control = manifest["runtime_evidence_summary"]["proof"]["proof_obligation_control"]
+    assert manifest["n_registered_proof_bank_obligation_candidates"] == proof_control[
+        "n_registered_proof_bank_obligation_candidates"
+    ]
+    assert manifest["n_candidate_proof_obligations"] == proof_control["n_candidate_proof_obligations"]
+    assert manifest["n_selected_proof_obligations"] == proof_control["n_selected_proof_obligations"]
+    assert manifest["n_llm_requested_proof_obligations"] == len(
+        proof_control["llm_requested_proof_obligation_ids"]
+    )
+    assert manifest["n_memory_kernel_verified_proof_obligations"] == len(
+        proof_control["memory_kernel_verified_proof_obligation_ids"]
+    )
+    assert manifest["proof_bank_bridge_catalog_exhausted_by_memory"] == proof_control[
+        "proof_bank_bridge_catalog_exhausted_by_memory"
+    ]
+    assert manifest["theorem_reduction_closure_required"] == proof_control[
+        "theorem_reduction_closure_required"
+    ]
+    assert manifest["remaining_unverified_proof_bank_obligation_ids"] == proof_control[
+        "remaining_unverified_proof_bank_obligation_ids"
+    ]
+    assert manifest["selected_proof_obligation_ids"] == proof_control["selected_proof_obligation_ids"]
     assert proof_control["max_proof_obligations"] == 2
     assert proof_control["n_selected_proof_obligations"] == 4
     assert proof_control["memory_prioritized_proof_obligation_ids"] == ["variance_nonneg"]

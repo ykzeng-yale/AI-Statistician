@@ -1836,6 +1836,7 @@ def run_research_agent_runtime(
     completion_summary = _runtime_completion_summary(results)
     failure_summary = _runtime_failure_summary(completion_summary)
     evidence_summary = _runtime_evidence_summary(results)
+    proof_control_summary = evidence_summary["proof"]["proof_obligation_control"]
     manifest = {
         "schema_version": RUNTIME_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1862,6 +1863,29 @@ def run_research_agent_runtime(
         "runtime_evidence_summary": evidence_summary,
         "n_kernel_verified_subclaims": evidence_summary["proof"]["n_kernel_verified_subclaims"],
         "n_formal_gaps": evidence_summary["proof"]["n_formal_gaps"],
+        "n_registered_proof_bank_obligation_candidates": proof_control_summary[
+            "n_registered_proof_bank_obligation_candidates"
+        ],
+        "n_candidate_proof_obligations": proof_control_summary["n_candidate_proof_obligations"],
+        "n_selected_proof_obligations": proof_control_summary["n_selected_proof_obligations"],
+        "n_llm_requested_proof_obligations": len(
+            proof_control_summary.get("llm_requested_proof_obligation_ids", []) or []
+        ),
+        "n_memory_kernel_verified_proof_obligations": len(
+            proof_control_summary.get("memory_kernel_verified_proof_obligation_ids", []) or []
+        ),
+        "proof_bank_bridge_catalog_exhausted_by_memory": bool(
+            proof_control_summary.get("proof_bank_bridge_catalog_exhausted_by_memory", False)
+        ),
+        "theorem_reduction_closure_required": bool(
+            proof_control_summary.get("theorem_reduction_closure_required", False)
+        ),
+        "remaining_unverified_proof_bank_obligation_ids": list(
+            proof_control_summary.get("remaining_unverified_proof_bank_obligation_ids", []) or []
+        ),
+        "selected_proof_obligation_ids": list(
+            proof_control_summary.get("selected_proof_obligation_ids", []) or []
+        ),
         "n_algorithm_sandbox_executed": evidence_summary["algorithm"]["n_algorithm_sandbox_executed"],
         "n_generated_code_sandbox_executed": evidence_summary["algorithm"]["n_generated_code_sandbox_executed"],
         "n_unsafe_generated_code_rejected": evidence_summary["algorithm"]["n_unsafe_generated_code_rejected"],
