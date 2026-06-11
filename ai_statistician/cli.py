@@ -323,6 +323,9 @@ from .rag_collaboration_export import export_rag_collaboration_manifest
 from .proof_training_export import export_proof_training_dataset
 from .prover_component_audit import build_prover_component_audit, write_prover_component_audit
 from .release import ReleaseBundleConfig, build_release_bundle
+from .theorem_reduction_closure_work_order_audit import (
+    audit_theorem_reduction_closure_work_orders,
+)
 from .research_evaluation import ResearchEvalConfig, run_research_seed_eval
 from .research_gap_audit import audit_research_gap_backlog
 from .research_intake_audit import audit_research_question_intake
@@ -939,6 +942,32 @@ async def _proof_audit(args: argparse.Namespace) -> int:
     if payload.get("proof_attempt_log"):
         attempt_log = payload["proof_attempt_log"]
         print(f"proof attempts written to {Path(str(attempt_log['attempt_log'])).resolve()}")
+    return 0
+
+
+def _theorem_reduction_closure_work_order_audit(args: argparse.Namespace) -> int:
+    payload = audit_theorem_reduction_closure_work_orders(
+        Path(args.queue_jsonl),
+        Path(args.out),
+        run_local_lean=args.local_lean,
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout_seconds=args.lean_timeout,
+    )
+    print("\nAI Statistician Theorem Reduction Closure Work-Order Audit")
+    print("=" * 72)
+    print(
+        f"work_orders={payload['n_work_orders']} "
+        f"exported={payload['n_exported_lean_sketches']} "
+        f"local_lean_attempted={payload['n_local_lean_attempted']} "
+        f"kernel_verified={payload['n_kernel_verified']} "
+        f"placeholders={payload['n_placeholder_rejected']} "
+        f"proof_evidence={payload['proof_evidence_status']}"
+    )
+    print(
+        "manifest written to "
+        f"{(Path(args.out) / 'theorem_reduction_closure_work_order_audit_manifest.json').resolve()}"
+    )
+    print(f"Lean sketches written to {Path(str(payload['lean_export_dir'])).resolve()}")
     return 0
 
 
@@ -6321,6 +6350,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="also verify one intentionally empty proof body per obligation for repair/value-model data",
     )
     proof_audit.set_defaults(func=lambda args: asyncio.run(_proof_audit(args)))
+
+    theorem_reduction_closure_work_order_audit = sub.add_parser(
+        "theorem-reduction-closure-work-order-audit",
+        help=(
+            "export and optionally local-Lean-check theorem-level reduction closure "
+            "work orders emitted by research-agent-runtime"
+        ),
+    )
+    theorem_reduction_closure_work_order_audit.add_argument(
+        "--queue-jsonl",
+        required=True,
+        help="runtime_theorem_reduction_closure_work_orders.jsonl from research-agent-runtime",
+    )
+    theorem_reduction_closure_work_order_audit.add_argument(
+        "--out",
+        default="runs/theorem_reduction_closure_work_order_audit",
+        help="audit output directory",
+    )
+    theorem_reduction_closure_work_order_audit.add_argument(
+        "--local-lean",
+        action="store_true",
+        help="run local lake env lean on exported sketches; only successful rows count as proof evidence",
+    )
+    theorem_reduction_closure_work_order_audit.add_argument(
+        "--lean-project",
+        help="local Lake project used by --local-lean",
+    )
+    theorem_reduction_closure_work_order_audit.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each local Lean check",
+    )
+    theorem_reduction_closure_work_order_audit.set_defaults(
+        func=_theorem_reduction_closure_work_order_audit
+    )
 
     proof_audit_learning_export = sub.add_parser(
         "proof-audit-learning-export",
