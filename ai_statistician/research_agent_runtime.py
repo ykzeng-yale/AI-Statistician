@@ -3026,6 +3026,7 @@ def _runtime_theorem_reduction_closure_work_order_rows(
     results: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
+    by_work_order_id: dict[str, int] = {}
     for result in results:
         artifacts = result.get("blackboard", {}).get("artifacts", {})
         if not isinstance(artifacts, Mapping):
@@ -3077,6 +3078,28 @@ def _runtime_theorem_reduction_closure_work_order_rows(
                     "It is not proof evidence until AXLE/local Lean kernel verification "
                     "accepts the theorem-level reduction."
                 )
+                work_order_id = str(row.get("work_order_id", "") or "").strip()
+                source_manifest_id = str(row.get("source_formalization_manifest_id", "") or "")
+                if work_order_id in by_work_order_id:
+                    existing = rows[by_work_order_id[work_order_id]]
+                    source_ids = [
+                        str(value)
+                        for value in existing.get("source_formalization_manifest_ids", []) or []
+                        if str(value).strip()
+                    ]
+                    if source_manifest_id and source_manifest_id not in source_ids:
+                        source_ids.append(source_manifest_id)
+                    existing["source_formalization_manifest_ids"] = source_ids
+                    existing["n_source_formalization_manifests"] = len(source_ids)
+                    continue
+                row["source_formalization_manifest_ids"] = (
+                    [source_manifest_id] if source_manifest_id else []
+                )
+                row["n_source_formalization_manifests"] = len(
+                    row["source_formalization_manifest_ids"]
+                )
+                if work_order_id:
+                    by_work_order_id[work_order_id] = len(rows)
                 rows.append(row)
     return rows
 

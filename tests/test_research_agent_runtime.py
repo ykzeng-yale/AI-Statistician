@@ -1318,9 +1318,32 @@ def test_runtime_theorem_closure_queue_backfills_prior_formalizer_artifacts() ->
     assert len(rows) == 1
     assert rows[0]["source_formalizer_packet_id"] == proposal["packet_id"]
     assert rows[0]["source_formalization_manifest_id"] == "formalization_manifest:prior"
+    assert rows[0]["source_formalization_manifest_ids"] == ["formalization_manifest:prior"]
+    assert rows[0]["n_source_formalization_manifests"] == 1
     assert rows[0]["source_formal_target_id"] == "split_conformal_finite_sample_coverage_reduction_closure"
     assert rows[0]["target_theorem_goal_ids"] == ["split_conformal_finite_sample_coverage"]
     assert rows[0]["verified_bridge_obligation_ids"] == ["prob_compl"]
+    duplicate_manifest = dict(formalization_manifest)
+    duplicate_manifest["manifest_id"] = "formalization_manifest:prior_second_pass"
+    duplicate_rows = _runtime_theorem_reduction_closure_work_order_rows(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        str(proposal["packet_id"]): proposal,
+                        "formalization_manifest:prior": formalization_manifest,
+                        "formalization_manifest:prior_second_pass": duplicate_manifest,
+                    }
+                }
+            }
+        ]
+    )
+    assert len(duplicate_rows) == 1
+    assert duplicate_rows[0]["source_formalization_manifest_ids"] == [
+        "formalization_manifest:prior",
+        "formalization_manifest:prior_second_pass",
+    ]
+    assert duplicate_rows[0]["n_source_formalization_manifests"] == 2
 
 
 def test_critic_routes_formal_gap_to_theorem_closure_after_proof_bank_exhausted() -> None:
