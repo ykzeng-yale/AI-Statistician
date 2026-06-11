@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .proof_bank import FORMAL_OBLIGATIONS
 
 
 RESEARCH_AGENT_RUNTIME_AUDIT_SCHEMA_VERSION = 1
@@ -48,6 +49,8 @@ class RuntimeAuditRow:
     n_real_kernel_verified_subclaims: int
     n_non_real_kernel_verified_subclaims: int
     kernel_verified_verifiers: tuple[str, ...]
+    real_kernel_verified_proof_obligation_ids: tuple[str, ...]
+    real_kernel_verified_source_theorem_semantic_primitive_ids: tuple[str, ...]
     n_formal_gaps: int
     n_registered_proof_bank_obligation_candidates: int
     n_memory_prioritized_proof_obligations: int
@@ -63,6 +66,8 @@ class RuntimeAuditRow:
     n_critic_reroutes: int
     n_lean_lsp_mcp_live_calls: int
     has_runtime_learning_memory_input: bool
+    has_kernel_verified_theorem_reduction_closure_memory: bool
+    has_source_theorem_semantic_primitive_target_mode: bool
     has_problem_analysis: bool
     has_stat_knowledge_bank_plan: bool
     has_literature_fair_comparison_plan: bool
@@ -130,10 +135,20 @@ def audit_research_agent_runtime(
     ):
         errors.append("runtime input context memory rows were not propagated into per-question traces")
 
+    result_errors = [
+        {
+            "question_id": row.question_id,
+            "result_path": row.result_path,
+            "errors": list(row.errors),
+        }
+        for row in rows
+        if row.errors
+    ]
     by_status = Counter(row.status for row in rows)
     n_kernel_verified_subclaims = sum(row.n_kernel_verified_subclaims for row in rows)
     n_real_kernel_verified_subclaims = sum(row.n_real_kernel_verified_subclaims for row in rows)
     n_non_real_kernel_verified_subclaims = sum(row.n_non_real_kernel_verified_subclaims for row in rows)
+    runtime_memory_evidence = _runtime_learning_memory_evidence(trace_rows)
     payload: dict[str, Any] = {
         "schema_version": RESEARCH_AGENT_RUNTIME_AUDIT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -142,14 +157,20 @@ def audit_research_agent_runtime(
         "runtime_stage": manifest.get("runtime_stage", ""),
         "runtime_evaluation_mode": str(manifest.get("runtime_evaluation_mode", "")),
         "n_results": len(rows),
+        "n_distinct_question_ids": len({row.question_id for row in rows if row.question_id}),
         "n_ok": sum(1 for row in rows if row.ok),
         "all_ok": not errors and bool(rows) and all(row.ok for row in rows),
         "errors": errors,
+        "result_errors": result_errors,
+        "n_result_errors": sum(len(row["errors"]) for row in result_errors),
         "by_status": dict(sorted(by_status.items())),
         "n_runtime_progress_events": len(progress_rows),
         "n_runtime_traces": len(trace_rows),
         "n_runtime_next_action_items": len(agenda_rows),
         "n_runtime_learning_rows": len(learning_rows),
+        "n_runtime_theorem_reduction_closure_work_orders": int(
+            manifest.get("n_runtime_theorem_reduction_closure_work_orders", 0) or 0
+        ),
         "has_kernel_evidence": n_kernel_verified_subclaims > 0,
         "has_real_kernel_evidence": n_real_kernel_verified_subclaims > 0,
         "has_non_real_kernel_evidence": n_non_real_kernel_verified_subclaims > 0,
@@ -172,6 +193,62 @@ def audit_research_agent_runtime(
                 for verifier in row.kernel_verified_verifiers
                 if verifier
             }
+        ),
+        "real_kernel_verified_proof_obligation_ids": sorted(
+            {
+                obligation_id
+                for row in rows
+                for obligation_id in row.real_kernel_verified_proof_obligation_ids
+                if obligation_id
+            }
+        ),
+        "real_kernel_verified_source_theorem_semantic_primitive_ids": sorted(
+            {
+                obligation_id
+                for row in rows
+                for obligation_id in row.real_kernel_verified_source_theorem_semantic_primitive_ids
+                if obligation_id
+            }
+        ),
+        "n_real_kernel_verified_source_theorem_semantic_primitive_subclaims": sum(
+            len(row.real_kernel_verified_source_theorem_semantic_primitive_ids)
+            for row in rows
+        ),
+        "runtime_memory_kernel_verified_proof_obligation_ids": runtime_memory_evidence[
+            "kernel_verified_proof_obligation_ids"
+        ],
+        "runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids": (
+            runtime_memory_evidence[
+                "kernel_verified_source_theorem_semantic_primitive_ids"
+            ]
+        ),
+        "runtime_memory_kernel_verified_theorem_reduction_closure_work_order_ids": (
+            runtime_memory_evidence[
+                "kernel_verified_theorem_reduction_closure_work_order_ids"
+            ]
+        ),
+        "runtime_memory_kernel_verified_theorem_reduction_closure_target_ids": (
+            runtime_memory_evidence[
+                "kernel_verified_theorem_reduction_closure_target_ids"
+            ]
+        ),
+        "runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids": (
+            runtime_memory_evidence[
+                "kernel_verified_theorem_reduction_closure_goal_ids"
+            ]
+        ),
+        "n_runtime_memory_kernel_verified_proof_obligation_ids": len(
+            runtime_memory_evidence["kernel_verified_proof_obligation_ids"]
+        ),
+        "n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids": len(
+            runtime_memory_evidence[
+                "kernel_verified_source_theorem_semantic_primitive_ids"
+            ]
+        ),
+        "n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids": len(
+            runtime_memory_evidence[
+                "kernel_verified_theorem_reduction_closure_goal_ids"
+            ]
         ),
         "n_formal_gaps": sum(row.n_formal_gaps for row in rows),
         "n_registered_proof_bank_obligation_candidates": sum(
@@ -212,6 +289,12 @@ def audit_research_agent_runtime(
         "n_results_with_runtime_learning_memory_input": sum(
             1 for row in rows if row.has_runtime_learning_memory_input
         ),
+        "n_results_with_kernel_verified_theorem_reduction_closure_memory": sum(
+            1 for row in rows if row.has_kernel_verified_theorem_reduction_closure_memory
+        ),
+        "n_results_with_source_theorem_semantic_primitive_target_mode": sum(
+            1 for row in rows if row.has_source_theorem_semantic_primitive_target_mode
+        ),
         "n_runtime_learning_memory_input_rows": runtime_learning_memory_rows_loaded,
         "runtime_learning_memory_input_supplied": runtime_learning_memory_supplied,
         "n_results_with_problem_analysis": sum(1 for row in rows if row.has_problem_analysis),
@@ -240,6 +323,7 @@ def audit_research_agent_runtime(
     }
     capability_scorecard = _runtime_capability_scorecard(payload)
     payload["capability_scorecard"] = capability_scorecard
+    payload["capability_ladder"] = _runtime_capability_ladder(payload)
     capability_gaps = _runtime_capability_gaps_from_scorecard(capability_scorecard)
     payload["capability_ready_for_full_ai_statistician"] = not capability_gaps
     payload["capability_status"] = (
@@ -306,6 +390,8 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     n_real_kernel = 0
     n_non_real_kernel = 0
     kernel_verified_verifiers: set[str] = set()
+    real_kernel_verified_proof_obligation_ids: list[str] = []
+    real_kernel_verified_source_theorem_semantic_primitive_ids: list[str] = []
     n_formal_gaps = 0
     n_registered_proof_bank_obligation_candidates = 0
     n_memory_prioritized_proof_obligations = 0
@@ -315,6 +401,8 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
     n_llm_off_catalog_proof_obligations = 0
     n_llm_rejected_proof_obligations = 0
     full_frontier_theorem_proved = False
+    has_kernel_verified_theorem_reduction_closure_memory = False
+    has_source_theorem_semantic_primitive_target_mode = False
     for manifest in formalization:
         counts = manifest.get("counts", {}) if isinstance(manifest.get("counts"), Mapping) else {}
         control = (
@@ -322,14 +410,39 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
             if isinstance(manifest.get("proof_obligation_control"), Mapping)
             else {}
         )
+        memory_summary = (
+            manifest.get("proof_bank_runtime_memory_summary", {})
+            if isinstance(manifest.get("proof_bank_runtime_memory_summary"), Mapping)
+            else {}
+        )
+        if (
+            control.get("theorem_reduction_closure_already_kernel_verified") is True
+            or memory_summary.get("theorem_reduction_closure_already_kernel_verified") is True
+        ):
+            has_kernel_verified_theorem_reduction_closure_memory = True
+        if (
+            memory_summary.get("recommended_formalizer_target_mode")
+            == "source_theorem_semantic_primitive_closure"
+        ):
+            has_source_theorem_semantic_primitive_target_mode = True
         n_kernel += int(counts.get("kernel_verified", 0) or 0)
         for subclaim in manifest.get("formal_subclaims", []) or []:
             if not isinstance(subclaim, Mapping) or subclaim.get("kernel_verified") is not True:
                 continue
             verifier = str(subclaim.get("verifier", "") or "unknown")
             kernel_verified_verifiers.add(verifier)
+            proof_obligation_id = str(subclaim.get("proof_obligation_id", "") or "").strip()
             if verifier in REAL_KERNEL_VERIFIERS:
                 n_real_kernel += 1
+                if proof_obligation_id:
+                    real_kernel_verified_proof_obligation_ids.append(proof_obligation_id)
+                    if _proof_obligation_has_tag(
+                        proof_obligation_id,
+                        "source_theorem_semantic_primitive",
+                    ):
+                        real_kernel_verified_source_theorem_semantic_primitive_ids.append(
+                            proof_obligation_id
+                        )
             else:
                 n_non_real_kernel += 1
         n_formal_gaps += int(counts.get("formal_gap", 0) or 0)
@@ -449,6 +562,12 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_real_kernel_verified_subclaims=n_real_kernel,
         n_non_real_kernel_verified_subclaims=n_non_real_kernel,
         kernel_verified_verifiers=tuple(sorted(kernel_verified_verifiers)),
+        real_kernel_verified_proof_obligation_ids=tuple(
+            dict.fromkeys(real_kernel_verified_proof_obligation_ids)
+        ),
+        real_kernel_verified_source_theorem_semantic_primitive_ids=tuple(
+            dict.fromkeys(real_kernel_verified_source_theorem_semantic_primitive_ids)
+        ),
         n_formal_gaps=n_formal_gaps,
         n_registered_proof_bank_obligation_candidates=n_registered_proof_bank_obligation_candidates,
         n_memory_prioritized_proof_obligations=n_memory_prioritized_proof_obligations,
@@ -464,6 +583,12 @@ def _audit_result_path(path: Path) -> RuntimeAuditRow:
         n_critic_reroutes=n_critic_reroutes,
         n_lean_lsp_mcp_live_calls=n_lean_lsp_mcp_live_calls,
         has_runtime_learning_memory_input=has_runtime_learning_memory_input,
+        has_kernel_verified_theorem_reduction_closure_memory=(
+            has_kernel_verified_theorem_reduction_closure_memory
+        ),
+        has_source_theorem_semantic_primitive_target_mode=(
+            has_source_theorem_semantic_primitive_target_mode
+        ),
         has_problem_analysis=has_problem_analysis,
         has_stat_knowledge_bank_plan=has_stat_knowledge_bank_plan,
         has_literature_fair_comparison_plan=has_literature_fair_comparison_plan,
@@ -576,6 +701,265 @@ def _runtime_capability_gaps_from_scorecard(
         if blocker:
             gaps.append(blocker)
     return gaps
+
+
+def _runtime_learning_memory_evidence(traces: list[Any]) -> dict[str, list[str]]:
+    proof_obligation_ids: list[str] = []
+    source_semantic_ids: list[str] = []
+    closure_work_order_ids: list[str] = []
+    closure_target_ids: list[str] = []
+    closure_goal_ids: list[str] = []
+    for trace in traces:
+        if not isinstance(trace, Mapping):
+            continue
+        task = trace.get("task", {}) if isinstance(trace.get("task"), Mapping) else {}
+        inputs = task.get("inputs", {}) if isinstance(task.get("inputs"), Mapping) else {}
+        context = inputs.get("architect_context", {}) if isinstance(inputs.get("architect_context"), Mapping) else {}
+        memory = context.get("runtime_learning_memory", {})
+        if not isinstance(memory, Mapping) or memory.get("artifact_kind") != "RuntimeLearningMemoryContext":
+            continue
+        rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+        for row in rows:
+            if not isinstance(row, Mapping):
+                continue
+            _extend_unique_from_row(
+                proof_obligation_ids,
+                row,
+                "kernel_verified_proof_obligation_ids",
+            )
+            for obligation_id in proof_obligation_ids:
+                if _proof_obligation_has_tag(
+                    obligation_id,
+                    "source_theorem_semantic_primitive",
+                ):
+                    _append_unique(source_semantic_ids, obligation_id)
+            _extend_unique_from_row(
+                closure_work_order_ids,
+                row,
+                "kernel_verified_theorem_reduction_closure_work_order_ids",
+            )
+            _extend_unique_from_row(
+                closure_target_ids,
+                row,
+                "kernel_verified_theorem_reduction_closure_target_ids",
+            )
+            _extend_unique_from_row(
+                closure_goal_ids,
+                row,
+                "kernel_verified_theorem_reduction_closure_goal_ids",
+            )
+            input_summary = row.get("input_summary", {})
+            if isinstance(input_summary, Mapping):
+                _extend_unique_from_row(
+                    proof_obligation_ids,
+                    input_summary,
+                    "kernel_verified_proof_obligation_ids",
+                )
+                for obligation_id in proof_obligation_ids:
+                    if _proof_obligation_has_tag(
+                        obligation_id,
+                        "source_theorem_semantic_primitive",
+                    ):
+                        _append_unique(source_semantic_ids, obligation_id)
+                _extend_unique_from_row(
+                    closure_work_order_ids,
+                    input_summary,
+                    "kernel_verified_theorem_reduction_closure_work_order_ids",
+                )
+                _extend_unique_from_row(
+                    closure_target_ids,
+                    input_summary,
+                    "kernel_verified_theorem_reduction_closure_target_ids",
+                )
+                _extend_unique_from_row(
+                    closure_goal_ids,
+                    input_summary,
+                    "kernel_verified_theorem_reduction_closure_goal_ids",
+                )
+    return {
+        "kernel_verified_proof_obligation_ids": proof_obligation_ids,
+        "kernel_verified_source_theorem_semantic_primitive_ids": source_semantic_ids,
+        "kernel_verified_theorem_reduction_closure_work_order_ids": closure_work_order_ids,
+        "kernel_verified_theorem_reduction_closure_target_ids": closure_target_ids,
+        "kernel_verified_theorem_reduction_closure_goal_ids": closure_goal_ids,
+    }
+
+
+def _extend_unique_from_row(target: list[str], row: Mapping[str, Any], key: str) -> None:
+    for value in row.get(key, []) or []:
+        _append_unique(target, str(value).strip())
+
+
+def _append_unique(target: list[str], value: str) -> None:
+    if value and value not in target:
+        target.append(value)
+
+
+def _proof_obligation_has_tag(obligation_id: str, tag: str) -> bool:
+    obligation = FORMAL_OBLIGATIONS.get(str(obligation_id).strip())
+    return bool(obligation and tag in obligation.tags)
+
+
+def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
+    levels = [
+        _ladder_level(
+            0,
+            "schema_static_replay_contract_valid",
+            payload.get("all_ok") is True and int(payload.get("n_results", 0) or 0) > 0,
+            f"all_ok={payload.get('all_ok')} n_results={payload.get('n_results')}",
+            "runtime artifacts did not satisfy the basic audit contract",
+        ),
+        _ladder_level(
+            1,
+            "live_llm_generator_packets_valid",
+            payload.get("all_ok") is True
+            and int(payload.get("n_live_generator_agents_enabled", 0) or 0) > 0,
+            (
+                f"all_ok={payload.get('all_ok')} "
+                f"n_live_generator_agents_enabled={payload.get('n_live_generator_agents_enabled')}"
+            ),
+            "no completed audited run used Anthropic/OpenAI generator-backed agents",
+        ),
+        _ladder_level(
+            2,
+            "live_architect_controlled_runtime_completed",
+            payload.get("all_ok") is True
+            and int(payload.get("n_live_generator_agents_enabled", 0) or 0) > 0
+            and payload.get("architect_coordinator_enabled") is True,
+            (
+                f"architect_coordinator_enabled={payload.get('architect_coordinator_enabled')} "
+                f"n_live_generator_agents_enabled={payload.get('n_live_generator_agents_enabled')}"
+            ),
+            "live run did not complete under ArchitectCoordinator control",
+        ),
+        _ladder_level(
+            3,
+            "environment_algorithm_feedback_executed",
+            int(payload.get("n_algorithm_sandbox_executed", 0) or 0) > 0,
+            f"n_algorithm_sandbox_executed={payload.get('n_algorithm_sandbox_executed')}",
+            "no executable algorithm sandbox feedback was produced",
+        ),
+        _ladder_level(
+            4,
+            "bridge_subclaim_kernel_evidence_available",
+            int(payload.get("n_real_kernel_verified_subclaims", 0) or 0) > 0
+            or int(payload.get("n_runtime_memory_kernel_verified_proof_obligation_ids", 0) or 0)
+            > 0,
+            (
+                f"runtime_real_kernel={payload.get('n_real_kernel_verified_subclaims')} "
+                "memory_kernel_proof_obligations="
+                f"{payload.get('n_runtime_memory_kernel_verified_proof_obligation_ids')}"
+            ),
+            "no local Lean/AXLE kernel-verified bridge subclaim was produced or consumed",
+        ),
+        _ladder_level(
+            5,
+            "theorem_reduction_closure_kernel_evidence_available",
+            int(
+                payload.get(
+                    "n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids",
+                    0,
+                )
+                or 0
+            )
+            > 0,
+            (
+                "memory_kernel_theorem_closure_goals="
+                f"{payload.get('n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids')} "
+                "runtime_work_orders="
+                f"{payload.get('n_runtime_theorem_reduction_closure_work_orders')}"
+            ),
+            "no kernel-verified theorem-reduction closure was consumed by this runtime",
+        ),
+        _ladder_level(
+            6,
+            "source_theorem_semantic_primitives_kernel_evidence_available",
+            int(
+                payload.get(
+                    "n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids",
+                    0,
+                )
+                or 0
+            )
+            > 0
+            or int(
+                payload.get(
+                    "n_real_kernel_verified_source_theorem_semantic_primitive_subclaims",
+                    0,
+                )
+                or 0
+            )
+            > 0,
+            (
+                "memory_semantic_primitives="
+                f"{payload.get('n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids')} "
+                "runtime_semantic_primitives="
+                f"{payload.get('n_real_kernel_verified_source_theorem_semantic_primitive_subclaims')}"
+            ),
+            "no kernel-verified source-theorem semantic primitive was produced or consumed",
+        ),
+        _ladder_level(
+            7,
+            "full_source_theorem_kernel_verified",
+            int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0
+            and int(payload.get("n_formal_gaps", 0) or 0) <= 0,
+            (
+                f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')} "
+                f"n_formal_gaps={payload.get('n_formal_gaps')}"
+            ),
+            "no full source/frontier theorem was kernel-verified with formal gaps closed",
+        ),
+        _ladder_level(
+            8,
+            "cross_task_generalization_demonstrated",
+            int(payload.get("n_distinct_question_ids", 0) or 0) >= 2
+            and int(payload.get("n_full_frontier_theorem_proved", 0) or 0) >= 2,
+            (
+                f"n_distinct_question_ids={payload.get('n_distinct_question_ids')} "
+                f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')}"
+            ),
+            "no multi-question kernel-verified theorem generalization was demonstrated",
+        ),
+    ]
+    max_contiguous = -1
+    for row in levels:
+        if row["level"] == max_contiguous + 1 and row["passed"] is True:
+            max_contiguous = int(row["level"])
+            continue
+        break
+    passed_levels = [int(row["level"]) for row in levels if row["passed"] is True]
+    return {
+        "artifact_kind": "RuntimeCapabilityLadder",
+        "scale": "L0-L8",
+        "max_contiguous_level": max_contiguous,
+        "max_evidence_level": max(passed_levels) if passed_levels else -1,
+        "current_level_label": (
+            levels[max_contiguous]["label"] if max_contiguous >= 0 else "no_runtime_contract"
+        ),
+        "levels": levels,
+        "boundary": (
+            "This ladder is descriptive evidence, not a proof gate. LLM routing, "
+            "simulation, retrieval, and consumed runtime memory are separated from "
+            "kernel-verified theorem evidence; L7 is required before claiming a full "
+            "source theorem proof, and L8 is required before claiming cross-task generalization."
+        ),
+    }
+
+
+def _ladder_level(
+    level: int,
+    label: str,
+    passed: bool,
+    evidence: str,
+    blocker: str,
+) -> dict[str, Any]:
+    return {
+        "level": level,
+        "label": label,
+        "passed": bool(passed),
+        "evidence": evidence,
+        "blocker": "" if passed else blocker,
+    }
 
 
 def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -812,8 +1196,12 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- capability_status: {payload.get('capability_status')}",
         f"- capability scorecard: {payload.get('capability_scorecard', {}).get('n_passed')}/"
         f"{payload.get('capability_scorecard', {}).get('n_requirements')} passed",
+        f"- capability ladder max contiguous level: {payload.get('capability_ladder', {}).get('max_contiguous_level')}",
+        f"- capability ladder max evidence level: {payload.get('capability_ladder', {}).get('max_evidence_level')}",
+        f"- capability ladder current label: {payload.get('capability_ladder', {}).get('current_level_label')}",
         f"- runtime evaluation mode: {payload.get('runtime_evaluation_mode')}",
         f"- results: {payload.get('n_ok')}/{payload.get('n_results')}",
+        f"- result errors: {payload.get('n_result_errors')}",
         f"- runtime progress events: {payload.get('n_runtime_progress_events')}",
         f"- runtime traces: {payload.get('n_runtime_traces')}",
         f"- agenda items: {payload.get('n_runtime_next_action_items')}",
@@ -839,6 +1227,9 @@ def _markdown_report(payload: Mapping[str, Any]) -> str:
         f"- real-kernel verified subclaims: {payload.get('n_real_kernel_verified_subclaims')}",
         f"- non-real-kernel verified subclaims: {payload.get('n_non_real_kernel_verified_subclaims')}",
         f"- kernel verified verifiers: {payload.get('kernel_verified_verifiers')}",
+        f"- runtime-memory kernel proof obligations: {payload.get('n_runtime_memory_kernel_verified_proof_obligation_ids')}",
+        f"- runtime-memory theorem closure goals: {payload.get('n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids')}",
+        f"- runtime-memory semantic primitives: {payload.get('n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids')}",
         f"- formal gaps: {payload.get('n_formal_gaps')}",
         f"- registered proof-obligation candidates: {payload.get('n_registered_proof_bank_obligation_candidates')}",
         f"- memory-prioritized proof obligations: {payload.get('n_memory_prioritized_proof_obligations')}",

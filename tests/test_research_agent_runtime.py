@@ -61,6 +61,7 @@ from ai_statistician.research_agent_runtime import (
 )
 from ai_statistician.research_agent_runtime_audit import (
     _audit_topology,
+    _runtime_capability_ladder,
     audit_research_agent_runtime,
 )
 from ai_statistician.research_system_audit import _research_agent_runtime_audit_overlay
@@ -3193,6 +3194,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
 
     audit = audit_research_agent_runtime(out_dir, out_dir / "runtime_alignment_audit")
     assert audit["all_ok"] is True
+    assert audit["result_errors"] == []
+    assert audit["n_result_errors"] == 0
     assert audit["capability_ready_for_full_ai_statistician"] is False
     assert audit["capability_status"] == "CONTRACT_OK_WITH_CAPABILITY_GAPS"
     scorecard = audit["capability_scorecard"]
@@ -3200,6 +3203,11 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert scorecard["artifact_kind"] == "RuntimeCapabilityScorecard"
     assert scorecard["runtime_evaluation_mode"] == "debug"
     assert scorecard["ready"] is False
+    ladder = audit["capability_ladder"]
+    assert ladder["artifact_kind"] == "RuntimeCapabilityLadder"
+    assert ladder["max_contiguous_level"] == 0
+    assert ladder["levels"][0]["passed"] is True
+    assert ladder["levels"][1]["passed"] is False
     assert scorecard_rows["runtime_marked_capability_eval"]["passed"] is False
     assert scorecard_rows["architect_orchestrated"]["passed"] is True
     assert scorecard_rows["dynamic_stat_knowledge_bank_planned"]["passed"] is True
@@ -3251,6 +3259,37 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert system_overlay["n_real_kernel_verified_subclaims"] == 0
     assert system_overlay["n_non_real_kernel_verified_subclaims"] == 0
     assert Path(system_overlay["manifest_path"]).exists()
+
+
+def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() -> None:
+    payload = {
+        "all_ok": True,
+        "n_results": 1,
+        "n_distinct_question_ids": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_algorithm_sandbox_executed": 1,
+        "n_real_kernel_verified_subclaims": 0,
+        "n_runtime_memory_kernel_verified_proof_obligation_ids": 9,
+        "n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids": 1,
+        "n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids": 2,
+        "n_real_kernel_verified_source_theorem_semantic_primitive_subclaims": 0,
+        "n_runtime_theorem_reduction_closure_work_orders": 0,
+        "n_full_frontier_theorem_proved": 0,
+        "n_formal_gaps": 2,
+    }
+
+    ladder = _runtime_capability_ladder(payload)
+    rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert ladder["artifact_kind"] == "RuntimeCapabilityLadder"
+    assert ladder["max_contiguous_level"] == 6
+    assert ladder["max_evidence_level"] == 6
+    assert rows[4]["passed"] is True
+    assert rows[5]["passed"] is True
+    assert rows[6]["passed"] is True
+    assert rows[7]["passed"] is False
+    assert "no full source/frontier theorem" in rows[7]["blocker"]
 
 
 def test_runtime_topology_resolves_empty_config_model_from_tier(
