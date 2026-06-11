@@ -1264,6 +1264,95 @@ def test_formalization_runtime_exports_theorem_reduction_closure_work_order() ->
     assert "not proof evidence" in queue_rows[0]["runtime_queue_boundary"]
 
 
+def test_formalization_runtime_uses_deterministic_theorem_closure_when_memory_exhausted() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    question_payload = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+
+    class ExplodingFormalizer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            raise AssertionError("Formalizer should not be called after proof-bank memory is exhausted")
+
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=ExplodingFormalizer(),
+        proof_verifier=MockProofVerifier(),
+        max_proof_obligations=1,
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {"manifest_id": "algorithm_sandbox_manifest:test"},
+        },
+    )
+    task = AgentTask(
+        task_id="task:formalization_deterministic_theorem_closure",
+        owner_subsystem="FormalizationEvaluator",
+        objective="test deterministic theorem closure when proof-bank memory is exhausted",
+        inputs={
+            "question": question_payload,
+            "architect_context": {
+                "runtime_learning_memory": {
+                    "artifact_kind": "RuntimeLearningMemoryContext",
+                    "rows": [
+                        {
+                            "kernel_verified_proof_obligation_ids": verified_ids,
+                            "recommended_proof_obligation_ids": verified_ids,
+                        }
+                    ],
+                },
+            },
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+    manifest = next(
+        row
+        for key, row in result.produced_artifacts.items()
+        if key.startswith("formalization_manifest:")
+    )
+    proposal_id = manifest["llm_formalizer_proof_engineer_proposal_id"]
+    proposal = result.produced_artifacts[proposal_id]
+    control = manifest["proof_obligation_control"]
+    work_orders = manifest["theorem_reduction_closure_work_orders"]
+    proposal_evidence = next(
+        row
+        for row in result.evidence_entries
+        if row.artifact_id == proposal_id
+    )
+
+    assert proposal["source_agent"] == "DeterministicTheoremClosureWorkOrderSeed"
+    assert proposal["provider"] == "deterministic"
+    assert proposal["proof_evidence_status"] == (
+        "DETERMINISTIC_THEOREM_CLOSURE_PACKET_NOT_PROOF_EVIDENCE"
+    )
+    assert proposal["proof_bank_obligation_requests"] == []
+    assert "sorry" in proposal["formal_targets"][0]["lean_statement_sketch"]
+    assert control["proof_bank_bridge_catalog_exhausted_by_memory"] is True
+    assert control["theorem_reduction_closure_required"] is True
+    assert control["n_selected_proof_obligations"] == 0
+    assert control["selected_proof_obligation_ids"] == []
+    assert control["llm_requested_proof_obligation_ids"] == []
+    assert work_orders and len(work_orders) == 1
+    assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+    assert work_orders[0]["target_theorem_goal_ids"] == ["split_conformal_finite_sample_coverage"]
+    assert set(work_orders[0]["verified_bridge_obligation_ids"]) == set(verified_ids)
+    assert proposal_evidence.evidence_type == "deterministic_theorem_closure_work_order_seed"
+    assert proposal_evidence.status == "WORK_ORDER_SEED_RECORDED_NOT_PROOF_EVIDENCE"
+
+
 def test_runtime_theorem_closure_queue_backfills_prior_formalizer_artifacts() -> None:
     proposal = dict(_formalizer_sample_response())
     proposal.update(

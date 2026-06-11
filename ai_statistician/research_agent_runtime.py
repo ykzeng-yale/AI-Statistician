@@ -930,7 +930,17 @@ class FormalizationEvaluatorRuntimeSubsystem:
         )
         produced_artifacts: dict[str, Any] = {}
         observations: list[EnvironmentObservation] = []
-        if self.proposal_agent is not None:
+        proposal_source = ""
+        if _should_emit_deterministic_theorem_closure_packet(
+            proof_bank_runtime_memory_summary
+        ):
+            proposal_packet = _deterministic_theorem_closure_proposal_packet(
+                question=question,
+                theorem_goals=theorem_goals,
+                proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+            )
+            proposal_source = "deterministic_theorem_closure_work_order_seed"
+        elif self.proposal_agent is not None:
             proposal_packet = self.proposal_agent.propose(
                 question=question,
                 theory_packet=packet if isinstance(packet, Mapping) else {},
@@ -941,6 +951,8 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 proof_bank_obligation_catalog=proof_bank_obligation_catalog,
                 proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
             )
+            proposal_source = "llm_formalizer_proof_engineer_proposal"
+        if proposal_packet is not None:
             (
                 llm_requested_proof_obligation_ids,
                 llm_off_catalog_proof_obligation_ids,
@@ -962,15 +974,22 @@ class FormalizationEvaluatorRuntimeSubsystem:
             )
             proposal_id = str(proposal_packet["packet_id"])
             produced_artifacts[proposal_id] = proposal_packet
+            is_deterministic_closure = (
+                proposal_source == "deterministic_theorem_closure_work_order_seed"
+            )
             observations.append(
                 EnvironmentObservation(
-                    observation_type="llm_formalizer_proof_engineer_proposal",
+                    observation_type=proposal_source,
                     summary=(
-                        "validated LLM Formalizer/ProofEngineer proposal recorded "
+                        "deterministic theorem-closure work-order seed recorded after "
+                        "runtime memory exhausted the registered proof-bank bridge catalog"
+                        if is_deterministic_closure
+                        else "validated LLM Formalizer/ProofEngineer proposal recorded "
                         "before proof-bank/kernel evaluation"
                     ),
                     payload={
                         "packet_id": proposal_id,
+                        "source_agent": str(proposal_packet.get("source_agent", "")),
                         "n_formal_targets": len(proposal_packet.get("formal_targets", []) or []),
                         "n_retrieval_queries": len(proposal_packet.get("retrieval_queries", []) or []),
                         "n_proof_bank_obligation_requests": len(
@@ -987,7 +1006,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
                         "n_off_catalog_proof_bank_obligation_requests": len(
                             llm_off_catalog_proof_obligation_ids
                         ),
-                        "proof_evidence_status": FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE,
+                        "proof_evidence_status": str(
+                            proposal_packet.get(
+                                "proof_evidence_status",
+                                FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE,
+                            )
+                        ),
                     },
                 )
             )
@@ -995,10 +1019,15 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 evidence_id="evidence:" + stable_hash([task.task_id, proposal_id])[:20],
                 task_id=task.task_id,
                 artifact_id=proposal_id,
-                evidence_type="llm_formalizer_proof_engineer_proposal",
-                status="PROPOSAL_RECORDED_REQUIRES_KERNEL_VERIFICATION",
+                evidence_type=proposal_source,
+                status=(
+                    "WORK_ORDER_SEED_RECORDED_NOT_PROOF_EVIDENCE"
+                    if is_deterministic_closure
+                    else "PROPOSAL_RECORDED_REQUIRES_KERNEL_VERIFICATION"
+                ),
                 boundary=FORMALIZER_BOUNDARY,
                 payload={
+                    "source_agent": str(proposal_packet.get("source_agent", "")),
                     "n_formal_targets": len(proposal_packet.get("formal_targets", []) or []),
                     "n_retrieval_queries": len(proposal_packet.get("retrieval_queries", []) or []),
                     "n_registered_proof_bank_obligation_candidates": len(proof_bank_obligation_catalog),
@@ -2719,6 +2748,152 @@ def _formalizer_proof_bank_runtime_memory_summary(
             "Formalizer should target a theorem-level Lean reduction that connects those verified bridge "
             "obligations to the remaining frontier theorem goal."
         ),
+    }
+
+
+def _should_emit_deterministic_theorem_closure_packet(
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+) -> bool:
+    return bool(
+        proof_bank_runtime_memory_summary.get(
+            "proof_bank_bridge_catalog_exhausted_by_memory",
+            False,
+        )
+        and proof_bank_runtime_memory_summary.get(
+            "recommended_formalizer_target_mode",
+            "",
+        )
+        == "theorem_level_reduction_closure"
+    )
+
+
+def _deterministic_theorem_closure_proposal_packet(
+    *,
+    question: OpenResearchQuestion,
+    theorem_goals: list[TheoremGoal],
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+) -> dict[str, Any]:
+    target_goal_ids = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get("remaining_theorem_goal_ids", []) or []
+        if str(row).strip()
+    ] or [_theorem_goal_id(row) for row in theorem_goals if _theorem_goal_id(row)]
+    verified_bridge_ids = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get(
+            "memory_kernel_verified_proof_obligation_ids",
+            [],
+        )
+        or []
+        if str(row).strip()
+    ]
+    target_rows: list[dict[str, Any]] = []
+    for goal_id in target_goal_ids:
+        safe_goal = _safe_identifier(goal_id or "frontier_theorem")
+        target_rows.append(
+            {
+                "id": f"{safe_goal}_reduction_closure",
+                "informal_source": (
+                    "Connect the runtime-memory kernel-verified proof-bank bridge "
+                    "obligations to the remaining frontier theorem goal."
+                ),
+                "lean_statement_sketch": "\n".join(
+                    [
+                        f"theorem {safe_goal}_reduction_closure :",
+                        "    True := by",
+                        "  -- Replace this placeholder with the theorem-level reduction",
+                        "  -- from the verified bridge obligations to the source theorem.",
+                        "  sorry",
+                    ]
+                ),
+                "semantic_alignment_constraints": [
+                    "Do not strengthen assumptions beyond the source theorem.",
+                    "Preserve the theorem goal semantics; bridge obligations are subclaims only.",
+                    "Do not treat this work order or sketch as proof evidence.",
+                ],
+                "expected_status": "OPEN",
+            }
+        )
+    packet_id = (
+        "formalizer_proposal:"
+        + stable_hash(
+            {
+                "source_agent": "DeterministicTheoremClosureWorkOrderSeed",
+                "question_id": question.id,
+                "target_goal_ids": target_goal_ids,
+                "verified_bridge_ids": verified_bridge_ids,
+            }
+        )[:24]
+    )
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "FormalizerProofEngineerProposalPacket",
+        "packet_id": packet_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "source_agent": "DeterministicTheoremClosureWorkOrderSeed",
+        "provider": "deterministic",
+        "model": "runtime_memory_theorem_closure_seed",
+        "model_tier": "none",
+        "question": _question_to_payload(question),
+        "proof_evidence_status": "DETERMINISTIC_THEOREM_CLOSURE_PACKET_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": FORMALIZER_BOUNDARY,
+        "kernel_verified": False,
+        "full_frontier_theorem_proved": False,
+        "formal_targets": target_rows,
+        "lemma_dependency_plan": [
+            {
+                "from": "kernel_verified_proof_bank_bridge_memory",
+                "to": ",".join(target_goal_ids),
+                "role": "theorem-level reduction work order",
+                "risk": "source theorem may still require missing formal primitives or semantic alignment",
+            }
+        ],
+        "retrieval_queries": [
+            {
+                "query": "theorem-level reduction closure for verified proof-bank bridge obligations",
+                "target_library": "LeanRAG",
+                "purpose": "find source theorem primitives and reusable Lean reductions",
+            }
+        ],
+        "proof_search_plan": {
+            "preferred_tools": ["local_lean", "lean_lsp_mcp", "formal_source_retriever"],
+            "tactic_or_certificate_hints": [
+                "start from the exported theorem-reduction closure work order",
+                "reuse only kernel-verified bridge obligations from runtime memory",
+            ],
+            "kernel_check_plan": [
+                "materialize a Lean theorem-level reduction with no sorry",
+                "run local Lean or AXLE before claiming proof evidence",
+            ],
+            "known_blockers": [
+                "the full source theorem may still need exchangeability/order-statistic primitives",
+            ],
+        },
+        "proof_bank_obligation_requests": [],
+        "gap_taxonomy": [
+            {
+                "gap": "theorem-level reduction closure still needs a Lean proof",
+                "kind": "proof_search",
+                "next_owner": "ProofEngineer/LeanProver",
+            }
+        ],
+        "critic_findings": [
+            {
+                "critic": "proof_boundary_critic",
+                "finding": (
+                    "All registered bridge obligations are memory-kernel-verified, "
+                    "but the frontier theorem is not proved until the reduction closes."
+                ),
+                "reroute_if_confirmed": "FormalizationEvaluator",
+            }
+        ],
+        "next_actions": [
+            {
+                "owner_agent": "ProofEngineer/LeanProver",
+                "action": "prove the theorem-level reduction closure or record exact blockers",
+                "acceptance_gate": "local Lean/AXLE kernel verifies the intended reduction with no sorry",
+            }
+        ],
     }
 
 
