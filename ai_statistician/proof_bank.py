@@ -1408,6 +1408,49 @@ theorem orderStatisticQuantileRule_coverage {Ω ρ : Type*}
             "finite_union_budget_control",
         ),
     ),
+    "split_conformal_good_rank_set_inclusion_bridge": FormalObligation(
+        id="split_conformal_good_rank_set_inclusion_bridge",
+        title="Pointwise good-rank coverage implies the good-rank event is covered",
+        english=(
+            "If the split-conformal score/quantile construction proves pointwise "
+            "that every non-bad rank is covered, then the complement of the bad-rank "
+            "event is a subset of the coverage event. This is a source-theorem "
+            "semantic primitive that connects order-statistic reasoning to the "
+            "`hGoodCovered` premise used by the verified good-rank coverage bridge. "
+            "It does not prove exchangeability, rank uniformity, or the quantile "
+            "construction itself."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+
+theorem splitConformal_goodRank_subset_covered {Ω ρ : Type*}
+    (covered : Set Ω) (BadRanks : Finset ρ) (rank : Ω → ρ)
+    (hGood : ∀ ω, ω ∈ {ω | rank ω ∈ BadRanks}ᶜ → ω ∈ covered) :
+    {ω | rank ω ∈ BadRanks}ᶜ ⊆ covered := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  intro ω hω\n"
+            "  exact hGood ω hω"
+        ),
+        tags=(
+            "set",
+            "event",
+            "coverage",
+            "finite_sample",
+            "conformal",
+            "split_conformal",
+            "rank",
+            "good_rank_coverage",
+            "order_statistic_quantile_rule",
+            "source_theorem_semantic_primitive",
+            "semantic_alignment",
+        ),
+        expected_lemmas=("Set.Subset",),
+        depends_on=("order_statistic_quantile_rule_bridge",),
+    ),
     "split_conformal_bad_rank_reduction_bridge": FormalObligation(
         id="split_conformal_bad_rank_reduction_bridge",
         title="Split-conformal coverage reduction from a finite bad-rank budget",
@@ -1565,6 +1608,7 @@ theorem splitConformalCoverage_of_goodRankCoverage {Ω ρ : Type*}
             "tsub_le_tsub_left",
         ),
         depends_on=(
+            "split_conformal_good_rank_set_inclusion_bridge",
             "split_conformal_bad_rank_reduction_bridge",
             "finite_conformal_rank_coverage_counting",
             "order_statistic_quantile_rule_bridge",

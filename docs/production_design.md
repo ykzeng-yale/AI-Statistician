@@ -1270,6 +1270,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   the finite bad-rank union/complement algebra to verify the coverage ingredient
   associated with an order-statistic bad-rank set, without proving the score
   exchangeability or quantile construction theorem.
+- `split_conformal_good_rank_set_inclusion_bridge`: a source-theorem semantic
+  primitive for the split-conformal ladder. If the score/quantile construction
+  gives pointwise coverage on the good-rank event, it turns that pointwise fact
+  into the set-inclusion premise required by the good-rank coverage bridge. This
+  is kernel-checkable semantic glue, not exchangeability, rank uniformity, or a
+  full order-statistic quantile construction proof.
 - `split_conformal_bad_rank_reduction_bridge`: a theorem-level reduction bridge
   for live split-conformal closure work orders. Once the coverage event is
   identified with the complement of a finite bad-rank event and the bad-rank
