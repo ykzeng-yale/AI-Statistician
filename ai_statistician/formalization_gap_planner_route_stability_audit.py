@@ -864,6 +864,16 @@ def _declaration_hit_target_mismatch_errors(
                     f"{field_name}[{index}].target_prover_family must match "
                     f"{target_label}"
                 )
+            source_type_family = _declaration_hit_source_type_target_key(hit)
+            if (
+                not hit_family
+                and source_type_family
+                and source_type_family != target_key
+            ):
+                errors.append(
+                    f"{field_name}[{index}].source_type implies "
+                    f"{source_type_family} but {target_label} is {target_key}"
+                )
     return errors
 
 
@@ -881,11 +891,51 @@ def _is_lean_target_prover(target_prover_family: str) -> bool:
 
 
 def _target_prover_key(target_prover_family: object) -> str:
-    return re.sub(
+    key = re.sub(
         r"[^a-z0-9]+",
         "_",
         str(target_prover_family).strip().lower(),
     ).strip("_")
+    aliases = {
+        "coq": "rocq",
+        "coq8": "rocq",
+        "lean": "lean4",
+        "lean_4": "lean4",
+        "isabelle_hol": "isabelle",
+    }
+    return aliases.get(key, key)
+
+
+def _declaration_hit_source_type_target_key(row: dict[str, object]) -> str:
+    source_type = (
+        row.get("source_type")
+        or row.get("source_kind")
+        or row.get("library_family")
+        or row.get("source_prover_family")
+        or row.get("prover_family")
+        or ""
+    )
+    return _source_type_target_prover_key(source_type)
+
+
+def _source_type_target_prover_key(value: object) -> str:
+    key = _target_prover_key(value)
+    if not key:
+        return ""
+    tokens = {token for token in re.split(r"[^a-z0-9]+", key) if token}
+    if key in {"mathlib", "lean4_library"} or {"lean", "lean4", "mathlib"} & tokens:
+        return "lean4"
+    if key in {"coq", "coq8", "coq_library", "rocq_library"} or {
+        "coq",
+        "coq8",
+        "rocq",
+    } & tokens:
+        return "rocq"
+    if key in {"isabelle_hol", "isabelle_library"} or "isabelle" in tokens:
+        return "isabelle"
+    if key in {"agda_library"} or "agda" in tokens:
+        return "agda"
+    return ""
 
 
 def _stability_decision(
