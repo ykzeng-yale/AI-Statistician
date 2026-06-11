@@ -9152,10 +9152,11 @@ def _collect_formal_declaration_primitive_support(
     inherited_primitives: tuple[str, ...],
 ) -> None:
     if isinstance(value, Mapping):
+        explicit_target = str(
+            value.get("target_prover_family") or value.get("target_prover") or ""
+        ).strip()
         current_target = str(
-            value.get("target_prover_family")
-            or value.get("target_prover")
-            or inherited_target_prover_family
+            explicit_target or inherited_target_prover_family
         )
         scoped_primitives = tuple(
             dict.fromkeys(
@@ -9184,9 +9185,14 @@ def _collect_formal_declaration_primitive_support(
                 ).strip()
                 declaration_key = _formal_declaration_key(declaration)
                 target_key = _target_prover_key(
-                    row.get("target_prover_family", "")
-                    or row.get("target_prover", "")
-                    or current_target
+                    _formal_declaration_target_for_source_field(
+                        explicit_target_prover_family=str(
+                            row.get("target_prover_family", "")
+                            or row.get("target_prover", "")
+                        ),
+                        inherited_target_prover_family=current_target,
+                        source_field=field_name,
+                    )
                 )
                 if declaration_key:
                     support.setdefault((declaration_key, target_key), set()).update(
@@ -9216,10 +9222,11 @@ def _collect_formal_declaration_primitive_non_support(
     inherited_target_prover_family: str,
 ) -> None:
     if isinstance(value, Mapping):
+        explicit_target = str(
+            value.get("target_prover_family") or value.get("target_prover") or ""
+        ).strip()
         current_target = str(
-            value.get("target_prover_family")
-            or value.get("target_prover")
-            or inherited_target_prover_family
+            explicit_target or inherited_target_prover_family
         )
         for field_name in ("formal_declaration_hits", "lean_declaration_hits"):
             for row in _dict_tuple(value.get(field_name, [])):
@@ -9237,9 +9244,14 @@ def _collect_formal_declaration_primitive_non_support(
                 ).strip()
                 declaration_key = _formal_declaration_key(declaration)
                 target_key = _target_prover_key(
-                    row.get("target_prover_family", "")
-                    or row.get("target_prover", "")
-                    or current_target
+                    _formal_declaration_target_for_source_field(
+                        explicit_target_prover_family=str(
+                            row.get("target_prover_family", "")
+                            or row.get("target_prover", "")
+                        ),
+                        inherited_target_prover_family=current_target,
+                        source_field=field_name,
+                    )
                 )
                 if declaration_key:
                     non_support.setdefault((declaration_key, target_key), set()).update(
@@ -9351,10 +9363,11 @@ def _collect_formal_declaration_rows(
     suppress_generic_declaration_fields: bool = False,
 ) -> None:
     if isinstance(value, Mapping):
+        explicit_target = str(
+            value.get("target_prover_family") or value.get("target_prover") or ""
+        ).strip()
         current_target = str(
-            value.get("target_prover_family")
-            or value.get("target_prover")
-            or inherited_target_prover_family
+            explicit_target or inherited_target_prover_family
         )
         suppress_here = suppress_generic_declaration_fields or any(
             str(value.get(field_name, "")).strip()
@@ -9387,10 +9400,15 @@ def _collect_formal_declaration_rows(
                 "lean_declaration",
                 "lean_declarations",
             } and not suppress_here:
+                declaration_target = _formal_declaration_target_for_source_field(
+                    explicit_target_prover_family=explicit_target,
+                    inherited_target_prover_family=current_target,
+                    source_field=key_text,
+                )
                 rows.extend(
                     {
                         "declaration": declaration,
-                        "target_prover_family": current_target,
+                        "target_prover_family": declaration_target,
                         "source_field": key_text,
                     }
                     for declaration in _formal_declaration_values(item)
@@ -9442,19 +9460,43 @@ def _append_formal_declaration_rows(
         ).strip()
         if not declaration:
             continue
+        explicit_target = str(
+            value.get("target_prover_family", "") or value.get("target_prover", "")
+        ).strip()
         rows.append(
             {
                 "declaration": declaration,
-                "target_prover_family": str(
-                    value.get("target_prover_family", "")
-                    or value.get("target_prover", "")
-                    or inherited_target_prover_family
+                "target_prover_family": _formal_declaration_target_for_source_field(
+                    explicit_target_prover_family=explicit_target,
+                    inherited_target_prover_family=inherited_target_prover_family,
+                    source_field=str(
+                        value.get("source_field", "") or fallback_source_field
+                    ),
                 ).strip(),
                 "source_field": str(
                     value.get("source_field", "") or fallback_source_field
                 ).strip(),
             }
         )
+
+
+def _formal_declaration_target_for_source_field(
+    *,
+    explicit_target_prover_family: str,
+    inherited_target_prover_family: str,
+    source_field: object,
+) -> str:
+    explicit = str(explicit_target_prover_family or "").strip()
+    if explicit:
+        return explicit
+    key = _formal_declaration_source_field_key(source_field)
+    if key in {
+        "lean_declaration",
+        "lean_declarations",
+        "lean_declaration_hits",
+    }:
+        return "lean4"
+    return str(inherited_target_prover_family or "").strip()
 
 
 def _collect_formal_declarations(value: Any, declarations: list[str]) -> None:

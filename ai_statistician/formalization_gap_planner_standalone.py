@@ -607,6 +607,22 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
             route_target_key or metadata_target_key or payload_target_key
         )
         errors.extend(
+            _legacy_lean_declaration_hit_input_errors(
+                route,
+                location=f"routes[{idx}]",
+                target_prover_family=effective_target,
+                target_prover_key=effective_target_key,
+            )
+        )
+        errors.extend(
+            _legacy_lean_declaration_hit_input_errors(
+                metadata,
+                location=f"routes[{idx}].replan_metadata",
+                target_prover_family=effective_target,
+                target_prover_key=effective_target_key,
+            )
+        )
+        errors.extend(
             _candidate_declaration_row_input_errors(
                 route.get("candidate_declaration_rows", []),
                 location=f"routes[{idx}].candidate_declaration_rows",
@@ -1730,6 +1746,12 @@ def _standalone_input_trace(
     selected_cost_graph_option = _selected_cost_graph_option(cost_graph)
     realization_witness = _realization_coverage_witness(raw_route)
     quality_controls = _quality_controls_for_trace(raw_route, metadata)
+    formal_declaration_hits, lean_declaration_hits = (
+        _declaration_hits_for_standalone_trace(
+            metadata,
+            target_prover_family=target_prover_family,
+        )
+    )
     llm_generator_metadata = _dict_value(
         metadata.get("llm_route_planner_generator_metadata", {})
     )
@@ -1861,18 +1883,8 @@ def _standalone_input_trace(
         "primitive_source_snippets": primitive_source_snippets,
         "primitive_candidate_declaration_rows": primitive_candidate_declaration_rows,
         "has_source_snippets": bool(source_snippets or primitive_source_snippets),
-        "formal_declaration_hits": _dict_list(
-            metadata.get(
-                "formal_declaration_hits",
-                metadata.get("lean_declaration_hits", []),
-            )
-        ),
-        "lean_declaration_hits": _dict_list(
-            metadata.get(
-                "lean_declaration_hits",
-                metadata.get("formal_declaration_hits", []),
-            )
-        ),
+        "formal_declaration_hits": formal_declaration_hits,
+        "lean_declaration_hits": lean_declaration_hits,
         "revised_informal_knowledge_dag_nodes": revised_informal_nodes,
         "revised_formal_realization_dag_nodes": revised_formal_nodes,
         "revised_lean_realization_dag_nodes": revised_lean_nodes,
@@ -2163,6 +2175,38 @@ def _display_name(route: dict[str, Any]) -> str:
         if value:
             return value
     return ""
+
+
+def _legacy_lean_declaration_hit_input_errors(
+    row: Mapping[str, Any],
+    *,
+    location: str,
+    target_prover_family: str,
+    target_prover_key: str,
+) -> list[str]:
+    if not target_prover_key or _is_lean_target_prover(target_prover_family):
+        return []
+    if not _dict_list(row.get("lean_declaration_hits", [])):
+        return []
+    return [
+        (
+            f"{location}.lean_declaration_hits is a Lean-only legacy alias; "
+            "non-Lean standalone targets must use formal_declaration_hits "
+            f"for target_prover_family {target_prover_family}"
+        )
+    ]
+
+
+def _declaration_hits_for_standalone_trace(
+    metadata: Mapping[str, Any],
+    *,
+    target_prover_family: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    formal_hits = _dict_list(metadata.get("formal_declaration_hits", []))
+    lean_hits = _dict_list(metadata.get("lean_declaration_hits", []))
+    if _is_lean_target_prover(target_prover_family):
+        return formal_hits or lean_hits, lean_hits or formal_hits
+    return formal_hits, []
 
 
 def _target_prover_family(payload: dict[str, Any]) -> str:

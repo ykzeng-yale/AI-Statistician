@@ -19,8 +19,10 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     PROOF_EVIDENCE_BOUNDARY,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
+    _available_formal_declaration_rows_for_context,
     _generator_model_for_request,
     _route_adoption_readiness,
+    _target_compatible_formal_declaration_rows,
     export_formalization_gap_planner_llm_route_planner,
     llm_route_planner_manifest_json_schema,
     llm_route_planner_response_payload_schema,
@@ -9448,6 +9450,56 @@ def test_llm_route_planner_rejects_wrong_target_candidate_declarations() -> None
     row = payload["rows"][0]
     assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
     assert any("ungrounded candidate_declarations" in error for error in row["errors"])
+
+
+def test_llm_route_planner_keeps_legacy_lean_declaration_hits_lean_scoped() -> None:
+    route = {
+        "route_id": "rocq_rank_route",
+        "target_prover_family": "rocq",
+        "primitives": [{"primitive": "exchangeability"}],
+    }
+    context_packet = {
+        "resource_response_ledger_rows": [
+            {
+                "target_prover_family": "rocq",
+                "formal_declaration_hits": [
+                    {
+                        "declaration": "Rocq.Probability.exchangeable",
+                        "target_primitives": ["exchangeability"],
+                    }
+                ],
+                "lean_declaration_hits": [
+                    {
+                        "declaration": "Mathlib.Probability.exchangeable",
+                        "target_primitives": ["exchangeability"],
+                    }
+                ],
+            }
+        ]
+    }
+
+    declaration_rows = _available_formal_declaration_rows_for_context(
+        route,
+        context_packet,
+        target_prover_family="rocq",
+    )
+    rows_by_declaration = {
+        row["declaration"]: row for row in declaration_rows
+    }
+
+    assert rows_by_declaration["Rocq.Probability.exchangeable"][
+        "target_prover_family"
+    ] == "rocq"
+    assert rows_by_declaration["Mathlib.Probability.exchangeable"][
+        "target_prover_family"
+    ] == "lean4"
+    compatible = _target_compatible_formal_declaration_rows(
+        declaration_rows,
+        target_prover_family="rocq",
+    )
+    assert {
+        row["declaration"] for row in compatible
+    } == {"Rocq.Probability.exchangeable"}
 
 
 def test_llm_route_planner_uses_route_level_targets_without_top_level_target() -> None:
