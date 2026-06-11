@@ -214,7 +214,12 @@ route synthesis. Accepted LLM rows must include
 source-grounded informal DAG nodes, formal-realization DAG nodes, alignment
 rationales, a minimality rationale, a versioned minimal-delta cost witness, and
 an explicit proof-evidence boundary; `kernel_verified=true` claims are
-rejected. Primitive-level `SOURCE_BACKED` claims in `standalone_route` must
+rejected. The LLM response validator and standalone input validator reject the
+same proof overclaim recursively, including nested `kernel_verified=true`,
+`full_frontier_theorem_proved=true`, or `claim_status` /
+`proof_evidence_status` values that assert a proved or kernel-verified theorem
+outside the target-prover replay layer. Primitive-level `SOURCE_BACKED` claims
+in `standalone_route` must
 carry primitive-level `source_refs` or `source_snippets`; broad route-level
 source refs do not silently certify each primitive. Response `source_snippets`
 must be copied from or substantively anchored in request-context snippets; a

@@ -5,7 +5,7 @@ from collections import Counter
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 from .formalization_gap_planner_contract import (
@@ -507,6 +507,7 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     if not isinstance(payload, dict):
         return ["standalone input must be a JSON object"]
+    errors.extend(_kernel_proof_claim_errors(payload, location="standalone_input"))
     component = str(payload.get("component_name", ""))
     if component and component != FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT:
         errors.append("component_name is not formalization_gap_planner_standalone_input")
@@ -631,6 +632,52 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
                 )
             )
     return errors
+
+
+def _kernel_proof_claim_errors(value: Any, *, location: str) -> list[str]:
+    errors: list[str] = []
+    for path, key, item in _kernel_proof_claim_paths(value, location=location):
+        errors.append(
+            f"{path}.{key} cannot claim kernel/proved theorem evidence: {item}"
+        )
+    return errors
+
+
+def _kernel_proof_claim_paths(
+    value: Any,
+    *,
+    location: str,
+) -> tuple[tuple[str, str, object], ...]:
+    claims: list[tuple[str, str, object]] = []
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            key_text = str(key)
+            key_normalized = key_text.lower()
+            child_location = f"{location}.{key_text}"
+            if (
+                key_normalized
+                in {
+                    "kernel_verified",
+                    "full_frontier_theorem_proved",
+                    "theorem_proved",
+                }
+                and item is True
+            ):
+                claims.append((location, key_text, item))
+            if key_normalized in {"proof_evidence_status", "claim_status"}:
+                item_upper = str(item).upper()
+                if (
+                    ("KERNEL_VERIFIED" in item_upper or "PROVED" in item_upper)
+                    and "NOT_PROOF_EVIDENCE" not in item_upper
+                ):
+                    claims.append((location, key_text, item))
+            claims.extend(_kernel_proof_claim_paths(item, location=child_location))
+    elif isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            claims.extend(
+                _kernel_proof_claim_paths(item, location=f"{location}[{index}]")
+            )
+    return tuple(claims)
 
 
 def validate_llm_route_planner_seed_route_selection_payload(

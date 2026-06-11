@@ -3059,6 +3059,7 @@ def validate_llm_route_planner_response(
     payload = row.get("response_payload", {})
     if isinstance(payload, Mapping) and bool(payload.get("kernel_verified", False)):
         errors.append("LLM response payload cannot claim kernel_verified=true")
+    errors.extend(_kernel_proof_claim_errors(row, location="llm_route_planner_response"))
     if isinstance(payload, Mapping) and not bool(row.get("provider_failure", False)):
         errors.extend(validate_llm_route_planner_response_payload(payload))
     return sorted(set(errors))
@@ -3077,6 +3078,7 @@ def validate_llm_route_planner_response_payload(
     )
     if bool(payload.get("kernel_verified", False)):
         errors.append("response_payload cannot claim kernel_verified=true")
+    errors.extend(_kernel_proof_claim_errors(payload, location="response_payload"))
     errors.extend(_response_payload_realization_field_contract_errors(payload))
     return sorted(set(errors))
 
@@ -6588,6 +6590,7 @@ def _response_contract_errors(
     errors: list[str] = []
     if bool(payload.get("kernel_verified", False)):
         errors.append("response_payload cannot claim kernel_verified=true")
+    errors.extend(_kernel_proof_claim_errors(payload, location="response_payload"))
     if "not theorem proof evidence" not in str(
         payload.get("proof_evidence_boundary", "")
     ).lower():
@@ -6685,6 +6688,53 @@ def _response_contract_errors(
     errors.extend(_response_residual_interpretation_errors(payload, request))
     errors.extend(_response_residual_source_grounding_errors(payload))
     return errors
+
+
+def _kernel_proof_claim_errors(value: Any, *, location: str) -> list[str]:
+    errors: list[str] = []
+    for path, key, item in _kernel_proof_claim_paths(value, location=location):
+        errors.append(
+            f"{path}.{key} cannot claim kernel/proved theorem evidence: {item}"
+        )
+    return errors
+
+
+def _kernel_proof_claim_paths(
+    value: Any,
+    *,
+    location: str,
+) -> tuple[tuple[str, str, object], ...]:
+    claims: list[tuple[str, str, object]] = []
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            key_text = str(key)
+            key_normalized = key_text.lower()
+            child_location = f"{location}.{key_text}"
+            if (
+                key_normalized
+                in {
+                    "kernel_verified",
+                    "full_frontier_theorem_proved",
+                    "theorem_proved",
+                }
+                and item is True
+            ):
+                claims.append((location, key_text, item))
+            if key_normalized in {"proof_evidence_status", "claim_status"}:
+                item_text = str(item)
+                item_upper = item_text.upper()
+                if (
+                    ("KERNEL_VERIFIED" in item_upper or "PROVED" in item_upper)
+                    and "NOT_PROOF_EVIDENCE" not in item_upper
+                ):
+                    claims.append((location, key_text, item))
+            claims.extend(_kernel_proof_claim_paths(item, location=child_location))
+    elif isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            claims.extend(
+                _kernel_proof_claim_paths(item, location=f"{location}[{index}]")
+            )
+    return tuple(claims)
 
 
 def _response_realization_field_contract_errors(

@@ -289,6 +289,40 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
     assert prover_payload["n_packets"] == payload["n_portable_work_packets"]
 
 
+def test_standalone_input_rejects_nested_kernel_proof_claims() -> None:
+    payload = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "target_prover_family": "rocq",
+        "library_snapshot_ref": "rocq_mathcomp_probability_snapshot",
+        "routes": [
+            {
+                "display_name": "split_conformal_finite_sample_coverage",
+                "theorem_statement": "A distribution-free coverage claim.",
+                "replan_metadata": {
+                    "claim_status": "KERNEL_VERIFIED",
+                },
+                "primitives": [
+                    {
+                        "primitive": "coverage_inequality",
+                        "coverage_status": "bridge_needed",
+                        "kernel_verified": True,
+                    }
+                ],
+            }
+        ],
+    }
+
+    errors = validate_standalone_input_payload(payload)
+
+    assert any(
+        "routes[0].replan_metadata.claim_status" in error for error in errors
+    )
+    assert any(
+        "routes[0].primitives[0].kernel_verified" in error for error in errors
+    )
+
+
 def test_standalone_gap_planner_preserves_llm_minimal_delta_cost_graph_trace() -> None:
     root = Path("runs/test_formalization_gap_planner_standalone_cost_graph_trace")
     input_json = root / "standalone_input.json"
