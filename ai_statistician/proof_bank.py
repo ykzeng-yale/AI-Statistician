@@ -1451,6 +1451,53 @@ theorem splitConformal_goodRank_subset_covered {Ω ρ : Type*}
         expected_lemmas=("Set.Subset",),
         depends_on=("order_statistic_quantile_rule_bridge",),
     ),
+    "split_conformal_bad_rank_budget_from_uniform_rank_bound": FormalObligation(
+        id="split_conformal_bad_rank_budget_from_uniform_rank_bound",
+        title="Pointwise rank-event bounds restrict to bad-rank probability budgets",
+        english=(
+            "If an exchangeability/rank-uniformity argument has supplied a "
+            "pointwise probability budget for every rank event, then the same "
+            "bounds hold for every rank in the split-conformal bad-rank set. "
+            "This is a source-theorem semantic primitive that connects a future "
+            "uniform-rank theorem to the `hRank` premise used by the verified "
+            "good-rank coverage bridge. It does not prove exchangeability, rank "
+            "uniformity, or the order-statistic quantile construction."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory
+
+theorem splitConformal_badRank_budget_of_uniformRankBound {Ω ρ : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) (BadRanks : Finset ρ) (rank : Ω → ρ)
+    (α : ρ → ENNReal)
+    (hRankBound : ∀ r, μ {ω | rank ω = r} ≤ α r) :
+    ∀ r ∈ BadRanks, μ {ω | rank ω = r} ≤ α r := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  intro r _hr\n"
+            "  exact hRankBound r"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "coverage",
+            "finite_sample",
+            "conformal",
+            "split_conformal",
+            "rank",
+            "uniform_rank",
+            "rank_uniformity",
+            "good_rank_coverage",
+            "source_theorem_semantic_primitive",
+            "semantic_alignment",
+        ),
+        expected_lemmas=("forall_elim",),
+        depends_on=("exchangeable_scores_uniform_rank_bridge",),
+    ),
     "split_conformal_bad_rank_reduction_bridge": FormalObligation(
         id="split_conformal_bad_rank_reduction_bridge",
         title="Split-conformal coverage reduction from a finite bad-rank budget",
@@ -1609,6 +1656,7 @@ theorem splitConformalCoverage_of_goodRankCoverage {Ω ρ : Type*}
         ),
         depends_on=(
             "split_conformal_good_rank_set_inclusion_bridge",
+            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
             "split_conformal_bad_rank_reduction_bridge",
             "finite_conformal_rank_coverage_counting",
             "order_statistic_quantile_rule_bridge",

@@ -3554,6 +3554,7 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
             obligation.depends_on,
             (
                 "split_conformal_good_rank_set_inclusion_bridge",
+                "split_conformal_bad_rank_budget_from_uniform_rank_bound",
                 "split_conformal_bad_rank_reduction_bridge",
                 "finite_conformal_rank_coverage_counting",
                 "order_statistic_quantile_rule_bridge",
@@ -3579,6 +3580,18 @@ Apply a central limit theorem to the centered score and use Slutsky's theorem.
         self.assertIn("exact hGood ω hω", content)
         self.assertIn("source_theorem_semantic_primitive", obligation.tags)
         self.assertIn("semantic_alignment", obligation.tags)
+        self.assertNotIn("by sorry", content)
+
+    def test_split_conformal_bad_rank_budget_bridge_tracks_uniform_rank_premise(self) -> None:
+        obligation = get_obligation("split_conformal_bad_rank_budget_from_uniform_rank_bound")
+        content = splice_proof(obligation.formal_statement, obligation.proof_body)
+        self.assertEqual(obligation.depends_on, ("exchangeable_scores_uniform_rank_bridge",))
+        self.assertIn("theorem splitConformal_badRank_budget_of_uniformRankBound", content)
+        self.assertIn("hRankBound : ∀ r, μ {ω | rank ω = r} ≤ α r", content)
+        self.assertIn("∀ r ∈ BadRanks, μ {ω | rank ω = r} ≤ α r", content)
+        self.assertIn("exact hRankBound r", content)
+        self.assertIn("source_theorem_semantic_primitive", obligation.tags)
+        self.assertIn("rank_uniformity", obligation.tags)
         self.assertNotIn("by sorry", content)
 
     def test_finite_family_error_union_control_supports_simultaneous_bands(self) -> None:

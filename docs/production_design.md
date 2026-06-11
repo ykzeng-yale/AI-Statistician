@@ -1276,6 +1276,12 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   into the set-inclusion premise required by the good-rank coverage bridge. This
   is kernel-checkable semantic glue, not exchangeability, rank uniformity, or a
   full order-statistic quantile construction proof.
+- `split_conformal_bad_rank_budget_from_uniform_rank_bound`: a source-theorem
+  semantic primitive for the rank-budget side of the split-conformal ladder. If
+  an exchangeability/rank-uniformity argument has supplied pointwise probability
+  bounds for every rank event, this bridge restricts those bounds to the finite
+  bad-rank set. It is kernel-checkable glue for the `hRank` premise, not a proof
+  of exchangeability or uniform-rank distribution.
 - `split_conformal_bad_rank_reduction_bridge`: a theorem-level reduction bridge
   for live split-conformal closure work orders. Once the coverage event is
   identified with the complement of a finite bad-rank event and the bad-rank

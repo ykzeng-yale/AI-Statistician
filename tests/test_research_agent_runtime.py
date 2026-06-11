@@ -1215,6 +1215,107 @@ def test_formalization_selects_new_source_primitive_after_verified_theorem_closu
     assert manifest["counts"]["kernel_verified"] == 0
 
 
+def test_formalization_selects_rank_budget_after_good_rank_inclusion_memory() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    question_payload = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    already_verified_ids = [
+        str(row["obligation_id"])
+        for row in catalog
+        if str(row["obligation_id"])
+        != "split_conformal_bad_rank_budget_from_uniform_rank_bound"
+    ]
+
+    class StaticFormalizer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            packet = dict(_formalizer_sample_response())
+            packet.update(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                    "packet_id": "formalizer_proposal:rank_budget_after_inclusion",
+                    "source_agent": "StaticFormalizer",
+                    "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+                    "kernel_verified": False,
+                    "full_frontier_theorem_proved": False,
+                    "proof_bank_obligation_requests": [],
+                }
+            )
+            return packet
+
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=StaticFormalizer(),
+        proof_verifier=MockProofVerifier(),
+        max_proof_obligations=1,
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {"manifest_id": "algorithm_sandbox_manifest:test"},
+        },
+    )
+    task = AgentTask(
+        task_id="task:formalization_rank_budget_after_good_rank_inclusion",
+        owner_subsystem="FormalizationEvaluator",
+        objective="test rank-budget primitive selection after good-rank inclusion memory",
+        inputs={
+            "question": question_payload,
+            "architect_context": {
+                "runtime_learning_memory": {
+                    "artifact_kind": "RuntimeLearningMemoryContext",
+                    "rows": [
+                        {
+                            "kernel_verified_proof_obligation_ids": already_verified_ids,
+                            "kernel_verified_theorem_reduction_closure_work_order_ids": [
+                                "theorem_reduction_closure_work_order:good_rank"
+                            ],
+                            "kernel_verified_theorem_reduction_closure_target_ids": [
+                                "split_conformal_finite_sample_coverage_reduction_closure"
+                            ],
+                            "kernel_verified_theorem_reduction_closure_goal_ids": [
+                                "split_conformal_finite_sample_coverage"
+                            ],
+                        }
+                    ],
+                }
+            },
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+    manifest = next(
+        row
+        for key, row in result.produced_artifacts.items()
+        if key.startswith("formalization_manifest:")
+    )
+    control = manifest["proof_obligation_control"]
+    summary = manifest["proof_bank_runtime_memory_summary"]
+
+    assert summary["theorem_reduction_closure_already_kernel_verified"] is True
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_semantic_primitive_closure"
+    )
+    assert summary["remaining_unverified_proof_bank_obligation_ids"] == [
+        "split_conformal_bad_rank_budget_from_uniform_rank_bound"
+    ]
+    assert control["selected_proof_obligation_ids"] == [
+        "split_conformal_bad_rank_budget_from_uniform_rank_bound"
+    ]
+    assert manifest["counts"]["kernel_verified"] == 0
+
+
 def test_formalization_runtime_suppresses_llm_requests_already_kernel_verified_in_memory() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     question_payload = {
