@@ -35,9 +35,13 @@ REQUIRED_ADAPTER_IDS = (
     "paper2agent_formalization_mcp",
     "dependency_graph_route_decomposition",
     "local_formal_source_index",
+    "local_target_formal_source_index",
     "local_lean_rag_dependency_graph",
     "loogle_leansearchclient",
     "leanexplore_mcp",
+    "rocq_lsp_serapi",
+    "isabelle_sledgehammer_afp",
+    "agda_search_auto",
     "local_lake_lean",
     "lean_lsp_mcp",
     "leandojo_reprover",
@@ -164,6 +168,10 @@ def audit_formalization_gap_planner_adapter_registry(
         "n_required_hook_kinds_present": len(
             set(REQUIRED_HOOK_KINDS) & _hook_kinds(rows)
         ),
+        "target_coverage_by_hook_kind": _target_coverage_by_hook_kind(rows),
+        "target_specific_coverage_by_hook_kind": (
+            _target_specific_coverage_by_hook_kind(rows)
+        ),
         "n_ready_local_or_configured": int(
             manifest.get("n_ready_local_or_configured", 0) or 0
         ),
@@ -268,6 +276,8 @@ def _coverage_checks(
     adapter_ids = _adapter_ids(rows)
     component_kinds = _component_kinds(rows)
     hook_kinds = _hook_kinds(rows)
+    target_coverage = _target_coverage_by_hook_kind(rows)
+    target_specific_coverage = _target_specific_coverage_by_hook_kind(rows)
     return [
         _check(
             "required_adapter_ids",
@@ -328,6 +338,44 @@ def _coverage_checks(
                 for row in rows
             ),
         ),
+        _check(
+            "required_reuse_targets_covered",
+            "portability",
+            ",".join(REQUIRED_REUSE_TARGETS),
+            ",".join(sorted(_target_union(rows))),
+            set(REQUIRED_REUSE_TARGETS).issubset(_target_union(rows)),
+        ),
+        _check(
+            "formal_library_grounding_targets_covered",
+            "portability",
+            ",".join(REQUIRED_REUSE_TARGETS),
+            ",".join(
+                sorted(target_coverage.get("formal_library_grounding", ()))
+            ),
+            set(REQUIRED_REUSE_TARGETS).issubset(
+                set(target_coverage.get("formal_library_grounding", ()))
+            ),
+        ),
+        _check(
+            "proof_state_feedback_targets_covered",
+            "portability",
+            ",".join(REQUIRED_REUSE_TARGETS),
+            ",".join(sorted(target_coverage.get("proof_state_feedback", ()))),
+            set(REQUIRED_REUSE_TARGETS).issubset(
+                set(target_coverage.get("proof_state_feedback", ()))
+            ),
+        ),
+        _check(
+            "target_specific_proof_state_feedback_targets_covered",
+            "portability",
+            ",".join(REQUIRED_REUSE_TARGETS),
+            ",".join(
+                sorted(target_specific_coverage.get("proof_state_feedback", ()))
+            ),
+            set(REQUIRED_REUSE_TARGETS).issubset(
+                set(target_specific_coverage.get("proof_state_feedback", ()))
+            ),
+        ),
     ]
 
 
@@ -363,9 +411,19 @@ def _row_contract_checks(
             _check(
                 f"row_{idx}_portable_reuse_targets",
                 "portability",
-                ",".join(REQUIRED_REUSE_TARGETS),
+                "non-empty target-prover scope",
                 f"{adapter_id}: {','.join(sorted(reuse_targets))}",
-                set(REQUIRED_REUSE_TARGETS).issubset(reuse_targets),
+                bool(reuse_targets),
+            )
+        )
+        checks.append(
+            _check(
+                f"row_{idx}_lean_alias_target_scope",
+                "portability",
+                "lean_declaration_hits only appears on Lean-scoped adapters",
+                f"{adapter_id}: targets={','.join(sorted(reuse_targets))}; fields={','.join(sorted(fields))}",
+                "lean_declaration_hits" not in fields
+                or reuse_targets.issubset({"lean4"}),
             )
         )
         checks.append(
@@ -531,6 +589,44 @@ def _component_kinds(rows: list[dict[str, Any]]) -> set[str]:
 
 def _hook_kinds(rows: list[dict[str, Any]]) -> set[str]:
     return {str(row.get("hook_kind", "")) for row in rows if row.get("hook_kind")}
+
+
+def _target_union(rows: list[dict[str, Any]]) -> set[str]:
+    targets: set[str] = set()
+    for row in rows:
+        targets.update(_str_tuple(row.get("portable_to_prover_families", [])))
+    return targets
+
+
+def _target_coverage_by_hook_kind(rows: list[dict[str, Any]]) -> dict[str, list[str]]:
+    coverage: dict[str, set[str]] = {}
+    for row in rows:
+        hook_kind = str(row.get("hook_kind", "")).strip()
+        if not hook_kind:
+            continue
+        coverage.setdefault(hook_kind, set()).update(
+            _str_tuple(row.get("portable_to_prover_families", []))
+        )
+    return {
+        hook_kind: sorted(targets)
+        for hook_kind, targets in sorted(coverage.items())
+    }
+
+
+def _target_specific_coverage_by_hook_kind(
+    rows: list[dict[str, Any]],
+) -> dict[str, list[str]]:
+    coverage: dict[str, set[str]] = {}
+    for row in rows:
+        hook_kind = str(row.get("hook_kind", "")).strip()
+        targets = _str_tuple(row.get("portable_to_prover_families", []))
+        if not hook_kind or len(targets) != 1:
+            continue
+        coverage.setdefault(hook_kind, set()).update(targets)
+    return {
+        hook_kind: sorted(targets)
+        for hook_kind, targets in sorted(coverage.items())
+    }
 
 
 def _read_json(path: Path, errors: list[str]) -> dict[str, Any]:

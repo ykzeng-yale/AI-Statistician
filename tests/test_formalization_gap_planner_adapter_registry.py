@@ -33,8 +33,12 @@ def test_formalization_gap_planner_adapter_registry_exports_contracts() -> None:
     assert "local_literature_corpus" in adapter_ids
     assert "paperclip_cli_mcp" in adapter_ids
     assert "local_formal_source_index" in adapter_ids
+    assert "local_target_formal_source_index" in adapter_ids
     assert "local_lean_rag_dependency_graph" in adapter_ids
     assert "lean_lsp_mcp" in adapter_ids
+    assert "rocq_lsp_serapi" in adapter_ids
+    assert "isabelle_sledgehammer_afp" in adapter_ids
+    assert "agda_search_auto" in adapter_ids
     assert "route_revision_overlay" in adapter_ids
     by_id = {row["adapter_id"]: row for row in payload["rows"]}
     assert by_id["local_route_truth_benchmark_adapter"]["readiness_status"] == "READY_LOCAL"
@@ -48,7 +52,37 @@ def test_formalization_gap_planner_adapter_registry_exports_contracts() -> None:
         "output_contract_fields"
     ]
     assert "lean_declaration_hits" in by_id["local_formal_source_index"]["output_contract_fields"]
+    assert by_id["local_formal_source_index"]["portable_to_prover_families"] == (
+        "lean4",
+    )
+    assert set(by_id["local_target_formal_source_index"]["portable_to_prover_families"]) == {
+        "lean4",
+        "rocq",
+        "isabelle",
+        "agda",
+    }
+    assert "formal_declaration_hits" in by_id["local_target_formal_source_index"][
+        "output_contract_fields"
+    ]
+    assert (
+        "lean_declaration_hits"
+        not in by_id["local_target_formal_source_index"]["output_contract_fields"]
+    )
     assert "prover_diagnostics" in by_id["lean_lsp_mcp"]["output_contract_fields"]
+    assert by_id["lean_lsp_mcp"]["portable_to_prover_families"] == ("lean4",)
+    assert by_id["rocq_lsp_serapi"]["portable_to_prover_families"] == ("rocq",)
+    assert by_id["isabelle_sledgehammer_afp"]["portable_to_prover_families"] == (
+        "isabelle",
+    )
+    assert by_id["agda_search_auto"]["portable_to_prover_families"] == ("agda",)
+    for adapter_id in (
+        "rocq_lsp_serapi",
+        "isabelle_sledgehammer_afp",
+        "agda_search_auto",
+    ):
+        assert "prover_diagnostics" in by_id[adapter_id]["output_contract_fields"]
+        assert "formal_declaration_hits" in by_id[adapter_id]["output_contract_fields"]
+        assert "lean_declaration_hits" not in by_id[adapter_id]["output_contract_fields"]
     assert "revised_formal_realization_dag_nodes" in by_id[
         "route_revision_overlay"
     ]["output_contract_fields"]

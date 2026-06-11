@@ -48,8 +48,39 @@ def test_adapter_registry_audit_validates_frontier_tool_contracts() -> None:
     assert audit_payload["n_required_component_kinds_present"] >= 6
     assert audit_payload["n_required_hook_kinds_present"] >= 5
     assert audit_payload["n_mcp_or_cli_surfaces"] > 0
+    assert set(
+        audit_payload["target_coverage_by_hook_kind"]["formal_library_grounding"]
+    ) == {"lean4", "rocq", "isabelle", "agda"}
+    assert set(
+        audit_payload["target_coverage_by_hook_kind"]["proof_state_feedback"]
+    ) == {"lean4", "rocq", "isabelle", "agda"}
+    assert set(
+        audit_payload["target_specific_coverage_by_hook_kind"][
+            "proof_state_feedback"
+        ]
+    ) == {"lean4", "rocq", "isabelle", "agda"}
     assert any(
         check["check_name"] == "required_adapter_ids" and check["ok"]
+        for check in audit_payload["checks"]
+    )
+    assert any(
+        check["check_name"] == "formal_library_grounding_targets_covered"
+        and check["ok"]
+        for check in audit_payload["checks"]
+    )
+    assert any(
+        check["check_name"] == "proof_state_feedback_targets_covered"
+        and check["ok"]
+        for check in audit_payload["checks"]
+    )
+    assert any(
+        check["check_name"]
+        == "target_specific_proof_state_feedback_targets_covered"
+        and check["ok"]
+        for check in audit_payload["checks"]
+    )
+    assert any(
+        check["check_name"].endswith("_lean_alias_target_scope") and check["ok"]
         for check in audit_payload["checks"]
     )
     assert any(
@@ -91,3 +122,24 @@ def test_adapter_registry_audit_validates_frontier_tool_contracts() -> None:
         if not check["ok"]
     }
     assert "required_adapter_ids" in failed
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["rows"] = [
+        row
+        for row in manifest["rows"]
+        if row.get("adapter_id")
+        not in {"rocq_lsp_serapi", "isabelle_sledgehammer_afp", "agda_search_auto"}
+    ]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    rejected_targets = audit_formalization_gap_planner_adapter_registry(
+        registry_dir,
+        root / "reject_targets",
+    )
+
+    assert not rejected_targets["all_ok"]
+    target_failed = {
+        check["check_name"]
+        for check in rejected_targets["checks"]
+        if not check["ok"]
+    }
+    assert "target_specific_proof_state_feedback_targets_covered" in target_failed
