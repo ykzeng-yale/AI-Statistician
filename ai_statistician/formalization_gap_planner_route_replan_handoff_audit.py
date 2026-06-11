@@ -527,6 +527,15 @@ def _row_checks(
         )
         checks.append(
             _check(
+                f"row_{idx}_non_lean_no_lean_declaration_alias",
+                "provenance",
+                "non-Lean handoff rows and seed metadata use formal_declaration_hits only",
+                _non_lean_declaration_alias_observed(row, seed_route, seed),
+                _non_lean_declaration_alias_ok(row, seed_route, seed),
+            )
+        )
+        checks.append(
+            _check(
                 f"row_{idx}_seed_route_source_snippets",
                 "provenance",
                 "seed route, replan metadata, and primitive rows preserve handoff source snippets",
@@ -1157,6 +1166,99 @@ def _seed_provenance_ok(row: dict[str, Any], seed_route: dict[str, Any]) -> bool
     )
 
 
+def _non_lean_declaration_alias_ok(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+    seed: dict[str, Any],
+) -> bool:
+    if not _has_non_lean_only_target(row, seed_route, seed):
+        return True
+    return _legacy_lean_declaration_alias_count(row, seed_route) == 0
+
+
+def _non_lean_declaration_alias_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+    seed: dict[str, Any],
+) -> str:
+    target_keys = ",".join(
+        sorted(
+            {
+                _target_prover_key(family)
+                for family in _target_prover_families(row, seed_route, seed)
+                if _target_prover_key(family)
+            }
+        )
+    )
+    return (
+        f"target_prover_families={target_keys or '<unspecified>'}; "
+        f"lean_declaration_hits={_legacy_lean_declaration_alias_count(row, seed_route)}"
+    )
+
+
+def _has_non_lean_only_target(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+    seed: dict[str, Any],
+) -> bool:
+    target_keys = {
+        _target_prover_key(family)
+        for family in _target_prover_families(row, seed_route, seed)
+        if _target_prover_key(family)
+    }
+    return bool(target_keys) and "lean4" not in target_keys
+
+
+def _target_prover_families(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+    seed: dict[str, Any],
+) -> tuple[str, ...]:
+    metadata = (
+        seed_route.get("replan_metadata", {}) if isinstance(seed_route, dict) else {}
+    )
+    if not isinstance(metadata, dict):
+        metadata = {}
+    standalone_route = row.get("standalone_route", {}) if isinstance(row, dict) else {}
+    if not isinstance(standalone_route, dict):
+        standalone_route = {}
+    standalone_metadata = standalone_route.get("replan_metadata", {})
+    if not isinstance(standalone_metadata, dict):
+        standalone_metadata = {}
+    return _str_tuple(
+        [
+            row.get("target_prover_family", ""),
+            standalone_route.get("target_prover_family", ""),
+            standalone_metadata.get("target_prover_family", ""),
+            seed_route.get("target_prover_family", "") if isinstance(seed_route, dict) else "",
+            metadata.get("target_prover_family", ""),
+            seed.get("target_prover_family", "") if isinstance(seed, dict) else "",
+        ]
+    )
+
+
+def _legacy_lean_declaration_alias_count(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> int:
+    metadata = (
+        seed_route.get("replan_metadata", {}) if isinstance(seed_route, dict) else {}
+    )
+    if not isinstance(metadata, dict):
+        metadata = {}
+    standalone_route = row.get("standalone_route", {}) if isinstance(row, dict) else {}
+    if not isinstance(standalone_route, dict):
+        standalone_route = {}
+    standalone_metadata = standalone_route.get("replan_metadata", {})
+    if not isinstance(standalone_metadata, dict):
+        standalone_metadata = {}
+    return sum(
+        len(_dict_tuple(container.get("lean_declaration_hits", [])))
+        for container in (row, metadata, standalone_route, standalone_metadata)
+        if isinstance(container, dict)
+    )
+
+
 def _seed_provenance_observed(
     row: dict[str, Any],
     seed_route: dict[str, Any],
@@ -1342,6 +1444,22 @@ def _object_hashes(values: Any) -> set[str]:
     if not isinstance(values, (list, tuple, set)):
         return set()
     return {stable_hash(value) for value in values if isinstance(value, dict)}
+
+
+def _target_prover_key(target_prover_family: object) -> str:
+    key = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        str(target_prover_family).strip().lower(),
+    ).strip("_")
+    aliases = {
+        "coq": "rocq",
+        "coq8": "rocq",
+        "lean": "lean4",
+        "lean_4": "lean4",
+        "isabelle_hol": "isabelle",
+    }
+    return aliases.get(key, key)
 
 
 def _dict_tuple(values: Any) -> tuple[dict[str, Any], ...]:

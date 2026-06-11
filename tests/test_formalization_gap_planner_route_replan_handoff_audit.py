@@ -474,3 +474,163 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         if not check["ok"]
     }
     assert "standalone_seed_no_kernel_verified_claims" in failed
+
+
+def test_route_replan_handoff_audit_rejects_non_lean_legacy_declaration_alias() -> None:
+    root = Path("runs/test_formalization_gap_planner_route_replan_handoff_audit_rocq_alias")
+    handoff_dir = root / "handoff"
+    audit_dir = root / "audit"
+    shutil.rmtree(root, ignore_errors=True)
+    handoff_dir.mkdir(parents=True, exist_ok=True)
+    route_id = "replan_route:rocq_rank_fixture"
+    alignment_edges = [
+        {
+            "source": "informal:rank_uniformity",
+            "target": "rocq:rank_uniformity",
+            "kind": "aligned_to_formal_realization_candidate",
+            "edge_type": "revised_informal_to_formal_alignment",
+            "primitive": "rank_uniformity",
+            "alignment_status": "bridge_needed",
+        }
+    ]
+    formal_nodes = [
+        {
+            "node_id": "rocq:rank_uniformity",
+            "label": "rank_uniformity",
+            "primitive": "rank_uniformity",
+            "coverage_status": "bridge_needed",
+        }
+    ]
+    legacy_hits = [
+        {
+            "primitive": "rank_uniformity",
+            "declaration": "Rocq.Conformal.rank_uniformity_bridge",
+            "target_prover_family": "rocq",
+        }
+    ]
+    route = {
+        "route_id": route_id,
+        "display_name": "rocq_rank_uniformity",
+        "theorem_statement": "A Rocq rank route.",
+        "target_prover_family": "rocq",
+        "source_refs": ["rocq_conformal_notes"],
+        "revised_formal_realization_dag_nodes": formal_nodes,
+        "revised_route_alignment_edges": alignment_edges,
+        "primitives": [
+            {
+                "primitive": "rank_uniformity",
+                "coverage_status": "bridge_needed",
+                "source_refs": ["rocq_conformal_notes"],
+            }
+        ],
+        "replan_metadata": {
+            "target_prover_family": "rocq",
+            "requires_replan": True,
+            "applied_proposal_ids": ["proposal:rocq-rank"],
+            "applied_refinement_evidence_ids": ["resource_response_ledger:rocq-rank"],
+            "applied_hook_kinds": ["resource_response_ledger"],
+            "route_revision_reasons": ["Rocq library search exposed a bridge gap"],
+            "route_revision_summaries": ["add the Rocq rank bridge before replay"],
+            "source_refs": ["rocq_conformal_notes"],
+            "lean_declaration_hits": legacy_hits,
+            "revised_formal_realization_dag_nodes": formal_nodes,
+            "revised_route_alignment_edges": alignment_edges,
+            "alignment_edge_primitives": ["rank_uniformity"],
+            "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        },
+    }
+    seed = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "target_prover_family": "rocq",
+        "library_snapshot_ref": "rocq:replan-audit-fixture",
+        "routes": [route],
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+    row = {
+        "route_replan_handoff_id": "formalization_gap_planner_route_replan_handoff:rocq-fixture",
+        "route_revision_overlay_id": "overlay:rocq-fixture",
+        "goal_plan_id": "goal:rocq-fixture",
+        "route_id": "source_route:rocq-fixture",
+        "display_name": "rocq_rank_uniformity",
+        "target_prover_family": "rocq",
+        "revision_status": "ROUTE_REVISION_APPLIED",
+        "stability_decision": "APPLY_ROUTE_REVISION_AND_REPLAN",
+        "requires_replan": True,
+        "added_primitives": ["rank_uniformity"],
+        "added_delta_primitives": ["rank_uniformity"],
+        "applied_proposal_ids": ["proposal:rocq-rank"],
+        "applied_refinement_evidence_ids": ["resource_response_ledger:rocq-rank"],
+        "applied_hook_kinds": ["resource_response_ledger"],
+        "route_revision_reasons": ["Rocq library search exposed a bridge gap"],
+        "route_revision_summaries": ["add the Rocq rank bridge before replay"],
+        "source_refs": ["rocq_conformal_notes"],
+        "lean_declaration_hits": legacy_hits,
+        "revised_formal_realization_dag_nodes": formal_nodes,
+        "revised_selected_primitives": ["rank_uniformity"],
+        "revised_route_alignment_edges": alignment_edges,
+        "unaligned_primitives": [],
+        "standalone_route_id": route_id,
+        "standalone_route": route,
+        "next_commands": [
+            "formalization-gap-planner-standalone-plan --input formalization_gap_planner_route_replan_standalone_seed.json"
+        ],
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "ok": True,
+        "errors": [],
+    }
+    manifest = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_route_replan_handoff",
+        "n_handoff_rows": 1,
+        "n_standalone_seed_routes": 1,
+        "n_route_alignment_edges": 1,
+        "n_unaligned_primitives": 0,
+        "n_ok": 1,
+        "all_ok": True,
+        "rows": [row],
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+    (handoff_dir / "formalization_gap_planner_route_replan_handoff_manifest.json").write_text(
+        json.dumps(manifest, indent=2),
+        encoding="utf-8",
+    )
+    (handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json").write_text(
+        json.dumps(seed, indent=2),
+        encoding="utf-8",
+    )
+    (
+        handoff_dir
+        / "formalization_gap_planner_route_replan_standalone_seed.schema.json"
+    ).write_text(
+        json.dumps(standalone_input_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (handoff_dir / "formalization_gap_planner_route_replan_handoff.jsonl").write_text(
+        json.dumps(row, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (handoff_dir / "formalization_gap_planner_route_replan_handoff.md").write_text(
+        "# handoff\nnot theorem proof evidence\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_formalization_gap_planner_route_replan_handoff(
+        handoff_dir,
+        audit_dir,
+        run_roundtrip=False,
+    )
+
+    assert not payload["all_ok"]
+    failed_checks = {
+        check["check_name"]: check for check in payload["checks"] if not check["ok"]
+    }
+    assert "row_0_non_lean_no_lean_declaration_alias" in failed_checks
+    observed = failed_checks[
+        "row_0_non_lean_no_lean_declaration_alias"
+    ]["observed"]
+    assert "target_prover_families=rocq" in observed
+    assert "lean_declaration_hits=" in observed
