@@ -3705,10 +3705,35 @@ def _runtime_gap_planner_route(
         source_refs=source_refs,
         target_prover_family=target_prover_family,
     )
+    formal_declaration_hits = _runtime_gap_formal_declaration_hits(
+        related_subclaims,
+        target_prover_family=target_prover_family,
+    )
     route_id = (
         "runtime_gap_route:"
         + stable_hash([question.id, theorem_goal.id, formalization_manifest_id])[:20]
     )
+    replan_metadata = {
+        "source_component": "ai_statistician_research_agent_runtime",
+        "formalization_manifest_id": formalization_manifest_id,
+        "proof_state_feedback_manifest_id": proof_state_feedback_manifest_id,
+        "runtime_theorem_goal_id": theorem_goal.id,
+        "runtime_formal_subclaim_ids": [row.id for row in related_subclaims],
+        "residual_goals": list(residual_goals),
+        "source_refs": list(source_refs),
+        "formal_declaration_hits": formal_declaration_hits,
+        "applied_prover_attempt_statuses": _runtime_gap_attempt_statuses(
+            related_subclaims,
+            proof_state_by_subclaim,
+        ),
+        "route_revision_reasons": list(residual_goals[:8]),
+        "proof_evidence_status": (
+            RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE
+        ),
+        "proof_evidence_boundary": RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY,
+    }
+    if target_prover_family == "lean4":
+        replan_metadata["lean_declaration_hits"] = formal_declaration_hits
     return {
         "route_id": route_id,
         "task_id": question.id,
@@ -3722,25 +3747,7 @@ def _runtime_gap_planner_route(
         "informal_proof_steps": _str_tuple((theorem_goal.proof_strategy,)),
         "source_refs": list(source_refs),
         "primitives": primitives,
-        "replan_metadata": {
-            "source_component": "ai_statistician_research_agent_runtime",
-            "formalization_manifest_id": formalization_manifest_id,
-            "proof_state_feedback_manifest_id": proof_state_feedback_manifest_id,
-            "runtime_theorem_goal_id": theorem_goal.id,
-            "runtime_formal_subclaim_ids": [row.id for row in related_subclaims],
-            "residual_goals": list(residual_goals),
-            "source_refs": list(source_refs),
-            "lean_declaration_hits": _runtime_gap_lean_hits(related_subclaims),
-            "applied_prover_attempt_statuses": _runtime_gap_attempt_statuses(
-                related_subclaims,
-                proof_state_by_subclaim,
-            ),
-            "route_revision_reasons": list(residual_goals[:8]),
-            "proof_evidence_status": (
-                RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE
-            ),
-            "proof_evidence_boundary": RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY,
-        },
+        "replan_metadata": replan_metadata,
         "proof_evidence_status": (
             RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE
         ),
@@ -3908,14 +3915,58 @@ def _runtime_primitive_hits(
     return hits
 
 
-def _runtime_gap_lean_hits(subclaims: list[FormalSubclaim]) -> list[dict[str, Any]]:
+def _runtime_gap_formal_declaration_hits(
+    subclaims: list[FormalSubclaim],
+    *,
+    target_prover_family: str,
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for subclaim in subclaims:
-        rows.extend(dict(hit) for hit in subclaim.formal_source_hits)
+        for hit in subclaim.formal_source_hits:
+            rows.append(
+                _runtime_gap_formal_declaration_hit_row(
+                    hit,
+                    target_prover_family=target_prover_family,
+                    source_field="runtime_formal_source_hits",
+                )
+            )
         for primitive, hits in subclaim.primitive_formal_source_hits.items():
             for hit in hits:
-                rows.append({"primitive": primitive, **dict(hit)})
+                rows.append(
+                    {
+                        "primitive": primitive,
+                        **_runtime_gap_formal_declaration_hit_row(
+                            hit,
+                            target_prover_family=target_prover_family,
+                            source_field="runtime_primitive_formal_source_hits",
+                        ),
+                    }
+                )
     return rows[:40]
+
+
+def _runtime_gap_formal_declaration_hit_row(
+    hit: Mapping[str, Any],
+    *,
+    target_prover_family: str,
+    source_field: str,
+) -> dict[str, Any]:
+    row = dict(hit)
+    declaration = ""
+    for key in ("declaration", "declaration_name", "name"):
+        if str(hit.get(key, "")).strip():
+            declaration = str(hit.get(key, "")).strip()
+            break
+    if declaration:
+        row["declaration"] = declaration
+    row["target_prover_family"] = str(
+        hit.get("target_prover_family", "")
+        or hit.get("target_prover", "")
+        or _target_prover_family_from_value(hit)
+        or target_prover_family
+    ).strip()
+    row["source_field"] = str(hit.get("source_field", "") or source_field)
+    return row
 
 
 def _runtime_declaration_names(hits: list[dict[str, Any]]) -> list[str]:

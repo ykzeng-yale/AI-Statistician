@@ -2380,6 +2380,12 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         route["target_prover_family"] == "lean4"
         for route in gap_planner_bridge["standalone_seed"]["routes"]
     )
+    first_runtime_route = gap_planner_bridge["standalone_seed"]["routes"][0]
+    assert first_runtime_route["replan_metadata"]["formal_declaration_hits"]
+    assert (
+        first_runtime_route["replan_metadata"]["lean_declaration_hits"]
+        == first_runtime_route["replan_metadata"]["formal_declaration_hits"]
+    )
     assert gap_planner_bridge["counts"]["routes"] > 0
     assert gap_planner_bridge["counts"]["primitives"] > 0
     assert gap_planner_bridge["counts"]["candidate_declaration_rows"] > 0
@@ -2905,6 +2911,25 @@ def test_runtime_formalization_gap_planner_bridge_preserves_non_lean_target() ->
     assert seed["routes"][0]["target_prover_family"] == "rocq"
     assert seed["routes"][0]["replan_metadata"]["residual_goals"] == [
         "missing finite rank bridge"
+    ]
+    assert "lean_declaration_hits" not in seed["routes"][0]["replan_metadata"]
+    assert seed["routes"][0]["replan_metadata"]["formal_declaration_hits"] == [
+        {
+            "source_id": "rocq_probability",
+            "source_type": "rocq_library",
+            "name": "Rocq.Probability.exchangeable",
+            "declaration": "Rocq.Probability.exchangeable",
+            "target_prover_family": "rocq",
+            "source_field": "runtime_formal_source_hits",
+        },
+        {
+            "primitive": "exchangeability_bridge",
+            "source_id": "rocq_probability",
+            "source_type": "rocq_library",
+            "declaration": "Rocq.Probability.exchangeable",
+            "target_prover_family": "rocq",
+            "source_field": "runtime_primitive_formal_source_hits",
+        },
     ]
     primitive = seed["routes"][0]["primitives"][0]
     assert primitive["candidate_declaration_rows"] == [
