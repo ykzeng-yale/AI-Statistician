@@ -229,3 +229,117 @@ def test_local_formal_source_adapter_keeps_non_lean_hits_generic() -> None:
     assert row["response_contract_ok"]
     assert row["formal_declaration_hits"]
     assert row["lean_declaration_hits"] == ()
+
+
+def test_local_formal_source_adapter_filters_mixed_roots_to_requested_target() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_local_formal_source_adapter_mixed_roots"
+    )
+    queue_dir = root / "queue"
+    lean_source_dir = root / "lean_src"
+    rocq_source_dir = root / "rocq_src"
+    adapter_dir = root / "adapter"
+    evidence_dir = root / "evidence"
+    shutil.rmtree(root, ignore_errors=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    lean_source_dir.mkdir(parents=True, exist_ok=True)
+    rocq_source_dir.mkdir(parents=True, exist_ok=True)
+    (lean_source_dir / "Demo.lean").write_text(
+        "\n".join(
+            [
+                "namespace LeanProbability",
+                "theorem rank_uniformity : True := by trivial",
+                "end LeanProbability",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (rocq_source_dir / "Rank.v").write_text(
+        "\n".join(
+            [
+                "From Coq Require Import Init.Logic.",
+                "Module RocqProbability.",
+                "Theorem rank_uniformity : True.",
+                "Proof. exact I. Qed.",
+                "End RocqProbability.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    roots = (
+        FormalSourceRoot("lean_fixture", str(lean_source_dir), "lean_library"),
+        FormalSourceRoot("rocq_fixture", str(rocq_source_dir), "rocq_library"),
+    )
+    declarations = build_formal_source_index(roots=roots)
+    assert {decl.source_type for decl in declarations} == {
+        "lean_library",
+        "rocq_library",
+    }
+    queue_rows = [
+        {
+            "refinement_item_id": "refinement:rocq-formal",
+            "goal_plan_id": "goal:rocq",
+            "route_id": "route:rocq",
+            "display_name": "rocq rank route",
+            "hook_kind": "formal_library_grounding",
+            "refinement_stage": "formal_library_coverage_mapping",
+            "owner_agent": "formal_retrieval",
+            "target_prover_family": "rocq",
+            "target_primitives": ["rank_uniformity"],
+            "queries": ["rank uniformity theorem"],
+        },
+    ]
+    (queue_dir / "formalization_gap_planner_refinement_queue_manifest.json").write_text(
+        json.dumps({"rows": queue_rows}, indent=2),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_local_formal_source_adapter_responses(
+        queue_dir,
+        adapter_dir,
+        formal_source_roots=roots,
+        k=3,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_hits"] >= 1
+    assert payload["n_target_incompatible_declaration_hits"] >= 1
+    assert (
+        payload["by_target_incompatible_hit_prover_family"]["lean4"]
+        == payload["n_target_incompatible_declaration_hits"]
+    )
+    response = payload["responses"][0]
+    assert response["target_prover_family"] == "rocq"
+    assert response["lean_declaration_hits"] == []
+    assert response["n_target_incompatible_declaration_hits"] >= 1
+    assert response["target_incompatible_hit_prover_families"] == ("lean4",)
+    assert (
+        response["target_incompatible_hit_prover_family_counts"]["lean4"]
+        == response["n_target_incompatible_declaration_hits"]
+    )
+    assert response["coverage_updates"]["rank_uniformity"] == "exact_exists"
+    assert response["formal_declaration_hits"]
+    assert {
+        hit["target_prover_family"] for hit in response["formal_declaration_hits"]
+    } == {"rocq"}
+    assert {
+        hit["source_type"] for hit in response["formal_declaration_hits"]
+    } == {"rocq_library"}
+    assert any(
+        hit["declaration"] == "RocqProbability.rank_uniformity"
+        for hit in response["formal_declaration_hits"]
+    )
+
+    evidence_payload = export_formalization_gap_planner_refinement_evidence(
+        queue_dir,
+        evidence_dir,
+        response_jsonl=adapter_dir / "formalization_gap_planner_refinement_evidence_responses.jsonl",
+    )
+    assert evidence_payload["all_ok"]
+    row = evidence_payload["rows"][0]
+    assert row["target_prover_family"] == "rocq"
+    assert row["response_contract_ok"]
+    assert row["lean_declaration_hits"] == ()
+    assert {
+        hit["target_prover_family"] for hit in row["formal_declaration_hits"]
+    } == {"rocq"}

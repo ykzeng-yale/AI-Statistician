@@ -121,6 +121,17 @@ def export_formalization_gap_planner_local_formal_source_adapter_responses(
         for response in responses
         for status in response.get("coverage_updates", {}).values()
     )
+    target_incompatible_hit_counter: Counter[str] = Counter()
+    for response in responses:
+        response_counts = response.get("target_incompatible_hit_prover_family_counts", {})
+        if isinstance(response_counts, dict):
+            for target, count in response_counts.items():
+                target_incompatible_hit_counter[str(target)] += int(count or 0)
+        else:
+            target_incompatible_hit_counter.update(
+                str(target)
+                for target in response.get("target_incompatible_hit_prover_families", [])
+            )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_LOCAL_FORMAL_SOURCE_ADAPTER_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -167,6 +178,13 @@ def export_formalization_gap_planner_local_formal_source_adapter_responses(
         "n_source_discovery_needed": by_coverage_status.get("source_discovery_needed", 0),
         "n_hits": sum(
             len(response.get("formal_declaration_hits", [])) for response in responses
+        ),
+        "n_target_incompatible_declaration_hits": sum(
+            int(response.get("n_target_incompatible_declaration_hits", 0) or 0)
+            for response in responses
+        ),
+        "by_target_incompatible_hit_prover_family": dict(
+            sorted(target_incompatible_hit_counter.items())
         ),
         "k": k,
         "all_ok": not errors
@@ -249,15 +267,28 @@ def _lean_grounding_response(
     coverage_updates: dict[str, str] = {}
     declaration_hits: list[dict[str, object]] = []
     revision_reasons: list[str] = []
+    target_incompatible_hit_targets: list[str] = []
     for primitive in primitives:
         query = _primitive_query(queue_row, primitive)
-        hits = _search(retriever, query, k=k)
+        raw_hits = _search(retriever, query, k=max(k * 3, k + 8))
+        hits, skipped_hits = _target_compatible_hits(
+            raw_hits,
+            target_prover_family,
+            limit=k,
+        )
+        skipped_targets = tuple(_hit_target_prover_family(hit) for hit in skipped_hits)
+        target_incompatible_hit_targets.extend(skipped_targets)
         status = _coverage_status(primitive, hits)
         coverage_updates[primitive] = status
         if status != "exact_exists":
             revision_reasons.append(f"{primitive} classified as {status}")
         if not hits:
-            revision_reasons.append(f"{primitive} had no local declaration hits")
+            if skipped_hits:
+                revision_reasons.append(
+                    f"{primitive} had no target-compatible local declaration hits"
+                )
+            else:
+                revision_reasons.append(f"{primitive} had no local declaration hits")
         for rank, hit in enumerate(hits, start=1):
             declaration_hits.append(
                 _hit_payload(
@@ -272,6 +303,7 @@ def _lean_grounding_response(
     lean_declaration_hits = (
         declaration_hits if _is_lean_target_prover(target_prover_family) else []
     )
+    target_incompatible_hit_counts = Counter(target_incompatible_hit_targets)
     return {
         "refinement_item_id": str(queue_row.get("refinement_item_id", "")),
         "route_id": str(queue_row.get("route_id", "")),
@@ -281,6 +313,13 @@ def _lean_grounding_response(
         "target_prover_family": target_prover_family,
         "formal_declaration_hits": declaration_hits,
         "lean_declaration_hits": lean_declaration_hits,
+        "n_target_incompatible_declaration_hits": len(target_incompatible_hit_targets),
+        "target_incompatible_hit_prover_families": tuple(
+            sorted(dict.fromkeys(target_incompatible_hit_targets))
+        ),
+        "target_incompatible_hit_prover_family_counts": dict(
+            sorted(target_incompatible_hit_counts.items())
+        ),
         "coverage_updates": coverage_updates,
         "route_revision_recommended": bool(revision_reasons),
         "route_revision_reasons": tuple(sorted(dict.fromkeys(revision_reasons))),
@@ -307,6 +346,27 @@ def _search(retriever: object, query: str, *, k: int) -> list[FormalSourceHit]:
     if not callable(search):
         return []
     return list(search(query, k=k))
+
+
+def _target_compatible_hits(
+    hits: list[FormalSourceHit],
+    target_prover_family: str,
+    *,
+    limit: int,
+) -> tuple[list[FormalSourceHit], list[FormalSourceHit]]:
+    target_keys = _target_prover_keys(target_prover_family)
+    if not target_keys:
+        return hits[:limit], []
+    accepted: list[FormalSourceHit] = []
+    skipped: list[FormalSourceHit] = []
+    for hit in hits:
+        hit_key = _target_prover_key(_hit_target_prover_family(hit))
+        if hit_key in target_keys:
+            if len(accepted) < limit:
+                accepted.append(hit)
+        else:
+            skipped.append(hit)
+    return accepted, skipped
 
 
 def _coverage_status(primitive: str, hits: list[FormalSourceHit]) -> str:
@@ -344,7 +404,7 @@ def _hit_payload(
         "line": declaration.line,
         "namespace": declaration.namespace,
         "signature": declaration.signature,
-        "target_prover_family": target_prover_family,
+        "target_prover_family": _hit_target_prover_family(hit),
         "score": hit.score,
         "matched_terms": hit.matched_terms,
         "is_kernel_verified_declaration_hit": False,
@@ -380,14 +440,77 @@ def _target_prover_family(row: dict[str, Any]) -> str:
 
 
 def _is_lean_target_prover(target_prover_family: str) -> bool:
+    return _target_prover_key(target_prover_family) == "lean4"
+
+
+def _target_prover_keys(target_prover_family: str) -> set[str]:
+    text = str(target_prover_family or "").strip()
+    if not text:
+        return set()
+    keys = {
+        key
+        for key in (
+            _target_prover_key(part)
+            for part in re.split(r"[,;/|]+", text)
+            if part.strip()
+        )
+        if key
+    }
+    whole_key = _target_prover_key(text)
+    if whole_key and whole_key != "mixed":
+        keys.add(whole_key)
+    return keys
+
+
+def _hit_target_prover_family(hit: FormalSourceHit) -> str:
+    return _target_family_from_source_type(hit.declaration.source_type)
+
+
+def _target_family_from_source_type(source_type: object) -> str:
+    key = _target_prover_key(source_type)
+    if key == "lean4":
+        return "lean4"
+    if key == "rocq":
+        return "rocq"
+    if key == "isabelle":
+        return "isabelle"
+    if key == "agda":
+        return "agda"
+    return str(source_type or "").strip()
+
+
+def _target_prover_key(value: object) -> str:
     key = re.sub(
         r"[^a-z0-9]+",
         "_",
-        str(target_prover_family).strip().lower(),
+        str(value or "").strip().lower(),
     ).strip("_")
-    return key in {"lean", "lean4", "lean_4"} or key.startswith(
-        ("lean4_", "lean_4_", "lean_")
-    )
+    if key in {"lean", "lean4", "lean_4", "lean_library", "mathlib"}:
+        return "lean4"
+    if key in {
+        "rocq",
+        "rocq_library",
+        "coq",
+        "coq_library",
+        "coq_rocq",
+        "rocq_coq",
+    }:
+        return "rocq"
+    if key in {"isabelle", "isabelle_hol", "isabelle_library"}:
+        return "isabelle"
+    if key in {"agda", "agda_library"}:
+        return "agda"
+    if key.startswith("lean4_") or key.startswith("lean_4_") or key.startswith("lean_"):
+        return "lean4"
+    if key.startswith("rocq_") or key.startswith("coq_"):
+        return "rocq"
+    if key.startswith("isabelle_"):
+        return "isabelle"
+    if key.startswith("agda_"):
+        return "agda"
+    if key.startswith("mixed"):
+        return "mixed"
+    return key
 
 
 def _tokens(text: str) -> set[str]:
@@ -453,6 +576,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Local response schema valid: {payload.get('n_local_response_schema_valid')}/{payload.get('n_local_formal_source_responses')}",
         f"- Merged response schema valid: {payload.get('n_merged_response_schema_valid')}/{payload.get('n_merged_responses')}",
         f"- Hits: {payload.get('n_hits')}",
+        f"- Target-incompatible hits skipped: {payload.get('n_target_incompatible_declaration_hits')}",
         f"- Exact exists: {payload.get('n_exact_exists')}",
         f"- Wrapper needed: {payload.get('n_wrapper_needed')}",
         f"- Source discovery needed: {payload.get('n_source_discovery_needed')}",

@@ -145,3 +145,140 @@ def test_refinement_evidence_preserves_queue_level_quality_controls() -> None:
         "response_validation_signals": ("source_refs_present",),
         "stop_conditions": ("source evidence accepted or search exhausted",),
     }
+
+
+def test_refinement_evidence_accepts_explicit_formal_search_miss() -> None:
+    root = Path("runs/test_formalization_gap_planner_refinement_evidence_search_miss")
+    queue_dir = root / "queue"
+    evidence_dir = root / "evidence"
+    response_jsonl = root / "responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    queue_row = {
+        "refinement_item_id": "refinement:formal",
+        "goal_plan_id": "goal:test",
+        "route_id": "route:test",
+        "display_name": "rocq:rank_uniformity",
+        "hook_kind": "formal_library_grounding",
+        "refinement_stage": "formal_library_coverage_mapping",
+        "owner_agent": "formal_retrieval",
+        "target_prover_family": "rocq",
+        "target_primitives": ["rank_uniformity"],
+        "resource_request_bindings": [],
+    }
+    (
+        queue_dir / "formalization_gap_planner_refinement_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_refinement_queue",
+                "rows": [queue_row],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    response_jsonl.write_text(
+        json.dumps(
+            {
+                "refinement_item_id": "refinement:formal",
+                "route_id": "route:test",
+                "display_name": "rocq:rank_uniformity",
+                "evidence_kind": "formal_library_grounding",
+                "tool_name": "fixture_formal_source_adapter",
+                "target_prover_family": "rocq",
+                "formal_declaration_hits": [],
+                "coverage_updates": {"rank_uniformity": "source_discovery_needed"},
+                "route_revision_recommended": True,
+                "route_revision_reasons": [
+                    "rank_uniformity had no target-compatible local declaration hits",
+                ],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_refinement_evidence(
+        queue_dir,
+        evidence_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_contract_ok"] == 1
+    assert payload["n_rejected"] == 0
+    row = payload["rows"][0]
+    assert row["response_contract_ok"]
+    assert row["formal_declaration_hits"] == ()
+    assert row["coverage_updates"] == {"rank_uniformity": "source_discovery_needed"}
+    assert row["route_revision_recommended"]
+
+
+def test_refinement_evidence_rejects_empty_exact_exists_formal_grounding() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_refinement_evidence_empty_exact_exists"
+    )
+    queue_dir = root / "queue"
+    evidence_dir = root / "evidence"
+    response_jsonl = root / "responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    queue_row = {
+        "refinement_item_id": "refinement:formal",
+        "goal_plan_id": "goal:test",
+        "route_id": "route:test",
+        "display_name": "rocq:rank_uniformity",
+        "hook_kind": "formal_library_grounding",
+        "refinement_stage": "formal_library_coverage_mapping",
+        "owner_agent": "formal_retrieval",
+        "target_prover_family": "rocq",
+        "target_primitives": ["rank_uniformity"],
+        "resource_request_bindings": [],
+    }
+    (
+        queue_dir / "formalization_gap_planner_refinement_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_refinement_queue",
+                "rows": [queue_row],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    response_jsonl.write_text(
+        json.dumps(
+            {
+                "refinement_item_id": "refinement:formal",
+                "route_id": "route:test",
+                "display_name": "rocq:rank_uniformity",
+                "evidence_kind": "formal_library_grounding",
+                "tool_name": "fixture_formal_source_adapter",
+                "target_prover_family": "rocq",
+                "formal_declaration_hits": [],
+                "coverage_updates": {"rank_uniformity": "exact_exists"},
+                "route_revision_recommended": True,
+                "route_revision_reasons": ["rank_uniformity allegedly exists"],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_refinement_evidence(
+        queue_dir,
+        evidence_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert not row["response_contract_ok"]
+    assert "formal_declaration_hits missing for formal_library_grounding" in row[
+        "errors"
+    ]

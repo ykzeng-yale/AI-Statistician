@@ -28,6 +28,12 @@ REFINEMENT_EVIDENCE_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-refinement-evidence-row:1"
 )
+FORMAL_LIBRARY_SEARCH_MISS_COVERAGE_STATUSES = {
+    "source_discovery_needed",
+    "formal_library_search_pending",
+    "library_search_pending",
+    "formal_source_search_pending",
+}
 
 
 @dataclass(frozen=True)
@@ -726,7 +732,11 @@ def _evidence_row(
         if not route_evidence_nodes:
             errors.append("route_evidence_nodes missing for literature_discovery")
     elif _is_formal_library_grounding_hook(hook_kind):
-        if not formal_declaration_hits:
+        if not formal_declaration_hits and not _is_valid_formal_library_search_miss(
+            coverage_updates,
+            route_revision_recommended=route_revision_recommended,
+            route_revision_reasons=route_revision_reasons,
+        ):
             errors.append(
                 "formal_declaration_hits missing for formal_library_grounding"
             )
@@ -860,6 +870,22 @@ def _expected_evidence_kinds(hook_kind: str) -> tuple[str, ...]:
         "proof_state_feedback": ("prover_feedback",),
         "route_revision": ("route_revision_proposal",),
     }.get(hook_kind, tuple())
+
+
+def _is_valid_formal_library_search_miss(
+    coverage_updates: dict[str, str],
+    *,
+    route_revision_recommended: bool,
+    route_revision_reasons: tuple[str, ...],
+) -> bool:
+    if not coverage_updates:
+        return False
+    if not (route_revision_recommended or route_revision_reasons):
+        return False
+    statuses = {str(status) for status in coverage_updates.values()}
+    return bool(statuses) and statuses.issubset(
+        FORMAL_LIBRARY_SEARCH_MISS_COVERAGE_STATUSES
+    )
 
 
 def _is_formal_library_grounding_hook(hook_kind: str) -> bool:
