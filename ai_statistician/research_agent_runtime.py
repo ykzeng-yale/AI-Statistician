@@ -2814,6 +2814,11 @@ def _deterministic_theorem_closure_proposal_packet(
     target_rows: list[dict[str, Any]] = []
     for goal_id in target_goal_ids:
         safe_goal = _safe_identifier(goal_id or "frontier_theorem")
+        lean_statement_sketch = _deterministic_theorem_closure_lean_statement_sketch(
+            goal_id=goal_id,
+            verified_bridge_ids=verified_bridge_ids,
+        )
+        is_kernel_check_ready = "sorry" not in lean_statement_sketch
         target_rows.append(
             {
                 "id": f"{safe_goal}_reduction_closure",
@@ -2821,21 +2826,13 @@ def _deterministic_theorem_closure_proposal_packet(
                     "Connect the runtime-memory kernel-verified proof-bank bridge "
                     "obligations to the remaining frontier theorem goal."
                 ),
-                "lean_statement_sketch": "\n".join(
-                    [
-                        f"theorem {safe_goal}_reduction_closure :",
-                        "    True := by",
-                        "  -- Replace this placeholder with the theorem-level reduction",
-                        "  -- from the verified bridge obligations to the source theorem.",
-                        "  sorry",
-                    ]
-                ),
+                "lean_statement_sketch": lean_statement_sketch,
                 "semantic_alignment_constraints": [
                     "Do not strengthen assumptions beyond the source theorem.",
                     "Preserve the theorem goal semantics; bridge obligations are subclaims only.",
-                    "Do not treat this work order or sketch as proof evidence.",
+                    "Do not treat this work order or sketch as proof evidence until local Lean/AXLE checks it.",
                 ],
-                "expected_status": "OPEN",
+                "expected_status": "KERNEL_CHECK_READY" if is_kernel_check_ready else "OPEN",
             }
         )
     packet_id = (
@@ -2919,6 +2916,49 @@ def _deterministic_theorem_closure_proposal_packet(
             }
         ],
     }
+
+
+def _deterministic_theorem_closure_lean_statement_sketch(
+    *,
+    goal_id: str,
+    verified_bridge_ids: list[str],
+) -> str:
+    if (
+        goal_id == "split_conformal_finite_sample_coverage"
+        and "split_conformal_bad_rank_reduction_bridge" in set(verified_bridge_ids)
+    ):
+        obligation = get_obligation("split_conformal_bad_rank_reduction_bridge")
+        statement = obligation.formal_statement.strip().replace(
+            "theorem splitConformalCoverage_of_badRankBudget",
+            "theorem splitConformalFiniteSampleCoverage_reductionClosure",
+            1,
+        )
+        candidate = re.sub(
+            r":=\s*by\s+sorry\s*$",
+            ":= " + obligation.proof_body.strip(),
+            statement,
+            flags=re.S,
+        )
+        if "sorry" not in candidate:
+            return (
+                "/-\n"
+                "Deterministic theorem-closure reduction generated from the "
+                "kernel-verified split_conformal_bad_rank_reduction_bridge proof-bank obligation.\n"
+                "This proves the bad-rank-budget-to-coverage reduction only; exchangeability, "
+                "rank-uniformity, and order-statistic construction remain explicit upstream assumptions.\n"
+                "-/\n"
+                + candidate
+            )
+    safe_goal = _safe_identifier(goal_id or "frontier_theorem")
+    return "\n".join(
+        [
+            f"theorem {safe_goal}_reduction_closure :",
+            "    True := by",
+            "  -- Replace this placeholder with the theorem-level reduction",
+            "  -- from the verified bridge obligations to the source theorem.",
+            "  sorry",
+        ]
+    )
 
 
 def _formalizer_theorem_reduction_closure_work_orders(

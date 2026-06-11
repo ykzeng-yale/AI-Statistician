@@ -1339,7 +1339,14 @@ def test_formalization_runtime_uses_deterministic_theorem_closure_when_memory_ex
         "DETERMINISTIC_THEOREM_CLOSURE_PACKET_NOT_PROOF_EVIDENCE"
     )
     assert proposal["proof_bank_obligation_requests"] == []
-    assert "sorry" in proposal["formal_targets"][0]["lean_statement_sketch"]
+    assert proposal["formal_targets"][0]["expected_status"] == "KERNEL_CHECK_READY"
+    assert "sorry" not in proposal["formal_targets"][0]["lean_statement_sketch"]
+    assert "splitConformalFiniteSampleCoverage_reductionClosure" in proposal["formal_targets"][0][
+        "lean_statement_sketch"
+    ]
+    assert "exchangeability, rank-uniformity, and order-statistic construction remain explicit" in proposal[
+        "formal_targets"
+    ][0]["lean_statement_sketch"]
     assert control["proof_bank_bridge_catalog_exhausted_by_memory"] is True
     assert control["theorem_reduction_closure_required"] is True
     assert control["n_selected_proof_obligations"] == 0

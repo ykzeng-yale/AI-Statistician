@@ -39,6 +39,7 @@ def test_theorem_reduction_closure_work_order_audit_exports_without_proof_claim(
     assert manifest["n_exported_lean_sketches"] == 1
     assert manifest["n_local_lean_attempted"] == 0
     assert manifest["n_kernel_verified"] == 0
+    assert manifest["local_lean_timeout_seconds"] == 240
     assert manifest["proof_evidence_status"] == "NO_KERNEL_VERIFIED_THEOREM_CLOSURE"
     check = manifest["checks"][0]
     assert check["status"] == "QUEUED_NOT_CHECKED"

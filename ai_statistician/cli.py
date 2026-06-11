@@ -6380,8 +6380,8 @@ def build_parser() -> argparse.ArgumentParser:
     theorem_reduction_closure_work_order_audit.add_argument(
         "--lean-timeout",
         type=int,
-        default=90,
-        help="timeout seconds for each local Lean check",
+        default=240,
+        help="timeout seconds for each theorem-closure local Lean check",
     )
     theorem_reduction_closure_work_order_audit.set_defaults(
         func=_theorem_reduction_closure_work_order_audit

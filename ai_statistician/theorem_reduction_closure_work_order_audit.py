@@ -26,7 +26,7 @@ def audit_theorem_reduction_closure_work_orders(
     *,
     run_local_lean: bool = False,
     lean_project: Path | None = None,
-    lean_timeout_seconds: int = 90,
+    lean_timeout_seconds: int = 240,
 ) -> dict[str, Any]:
     """Audit theorem-level closure work orders exported by live AgentRuntime.
 
