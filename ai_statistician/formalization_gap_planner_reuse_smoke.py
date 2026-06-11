@@ -583,6 +583,8 @@ SUMMARY_KEYS_BY_STAGE = {
     "formalization_gap_planner_local_proof_state_adapter": (
         "n_queue_rows",
         "n_proof_state_feedback_rows",
+        "n_target_proof_state_feedback_rows",
+        "n_skipped_non_target_proof_state_feedback_rows",
         "lean_command_available",
         "n_local_proof_state_responses",
         "n_target_prover_scaffold_accepted",
@@ -4623,6 +4625,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_local_proof_state_responses": local_proof_state_adapter_payload.get(
             "n_local_proof_state_responses",
             0,
+        ),
+        "n_local_proof_state_target_proof_state_feedback_rows": (
+            local_proof_state_adapter_payload.get(
+                "n_target_proof_state_feedback_rows",
+                0,
+            )
+        ),
+        "n_local_proof_state_skipped_non_target_proof_state_feedback_rows": (
+            local_proof_state_adapter_payload.get(
+                "n_skipped_non_target_proof_state_feedback_rows",
+                0,
+            )
         ),
         "n_local_proof_state_target_prover_scaffold_accepted": (
             local_proof_state_adapter_payload.get("n_target_prover_scaffold_accepted", 0)

@@ -58,6 +58,10 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
     proof_rows = [
         row for row in queue_rows if str(row.get("hook_kind", "")) == "proof_state_feedback"
     ]
+    target_proof_rows = [row for row in proof_rows if _row_targets_local_lean(row)]
+    skipped_non_target_rows = [
+        row for row in proof_rows if not _row_targets_local_lean(row)
+    ]
     base_responses = _read_jsonl(base_response_jsonl, errors) if base_response_jsonl else []
     base_by_item = {
         str(row.get("refinement_item_id", "")): row
@@ -72,7 +76,7 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
             lean_project=lean_project,
             lean_timeout=max(1, int(lean_timeout)),
         )
-        for row in proof_rows
+        for row in target_proof_rows
     ]
     merged_by_item = dict(base_by_item)
     for response in responses:
@@ -124,6 +128,10 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
         "lean_command_available": bool(lean_command),
         "n_queue_rows": len(queue_rows),
         "n_proof_state_feedback_rows": len(proof_rows),
+        "n_target_proof_state_feedback_rows": len(target_proof_rows),
+        "n_skipped_non_target_proof_state_feedback_rows": len(
+            skipped_non_target_rows
+        ),
         "n_base_responses": len(base_responses),
         "n_local_proof_state_responses": len(responses),
         "n_merged_responses": len(merged_responses),
@@ -156,13 +164,34 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
         "n_missing_skeleton": by_attempt_status.get("missing_theorem_skeleton", 0),
         "all_ok": not errors
         and bool(proof_rows)
-        and len(responses) == len(proof_rows)
+        and len(responses) == len(target_proof_rows)
         and n_local_response_schema_valid == len(responses)
         and n_merged_response_schema_valid == len(merged_responses),
         "errors": errors,
         "by_prover_attempt_class": dict(sorted(by_attempt_class.items())),
         "by_attempt_status": dict(sorted(by_attempt_status.items())),
+        "by_skipped_target_prover_family": dict(
+            sorted(
+                Counter(
+                    _row_target_prover_family(row)
+                    for row in skipped_non_target_rows
+                ).items()
+            )
+        ),
         "responses": responses,
+        "skipped_non_target_proof_state_feedback_rows": [
+            {
+                "refinement_item_id": str(row.get("refinement_item_id", "")),
+                "route_id": str(row.get("route_id", "")),
+                "display_name": str(row.get("display_name", "")),
+                "target_prover_family": _row_target_prover_family(row),
+                "skip_reason": (
+                    "local Lean proof-state adapter handles only Lean target "
+                    "prover rows; use target-prover adapter feedback for this row"
+                ),
+            }
+            for row in skipped_non_target_rows
+        ],
         "refinement_tool_response_schema": response_schema,
         "merged_response_ids": [
             str(row.get("refinement_item_id", "")) for row in merged_responses
@@ -173,6 +202,7 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         "limitations": [
             "local proof-state responses are refinement diagnostics, not target theorem proof evidence",
+            "non-Lean proof-state rows are skipped so target-prover-specific adapters can answer them without Lean alias leakage",
             "accepted temporary scaffolds still require verifier replay and calibration before promotion",
             "placeholder skeletons are not sent to the target prover because sorry/admit can mask missing proof work",
             "FORMAL_GAP and h_frontier_missing skeletons are blocked before target-prover execution because they are roadmap scaffolds, not theorem proof candidates",
@@ -306,6 +336,41 @@ def _proof_state_response(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _row_targets_local_lean(row: dict[str, Any]) -> bool:
+    target = _target_prover_key(_row_target_prover_family(row))
+    return target in {"", "lean4"}
+
+
+def _row_target_prover_family(row: dict[str, Any]) -> str:
+    for field_name in ("target_prover_family", "target_prover"):
+        text = str(row.get(field_name, "") or "").strip()
+        if text:
+            return text
+    trace = row.get("llm_route_planner_hook_trace", {})
+    if isinstance(trace, dict):
+        for field_name in ("target_prover_family", "target_prover"):
+            text = str(trace.get(field_name, "") or "").strip()
+            if text:
+                return text
+    return ""
+
+
+def _target_prover_key(value: object) -> str:
+    key = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        str(value or "").strip().lower(),
+    ).strip("_")
+    return {
+        "lean": "lean4",
+        "lean_4": "lean4",
+        "coq": "rocq",
+        "coq_rocq": "rocq",
+        "rocq_coq": "rocq",
+        "isabelle_hol": "isabelle",
+    }.get(key, key)
 
 
 def _run_local_lean(
@@ -461,6 +526,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "",
         f"- Queue rows: {payload.get('n_queue_rows')}",
         f"- Proof-state rows: {payload.get('n_proof_state_feedback_rows')}",
+        f"- Target proof-state rows: {payload.get('n_target_proof_state_feedback_rows')}",
+        f"- Skipped non-target proof-state rows: {payload.get('n_skipped_non_target_proof_state_feedback_rows')}",
         f"- Local responses: {payload.get('n_local_proof_state_responses')}",
         f"- Merged responses: {payload.get('n_merged_responses')}",
         f"- Local response schema valid: {payload.get('n_local_response_schema_valid')}/{payload.get('n_local_proof_state_responses')}",

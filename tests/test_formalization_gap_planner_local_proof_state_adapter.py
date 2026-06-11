@@ -124,6 +124,9 @@ def test_local_proof_state_adapter_emits_prover_feedback(
     )
 
     assert payload["all_ok"]
+    assert payload["n_target_proof_state_feedback_rows"] == 3
+    assert payload["n_skipped_non_target_proof_state_feedback_rows"] == 0
+    assert payload["skipped_non_target_proof_state_feedback_rows"] == []
     assert payload["n_local_proof_state_responses"] == 3
     assert payload["n_merged_responses"] == 4
     assert payload["n_local_response_schema_valid"] == 3
@@ -219,3 +222,102 @@ def test_local_proof_state_adapter_emits_prover_feedback(
     assert (
         adapter_dir / "formalization_gap_planner_refinement_tool_response.schema.json"
     ).exists()
+
+
+def test_local_proof_state_adapter_skips_non_lean_targets() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_local_proof_state_adapter_non_lean"
+    )
+    queue_dir = root / "queue"
+    adapter_dir = root / "adapter"
+    evidence_dir = root / "evidence"
+    base_response_jsonl = root / "base_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    display_name = "rocq rank route"
+    queue_rows = [
+        {
+            "refinement_item_id": "refinement:rocq-proof",
+            "goal_plan_id": "goal:rocq",
+            "route_id": "route:rocq",
+            "display_name": display_name,
+            "hook_kind": "proof_state_feedback",
+            "refinement_stage": "proof",
+            "owner_agent": "proof",
+            "target_prover_family": "rocq",
+            "target_primitives": ["rank_uniformity"],
+            "theorem_skeleton": "Theorem rank_uniformity : True.",
+            "queries": ["probe rank uniformity in Rocq"],
+        },
+    ]
+    (queue_dir / "formalization_gap_planner_refinement_queue_manifest.json").write_text(
+        json.dumps({"rows": queue_rows}, indent=2),
+        encoding="utf-8",
+    )
+    base_response_jsonl.write_text(
+        json.dumps(
+            {
+                "refinement_item_id": "refinement:rocq-proof",
+                "route_id": "route:rocq",
+                "display_name": display_name,
+                "evidence_kind": "prover_feedback",
+                "tool_name": "target_prover_adapter_feedback_adapter",
+                "target_prover_family": "rocq",
+                "attempt_status": "needs_statement_translation",
+                "prover_attempt_class": "target_prover_translation_gap",
+                "prover_diagnostics": [
+                    "Rocq adapter requires a translated statement before replay"
+                ],
+                "residual_goals": ["rank_uniformity: translate statement to Rocq"],
+                "route_revision_recommended": True,
+                "route_revision_reasons": ["translate statement to Rocq"],
+                "proof_evidence_status": (
+                    "FORMALIZATION_GAP_PLANNER_PROVER_ADAPTER_FEEDBACK_ADAPTER_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": "not theorem proof evidence",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_local_proof_state_adapter_responses(
+        queue_dir,
+        adapter_dir,
+        base_response_jsonl=base_response_jsonl,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_proof_state_feedback_rows"] == 1
+    assert payload["n_target_proof_state_feedback_rows"] == 0
+    assert payload["n_skipped_non_target_proof_state_feedback_rows"] == 1
+    assert payload["by_skipped_target_prover_family"] == {"rocq": 1}
+    assert payload["n_local_proof_state_responses"] == 0
+    assert payload["n_merged_responses"] == 1
+    assert payload["n_local_response_schema_valid"] == 0
+    assert payload["n_merged_response_schema_valid"] == 1
+    assert payload["responses"] == []
+    skipped = payload["skipped_non_target_proof_state_feedback_rows"][0]
+    assert skipped["refinement_item_id"] == "refinement:rocq-proof"
+    assert skipped["target_prover_family"] == "rocq"
+    merged_response = json.loads(
+        (
+            adapter_dir
+            / "formalization_gap_planner_refinement_evidence_responses.jsonl"
+        ).read_text(encoding="utf-8")
+    )
+    assert merged_response["tool_name"] == "target_prover_adapter_feedback_adapter"
+    assert merged_response["target_prover_family"] == "rocq"
+
+    evidence_payload = export_formalization_gap_planner_refinement_evidence(
+        queue_dir,
+        evidence_dir,
+        response_jsonl=adapter_dir / "formalization_gap_planner_refinement_evidence_responses.jsonl",
+    )
+
+    assert evidence_payload["all_ok"]
+    row = evidence_payload["rows"][0]
+    assert row["target_prover_family"] == "rocq"
+    assert row["prover_attempt_class"] == "target_prover_translation_gap"
+    assert row["route_revision_recommended"]

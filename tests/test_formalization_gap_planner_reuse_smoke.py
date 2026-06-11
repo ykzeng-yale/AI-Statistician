@@ -1650,6 +1650,14 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_local_proof_state_responses"] > 0
     assert (
+        payload["n_local_proof_state_target_proof_state_feedback_rows"]
+        == payload["n_local_proof_state_responses"]
+    )
+    assert (
+        payload["n_local_proof_state_skipped_non_target_proof_state_feedback_rows"]
+        == 0
+    )
+    assert (
         payload["n_local_proof_state_target_prover_scaffold_accepted"]
         + payload["n_local_proof_state_target_prover_failed"]
         + payload["n_local_proof_state_target_prover_unavailable"]
@@ -1907,6 +1915,15 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert local_proof_state_summary["n_non_target_prover_skeleton"] == payload[
         "n_local_proof_state_non_target_prover_skeleton"
     ]
+    assert local_proof_state_summary["n_target_proof_state_feedback_rows"] == payload[
+        "n_local_proof_state_target_proof_state_feedback_rows"
+    ]
+    assert (
+        local_proof_state_summary["n_skipped_non_target_proof_state_feedback_rows"]
+        == payload[
+            "n_local_proof_state_skipped_non_target_proof_state_feedback_rows"
+        ]
+    )
     assert local_proof_state_summary["n_local_lean_unavailable"] == payload[
         "n_local_proof_state_unavailable"
     ]
