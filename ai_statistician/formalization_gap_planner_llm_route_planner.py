@@ -12369,15 +12369,90 @@ def _coverage_update_hint_rows(
         coverage_key = _primitive_key(coverage_status)
         if not primitive_key or not coverage_key:
             continue
+        candidate_rows = _candidate_declaration_rows_for_coverage_update(
+            row,
+            primitive=str(primitive),
+            inherited_target_prover_family=target,
+        )
         rows.append(
             {
                 "primitive": str(primitive).strip(),
                 "coverage_status": str(coverage_status).strip(),
                 "target_prover_family": target,
                 "source_field": "coverage_updates",
+                "candidate_declaration_rows": [dict(item) for item in candidate_rows],
             }
         )
     return tuple(rows)
+
+
+def _candidate_declaration_rows_for_coverage_update(
+    row: Mapping[str, Any],
+    *,
+    primitive: str,
+    inherited_target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    primitive_key = _primitive_key(primitive)
+    if not primitive_key:
+        return tuple()
+    candidates: list[dict[str, object]] = []
+    for source_field, values in (
+        ("candidate_declaration_rows", row.get("candidate_declaration_rows", [])),
+        ("formal_declaration_hits", row.get("formal_declaration_hits", [])),
+    ):
+        for candidate in _candidate_declaration_rows(
+            values,
+            inherited_target_prover_family=inherited_target_prover_family,
+            fallback_source_field=source_field,
+        ):
+            if not _candidate_declaration_row_supports_primitive(
+                candidate,
+                primitive_key=primitive_key,
+            ):
+                continue
+            candidates.append(dict(candidate))
+    if _target_prover_key(inherited_target_prover_family) == "lean4":
+        for candidate in _candidate_declaration_rows(
+            row.get("lean_declaration_hits", []),
+            inherited_target_prover_family=inherited_target_prover_family,
+            fallback_source_field="lean_declaration_hits",
+        ):
+            if not _candidate_declaration_row_supports_primitive(
+                candidate,
+                primitive_key=primitive_key,
+            ):
+                continue
+            candidates.append(dict(candidate))
+    return tuple(_compact_candidate_declaration_rows(candidates))
+
+
+def _candidate_declaration_row_supports_primitive(
+    row: Mapping[str, object],
+    *,
+    primitive_key: str,
+) -> bool:
+    unsupported = {
+        _primitive_key(item)
+        for item in _str_tuple(row.get("unsupported_target_primitives", []))
+        if _primitive_key(item)
+    }
+    if primitive_key in unsupported:
+        return False
+    supported_scope = {
+        _primitive_key(item)
+        for item in _str_tuple(row.get("supported_target_primitives", []))
+        if _primitive_key(item)
+    }
+    if supported_scope:
+        return primitive_key in supported_scope
+    target_scope = {
+        _primitive_key(item)
+        for item in _str_tuple(row.get("target_primitives", []))
+        if _primitive_key(item)
+    }
+    if target_scope:
+        return primitive_key in target_scope
+    return True
 
 
 def _primitive_cost_hint(

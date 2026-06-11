@@ -2630,13 +2630,6 @@ def test_llm_route_planner_feedback_coverage_updates_raise_cost_hint_floor() -> 
     resource_response_ledger_dir = _write_resource_response_ledger(root)
     input_payload = json.loads(input_json.read_text(encoding="utf-8"))
     input_payload["routes"][0]["primitives"][1]["coverage_status"] = "exact_exists"
-    input_payload["routes"][0]["primitives"][1]["candidate_declaration_rows"] = [
-        {
-            "declaration": "Probability.rankUniformityBridge",
-            "target_prover_family": "lean4",
-            "source_field": "formal_declaration_hits",
-        }
-    ]
     input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
 
     payload = export_formalization_gap_planner_llm_route_planner(
@@ -2661,6 +2654,116 @@ def test_llm_route_planner_feedback_coverage_updates_raise_cost_hint_floor() -> 
         == "resource_response_ledger_rows.coverage_updates"
     )
     assert rank_hint["minimum_cost_marker"] == "bridge_needed"
+    assert {
+        (row["declaration"], row["target_prover_family"], row["source_field"])
+        for row in rank_hint["candidate_declaration_rows"]
+    } >= {
+        (
+            "Probability.rankUniformityBridge",
+            "lean4",
+            "formal_declaration_hits",
+        )
+    }
+    assert "Probability.rankUniformityBridge" in rank_hint["candidate_declarations"]
+
+
+def test_llm_route_planner_feedback_cost_hints_ignore_non_lean_legacy_alias() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rocq_feedback_cost_hint"
+    )
+    out_dir = root / "llm_route_planner"
+    resource_response_dir = root / "resource_response_ledger"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    resource_response_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["target_prover_family"] = "rocq"
+    input_payload["library_snapshot_ref"] = "rocq_probability_snapshot"
+    route = input_payload["routes"][0]
+    route["target_prover_family"] = "rocq"
+    route["route_id"] = "rocq_rank_route"
+    route["primitives"][0]["candidate_declarations"] = [
+        "RocqProbability.exchangeable"
+    ]
+    route["primitives"][1]["coverage_status"] = "exact_exists"
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    (
+        resource_response_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_resource_response_ledger",
+                "rows": [
+                    {
+                        "resource_response_ledger_id": "resource-response:rocq-rank",
+                        "resource_request_id": "resource-request:rocq-rank",
+                        "goal_plan_id": "goal:rocq_rank_route",
+                        "route_id": "rocq_rank_route",
+                        "display_name": "distribution_free_rank_bound",
+                        "primitive": "rank_uniformity",
+                        "target_primitives": ["rank_uniformity"],
+                        "target_prover_family": "rocq",
+                        "response_present": True,
+                        "response_contract_ok": True,
+                        "response_contract_minimum_met": True,
+                        "formal_declaration_hits": [
+                            {
+                                "declaration": "RocqProbability.rank_uniformity",
+                                "target_prover_family": "rocq",
+                                "source_field": "formal_declaration_hits",
+                                "target_primitives": ["rank_uniformity"],
+                            }
+                        ],
+                        "lean_declaration_hits": [
+                            {
+                                "declaration": "Mathlib.Probability.rankUniformity",
+                                "target_prover_family": "lean4",
+                                "source_field": "lean_declaration_hits",
+                                "target_primitives": ["rank_uniformity"],
+                            }
+                        ],
+                        "coverage_updates": {"rank_uniformity": "bridge_needed"},
+                        "acceptance_status": "ACCEPTED_WITH_ROUTE_REVISION",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_resource_response_ledger_dir=resource_response_dir,
+    )
+
+    assert payload["all_ok"]
+    request = payload["request_packets"][0]
+    cost_hints = request["context_packet"]["minimal_delta_cost_hints"]
+    rank_hint = {
+        row["primitive"]: row for row in cost_hints["primitive_cost_hints"]
+    }["rank_uniformity"]
+    assert {
+        (row["declaration"], row["target_prover_family"], row["source_field"])
+        for row in rank_hint["candidate_declaration_rows"]
+    } >= {
+        (
+            "RocqProbability.rank_uniformity",
+            "rocq",
+            "formal_declaration_hits",
+        )
+    }
+    assert all(
+        row["source_field"] != "lean_declaration_hits"
+        for row in rank_hint["candidate_declaration_rows"]
+    )
+    assert "RocqProbability.rank_uniformity" in rank_hint["candidate_declarations"]
+    assert "Mathlib.Probability.rankUniformity" not in rank_hint[
+        "candidate_declarations"
+    ]
 
 
 def test_llm_route_planner_merges_declaration_row_provenance_and_scope() -> None:
