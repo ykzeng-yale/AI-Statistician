@@ -1097,6 +1097,9 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["n_requests_with_llm_generation_policy"] == 1
     assert payload["n_request_llm_generation_policy_tier_model_matches"] == 1
     assert payload["n_request_llm_generation_policy_codex_exclusions"] == 1
+    assert payload[
+        "n_request_llm_generation_policy_current_claude_tier_source"
+    ] == 1
     assert payload["request_schema"]["$id"] == LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID
     assert "llm_generation_policy" in payload["request_schema"]["required"]
     request = payload["request_packets"][0]
@@ -1274,6 +1277,35 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert (
         "llm_generation_policy.resolved_model must match model"
         in validate_llm_route_planner_request(drifted_request)
+    )
+    stale_tier_policy_request = deepcopy(request)
+    stale_tier_policy_request["llm_generation_policy"]["claude_models_by_tier"][
+        "sonnet"
+    ] = "claude-sonnet-4-5"
+    assert (
+        "llm_generation_policy.claude_models_by_tier must match current "
+        "Claude tier policy"
+        in validate_llm_route_planner_request(stale_tier_policy_request)
+    )
+    stale_source_date_request = deepcopy(request)
+    stale_source_date_request["llm_generation_policy"][
+        "claude_model_source_checked_date"
+    ] = "2026-01-01"
+    assert (
+        "llm_generation_policy.claude_model_source_checked_date must match "
+        "current Claude tier policy source_checked_date"
+        in validate_llm_route_planner_request(stale_source_date_request)
+    )
+    stale_source_evidence_request = deepcopy(request)
+    stale_source_evidence_request["llm_generation_policy"][
+        "claude_model_selection"
+    ]["source_evidence"]["verified_latest_cost_tier_api_ids"][
+        "haiku"
+    ] = "claude-haiku-4-5"
+    assert (
+        "llm_generation_policy.claude_model_selection.source_evidence."
+        "verified_latest_cost_tier_api_ids must match current Claude tier policy"
+        in validate_llm_route_planner_request(stale_source_evidence_request)
     )
 
 

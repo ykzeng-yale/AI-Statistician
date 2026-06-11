@@ -905,6 +905,13 @@ def export_formalization_gap_planner_llm_route_planner(
         and _dict_value(packet, "llm_generation_policy").get("resolved_model")
         == packet.get("model")
     ]
+    request_generation_policy_current_claude_tier_sources = [
+        packet
+        for packet in request_packets
+        if not _llm_generation_policy_claude_model_source_errors(
+            _dict_value(packet, "llm_generation_policy")
+        )
+    ]
     request_model_tier_mismatches = _request_model_tier_mismatches(request_packets)
     request_schema = llm_route_planner_request_json_schema()
     response_payload_schema = llm_route_planner_response_payload_schema()
@@ -1141,6 +1148,9 @@ def export_formalization_gap_planner_llm_route_planner(
                     )
                 )
             )
+        ),
+        "n_request_llm_generation_policy_current_claude_tier_source": len(
+            request_generation_policy_current_claude_tier_sources
         ),
         "n_request_model_tier_mismatches": len(request_model_tier_mismatches),
         "request_model_tier_mismatches": request_model_tier_mismatches,
@@ -2356,6 +2366,10 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_model_tier_decision_sonnet_triggers",
             "n_request_model_tier_decision_evidence_invalid",
             "by_request_model_tier_decision_basis",
+            "n_requests_with_llm_generation_policy",
+            "n_request_llm_generation_policy_tier_model_matches",
+            "n_request_llm_generation_policy_codex_exclusions",
+            "n_request_llm_generation_policy_current_claude_tier_source",
             "n_request_model_tier_mismatches",
             "request_model_tier_mismatches",
             "n_generation_preflight_blocked",
@@ -2473,6 +2487,16 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_model_tier_decision_sonnet_triggers": nonnegative_integer,
             "n_request_model_tier_decision_evidence_invalid": nonnegative_integer,
             "by_request_model_tier_decision_basis": {"type": "object"},
+            "n_requests_with_llm_generation_policy": nonnegative_integer,
+            "n_request_llm_generation_policy_tier_model_matches": (
+                nonnegative_integer
+            ),
+            "n_request_llm_generation_policy_codex_exclusions": (
+                nonnegative_integer
+            ),
+            "n_request_llm_generation_policy_current_claude_tier_source": (
+                nonnegative_integer
+            ),
             "n_request_model_tier_mismatches": nonnegative_integer,
             "request_model_tier_mismatches": object_array,
             "n_generation_preflight_blocked": nonnegative_integer,
@@ -6199,6 +6223,79 @@ def _llm_generation_policy_errors(row: Mapping[str, object]) -> list[str]:
     ).lower():
         errors.append(
             "llm_generation_policy.proof_evidence_boundary must say not theorem proof evidence"
+        )
+    errors.extend(_llm_generation_policy_claude_model_source_errors(policy))
+    return errors
+
+
+def _llm_generation_policy_claude_model_source_errors(
+    policy: Mapping[str, object],
+) -> list[str]:
+    expected_models = {
+        str(tier): str(model)
+        for tier, model in _dict_value(
+            ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
+            "models_by_tier",
+        ).items()
+    }
+    expected_source_date = str(
+        ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY.get("source_checked_date", "")
+        or ""
+    )
+    errors: list[str] = []
+    policy_models = {
+        str(tier): str(model)
+        for tier, model in _dict_value(policy, "claude_models_by_tier").items()
+    }
+    if policy_models != expected_models:
+        errors.append(
+            "llm_generation_policy.claude_models_by_tier must match current "
+            "Claude tier policy"
+        )
+    selection = _dict_value(policy, "claude_model_selection")
+    selection_models = {
+        str(tier): str(model)
+        for tier, model in _dict_value(selection, "models_by_tier").items()
+    }
+    if selection_models != expected_models:
+        errors.append(
+            "llm_generation_policy.claude_model_selection.models_by_tier must "
+            "match current Claude tier policy"
+        )
+    if (
+        str(policy.get("claude_model_source_checked_date", "") or "")
+        != expected_source_date
+    ):
+        errors.append(
+            "llm_generation_policy.claude_model_source_checked_date must match "
+            "current Claude tier policy source_checked_date"
+        )
+    if (
+        str(selection.get("source_checked_date", "") or "")
+        != expected_source_date
+    ):
+        errors.append(
+            "llm_generation_policy.claude_model_selection.source_checked_date "
+            "must match current Claude tier policy source_checked_date"
+        )
+    source_evidence = _dict_value(selection, "source_evidence")
+    evidence_models = {
+        str(tier): str(model)
+        for tier, model in _dict_value(
+            source_evidence,
+            "verified_latest_cost_tier_api_ids",
+        ).items()
+    }
+    if evidence_models != expected_models:
+        errors.append(
+            "llm_generation_policy.claude_model_selection.source_evidence."
+            "verified_latest_cost_tier_api_ids must match current Claude tier policy"
+        )
+    versioning = str(policy.get("claude_model_id_versioning", "") or "").lower()
+    if "pinned snapshot" not in versioning or "not evergreen" not in versioning:
+        errors.append(
+            "llm_generation_policy.claude_model_id_versioning must record pinned "
+            "snapshot and not-evergreen policy"
         )
     return errors
 
