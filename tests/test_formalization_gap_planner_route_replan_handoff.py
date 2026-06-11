@@ -728,6 +728,34 @@ def test_route_replan_handoff_preserves_overlay_target_prover_family_for_rocq() 
             route_replan_handoff_row_json_schema(),
         )
     )
+    bad_source_type_row = dict(row)
+    bad_source_type_row["formal_declaration_hits"] = [
+        {
+            "primitive": "rocq_exchangeability_bridge",
+            "declaration": "Mathlib.Probability.exchangeable",
+            "source_type": "lean_library",
+        }
+    ]
+    assert (
+        "formal_declaration_hits[0].source_type implies lean4 "
+        "but row target_prover_family is rocq"
+        in validate_route_replan_handoff_row(
+            bad_source_type_row,
+            route_replan_handoff_row_json_schema(),
+        )
+    )
+    coq_alias_row = dict(row)
+    coq_alias_row["formal_declaration_hits"] = [
+        {
+            "primitive": "rocq_exchangeability_bridge",
+            "declaration": "Rocq.Probability.exchangeable",
+            "target_prover_family": "coq",
+        }
+    ]
+    assert validate_route_replan_handoff_row(
+        coq_alias_row,
+        route_replan_handoff_row_json_schema(),
+    ) == ()
 
     next_plan = export_formalization_gap_planner_standalone_plan(
         seed_path,

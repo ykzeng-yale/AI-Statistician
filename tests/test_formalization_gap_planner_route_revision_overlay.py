@@ -492,6 +492,34 @@ def test_route_revision_overlay_accepts_generic_formal_realization_nodes() -> No
             route_revision_overlay_row_json_schema(),
         )
     )
+    bad_source_type_row = dict(row)
+    bad_source_type_row["formal_declaration_hits"] = [
+        {
+            "primitive": "generic_rank_bridge",
+            "declaration": "Mathlib.Conformal.genericRankBridge",
+            "source_type": "lean_library",
+        }
+    ]
+    assert (
+        "formal_declaration_hits[0].source_type implies lean4 "
+        "but row target_prover_families are rocq"
+        in validate_route_revision_overlay_row(
+            bad_source_type_row,
+            route_revision_overlay_row_json_schema(),
+        )
+    )
+    coq_alias_row = dict(row)
+    coq_alias_row["formal_declaration_hits"] = [
+        {
+            "primitive": "generic_rank_bridge",
+            "declaration": "Rocq.Conformal.generic_rank_bridge",
+            "target_prover_family": "coq",
+        }
+    ]
+    assert validate_route_revision_overlay_row(
+        coq_alias_row,
+        route_revision_overlay_row_json_schema(),
+    ) == ()
 
 
 def test_route_revision_overlay_keeps_rocq_resource_hits_portable() -> None:
