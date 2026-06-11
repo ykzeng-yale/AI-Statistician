@@ -526,9 +526,12 @@ def _proof_audit_learning_export(args: argparse.Namespace) -> int:
     return 0
 
 
-def _theorem_reduction_closure_learning_export(args: argparse.Namespace) -> int:
-    manifest_path = Path(args.theorem_reduction_closure_audit_manifest)
-    out_dir = Path(args.out)
+def _export_theorem_reduction_closure_learning_from_manifest(
+    *,
+    manifest_path: Path,
+    out_dir: Path,
+    question_id: str = "",
+) -> dict[str, object]:
     out_dir.mkdir(parents=True, exist_ok=True)
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     checks = payload.get("checks", [])
@@ -567,7 +570,7 @@ def _theorem_reduction_closure_learning_export(args: argparse.Namespace) -> int:
     target_ids = list(dict.fromkeys(target_ids))
     row = {
         "schema_version": 1,
-        "question_id": str(args.question_id or ""),
+        "question_id": str(question_id or ""),
         "learning_task": "theorem_reduction_closure_kernel_overlay",
         "input_summary": {
             "theorem_reduction_closure_audit_manifest": str(manifest_path),
@@ -615,9 +618,29 @@ def _theorem_reduction_closure_learning_export(args: argparse.Namespace) -> int:
     }
     manifest_out = out_dir / "theorem_reduction_closure_runtime_learning_export_manifest.json"
     manifest_out.write_text(json.dumps(export_manifest, indent=2, default=str), encoding="utf-8")
+    return {
+        "row": row,
+        "export_manifest": export_manifest,
+        "runtime_learning_rows_jsonl": learning_path,
+        "export_manifest_path": manifest_out,
+    }
+
+
+def _theorem_reduction_closure_learning_export(args: argparse.Namespace) -> int:
+    result = _export_theorem_reduction_closure_learning_from_manifest(
+        manifest_path=Path(args.theorem_reduction_closure_audit_manifest),
+        out_dir=Path(args.out),
+        question_id=str(args.question_id or ""),
+    )
+    export_manifest = result["export_manifest"]
+    learning_path = Path(result["runtime_learning_rows_jsonl"])
+    manifest_out = Path(result["export_manifest_path"])
     print("\nAI Statistician Theorem-Reduction Closure Runtime Learning Export")
     print("=" * 72)
-    print(f"kernel_verified_closure_work_orders={len(work_order_ids)}")
+    print(
+        "kernel_verified_closure_work_orders="
+        f"{export_manifest['n_kernel_verified_theorem_reduction_closure_work_order_ids']}"
+    )
     print(f"runtime learning rows written to {learning_path.resolve()}")
     print(f"export manifest written to {manifest_out.resolve()}")
     return 0
@@ -1070,6 +1093,121 @@ def _theorem_reduction_closure_work_order_audit(args: argparse.Namespace) -> int
     )
     print(f"Lean sketches written to {Path(str(payload['lean_export_dir'])).resolve()}")
     return 0
+
+
+def _theorem_reduction_closure_proofengineer_bridge(args: argparse.Namespace) -> int:
+    out_dir = Path(args.out)
+    audit_dir = out_dir / "proofengineer_audit"
+    learning_dir = out_dir / "runtime_learning_export"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    queue_path = _resolve_theorem_reduction_queue_path(args)
+    audit_payload = audit_theorem_reduction_closure_work_orders(
+        queue_path,
+        audit_dir,
+        run_local_lean=args.local_lean,
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout_seconds=args.lean_timeout,
+    )
+    audit_manifest_path = audit_dir / "theorem_reduction_closure_work_order_audit_manifest.json"
+    learning_result = _export_theorem_reduction_closure_learning_from_manifest(
+        manifest_path=audit_manifest_path,
+        out_dir=learning_dir,
+        question_id=str(args.question_id or ""),
+    )
+    learning_export_manifest = learning_result["export_manifest"]
+    n_verified = int(audit_payload.get("n_kernel_verified", 0) or 0)
+    bridge_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "TheoremReductionClosureProofEngineerBridgeManifest",
+        "source_runtime_dir": str(args.runtime_dir or ""),
+        "source_queue_jsonl": str(queue_path),
+        "audit_manifest": str(audit_manifest_path),
+        "runtime_learning_rows_jsonl": str(learning_result["runtime_learning_rows_jsonl"]),
+        "runtime_learning_export_manifest": str(learning_result["export_manifest_path"]),
+        "local_lean_requested": bool(args.local_lean),
+        "n_work_orders": int(audit_payload.get("n_work_orders", 0) or 0),
+        "n_kernel_verified": n_verified,
+        "runtime_learning_ready": n_verified > 0,
+        "proof_evidence_status": str(audit_payload.get("proof_evidence_status", "")),
+        "n_kernel_verified_theorem_reduction_closure_work_order_ids": int(
+            learning_export_manifest[
+                "n_kernel_verified_theorem_reduction_closure_work_order_ids"
+            ]
+        ),
+        "kernel_verified_theorem_reduction_closure_work_order_ids": list(
+            learning_export_manifest[
+                "kernel_verified_theorem_reduction_closure_work_order_ids"
+            ]
+        ),
+        "kernel_verified_theorem_reduction_closure_target_ids": list(
+            learning_export_manifest[
+                "kernel_verified_theorem_reduction_closure_target_ids"
+            ]
+        ),
+        "kernel_verified_theorem_reduction_closure_goal_ids": list(
+            learning_export_manifest[
+                "kernel_verified_theorem_reduction_closure_goal_ids"
+            ]
+        ),
+        "verified_bridge_obligation_ids": list(
+            learning_export_manifest["verified_bridge_obligation_ids"]
+        ),
+        "boundary": (
+            "This bridge composes theorem-reduction closure work-order audit and "
+            "runtime-learning export for the ProofEngineer loop. It is not proof "
+            "evidence unless the referenced audit manifest has kernel_verified=true "
+            "rows from local Lean/AXLE. Runtime learning rows are routing memory only."
+        ),
+    }
+    bridge_manifest_path = out_dir / "theorem_reduction_closure_proofengineer_bridge_manifest.json"
+    bridge_manifest_path.write_text(
+        json.dumps(bridge_manifest, indent=2, default=str),
+        encoding="utf-8",
+    )
+    print("\nAI Statistician Theorem-Reduction Closure ProofEngineer Bridge")
+    print("=" * 72)
+    print(
+        f"work_orders={bridge_manifest['n_work_orders']} "
+        f"kernel_verified={bridge_manifest['n_kernel_verified']} "
+        f"runtime_learning_ready={bridge_manifest['runtime_learning_ready']}"
+    )
+    print(f"audit manifest written to {audit_manifest_path.resolve()}")
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(bridge_manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    print(f"bridge manifest written to {bridge_manifest_path.resolve()}")
+    return 0
+
+
+def _resolve_theorem_reduction_queue_path(args: argparse.Namespace) -> Path:
+    if args.queue_jsonl:
+        return Path(args.queue_jsonl)
+    runtime_dir = Path(args.runtime_dir)
+    manifest_path = runtime_dir / "research_agent_runtime_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    artifacts = manifest.get("artifacts", {})
+    if not isinstance(artifacts, Mapping):
+        artifacts = {}
+    raw_path = str(artifacts.get("runtime_theorem_reduction_closure_work_orders_jsonl", "") or "")
+    if not raw_path:
+        raise ValueError(
+            "runtime manifest does not list runtime_theorem_reduction_closure_work_orders_jsonl"
+        )
+    queue_path = Path(raw_path)
+    if queue_path.is_absolute() or queue_path.exists():
+        return queue_path
+    candidates = [runtime_dir / queue_path]
+    parts = queue_path.parts
+    if len(parts) >= 2 and parts[0] == runtime_dir.parent.name:
+        candidates.append(runtime_dir.parent.parent / queue_path)
+    if parts and parts[0] == runtime_dir.name:
+        candidates.append(runtime_dir.parent / queue_path)
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
 
 
 def _algorithm_audit(args: argparse.Namespace) -> int:
@@ -6486,6 +6624,56 @@ def build_parser() -> argparse.ArgumentParser:
     )
     theorem_reduction_closure_work_order_audit.set_defaults(
         func=_theorem_reduction_closure_work_order_audit
+    )
+
+    theorem_reduction_closure_proofengineer_bridge = sub.add_parser(
+        "theorem-reduction-closure-proofengineer-bridge",
+        help=(
+            "run the ProofEngineer bridge from AgentRuntime theorem-reduction "
+            "closure work orders to runtime learning memory"
+        ),
+    )
+    bridge_source = theorem_reduction_closure_proofengineer_bridge.add_mutually_exclusive_group(
+        required=True
+    )
+    bridge_source.add_argument(
+        "--runtime-dir",
+        help=(
+            "research-agent-runtime output directory containing "
+            "research_agent_runtime_manifest.json"
+        ),
+    )
+    bridge_source.add_argument(
+        "--queue-jsonl",
+        help="runtime_theorem_reduction_closure_work_orders.jsonl from research-agent-runtime",
+    )
+    theorem_reduction_closure_proofengineer_bridge.add_argument(
+        "--question-id",
+        default="",
+        help="optional question id to attach to exported runtime learning memory",
+    )
+    theorem_reduction_closure_proofengineer_bridge.add_argument(
+        "--out",
+        default="runs/theorem_reduction_closure_proofengineer_bridge",
+        help="bridge output directory",
+    )
+    theorem_reduction_closure_proofengineer_bridge.add_argument(
+        "--local-lean",
+        action="store_true",
+        help="run local lake env lean; only successful rows become proof evidence",
+    )
+    theorem_reduction_closure_proofengineer_bridge.add_argument(
+        "--lean-project",
+        help="local Lake project used by --local-lean",
+    )
+    theorem_reduction_closure_proofengineer_bridge.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=240,
+        help="timeout seconds for each theorem-closure local Lean check",
+    )
+    theorem_reduction_closure_proofengineer_bridge.set_defaults(
+        func=_theorem_reduction_closure_proofengineer_bridge
     )
 
     proof_audit_learning_export = sub.add_parser(
