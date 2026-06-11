@@ -45,7 +45,7 @@ ANTHROPIC_CLAUDE_TIER_ENV_VARS = {
         "AI_STATISTICIAN_ANTHROPIC_OPUS_MODEL",
     ),
 }
-ANTHROPIC_MODEL_SOURCE_CHECKED_DATE = "2026-06-10"
+ANTHROPIC_MODEL_SOURCE_CHECKED_DATE = "2026-06-11"
 ANTHROPIC_MODELS_OVERVIEW_URL = (
     "https://platform.claude.com/docs/en/about-claude/models/overview"
 )
@@ -57,8 +57,33 @@ ANTHROPIC_MODEL_ID_VERSIONING_POLICY = (
     "IDs such as claude-sonnet-4-6 are canonical release IDs, not evergreen "
     "aliases; newer releases require explicit constant updates."
 )
+ANTHROPIC_MODEL_SOURCE_EVIDENCE = {
+    "source_checked_date": ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+    "source": "Anthropic Claude API docs Models overview and Model IDs and versioning",
+    "models_overview_url": ANTHROPIC_MODELS_OVERVIEW_URL,
+    "model_ids_and_versioning_url": ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL,
+    "verified_latest_cost_tier_api_ids": dict(DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER),
+    "verified_api_aliases_by_tier": dict(DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER),
+    "verified_outside_cost_tier_models": dict(CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS),
+    "claims": [
+        (
+            "The latest Opus/Sonnet/Haiku comparison lists Claude API IDs "
+            "claude-opus-4-8, claude-sonnet-4-6, and "
+            "claude-haiku-4-5-20251001."
+        ),
+        (
+            "Claude Fable 5 and Claude Mythos 5 are tracked separately from "
+            "the Opus/Sonnet/Haiku cost-aware tier contract."
+        ),
+        (
+            "Claude 4.6+ dateless model IDs are pinned snapshots, not "
+            "evergreen aliases."
+        ),
+    ],
+}
 ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
     "source_checked_date": ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+    "source_evidence": ANTHROPIC_MODEL_SOURCE_EVIDENCE,
     "models_overview_url": ANTHROPIC_MODELS_OVERVIEW_URL,
     "model_ids_and_versioning_url": ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL,
     "default_provider": DEFAULT_LIVE_GENERATOR_PROVIDER,

@@ -148,6 +148,7 @@ from .formalization_gap_planner_target_intake import (
 from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+    ANTHROPIC_MODEL_SOURCE_EVIDENCE,
     CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS,
     DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
@@ -2816,6 +2817,7 @@ def _llm_model_policy_payload() -> dict[str, object]:
         "component_name": LLM_MODEL_POLICY_COMPONENT_NAME,
         "policy_kind": "cost_aware_generator_only_llm_policy",
         "source_checked_date": ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+        "source_evidence": ANTHROPIC_MODEL_SOURCE_EVIDENCE,
         "default_live_generator_provider": DEFAULT_LIVE_GENERATOR_PROVIDER,
         "supported_live_generator_providers": supported_providers,
         "prohibited_generator_providers": prohibited_providers,
@@ -2903,6 +2905,7 @@ def _llm_model_policy_payload() -> dict[str, object]:
 
 def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
     policy = dict(payload.get("claude_model_selection", {}) or {})
+    source_evidence = dict(payload.get("source_evidence", {}) or {})
     models = dict(payload.get("latest_claude_models_by_tier", {}) or {})
     outside_models = dict(
         payload.get("latest_claude_family_models_outside_cost_tiers", {}) or {}
@@ -2944,8 +2947,11 @@ def _llm_model_policy_markdown(payload: dict[str, object]) -> str:
         "",
         "## Source",
         "",
+        f"- Source evidence: {source_evidence.get('source', '')}",
         f"- Models overview: {policy.get('models_overview_url', '')}",
         f"- Model IDs and versioning: {policy.get('model_ids_and_versioning_url', '')}",
+        "- Verified claims: "
+        + "; ".join(str(item) for item in source_evidence.get("claims", ())),
         "",
         "## Boundary",
         "",

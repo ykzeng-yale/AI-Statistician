@@ -12,6 +12,7 @@ from ai_statistician.model_backend import (
     ANTHROPIC_CLAUDE_TIER_ENV_VARS,
     ANTHROPIC_MODEL_ID_VERSIONING_POLICY,
     ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+    ANTHROPIC_MODEL_SOURCE_EVIDENCE,
     CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS,
     DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
@@ -315,7 +316,19 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     assert "runtime calls" in ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY[
         "runtime_model_id_policy"
     ]
-    assert ANTHROPIC_MODEL_SOURCE_CHECKED_DATE == "2026-06-10"
+    assert ANTHROPIC_MODEL_SOURCE_CHECKED_DATE == "2026-06-11"
+    assert (
+        ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["source_evidence"]
+        == ANTHROPIC_MODEL_SOURCE_EVIDENCE
+    )
+    assert ANTHROPIC_MODEL_SOURCE_EVIDENCE["verified_latest_cost_tier_api_ids"] == {
+        "haiku": "claude-haiku-4-5-20251001",
+        "sonnet": "claude-sonnet-4-6",
+        "opus": "claude-opus-4-8",
+    }
+    assert "pinned snapshots" in " ".join(
+        str(claim) for claim in ANTHROPIC_MODEL_SOURCE_EVIDENCE["claims"]
+    )
     assert (
         ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY[
             "models_outside_opus_sonnet_haiku_cost_tiers"

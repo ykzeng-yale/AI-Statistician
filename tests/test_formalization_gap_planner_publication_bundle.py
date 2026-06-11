@@ -137,6 +137,7 @@ from ai_statistician.formalization_gap_planner_target_intake import (
 )
 from ai_statistician.model_backend import (
     ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+    ANTHROPIC_MODEL_SOURCE_EVIDENCE,
     DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
 )
 
@@ -2736,7 +2737,19 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert (
         llm_model_policy["source_checked_date"]
         == ANTHROPIC_MODEL_SOURCE_CHECKED_DATE
-        == "2026-06-10"
+        == "2026-06-11"
+    )
+    assert llm_model_policy["source_evidence"] == ANTHROPIC_MODEL_SOURCE_EVIDENCE
+    assert llm_model_policy["source_evidence"][
+        "verified_latest_cost_tier_api_ids"
+    ] == {
+        "haiku": "claude-haiku-4-5-20251001",
+        "sonnet": "claude-sonnet-4-6",
+        "opus": "claude-opus-4-8",
+    }
+    assert (
+        "Claude 4.6+ dateless model IDs are pinned snapshots"
+        in " ".join(llm_model_policy["source_evidence"]["claims"])
     )
     assert llm_model_policy["latest_claude_family_models_outside_cost_tiers"] == {
         "fable": "claude-fable-5",
