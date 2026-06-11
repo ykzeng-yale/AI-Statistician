@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -70,6 +71,7 @@ class FormalizationGapPlannerLibraryCoverageMapRow:
     declaration_sources: tuple[str, ...]
     expected_premises: tuple[str, ...]
     bridge_candidate_obligations: tuple[str, ...]
+    actionable_work_items: tuple[str, ...]
     source_refs: tuple[str, ...]
     route_alignment_edge: dict[str, object]
     needs_wrapper: bool
@@ -160,6 +162,10 @@ def export_formalization_gap_planner_library_coverage_map(
         "n_candidate_declaration_rows": sum(
             len(row.candidate_declaration_rows) for row in rows
         ),
+        "n_rows_with_actionable_work_items": sum(
+            1 for row in rows if row.actionable_work_items
+        ),
+        "n_actionable_work_items": sum(len(row.actionable_work_items) for row in rows),
         "n_rows_with_alignment": sum(
             1 for row in rows if row.realization_node_id and row.informal_node_id
         ),
@@ -226,6 +232,7 @@ def library_coverage_map_row_json_schema() -> dict[str, object]:
         "declaration_sources",
         "expected_premises",
         "bridge_candidate_obligations",
+        "actionable_work_items",
         "source_refs",
         "route_alignment_edge",
         "needs_wrapper",
@@ -298,6 +305,7 @@ def library_coverage_map_row_json_schema() -> dict[str, object]:
             "declaration_sources": string_array,
             "expected_premises": string_array,
             "bridge_candidate_obligations": string_array,
+            "actionable_work_items": string_array,
             "source_refs": string_array,
             "route_alignment_edge": {"type": "object"},
             "needs_wrapper": {"type": "boolean"},
@@ -396,6 +404,14 @@ def _coverage_row(
     declaration_sources = _str_tuple(realization_node.get("declaration_sources", []))
     expected_premises = _str_tuple(node.get("expected_premises", []))
     bridge_candidates = _str_tuple(node.get("bridge_candidate_obligations", []))
+    actionable_work_items = _actionable_work_items_for_primitive(
+        plan_row,
+        primitive,
+        coverage_bucket,
+        node=node,
+        alignment_edge=alignment_edge,
+        realization_node=realization_node,
+    )
     source_refs = _str_tuple(node.get("source_refs", []))
     errors: list[str] = []
     if not primitive:
@@ -404,7 +420,20 @@ def _coverage_row(
         errors.append("route alignment edge missing")
     if coverage_bucket == UNKNOWN_OR_UNALIGNED:
         errors.append("coverage bucket unknown or unaligned")
-    next_action = _next_action(coverage_bucket, primitive)
+    if (
+        _llm_originated_delta_row(plan_row)
+        and coverage_bucket in {
+            WRAPPER_NEEDED,
+            BRIDGE_NEEDED,
+            SOURCE_PORT_NEEDED,
+            DEFINITION_OR_THEORY_MISSING,
+        }
+        and not actionable_work_items
+    ):
+        errors.append(
+            "actionable_work_items required for LLM-originated delta coverage row"
+        )
+    next_action = _next_action(coverage_bucket, primitive, actionable_work_items)
     return FormalizationGapPlannerLibraryCoverageMapRow(
         schema_version=FORMALIZATION_GAP_PLANNER_LIBRARY_COVERAGE_MAP_SCHEMA_VERSION,
         coverage_map_id="formalization_gap_planner_library_coverage_map:"
@@ -435,6 +464,7 @@ def _coverage_row(
         declaration_sources=declaration_sources,
         expected_premises=expected_premises,
         bridge_candidate_obligations=bridge_candidates,
+        actionable_work_items=actionable_work_items,
         source_refs=source_refs,
         route_alignment_edge=dict(alignment_edge),
         needs_wrapper=coverage_bucket == WRAPPER_NEEDED,
@@ -617,6 +647,170 @@ def _realization_declaration_source_candidates(
     )
 
 
+def _actionable_work_items_for_primitive(
+    plan_row: dict[str, Any],
+    primitive: str,
+    coverage_bucket: str,
+    *,
+    node: dict[str, object],
+    alignment_edge: dict[str, object],
+    realization_node: dict[str, object],
+) -> tuple[str, ...]:
+    work_items: list[str] = []
+    fields = _minimal_delta_action_fields_for_coverage_bucket(coverage_bucket)
+    for minimal_delta in _minimal_delta_plan_candidates(plan_row):
+        for field_name in fields:
+            work_items.extend(
+                _matching_action_item_texts(
+                    minimal_delta.get(field_name, []),
+                    primitive,
+                )
+            )
+        for cost_row in _dict_tuple(minimal_delta.get("primitive_costs", [])):
+            if not _primitive_matches(cost_row.get("primitive", ""), primitive):
+                continue
+            for field_name in (
+                "actionable_work_items",
+                "work_items",
+                "formalization_work_items",
+            ):
+                work_items.extend(_action_item_texts(cost_row.get(field_name, [])))
+    for source in (node, alignment_edge, realization_node):
+        for field_name in (
+            "actionable_work_items",
+            "work_items",
+            "formalization_work_items",
+        ):
+            work_items.extend(
+                _matching_action_item_texts(source.get(field_name, []), primitive)
+            )
+    return _str_tuple(work_items)
+
+
+def _minimal_delta_action_fields_for_coverage_bucket(
+    coverage_bucket: str,
+) -> tuple[str, ...]:
+    if coverage_bucket == WRAPPER_NEEDED:
+        return ("wrapper_lemmas",)
+    if coverage_bucket == BRIDGE_NEEDED:
+        return ("bridge_lemmas",)
+    if coverage_bucket == SOURCE_PORT_NEEDED:
+        return ("source_port_lemmas",)
+    if coverage_bucket == DEFINITION_OR_THEORY_MISSING:
+        return (
+            "new_definitions",
+            "new_theory_primitives",
+            "first_principles_primitives",
+        )
+    if coverage_bucket == UNKNOWN_OR_UNALIGNED:
+        return (
+            "wrapper_lemmas",
+            "bridge_lemmas",
+            "source_port_lemmas",
+            "new_definitions",
+            "new_theory_primitives",
+            "first_principles_primitives",
+        )
+    return tuple()
+
+
+def _minimal_delta_plan_candidates(
+    plan_row: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    candidates: list[dict[str, object]] = []
+    for value in (
+        plan_row.get("minimal_delta_plan", {}),
+        plan_row.get("llm_route_planner_minimal_delta_plan", {}),
+    ):
+        if isinstance(value, dict) and value:
+            candidates.append(dict(value))
+    trace = _dict_value(plan_row.get("standalone_input_trace", {}))
+    metadata = _dict_value(trace.get("replan_metadata", {}))
+    for value in (
+        trace.get("llm_route_planner_minimal_delta_plan", {}),
+        metadata.get("llm_route_planner_minimal_delta_plan", {}),
+        metadata.get("minimal_delta_plan", {}),
+    ):
+        if isinstance(value, dict) and value:
+            candidates.append(dict(value))
+    compact: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        fingerprint = stable_hash(candidate)
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        compact.append(candidate)
+    return tuple(compact)
+
+
+def _llm_originated_delta_row(plan_row: dict[str, Any]) -> bool:
+    trace = _dict_value(plan_row.get("standalone_input_trace", {}))
+    metadata = _dict_value(trace.get("replan_metadata", {}))
+    acceptance_status = str(
+        trace.get(
+            "llm_route_planner_acceptance_status",
+            metadata.get("llm_route_planner_acceptance_status", ""),
+        )
+    ).strip()
+    return (
+        acceptance_status.startswith("ACCEPTED_")
+        and bool(_minimal_delta_plan_candidates(plan_row))
+    )
+
+
+def _matching_action_item_texts(values: object, primitive: str) -> tuple[str, ...]:
+    return tuple(
+        text
+        for text in _action_item_texts(values)
+        if _primitive_matches(text, primitive)
+    )
+
+
+def _action_item_texts(values: object) -> tuple[str, ...]:
+    if isinstance(values, str):
+        text = values.strip()
+        return (text,) if text else tuple()
+    if isinstance(values, Mapping):
+        primitive = str(values.get("primitive", "")).strip()
+        for field_name in (
+            "actionable_work_item",
+            "work_item",
+            "formalization_work_item",
+            "lemma_statement",
+            "definition_goal",
+            "porting_target",
+            "proof_obligation",
+            "statement",
+            "description",
+            "goal",
+        ):
+            text = str(values.get(field_name, "")).strip()
+            if text and primitive and not _primitive_matches(text, primitive):
+                return (f"{primitive}: {text}",)
+            if text:
+                return (text,)
+        return (primitive,) if primitive else tuple()
+    if not isinstance(values, (list, tuple, set)):
+        return tuple()
+    texts: list[str] = []
+    for value in values:
+        texts.extend(_action_item_texts(value))
+    return _str_tuple(texts)
+
+
+def _primitive_matches(value: object, primitive: str) -> bool:
+    primitive_key = _primitive_key(primitive)
+    value_key = _primitive_key(value)
+    if not primitive_key or not value_key:
+        return False
+    return primitive_key in value_key or value_key in primitive_key
+
+
+def _primitive_key(value: object) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower()).strip("_")
+
+
 def _append_candidate_declaration_rows(
     rows: list[dict[str, object]],
     values: object,
@@ -706,7 +900,13 @@ def _primitive_scope_key(value: object) -> str:
     return str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
 
 
-def _next_action(coverage_bucket: str, primitive: str) -> str:
+def _next_action(
+    coverage_bucket: str,
+    primitive: str,
+    actionable_work_items: tuple[str, ...] = (),
+) -> str:
+    if actionable_work_items:
+        return actionable_work_items[0]
     if coverage_bucket == EXACT_EXISTS:
         return f"try exact candidate declarations for {primitive} in the target prover"
     if coverage_bucket == NEAR_EXISTS:
@@ -736,6 +936,10 @@ def _dict_tuple(values: Any) -> tuple[dict[str, object], ...]:
     if not isinstance(values, (list, tuple, set)):
         return tuple()
     return tuple(value for value in values if isinstance(value, dict))
+
+
+def _dict_value(value: object) -> dict[str, object]:
+    return dict(value) if isinstance(value, dict) else {}
 
 
 def _formal_declaration_key(value: object) -> str:
@@ -856,6 +1060,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Source port needed: {payload.get('n_source_port_needed')}",
         f"- Definition or theory missing: {payload.get('n_definition_or_theory_missing')}",
         f"- Unknown or unaligned: {payload.get('n_unknown_or_unaligned')}",
+        f"- Rows with actionable work items: {payload.get('n_rows_with_actionable_work_items')}",
         (
             f"- Row schema valid: {payload.get('n_row_schema_valid')}/"
             f"{payload.get('n_coverage_rows')}"

@@ -48,6 +48,23 @@ def test_action_resource_plan_joins_actions_to_frontier_resources() -> None:
                             "A distribution-free rank bound follows from exchangeability."
                         ),
                         "source_refs": ["conformal_prediction_textbook"],
+                        "replan_metadata": {
+                            "llm_route_planner_row_id": "llm_route:rank_bound",
+                            "llm_route_planner_minimal_delta_plan": {
+                                "bridge_lemmas": [
+                                    (
+                                        "rank_uniformity: prove finite rank "
+                                        "uniformity from exchangeability"
+                                    )
+                                ],
+                                "source_port_lemmas": [
+                                    (
+                                        "coverage_inequality: port the "
+                                        "source-backed coverage inequality"
+                                    )
+                                ],
+                            },
+                        },
                         "primitives": [
                             {
                                 "primitive": "exchangeability",
@@ -100,10 +117,15 @@ def test_action_resource_plan_joins_actions_to_frontier_resources() -> None:
     assert payload["n_row_schema_invalid"] == 0
     assert payload["n_with_candidate_declaration_rows"] == 1
     assert payload["n_candidate_declaration_rows"] == 1
+    assert payload["n_with_actionable_work_items"] == 2
+    assert payload["n_actionable_work_items"] == 2
     assert (
         payload["action_resource_plan_row_schema"]["$id"]
         == ACTION_RESOURCE_PLAN_ROW_SCHEMA_ID
     )
+    assert "actionable_work_items" in payload[
+        "action_resource_plan_row_schema"
+    ]["required"]
     assert (
         payload["n_with_frontier_escalation_resources"]
         == payload["n_resource_plan_rows"]
@@ -127,6 +149,9 @@ def test_action_resource_plan_joins_actions_to_frontier_resources() -> None:
     assert "formal_declaration_hits" in bridge_row["response_contract_fields"]
     assert "lean_declaration_hits" in bridge_row["response_contract_fields"]
     assert "prover_diagnostics" in bridge_row["response_contract_fields"]
+    assert bridge_row["actionable_work_items"] == (
+        "rank_uniformity: prove finite rank uniformity from exchangeability",
+    )
     for resource_id in (
         "local_formal_source_index",
         "loogle_leansearch",
@@ -151,6 +176,9 @@ def test_action_resource_plan_joins_actions_to_frontier_resources() -> None:
     assert "literature_grounded_route_synthesis" in source_row["component_ids"]
     assert "paperclip_cli_mcp" in source_row["frontier_escalation_resource_ids"]
     assert "local_literature_corpus" in source_row["local_first_resource_ids"]
+    assert source_row["actionable_work_items"] == (
+        "coverage_inequality: port the source-backed coverage inequality",
+    )
     assert "source_refs" in source_row["response_contract_fields"]
     assert "paperclip_cli_mcp" in source_row["resource_contracts_by_resource"]
     assert "mcp_tool_call" in source_row["request_contract_fields_by_resource"][

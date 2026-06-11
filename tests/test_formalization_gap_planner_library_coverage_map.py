@@ -36,6 +36,23 @@ def test_library_coverage_map_exports_per_primitive_route_mapping() -> None:
                             "A distribution-free rank bound follows from exchangeability."
                         ),
                         "source_refs": ["conformal_prediction_textbook"],
+                        "replan_metadata": {
+                            "llm_route_planner_row_id": "llm_route:rank_bound",
+                            "llm_route_planner_minimal_delta_plan": {
+                                "bridge_lemmas": [
+                                    (
+                                        "rank_uniformity: prove finite rank "
+                                        "uniformity from exchangeability"
+                                    )
+                                ],
+                                "source_port_lemmas": [
+                                    (
+                                        "coverage_inequality: port the "
+                                        "source-backed coverage inequality"
+                                    )
+                                ],
+                            },
+                        },
                         "primitives": [
                             {
                                 "primitive": "exchangeability",
@@ -85,7 +102,12 @@ def test_library_coverage_map_exports_per_primitive_route_mapping() -> None:
     assert by_primitive["exchangeability"]["candidate_declarations"]
     assert payload["n_rows_with_candidate_declaration_rows"] == 1
     assert payload["n_candidate_declaration_rows"] == 1
+    assert payload["n_rows_with_actionable_work_items"] == 2
+    assert payload["n_actionable_work_items"] == 2
     assert "candidate_declaration_rows" in payload[
+        "library_coverage_map_row_schema"
+    ]["required"]
+    assert "actionable_work_items" in payload[
         "library_coverage_map_row_schema"
     ]["required"]
     assert by_primitive["exchangeability"]["candidate_declaration_rows"] == (
@@ -96,7 +118,13 @@ def test_library_coverage_map_exports_per_primitive_route_mapping() -> None:
         },
     )
     assert by_primitive["rank_uniformity"]["needs_bridge_lemma"]
+    assert by_primitive["rank_uniformity"]["actionable_work_items"] == (
+        "rank_uniformity: prove finite rank uniformity from exchangeability",
+    )
     assert by_primitive["coverage_inequality"]["needs_source_search"]
+    assert by_primitive["coverage_inequality"]["actionable_work_items"] == (
+        "coverage_inequality: port the source-backed coverage inequality",
+    )
     assert "not theorem proof evidence" in by_primitive["exchangeability"][
         "proof_evidence_boundary"
     ]
@@ -180,3 +208,49 @@ def test_library_coverage_map_rejects_missing_alignment() -> None:
     assert payload["n_unknown_or_unaligned"] == 1
     assert payload["n_failed"] == 1
     assert payload["rows"][0]["errors"]
+
+
+def test_library_coverage_map_requires_action_items_for_accepted_llm_delta() -> None:
+    root = Path("runs/test_formalization_gap_planner_library_coverage_map_llm_delta")
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "library_snapshot_ref": "lean_fixture",
+                "routes": [
+                    {
+                        "display_name": "demo_target",
+                        "replan_metadata": {
+                            "llm_route_planner_acceptance_status": (
+                                "ACCEPTED_LLM_ROUTE_PLAN"
+                            ),
+                            "llm_route_planner_minimal_delta_plan": {
+                                "selected_primitives": ["rank_uniformity"]
+                            },
+                        },
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+
+    payload = export_formalization_gap_planner_library_coverage_map(plan_dir)
+
+    assert not payload["all_ok"]
+    assert payload["n_failed"] == 1
+    assert (
+        "actionable_work_items required for LLM-originated delta coverage row"
+        in payload["rows"][0]["errors"]
+    )

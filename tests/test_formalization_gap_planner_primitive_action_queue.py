@@ -40,6 +40,23 @@ def test_primitive_action_queue_exports_per_coverage_row_work_orders() -> None:
                             "A distribution-free rank bound follows from exchangeability."
                         ),
                         "source_refs": ["conformal_prediction_textbook"],
+                        "replan_metadata": {
+                            "llm_route_planner_row_id": "llm_route:rank_bound",
+                            "llm_route_planner_minimal_delta_plan": {
+                                "bridge_lemmas": [
+                                    (
+                                        "rank_uniformity: prove finite rank "
+                                        "uniformity from exchangeability"
+                                    )
+                                ],
+                                "source_port_lemmas": [
+                                    (
+                                        "coverage_inequality: port the "
+                                        "source-backed coverage inequality"
+                                    )
+                                ],
+                            },
+                        },
                         "primitives": [
                             {
                                 "primitive": "exchangeability",
@@ -94,7 +111,12 @@ def test_primitive_action_queue_exports_per_coverage_row_work_orders() -> None:
     assert by_primitive["exchangeability"]["owner_agent"] == "target_prover_adapter"
     assert payload["n_with_candidate_declaration_rows"] == 1
     assert payload["n_candidate_declaration_rows"] == 1
+    assert payload["n_with_actionable_work_items"] == 2
+    assert payload["n_actionable_work_items"] == 2
     assert "candidate_declaration_rows" in payload[
+        "primitive_action_queue_row_schema"
+    ]["required"]
+    assert "actionable_work_items" in payload[
         "primitive_action_queue_row_schema"
     ]["required"]
     assert by_primitive["exchangeability"]["candidate_declaration_rows"] == (
@@ -106,8 +128,14 @@ def test_primitive_action_queue_exports_per_coverage_row_work_orders() -> None:
     )
     assert by_primitive["rank_uniformity"]["queue_action_kind"] == "prove_bridge_lemma"
     assert by_primitive["rank_uniformity"]["owner_agent"] == "formal_verifier"
+    assert by_primitive["rank_uniformity"]["actionable_work_items"] == (
+        "rank_uniformity: prove finite rank uniformity from exchangeability",
+    )
     assert by_primitive["coverage_inequality"]["queue_action_kind"] == "source_port"
     assert by_primitive["coverage_inequality"]["owner_agent"] == "literature_router"
+    assert by_primitive["coverage_inequality"]["actionable_work_items"] == (
+        "coverage_inequality: port the source-backed coverage inequality",
+    )
     assert by_primitive["exchangeability"]["rank"] < by_primitive["rank_uniformity"]["rank"]
     assert "not theorem proof evidence" in by_primitive["exchangeability"][
         "proof_evidence_boundary"

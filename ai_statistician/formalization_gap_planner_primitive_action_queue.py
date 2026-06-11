@@ -82,6 +82,7 @@ class FormalizationGapPlannerPrimitiveActionQueueRow:
     source_refs: tuple[str, ...]
     expected_premises: tuple[str, ...]
     bridge_candidate_obligations: tuple[str, ...]
+    actionable_work_items: tuple[str, ...]
     required_inputs: tuple[str, ...]
     expected_outputs: tuple[str, ...]
     recommended_tools: tuple[str, ...]
@@ -179,6 +180,10 @@ def export_formalization_gap_planner_primitive_action_queue(
         "n_with_bridge_obligations": sum(
             1 for row in rows if row.bridge_candidate_obligations
         ),
+        "n_with_actionable_work_items": sum(
+            1 for row in rows if row.actionable_work_items
+        ),
+        "n_actionable_work_items": sum(len(row.actionable_work_items) for row in rows),
         "n_row_schema_valid": n_row_schema_valid,
         "n_row_schema_invalid": n_row_schema_invalid,
         "primitive_action_queue_row_schema": row_schema,
@@ -264,6 +269,7 @@ def primitive_action_queue_row_json_schema() -> dict[str, object]:
         "source_refs",
         "expected_premises",
         "bridge_candidate_obligations",
+        "actionable_work_items",
         "required_inputs",
         "expected_outputs",
         "recommended_tools",
@@ -315,6 +321,7 @@ def primitive_action_queue_row_json_schema() -> dict[str, object]:
             "source_refs": string_array,
             "expected_premises": string_array,
             "bridge_candidate_obligations": string_array,
+            "actionable_work_items": string_array,
             "required_inputs": string_array,
             "expected_outputs": string_array,
             "recommended_tools": string_array,
@@ -430,6 +437,7 @@ def _action_row(
         bridge_candidate_obligations=_str_tuple(
             coverage_row.get("bridge_candidate_obligations", [])
         ),
+        actionable_work_items=_str_tuple(coverage_row.get("actionable_work_items", [])),
         required_inputs=_required_inputs(coverage_bucket),
         expected_outputs=_expected_outputs(coverage_bucket),
         recommended_tools=_recommended_tools(coverage_bucket),
@@ -809,6 +817,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Source port: {payload.get('n_source_port')}",
         f"- Design new theory fragment: {payload.get('n_design_new_theory_fragment')}",
         f"- Rerun library alignment: {payload.get('n_rerun_library_alignment')}",
+        f"- Rows with actionable work items: {payload.get('n_with_actionable_work_items')}",
         (
             f"- Row schema valid: {payload.get('n_row_schema_valid')}/"
             f"{payload.get('n_action_items')}"

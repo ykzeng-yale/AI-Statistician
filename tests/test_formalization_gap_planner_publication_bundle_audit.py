@@ -1066,6 +1066,9 @@ def _fixture_library_coverage_map_row() -> dict[str, object]:
         "declaration_sources": ["Fixture.rankUniformity"],
         "expected_premises": ["exchangeable scores"],
         "bridge_candidate_obligations": ["connect exchangeability to uniform rank"],
+        "actionable_work_items": [
+            "rank_uniformity: prove bridge from exchangeable scores to uniform rank"
+        ],
         "source_refs": ["fixture-source"],
         "route_alignment_edge": {
             "source": "informal:rank_uniformity",
@@ -1122,6 +1125,9 @@ def _fixture_primitive_action_queue_row() -> dict[str, object]:
         "source_refs": ["fixture-source"],
         "expected_premises": ["exchangeable scores"],
         "bridge_candidate_obligations": ["connect exchangeability to uniform rank"],
+        "actionable_work_items": [
+            "rank_uniformity: prove bridge from exchangeable scores to uniform rank"
+        ],
         "required_inputs": [
             "coverage map row",
             "portable route alignment edge",
@@ -1299,6 +1305,9 @@ def _fixture_action_resource_plan_row() -> dict[str, object]:
             "semantic_match_scores",
             "prover_diagnostics",
             "residual_goals",
+        ],
+        "actionable_work_items": [
+            "rank_uniformity: prove bridge from exchangeable scores to uniform rank"
         ],
         "evidence_inputs": [
             "bridge candidate obligations",

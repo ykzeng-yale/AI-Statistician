@@ -104,6 +104,7 @@ class FormalizationGapPlannerActionResourcePlanRow:
     response_contract_fields_by_resource: dict[str, tuple[str, ...]]
     request_contract_fields: tuple[str, ...]
     response_contract_fields: tuple[str, ...]
+    actionable_work_items: tuple[str, ...]
     evidence_inputs: tuple[str, ...]
     expected_outputs: tuple[str, ...]
     escalation_triggers: tuple[str, ...]
@@ -226,6 +227,10 @@ def export_formalization_gap_planner_action_resource_plan(
         "n_candidate_declaration_rows": sum(
             len(row.candidate_declaration_rows) for row in rows
         ),
+        "n_with_actionable_work_items": sum(
+            1 for row in rows if row.actionable_work_items
+        ),
+        "n_actionable_work_items": sum(len(row.actionable_work_items) for row in rows),
         "n_row_schema_valid": n_row_schema_valid,
         "n_row_schema_invalid": n_row_schema_invalid,
         "n_target_prover_replay": by_action_kind.get("target_prover_replay", 0),
@@ -324,6 +329,7 @@ def action_resource_plan_row_json_schema() -> dict[str, object]:
         "response_contract_fields_by_resource",
         "request_contract_fields",
         "response_contract_fields",
+        "actionable_work_items",
         "evidence_inputs",
         "expected_outputs",
         "escalation_triggers",
@@ -390,6 +396,7 @@ def action_resource_plan_row_json_schema() -> dict[str, object]:
             },
             "request_contract_fields": string_array,
             "response_contract_fields": string_array,
+            "actionable_work_items": string_array,
             "evidence_inputs": string_array,
             "expected_outputs": string_array,
             "escalation_triggers": string_array,
@@ -725,6 +732,7 @@ def _action_resource_plan_row(
         response_contract_fields_by_resource=response_contract_fields_by_resource,
         request_contract_fields=request_contract_fields,
         response_contract_fields=response_contract_fields,
+        actionable_work_items=_str_tuple(action_row.get("actionable_work_items", [])),
         evidence_inputs=evidence_inputs,
         expected_outputs=expected_outputs,
         escalation_triggers=escalation_triggers,
@@ -989,6 +997,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Local-first coverage: {payload.get('n_with_local_first_resources')}",
         f"- Frontier escalation coverage: {payload.get('n_with_frontier_escalation_resources')}",
         f"- Resource-contract coverage: {payload.get('n_with_resource_contracts')}",
+        f"- Rows with actionable work items: {payload.get('n_with_actionable_work_items')}",
         (
             f"- Row schema valid: {payload.get('n_row_schema_valid')}/"
             f"{payload.get('n_resource_plan_rows')}"
