@@ -14664,11 +14664,13 @@ def _accepted_route_for_seed(
     )
     llm_route_revision_triggers = _llm_route_revision_triggers_for_search_requests(
         row.search_requests,
+        target_prover_family=row.target_prover_family,
     )
     llm_route_revision_triggers = _merge_dict_rows(
         llm_route_revision_triggers,
         _llm_route_revision_triggers_for_planner_next_actions(
             row.planner_next_actions,
+            target_prover_family=row.target_prover_family,
         ),
         key_fields=("trigger_kind", "condition", "next_action"),
     )
@@ -14694,6 +14696,7 @@ def _accepted_route_for_seed(
         _llm_route_revision_triggers_for_quality_control_obligations(
             row.quality_control_obligations,
             selected_primitives=selected_primitives,
+            target_prover_family=row.target_prover_family,
         ),
         key_fields=("trigger_kind", "condition", "next_action"),
     )
@@ -14702,6 +14705,7 @@ def _accepted_route_for_seed(
         _llm_route_revision_triggers_for_feedback_summary(
             row.feedback_loop_summary,
             selected_primitives=selected_primitives,
+            target_prover_family=row.target_prover_family,
         ),
         key_fields=("trigger_kind", "condition", "next_action"),
     )
@@ -14889,7 +14893,10 @@ def _llm_refinement_hooks_for_search_requests(
 ) -> tuple[dict[str, object], ...]:
     hooks: list[dict[str, object]] = []
     for index, request in enumerate(search_requests):
-        hook_kind = _hook_kind_for_llm_search_request(request)
+        hook_kind = _target_scoped_llm_hook_kind(
+            _hook_kind_for_llm_search_request(request),
+            target_prover_family=target_prover_family,
+        )
         query = str(request.get("query", "")).strip()
         reason = str(request.get("reason", "")).strip()
         queries = _str_tuple(
@@ -14945,10 +14952,15 @@ def _llm_refinement_hooks_for_search_requests(
 
 def _llm_route_revision_triggers_for_search_requests(
     search_requests: tuple[dict[str, object], ...],
+    *,
+    target_prover_family: str,
 ) -> tuple[dict[str, object], ...]:
     triggers: list[dict[str, object]] = []
     for index, request in enumerate(search_requests):
-        hook_kind = _hook_kind_for_llm_search_request(request)
+        hook_kind = _target_scoped_llm_hook_kind(
+            _hook_kind_for_llm_search_request(request),
+            target_prover_family=target_prover_family,
+        )
         query = str(request.get("query", "")).strip()
         reason = str(request.get("reason", "")).strip()
         resource_binding_summary = _llm_resource_binding_summary(request)
@@ -14987,7 +14999,10 @@ def _llm_refinement_hooks_for_planner_next_actions(
 ) -> tuple[dict[str, object], ...]:
     hooks: list[dict[str, object]] = []
     for index, action in enumerate(planner_next_actions):
-        hook_kind = _hook_kind_for_llm_planner_action(action)
+        hook_kind = _target_scoped_llm_hook_kind(
+            _hook_kind_for_llm_planner_action(action),
+            target_prover_family=target_prover_family,
+        )
         queries = _str_tuple(
             [
                 *_planner_action_queries(action),
@@ -15038,10 +15053,15 @@ def _llm_refinement_hooks_for_planner_next_actions(
 
 def _llm_route_revision_triggers_for_planner_next_actions(
     planner_next_actions: tuple[dict[str, object], ...],
+    *,
+    target_prover_family: str,
 ) -> tuple[dict[str, object], ...]:
     triggers: list[dict[str, object]] = []
     for index, action in enumerate(planner_next_actions):
-        hook_kind = _hook_kind_for_llm_planner_action(action)
+        hook_kind = _target_scoped_llm_hook_kind(
+            _hook_kind_for_llm_planner_action(action),
+            target_prover_family=target_prover_family,
+        )
         query = "; ".join(_planner_action_queries(action))
         if not query and not _planner_action_resource_refs(action):
             continue
@@ -15337,8 +15357,11 @@ def _llm_refinement_hooks_for_quality_control_obligations(
     )
     if not pending_quality_controls:
         return tuple()
-    hook_kind = _hook_kind_for_llm_quality_control_obligations(
-        pending_quality_controls
+    hook_kind = _target_scoped_llm_hook_kind(
+        _hook_kind_for_llm_quality_control_obligations(
+            pending_quality_controls
+        ),
+        target_prover_family=target_prover_family,
     )
     queries = _quality_control_obligation_queries(
         pending_quality_controls,
@@ -15377,6 +15400,7 @@ def _llm_route_revision_triggers_for_quality_control_obligations(
     quality_control_obligations: Mapping[str, object],
     *,
     selected_primitives: tuple[str, ...],
+    target_prover_family: str,
 ) -> tuple[dict[str, object], ...]:
     pending_quality_controls = _dict_value(
         quality_control_obligations,
@@ -15384,8 +15408,11 @@ def _llm_route_revision_triggers_for_quality_control_obligations(
     )
     if not pending_quality_controls:
         return tuple()
-    hook_kind = _hook_kind_for_llm_quality_control_obligations(
-        pending_quality_controls
+    hook_kind = _target_scoped_llm_hook_kind(
+        _hook_kind_for_llm_quality_control_obligations(
+            pending_quality_controls
+        ),
+        target_prover_family=target_prover_family,
     )
     queries = _quality_control_obligation_queries(
         pending_quality_controls,
@@ -15499,7 +15526,10 @@ def _llm_refinement_hooks_for_feedback_summary(
     for index, action in enumerate(
         _dict_tuple(feedback_summary.get("recommended_next_actions", []))
     ):
-        hook_kind = _hook_kind_for_llm_feedback_action(action)
+        hook_kind = _target_scoped_llm_hook_kind(
+            _hook_kind_for_llm_feedback_action(action),
+            target_prover_family=target_prover_family,
+        )
         queries = _feedback_action_queries(
             action,
             theorem_statement=theorem_statement,
@@ -15556,12 +15586,16 @@ def _llm_route_revision_triggers_for_feedback_summary(
     feedback_summary: Mapping[str, object],
     *,
     selected_primitives: tuple[str, ...],
+    target_prover_family: str,
 ) -> tuple[dict[str, object], ...]:
     triggers: list[dict[str, object]] = []
     for index, action in enumerate(
         _dict_tuple(feedback_summary.get("recommended_next_actions", []))
     ):
-        hook_kind = _hook_kind_for_llm_feedback_action(action)
+        hook_kind = _target_scoped_llm_hook_kind(
+            _hook_kind_for_llm_feedback_action(action),
+            target_prover_family=target_prover_family,
+        )
         queries = _feedback_action_queries(
             action,
             theorem_statement="",
@@ -16228,6 +16262,19 @@ def _hook_kind_for_llm_search_request(request: Mapping[str, object]) -> str:
     if "route" in kind and "revision" in kind:
         return "route_revision"
     return "route_revision"
+
+
+def _target_scoped_llm_hook_kind(
+    hook_kind: str,
+    *,
+    target_prover_family: str,
+) -> str:
+    if (
+        hook_kind == "lean_library_grounding"
+        and _target_prover_key(target_prover_family) != "lean4"
+    ):
+        return "formal_library_grounding"
+    return hook_kind
 
 
 def _recommended_tools_for_llm_hook(
