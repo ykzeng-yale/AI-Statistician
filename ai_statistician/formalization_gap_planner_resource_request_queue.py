@@ -574,7 +574,10 @@ def _llm_route_planner_action_row(
         or fallback_library_snapshot_ref.strip()
         or "unspecified_library_snapshot"
     )
-    hook_kind = _llm_hook_kind(source_item, source_kind=source_kind)
+    hook_kind = _target_scoped_llm_hook_kind(
+        _llm_hook_kind(source_item, source_kind=source_kind),
+        target_prover_family=target_prover_family,
+    )
     local_resource_ids, frontier_resource_ids = _llm_resource_ids_for_hook(
         hook_kind,
         target_prover_family=target_prover_family,
@@ -898,12 +901,28 @@ def _llm_hook_kind(
     return "route_revision"
 
 
+def _target_scoped_llm_hook_kind(
+    hook_kind: str,
+    *,
+    target_prover_family: str,
+) -> str:
+    if hook_kind == "lean_library_grounding":
+        target = _target_prover_key(target_prover_family)
+        if target and target != "lean4":
+            return "formal_library_grounding"
+    return hook_kind
+
+
 def _llm_resource_ids_for_hook(
     hook_kind: str,
     *,
     target_prover_family: str,
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     target = _target_prover_key(target_prover_family)
+    hook_kind = _target_scoped_llm_hook_kind(
+        hook_kind,
+        target_prover_family=target_prover_family,
+    )
     if hook_kind == "literature_discovery":
         return ("local_literature_corpus",), (
             "paperclip_cli_mcp",

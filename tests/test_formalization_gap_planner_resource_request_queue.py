@@ -661,6 +661,144 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
     )
 
 
+def test_resource_request_queue_target_scopes_llm_lean_search_followup_for_rocq() -> None:
+    root = Path("runs/test_formalization_gap_planner_resource_request_queue_llm_rocq")
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    coverage_dir = root / "coverage"
+    action_queue_dir = root / "action_queue"
+    component_resource_registry_dir = root / "component_resource_registry"
+    action_resource_plan_dir = root / "action_resource_plan"
+    llm_route_planner_dir = root / "llm_route_planner"
+    request_queue_dir = root / "request_queue"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "rocq",
+                "library_snapshot_ref": "rocq_conformal_snapshot",
+                "routes": [
+                    {
+                        "route_id": "rocq_rank_route",
+                        "display_name": "rocq_rank_route",
+                        "theorem_statement": "A Rocq rank route.",
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                                "expected_premises": ["exchangeability"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    export_formalization_gap_planner_library_coverage_map(plan_dir, coverage_dir)
+    export_formalization_gap_planner_primitive_action_queue(
+        coverage_dir,
+        action_queue_dir,
+    )
+    export_formalization_gap_planner_component_resource_registry(
+        component_resource_registry_dir
+    )
+    export_formalization_gap_planner_action_resource_plan(
+        action_queue_dir,
+        component_resource_registry_dir,
+        action_resource_plan_dir,
+    )
+    llm_route_planner_dir.mkdir(parents=True, exist_ok=True)
+    (
+        llm_route_planner_dir
+        / "formalization_gap_planner_llm_route_planner_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_llm_route_planner",
+                "rows": [
+                    {
+                        "llm_route_planner_row_id": "llm_route_row:rocq",
+                        "request_id": "llm_route_request:rocq",
+                        "route_id": "rocq_rank_route",
+                        "display_name": "rocq_rank_route",
+                        "target_prover_family": "rocq",
+                        "library_snapshot_ref": "rocq_conformal_snapshot",
+                        "minimal_delta_plan": {
+                            "selected_primitives": ["rank_uniformity"]
+                        },
+                        "search_requests": [
+                            {
+                                "request_kind": "lean_search",
+                                "query": (
+                                    "Use LeanSearch or loogle-style theorem "
+                                    "search for the Rocq rank_uniformity route"
+                                ),
+                                "target_primitives": ["rank_uniformity"],
+                                "resource_ids": ["loogle_leansearch"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_resource_request_queue(
+        action_resource_plan_dir,
+        request_queue_dir,
+        formalization_gap_planner_llm_route_planner_dir=llm_route_planner_dir,
+    )
+
+    assert payload["all_ok"]
+    llm_rows = [
+        row
+        for row in payload["rows"]
+        if row["request_payload"].get("llm_route_planner_row_id")
+        == "llm_route_row:rocq"
+    ]
+    assert llm_rows
+    llm_resource_ids = {row["resource_id"] for row in llm_rows}
+    assert llm_resource_ids == {
+        "local_target_formal_source_index",
+        "rocq_lsp_serapi",
+    }
+    assert not llm_resource_ids.intersection(
+        {
+            "local_formal_source_index",
+            "local_lean_rag_dependency_graph",
+            "loogle_leansearch",
+            "leanexplore_mcp",
+            "local_lake_lean",
+            "lean_lsp_mcp",
+            "leandojo_reprover",
+        }
+    )
+    for row in llm_rows:
+        assert row["target_prover_family"] == "rocq"
+        assert (
+            row["request_payload"]["llm_route_planner_hook_kind"]
+            == "formal_library_grounding"
+        )
+        assert "formal_declaration_hits" in row["response_contract_fields"]
+        assert "lean_declaration_hits" not in row["response_contract_fields"]
+        assert (
+            validate_resource_request_queue_row(
+                row,
+                resource_request_queue_row_json_schema(),
+            )
+            == []
+        )
+
+
 def test_resource_request_queue_dispatches_rocq_bridge_without_lean_resources() -> None:
     root = Path("runs/test_formalization_gap_planner_resource_request_queue_rocq")
     input_json = root / "standalone_input.json"
