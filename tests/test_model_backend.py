@@ -17,6 +17,7 @@ from ai_statistician.model_backend import (
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     AnthropicGeneratorBackend,
     GeneratorRequest,
+    OpenAIResponsesGeneratorBackend,
     StaticJSONGeneratorBackend,
     claude_outside_cost_tier_family_for_model,
     claude_model_tier_for_model,
@@ -101,6 +102,70 @@ def test_anthropic_generator_backend_calls_messages_api_without_tools(
     assert response.metadata["json_prompt_hint_used"] is True
     assert response.metadata["timeout_seconds"] == 120.0
     assert response.metadata["retry_count"] == 0
+
+
+def test_anthropic_generator_backend_surfaces_provider_reported_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeMessages:
+        def create(self, **kwargs):
+            return SimpleNamespace(
+                content=[SimpleNamespace(text='{"ok": true}')],
+                model="claude-sonnet-provider-reported",
+            )
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        SimpleNamespace(Anthropic=FakeAnthropicClient),
+    )
+
+    response = AnthropicGeneratorBackend(api_key="test-anthropic-key").generate(
+        _request()
+    )
+
+    assert response.model == "claude-sonnet-provider-reported"
+    assert response.metadata["requested_model"] == "test-model"
+    assert (
+        response.metadata["provider_reported_model"]
+        == "claude-sonnet-provider-reported"
+    )
+
+
+def test_openai_generator_backend_surfaces_provider_reported_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponses:
+        def create(self, **kwargs):
+            return SimpleNamespace(
+                output_text='{"ok": true}',
+                model="openai-provider-reported",
+            )
+
+    class FakeOpenAIClient:
+        def __init__(self, *, api_key: str) -> None:
+            self.responses = FakeResponses()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "openai",
+        SimpleNamespace(OpenAI=FakeOpenAIClient),
+    )
+
+    response = OpenAIResponsesGeneratorBackend(api_key="test-openai-key").generate(
+        _request()
+    )
+
+    assert response.model == "openai-provider-reported"
+    assert response.metadata["requested_model"] == "test-model"
+    assert (
+        response.metadata["provider_reported_model"]
+        == "openai-provider-reported"
+    )
 
 
 def test_anthropic_generator_backend_honors_explicit_timeout(

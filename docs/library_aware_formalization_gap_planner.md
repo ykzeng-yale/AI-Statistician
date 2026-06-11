@@ -193,7 +193,10 @@ so Haiku uses `claude-haiku-4-5-20251001` rather than relying on the shorter
 `claude-haiku-4-5` alias. LLM route-planner rows also reject provider-returned
 Anthropic model drift, so a
 Haiku-selected request cannot be accepted if the backend reports a Sonnet or
-Opus response model. In addition to the manifest-level policy, every LLM
+Opus response model. Live generator backends surface both `requested_model` and
+`provider_reported_model`, and downstream row validation uses the reported model
+when the provider response object exposes one. In addition to the manifest-level
+policy, every LLM
 route-planner request packet
 now carries a request-scoped `llm_generation_policy` snapshot with the selected
 provider, resolved model, selected/requested tier, Claude pinned model policy,

@@ -379,10 +379,11 @@ class AnthropicGeneratorBackend:
             )
         )
         text = _anthropic_text(response)
+        response_model = _response_model(response, fallback=request.model)
         return GeneratorResponse(
             text=text,
             provider=self.provider_name,
-            model=request.model,
+            model=response_model,
             raw=response,
             metadata={
                 "generator_only": True,
@@ -391,6 +392,8 @@ class AnthropicGeneratorBackend:
                 "json_prompt_hint_used": json_mode_hint,
                 "timeout_seconds": timeout_s,
                 "retry_count": retry_count,
+                "requested_model": request.model,
+                "provider_reported_model": response_model,
             },
         )
 
@@ -430,16 +433,19 @@ class OpenAIResponsesGeneratorBackend:
                 }
             }
         response, retry_count = _call_with_generator_retries(lambda: client.responses.create(**kwargs))
+        response_model = _response_model(response, fallback=request.model)
         return GeneratorResponse(
             text=_openai_response_text(response),
             provider=self.provider_name,
-            model=request.model,
+            model=response_model,
             raw=response,
             metadata={
                 "generator_only": True,
                 "tools_available": False,
                 "schema_supplied": request.schema is not None,
                 "retry_count": retry_count,
+                "requested_model": request.model,
+                "provider_reported_model": response_model,
             },
         )
 
@@ -531,6 +537,13 @@ def _anthropic_text(response: Any) -> str:
     if parts:
         return "".join(parts)
     return str(response)
+
+
+def _response_model(response: Any, *, fallback: str) -> str:
+    model = getattr(response, "model", None)
+    if model:
+        return str(model)
+    return str(fallback)
 
 
 def _openai_response_text(response: Any) -> str:
