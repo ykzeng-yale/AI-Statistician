@@ -921,6 +921,13 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 if isinstance(row, Mapping)
             ),
         )
+        proof_bank_runtime_memory_summary = _formalizer_proof_bank_runtime_memory_summary(
+            context=context,
+            proof_bank_obligation_catalog=proof_bank_obligation_catalog,
+            theorem_goals=theorem_goals,
+            memory_kernel_verified_proof_obligation_ids=memory_kernel_verified_proof_obligation_ids,
+            memory_prioritized_proof_obligation_ids=memory_prioritized_proof_obligation_ids,
+        )
         produced_artifacts: dict[str, Any] = {}
         observations: list[EnvironmentObservation] = []
         if self.proposal_agent is not None:
@@ -932,6 +939,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 registered_problem=_problem_to_json(problem),
                 theorem_goals=[_theorem_goal_to_json(row) for row in theorem_goals],
                 proof_bank_obligation_catalog=proof_bank_obligation_catalog,
+                proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
             )
             (
                 llm_requested_proof_obligation_ids,
@@ -1057,6 +1065,25 @@ class FormalizationEvaluatorRuntimeSubsystem:
             "off-catalog requests, and rejected requests are recorded but not used for proof selection. "
             "Requests and memory are not proof evidence."
         )
+        proof_obligation_control["proof_bank_bridge_catalog_exhausted_by_memory"] = bool(
+            proof_bank_runtime_memory_summary.get(
+                "proof_bank_bridge_catalog_exhausted_by_memory",
+                False,
+            )
+        )
+        proof_obligation_control["theorem_reduction_closure_required"] = bool(
+            proof_bank_runtime_memory_summary.get(
+                "theorem_reduction_closure_required",
+                False,
+            )
+        )
+        proof_obligation_control["remaining_unverified_proof_bank_obligation_ids"] = list(
+            proof_bank_runtime_memory_summary.get(
+                "remaining_unverified_proof_bank_obligation_ids",
+                [],
+            )
+            or []
+        )
         n_proved = sum(1 for row in subclaims if row.status == "PROVED")
         n_kernel_verified = sum(1 for row in subclaims if row.kernel_verified)
         n_formal_gaps = sum(1 for row in subclaims if row.status == "FORMAL_GAP")
@@ -1121,6 +1148,7 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 "The catalog is proof-target selection context for the LLM Formalizer. "
                 "It is not proof evidence and does not expose proof bodies."
             ),
+            "proof_bank_runtime_memory_summary": proof_bank_runtime_memory_summary,
             "formal_subclaims": [_formal_subclaim_to_json(row) for row in subclaims],
             "proof_obligation_control": proof_obligation_control,
             "proof_state_feedback_manifest_id": proof_state_manifest_id,
@@ -2599,6 +2627,71 @@ def _formalization_manifest_has_remaining_proof_bank_work(
     return bool(candidate_ids - kernel_verified_ids)
 
 
+def _formalizer_proof_bank_runtime_memory_summary(
+    *,
+    context: Mapping[str, Any],
+    proof_bank_obligation_catalog: list[Mapping[str, Any]],
+    theorem_goals: list[TheoremGoal],
+    memory_kernel_verified_proof_obligation_ids: tuple[str, ...],
+    memory_prioritized_proof_obligation_ids: tuple[str, ...],
+) -> dict[str, Any]:
+    catalog_ids = tuple(
+        str(row.get("obligation_id", "") or "").strip()
+        for row in proof_bank_obligation_catalog
+        if isinstance(row, Mapping) and str(row.get("obligation_id", "") or "").strip()
+    )
+    catalog_set = set(catalog_ids)
+    kernel_verified_ids = tuple(
+        row for row in memory_kernel_verified_proof_obligation_ids if row in catalog_set
+    )
+    prioritized_ids = tuple(row for row in memory_prioritized_proof_obligation_ids if row in catalog_set)
+    remaining_ids = tuple(sorted(catalog_set - set(kernel_verified_ids)))
+    environment_feedback = (
+        context.get("environment_feedback", {}) if isinstance(context.get("environment_feedback"), Mapping) else {}
+    )
+    high_priority_agenda = [
+        row
+        for row in environment_feedback.get("high_priority_agenda", []) or []
+        if isinstance(row, Mapping)
+    ]
+    high_priority_agenda_ids = tuple(
+        str(row.get("id", "") or "").strip()
+        for row in high_priority_agenda
+        if str(row.get("id", "") or "").strip()
+    )
+    theorem_closure_requested_by_critic = (
+        "formal_gap:theorem_reduction_closure" in high_priority_agenda_ids
+    )
+    catalog_exhausted = bool(catalog_ids) and not remaining_ids
+    theorem_goal_ids = tuple(row.id for row in theorem_goals if str(row.id).strip())
+    theorem_reduction_closure_required = bool(
+        theorem_closure_requested_by_critic or catalog_exhausted
+    )
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "FormalizerProofBankRuntimeMemorySummary",
+        "proof_bank_bridge_catalog_size": len(catalog_set),
+        "memory_kernel_verified_proof_obligation_ids": sorted(kernel_verified_ids),
+        "memory_prioritized_unverified_proof_obligation_ids": sorted(prioritized_ids),
+        "remaining_unverified_proof_bank_obligation_ids": list(remaining_ids),
+        "proof_bank_bridge_catalog_exhausted_by_memory": catalog_exhausted,
+        "critic_high_priority_agenda_ids": list(high_priority_agenda_ids),
+        "theorem_reduction_closure_required": theorem_reduction_closure_required,
+        "remaining_theorem_goal_ids": list(theorem_goal_ids),
+        "recommended_formalizer_target_mode": (
+            "theorem_level_reduction_closure"
+            if theorem_reduction_closure_required
+            else "registered_proof_bank_obligation_selection"
+        ),
+        "boundary": (
+            "Runtime learning memory records prior kernel-verified bridge obligations and routing hints only. "
+            "It is not new proof evidence. When the registered bridge catalog is already exhausted, the "
+            "Formalizer should target a theorem-level Lean reduction that connects those verified bridge "
+            "obligations to the remaining frontier theorem goal."
+        ),
+    }
+
+
 def _critic_learning_rows(
     *,
     question: OpenResearchQuestion,
@@ -2627,6 +2720,11 @@ def _critic_learning_rows(
     proof_control = (
         formalization_manifest.get("proof_obligation_control", {})
         if isinstance(formalization_manifest.get("proof_obligation_control"), Mapping)
+        else {}
+    )
+    proof_bank_memory_summary = (
+        formalization_manifest.get("proof_bank_runtime_memory_summary", {})
+        if isinstance(formalization_manifest.get("proof_bank_runtime_memory_summary"), Mapping)
         else {}
     )
     selected_proof_obligation_ids = [
@@ -2712,6 +2810,23 @@ def _critic_learning_rows(
                 "failed_proof_obligation_ids": failed_proof_obligation_ids,
                 "formal_gap_target_ids": formal_gap_target_ids,
                 "recommended_proof_obligation_ids": recommended_proof_obligation_ids,
+                "proof_bank_bridge_catalog_exhausted_by_memory": bool(
+                    proof_bank_memory_summary.get(
+                        "proof_bank_bridge_catalog_exhausted_by_memory",
+                        False,
+                    )
+                    or proof_control.get(
+                        "proof_bank_bridge_catalog_exhausted_by_memory",
+                        False,
+                    )
+                ),
+                "theorem_reduction_closure_required": bool(
+                    proof_bank_memory_summary.get(
+                        "theorem_reduction_closure_required",
+                        False,
+                    )
+                    or proof_control.get("theorem_reduction_closure_required", False)
+                ),
             },
             "selected_proof_obligation_ids": selected_proof_obligation_ids,
             "selected_unverified_proof_obligation_ids": selected_unverified_proof_obligation_ids,
@@ -2724,6 +2839,14 @@ def _critic_learning_rows(
             "failed_proof_obligation_ids": failed_proof_obligation_ids,
             "formal_gap_target_ids": formal_gap_target_ids,
             "recommended_proof_obligation_ids": recommended_proof_obligation_ids,
+            "recommended_formalizer_target_mode": str(
+                proof_bank_memory_summary.get("recommended_formalizer_target_mode", "")
+                or (
+                    "theorem_level_reduction_closure"
+                    if proof_control.get("theorem_reduction_closure_required", False)
+                    else ""
+                )
+            ),
             "target_behavior": "route implementation gaps, formal gaps, and kernel rerun needs to the correct subsystem",
         }
     )
@@ -4017,6 +4140,9 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             "excluded_candidate_proof_obligation_ids": [],
             "deferred_proof_obligation_ids_due_to_max": [],
             "deferred_priority_proof_obligation_ids_due_to_max": [],
+            "remaining_unverified_proof_bank_obligation_ids": [],
+            "proof_bank_bridge_catalog_exhausted_by_memory": False,
+            "theorem_reduction_closure_required": False,
             "selection_boundary": (
                 "Proof-obligation controls limit registered proof-bank subclaim verification only. "
                 "They do not remove frontier formal gaps and do not prove the full theorem."
@@ -4172,6 +4298,21 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                         str(row)
                         for row in control.get("deferred_priority_proof_obligation_ids_due_to_max", []) or []
                     }
+                )
+                proof_control["remaining_unverified_proof_bank_obligation_ids"] = sorted(
+                    set(proof_control.get("remaining_unverified_proof_bank_obligation_ids", []) or [])
+                    | {
+                        str(row)
+                        for row in control.get("remaining_unverified_proof_bank_obligation_ids", []) or []
+                    }
+                )
+                proof_control["proof_bank_bridge_catalog_exhausted_by_memory"] = bool(
+                    proof_control.get("proof_bank_bridge_catalog_exhausted_by_memory", False)
+                    or control.get("proof_bank_bridge_catalog_exhausted_by_memory", False)
+                )
+                proof_control["theorem_reduction_closure_required"] = bool(
+                    proof_control.get("theorem_reduction_closure_required", False)
+                    or control.get("theorem_reduction_closure_required", False)
                 )
                 for verifier in artifact.get("verifiers", []) or []:
                     if str(verifier).strip():

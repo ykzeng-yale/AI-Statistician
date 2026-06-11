@@ -58,6 +58,7 @@ class LLMFormalizerProofEngineerAgent:
         registered_problem: Mapping[str, Any],
         theorem_goals: list[Mapping[str, Any]],
         proof_bank_obligation_catalog: list[Mapping[str, Any]] | None = None,
+        proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         user_prompt = build_formalizer_prompt(
             question=question,
@@ -67,6 +68,7 @@ class LLMFormalizerProofEngineerAgent:
             registered_problem=registered_problem,
             theorem_goals=theorem_goals,
             proof_bank_obligation_catalog=proof_bank_obligation_catalog,
+            proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
         )
         request_model = resolve_generator_model(
             provider_name=self.config.provider_name,
@@ -119,6 +121,7 @@ def build_formalizer_prompt(
     registered_problem: Mapping[str, Any],
     theorem_goals: list[Mapping[str, Any]],
     proof_bank_obligation_catalog: list[Mapping[str, Any]] | None = None,
+    proof_bank_runtime_memory_summary: Mapping[str, Any] | None = None,
 ) -> str:
     catalog_rows = [
         _compact_mapping(
@@ -193,11 +196,19 @@ def build_formalizer_prompt(
         "registered_proof_bank_obligation_catalog_total": _safe_len(
             proof_bank_obligation_catalog or theorem_goals
         ),
+        "proof_bank_runtime_memory_summary": _compact_proof_bank_runtime_memory_summary(
+            proof_bank_runtime_memory_summary or {}
+        ),
         "proof_bank_obligation_request_policy": {
             "use_only_registered_catalog_ids_when_possible": True,
             "request_effect": "priority_only_for_kernel_smoke_selection",
             "runtime_filter": "AgentRuntime rejects unknown obligation IDs and filters against the current candidate set",
             "not_evidence": "A proof-bank obligation request is not Lean proof evidence and does not prove the frontier theorem.",
+            "when_catalog_exhausted_by_kernel_memory": (
+                "Do not request already-kernel-verified bridge obligations again. "
+                "Target the theorem-level reduction closure that connects those "
+                "verified bridge obligations to the remaining frontier theorem goal."
+            ),
         },
         "required_output_contract": FORMALIZER_OUTPUT_CONTRACT,
         "boundary": FORMALIZER_BOUNDARY,
@@ -211,7 +222,10 @@ def build_formalizer_prompt(
         "claim kernel verification, and do not hide formal gaps. "
         "For proof_bank_obligation_requests, choose obligation_id values from "
         "registered_proof_bank_obligation_catalog when possible; these requests only prioritize "
-        "AgentRuntime kernel-smoke work and may be filtered or rejected by the runtime.\n\n"
+        "AgentRuntime kernel-smoke work and may be filtered or rejected by the runtime. "
+        "If proof_bank_runtime_memory_summary says proof_bank_bridge_catalog_exhausted_by_memory=true, "
+        "do not spend the packet on more bridge-obligation requests; make the main formal target "
+        "the theorem-level reduction closure for the listed remaining_theorem_goal_ids.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str)
     )
 
@@ -446,6 +460,26 @@ def _compact_mapping(row: Mapping[str, Any], *, keys: tuple[str, ...]) -> dict[s
         for key in keys
         if key in row and row.get(key) not in (None, "", [], {})
     }
+
+
+def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[str, Any]:
+    keys = (
+        "artifact_kind",
+        "proof_bank_bridge_catalog_size",
+        "proof_bank_bridge_catalog_exhausted_by_memory",
+        "theorem_reduction_closure_required",
+        "recommended_formalizer_target_mode",
+        "remaining_theorem_goal_ids",
+        "remaining_unverified_proof_bank_obligation_ids",
+        "memory_kernel_verified_proof_obligation_ids",
+        "critic_high_priority_agenda_ids",
+    )
+    compact = _compact_mapping(row, keys=keys)
+    if "memory_kernel_verified_proof_obligation_ids" in compact:
+        values = compact["memory_kernel_verified_proof_obligation_ids"]
+        if isinstance(values, list):
+            compact["memory_kernel_verified_proof_obligation_ids"] = values[:12]
+    return compact
 
 
 def _compact_value(value: Any) -> Any:

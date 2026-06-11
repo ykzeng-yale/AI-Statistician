@@ -49,6 +49,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_learning_memory_kernel_verified_proof_obligation_ids,
     _runtime_learning_memory_proof_obligation_ids,
     _runtime_completion_summary,
+    _formalizer_proof_bank_runtime_memory_summary,
     _runtime_formalization_gap_planner_bridge,
     _runtime_formalization_gap_planner_target_intake_payload,
     _runtime_failure_summary,
@@ -876,6 +877,57 @@ def test_formalizer_prompt_exposes_registered_proof_obligation_catalog() -> None
     assert "proof_body" not in prompt
 
 
+def test_formalizer_prompt_targets_theorem_closure_when_proof_bank_memory_exhausted() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    prover = FormalSubclaimProver()
+    catalog = prover.proof_obligation_catalog(problem, theorem_goals)
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "environment_feedback": {
+                "high_priority_agenda": [
+                    {
+                        "id": "formal_gap:theorem_reduction_closure",
+                        "owner_subsystem": "Formalizer/LeanProver",
+                    }
+                ]
+            }
+        },
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(
+            str(row["obligation_id"]) for row in catalog
+        ),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet={"packet_id": "theory:test", "formalization_requests": []},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": problem.problem_class},
+        theorem_goals=[
+            {
+                "id": row.id,
+                "title": row.title,
+                "proof_obligations": list(row.proof_obligations),
+            }
+            for row in theorem_goals
+        ],
+        proof_bank_obligation_catalog=catalog,
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert summary["proof_bank_bridge_catalog_exhausted_by_memory"] is True
+    assert summary["theorem_reduction_closure_required"] is True
+    assert summary["recommended_formalizer_target_mode"] == "theorem_level_reduction_closure"
+    assert "proof_bank_runtime_memory_summary" in prompt
+    assert "proof_bank_bridge_catalog_exhausted_by_memory" in prompt
+    assert "theorem_level_reduction_closure" in prompt
+    assert "do not spend the packet on more bridge-obligation requests" in prompt
+
+
 def test_formalizer_prompt_compacts_large_theory_context() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     prompt = build_formalizer_prompt(
@@ -1130,6 +1182,13 @@ def test_critic_routes_formal_gap_to_theorem_closure_after_proof_bank_exhausted(
             "deferred_priority_proof_obligation_ids_due_to_max": [],
             "memory_kernel_verified_proof_obligation_ids": ["prob_compl", "prob_measure_univ"],
             "excluded_candidate_proof_obligation_ids": ["prob_compl", "prob_measure_univ"],
+            "proof_bank_bridge_catalog_exhausted_by_memory": True,
+            "theorem_reduction_closure_required": True,
+        },
+        "proof_bank_runtime_memory_summary": {
+            "proof_bank_bridge_catalog_exhausted_by_memory": True,
+            "theorem_reduction_closure_required": True,
+            "recommended_formalizer_target_mode": "theorem_level_reduction_closure",
         },
     }
     agenda = _critic_next_action_agenda(
@@ -1158,6 +1217,9 @@ def test_critic_routes_formal_gap_to_theorem_closure_after_proof_bank_exhausted(
     assert "formal_gap:proof_bank_expansion" not in agenda_ids
     assert feedback_row["recommended_proof_obligation_ids"] == []
     assert feedback_row["selected_unverified_proof_obligation_ids"] == []
+    assert feedback_row["recommended_formalizer_target_mode"] == "theorem_level_reduction_closure"
+    assert feedback_row["input_summary"]["proof_bank_bridge_catalog_exhausted_by_memory"] is True
+    assert feedback_row["input_summary"]["theorem_reduction_closure_required"] is True
     assert feedback_row["formal_gap_target_ids"] == ["conformal:split_conformal_finite_sample_coverage"]
 
 
