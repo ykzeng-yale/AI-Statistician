@@ -62,6 +62,7 @@ from ai_statistician.research_agent_runtime import (
 from ai_statistician.research_agent_runtime_audit import (
     _audit_topology,
     _runtime_capability_ladder,
+    _resolve_manifest_paths,
     audit_research_agent_runtime,
 )
 from ai_statistician.research_system_audit import _research_agent_runtime_audit_overlay
@@ -3290,6 +3291,24 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
     assert rows[6]["passed"] is True
     assert rows[7]["passed"] is False
     assert "no full source/frontier theorem" in rows[7]["blocker"]
+
+
+def test_runtime_audit_resolves_workspace_relative_run_paths(tmp_path: Path) -> None:
+    runtime_dir = tmp_path / "runs" / "live_runtime"
+    runtime_dir.mkdir(parents=True)
+    result_path = runtime_dir / "conformal_prediction_coverage_runtime_result.json"
+    result_path.write_text("{}", encoding="utf-8")
+    manifest = {
+        "artifacts": {
+            "per_question_results": [
+                "runs/live_runtime/conformal_prediction_coverage_runtime_result.json"
+            ]
+        }
+    }
+
+    paths = _resolve_manifest_paths(runtime_dir, manifest)
+
+    assert paths == [result_path]
 
 
 def test_runtime_topology_resolves_empty_config_model_from_tier(

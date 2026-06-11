@@ -1134,7 +1134,16 @@ def _resolve_path(base: Path, raw: object) -> Path:
     path = Path(text)
     if path.is_absolute() or path.exists():
         return path
-    return base / path
+    candidates = [base / path]
+    parts = path.parts
+    if len(parts) >= 2 and base.parent.name and parts[0] == base.parent.name:
+        candidates.append(base.parent.parent / path)
+    if parts and parts[0] == base.name:
+        candidates.append(base.parent / path)
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
 
 
 def _artifacts_with_prefix(artifacts: Mapping[str, Any], prefix: str) -> list[dict[str, Any]]:
