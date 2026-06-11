@@ -46,7 +46,10 @@ tier uses the same split: small source-backed reuse/wrapper triage stays on
 Haiku, while target-intake rows with missing proof sources, library-search
 requirements, proof-state probes, complex theorem shape, many generic
 `formal_library_grounding_queries`, or large theorem context are upgraded to
-Sonnet.
+Sonnet. When a live Anthropic Haiku route-plan response fails local response
+validation and a repair attempt remains, the repair request escalates to Sonnet
+and records the requested/effective tiers in generator metadata and the repair
+ledger.
 
 1. The theory layer emits only estimator families with registered formal
    obligations.

@@ -7263,6 +7263,85 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     assert request.metadata["model_tier"] == "haiku"
 
 
+def test_llm_route_planner_escalates_failed_haiku_repair_to_sonnet() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_haiku_sonnet_repair"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    requests = []
+
+    class RepairingFakeAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            requests.append(request)
+            if len(requests) == 1:
+                return GeneratorResponse(
+                    text=json.dumps(
+                        {
+                            "kernel_verified": True,
+                            "informal_knowledge_dag_nodes": [],
+                        }
+                    ),
+                    provider="anthropic",
+                    model=request.model,
+                    metadata={"generator_only": True, "tools_available": False},
+                )
+            return GeneratorResponse(
+                text=json.dumps(_llm_response_payload()),
+                provider="anthropic",
+                model=request.model,
+                metadata={"generator_only": True, "tools_available": False},
+            )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=RepairingFakeAnthropicBackend(),
+        max_repair_attempts=1,
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"haiku": 1}
+    assert payload["n_generated_responses_model_tier_escalated"] == 1
+    assert payload["n_generated_responses_haiku_to_sonnet_escalated"] == 1
+    assert payload["n_repair_attempt_ledger_model_tier_escalations"] == 1
+    assert payload["n_rows_with_model_tier_escalation"] == 1
+    assert len(requests) == 2
+    assert requests[0].model == "claude-haiku-4-5-20251001"
+    assert requests[0].metadata["model_tier"] == "haiku"
+    assert requests[0].metadata["model_tier_escalated"] is False
+    assert requests[1].model == "claude-sonnet-4-6"
+    assert requests[1].metadata["requested_model_tier"] == "haiku"
+    assert requests[1].metadata["model_tier"] == "sonnet"
+    assert requests[1].metadata["model_tier_escalated"] is True
+    row = payload["rows"][0]
+    assert row["model"] == "claude-sonnet-4-6"
+    assert row["model_tier"] == "sonnet"
+    assert row["generator_metadata"]["requested_model_tier"] == "haiku"
+    assert row["generator_metadata"]["effective_model_tier"] == "sonnet"
+    assert row["generator_metadata"]["model_tier_escalated"] is True
+    assert "auto escalated Claude Haiku repair attempt to Sonnet" in row[
+        "model_selection_rationale"
+    ]
+    assert row["repair_error_history"][0]["model_tier"] == "haiku"
+    assert row["repair_error_history"][0]["next_repair_model_tier"] == "sonnet"
+    repair_ledger_row = row["repair_attempt_ledger"][0]
+    assert repair_ledger_row["requested_model_tier"] == "haiku"
+    assert repair_ledger_row["model_tier"] == "sonnet"
+    assert repair_ledger_row["failed_attempt_model_tier"] == "haiku"
+    assert repair_ledger_row["next_repair_model_tier"] == "sonnet"
+    assert repair_ledger_row["model_tier_escalated"] is True
+    seed_metadata = payload["standalone_seed"]["routes"][0]["replan_metadata"]
+    assert seed_metadata["llm_route_planner_model"] == "claude-sonnet-4-6"
+    assert seed_metadata["llm_route_planner_model_tier"] == "sonnet"
+
+
 def test_llm_route_planner_auto_uses_sonnet_for_seed_route_risk_markers() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_seed_risk_tier"

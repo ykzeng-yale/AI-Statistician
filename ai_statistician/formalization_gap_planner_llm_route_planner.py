@@ -1623,6 +1623,31 @@ def export_formalization_gap_planner_llm_route_planner(
             and int(row.get("repair_attempts", 0) or 0) > 0
             and not row.get("generation_errors")
         ),
+        "n_generated_responses_model_tier_escalated": sum(
+            1
+            for row in raw_responses
+            if isinstance(row, Mapping)
+            and (
+                row.get("model_tier_escalated")
+                or _dict_value(row, "generator_metadata").get(
+                    "model_tier_escalated"
+                )
+            )
+        ),
+        "n_generated_responses_haiku_to_sonnet_escalated": sum(
+            1
+            for row in raw_responses
+            if isinstance(row, Mapping)
+            and str(row.get("requested_model_tier", "")).strip().lower()
+            == "haiku"
+            and str(row.get("model_tier", "")).strip().lower() == "sonnet"
+            and (
+                row.get("model_tier_escalated")
+                or _dict_value(row, "generator_metadata").get(
+                    "model_tier_escalated"
+                )
+            )
+        ),
         "n_repair_attempt_ledger_rows": len(repair_attempt_ledger),
         "n_requests_with_repair_attempt_ledger": len(
             {
@@ -1634,6 +1659,11 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_repair_attempt_ledger_error_items": sum(
             int(row.get("error_count", 0) or 0)
             for row in repair_attempt_ledger
+        ),
+        "n_repair_attempt_ledger_model_tier_escalations": sum(
+            1
+            for row in repair_attempt_ledger
+            if row.get("model_tier_escalated")
         ),
         "repair_attempt_ledger": repair_attempt_ledger,
         "n_response_schema_valid": sum(
@@ -1647,6 +1677,11 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_provider_failures": sum(1 for row in rows if row.provider_failure),
         "n_rows_with_generator_metadata": sum(
             1 for row in rows if row.generator_metadata
+        ),
+        "n_rows_with_model_tier_escalation": sum(
+            1
+            for row in rows
+            if row.generator_metadata.get("model_tier_escalated")
         ),
         "n_rows_with_generation_errors": sum(
             1 for row in rows if row.generation_errors
@@ -2344,15 +2379,27 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_schema_valid": nonnegative_integer,
             "n_request_schema_invalid": nonnegative_integer,
             "n_raw_responses": nonnegative_integer,
+            "n_generated_response_repair_attempts": nonnegative_integer,
+            "n_generated_responses_repaired": nonnegative_integer,
+            "n_generated_responses_model_tier_escalated": nonnegative_integer,
+            "n_generated_responses_haiku_to_sonnet_escalated": (
+                nonnegative_integer
+            ),
             "n_repair_attempt_ledger_rows": nonnegative_integer,
             "n_requests_with_repair_attempt_ledger": nonnegative_integer,
             "n_repair_attempt_ledger_error_items": nonnegative_integer,
+            "n_repair_attempt_ledger_model_tier_escalations": (
+                nonnegative_integer
+            ),
             "repair_attempt_ledger": object_array,
             "n_response_schema_valid": nonnegative_integer,
             "n_response_schema_invalid": nonnegative_integer,
             "n_rows": nonnegative_integer,
             "n_response_present": nonnegative_integer,
             "n_provider_failures": nonnegative_integer,
+            "n_rows_with_generator_metadata": nonnegative_integer,
+            "n_rows_with_model_tier_escalation": nonnegative_integer,
+            "n_rows_with_generation_errors": nonnegative_integer,
             "n_response_contract_ok": nonnegative_integer,
             "n_accepted_route_plans": nonnegative_integer,
             "n_route_adoption_ready": nonnegative_integer,
@@ -3380,6 +3427,20 @@ def validate_llm_route_planner_row(
             errors.append("present non-contract response must be rejected")
     if row.get("response_contract_ok") and not row.get("standalone_route"):
         errors.append("accepted response must include standalone_route")
+    generator_metadata = _dict_value(row, "generator_metadata")
+    if generator_metadata.get("model_tier_escalated"):
+        requested_tier = str(
+            generator_metadata.get("requested_model_tier", "")
+        ).strip().lower()
+        effective_tier = str(
+            generator_metadata.get("effective_model_tier", "")
+        ).strip().lower()
+        if str(row.get("provider_name", "")).strip().lower() != "anthropic":
+            errors.append("model_tier_escalated is allowed only for anthropic rows")
+        if requested_tier != "haiku" or effective_tier != "sonnet":
+            errors.append("model_tier_escalated must be haiku-to-sonnet")
+        if str(row.get("model_tier", "")).strip().lower() != effective_tier:
+            errors.append("model_tier must match generator_metadata.effective_model_tier")
     inventory = _dict_value(row, "context_packet_inventory")
     if inventory.get("inventory_kind") != CONTEXT_PACKET_INVENTORY_KIND:
         errors.append(
@@ -4658,11 +4719,17 @@ def _generate_responses(
         repair_history: list[dict[str, object]] = []
         last_response: dict[str, Any] | None = None
         last_generated: Any | None = None
+        requested_model_tier = str(packet.get("model_tier", "") or "").strip()
+        current_model_tier = requested_model_tier
+        model_tier_escalated = False
+        model_tier_escalation_reason = ""
         for attempt in range(repair_budget + 1):
-            request_model = _generator_model_for_request(
+            request_model = _generator_model_for_generation_attempt(
                 generator_backend,
-                model or str(packet.get("model", "")),
+                packet,
+                explicit_model=model,
                 model_tier=str(packet.get("model_tier", "")),
+                attempt_model_tier=current_model_tier,
             )
             try:
                 generated = generator_backend.generate(
@@ -4680,7 +4747,12 @@ def _generate_responses(
                         metadata={
                             "component": LLM_ROUTE_PLANNER_COMPONENT,
                             "request_id": str(packet.get("request_id", "")),
-                            "model_tier": str(packet.get("model_tier", "")),
+                            "requested_model_tier": requested_model_tier,
+                            "model_tier": current_model_tier,
+                            "model_tier_escalated": model_tier_escalated,
+                            "model_tier_escalation_reason": (
+                                model_tier_escalation_reason
+                            ),
                             "model_selection_rationale": str(
                                 packet.get("model_selection_rationale", "")
                             ),
@@ -4703,9 +4775,19 @@ def _generate_responses(
                     "route_id": str(packet.get("route_id", "")),
                     "provider_name": generated.provider,
                     "model": generated.model,
+                    "requested_model_tier": requested_model_tier,
+                    "model_tier": current_model_tier,
+                    "model_tier_escalated": model_tier_escalated,
+                    "model_tier_escalation_reason": model_tier_escalation_reason,
                     "response_payload": payload,
                     "raw_response_text": generated.text,
-                    "generator_metadata": _jsonable_mapping(generated.metadata),
+                    "generator_metadata": _generator_metadata_with_model_tier(
+                        generated.metadata,
+                        requested_model_tier=requested_model_tier,
+                        effective_model_tier=current_model_tier,
+                        model_tier_escalated=model_tier_escalated,
+                        model_tier_escalation_reason=model_tier_escalation_reason,
+                    ),
                     "provider_failure": False,
                     "kernel_verified": False,
                     "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
@@ -4727,6 +4809,9 @@ def _generate_responses(
                 )
                 repair_entry: dict[str, object] = {
                     "attempt": attempt,
+                    "model": request_model,
+                    "model_tier": current_model_tier,
+                    "requested_model_tier": requested_model_tier,
                     "errors": unique_validation_errors[:12],
                     "repair_guidance_categories": _repair_guidance_categories(
                         repair_guidance_rows
@@ -4750,8 +4835,23 @@ def _generate_responses(
                     attempt=attempt + 1,
                     repair_guidance_rows=repair_guidance_rows,
                 )
+                next_model_tier, next_tier_reason = _next_repair_model_tier(
+                    generator_backend,
+                    packet,
+                    explicit_model=model,
+                    current_model_tier=current_model_tier,
+                )
                 repair_entry["next_repair_attempt"] = attempt + 1
+                repair_entry["next_repair_model_tier"] = next_model_tier
                 repair_entry["repair_prompt_fingerprint"] = stable_hash(user_prompt)
+                if next_model_tier != current_model_tier:
+                    repair_entry["model_tier_escalation"] = (
+                        f"{current_model_tier}_to_{next_model_tier}"
+                    )
+                    repair_entry["model_tier_escalation_reason"] = next_tier_reason
+                    model_tier_escalated = True
+                    model_tier_escalation_reason = next_tier_reason
+                current_model_tier = next_model_tier
                 repair_history.append(repair_entry)
             except Exception as exc:
                 exception_text = f"{type(exc).__name__}: {exc}"
@@ -4767,16 +4867,30 @@ def _generate_responses(
                             getattr(generator_backend, "provider_name", "")
                         ),
                         "model": request_model,
+                        "requested_model_tier": requested_model_tier,
+                        "model_tier": current_model_tier,
+                        "model_tier_escalated": model_tier_escalated,
+                        "model_tier_escalation_reason": (
+                            model_tier_escalation_reason
+                        ),
                         "response_payload": {},
                         "raw_response_text": str(getattr(last_generated, "text", "")),
-                        "generator_metadata": {
-                            "generator_only": True,
-                            "tools_available": False,
-                            "provider_failure": True,
-                            "exception_type": type(exc).__name__,
-                            "exception_message": str(exc)[:1000],
-                            "repair_attempt": attempt,
-                        },
+                        "generator_metadata": _generator_metadata_with_model_tier(
+                            {
+                                "generator_only": True,
+                                "tools_available": False,
+                                "provider_failure": True,
+                                "exception_type": type(exc).__name__,
+                                "exception_message": str(exc)[:1000],
+                                "repair_attempt": attempt,
+                            },
+                            requested_model_tier=requested_model_tier,
+                            effective_model_tier=current_model_tier,
+                            model_tier_escalated=model_tier_escalated,
+                            model_tier_escalation_reason=(
+                                model_tier_escalation_reason
+                            ),
+                        ),
                         "provider_failure": True,
                         "kernel_verified": False,
                         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
@@ -4798,23 +4912,109 @@ def _generate_responses(
                     attempt=attempt + 1,
                     repair_guidance_rows=repair_guidance_rows,
                 )
+                next_model_tier, next_tier_reason = _next_repair_model_tier(
+                    generator_backend,
+                    packet,
+                    explicit_model=model,
+                    current_model_tier=current_model_tier,
+                )
+                repair_entry: dict[str, object] = {
+                    "attempt": attempt,
+                    "model": request_model,
+                    "model_tier": current_model_tier,
+                    "requested_model_tier": requested_model_tier,
+                    "errors": (provider_error,),
+                    "repair_guidance_categories": _repair_guidance_categories(
+                        repair_guidance_rows
+                    ),
+                    "repair_guidance_fingerprint": stable_hash(
+                        repair_guidance_rows
+                    ),
+                    "next_repair_attempt": attempt + 1,
+                    "next_repair_model_tier": next_model_tier,
+                    "repair_prompt_fingerprint": stable_hash(user_prompt),
+                }
+                if next_model_tier != current_model_tier:
+                    repair_entry["model_tier_escalation"] = (
+                        f"{current_model_tier}_to_{next_model_tier}"
+                    )
+                    repair_entry["model_tier_escalation_reason"] = next_tier_reason
+                    model_tier_escalated = True
+                    model_tier_escalation_reason = next_tier_reason
+                current_model_tier = next_model_tier
                 repair_history.append(
-                    {
-                        "attempt": attempt,
-                        "errors": (provider_error,),
-                        "repair_guidance_categories": _repair_guidance_categories(
-                            repair_guidance_rows
-                        ),
-                        "repair_guidance_fingerprint": stable_hash(
-                            repair_guidance_rows
-                        ),
-                        "next_repair_attempt": attempt + 1,
-                        "repair_prompt_fingerprint": stable_hash(user_prompt),
-                    }
+                    repair_entry
                 )
         if last_response is not None:
             responses.append(last_response)
     return responses
+
+
+def _generator_model_for_generation_attempt(
+    generator_backend: GeneratorBackend,
+    packet: Mapping[str, Any],
+    *,
+    explicit_model: str,
+    model_tier: str,
+    attempt_model_tier: str,
+) -> str:
+    if explicit_model:
+        requested_model = explicit_model
+    elif str(attempt_model_tier or "").strip() != str(model_tier or "").strip():
+        requested_model = ""
+    else:
+        requested_model = str(packet.get("model", ""))
+    return _generator_model_for_request(
+        generator_backend,
+        requested_model,
+        model_tier=attempt_model_tier or model_tier,
+    )
+
+
+def _next_repair_model_tier(
+    generator_backend: GeneratorBackend,
+    packet: Mapping[str, Any],
+    *,
+    explicit_model: str,
+    current_model_tier: str,
+) -> tuple[str, str]:
+    provider_name = str(getattr(generator_backend, "provider_name", ""))
+    requested_tier = str(packet.get("model_tier", "") or "").strip().lower()
+    current_tier = str(current_model_tier or "").strip().lower()
+    if (
+        provider_name == "anthropic"
+        and not explicit_model
+        and requested_tier == "haiku"
+        and current_tier == "haiku"
+    ):
+        return (
+            "sonnet",
+            (
+                "auto escalated Claude Haiku repair attempt to Sonnet after "
+                "local response validation failed"
+            ),
+        )
+    return current_tier, ""
+
+
+def _generator_metadata_with_model_tier(
+    metadata: object,
+    *,
+    requested_model_tier: str,
+    effective_model_tier: str,
+    model_tier_escalated: bool,
+    model_tier_escalation_reason: str,
+) -> dict[str, object]:
+    generator_metadata = _jsonable_mapping(metadata)
+    generator_metadata.update(
+        {
+            "requested_model_tier": requested_model_tier,
+            "effective_model_tier": effective_model_tier,
+            "model_tier_escalated": bool(model_tier_escalated),
+            "model_tier_escalation_reason": model_tier_escalation_reason,
+        }
+    )
+    return generator_metadata
 
 
 def _jsonable_mapping(value: object) -> dict[str, object]:
@@ -6154,7 +6354,18 @@ def _repair_attempt_ledger_rows(
         response.get("provider_name") or request.get("provider_name") or ""
     )
     model = str(response.get("model") or request.get("model") or "")
-    model_tier = str(request.get("model_tier", ""))
+    requested_model_tier = str(request.get("model_tier", ""))
+    model_tier = _effective_response_model_tier(request, response)
+    generator_metadata = _dict_value(response, "generator_metadata")
+    model_tier_escalated = bool(
+        response.get("model_tier_escalated")
+        or generator_metadata.get("model_tier_escalated")
+    )
+    model_tier_escalation_reason = str(
+        response.get("model_tier_escalation_reason")
+        or generator_metadata.get("model_tier_escalation_reason")
+        or ""
+    )
     target_prover_family = str(request.get("target_prover_family", ""))
     final_repair_attempts = _nonnegative_int(response.get("repair_attempts", 0))
     provider_failure = bool(response.get("provider_failure", False))
@@ -6190,9 +6401,17 @@ def _repair_attempt_ledger_rows(
             "provider_name": provider_name,
             "model": model,
             "model_tier": model_tier,
+            "requested_model_tier": requested_model_tier,
+            "model_tier_escalated": model_tier_escalated,
+            "model_tier_escalation_reason": model_tier_escalation_reason,
             "target_prover_family": target_prover_family,
             "failed_attempt_index": failed_attempt_index,
             "next_repair_attempt": next_attempt_index,
+            "failed_attempt_model": str(item.get("model", "")),
+            "failed_attempt_model_tier": str(item.get("model_tier", "")),
+            "next_repair_model_tier": str(
+                item.get("next_repair_model_tier", "")
+            ),
             "repair_prompt_fingerprint": str(
                 item.get("repair_prompt_fingerprint", "")
             ),
@@ -6216,6 +6435,43 @@ def _repair_attempt_ledger_rows(
     return tuple(rows)
 
 
+def _effective_response_model_tier(
+    request: Mapping[str, Any],
+    response: Mapping[str, Any],
+) -> str:
+    generator_metadata = _dict_value(response, "generator_metadata")
+    for value in (
+        response.get("model_tier", ""),
+        response.get("effective_model_tier", ""),
+        generator_metadata.get("effective_model_tier", ""),
+        request.get("model_tier", ""),
+    ):
+        tier = str(value or "").strip().lower()
+        if tier:
+            return tier
+    return ""
+
+
+def _effective_model_selection_rationale(
+    request: Mapping[str, Any],
+    response: Mapping[str, Any],
+) -> str:
+    rationale = str(request.get("model_selection_rationale", ""))
+    generator_metadata = _dict_value(response, "generator_metadata")
+    escalated = bool(
+        response.get("model_tier_escalated")
+        or generator_metadata.get("model_tier_escalated")
+    )
+    reason = str(
+        response.get("model_tier_escalation_reason")
+        or generator_metadata.get("model_tier_escalation_reason")
+        or ""
+    ).strip()
+    if escalated and reason:
+        return (rationale + "; " if rationale else "") + reason
+    return rationale
+
+
 def _row_for_request(
     request: Mapping[str, Any],
     *,
@@ -6231,6 +6487,7 @@ def _row_for_request(
     contract_errors = (
         _response_contract_errors(payload, request) if response_present else []
     )
+    effective_model_tier = _effective_response_model_tier(request, response or {})
     response_model_tier_errors = (
         _str_tuple(
             _row_model_tier_mismatch_error(
@@ -6241,7 +6498,7 @@ def _row_for_request(
                         or request.get("provider_name", "")
                     ),
                     "model": (response or {}).get("model") or request.get("model", ""),
-                    "model_tier": request.get("model_tier", ""),
+                    "model_tier": effective_model_tier,
                 }
             )
         )
@@ -6362,8 +6619,11 @@ def _row_for_request(
         display_name=str(request.get("display_name", "")),
         provider_name=str((response or {}).get("provider_name") or request.get("provider_name", "")),
         model=str((response or {}).get("model") or request.get("model", "")),
-        model_tier=str(request.get("model_tier", "")),
-        model_selection_rationale=str(request.get("model_selection_rationale", "")),
+        model_tier=effective_model_tier,
+        model_selection_rationale=_effective_model_selection_rationale(
+            request,
+            response or {},
+        ),
         target_prover_family=str(request.get("target_prover_family", "")),
         library_snapshot_ref=str(request.get("library_snapshot_ref", "")),
         prompt_fingerprint=str(request.get("prompt_fingerprint", "")),

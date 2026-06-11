@@ -689,7 +689,11 @@ reuse-smoke manifest records `staged_live_provider_prompt_no_api_call` versus
 the Haiku/Sonnet/Opus request-tier distribution. Auto tiering keeps small,
 source-backed reuse/wrapper routes on Haiku, but upgrades target-intake rows
 with missing proof sources, library search requirements, proof-state probes, or
-larger theorem context to Sonnet. To run the second pass with
+larger theorem context to Sonnet. If a live Anthropic Haiku route-plan response
+fails local JSON/contract validation and a repair attempt remains, the repair
+attempt escalates to Sonnet and records `requested_model_tier`,
+`effective_model_tier`, and `model_tier_escalated` in generator metadata,
+repair history, and the repair ledger. To run the second pass with
 Claude after the deterministic residual/context stages have completed, use
 `--feedback-llm-route-planner-provider anthropic
 --feedback-llm-route-planner-invoke-provider`; Anthropic defaults to Claude
