@@ -1603,6 +1603,117 @@ def test_proof_audit_learning_export_marks_kernel_verified_obligations_as_memory
     assert rejected == ()
 
 
+def test_theorem_reduction_closure_learning_export_keeps_closure_memory_separate(
+    tmp_path: Path,
+) -> None:
+    closure_manifest = tmp_path / "theorem_reduction_closure_work_order_audit_manifest.json"
+    closure_manifest.write_text(
+        json.dumps(
+            {
+                "proof_evidence_status": "KERNEL_VERIFIED_THEOREM_CLOSURE_PRESENT",
+                "local_lean_project": "/tmp/LeanPractice",
+                "local_lean_timeout_seconds": 240,
+                "checks": [
+                    {
+                        "work_order_id": "theorem_reduction_closure_work_order:good_rank",
+                        "source_formal_target_id": (
+                            "split_conformal_finite_sample_coverage_reduction_closure"
+                        ),
+                        "target_theorem_goal_ids": [
+                            "split_conformal_finite_sample_coverage"
+                        ],
+                        "verified_bridge_obligation_ids": [
+                            "prob_measure_univ",
+                            "split_conformal_good_rank_coverage_bridge",
+                        ],
+                        "kernel_verified": True,
+                    },
+                    {
+                        "work_order_id": "theorem_reduction_closure_work_order:placeholder",
+                        "source_formal_target_id": "placeholder",
+                        "target_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
+                        "verified_bridge_obligation_ids": ["prob_compl"],
+                        "kernel_verified": False,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "closure_learning_export"
+
+    code = main(
+        [
+            "theorem-reduction-closure-learning-export",
+            "--theorem-reduction-closure-audit-manifest",
+            str(closure_manifest),
+            "--question-id",
+            "conformal_prediction_coverage",
+            "--out",
+            str(out_dir),
+        ]
+    )
+
+    assert code == 0
+    learning_path = out_dir / "runtime_learning_rows.jsonl"
+    memory = _load_runtime_learning_memory([learning_path])
+    assert memory["counts"]["rows_loaded"] == 1
+    row = memory["rows"][0]
+    assert row["kernel_verified_theorem_reduction_closure_work_order_ids"] == [
+        "theorem_reduction_closure_work_order:good_rank"
+    ]
+    assert row["kernel_verified_theorem_reduction_closure_target_ids"] == [
+        "split_conformal_finite_sample_coverage_reduction_closure"
+    ]
+    assert row["kernel_verified_theorem_reduction_closure_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert row["verified_bridge_obligation_ids"] == [
+        "prob_measure_univ",
+        "split_conformal_good_rank_coverage_bridge",
+    ]
+
+    kernel_verified = _runtime_learning_memory_kernel_verified_proof_obligation_ids(
+        {
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [row],
+            }
+        },
+        catalog_ids=(
+            "prob_measure_univ",
+            "split_conformal_good_rank_coverage_bridge",
+        ),
+    )
+    selected, off_catalog, rejected = _runtime_learning_memory_proof_obligation_ids(
+        {
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [row],
+            }
+        },
+        catalog_ids=(
+            "prob_measure_univ",
+            "split_conformal_good_rank_coverage_bridge",
+        ),
+    )
+
+    assert kernel_verified == ()
+    assert selected == ()
+    assert off_catalog == ()
+    assert rejected == ()
+
+    export_manifest = json.loads(
+        (
+            out_dir / "theorem_reduction_closure_runtime_learning_export_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert (
+        export_manifest["n_kernel_verified_theorem_reduction_closure_work_order_ids"]
+        == 1
+    )
+
+
 def _architect_sample_response() -> dict[str, object]:
     return {
         "intake_assessment": {

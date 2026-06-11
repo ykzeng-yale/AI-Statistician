@@ -455,6 +455,10 @@ def _compact_runtime_learning_memory_row(row: Mapping[str, object]) -> dict[str,
         "proved_non_kernel_proof_obligation_ids",
         "failed_proof_obligation_ids",
         "formal_gap_target_ids",
+        "kernel_verified_theorem_reduction_closure_work_order_ids",
+        "kernel_verified_theorem_reduction_closure_target_ids",
+        "kernel_verified_theorem_reduction_closure_goal_ids",
+        "verified_bridge_obligation_ids",
     ):
         values = row.get(key, ())
         if isinstance(values, list):
@@ -517,6 +521,103 @@ def _proof_audit_learning_export(args: argparse.Namespace) -> int:
     print("\nAI Statistician Proof-Audit Runtime Learning Export")
     print("=" * 72)
     print(f"kernel_verified_ids={len(kernel_ids)}")
+    print(f"runtime learning rows written to {learning_path.resolve()}")
+    print(f"export manifest written to {manifest_out.resolve()}")
+    return 0
+
+
+def _theorem_reduction_closure_learning_export(args: argparse.Namespace) -> int:
+    manifest_path = Path(args.theorem_reduction_closure_audit_manifest)
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    checks = payload.get("checks", [])
+    if not isinstance(checks, list):
+        raise ValueError(
+            "theorem reduction closure audit manifest checks is not a list: "
+            f"{manifest_path}"
+        )
+    verified_checks = [
+        row
+        for row in checks
+        if isinstance(row, Mapping) and row.get("kernel_verified") is True
+    ]
+    work_order_ids = [
+        str(row.get("work_order_id", "")).strip()
+        for row in verified_checks
+        if str(row.get("work_order_id", "")).strip()
+    ]
+    target_ids = [
+        str(row.get("source_formal_target_id", "")).strip()
+        for row in verified_checks
+        if str(row.get("source_formal_target_id", "")).strip()
+    ]
+    goal_ids: list[str] = []
+    bridge_ids: list[str] = []
+    for row in verified_checks:
+        for goal_id in row.get("target_theorem_goal_ids", []) or []:
+            text = str(goal_id).strip()
+            if text and text not in goal_ids:
+                goal_ids.append(text)
+        for obligation_id in row.get("verified_bridge_obligation_ids", []) or []:
+            text = str(obligation_id).strip()
+            if text and text not in bridge_ids:
+                bridge_ids.append(text)
+    work_order_ids = list(dict.fromkeys(work_order_ids))
+    target_ids = list(dict.fromkeys(target_ids))
+    row = {
+        "schema_version": 1,
+        "question_id": str(args.question_id or ""),
+        "learning_task": "theorem_reduction_closure_kernel_overlay",
+        "input_summary": {
+            "theorem_reduction_closure_audit_manifest": str(manifest_path),
+            "kernel_verified_theorem_reduction_closure_work_order_ids": work_order_ids,
+            "kernel_verified_theorem_reduction_closure_target_ids": target_ids,
+            "kernel_verified_theorem_reduction_closure_goal_ids": goal_ids,
+            "verified_bridge_obligation_ids": bridge_ids,
+            "proof_evidence_status": str(payload.get("proof_evidence_status", "")),
+            "local_lean_project": str(payload.get("local_lean_project", "")),
+            "local_lean_timeout_seconds": payload.get("local_lean_timeout_seconds", ""),
+        },
+        "kernel_verified_theorem_reduction_closure_work_order_ids": work_order_ids,
+        "kernel_verified_theorem_reduction_closure_target_ids": target_ids,
+        "kernel_verified_theorem_reduction_closure_goal_ids": goal_ids,
+        "verified_bridge_obligation_ids": bridge_ids,
+        "target_behavior": (
+            "Treat listed theorem-reduction closure work orders as already kernel-verified "
+            "theorem-level reductions for routing memory. Do not treat them as full source "
+            "theorem proof, and do not add their bridge ids as newly proved proof-bank subclaims."
+        ),
+        "acceptance_gate": (
+            "Only checks with kernel_verified=true from the referenced "
+            "theorem_reduction_closure_work_order_audit_manifest are exported."
+        ),
+        "boundary": (
+            "Theorem-closure learning rows are runtime memory and routing guidance. "
+            "They preserve the referenced local Lean/AXLE audit manifest as proof evidence "
+            "for the closure reduction only; they do not prove upstream statistical semantics "
+            "or the full paper/source theorem."
+        ),
+    }
+    learning_path = out_dir / "runtime_learning_rows.jsonl"
+    learning_path.write_text(json.dumps(row, default=str) + "\n", encoding="utf-8")
+    export_manifest = {
+        "schema_version": 1,
+        "artifact_kind": "TheoremReductionClosureRuntimeLearningExportManifest",
+        "theorem_reduction_closure_audit_manifest": str(manifest_path),
+        "runtime_learning_rows_jsonl": str(learning_path),
+        "n_kernel_verified_theorem_reduction_closure_work_order_ids": len(work_order_ids),
+        "kernel_verified_theorem_reduction_closure_work_order_ids": work_order_ids,
+        "kernel_verified_theorem_reduction_closure_target_ids": target_ids,
+        "kernel_verified_theorem_reduction_closure_goal_ids": goal_ids,
+        "verified_bridge_obligation_ids": bridge_ids,
+        "boundary": row["boundary"],
+    }
+    manifest_out = out_dir / "theorem_reduction_closure_runtime_learning_export_manifest.json"
+    manifest_out.write_text(json.dumps(export_manifest, indent=2, default=str), encoding="utf-8")
+    print("\nAI Statistician Theorem-Reduction Closure Runtime Learning Export")
+    print("=" * 72)
+    print(f"kernel_verified_closure_work_orders={len(work_order_ids)}")
     print(f"runtime learning rows written to {learning_path.resolve()}")
     print(f"export manifest written to {manifest_out.resolve()}")
     return 0
@@ -6410,6 +6511,35 @@ def build_parser() -> argparse.ArgumentParser:
         help="output directory for runtime_learning_rows.jsonl and manifest",
     )
     proof_audit_learning_export.set_defaults(func=_proof_audit_learning_export)
+
+    theorem_reduction_closure_learning_export = sub.add_parser(
+        "theorem-reduction-closure-learning-export",
+        help=(
+            "convert kernel-verified theorem-reduction closure audit rows into "
+            "runtime_learning_rows.jsonl for AgentRuntime routing memory"
+        ),
+    )
+    theorem_reduction_closure_learning_export.add_argument(
+        "--theorem-reduction-closure-audit-manifest",
+        required=True,
+        help=(
+            "path to theorem_reduction_closure_work_order_audit_manifest.json "
+            "containing kernel-verified closure checks"
+        ),
+    )
+    theorem_reduction_closure_learning_export.add_argument(
+        "--question-id",
+        default="",
+        help="optional question id to attach to the runtime learning row",
+    )
+    theorem_reduction_closure_learning_export.add_argument(
+        "--out",
+        default="runs/theorem_reduction_closure_learning_export",
+        help="output directory for runtime_learning_rows.jsonl and manifest",
+    )
+    theorem_reduction_closure_learning_export.set_defaults(
+        func=_theorem_reduction_closure_learning_export
+    )
 
     proof_training_export = sub.add_parser(
         "proof-training-export",
