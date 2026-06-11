@@ -559,7 +559,7 @@ def test_route_revision_overlay_keeps_rocq_resource_hits_portable() -> None:
                 "component_name": "formalization_gap_planner_resource_response_ledger",
                 "rows": [
                     {
-                        "schema_version": 8,
+                        "schema_version": 9,
                         "resource_response_ledger_id": "ledger:rocq_exchangeability",
                         "resource_request_id": "request:rocq_exchangeability",
                         "goal_plan_id": "goal:rocq_ledger",
@@ -837,7 +837,7 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                 "component_name": "formalization_gap_planner_resource_response_ledger",
                 "rows": [
                     {
-                        "schema_version": 8,
+                        "schema_version": 9,
                         "resource_response_ledger_id": "ledger:rank_uniformity",
                         "resource_request_id": "request:rank_uniformity",
                         "action_resource_plan_id": "action-resource-plan:rank_uniformity",
@@ -848,6 +848,9 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                         "display_name": display_name,
                         "primitive": "rank_uniformity",
                         "target_primitives": ["rank_uniformity"],
+                        "actionable_work_items": [
+                            "rank_uniformity: prove finite rank uniformity from exchangeability"
+                        ],
                         "coverage_bucket": "bridge_needed",
                         "queue_action_kind": "prove_bridge_lemma",
                         "target_prover_family": "lean4",
@@ -1011,6 +1014,9 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert trace["resource_request_id"] == "request:rank_uniformity"
     assert trace["resource_id"] == "lean_lsp_mcp"
     assert trace["target_primitives"] == ("rank_uniformity",)
+    assert trace["actionable_work_items"] == (
+        "rank_uniformity: prove finite rank uniformity from exchangeability",
+    )
     assert trace["quality_controls"]["resource_contract_ids"] == (
         "lean_lsp:proof_state_feedback",
     )
@@ -1045,6 +1051,9 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert llm_trace["trace_source"] == "resource_response_ledger"
     assert llm_trace["resource_response_ledger_id"] == "ledger:rank_uniformity"
     assert llm_trace["resource_request_id"] == "request:rank_uniformity"
+    assert llm_trace["actionable_work_items"] == (
+        "rank_uniformity: prove finite rank uniformity from exchangeability",
+    )
     assert llm_trace["llm_route_planner_row_id"] == "llm_route_row:rank"
     assert llm_trace["llm_route_planner_request_id"] == "llm_route_request:rank"
     assert llm_trace["llm_route_planner_source_kind"] == "planner_next_action"

@@ -60,6 +60,22 @@ def _build_request_queue(
                     "A distribution-free rank bound follows from exchangeability."
                 ),
                 "source_refs": ["conformal_prediction_textbook"],
+                "replan_metadata": {
+                    "llm_route_planner_minimal_delta_plan": {
+                        "bridge_lemmas": [
+                            (
+                                "rank_uniformity: prove finite rank uniformity "
+                                "from exchangeability"
+                            )
+                        ],
+                        "source_port_lemmas": [
+                            (
+                                "coverage_inequality: port the source-backed "
+                                "coverage inequality"
+                            )
+                        ],
+                    }
+                },
                 "primitives": [
                     {
                         "primitive": "rank_uniformity",
@@ -630,6 +646,7 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
                 "expected_response_artifact"
             ],
             "response_payload": {
+                "actionable_work_items": source_request["actionable_work_items"],
                 "source_refs": ["Vovk-Gammerman-Shafer conformal prediction"],
                 "route_evidence_nodes": [
                     {
@@ -640,6 +657,7 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
                 "response_summary": "source route evidence found",
             },
             "source_refs": ["Vovk-Gammerman-Shafer conformal prediction"],
+            "actionable_work_items": source_request["actionable_work_items"],
             "route_evidence_nodes": [
                 {
                     "node_id": "informal:coverage_inequality:source",
@@ -659,6 +677,7 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
             ],
             "response_payload": {
                 "target_primitives": proof_request["target_primitives"],
+                "actionable_work_items": proof_request["actionable_work_items"],
                 "lean_declaration_hits": [
                     {
                         "declaration": "Mathlib.Probability.RankUniformityBridge",
@@ -675,6 +694,7 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
                 ],
             },
             "prover_diagnostics": ["unknown identifier rank_uniformity"],
+            "actionable_work_items": proof_request["actionable_work_items"],
             "residual_goals": ["prove finite rank denominator is nonzero"],
             "route_revision_recommended": True,
             "route_revision_reasons": [
@@ -721,6 +741,8 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert payload["n_with_quality_controls"] == payload["n_ledger_rows"]
     assert payload["n_rows_with_target_primitives"] == payload["n_ledger_rows"]
     assert payload["n_target_primitives"] == payload["n_ledger_rows"]
+    assert payload["n_rows_with_actionable_work_items"] == payload["n_ledger_rows"]
+    assert payload["n_actionable_work_items"] == payload["n_ledger_rows"]
     assert payload["n_rows_with_formal_declaration_hits"] == 1
     assert payload["n_formal_declaration_hits"] == 1
     assert payload["n_rows_with_legacy_lean_declaration_hits"] == 1
@@ -735,6 +757,9 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert "formal_declaration_hits" in payload[
         "resource_response_ledger_row_schema"
     ]["required"]
+    assert "actionable_work_items" in payload[
+        "resource_response_ledger_row_schema"
+    ]["required"]
     source_ledger = next(
         row
         for row in payload["rows"]
@@ -743,6 +768,9 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert source_ledger["acceptance_status"] == "ACCEPTED_RESOURCE_RESPONSE"
     assert tuple(source_ledger["target_primitives"]) == tuple(
         source_request["target_primitives"]
+    )
+    assert tuple(source_ledger["actionable_work_items"]) == tuple(
+        source_request["actionable_work_items"]
     )
     assert source_ledger["request_playbook_present"]
     assert source_ledger["response_playbook_grounded"]
@@ -778,6 +806,9 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert proof_ledger["acceptance_status"] == "ACCEPTED_WITH_ROUTE_REVISION"
     assert tuple(proof_ledger["target_primitives"]) == tuple(
         proof_request["target_primitives"]
+    )
+    assert tuple(proof_ledger["actionable_work_items"]) == tuple(
+        proof_request["actionable_work_items"]
     )
     assert proof_ledger["request_playbook_present"]
     assert proof_ledger["response_playbook_grounded"]
@@ -1031,6 +1062,76 @@ def test_resource_response_ledger_rejects_expanded_target_primitives() -> None:
     malformed["response_contract_ok"] = True
     assert (
         "rejected resource response rows must not set response_contract_ok=true"
+        in validate_resource_response_ledger_row(
+            malformed,
+            resource_response_ledger_row_json_schema(),
+        )
+    )
+
+
+def test_resource_response_ledger_rejects_expanded_actionable_work_items() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_resource_response_ledger_action_scope"
+    )
+    ledger_dir = root / "ledger"
+    response_jsonl = root / "resource_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    request_payload, request_queue_dir = _build_request_queue(root)
+    request = next(
+        row for row in request_payload["rows"] if row["resource_id"] == "lean_lsp_mcp"
+    )
+    expanded_action_items = [
+        *request["actionable_work_items"],
+        "spectral_gap: prove an unrelated spectral gap bridge",
+    ]
+    response = {
+        "resource_request_id": request["resource_request_id"],
+        "resource_id": request["resource_id"],
+        "expected_response_artifact": request["expected_response_artifact"],
+        "actionable_work_items": expanded_action_items,
+        "response_payload": {
+            "prover_diagnostics": ["unknown identifier rank_uniformity"],
+            "actionable_work_items": expanded_action_items,
+        },
+        "prover_diagnostics": ["unknown identifier rank_uniformity"],
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+    response_jsonl.write_text(
+        json.dumps(response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    assert payload["n_response_schema_valid"] == 1
+    assert payload["n_response_contract_ok"] == 0
+    row = next(
+        row
+        for row in payload["rows"]
+        if row["resource_request_id"] == request["resource_request_id"]
+    )
+    assert row["acceptance_status"] == "REJECTED_RESPONSE_ACTIONABLE_SCOPE_EXPANSION"
+    assert row["response_contract_ok"] is False
+    assert "spectral_gap: prove an unrelated spectral gap bridge" in row[
+        "actionable_work_items"
+    ]
+    assert any(
+        "actionable_work_items must not expand beyond resource request actionable_work_items"
+        in error
+        and "spectral_gap" in error
+        for error in row["errors"]
+    )
+    malformed = dict(row)
+    malformed["response_contract_ok"] = True
+    assert (
+        "actionable scope expansion rows must not set response_contract_ok=true"
         in validate_resource_response_ledger_row(
             malformed,
             resource_response_ledger_row_json_schema(),

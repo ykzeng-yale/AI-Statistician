@@ -884,7 +884,9 @@ families must match the queued request target, and non-Lean targets must use
 `formal_declaration_hits` rather than the Lean legacy alias. Responses that
 try to expand `target_primitives` beyond the queued request scope are rejected
 and cannot count as `response_contract_ok`, instead of silently broadening the
-formalization target. When bundled,
+formalization target. The same rule applies to `actionable_work_items`: the
+ledger carries the queued work items forward, accepts exact response echoes, and
+rejects responses that introduce unrelated formalization tasks. When bundled,
 the publication audit checks that each ledger row resolves to its request row
 and that matched plus missing response fields exactly account for that
 resource request's response contract. Ledger rows also retain the request

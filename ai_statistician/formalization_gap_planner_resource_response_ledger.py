@@ -16,7 +16,7 @@ from .formalization_gap_planner_resource_request_queue import (
 from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
-FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 8
+FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 9
 QUALITY_CONTROL_FIELDS = (
     "resource_contract_ids",
     "required_quality_signals",
@@ -30,7 +30,7 @@ RESOURCE_RESPONSE_SCHEMA_ID = (
 )
 RESOURCE_RESPONSE_LEDGER_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
-    "formalization-gap-planner-resource-response-ledger-row:8"
+    "formalization-gap-planner-resource-response-ledger-row:9"
 )
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_NOT_PROOF_EVIDENCE"
@@ -56,6 +56,7 @@ class FormalizationGapPlannerResourceResponseLedgerRow:
     display_name: str
     primitive: str
     target_primitives: tuple[str, ...]
+    actionable_work_items: tuple[str, ...]
     coverage_bucket: str
     queue_action_kind: str
     target_prover_family: str
@@ -277,6 +278,12 @@ def export_formalization_gap_planner_resource_response_ledger(
             1 for row in rows if row.target_primitives
         ),
         "n_target_primitives": sum(len(row.target_primitives) for row in rows),
+        "n_rows_with_actionable_work_items": sum(
+            1 for row in rows if row.actionable_work_items
+        ),
+        "n_actionable_work_items": sum(
+            len(row.actionable_work_items) for row in rows
+        ),
         "n_route_revision_recommended": sum(
             1 for row in rows if row.route_revision_recommended
         ),
@@ -385,6 +392,7 @@ def resource_response_json_schema() -> dict[str, object]:
             "response_artifacts": string_array,
             "source_refs": string_array,
             "target_primitives": string_array,
+            "actionable_work_items": string_array,
             "route_evidence_nodes": object_array,
             "formal_declaration_hits": object_array,
             "lean_declaration_hits": object_array,
@@ -442,6 +450,7 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
         "display_name",
         "primitive",
         "target_primitives",
+        "actionable_work_items",
         "coverage_bucket",
         "queue_action_kind",
         "target_prover_family",
@@ -523,6 +532,7 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
             "display_name": {"type": "string", "minLength": 1},
             "primitive": {"type": "string", "minLength": 1},
             "target_primitives": string_array,
+            "actionable_work_items": string_array,
             "coverage_bucket": {"type": "string", "minLength": 1},
             "queue_action_kind": {"type": "string", "minLength": 1},
             "target_prover_family": {"type": "string", "minLength": 1},
@@ -677,6 +687,14 @@ def validate_resource_response_ledger_row(
         errors.append(
             "LLM route-planner trace mismatches must not set response_contract_ok=true"
         )
+    if (
+        str(row.get("acceptance_status", ""))
+        == "REJECTED_RESPONSE_ACTIONABLE_SCOPE_EXPANSION"
+        and bool(row.get("response_contract_ok", False))
+    ):
+        errors.append(
+            "actionable scope expansion rows must not set response_contract_ok=true"
+        )
     return errors
 
 
@@ -708,6 +726,7 @@ def _ledger_row(
     request_target_primitives = _request_target_primitives(request_row)
     request_playbook = _dict_value(request_row, "request_playbook")
     request_playbook_present = bool(request_playbook)
+    request_actionable_work_items = _request_actionable_work_items(request_row)
     llm_trace = _llm_route_planner_trace_from_request(request_row)
     llm_trace_present = bool(llm_trace["trace_present"])
     llm_trace_grounded, llm_trace_mismatches = (
@@ -736,6 +755,15 @@ def _ledger_row(
     target_primitives = response_target_primitives or request_target_primitives
     expanded_target_primitives = sorted(
         set(response_target_primitives) - set(request_target_primitives)
+    )
+    response_actionable_work_items = _str_tuple(
+        response_values.get("actionable_work_items", [])
+    )
+    actionable_work_items = (
+        response_actionable_work_items or request_actionable_work_items
+    )
+    expanded_actionable_work_items = sorted(
+        set(response_actionable_work_items) - set(request_actionable_work_items)
     )
     formal_declaration_hits = _dict_tuple(
         response_values.get(
@@ -786,6 +814,11 @@ def _ledger_row(
             "target_primitives must not expand beyond resource request target_primitives: "
             + ", ".join(expanded_target_primitives[:8])
         )
+    if response_present and expanded_actionable_work_items:
+        row_errors.append(
+            "actionable_work_items must not expand beyond resource request actionable_work_items: "
+            + ", ".join(expanded_actionable_work_items[:8])
+        )
     if response_present and declaration_hit_errors:
         row_errors.extend(declaration_hit_errors)
     if response_present and llm_trace_mismatches:
@@ -810,6 +843,7 @@ def _ledger_row(
         and not kernel_claimed
         and response_contract_minimum_met
         and not expanded_target_primitives
+        and not expanded_actionable_work_items
         and not declaration_hit_errors
         and not llm_trace_mismatches
         and (not request_playbook_present or response_playbook_grounded)
@@ -826,6 +860,8 @@ def _ledger_row(
         acceptance_status = "REJECTED_MISSING_RESPONSE_CONTRACT_FIELDS"
     elif expanded_target_primitives:
         acceptance_status = "REJECTED_RESPONSE_TARGET_SCOPE_EXPANSION"
+    elif expanded_actionable_work_items:
+        acceptance_status = "REJECTED_RESPONSE_ACTIONABLE_SCOPE_EXPANSION"
     elif declaration_hit_errors:
         acceptance_status = "REJECTED_DECLARATION_TARGET_MISMATCH"
     elif llm_trace_mismatches:
@@ -863,6 +899,7 @@ def _ledger_row(
         display_name=str(request_row.get("display_name", "")),
         primitive=str(request_row.get("primitive", "")),
         target_primitives=target_primitives,
+        actionable_work_items=actionable_work_items,
         coverage_bucket=str(request_row.get("coverage_bucket", "")),
         queue_action_kind=str(request_row.get("queue_action_kind", "")),
         target_prover_family=target_prover_family,
@@ -1165,6 +1202,23 @@ def _request_target_primitives(request_row: dict[str, Any]) -> tuple[str, ...]:
     return tuple(dict.fromkeys([*explicit, *([primitive] if primitive else [])]))
 
 
+def _request_actionable_work_items(request_row: dict[str, Any]) -> tuple[str, ...]:
+    request_payload = _dict_value(request_row, "request_payload")
+    request_playbook = _dict_value(request_row, "request_playbook")
+    playbook_summary = _dict_value(request_playbook, "input_summary")
+    return tuple(
+        dict.fromkeys(
+            _str_tuple(
+                [
+                    *_str_tuple(request_row.get("actionable_work_items", [])),
+                    *_str_tuple(request_payload.get("actionable_work_items", [])),
+                    *_str_tuple(playbook_summary.get("actionable_work_items", [])),
+                ]
+            )
+        )
+    )
+
+
 def _quality_controls_for_ledger_row(
     request_row: dict[str, Any],
     request_playbook: dict[str, Any],
@@ -1248,6 +1302,9 @@ def _response_playbook_grounding(
                 " ".join(_str_tuple(response_values.get("residual_goals", []))),
                 " ".join(
                     _str_tuple(response_values.get("route_revision_reasons", []))
+                ),
+                " ".join(
+                    _str_tuple(response_values.get("actionable_work_items", []))
                 ),
                 str(response_values.get("prover_attempt_status", "")),
                 str(response_values.get("prover_diagnostic_signature", "")),
@@ -1574,6 +1631,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Input responses: {payload.get('n_input_responses')}",
         f"- Responses present: {payload.get('n_response_present')}",
         f"- Awaiting responses: {payload.get('n_awaiting_response')}",
+        (
+            f"- Rows with actionable work items: "
+            f"{payload.get('n_rows_with_actionable_work_items')}/"
+            f"{payload.get('n_ledger_rows')}"
+        ),
+        f"- Actionable work items: {payload.get('n_actionable_work_items')}",
         f"- Contract minimum met: {payload.get('n_response_contract_minimum_met')}",
         f"- Contract OK: {payload.get('n_response_contract_ok')}",
         (
