@@ -68,6 +68,7 @@ class FormalizationGapPlannerRefinementEvidenceRow:
     prover_attempt_status: str
     prover_attempt_class: str
     target_prover_family: str
+    source_target_prover_family: str
     prover_diagnostic_signature: str
     route_revision_summary: str
     revised_selected_primitives: tuple[str, ...]
@@ -143,6 +144,23 @@ def export_formalization_gap_planner_refinement_evidence(
         or row.hook_kind == "route_revision"
         or row.prover_attempt_status
     ]
+    declaration_hit_target_error_counts = tuple(
+        len(
+            _declaration_hit_target_errors(
+                _target_prover_key(row.target_prover_family),
+                row.formal_declaration_hits,
+                field_name="formal_declaration_hits",
+            )
+        )
+        + len(
+            _declaration_hit_target_errors(
+                _target_prover_key(row.target_prover_family),
+                row.lean_declaration_hits,
+                field_name="lean_declaration_hits",
+            )
+        )
+        for row in rows
+    )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_REFINEMENT_EVIDENCE_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -187,6 +205,27 @@ def export_formalization_gap_planner_refinement_evidence(
             + by_hook_kind.get("lean_library_grounding", 0)
         ),
         "n_lean_grounding_evidence": by_hook_kind.get("lean_library_grounding", 0),
+        "n_target_prover_family_mismatch_rows": sum(
+            1
+            for row in rows
+            if any(
+                str(error).startswith("target_prover_family mismatch:")
+                for error in row.errors
+            )
+        ),
+        "n_cross_prover_feedback_retargeted_rows": sum(
+            1
+            for row in rows
+            if row.source_target_prover_family
+            and _target_prover_key(row.source_target_prover_family)
+            != _target_prover_key(row.target_prover_family)
+        ),
+        "n_declaration_hit_target_mismatch_rows": sum(
+            1 for count in declaration_hit_target_error_counts if count
+        ),
+        "n_declaration_hit_target_mismatches": sum(
+            declaration_hit_target_error_counts
+        ),
         "n_prover_feedback_evidence": by_hook_kind.get("proof_state_feedback", 0),
         "n_route_revision_evidence": by_hook_kind.get("route_revision", 0),
         "n_route_revision_recommended": sum(
@@ -395,6 +434,7 @@ def refinement_evidence_row_json_schema() -> dict[str, object]:
             "prover_attempt_status",
             "prover_attempt_class",
             "target_prover_family",
+            "source_target_prover_family",
             "prover_diagnostic_signature",
             "route_revision_summary",
             "revised_selected_primitives",
@@ -449,6 +489,7 @@ def refinement_evidence_row_json_schema() -> dict[str, object]:
             "prover_attempt_status": {"type": "string"},
             "prover_attempt_class": {"type": "string"},
             "target_prover_family": {"type": "string"},
+            "source_target_prover_family": {"type": "string"},
             "prover_diagnostic_signature": {"type": "string"},
             "route_revision_summary": {"type": "string"},
             "revised_selected_primitives": string_array,
@@ -577,6 +618,9 @@ def _evidence_row(
             prover_attempt_status="",
             prover_attempt_class="",
             target_prover_family=str(queue_row.get("target_prover_family", "")),
+            source_target_prover_family=str(
+                queue_row.get("target_prover_family", "")
+            ),
             prover_diagnostic_signature="",
             route_revision_summary="",
             revised_selected_primitives=(),
@@ -657,12 +701,37 @@ def _evidence_row(
         source_snippets = _source_snippets_from_route_evidence_nodes(
             route_evidence_nodes
         )
-    target_prover_family = str(
-        response.get(
-            "target_prover_family",
-            queue_row.get("target_prover_family", ""),
-        )
+    queue_target_prover_family = str(queue_row.get("target_prover_family", "")).strip()
+    response_target_prover_family = str(response.get("target_prover_family", "")).strip()
+    queue_target_key = _target_prover_key(queue_target_prover_family)
+    response_target_key = _target_prover_key(response_target_prover_family)
+    cross_prover_feedback = _is_cross_prover_feedback_response(
+        hook_kind,
+        tool_name,
+        queue_target_key=queue_target_key,
+        response_target_key=response_target_key,
     )
+    target_prover_family = (
+        response_target_prover_family
+        if cross_prover_feedback
+        else queue_target_prover_family or response_target_prover_family
+    )
+    source_target_prover_family = (
+        queue_target_prover_family
+        if cross_prover_feedback
+        else target_prover_family
+    )
+    if (
+        queue_target_key
+        and response_target_key
+        and queue_target_key != response_target_key
+        and not cross_prover_feedback
+    ):
+        errors.append(
+            "target_prover_family mismatch: "
+            f"response={response_target_prover_family} "
+            f"queue={queue_target_prover_family}"
+        )
     formal_declaration_hits = _dict_tuple(
         response.get("formal_declaration_hits", response.get("lean_declaration_hits", []))
     )
@@ -671,6 +740,19 @@ def _evidence_row(
         _dict_tuple(response.get("lean_declaration_hits", [])),
         fallback_rows=formal_declaration_hits,
     )
+    declaration_hit_errors = (
+        _declaration_hit_target_errors(
+            _target_prover_key(target_prover_family),
+            formal_declaration_hits,
+            field_name="formal_declaration_hits",
+        )
+        + _declaration_hit_target_errors(
+            _target_prover_key(target_prover_family),
+            lean_declaration_hits,
+            field_name="lean_declaration_hits",
+        )
+    )
+    errors.extend(declaration_hit_errors)
     coverage_updates = _coverage_updates(response.get("coverage_updates", {}), errors)
     prover_diagnostics = _str_tuple(response.get("prover_diagnostics", []))
     residual_goals = _str_tuple(response.get("residual_goals", []))
@@ -796,6 +878,7 @@ def _evidence_row(
         prover_attempt_status=prover_attempt_status,
         prover_attempt_class=prover_attempt_class,
         target_prover_family=target_prover_family,
+        source_target_prover_family=source_target_prover_family,
         prover_diagnostic_signature=prover_diagnostic_signature,
         route_revision_summary=route_revision_summary,
         revised_selected_primitives=revised_selected_primitives,
@@ -824,6 +907,10 @@ def _route_revision_proposal(
         "goal_plan_id": row.goal_plan_id,
         "route_id": row.route_id,
         "display_name": row.display_name,
+        "response_contract_ok": row.response_contract_ok,
+        "acceptance_status": row.acceptance_status,
+        "ok": row.ok,
+        "errors": row.errors,
         "hook_kind": row.hook_kind,
         "resource_request_ids": row.resource_request_ids,
         "resource_ids": row.resource_ids,
@@ -845,6 +932,7 @@ def _route_revision_proposal(
         "prover_attempt_status": row.prover_attempt_status,
         "prover_attempt_class": row.prover_attempt_class,
         "target_prover_family": row.target_prover_family,
+        "source_target_prover_family": row.source_target_prover_family,
         "prover_diagnostic_signature": row.prover_diagnostic_signature,
         "source_snippets": row.source_snippets,
         "required_gate": (
@@ -903,17 +991,108 @@ def _lean_alias_rows_for_target(
     return rows or fallback_rows
 
 
+def _is_cross_prover_feedback_response(
+    hook_kind: str,
+    tool_name: str,
+    *,
+    queue_target_key: str,
+    response_target_key: str,
+) -> bool:
+    if hook_kind != "proof_state_feedback":
+        return False
+    if tool_name != "target_prover_adapter_feedback_adapter":
+        return False
+    return bool(queue_target_key and response_target_key and queue_target_key != response_target_key)
+
+
+def _declaration_hit_target_errors(
+    row_target: str,
+    rows: tuple[dict[str, object], ...],
+    *,
+    field_name: str,
+) -> tuple[str, ...]:
+    if not row_target:
+        return tuple()
+    errors: list[str] = []
+    for index, declaration_row in enumerate(rows):
+        explicit_target = _target_prover_key(
+            declaration_row.get("target_prover_family", "")
+            or declaration_row.get("target_prover", "")
+        )
+        source_type_target = _declaration_hit_source_type_target_key(declaration_row)
+        if explicit_target and explicit_target != row_target:
+            errors.append(
+                f"{field_name}[{index}].target_prover_family must match "
+                "row target_prover_family"
+            )
+        if (
+            not explicit_target
+            and source_type_target
+            and source_type_target != row_target
+        ):
+            errors.append(
+                f"{field_name}[{index}].source_type implies {source_type_target} "
+                "but row target_prover_family is "
+                f"{row_target}"
+            )
+    return tuple(errors)
+
+
+def _declaration_hit_source_type_target_key(row: dict[str, object]) -> str:
+    source_type = (
+        row.get("source_type")
+        or row.get("source_kind")
+        or row.get("library_family")
+        or row.get("source_prover_family")
+        or row.get("prover_family")
+        or ""
+    )
+    return _source_type_target_prover_key(source_type)
+
+
+def _source_type_target_prover_key(value: object) -> str:
+    key = _target_prover_key(value)
+    if not key:
+        return ""
+    tokens = {token for token in re.split(r"[^a-z0-9]+", key) if token}
+    if key in {"mathlib", "lean4_library"} or {"lean", "lean4", "mathlib"} & tokens:
+        return "lean4"
+    if key in {"coq", "coq8", "coq_library", "rocq_library"} or {
+        "coq",
+        "coq8",
+        "rocq",
+    } & tokens:
+        return "rocq"
+    if key in {"isabelle_hol", "isabelle_library"} or "isabelle" in tokens:
+        return "isabelle"
+    if key in {"agda_library"} or "agda" in tokens:
+        return "agda"
+    return ""
+
+
 def _is_lean_target_prover(target_prover_family: str) -> bool:
-    key = re.sub(
-        r"[^a-z0-9]+",
-        "_",
-        str(target_prover_family).strip().lower(),
-    ).strip("_")
+    key = _target_prover_key(target_prover_family)
     if not key:
         return True
     return key in {"lean", "lean4", "lean_4"} or key.startswith(
         ("lean4_", "lean_4_", "lean_")
     )
+
+
+def _target_prover_key(value: object) -> str:
+    key = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        str(value).strip().lower(),
+    ).strip("_")
+    aliases = {
+        "coq": "rocq",
+        "coq8": "rocq",
+        "lean": "lean4",
+        "lean_4": "lean4",
+        "isabelle_hol": "isabelle",
+    }
+    return aliases.get(key, key)
 
 
 def _match_responses_to_queue_rows(
@@ -1228,6 +1407,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Contract OK: {payload.get('n_contract_ok')}",
         f"- Awaiting tool response: {payload.get('n_awaiting_tool_response')}",
         f"- Source snippets: {payload.get('n_source_snippets')}",
+        f"- Cross-prover feedback retargeted rows: {payload.get('n_cross_prover_feedback_retargeted_rows')}",
+        f"- Target prover family mismatch rows: {payload.get('n_target_prover_family_mismatch_rows')}",
+        f"- Declaration-hit target mismatches: {payload.get('n_declaration_hit_target_mismatches')}",
         f"- Route revision recommended: {payload.get('n_route_revision_recommended')}",
         f"- Route revision proposals: {payload.get('n_route_revision_proposals')}",
         f"- Prover attempt statuses: {payload.get('by_prover_attempt_status')}",
