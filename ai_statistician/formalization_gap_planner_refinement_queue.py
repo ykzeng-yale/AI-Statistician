@@ -475,8 +475,11 @@ def _refinement_row(
     goal_plan_id = str(plan_row.get("goal_plan_id", ""))
     route_id = str(plan_row.get("route_id", ""))
     display_name = str(plan_row.get("display_name", ""))
-    hook_kind = str(hook.get("hook_kind", ""))
     target_prover_family = _target_prover_family(plan_row, hook)
+    hook_kind = _target_scoped_hook_kind(
+        str(hook.get("hook_kind", "")),
+        target_prover_family=target_prover_family,
+    )
     stage = _refinement_stage(hook_kind)
     target_primitives = _target_primitives(plan_row, hook, hook_kind, evaluation_row)
     triggers = _triggers_for_hook(plan_row, hook_kind, evaluation_row, calibration_row)
@@ -715,6 +718,19 @@ def _target_prover_family(plan_row: dict[str, Any], hook: dict[str, Any]) -> str
     ).strip()
 
 
+def _target_scoped_hook_kind(
+    hook_kind: str,
+    *,
+    target_prover_family: str,
+) -> str:
+    if (
+        hook_kind == "lean_library_grounding"
+        and _prover_family_key(target_prover_family) not in {"lean", "lean4"}
+    ):
+        return "formal_library_grounding"
+    return hook_kind
+
+
 def _prover_family_key(target_prover_family: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", str(target_prover_family).strip().lower()).strip("_")
 
@@ -943,12 +959,43 @@ def _recommended_tools(
     *,
     target_prover_family: str,
 ) -> tuple[str, ...]:
-    tools = _str_tuple(hook.get("recommended_tools", []))
+    tools = _target_scoped_recommended_tools(
+        _str_tuple(hook.get("recommended_tools", [])),
+        target_prover_family=target_prover_family,
+    )
     if tools:
         return tools
     return _frontier_resource_adapters(
         hook_kind,
         target_prover_family=target_prover_family,
+    )
+
+
+def _target_scoped_recommended_tools(
+    tools: tuple[str, ...],
+    *,
+    target_prover_family: str,
+) -> tuple[str, ...]:
+    if _prover_family_key(target_prover_family) in {"lean", "lean4"}:
+        return tools
+    return tuple(tool for tool in tools if not _lean_only_tool_hint(tool))
+
+
+def _lean_only_tool_hint(tool: object) -> bool:
+    text = str(tool or "").strip().lower()
+    return any(
+        token in text
+        for token in (
+            "leansearch",
+            "lean search",
+            "leanexplore",
+            "loogle",
+            "lean lsp",
+            "lean-lsp",
+            "lake build",
+            "lake env lean",
+            "local lean rag",
+        )
     )
 
 
@@ -961,6 +1008,12 @@ def _frontier_resource_adapters(
         return _proof_state_tools_for_target_prover(target_prover_family)
     if hook_kind == "route_revision":
         return _route_revision_tools_for_target_prover(target_prover_family)
+    if hook_kind == "formal_library_grounding":
+        return _formal_library_tools_for_target_prover(target_prover_family)
+    if hook_kind == "lean_library_grounding" and _prover_family_key(
+        target_prover_family
+    ) not in {"lean", "lean4"}:
+        return _formal_library_tools_for_target_prover(target_prover_family)
     return {
         "literature_discovery": (
             "Paperclip MCP/CLI",
@@ -974,14 +1027,6 @@ def _frontier_resource_adapters(
             "olmOCR",
             "Marker",
         ),
-        "formal_library_grounding": (
-            "local formal-source index",
-            "target prover library search",
-            "LeanSearch/Loogle/LeanExplore for Lean targets",
-            "Rocq/coq-lsp/SerAPI search for Rocq targets",
-            "Isabelle find_theorems/Sledgehammer for Isabelle targets",
-            "Agda standard-library search for Agda targets",
-        ),
         "lean_library_grounding": (
             "local Lean RAG DB",
             "LeanSearch",
@@ -990,6 +1035,43 @@ def _frontier_resource_adapters(
             "lake env lean",
         ),
     }.get(hook_kind, tuple())
+
+
+def _formal_library_tools_for_target_prover(
+    target_prover_family: str,
+) -> tuple[str, ...]:
+    target = _prover_family_key(target_prover_family)
+    if target in {"lean", "lean4"}:
+        return (
+            "local Lean RAG DB",
+            "LeanSearch",
+            "LeanExplore",
+            "Loogle",
+            "lake env lean",
+        )
+    if target in {"rocq", "coq"}:
+        return (
+            "local formal-source index",
+            "Rocq/coq-lsp/SerAPI search",
+            "target-prover library search/RAG",
+        )
+    if target in {"isabelle", "isabelle_hol", "hol"}:
+        return (
+            "local formal-source index",
+            "Isabelle find_theorems/Sledgehammer",
+            "target-prover library search/RAG",
+        )
+    if target == "agda":
+        return (
+            "local formal-source index",
+            "Agda standard-library search",
+            "target-prover library search/RAG",
+        )
+    return (
+        "local formal-source index",
+        "target prover library search",
+        "target-prover library search/RAG",
+    )
 
 
 def _route_revision_tools_for_target_prover(

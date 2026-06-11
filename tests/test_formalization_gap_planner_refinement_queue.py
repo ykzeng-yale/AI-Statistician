@@ -185,3 +185,69 @@ def test_refinement_queue_uses_target_prover_proof_state_fallback_tools() -> Non
     assert "lean-lsp-mcp" not in row["recommended_tools"]
     assert "lake build" not in row["frontier_resource_adapters"]
     assert "rocq proof-state and kernel-check tools" in row["execution_commands"][0]
+
+
+def test_refinement_queue_target_scopes_legacy_lean_library_hook_for_rocq() -> None:
+    root = Path("runs/test_formalization_gap_planner_refinement_queue_rocq_lean_hook")
+    plan_dir = root / "plan"
+    out_dir = root / "queue"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": "library_aware_formalization_gap_planner",
+                "portable_schema_id": (
+                    "urn:ai-statistician:schemas:"
+                    "library-aware-formalization-gap-plan:1"
+                ),
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:rocq-lean-hook",
+                        "route_id": "route:rocq-lean-hook",
+                        "display_name": "rocq lean hook route",
+                        "target_prover_family": "rocq",
+                        "theorem_statement": "Theorem rocq_bridge : True.",
+                        "route_class": "source_backed_bridge_route",
+                        "pareto_profile": "lowest_delta",
+                        "selected_primitives": ["rank_uniformity"],
+                        "minimal_additional_formalization_nodes": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "action_class": "bridge_needed",
+                            }
+                        ],
+                        "interactive_refinement_hooks": [
+                            {
+                                "hook_kind": "lean_library_grounding",
+                                "queries": ["LeanSearch-style rank_uniformity"],
+                                "recommended_tools": [
+                                    "LeanSearch",
+                                    "Loogle",
+                                    "Rocq/coq-lsp/SerAPI search",
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_refinement_queue(plan_dir, out_dir)
+
+    assert payload["all_ok"]
+    assert payload["n_formal_library_grounding_items"] == 1
+    assert payload["n_lean_library_grounding_items"] == 0
+    row = payload["rows"][0]
+    assert row["hook_kind"] == "formal_library_grounding"
+    assert row["refinement_stage"] == "formal_library_coverage_mapping"
+    assert row["target_prover_family"] == "rocq"
+    assert "Rocq/coq-lsp/SerAPI search" in row["recommended_tools"]
+    assert "LeanSearch" not in row["recommended_tools"]
+    assert "Loogle" not in row["recommended_tools"]
+    assert "Rocq/coq-lsp/SerAPI search" in row["frontier_resource_adapters"]
+    assert "LeanSearch" not in row["frontier_resource_adapters"]
+    assert "query local formal-source indexes" in row["execution_commands"][0]
