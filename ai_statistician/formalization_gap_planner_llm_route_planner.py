@@ -3225,6 +3225,63 @@ def validate_llm_route_planner_manifest(
         errors.append(
             "by_request_model_tier_decision_basis must match request_packets"
         )
+    if int(manifest.get("n_requests_with_llm_generation_policy", 0) or 0) != sum(
+        1 for packet in request_packets if packet.get("llm_generation_policy")
+    ):
+        errors.append(
+            "n_requests_with_llm_generation_policy must match request_packets"
+        )
+    generation_policy_tier_matches = sum(
+        1
+        for packet in request_packets
+        if _dict_value(packet, "llm_generation_policy").get("selected_model_tier")
+        == packet.get("model_tier")
+        and _dict_value(packet, "llm_generation_policy").get("resolved_model")
+        == packet.get("model")
+    )
+    if int(
+        manifest.get("n_request_llm_generation_policy_tier_model_matches", 0) or 0
+    ) != generation_policy_tier_matches:
+        errors.append(
+            "n_request_llm_generation_policy_tier_model_matches must match request_packets"
+        )
+    generation_policy_codex_exclusions = sum(
+        1
+        for packet in request_packets
+        if {"codex", "codex_exec"}.issubset(
+            set(
+                _str_tuple(
+                    _dict_value(packet, "llm_generation_policy").get(
+                        "prohibited_generator_providers",
+                        [],
+                    )
+                )
+            )
+        )
+    )
+    if int(
+        manifest.get("n_request_llm_generation_policy_codex_exclusions", 0) or 0
+    ) != generation_policy_codex_exclusions:
+        errors.append(
+            "n_request_llm_generation_policy_codex_exclusions must match request_packets"
+        )
+    generation_policy_current_claude_tier_source = sum(
+        1
+        for packet in request_packets
+        if not _llm_generation_policy_claude_model_source_errors(
+            _dict_value(packet, "llm_generation_policy")
+        )
+    )
+    if int(
+        manifest.get(
+            "n_request_llm_generation_policy_current_claude_tier_source",
+            0,
+        )
+        or 0
+    ) != generation_policy_current_claude_tier_source:
+        errors.append(
+            "n_request_llm_generation_policy_current_claude_tier_source must match request_packets"
+        )
     repair_attempt_ledger = _dict_tuple(manifest.get("repair_attempt_ledger", []))
     row_repair_attempt_ledger = tuple(
         ledger_row
@@ -3361,6 +3418,7 @@ def validate_llm_route_planner_response_payload(
         errors.append("response_payload cannot claim kernel_verified=true")
     errors.extend(_kernel_proof_claim_errors(payload, location="response_payload"))
     errors.extend(_response_payload_realization_field_contract_errors(payload))
+    errors.extend(_response_payload_target_prover_internal_consistency_errors(payload))
     return sorted(set(errors))
 
 
@@ -7633,6 +7691,79 @@ def _response_payload_realization_field_contract_errors(
             "formal_realization_dag_nodes only"
         ]
     return []
+
+
+def _response_payload_target_prover_internal_consistency_errors(
+    payload: Mapping[str, Any],
+) -> list[str]:
+    declared_target = _declared_payload_target_prover_family(payload)
+    expected = _target_prover_key(declared_target)
+    if not expected:
+        return []
+    checks: list[tuple[str, object]] = [
+        ("response_payload.target_prover_family", payload.get("target_prover_family", "")),
+        ("response_payload.target_prover", payload.get("target_prover", "")),
+    ]
+    route = _dict_value(payload, "standalone_route")
+    checks.extend(
+        [
+            ("standalone_route.target_prover_family", route.get("target_prover_family", "")),
+            ("standalone_route.target_prover", route.get("target_prover", "")),
+        ]
+    )
+    metadata = _dict_value(route, "replan_metadata")
+    checks.extend(
+        [
+            (
+                "standalone_route.replan_metadata.target_prover_family",
+                metadata.get("target_prover_family", ""),
+            ),
+            (
+                "standalone_route.replan_metadata.target_prover",
+                metadata.get("target_prover", ""),
+            ),
+        ]
+    )
+    for index, node in enumerate(
+        _formal_realization_nodes_from_payload(
+            payload,
+            target_prover_family=declared_target,
+        )
+    ):
+        checks.extend(
+            [
+                (
+                    f"formal_realization_dag_nodes[{index}].target_prover_family",
+                    node.get("target_prover_family", ""),
+                ),
+                (
+                    f"formal_realization_dag_nodes[{index}].target_prover",
+                    node.get("target_prover", ""),
+                ),
+            ]
+        )
+    for location, row in _response_candidate_declaration_row_locations(
+        payload,
+        target_prover_family=declared_target,
+    ):
+        checks.append(
+            (
+                f"{location}.target_prover_family",
+                row.get("target_prover_family", ""),
+            )
+        )
+    errors: list[str] = []
+    for location, raw_value in checks:
+        value = str(raw_value or "").strip()
+        if not value:
+            continue
+        actual = _target_prover_key(value)
+        if actual != expected:
+            errors.append(
+                f"{location} {value} does not match declared payload "
+                f"target_prover_family {declared_target}"
+            )
+    return errors
 
 
 def _declared_payload_target_prover_family(payload: Mapping[str, Any]) -> str:

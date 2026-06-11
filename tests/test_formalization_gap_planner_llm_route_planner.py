@@ -4580,6 +4580,10 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "n_requests_with_route_planning_brief" in manifest_schema["required"]
     assert "n_request_route_planning_focus_rows" in manifest_schema["required"]
     assert "n_request_route_planning_evidence_gaps" in manifest_schema["required"]
+    assert (
+        "n_request_llm_generation_policy_current_claude_tier_source"
+        in manifest_schema["required"]
+    )
     assert payload["n_requests_with_route_planning_brief"] == 1
     assert payload["n_request_route_planning_focus_rows"] >= 4
     assert "repair_attempt_ledger" in manifest_schema["required"]
@@ -4652,6 +4656,17 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_requests_with_route_planning_brief must match request_packets"
         in validate_llm_route_planner_manifest(
             drifted_brief_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_generation_policy_count_manifest = deepcopy(payload)
+    drifted_generation_policy_count_manifest[
+        "n_request_llm_generation_policy_current_claude_tier_source"
+    ] = 0
+    assert (
+        "n_request_llm_generation_policy_current_claude_tier_source must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_generation_policy_count_manifest,
             manifest_schema,
         )
     )
@@ -5337,6 +5352,64 @@ def test_llm_route_planner_payload_validator_rejects_non_lean_legacy_alias_schem
     assert row["n_request_context_errors"] == 0
     assert any(
         "lean_realization_dag_nodes is a Lean-only legacy alias" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_payload_validator_rejects_candidate_row_target_mismatch_schema_only() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_payload_validate_candidate_target"
+    )
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response = _llm_response_payload()
+    response["target_prover_family"] = "rocq"
+    response["formal_realization_dag_nodes"] = response.pop(
+        "lean_realization_dag_nodes"
+    )
+    response["standalone_route"]["target_prover_family"] = "rocq"
+    bad_declaration_row = {
+        "declaration": "Mathlib.Probability.exchangeable",
+        "target_prover_family": "lean4",
+        "source_field": "available_formal_declaration_rows",
+    }
+    response["formal_realization_dag_nodes"][0].pop("candidate_declarations", None)
+    response["formal_realization_dag_nodes"][0]["candidate_declaration_rows"] = [
+        bad_declaration_row
+    ]
+    response["standalone_route"]["primitives"][0].pop(
+        "candidate_declarations",
+        None,
+    )
+    response["standalone_route"]["primitives"][0][
+        "candidate_declaration_rows"
+    ] = [bad_declaration_row]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    direct_errors = validate_llm_route_planner_response_payload(response)
+    assert any(
+        "candidate_declaration_rows[0].target_prover_family lean4 does not "
+        "match declared payload target_prover_family rocq" in error
+        for error in direct_errors
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_payloads"] == 1
+    assert payload["n_valid_payloads"] == 0
+    assert payload["n_invalid_payloads"] == 1
+    row = payload["rows"][0]
+    assert row["request_context_validation_mode"] == "schema_only"
+    assert row["n_schema_errors"] >= 1
+    assert any(
+        "candidate_declaration_rows[0].target_prover_family lean4 does not "
+        "match declared payload target_prover_family rocq" in error
         for error in row["errors"]
     )
 
