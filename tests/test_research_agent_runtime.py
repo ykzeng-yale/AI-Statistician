@@ -17,6 +17,7 @@ from ai_statistician.architect_coordinator_llm import (
     ArchitectCoordinatorConfig,
     LLMArchitectCoordinatorAgent,
     build_architect_coordinator_prompt,
+    validate_architect_coordinator_packet,
 )
 from ai_statistician.critic_evaluator_llm import (
     CriticEvaluatorConfig,
@@ -104,8 +105,29 @@ def test_architect_coordinator_prompt_requires_long_horizon_research_memory() ->
     assert "proposer_verifier_iteration" in prompt
     assert "embedding/RAG similarity" in prompt
     assert "only Lean/AXLE/local kernel rows" in prompt
-    assert '"problem_analysis":{"theorem_family"' not in prompt
-    assert '"stat_knowledge_bank_plan"' not in prompt
+    assert '"problem_analysis"' in prompt
+    assert '"stat_knowledge_bank_plan"' in prompt
+    assert '"literature_fair_comparison_plan"' in prompt
+
+
+def test_architect_coordinator_validator_requires_research_control_fields() -> None:
+    packet = dict(_architect_sample_response())
+    packet.update(
+        {
+            "proof_evidence_status": "LLM_ARCHITECT_COORDINATOR_PROPOSAL_NOT_PROOF_EVIDENCE",
+            "runtime_executed": False,
+            "kernel_verified": False,
+        }
+    )
+    packet.pop("problem_analysis")
+    packet.pop("stat_knowledge_bank_plan")
+    packet.pop("literature_fair_comparison_plan")
+
+    errors = validate_architect_coordinator_packet(packet)
+
+    assert "missing or empty field: problem_analysis" in errors
+    assert "missing or empty field: stat_knowledge_bank_plan" in errors
+    assert "missing or empty field: literature_fair_comparison_plan" in errors
 
 
 def test_simulation_engineer_prompt_compacts_theory_context() -> None:

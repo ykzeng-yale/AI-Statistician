@@ -180,6 +180,27 @@ ARCHITECT_COORDINATOR_OUTPUT_CONTRACT: dict[str, Any] = {
         "primary_success_criteria": ["one short string"],
         "known_risks": ["one short string"],
     },
+    "problem_analysis": {
+        "theorem_family": "one short string",
+        "statistical_objects": ["one short string"],
+        "likely_analogy_classes": ["one short string"],
+        "key_obstacles": ["one short string"],
+        "missing_information": ["one short string"],
+    },
+    "stat_knowledge_bank_plan": {
+        "source_families_to_collect": ["one short string"],
+        "assumption_dimensions": ["one short string"],
+        "proof_skeletons_to_track": ["one short string"],
+        "failed_attempt_memory_policy": "one short string",
+    },
+    "literature_fair_comparison_plan": [
+        {
+            "candidate_source_family": "one short string",
+            "must_match": ["one short string"],
+            "likely_mismatches": ["one short string"],
+            "unsafe_transfer_risks": ["one short string"],
+        }
+    ],
     "subsystem_execution_plan": [
         {
             "subsystem": "RetrievalMemory",
@@ -221,6 +242,9 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
     "additionalProperties": True,
     "required": [
         "intake_assessment",
+        "problem_analysis",
+        "stat_knowledge_bank_plan",
+        "literature_fair_comparison_plan",
         "subsystem_execution_plan",
         "retrieval_strategy",
         "iteration_policy",
@@ -230,6 +254,9 @@ ARCHITECT_COORDINATOR_JSON_SCHEMA: dict[str, Any] = {
     ],
     "properties": {
         "intake_assessment": {"type": "object"},
+        "problem_analysis": {"type": "object"},
+        "stat_knowledge_bank_plan": {"type": "object"},
+        "literature_fair_comparison_plan": {"type": "array", "minItems": 1},
         "subsystem_execution_plan": {"type": "array", "minItems": 1},
         "retrieval_strategy": {"type": "object"},
         "iteration_policy": {"type": "object"},
@@ -244,6 +271,9 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
     errors: list[str] = []
     for field in (
         "intake_assessment",
+        "problem_analysis",
+        "stat_knowledge_bank_plan",
+        "literature_fair_comparison_plan",
         "subsystem_execution_plan",
         "retrieval_strategy",
         "iteration_policy",
@@ -259,6 +289,41 @@ def validate_architect_coordinator_packet(packet: Mapping[str, Any]) -> list[str
         errors.append("LLM ArchitectCoordinator packet cannot set runtime_executed=true")
     if packet.get("kernel_verified") is not False:
         errors.append("LLM ArchitectCoordinator packet cannot set kernel_verified=true")
+    problem_analysis = packet.get("problem_analysis", {})
+    if isinstance(problem_analysis, Mapping):
+        for field in (
+            "theorem_family",
+            "statistical_objects",
+            "likely_analogy_classes",
+            "key_obstacles",
+            "missing_information",
+        ):
+            if problem_analysis.get(field) in (None, "", [], {}):
+                errors.append(f"problem_analysis missing or empty field: {field}")
+    knowledge_plan = packet.get("stat_knowledge_bank_plan", {})
+    if isinstance(knowledge_plan, Mapping):
+        for field in (
+            "source_families_to_collect",
+            "assumption_dimensions",
+            "proof_skeletons_to_track",
+            "failed_attempt_memory_policy",
+        ):
+            if knowledge_plan.get(field) in (None, "", [], {}):
+                errors.append(f"stat_knowledge_bank_plan missing or empty field: {field}")
+    for row in packet.get("literature_fair_comparison_plan", []) or []:
+        if not isinstance(row, Mapping):
+            errors.append("literature_fair_comparison_plan entries must be objects")
+            continue
+        for field in (
+            "candidate_source_family",
+            "must_match",
+            "likely_mismatches",
+            "unsafe_transfer_risks",
+        ):
+            if row.get(field) in (None, "", [], {}):
+                errors.append(
+                    f"literature_fair_comparison_plan entry missing or empty field: {field}"
+                )
     for row in packet.get("subsystem_execution_plan", []) or []:
         if not isinstance(row, Mapping):
             errors.append("subsystem_execution_plan entries must be objects")
