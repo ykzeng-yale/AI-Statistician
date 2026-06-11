@@ -253,6 +253,12 @@ def library_coverage_map_row_json_schema() -> dict[str, object]:
             "declaration": {"type": "string", "minLength": 1},
             "target_prover_family": {"type": "string", "minLength": 1},
             "source_field": {"type": "string", "minLength": 1},
+            "source_fields": string_array,
+            "target_primitives": string_array,
+            "supported_target_primitives": string_array,
+            "unsupported_target_primitives": string_array,
+            "source_refs": string_array,
+            "matched_terms": string_array,
         },
     }
     return {
@@ -559,24 +565,35 @@ def _candidate_declaration_rows(
         source_field="declaration_sources",
     )
     compact: list[dict[str, object]] = []
-    seen: set[tuple[str, str]] = set()
+    compact_by_key: dict[tuple[str, str], dict[str, object]] = {}
     for row in rows:
         declaration = str(row.get("declaration", "")).strip()
         if not declaration:
             continue
         row_target = str(row.get("target_prover_family", "")).strip()
         key = (_formal_declaration_key(declaration), _target_prover_key(row_target))
-        if key in seen:
-            continue
-        seen.add(key)
-        compact.append(
-            {
+        if key not in compact_by_key:
+            compact_by_key[key] = {
+                **dict(row),
                 "declaration": declaration,
                 "target_prover_family": row_target,
                 "source_field": str(row.get("source_field", "")).strip()
                 or "candidate_declarations",
             }
-        )
+            continue
+        existing = compact_by_key[key]
+        for field_name in _CANDIDATE_DECLARATION_ROW_LIST_FIELDS:
+            merged = tuple(
+                dict.fromkeys(
+                    [
+                        *_str_tuple(existing.get(field_name, [])),
+                        *_str_tuple(row.get(field_name, [])),
+                    ]
+                )
+            )
+            if merged:
+                existing[field_name] = list(merged)
+    compact.extend(compact_by_key.values())
     return tuple(compact)
 
 
@@ -616,19 +633,25 @@ def _append_candidate_declaration_rows(
         ).strip()
         if not declaration:
             continue
-        rows.append(
-            {
-                "declaration": declaration,
-                "target_prover_family": str(
-                    value.get("target_prover_family", "")
-                    or value.get("target_prover", "")
-                    or inherited_target_prover_family
-                ).strip(),
-                "source_field": str(
-                    value.get("source_field", "") or fallback_source_field
-                ).strip(),
-            }
-        )
+        row: dict[str, object] = {
+            "declaration": declaration,
+            "target_prover_family": str(
+                value.get("target_prover_family", "")
+                or value.get("target_prover", "")
+                or inherited_target_prover_family
+            ).strip(),
+            "source_field": str(
+                value.get("source_field", "") or fallback_source_field
+            ).strip(),
+        }
+        for field_name in _CANDIDATE_DECLARATION_ROW_LIST_FIELDS:
+            values = _candidate_declaration_row_list_field_values(
+                field_name,
+                value.get(field_name, []),
+            )
+            if values:
+                row[field_name] = list(values)
+        rows.append(row)
 
 
 def _append_candidate_declaration_strings(
@@ -646,6 +669,41 @@ def _append_candidate_declaration_strings(
         }
         for declaration in _str_tuple(values)
     )
+
+
+_CANDIDATE_DECLARATION_ROW_LIST_FIELDS = (
+    "source_fields",
+    "target_primitives",
+    "supported_target_primitives",
+    "unsupported_target_primitives",
+    "source_refs",
+    "matched_terms",
+)
+
+
+def _candidate_declaration_row_list_field_values(
+    field_name: str,
+    value: object,
+) -> tuple[str, ...]:
+    if field_name in {
+        "target_primitives",
+        "supported_target_primitives",
+        "unsupported_target_primitives",
+    }:
+        return tuple(
+            dict.fromkeys(
+                primitive
+                for primitive in (
+                    _primitive_scope_key(item) for item in _str_tuple(value)
+                )
+                if primitive
+            )
+        )
+    return _str_tuple(value)
+
+
+def _primitive_scope_key(value: object) -> str:
+    return str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
 
 
 def _next_action(coverage_bucket: str, primitive: str) -> str:

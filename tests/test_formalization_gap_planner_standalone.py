@@ -221,6 +221,13 @@ def test_standalone_gap_planner_exports_portable_plan_for_external_prover() -> N
     candidate_row_schema = standalone_schema["$defs"]["candidate_declaration_row"]
     assert {"required": ["declaration"]} in candidate_row_schema["anyOf"]
     assert candidate_row_schema["properties"]["target_prover_family"]["type"] == "string"
+    assert candidate_row_schema["properties"]["source_fields"]["items"]["type"] == "string"
+    assert (
+        candidate_row_schema["properties"]["supported_target_primitives"]["items"][
+            "type"
+        ]
+        == "string"
+    )
     assert (
         route_props["revised_informal_knowledge_dag_nodes"]["items"]["$ref"]
         == "#/$defs/dag_node"
@@ -494,6 +501,15 @@ def test_standalone_gap_planner_preserves_candidate_declaration_rows_into_covera
         "declaration": "Probability.exchangeable",
         "target_prover_family": "lean4",
         "source_field": "route_candidate_declaration_rows",
+        "source_fields": [
+            "route_candidate_declaration_rows",
+            "formal_declaration_hits",
+        ],
+        "target_primitives": ["exchangeability"],
+        "supported_target_primitives": ["exchangeability"],
+        "unsupported_target_primitives": ["rank_uniformity"],
+        "source_refs": ["conformal_prediction_textbook"],
+        "matched_terms": ["exchangeability"],
     }
     input_json.write_text(
         json.dumps(

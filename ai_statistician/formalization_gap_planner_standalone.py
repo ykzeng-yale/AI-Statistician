@@ -1149,6 +1149,12 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "target_prover_family": {"type": "string"},
                     "target_prover": {"type": "string"},
                     "source_field": {"type": "string"},
+                    "source_fields": string_array,
+                    "target_primitives": string_array,
+                    "supported_target_primitives": string_array,
+                    "unsupported_target_primitives": string_array,
+                    "source_refs": string_array,
+                    "matched_terms": string_array,
                 },
             },
             "replan_metadata": {
@@ -2333,19 +2339,32 @@ def _candidate_declaration_rows_for_primitive(
         declaration = _candidate_declaration_row_declaration(item)
         if not declaration:
             continue
-        rows.append(
-            {
-                "declaration": declaration,
-                "target_prover_family": str(
-                    item.get("target_prover_family", "")
-                    or item.get("target_prover", "")
-                    or target_prover_family
-                ).strip(),
-                "source_field": str(
-                    item.get("source_field", "") or "candidate_declaration_rows"
-                ).strip(),
-            }
-        )
+        row: dict[str, object] = {
+            "declaration": declaration,
+            "target_prover_family": str(
+                item.get("target_prover_family", "")
+                or item.get("target_prover", "")
+                or target_prover_family
+            ).strip(),
+            "source_field": str(
+                item.get("source_field", "") or "candidate_declaration_rows"
+            ).strip(),
+        }
+        for field_name in (
+            "source_fields",
+            "target_primitives",
+            "supported_target_primitives",
+            "unsupported_target_primitives",
+            "source_refs",
+            "matched_terms",
+        ):
+            values = _candidate_declaration_row_list_field_values(
+                field_name,
+                item.get(field_name, []),
+            )
+            if values:
+                row[field_name] = list(values)
+        rows.append(row)
     if not rows:
         rows.extend(
             {
@@ -2355,24 +2374,67 @@ def _candidate_declaration_rows_for_primitive(
             }
             for declaration in _str_tuple(primitive.get("candidate_declarations", []))
         )
-    compact: list[dict[str, object]] = []
-    seen: set[tuple[str, str]] = set()
+    compact_by_key: dict[tuple[str, str, str], dict[str, object]] = {}
     for row in rows:
         declaration = str(row.get("declaration", "")).strip()
         target = str(row.get("target_prover_family", "")).strip()
-        key = (_normalize_primitive_key(declaration), _normalize_primitive_key(target))
-        if not declaration or key in seen:
+        source_field = str(row.get("source_field", "")).strip() or "candidate_declarations"
+        key = (
+            _normalize_primitive_key(declaration),
+            _normalize_primitive_key(target),
+            _normalize_primitive_key(source_field),
+        )
+        if not declaration:
             continue
-        seen.add(key)
-        compact.append(
-            {
+        if key not in compact_by_key:
+            compact_by_key[key] = {
+                **dict(row),
                 "declaration": declaration,
                 "target_prover_family": target,
-                "source_field": str(row.get("source_field", "")).strip()
-                or "candidate_declarations",
+                "source_field": source_field,
             }
+            continue
+        existing = compact_by_key[key]
+        for field_name in (
+            "source_fields",
+            "target_primitives",
+            "supported_target_primitives",
+            "unsupported_target_primitives",
+            "source_refs",
+            "matched_terms",
+        ):
+            merged = tuple(
+                dict.fromkeys(
+                    [
+                        *_str_tuple(existing.get(field_name, [])),
+                        *_str_tuple(row.get(field_name, [])),
+                    ]
+                )
+            )
+            if merged:
+                existing[field_name] = list(merged)
+    return tuple(compact_by_key.values())
+
+
+def _candidate_declaration_row_list_field_values(
+    field_name: str,
+    value: Any,
+) -> tuple[str, ...]:
+    if field_name in {
+        "target_primitives",
+        "supported_target_primitives",
+        "unsupported_target_primitives",
+    }:
+        return tuple(
+            dict.fromkeys(
+                primitive
+                for primitive in (
+                    _normalize_primitive_key(item) for item in _str_tuple(value)
+                )
+                if primitive
+            )
         )
-    return tuple(compact)
+    return _str_tuple(value)
 
 
 def _candidate_declaration_row_declaration(item: dict[str, object]) -> str:
