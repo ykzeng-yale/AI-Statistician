@@ -1264,6 +1264,65 @@ def test_formalization_runtime_exports_theorem_reduction_closure_work_order() ->
     assert "not proof evidence" in queue_rows[0]["runtime_queue_boundary"]
 
 
+def test_runtime_theorem_closure_queue_backfills_prior_formalizer_artifacts() -> None:
+    proposal = dict(_formalizer_sample_response())
+    proposal.update(
+        {
+            "artifact_kind": "FormalizerProofEngineerProposalPacket",
+            "packet_id": "formalizer_proposal:prior_closure",
+            "formal_targets": [
+                {
+                    "id": "split_conformal_finite_sample_coverage_reduction_closure",
+                    "informal_source": "connect verified bridge obligations to frontier theorem",
+                    "lean_statement_sketch": "theorem split_conformal_finite_sample_coverage_reduction_closure := by",
+                    "semantic_alignment_constraints": ["marginal coverage only"],
+                    "expected_status": "OPEN",
+                }
+            ],
+            "proof_bank_obligation_requests": [],
+        }
+    )
+    formalization_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:prior",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal prediction interval coverage",
+        },
+        "llm_formalizer_proof_engineer_proposal_id": proposal["packet_id"],
+        "deterministic_theorem_goals": [
+            {"id": "split_conformal_finite_sample_coverage"}
+        ],
+        "proof_bank_runtime_memory_summary": {
+            "theorem_reduction_closure_required": True,
+            "recommended_formalizer_target_mode": "theorem_level_reduction_closure",
+            "remaining_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
+            "memory_kernel_verified_proof_obligation_ids": ["prob_compl"],
+            "remaining_unverified_proof_bank_obligation_ids": [],
+        },
+    }
+
+    rows = _runtime_theorem_reduction_closure_work_order_rows(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        str(proposal["packet_id"]): proposal,
+                        "formalization_manifest:prior": formalization_manifest,
+                    }
+                }
+            }
+        ]
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["source_formalizer_packet_id"] == proposal["packet_id"]
+    assert rows[0]["source_formalization_manifest_id"] == "formalization_manifest:prior"
+    assert rows[0]["source_formal_target_id"] == "split_conformal_finite_sample_coverage_reduction_closure"
+    assert rows[0]["target_theorem_goal_ids"] == ["split_conformal_finite_sample_coverage"]
+    assert rows[0]["verified_bridge_obligation_ids"] == ["prob_compl"]
+
+
 def test_critic_routes_formal_gap_to_theorem_closure_after_proof_bank_exhausted() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     formalization_manifest = {

@@ -2693,7 +2693,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "formal_gap:theorem_reduction_closure" in high_priority_agenda_ids
     )
     catalog_exhausted = bool(catalog_ids) and not remaining_ids
-    theorem_goal_ids = tuple(row.id for row in theorem_goals if str(row.id).strip())
+    theorem_goal_ids = tuple(_theorem_goal_id(row) for row in theorem_goals if _theorem_goal_id(row))
     theorem_reduction_closure_required = bool(
         theorem_closure_requested_by_critic or catalog_exhausted
     )
@@ -2726,7 +2726,7 @@ def _formalizer_theorem_reduction_closure_work_orders(
     *,
     proposal_packet: Mapping[str, Any],
     proof_bank_runtime_memory_summary: Mapping[str, Any],
-    theorem_goals: list[TheoremGoal],
+    theorem_goals: list[Any],
 ) -> list[dict[str, Any]]:
     if not proof_bank_runtime_memory_summary.get("theorem_reduction_closure_required"):
         return []
@@ -2740,7 +2740,7 @@ def _formalizer_theorem_reduction_closure_work_orders(
         str(row).strip()
         for row in proof_bank_runtime_memory_summary.get("remaining_theorem_goal_ids", []) or []
         if str(row).strip()
-    ] or [row.id for row in theorem_goals if str(row.id).strip()]
+    ] or [_theorem_goal_id(row) for row in theorem_goals if _theorem_goal_id(row)]
     verified_bridge_ids = [
         str(row).strip()
         for row in proof_bank_runtime_memory_summary.get(
@@ -2803,6 +2803,12 @@ def _formalizer_theorem_reduction_closure_work_orders(
         }
         work_orders.append(work_order)
     return work_orders
+
+
+def _theorem_goal_id(row: Any) -> str:
+    if isinstance(row, Mapping):
+        return str(row.get("id", "") or "").strip()
+    return str(getattr(row, "id", "") or "").strip()
 
 
 def _critic_learning_rows(
@@ -3031,7 +3037,32 @@ def _runtime_theorem_reduction_closure_work_order_rows(
             ):
                 continue
             question = artifact.get("question", {}) if isinstance(artifact.get("question"), Mapping) else {}
-            for item in artifact.get("theorem_reduction_closure_work_orders", []) or []:
+            work_order_items = list(
+                artifact.get("theorem_reduction_closure_work_orders", []) or []
+            )
+            if not work_order_items:
+                proposal_id = str(
+                    artifact.get("llm_formalizer_proof_engineer_proposal_id", "")
+                    or ""
+                )
+                proposal_packet = artifacts.get(proposal_id, {})
+                if isinstance(proposal_packet, Mapping):
+                    proof_bank_summary = (
+                        artifact.get("proof_bank_runtime_memory_summary", {})
+                        if isinstance(artifact.get("proof_bank_runtime_memory_summary"), Mapping)
+                        else {}
+                    )
+                    theorem_goals = [
+                        row
+                        for row in artifact.get("deterministic_theorem_goals", []) or []
+                        if isinstance(row, Mapping)
+                    ]
+                    work_order_items = _formalizer_theorem_reduction_closure_work_orders(
+                        proposal_packet=proposal_packet,
+                        proof_bank_runtime_memory_summary=proof_bank_summary,
+                        theorem_goals=theorem_goals,
+                    )
+            for item in work_order_items:
                 if not isinstance(item, Mapping):
                     continue
                 row = dict(item)
