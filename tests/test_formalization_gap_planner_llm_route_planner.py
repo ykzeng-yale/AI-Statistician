@@ -7211,6 +7211,46 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     assert request.metadata["model_tier"] == "haiku"
 
 
+def test_llm_route_planner_auto_uses_sonnet_for_seed_route_risk_markers() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_seed_risk_tier"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    payload = json.loads(input_json.read_text(encoding="utf-8"))
+    route = payload["routes"][0]
+    route["uncertainty_flags"] = [
+        "finite tie-breaking assumption needs review",
+    ]
+    route["semantic_alignment_risks"] = [
+        "rank convention may weaken the theorem statement",
+    ]
+    route["primitives"][1]["formal_gap_boundary"] = (
+        "The finite-rank bridge needs a deterministic tie-handling side "
+        "condition before target-prover replay."
+    )
+    route["primitives"][1]["source_search_status"] = "source_search_pending"
+    input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    planner_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+    )
+
+    assert planner_payload["all_ok"]
+    assert planner_payload["by_request_model_tier"] == {"sonnet": 1}
+    packet = planner_payload["request_packets"][0]
+    assert packet["model_tier"] == "sonnet"
+    assert packet["model"] == "claude-sonnet-4-6"
+    rationale = packet["model_selection_rationale"]
+    assert "seed route uncertainty flag(s)" in rationale
+    assert "seed route semantic alignment risk(s)" in rationale
+    assert "seed route formal-gap boundary marker(s)" in rationale
+    assert "seed route source-search status requires route synthesis" in rationale
+
+
 def test_llm_route_planner_generator_model_fallback_preserves_selected_tier() -> None:
     class FakeAnthropicBackend:
         provider_name = "anthropic"

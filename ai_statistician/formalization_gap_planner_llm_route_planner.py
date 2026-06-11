@@ -483,6 +483,7 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
         "Use haiku for small routes whose primitives are already-exists, exact, near, wrapper, or different-formulation coverage and have no residual goals.",
         "Use sonnet when prover residual goals, feedback-loop replan signals, or incomplete realization-coverage witnesses are present.",
         "Use sonnet when target-intake rows expose missing proof sources, library-search requirements, proof-state probes, complex theorem shape, or large normalized theorem context.",
+        "Use sonnet when the seed route itself carries uncertainty flags, semantic alignment risks, source-search-pending markers, or substantive formal-gap boundaries.",
         "Use sonnet when any primitive needs a bridge, source port, new definition, new theory, or has unknown/missing coverage.",
         "Use sonnet for routes with more than four primitives, many source refs, or long theorem statements.",
         "Use opus only when explicitly requested by the operator; auto mode never selects opus.",
@@ -5901,6 +5902,7 @@ def _llm_route_planner_model_tier_decision(
     if bool(feedback_summary.get("replan_required", False)):
         sonnet_reasons.append("feedback-loop summary requires route repair")
     sonnet_reasons.extend(_target_intake_sonnet_reasons(context_packet))
+    sonnet_reasons.extend(_seed_route_risk_sonnet_reasons(route, primitives))
     cost_hint_reasons = _minimal_delta_cost_hint_sonnet_reasons(context_packet)
     sonnet_reasons.extend(cost_hint_reasons)
     hard_markers = sorted(route_markers & complex_markers)
@@ -5926,6 +5928,71 @@ def _llm_route_planner_model_tier_decision(
             "and only reuse/near/wrapper-level coverage markers"
         ),
     )
+
+
+def _seed_route_risk_sonnet_reasons(
+    route: Mapping[str, Any],
+    primitives: tuple[Mapping[str, Any], ...],
+) -> list[str]:
+    reasons: list[str] = []
+    uncertainty_flags = _str_tuple(route.get("uncertainty_flags", []))
+    if uncertainty_flags:
+        reasons.append(
+            "seed route uncertainty flag(s): " + ", ".join(uncertainty_flags[:4])
+        )
+    semantic_alignment_risks = _str_tuple(route.get("semantic_alignment_risks", []))
+    if semantic_alignment_risks:
+        reasons.append(
+            "seed route semantic alignment risk(s): "
+            + ", ".join(semantic_alignment_risks[:4])
+        )
+
+    boundary_targets: list[str] = []
+    if _formal_gap_boundary_is_substantive(
+        str(route.get("formal_gap_boundary", "") or "")
+    ):
+        boundary_targets.append("route")
+    for primitive in primitives:
+        if not _formal_gap_boundary_is_substantive(
+            str(primitive.get("formal_gap_boundary", "") or "")
+        ):
+            continue
+        boundary_targets.append(str(primitive.get("primitive", "") or "primitive"))
+    if boundary_targets:
+        reasons.append(
+            "seed route formal-gap boundary marker(s): "
+            + ", ".join(boundary_targets[:6])
+        )
+
+    pending_source_search_targets: list[str] = []
+    route_source_status = _primitive_key(route.get("source_search_status", ""))
+    if _source_search_status_requires_sonnet(route_source_status):
+        pending_source_search_targets.append("route")
+    for primitive in primitives:
+        source_status = _primitive_key(primitive.get("source_search_status", ""))
+        if not _source_search_status_requires_sonnet(source_status):
+            continue
+        pending_source_search_targets.append(
+            str(primitive.get("primitive", "") or "primitive")
+        )
+    if pending_source_search_targets:
+        reasons.append(
+            "seed route source-search status requires route synthesis: "
+            + ", ".join(pending_source_search_targets[:6])
+        )
+
+    return reasons
+
+
+def _source_search_status_requires_sonnet(status: str) -> bool:
+    return status in {
+        "search_requested",
+        "search_pending",
+        "source_search_pending",
+        "literature_search_pending",
+        "formal_boundary_declared",
+        "formal_gap_boundary",
+    }
 
 
 def _minimal_delta_cost_hint_sonnet_reasons(
