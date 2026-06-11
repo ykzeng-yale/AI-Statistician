@@ -226,10 +226,13 @@ rejected. When a selected primitive is priced or marked as a wrapper, bridge
 lemma, source port, new definition, or new theory fragment, the same
 `minimal_delta_plan` must also list that primitive in the matching concrete
 action bucket such as `wrapper_lemmas`, `bridge_lemmas`,
-`source_port_lemmas`, `new_definitions`, or `new_theory_primitives`. This
-prevents a route from claiming a positive formalization delta without giving
-downstream prover adapters an executable work item. The LLM response validator
-and standalone input validator reject the
+`source_port_lemmas`, `new_definitions`, or `new_theory_primitives`. The action
+bucket entry must be an actionable work item, not just the primitive name: it
+should include the primitive plus a theorem statement, definition goal, porting
+target, proof obligation, or construction description. This prevents a route
+from claiming a positive formalization delta without giving downstream prover
+adapters an executable work item. The LLM response validator and standalone
+input validator reject the
 same proof overclaim recursively, including nested `kernel_verified=true`,
 `full_frontier_theorem_proved=true`, or `claim_status` /
 `proof_evidence_status` values that assert a proved or kernel-verified theorem

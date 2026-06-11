@@ -494,7 +494,12 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
                     ],
                     "new_definitions": [],
                     "wrapper_lemmas": [],
-                    "bridge_lemmas": ["rank_uniformity"],
+                    "bridge_lemmas": [
+                        (
+                            "rank_uniformity: prove the source-backed finite-rank "
+                            "uniformity bridge lemma"
+                        )
+                    ],
                     "source_port_lemmas": [],
                     "do_not_formalize_now": ["full conformal prediction pipeline"],
                     "and_or_cost_graph": {

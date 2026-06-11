@@ -261,7 +261,12 @@ def _llm_response_payload() -> dict[str, object]:
             ],
             "new_definitions": [],
             "wrapper_lemmas": [],
-            "bridge_lemmas": ["rank_uniformity"],
+            "bridge_lemmas": [
+                (
+                    "rank_uniformity: prove finite rank uniformity from "
+                    "exchangeability as the target-prover bridge lemma"
+                )
+            ],
             "source_port_lemmas": [],
             "do_not_formalize_now": ["full conformal prediction pipeline"],
             "and_or_cost_graph": {
@@ -599,7 +604,16 @@ def _promote_response_to_source_port_costs(response: dict[str, object]) -> None:
             "obligation under the published minimal-delta cost policy."
         )
     minimal_delta["bridge_lemmas"] = []
-    minimal_delta["source_port_lemmas"] = ["exchangeability", "rank_uniformity"]
+    minimal_delta["source_port_lemmas"] = [
+        (
+            "exchangeability: port the source-backed exchangeability premise "
+            "needed by the target rank route"
+        ),
+        (
+            "rank_uniformity: port the source-backed finite-rank uniformity "
+            "lemma with the carried tie-breaking side condition"
+        ),
+    ]
     graph = minimal_delta["and_or_cost_graph"]
     assert isinstance(graph, dict)
     route_options = graph["route_options"]
@@ -1837,7 +1851,47 @@ def test_llm_route_planner_rejects_missing_delta_action_witness() -> None:
     assert witness["realization_coverage_complete"] is False
     assert payload["n_delta_action_witness_missing_primitives"] == 1
     assert any(
-        "selected primitive rank_uniformity requires action witness in bridge_lemmas"
+        "selected primitive rank_uniformity requires actionable action witness in bridge_lemmas"
+        in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_placeholder_delta_action_witness() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_placeholder_delta_action"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    minimal_delta = bad_response["minimal_delta_plan"]
+    assert isinstance(minimal_delta, dict)
+    minimal_delta["bridge_lemmas"] = ["rank_uniformity"]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    witness = row["realization_coverage_witness"]
+    assert witness["delta_action_witness_missing_primitives"] == [
+        "rank_uniformity"
+    ]
+    assert witness["delta_action_witness_complete"] is False
+    assert witness["missing_delta_action_witnesses"][0][
+        "placeholder_action_fields"
+    ] == ["bridge_lemmas"]
+    assert witness["missing_delta_action_witnesses"][0][
+        "placeholder_action_items_by_field"
+    ] == {"bridge_lemmas": ["rank_uniformity"]}
+    assert any(
+        "selected primitive rank_uniformity requires actionable action witness in bridge_lemmas"
         in error
         for error in row["errors"]
     )
@@ -9730,7 +9784,10 @@ def test_llm_route_planner_accepts_introduced_source_backed_bridge_primitive() -
         "deterministic_tie_breaking"
     )
     response["minimal_delta_plan"]["bridge_lemmas"].append(
-        "deterministic_tie_breaking"
+        (
+            "deterministic_tie_breaking: prove a bridge lemma adding the "
+            "deterministic tie-breaking side condition to the rank route"
+        )
     )
     _append_bridge_cost(response, "deterministic_tie_breaking")
     response["standalone_route"]["primitives"].append(
@@ -9819,7 +9876,7 @@ def test_llm_route_planner_rejects_introduced_primitive_without_literature_searc
         "phantom_compactness"
     )
     bad_response["minimal_delta_plan"]["bridge_lemmas"].append(
-        "phantom_compactness"
+        "phantom_compactness: prove the suspected compactness bridge lemma"
     )
     _append_bridge_cost(bad_response, "phantom_compactness")
     bad_response["standalone_route"]["primitives"].append(

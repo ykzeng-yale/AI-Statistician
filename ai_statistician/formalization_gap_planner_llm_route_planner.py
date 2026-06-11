@@ -4909,6 +4909,7 @@ def _user_prompt(
             "and_or_cost_graph must enumerate route_options, non-empty or_nodes, and non-empty and_edges; it must mark exactly one selected route option and no listed alternative may have lower route_cost.",
             "Every selected primitive must appear in standalone_route.primitives and formal_realization_dag_nodes.",
             "Every wrapper, bridge, source-port, new-definition, or first-principles delta primitive must have a route_alignment_edge.",
+            "Every wrapper_lemmas, bridge_lemmas, source_port_lemmas, new_definitions, new_theory_primitives, or first_principles_primitives item used as a selected-delta action witness must be an actionable work item, not only the primitive name; include the primitive plus a theorem statement, definition goal, porting target, proof obligation, or construction description.",
             "New selected or delta primitives not already present in the target route or context packet must be justified by an aligned informal node with grounded source_refs, a matching literature search_request, or a formal_gap_boundary.",
             "When context_packet.resource_request_queue_rows is present, evidence-gathering search_requests and planner_next_actions should reference queued resource_request_id or resource_id entries instead of inventing new tool dispatches.",
             "When context_packet.resource_request_playbooks is present, use each playbook's operator_prompt, expected_response_fields, and acceptance_checklist as the bounded ask for search_requests and planner_next_actions.",
@@ -5436,6 +5437,7 @@ def _repair_user_prompt(
             "When the original request has resource_request_queue_rows, align search_requests and planner_next_actions to queued resource_request_id/resource_id values.",
             "When the original request has resource_request_playbooks, keep repaired search_requests and planner_next_actions aligned to those playbook operator prompts and acceptance checklists.",
             "Include a complete minimal_delta_plan with selected_primitives, primitive_costs, and and_or_cost_graph.",
+            "If a selected primitive needs wrapper, bridge, source-port, definition, or new-theory work, list an actionable work item in the matching minimal_delta_plan bucket; a bare primitive name is not enough.",
         ],
     }
     return json.dumps(payload, indent=2, default=str)
@@ -11206,7 +11208,7 @@ def _minimal_delta_actionability_witness_errors(
         if primitive and action_field:
             errors.append(
                 "minimal_delta_plan selected primitive "
-                f"{primitive} requires action witness in "
+                f"{primitive} requires actionable action witness in "
                 f"{', '.join(acceptable_fields)} because "
                 + "; ".join(sources)
             )
@@ -11234,20 +11236,33 @@ def _minimal_delta_action_witness_status(
         primitive_missing = False
         for action_field, sources in sorted(action_fields.items()):
             acceptable_fields = _minimal_delta_action_witness_fields(action_field)
-            matched_fields = [
-                field_name
-                for field_name in acceptable_fields
-                if _minimal_delta_action_list_mentions_primitive(
+            matched_fields: list[str] = []
+            placeholder_fields: list[str] = []
+            matched_items_by_field: dict[str, list[str]] = {}
+            placeholder_items_by_field: dict[str, list[str]] = {}
+            for field_name in acceptable_fields:
+                match = _minimal_delta_action_list_match_status(
                     minimal_delta.get(field_name, []),
                     primitive,
                 )
-            ]
+                if match["matched_items"]:
+                    matched_items_by_field[field_name] = list(match["matched_items"])
+                if match["placeholder_items"]:
+                    placeholder_fields.append(field_name)
+                    placeholder_items_by_field[field_name] = list(
+                        match["placeholder_items"]
+                    )
+                if match["actionable_items"]:
+                    matched_fields.append(field_name)
             row = {
                 "primitive": primitive,
                 "required_action_field": action_field,
                 "acceptable_action_fields": list(acceptable_fields),
                 "requirement_sources": sorted(sources),
                 "matched_action_fields": matched_fields,
+                "placeholder_action_fields": placeholder_fields,
+                "matched_action_items_by_field": matched_items_by_field,
+                "placeholder_action_items_by_field": placeholder_items_by_field,
             }
             if matched_fields:
                 witness_rows.append(row)
@@ -11368,20 +11383,117 @@ def _minimal_delta_action_witness_fields(action_field: str) -> tuple[str, ...]:
     return (action_field,)
 
 
-def _minimal_delta_action_list_mentions_primitive(
+def _minimal_delta_action_list_match_status(
     values: object,
     primitive: str,
-) -> bool:
+) -> dict[str, tuple[str, ...]]:
     primitive_key = _primitive_key(primitive)
     if not primitive_key:
-        return False
-    for value in _str_tuple(values):
+        return {
+            "matched_items": tuple(),
+            "actionable_items": tuple(),
+            "placeholder_items": tuple(),
+        }
+    matched_items: list[str] = []
+    actionable_items: list[str] = []
+    placeholder_items: list[str] = []
+    for value in _minimal_delta_action_item_texts(values):
         value_key = _primitive_key(value)
         if value_key == primitive_key:
-            return True
+            matched_items.append(value)
+            placeholder_items.append(value)
+            continue
         if primitive_key in value_key or value_key in primitive_key:
-            return True
-    return False
+            matched_items.append(value)
+            if _minimal_delta_action_item_is_actionable(value, primitive_key):
+                actionable_items.append(value)
+            else:
+                placeholder_items.append(value)
+    return {
+        "matched_items": tuple(matched_items),
+        "actionable_items": tuple(actionable_items),
+        "placeholder_items": tuple(placeholder_items),
+    }
+
+
+def _minimal_delta_action_item_texts(values: object) -> tuple[str, ...]:
+    if isinstance(values, Mapping):
+        return (_minimal_delta_action_item_text(values),)
+    if isinstance(values, str):
+        return (values,) if values.strip() else tuple()
+    if not isinstance(values, (list, tuple, set)):
+        return tuple()
+    return tuple(
+        text
+        for text in (_minimal_delta_action_item_text(value) for value in values)
+        if text
+    )
+
+
+def _minimal_delta_action_item_text(value: object) -> str:
+    if isinstance(value, Mapping):
+        parts = []
+        for field_name in (
+            "primitive",
+            "lemma",
+            "lemma_name",
+            "definition",
+            "statement",
+            "theorem_statement",
+            "goal",
+            "proof_obligation",
+            "construction",
+            "description",
+            "rationale",
+        ):
+            text = str(value.get(field_name, "") or "").strip()
+            if text:
+                parts.append(text)
+        return " ".join(parts)
+    return str(value or "").strip()
+
+
+def _minimal_delta_action_item_is_actionable(text: str, primitive_key: str) -> bool:
+    value_key = _primitive_key(text)
+    if not value_key or value_key == primitive_key:
+        return False
+    remainder = value_key.replace(primitive_key, " ")
+    content_tokens = [
+        token
+        for token in re.findall(r"[a-z0-9]+", remainder)
+        if len(token) >= 4
+        and token
+        not in {
+            "action",
+            "delta",
+            "lemma",
+            "primitive",
+            "selected",
+            "theorem",
+            "work",
+        }
+    ]
+    action_markers = {
+        "bridge",
+        "construct",
+        "define",
+        "definition",
+        "derive",
+        "formalize",
+        "goal",
+        "obligation",
+        "port",
+        "prove",
+        "show",
+        "source",
+        "statement",
+        "target",
+        "wrapper",
+    }
+    return bool(content_tokens) and (
+        ":" in text
+        or any(marker in value_key for marker in action_markers)
+    )
 
 
 def _minimal_delta_request_hint_errors(
@@ -11827,9 +11939,51 @@ def _minimal_delta_primitives(
         "new_theory_primitives",
         "first_principles_primitives",
     ):
-        explicit.update(_primitive_key(item) for item in _str_tuple(minimal_delta.get(field_name, [])))
+        candidate_primitives = _minimal_delta_action_primitives_for_field(
+            minimal_delta,
+            field_name,
+            selected,
+        )
+        for item in _minimal_delta_action_item_texts(minimal_delta.get(field_name, [])):
+            item_key = _primitive_key(item)
+            if not item_key:
+                continue
+            prefix_matches = {
+                primitive
+                for primitive in candidate_primitives
+                if item_key == primitive
+                or item_key.startswith(f"{primitive}_")
+                or item_key.startswith(f"{primitive}:")
+            }
+            matched_selected = prefix_matches or {
+                primitive
+                for primitive in candidate_primitives
+                if primitive in item_key or item_key in primitive
+            }
+            if matched_selected:
+                explicit.update(matched_selected)
+            else:
+                explicit.add(item_key)
     explicit.discard("")
     return explicit or set(selected)
+
+
+def _minimal_delta_action_primitives_for_field(
+    minimal_delta: Mapping[str, Any],
+    field_name: str,
+    selected: set[str],
+) -> set[str]:
+    candidates: set[str] = set()
+    for row in _dict_tuple(minimal_delta.get("primitive_costs", [])):
+        primitive = _primitive_key(row.get("primitive", ""))
+        if not primitive or primitive not in selected:
+            continue
+        for action_field in _minimal_delta_action_fields_for_marker(
+            _primitive_key(row.get("coverage_bucket", ""))
+        ):
+            if field_name in _minimal_delta_action_witness_fields(action_field):
+                candidates.add(primitive)
+    return candidates or set(selected)
 
 
 def _introduced_primitive_evidence_errors(

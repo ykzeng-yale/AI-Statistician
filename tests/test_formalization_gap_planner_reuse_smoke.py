@@ -113,7 +113,12 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
             ],
             "new_definitions": [],
             "wrapper_lemmas": [],
-            "bridge_lemmas": ["rank_uniformity"],
+            "bridge_lemmas": [
+                (
+                    "rank_uniformity: prove the focused finite-rank uniformity "
+                    "bridge from exchangeability"
+                )
+            ],
             "source_port_lemmas": [],
             "do_not_formalize_now": ["full conformal prediction API"],
             "and_or_cost_graph": {
@@ -2414,7 +2419,10 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         "cost_rationale"
     ] = "The feedback pass requires a target-prover exchangeability wrapper."
     feedback_response["minimal_delta_plan"]["wrapper_lemmas"] = [
-        "exchangeability"
+        (
+            "exchangeability: write the target-prover wrapper around the "
+            "available exchangeability declaration"
+        )
     ]
     feedback_response["minimal_delta_plan"]["and_or_cost_graph"]["route_options"][0][
         "route_cost"

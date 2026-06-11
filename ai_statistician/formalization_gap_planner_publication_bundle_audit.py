@@ -9191,11 +9191,130 @@ def _llm_row_selected_and_delta_primitive_keys(
         "first_principles_primitives",
     ):
         explicit.update(
-            _llm_primitive_key(primitive)
-            for primitive in _str_tuple(minimal_delta.get(field_name, []))
-            if _llm_primitive_key(primitive)
+            _llm_delta_primitives_from_action_field(
+                minimal_delta,
+                field_name,
+                selected,
+            )
         )
     return selected, explicit or set(selected)
+
+
+def _llm_delta_primitives_from_action_field(
+    minimal_delta: dict[str, Any],
+    field_name: str,
+    selected: set[str],
+) -> set[str]:
+    explicit: set[str] = set()
+    candidate_primitives = _llm_minimal_delta_action_primitives_for_field(
+        minimal_delta,
+        field_name,
+        selected,
+    )
+    for item in _llm_minimal_delta_action_item_texts(
+        minimal_delta.get(field_name, [])
+    ):
+        item_key = _llm_primitive_key(item)
+        if not item_key:
+            continue
+        prefix_matches = {
+            primitive
+            for primitive in candidate_primitives
+            if item_key == primitive
+            or item_key.startswith(f"{primitive}_")
+            or item_key.startswith(f"{primitive}:")
+        }
+        matched = prefix_matches or {
+            primitive
+            for primitive in candidate_primitives
+            if primitive in item_key or item_key in primitive
+        }
+        if matched:
+            explicit.update(matched)
+        else:
+            explicit.add(item_key)
+    return explicit
+
+
+def _llm_minimal_delta_action_primitives_for_field(
+    minimal_delta: dict[str, Any],
+    field_name: str,
+    selected: set[str],
+) -> set[str]:
+    candidates: set[str] = set()
+    for row in _dict_tuple(minimal_delta.get("primitive_costs", [])):
+        primitive = _llm_primitive_key(row.get("primitive", ""))
+        if not primitive or primitive not in selected:
+            continue
+        for action_field in _llm_minimal_delta_action_fields_for_marker(
+            row.get("coverage_bucket", "")
+        ):
+            if field_name in _llm_minimal_delta_action_witness_fields(action_field):
+                candidates.add(primitive)
+    return candidates or set(selected)
+
+
+def _llm_minimal_delta_action_fields_for_marker(marker: object) -> tuple[str, ...]:
+    key = _llm_primitive_key(marker)
+    if key in {"wrapper", "wrapper_needed", "write_wrapper"}:
+        return ("wrapper_lemmas",)
+    if key in {"bridge", "bridge_needed", "prove_bridge"}:
+        return ("bridge_lemmas",)
+    if key in {"source_port", "source_port_needed", "port_external_source"}:
+        return ("source_port_lemmas",)
+    if key in {"define_new", "new_definition", "new_definitions"}:
+        return ("new_definitions",)
+    if key in {
+        "definition_missing",
+        "definition_or_theory_missing",
+        "new_theory",
+        "new_theory_needed",
+        "first_principles",
+        "design_from_first_principles",
+        "missing",
+        "theory_missing",
+    }:
+        return ("new_theory_primitives",)
+    return tuple()
+
+
+def _llm_minimal_delta_action_witness_fields(action_field: str) -> tuple[str, ...]:
+    if action_field == "new_theory_primitives":
+        return (
+            "new_theory_primitives",
+            "first_principles_primitives",
+            "new_definitions",
+        )
+    return (action_field,)
+
+
+def _llm_minimal_delta_action_item_texts(values: object) -> tuple[str, ...]:
+    if isinstance(values, str):
+        return (values,) if values.strip() else tuple()
+    if isinstance(values, dict):
+        texts = [
+            str(values.get(field_name, "") or "").strip()
+            for field_name in (
+                "primitive",
+                "lemma",
+                "lemma_name",
+                "definition",
+                "statement",
+                "theorem_statement",
+                "goal",
+                "proof_obligation",
+                "construction",
+                "description",
+                "rationale",
+            )
+        ]
+        return tuple(text for text in texts if text)
+    if not isinstance(values, (list, tuple, set)):
+        return tuple()
+    texts: list[str] = []
+    for value in values:
+        texts.extend(_llm_minimal_delta_action_item_texts(value))
+    return tuple(texts)
 
 
 def _llm_alignment_edges_by_primitive(
@@ -10504,6 +10623,11 @@ def _llm_seed_alignment_triples(edges: Any) -> set[str]:
 
 def _llm_delta_primitives(row: dict[str, Any]) -> set[str]:
     minimal_delta = _dict_value(row, "minimal_delta_plan")
+    selected = {
+        _llm_primitive_key(primitive)
+        for primitive in _str_tuple(minimal_delta.get("selected_primitives", []))
+        if _llm_primitive_key(primitive)
+    }
     fields = (
         "wrapper_lemmas",
         "bridge_lemmas",
@@ -10512,12 +10636,17 @@ def _llm_delta_primitives(row: dict[str, Any]) -> set[str]:
         "new_theory_primitives",
         "first_principles_primitives",
     )
-    return {
-        primitive.strip()
-        for field_name in fields
-        for primitive in _str_tuple(minimal_delta.get(field_name, []))
-        if primitive.strip()
-    }
+    primitives: set[str] = set()
+    for field_name in fields:
+        primitives.update(
+            _llm_delta_primitives_from_action_field(
+                minimal_delta,
+                field_name,
+                selected,
+            )
+        )
+    primitives.discard("")
+    return primitives
 
 
 def _node_ids(values: Any) -> set[str]:
