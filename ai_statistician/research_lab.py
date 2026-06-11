@@ -2335,6 +2335,7 @@ class TheoryPlanner:
                         "finite_conformal_rank_coverage_counting",
                         "order_statistic_quantile_rule_bridge",
                         "split_conformal_bad_rank_reduction_bridge",
+                        "split_conformal_good_rank_coverage_bridge",
                     ),
                 )
             ]
@@ -4832,6 +4833,7 @@ PROVABLE_SUBCLAIMS: dict[str, tuple[str, ...]] = {
         "finite_conformal_rank_coverage_counting",
         "order_statistic_quantile_rule_bridge",
         "split_conformal_bad_rank_reduction_bridge",
+        "split_conformal_good_rank_coverage_bridge",
     ),
     "right_censored_survival_inference": (
         "event_indicator_expectation",

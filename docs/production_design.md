@@ -1276,6 +1276,13 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   probabilities are budgeted, it proves coverage at least `1-alpha_total`. It
   still leaves score exchangeability, rank uniformity, and the order-statistic
   quantile construction as formal gaps.
+- `split_conformal_good_rank_coverage_bridge`: a stronger theorem-level
+  reduction bridge for split-conformal closure. It weakens the previous exact
+  event-equality requirement to the source-theorem shape: if every non-bad rank
+  is contained in the coverage event and the bad-rank probabilities are
+  budgeted, then coverage is at least `1-alpha_total`. This is kernel-checkable
+  theorem-reduction evidence, while exchangeability-to-uniform-rank and the
+  order-statistic quantile construction remain upstream formal gaps.
 - `finite_family_absolute_error_union_control`: a finite-family estimator
   bridge: if each absolute-error event
   `{ω | radius i ≤ |X_i ω-theta_i|}` has local error budget `α_i`, then the

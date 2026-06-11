@@ -1344,6 +1344,8 @@ def test_formalization_runtime_uses_deterministic_theorem_closure_when_memory_ex
     assert "splitConformalFiniteSampleCoverage_reductionClosure" in proposal["formal_targets"][0][
         "lean_statement_sketch"
     ]
+    assert "hGoodCovered" in proposal["formal_targets"][0]["lean_statement_sketch"]
+    assert "good-rank-containment-to-coverage" in proposal["formal_targets"][0]["lean_statement_sketch"]
     assert "exchangeability, rank-uniformity, and order-statistic construction remain explicit" in proposal[
         "formal_targets"
     ][0]["lean_statement_sketch"]

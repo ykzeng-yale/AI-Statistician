@@ -2923,13 +2923,22 @@ def _deterministic_theorem_closure_lean_statement_sketch(
     goal_id: str,
     verified_bridge_ids: list[str],
 ) -> str:
-    if (
-        goal_id == "split_conformal_finite_sample_coverage"
-        and "split_conformal_bad_rank_reduction_bridge" in set(verified_bridge_ids)
+    verified_bridge_set = set(verified_bridge_ids)
+    if goal_id == "split_conformal_finite_sample_coverage" and (
+        "split_conformal_good_rank_coverage_bridge" in verified_bridge_set
+        or "split_conformal_bad_rank_reduction_bridge" in verified_bridge_set
     ):
-        obligation = get_obligation("split_conformal_bad_rank_reduction_bridge")
+        if "split_conformal_good_rank_coverage_bridge" in verified_bridge_set:
+            obligation_id = "split_conformal_good_rank_coverage_bridge"
+            source_theorem_name = "splitConformalCoverage_of_goodRankCoverage"
+            reduction_description = "good-rank-containment-to-coverage"
+        else:
+            obligation_id = "split_conformal_bad_rank_reduction_bridge"
+            source_theorem_name = "splitConformalCoverage_of_badRankBudget"
+            reduction_description = "bad-rank-budget-to-coverage"
+        obligation = get_obligation(obligation_id)
         statement = obligation.formal_statement.strip().replace(
-            "theorem splitConformalCoverage_of_badRankBudget",
+            f"theorem {source_theorem_name}",
             "theorem splitConformalFiniteSampleCoverage_reductionClosure",
             1,
         )
@@ -2943,8 +2952,8 @@ def _deterministic_theorem_closure_lean_statement_sketch(
             return (
                 "/-\n"
                 "Deterministic theorem-closure reduction generated from the "
-                "kernel-verified split_conformal_bad_rank_reduction_bridge proof-bank obligation.\n"
-                "This proves the bad-rank-budget-to-coverage reduction only; exchangeability, "
+                f"kernel-verified {obligation_id} proof-bank obligation.\n"
+                f"This proves the {reduction_description} reduction only; exchangeability, "
                 "rank-uniformity, and order-statistic construction remain explicit upstream assumptions.\n"
                 "-/\n"
                 + candidate

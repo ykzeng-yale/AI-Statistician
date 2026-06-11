@@ -1488,6 +1488,90 @@ theorem splitConformalCoverage_of_badRankBudget {Ω ρ : Type*}
             "finite_union_budget_control",
         ),
     ),
+    "split_conformal_good_rank_coverage_bridge": FormalObligation(
+        id="split_conformal_good_rank_coverage_bridge",
+        title="Split-conformal coverage from good-rank containment and bad-rank budget",
+        english=(
+            "Once split conformal has shown that every non-bad rank implies "
+            "coverage, and every bad rank has a local probability budget whose "
+            "sum is at most `alpha_total`, the coverage event has probability "
+            "at least `1-alpha_total`. This weakens the prior event-equality "
+            "bridge to the source-theorem shape needed for coverage proofs: "
+            "the good-rank event only needs to be contained in the coverage "
+            "event. It still does not prove score exchangeability, rank "
+            "uniformity, or the order-statistic quantile construction."
+        ),
+        formal_statement=_stmt(
+            """
+import Mathlib
+open MeasureTheory ProbabilityTheory
+
+theorem splitConformalCoverage_of_goodRankCoverage {Ω ρ : Type*}
+    [MeasurableSpace Ω]
+    (μ : Measure Ω) [IsProbabilityMeasure μ]
+    (covered : Set Ω) (BadRanks : Finset ρ) (rank : Ω → ρ)
+    (α : ρ → ENNReal) (α_total : ENNReal)
+    (hGoodCovered : {ω | rank ω ∈ BadRanks}ᶜ ⊆ covered)
+    (hBadEvent : MeasurableSet {ω | rank ω ∈ BadRanks})
+    (hRank : ∀ r ∈ BadRanks, μ {ω | rank ω = r} ≤ α r)
+    (h_total : (∑ r ∈ BadRanks, α r) ≤ α_total) :
+    1 - α_total ≤ μ covered := by sorry
+"""
+        ),
+        proof_body=(
+            "by\n"
+            "  have hbad : μ {ω | rank ω ∈ BadRanks} ≤ α_total := by\n"
+            "    calc\n"
+            "      μ {ω | rank ω ∈ BadRanks} ≤ μ (⋃ r ∈ BadRanks, {ω | rank ω = r}) := by\n"
+            "        apply measure_mono\n"
+            "        intro ω hω\n"
+            "        exact Set.mem_iUnion.mpr ⟨rank ω, Set.mem_iUnion.mpr ⟨hω, rfl⟩⟩\n"
+            "      _ ≤ ∑ r ∈ BadRanks, μ {ω | rank ω = r} := by\n"
+            "        exact measure_biUnion_finset_le (μ := μ) BadRanks (fun r => {ω | rank ω = r})\n"
+            "      _ ≤ ∑ r ∈ BadRanks, α r := by\n"
+            "        exact Finset.sum_le_sum (fun r hr => hRank r hr)\n"
+            "      _ ≤ α_total := h_total\n"
+            "  have hcoverage : μ ({ω | rank ω ∈ BadRanks}ᶜ) =\n"
+            "      1 - μ {ω | rank ω ∈ BadRanks} := by\n"
+            "    exact prob_compl_eq_one_sub hBadEvent\n"
+            "  calc\n"
+            "    1 - α_total ≤ 1 - μ {ω | rank ω ∈ BadRanks} := by\n"
+            "      exact tsub_le_tsub_left hbad 1\n"
+            "    _ = μ ({ω | rank ω ∈ BadRanks}ᶜ) := hcoverage.symm\n"
+            "    _ ≤ μ covered := measure_mono hGoodCovered"
+        ),
+        tags=(
+            "probability",
+            "event",
+            "coverage",
+            "finite_sample",
+            "conformal",
+            "split_conformal",
+            "rank",
+            "good_rank_coverage",
+            "rank_uniformity",
+            "coverage_counting",
+            "finite_sample_coverage_counting",
+            "order_statistic_quantile_rule",
+            "theorem_reduction",
+            "theorem_reduction_closure",
+        ),
+        expected_lemmas=(
+            "measure_mono",
+            "Set.mem_iUnion",
+            "measure_biUnion_finset_le",
+            "Finset.sum_le_sum",
+            "prob_compl_eq_one_sub",
+            "tsub_le_tsub_left",
+        ),
+        depends_on=(
+            "split_conformal_bad_rank_reduction_bridge",
+            "finite_conformal_rank_coverage_counting",
+            "order_statistic_quantile_rule_bridge",
+            "coverage_lower_bound_of_complement_error",
+            "finite_union_budget_control",
+        ),
+    ),
     "finite_family_absolute_error_union_control": FormalObligation(
         id="finite_family_absolute_error_union_control",
         title="Finite-family simultaneous absolute-error control",
