@@ -52,6 +52,22 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
                             "A distribution-free rank bound follows from exchangeability."
                         ),
                         "source_refs": ["conformal_prediction_textbook"],
+                        "replan_metadata": {
+                            "llm_route_planner_minimal_delta_plan": {
+                                "bridge_lemmas": [
+                                    (
+                                        "rank_uniformity: prove finite rank "
+                                        "uniformity from exchangeability"
+                                    )
+                                ],
+                                "source_port_lemmas": [
+                                    (
+                                        "coverage_inequality: port the "
+                                        "source-backed coverage inequality"
+                                    )
+                                ],
+                            }
+                        },
                         "primitives": [
                             {
                                 "primitive": "exchangeability",
@@ -123,12 +139,17 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     assert payload["n_candidate_declaration_rows"] == payload[
         "n_with_candidate_declaration_rows"
     ]
+    assert payload["n_with_actionable_work_items"] > 0
+    assert payload["n_actionable_work_items"] > 0
     assert payload["n_row_schema_valid"] == payload["n_resource_request_rows"]
     assert payload["n_row_schema_invalid"] == 0
     assert (
         payload["resource_request_queue_row_schema"]["$id"]
         == RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID
     )
+    assert "actionable_work_items" in payload[
+        "resource_request_queue_row_schema"
+    ]["required"]
     rows = payload["rows"]
     assert rows
     exact_rows = [
@@ -193,12 +214,30 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     )
     assert "rank_uniformity" in lean_lsp_row["request_playbook"]["operator_prompt"]
     assert tuple(lean_lsp_row["target_primitives"]) == ("rank_uniformity",)
+    assert tuple(lean_lsp_row["actionable_work_items"]) == (
+        "rank_uniformity: prove finite rank uniformity from exchangeability",
+    )
     assert tuple(lean_lsp_row["request_payload"]["target_primitives"]) == (
         "rank_uniformity",
+    )
+    assert (
+        tuple(lean_lsp_row["request_payload"]["actionable_work_items"])
+        == tuple(lean_lsp_row["actionable_work_items"])
     )
     assert tuple(
         lean_lsp_row["request_playbook"]["input_summary"]["target_primitives"]
     ) == ("rank_uniformity",)
+    assert (
+        tuple(
+            lean_lsp_row["request_playbook"]["input_summary"][
+                "actionable_work_items"
+            ]
+        )
+        == tuple(lean_lsp_row["actionable_work_items"])
+    )
+    assert "Actionable work items:" in lean_lsp_row["request_playbook"][
+        "operator_prompt"
+    ]
     assert (
         "prover_diagnostics"
         in lean_lsp_row["request_playbook"]["expected_response_fields"]
@@ -239,6 +278,9 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     assert "source_refs" in source_paperclip_row["response_contract_fields"]
     assert "prover_diagnostics" not in source_paperclip_row["response_contract_fields"]
     assert "mcp_tool_call" in source_paperclip_row["request_contract_fields"]
+    assert tuple(source_paperclip_row["actionable_work_items"]) == (
+        "coverage_inequality: port the source-backed coverage inequality",
+    )
     assert (
         source_paperclip_row["resource_contract_ids"]
         == source_paperclip_row["request_payload"]["resource_contract_ids"]
@@ -335,6 +377,18 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
         )
     )
     malformed = dict(lean_lsp_row)
+    malformed["request_payload"] = dict(lean_lsp_row["request_payload"])
+    malformed["request_payload"]["actionable_work_items"] = [
+        "prove the wrong bridge"
+    ]
+    assert (
+        "request_payload.actionable_work_items must match row.actionable_work_items"
+        in validate_resource_request_queue_row(
+            malformed,
+            resource_request_queue_row_json_schema(),
+        )
+    )
+    malformed = dict(lean_lsp_row)
     malformed["request_playbook"] = dict(lean_lsp_row["request_playbook"])
     malformed["request_playbook"]["input_summary"] = dict(
         lean_lsp_row["request_playbook"]["input_summary"]
@@ -344,6 +398,23 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     ]
     assert (
         "request_playbook.input_summary.target_primitives must match row.target_primitives"
+        in validate_resource_request_queue_row(
+            malformed,
+            resource_request_queue_row_json_schema(),
+        )
+    )
+    malformed = dict(lean_lsp_row)
+    malformed["request_playbook"] = dict(lean_lsp_row["request_playbook"])
+    malformed["request_playbook"]["input_summary"] = dict(
+        lean_lsp_row["request_playbook"]["input_summary"]
+    )
+    malformed["request_playbook"]["input_summary"]["actionable_work_items"] = [
+        "stale work item"
+    ]
+    malformed["request_payload"] = dict(lean_lsp_row["request_payload"])
+    malformed["request_payload"]["request_playbook"] = malformed["request_playbook"]
+    assert (
+        "request_playbook.input_summary.actionable_work_items must match row.actionable_work_items"
         in validate_resource_request_queue_row(
             malformed,
             resource_request_queue_row_json_schema(),
@@ -534,6 +605,21 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
     assert "exchangeability rank uniformity" in " ".join(
         paperclip_row["request_payload"]["llm_route_planner_queries"]
     )
+    assert "exchangeability rank uniformity" in " ".join(
+        paperclip_row["actionable_work_items"]
+    )
+    assert (
+        tuple(paperclip_row["request_payload"]["actionable_work_items"])
+        == tuple(paperclip_row["actionable_work_items"])
+    )
+    assert (
+        tuple(
+            paperclip_row["request_playbook"]["input_summary"][
+                "actionable_work_items"
+            ]
+        )
+        == tuple(paperclip_row["actionable_work_items"])
+    )
     assert (
         paperclip_row["request_playbook"]["llm_route_planner_source_item"][
             "request_kind"
@@ -551,6 +637,13 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
     ] == "proof_state_feedback"
     assert lean_lsp_row["queue_action_kind"] == "prove_bridge_lemma"
     assert "residual_goals" in lean_lsp_row["response_contract_fields"]
+    assert "ask Lean LSP for residual goals" in " ".join(
+        lean_lsp_row["actionable_work_items"]
+    )
+    assert (
+        tuple(lean_lsp_row["request_payload"]["actionable_work_items"])
+        == tuple(lean_lsp_row["actionable_work_items"])
+    )
     assert "not theorem proof evidence" in lean_lsp_row["proof_evidence_boundary"]
     assert (
         validate_resource_request_queue_row(

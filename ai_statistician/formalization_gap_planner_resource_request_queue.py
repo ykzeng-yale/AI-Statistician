@@ -20,10 +20,10 @@ from .formalization_gap_planner_action_resource_plan import (
 from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
-FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_SCHEMA_VERSION = 4
+FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_SCHEMA_VERSION = 5
 RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
-    "formalization-gap-planner-resource-request-queue-row:4"
+    "formalization-gap-planner-resource-request-queue-row:5"
 )
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_NOT_PROOF_EVIDENCE"
@@ -50,6 +50,7 @@ class FormalizationGapPlannerResourceRequestQueueRow:
     display_name: str
     primitive: str
     target_primitives: tuple[str, ...]
+    actionable_work_items: tuple[str, ...]
     coverage_bucket: str
     queue_action_kind: str
     target_prover_family: str
@@ -241,6 +242,10 @@ def export_formalization_gap_planner_resource_request_queue(
         "n_candidate_declaration_rows": sum(
             len(row.candidate_declaration_rows) for row in rows
         ),
+        "n_with_actionable_work_items": sum(
+            1 for row in rows if row.actionable_work_items
+        ),
+        "n_actionable_work_items": sum(len(row.actionable_work_items) for row in rows),
         "n_dispatch_spec_identity_valid": n_dispatch_spec_identity_valid,
         "n_dispatch_spec_identity_mismatches": len(rows)
         - n_dispatch_spec_identity_valid,
@@ -326,6 +331,7 @@ def resource_request_queue_row_json_schema() -> dict[str, object]:
         "display_name",
         "primitive",
         "target_primitives",
+        "actionable_work_items",
         "coverage_bucket",
         "queue_action_kind",
         "target_prover_family",
@@ -379,6 +385,7 @@ def resource_request_queue_row_json_schema() -> dict[str, object]:
             "display_name": {"type": "string", "minLength": 1},
             "primitive": {"type": "string", "minLength": 1},
             "target_primitives": string_array,
+            "actionable_work_items": string_array,
             "coverage_bucket": {"type": "string", "minLength": 1},
             "queue_action_kind": {"type": "string", "minLength": 1},
             "target_prover_family": {"type": "string", "minLength": 1},
@@ -472,6 +479,8 @@ def validate_resource_request_queue_row(
             "goal_plan_id",
             "route_id",
             "primitive",
+            "target_primitives",
+            "actionable_work_items",
             "queue_action_kind",
             "target_prover_family",
             "library_snapshot_ref",
@@ -653,6 +662,12 @@ def _llm_route_planner_action_row(
         ),
         "primitive": primitive,
         "target_primitives": target_primitives,
+        "actionable_work_items": _llm_actionable_work_items(
+            source_item,
+            hook_kind=hook_kind,
+            queries=queries,
+            target_primitives=target_primitives,
+        ),
         "coverage_bucket": "llm_route_planner_pending_evidence",
         "queue_action_kind": _llm_queue_action_kind(hook_kind),
         "target_prover_family": target_prover_family,
@@ -742,6 +757,8 @@ def _action_resource_plan_projection(action_row: dict[str, Any]) -> dict[str, An
             "route_id",
             "display_name",
             "primitive",
+            "target_primitives",
+            "actionable_work_items",
             "coverage_bucket",
             "queue_action_kind",
             "target_prover_family",
@@ -1102,6 +1119,29 @@ def _llm_query_tuple(item: dict[str, object]) -> tuple[str, ...]:
     return _str_tuple(_flatten_llm_strings(values))
 
 
+def _llm_actionable_work_items(
+    item: dict[str, object],
+    *,
+    hook_kind: str,
+    queries: tuple[str, ...],
+    target_primitives: tuple[str, ...],
+) -> tuple[str, ...]:
+    explicit_items: list[str] = []
+    for field_name in (
+        "actionable_work_items",
+        "work_items",
+        "formalization_work_items",
+        "next_actions",
+    ):
+        explicit_items.extend(_flatten_llm_strings(item.get(field_name, [])))
+    if explicit_items:
+        return _str_tuple(explicit_items)
+    if queries:
+        return _str_tuple(queries)
+    primitive_text = ", ".join(target_primitives) or "route"
+    return (f"{hook_kind}: gather bounded evidence for {primitive_text}",)
+
+
 def _flatten_llm_strings(values: object) -> tuple[str, ...]:
     if isinstance(values, str):
         return (values,) if values else tuple()
@@ -1133,7 +1173,9 @@ def _text_key(value: object) -> str:
 def _resource_request_rows(
     action_row: dict[str, Any],
 ) -> tuple[FormalizationGapPlannerResourceRequestQueueRow, ...]:
-    action_errors = validate_action_resource_plan_row(action_row)
+    action_validation_row = dict(action_row)
+    action_validation_row.pop("target_primitives", None)
+    action_errors = validate_action_resource_plan_row(action_validation_row)
     rows: list[FormalizationGapPlannerResourceRequestQueueRow] = []
     ranked_resources = [
         ("local_first", resource_id)
@@ -1178,6 +1220,9 @@ def _resource_request_rows(
         if not response_contract_fields:
             row_errors.append(f"response contract fields missing for {resource_id}")
         target_primitives = _target_primitives_from_action_row(action_row)
+        actionable_work_items = _str_tuple(
+            action_row.get("actionable_work_items", [])
+        )
         resource_request_id = (
             "formalization_gap_planner_resource_request:"
             + stable_hash(
@@ -1241,6 +1286,7 @@ def _resource_request_rows(
                 display_name=str(action_row.get("display_name", "")),
                 primitive=str(action_row.get("primitive", "")),
                 target_primitives=target_primitives,
+                actionable_work_items=actionable_work_items,
                 coverage_bucket=str(action_row.get("coverage_bucket", "")),
                 queue_action_kind=str(action_row.get("queue_action_kind", "")),
                 target_prover_family=str(action_row.get("target_prover_family", "")),
@@ -1315,6 +1361,9 @@ def _request_payload(
         "route_id": str(action_row.get("route_id", "")),
         "primitive": str(action_row.get("primitive", "")),
         "target_primitives": _target_primitives_from_action_row(action_row),
+        "actionable_work_items": _str_tuple(
+            action_row.get("actionable_work_items", [])
+        ),
         "coverage_bucket": str(action_row.get("coverage_bucket", "")),
         "queue_action_kind": str(action_row.get("queue_action_kind", "")),
         "target_prover_family": str(action_row.get("target_prover_family", "")),
@@ -1390,6 +1439,9 @@ def _request_playbook(
             "display_name": str(action_row.get("display_name", "")),
             "primitive": str(action_row.get("primitive", "")),
             "target_primitives": _target_primitives_from_action_row(action_row),
+            "actionable_work_items": _str_tuple(
+                action_row.get("actionable_work_items", [])
+            ),
             "coverage_bucket": str(action_row.get("coverage_bucket", "")),
             "queue_action_kind": str(action_row.get("queue_action_kind", "")),
             "candidate_declarations": candidate_declarations,
@@ -1425,10 +1477,16 @@ def _playbook_operator_prompt(
         str(action_row.get("queue_action_kind", "")).strip()
         or "<queue_action_kind>"
     )
+    work_items = _str_tuple(action_row.get("actionable_work_items", []))
+    work_item_clause = (
+        " Actionable work items: " + " | ".join(work_items) + "."
+        if work_items
+        else ""
+    )
     return (
         f"Use {resource_id} for {action_kind} on primitive {primitive} "
         f"in route {route_id}; return {expected_response_artifact} with "
-        f"{response_fields}."
+        f"{response_fields}.{work_item_clause}"
     )
 
 
@@ -1481,6 +1539,7 @@ def _request_payload_identity_errors(row: dict[str, Any]) -> list[str]:
         "route_id",
         "primitive",
         "target_primitives",
+        "actionable_work_items",
         "coverage_bucket",
         "queue_action_kind",
         "target_prover_family",
@@ -1544,6 +1603,12 @@ def _request_playbook_identity_errors(row: dict[str, Any]) -> list[str]:
     ) != _str_tuple(row.get("target_primitives", [])):
         errors.append(
             "request_playbook.input_summary.target_primitives must match row.target_primitives"
+        )
+    if isinstance(request_playbook.get("input_summary"), dict) and _str_tuple(
+        request_playbook.get("input_summary", {}).get("actionable_work_items", [])
+    ) != _str_tuple(row.get("actionable_work_items", [])):
+        errors.append(
+            "request_playbook.input_summary.actionable_work_items must match row.actionable_work_items"
         )
     if not _str_tuple(request_playbook.get("acceptance_checklist", [])):
         errors.append("request_playbook.acceptance_checklist must be non-empty")
@@ -2030,6 +2095,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Local-first requests: {payload.get('n_local_first_requests')}",
         f"- Frontier escalation requests: {payload.get('n_frontier_escalation_requests')}",
         f"- Distinct resources: {payload.get('n_distinct_resources')}",
+        (
+            f"- Requests with actionable work items: "
+            f"{payload.get('n_with_actionable_work_items')}/"
+            f"{payload.get('n_resource_request_rows')}"
+        ),
+        f"- Actionable work items: {payload.get('n_actionable_work_items')}",
         (
             f"- Row schema valid: {payload.get('n_row_schema_valid')}/"
             f"{payload.get('n_resource_request_rows')}"

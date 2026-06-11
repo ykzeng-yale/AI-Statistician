@@ -851,7 +851,9 @@ plus `formalization_gap_planner_resource_request_queue_row.schema.json`. Each
 packet carries the primitive id, route id, component ids, resource id, request
 phase, the resource-specific contract id and request/response fields, evidence
 inputs, expected outputs, acceptance gate, stop conditions, an execution hint,
-the first-class `target_primitives` scope, and the explicit proof boundary. It
+the first-class `target_primitives` scope, the propagated
+`actionable_work_items` from minimal-delta/action planning, and the explicit
+proof boundary. It
 is the executable interface for literature search, formal-source search, Lean-library lookup,
 Lean/LSP/Lake/LeanDojo-style prover feedback, and cross-prover/publication
 audits; it is still not theorem proof evidence. When both action-resource and
