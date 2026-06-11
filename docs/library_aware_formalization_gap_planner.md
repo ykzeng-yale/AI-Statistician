@@ -445,6 +445,9 @@ that same request-context snapshot for standalone reuse. They also expose
 request-inventory quality-control obligation counts, including pending and
 discharged field/value totals, so public bundles show whether route-planner
 prompts still require prover/resource evidence before adoption. They also
+expose Haiku-to-Sonnet repair-escalation counts from the primary and feedback
+LLM route-planner manifests, so cost-aware routing remains auditable in public
+supplements. They also
 preserve the generic informal DAG, formal realization DAG, Lean legacy
 realization alias, and route-alignment edge counts from the packaged planner
 manifests, so non-Lean prover routes remain visible in the public summary

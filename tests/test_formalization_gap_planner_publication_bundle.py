@@ -725,6 +725,30 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     )
     assert manifest["llm_route_planner_summary"]["n_rows"] == 1
     assert manifest["llm_route_planner_summary"]["n_response_present"] == 0
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_generated_responses_model_tier_escalated"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_generated_responses_haiku_to_sonnet_escalated"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_repair_attempt_ledger_model_tier_escalations"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_rows_with_model_tier_escalation"
+        ]
+        == 0
+    )
     assert manifest["llm_route_planner_summary"][
         "n_informal_knowledge_dag_nodes"
     ] == 0
@@ -821,6 +845,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert (
         manifest["feedback_llm_route_planner_summary"][
             "n_route_adoption_pending_formal_gap_boundary_blockers"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_generated_responses_haiku_to_sonnet_escalated"
         ]
         == 0
     )

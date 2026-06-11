@@ -80,6 +80,7 @@ from ai_statistician.formalization_gap_planner_publication_bundle_audit import (
 from ai_statistician.formalization_gap_planner_runtime_handoff_audit import (
     runtime_handoff_audit_row_json_schema,
 )
+from ai_statistician.model_backend import GeneratorResponse
 from ai_statistician.formalization_gap_planner_portable_plan_audit import (
     portable_plan_audit_row_json_schema,
 )
@@ -599,12 +600,40 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
     export_formalization_gap_planner_component_resource_registry(
         component_resource_registry_dir
     )
+    generated_requests = []
+
+    class RepairingFakeAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            generated_requests.append(request)
+            if len(generated_requests) == 1:
+                return GeneratorResponse(
+                    text=json.dumps(
+                        {
+                            "kernel_verified": True,
+                            "informal_knowledge_dag_nodes": [],
+                        }
+                    ),
+                    provider="anthropic",
+                    model=request.model,
+                    metadata={"generator_only": True, "tools_available": False},
+                )
+            return GeneratorResponse(
+                text=response_json.read_text(encoding="utf-8"),
+                provider="anthropic",
+                model=request.model,
+                metadata={"generator_only": True, "tools_available": False},
+            )
+
     payload = export_formalization_gap_planner_llm_route_planner(
         input_json,
         out_dir,
-        provider_name="static",
+        provider_name="anthropic",
         invoke_provider=True,
-        static_response_json=response_json,
+        generator_backend=RepairingFakeAnthropicBackend(),
+        model_tier="haiku",
+        max_repair_attempts=1,
         formalization_gap_planner_target_intake_dir=target_intake_dir,
         formalization_gap_planner_component_resource_registry_dir=(
             component_resource_registry_dir
@@ -613,6 +642,11 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
     assert payload["all_ok"]
     assert payload["n_accepted_route_plans"] == 1
     assert payload["n_rows_with_generator_metadata"] == 1
+    assert payload["n_generated_responses_haiku_to_sonnet_escalated"] == 1
+    assert payload["n_repair_attempt_ledger_model_tier_escalations"] == 1
+    assert len(generated_requests) == 2
+    assert generated_requests[0].metadata["model_tier"] == "haiku"
+    assert generated_requests[1].metadata["model_tier"] == "sonnet"
     return out_dir
 
 
@@ -6259,6 +6293,30 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert (
         bundle_manifest["llm_route_planner_summary"][
+            "n_generated_responses_model_tier_escalated"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_generated_responses_haiku_to_sonnet_escalated"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_repair_attempt_ledger_model_tier_escalations"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_rows_with_model_tier_escalation"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
             "n_informal_knowledge_dag_nodes"
         ]
         >= 1
@@ -6331,6 +6389,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert (
         bundle_manifest["feedback_llm_route_planner_summary"]["n_accepted_route_plans"]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_generated_responses_haiku_to_sonnet_escalated"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_rows_with_model_tier_escalation"
+        ]
         == 1
     )
     assert (
@@ -8274,6 +8344,12 @@ def test_publication_bundle_audit_rejects_bundle_llm_summary_drift() -> None:
     corrupted_primary["llm_route_planner_summary"][
         "n_route_adoption_pending_formal_gap_boundary_blockers"
     ] = 1
+    corrupted_primary["llm_route_planner_summary"][
+        "n_generated_responses_haiku_to_sonnet_escalated"
+    ] = 0
+    corrupted_primary["llm_route_planner_summary"][
+        "n_rows_with_model_tier_escalation"
+    ] = 0
     corrupted_primary["llm_route_planner_summary"]["by_route_adoption_blocker"] = {}
     manifest_path.write_text(
         json.dumps(corrupted_primary, indent=2),
@@ -8314,6 +8390,12 @@ def test_publication_bundle_audit_rejects_bundle_llm_summary_drift() -> None:
     corrupted_feedback["feedback_llm_route_planner_summary"][
         "n_route_adoption_pending_formal_gap_boundary_blockers"
     ] = 1
+    corrupted_feedback["feedback_llm_route_planner_summary"][
+        "n_generated_responses_model_tier_escalated"
+    ] = 0
+    corrupted_feedback["feedback_llm_route_planner_summary"][
+        "n_repair_attempt_ledger_model_tier_escalations"
+    ] = 0
     corrupted_feedback["feedback_llm_route_planner_summary"][
         "by_route_adoption_blocker"
     ] = {}

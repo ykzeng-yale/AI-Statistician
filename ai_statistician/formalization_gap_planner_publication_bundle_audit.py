@@ -2656,6 +2656,39 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_generated_responses_model_tier_escalated": int(
+            payload.get(
+                "n_generated_responses_model_tier_escalated",
+                sum(1 for row in rows if _llm_row_model_tier_escalated(row)),
+            )
+            or 0
+        ),
+        "n_generated_responses_haiku_to_sonnet_escalated": int(
+            payload.get(
+                "n_generated_responses_haiku_to_sonnet_escalated",
+                sum(1 for row in rows if _llm_row_haiku_to_sonnet_escalated(row)),
+            )
+            or 0
+        ),
+        "n_repair_attempt_ledger_model_tier_escalations": int(
+            payload.get(
+                "n_repair_attempt_ledger_model_tier_escalations",
+                sum(
+                    1
+                    for row in rows
+                    for ledger_row in _dict_tuple(row.get("repair_attempt_ledger"))
+                    if bool(ledger_row.get("model_tier_escalated"))
+                ),
+            )
+            or 0
+        ),
+        "n_rows_with_model_tier_escalation": int(
+            payload.get(
+                "n_rows_with_model_tier_escalation",
+                sum(1 for row in rows if _llm_row_model_tier_escalated(row)),
+            )
+            or 0
+        ),
         "n_informal_knowledge_dag_nodes": int(
             payload.get(
                 "n_informal_knowledge_dag_nodes",
@@ -2762,6 +2795,30 @@ def _llm_route_planner_status_counts_for_summary(
             ).items()
         )
     )
+
+
+def _llm_row_model_tier_escalated(row: Mapping[str, Any]) -> bool:
+    metadata = row.get("generator_metadata", {})
+    metadata = metadata if isinstance(metadata, Mapping) else {}
+    return bool(row.get("model_tier_escalated") or metadata.get("model_tier_escalated"))
+
+
+def _llm_row_haiku_to_sonnet_escalated(row: Mapping[str, Any]) -> bool:
+    if not _llm_row_model_tier_escalated(row):
+        return False
+    metadata = row.get("generator_metadata", {})
+    metadata = metadata if isinstance(metadata, Mapping) else {}
+    requested = str(
+        row.get("requested_model_tier")
+        or metadata.get("requested_model_tier")
+        or ""
+    ).strip().lower()
+    effective = str(
+        row.get("model_tier")
+        or metadata.get("effective_model_tier")
+        or ""
+    ).strip().lower()
+    return requested == "haiku" and effective == "sonnet"
 
 
 def _llm_route_planner_blocker_counts_for_summary(
