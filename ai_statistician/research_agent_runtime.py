@@ -1118,6 +1118,11 @@ class FormalizationEvaluatorRuntimeSubsystem:
             formalization_manifest_id=manifest_id,
             proof_state_feedback_manifest_id=proof_state_manifest_id,
         )
+        theorem_reduction_closure_work_orders = _formalizer_theorem_reduction_closure_work_orders(
+            proposal_packet=proposal_packet if isinstance(proposal_packet, Mapping) else {},
+            proof_bank_runtime_memory_summary=proof_bank_runtime_memory_summary,
+            theorem_goals=theorem_goals,
+        )
         manifest = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
             "artifact_kind": "RuntimeFormalizationManifest",
@@ -1149,6 +1154,12 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 "It is not proof evidence and does not expose proof bodies."
             ),
             "proof_bank_runtime_memory_summary": proof_bank_runtime_memory_summary,
+            "theorem_reduction_closure_work_orders": theorem_reduction_closure_work_orders,
+            "theorem_reduction_closure_work_order_boundary": (
+                "Theorem-reduction closure work orders are machine-actionable proof tasks "
+                "for ProofEngineer/Lean. They are not proof evidence until AXLE/local Lean "
+                "kernel verification closes the intended theorem-level reduction."
+            ),
             "formal_subclaims": [_formal_subclaim_to_json(row) for row in subclaims],
             "proof_obligation_control": proof_obligation_control,
             "proof_state_feedback_manifest_id": proof_state_manifest_id,
@@ -1170,6 +1181,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 "formalization_gap_planner_primitives": gap_planner_bridge["counts"][
                     "primitives"
                 ],
+                "theorem_reduction_closure_work_orders": len(
+                    theorem_reduction_closure_work_orders
+                ),
             },
             "verifiers": verifier_names,
             "full_frontier_theorem_proved": False,
@@ -2692,6 +2706,89 @@ def _formalizer_proof_bank_runtime_memory_summary(
     }
 
 
+def _formalizer_theorem_reduction_closure_work_orders(
+    *,
+    proposal_packet: Mapping[str, Any],
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+    theorem_goals: list[TheoremGoal],
+) -> list[dict[str, Any]]:
+    if not proof_bank_runtime_memory_summary.get("theorem_reduction_closure_required"):
+        return []
+    target_mode = str(
+        proof_bank_runtime_memory_summary.get("recommended_formalizer_target_mode", "")
+        or ""
+    )
+    if target_mode != "theorem_level_reduction_closure":
+        return []
+    remaining_goal_ids = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get("remaining_theorem_goal_ids", []) or []
+        if str(row).strip()
+    ] or [row.id for row in theorem_goals if str(row.id).strip()]
+    verified_bridge_ids = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get(
+            "memory_kernel_verified_proof_obligation_ids",
+            [],
+        )
+        or []
+        if str(row).strip()
+    ]
+    work_orders: list[dict[str, Any]] = []
+    gap_rows = [
+        dict(row)
+        for row in proposal_packet.get("gap_taxonomy", []) or []
+        if isinstance(row, Mapping)
+    ][:5]
+    for target in proposal_packet.get("formal_targets", []) or []:
+        if not isinstance(target, Mapping):
+            continue
+        target_id = str(target.get("id", "") or "").strip()
+        target_text = json.dumps(target, default=str).lower()
+        is_closure_target = (
+            "reduction_closure" in target_id
+            or "theorem_level_reduction" in target_text
+            or ("reduction" in target_text and "closure" in target_text)
+        )
+        if not target_id or not is_closure_target:
+            continue
+        work_order = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "TheoremReductionClosureWorkOrder",
+            "work_order_id": "theorem_reduction_closure_work_order:"
+            + stable_hash([target_id, remaining_goal_ids, verified_bridge_ids])[:20],
+            "source_formalizer_packet_id": str(proposal_packet.get("packet_id", "")),
+            "source_formal_target_id": target_id,
+            "target_theorem_goal_ids": remaining_goal_ids,
+            "verified_bridge_obligation_ids": verified_bridge_ids,
+            "remaining_unverified_proof_bank_obligation_ids": [
+                str(row).strip()
+                for row in proof_bank_runtime_memory_summary.get(
+                    "remaining_unverified_proof_bank_obligation_ids",
+                    [],
+                )
+                or []
+                if str(row).strip()
+            ],
+            "lean_statement_sketch": str(target.get("lean_statement_sketch", "") or ""),
+            "informal_source": str(target.get("informal_source", "") or ""),
+            "semantic_alignment_constraints": [
+                str(row)
+                for row in target.get("semantic_alignment_constraints", []) or []
+            ][:5],
+            "gap_taxonomy": gap_rows,
+            "proof_mode": "theorem_level_reduction_closure",
+            "acceptance_gate": (
+                "AXLE/local Lean kernel verifies the theorem-level reduction with no sorry; "
+                "otherwise record the exact formal primitive, semantic alignment, or source-theorem blocker."
+            ),
+            "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        }
+        work_orders.append(work_order)
+    return work_orders
+
+
 def _critic_learning_rows(
     *,
     question: OpenResearchQuestion,
@@ -2775,6 +2872,11 @@ def _critic_learning_rows(
         or deferred_proof_obligation_ids_due_to_max
         or selected_unverified_proof_obligation_ids
     )
+    theorem_reduction_closure_work_order_ids = [
+        str(row.get("work_order_id", "") or "").strip()
+        for row in formalization_manifest.get("theorem_reduction_closure_work_orders", []) or []
+        if isinstance(row, Mapping) and str(row.get("work_order_id", "") or "").strip()
+    ]
     rows: list[dict[str, Any]] = []
     rows.append(
         {
@@ -2827,6 +2929,9 @@ def _critic_learning_rows(
                     )
                     or proof_control.get("theorem_reduction_closure_required", False)
                 ),
+                "theorem_reduction_closure_work_order_ids": (
+                    theorem_reduction_closure_work_order_ids
+                ),
             },
             "selected_proof_obligation_ids": selected_proof_obligation_ids,
             "selected_unverified_proof_obligation_ids": selected_unverified_proof_obligation_ids,
@@ -2847,6 +2952,7 @@ def _critic_learning_rows(
                     else ""
                 )
             ),
+            "theorem_reduction_closure_work_order_ids": theorem_reduction_closure_work_order_ids,
             "target_behavior": "route implementation gaps, formal gaps, and kernel rerun needs to the correct subsystem",
         }
     )
@@ -4110,10 +4216,12 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "n_formalization_gap_planner_bridges": 0,
         "n_formalization_gap_planner_routes": 0,
         "n_formalization_gap_planner_primitives": 0,
+        "n_theorem_reduction_closure_work_orders": 0,
         "n_full_frontier_theorem_proved": 0,
         "has_kernel_evidence": False,
         "has_formal_gaps": False,
         "has_formalization_gap_planner_bridge": False,
+        "has_theorem_reduction_closure_work_orders": False,
         "verifiers": [],
         "verification_strengths": [],
         "proof_obligation_control": {
@@ -4186,6 +4294,9 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                 proof["n_kernel_verified_subclaims"] += int(counts.get("kernel_verified", 0) or 0)
                 proof["n_formal_gaps"] += int(counts.get("formal_gap", 0) or 0)
                 proof["n_failed_subclaims"] += int(counts.get("failed", 0) or 0)
+                proof["n_theorem_reduction_closure_work_orders"] += len(
+                    artifact.get("theorem_reduction_closure_work_orders", []) or []
+                )
                 if artifact.get("full_frontier_theorem_proved") is True:
                     proof["n_full_frontier_theorem_proved"] += 1
                 control = (
@@ -4359,6 +4470,9 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     proof["has_formal_gaps"] = int(proof["n_formal_gaps"]) > 0
     proof["has_formalization_gap_planner_bridge"] = (
         int(proof["n_formalization_gap_planner_bridges"]) > 0
+    )
+    proof["has_theorem_reduction_closure_work_orders"] = (
+        int(proof["n_theorem_reduction_closure_work_orders"]) > 0
     )
     proof["verifiers"] = sorted(verifier_names)
     proof["verification_strengths"] = sorted(strengths)

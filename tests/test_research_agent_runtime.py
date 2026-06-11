@@ -1144,6 +1144,116 @@ def test_formalization_runtime_suppresses_llm_requests_already_kernel_verified_i
     assert "variance_nonneg" not in control["deferred_proof_obligation_ids_due_to_max"]
 
 
+def test_formalization_runtime_exports_theorem_reduction_closure_work_order() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    question_payload = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+
+    class StaticClosureFormalizer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            packet = dict(_formalizer_sample_response())
+            packet.update(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "FormalizerProofEngineerProposalPacket",
+                    "packet_id": "formalizer_proposal:closure",
+                    "source_agent": "StaticClosureFormalizer",
+                    "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+                    "kernel_verified": False,
+                    "full_frontier_theorem_proved": False,
+                    "formal_targets": [
+                        {
+                            "id": "split_conformal_finite_sample_coverage_reduction_closure",
+                            "informal_source": "connect verified conformal bridge obligations to the frontier theorem",
+                            "lean_statement_sketch": "theorem split_conformal_finite_sample_coverage_reduction_closure := by",
+                            "semantic_alignment_constraints": ["marginal coverage only"],
+                            "expected_status": "OPEN",
+                        }
+                    ],
+                    "proof_bank_obligation_requests": [],
+                    "gap_taxonomy": [
+                        {
+                            "gap": "theorem-level reduction closure still needs Lean proof",
+                            "kind": "proof_search",
+                            "next_owner": "ProofEngineer/AgentRuntime",
+                        }
+                    ],
+                }
+            )
+            return packet
+
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=StaticClosureFormalizer(),
+        proof_verifier=MockProofVerifier(),
+        max_proof_obligations=1,
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {"manifest_id": "algorithm_sandbox_manifest:test"},
+        },
+    )
+    task = AgentTask(
+        task_id="task:formalization_theorem_closure_work_order",
+        owner_subsystem="FormalizationEvaluator",
+        objective="test theorem closure work-order export",
+        inputs={
+            "question": question_payload,
+            "architect_context": {
+                "runtime_learning_memory": {
+                    "artifact_kind": "RuntimeLearningMemoryContext",
+                    "rows": [
+                        {
+                            "kernel_verified_proof_obligation_ids": verified_ids,
+                            "recommended_proof_obligation_ids": verified_ids,
+                        }
+                    ],
+                },
+                "environment_feedback": {
+                    "high_priority_agenda": [
+                        {
+                            "id": "formal_gap:theorem_reduction_closure",
+                            "owner_subsystem": "Formalizer/LeanProver",
+                        }
+                    ]
+                },
+            },
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+    manifest = next(
+        row
+        for key, row in result.produced_artifacts.items()
+        if key.startswith("formalization_manifest:")
+    )
+    control = manifest["proof_obligation_control"]
+    work_orders = manifest["theorem_reduction_closure_work_orders"]
+
+    assert control["proof_bank_bridge_catalog_exhausted_by_memory"] is True
+    assert control["theorem_reduction_closure_required"] is True
+    assert control["n_selected_proof_obligations"] == 0
+    assert manifest["counts"]["theorem_reduction_closure_work_orders"] == 1
+    assert work_orders[0]["artifact_kind"] == "TheoremReductionClosureWorkOrder"
+    assert work_orders[0]["proof_mode"] == "theorem_level_reduction_closure"
+    assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+    assert work_orders[0]["target_theorem_goal_ids"] == ["split_conformal_finite_sample_coverage"]
+    assert set(work_orders[0]["verified_bridge_obligation_ids"]) == set(verified_ids)
+
+
 def test_critic_routes_formal_gap_to_theorem_closure_after_proof_bank_exhausted() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     formalization_manifest = {
@@ -1190,6 +1300,13 @@ def test_critic_routes_formal_gap_to_theorem_closure_after_proof_bank_exhausted(
             "theorem_reduction_closure_required": True,
             "recommended_formalizer_target_mode": "theorem_level_reduction_closure",
         },
+        "theorem_reduction_closure_work_orders": [
+            {
+                "work_order_id": "theorem_reduction_closure_work_order:test",
+                "proof_mode": "theorem_level_reduction_closure",
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+            }
+        ],
     }
     agenda = _critic_next_action_agenda(
         question=question,
@@ -1218,8 +1335,14 @@ def test_critic_routes_formal_gap_to_theorem_closure_after_proof_bank_exhausted(
     assert feedback_row["recommended_proof_obligation_ids"] == []
     assert feedback_row["selected_unverified_proof_obligation_ids"] == []
     assert feedback_row["recommended_formalizer_target_mode"] == "theorem_level_reduction_closure"
+    assert feedback_row["theorem_reduction_closure_work_order_ids"] == [
+        "theorem_reduction_closure_work_order:test"
+    ]
     assert feedback_row["input_summary"]["proof_bank_bridge_catalog_exhausted_by_memory"] is True
     assert feedback_row["input_summary"]["theorem_reduction_closure_required"] is True
+    assert feedback_row["input_summary"]["theorem_reduction_closure_work_order_ids"] == [
+        "theorem_reduction_closure_work_order:test"
+    ]
     assert feedback_row["formal_gap_target_ids"] == ["conformal:split_conformal_finite_sample_coverage"]
 
 
