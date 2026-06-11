@@ -419,6 +419,11 @@ class AnthropicGeneratorBackend:
                 "retry_count": retry_count,
                 "requested_model": request.model,
                 "provider_reported_model": response_model,
+                **_claude_generator_model_tier_metadata(
+                    request_model=request.model,
+                    response_model=response_model,
+                    request_metadata=request.metadata,
+                ),
             },
         )
 
@@ -569,6 +574,47 @@ def _response_model(response: Any, *, fallback: str) -> str:
     if model:
         return str(model)
     return str(fallback)
+
+
+def _claude_generator_model_tier_metadata(
+    *,
+    request_model: str,
+    response_model: str,
+    request_metadata: Mapping[str, Any],
+) -> dict[str, object]:
+    request_tier = _request_model_tier_from_metadata(request_metadata)
+    provider_tier = claude_model_tier_for_model(response_model)
+    request_model_tier = claude_model_tier_for_model(request_model)
+    metadata: dict[str, object] = {
+        "request_model_tier": request_tier,
+        "requested_model_tier": str(
+            request_metadata.get("requested_model_tier", "") or request_tier
+        ),
+        "request_model_family_tier": request_model_tier,
+        "provider_reported_model_tier": provider_tier,
+        "provider_reported_model_tier_mismatch": "",
+        "requested_model_tier_mismatch": "",
+    }
+    if request_tier:
+        metadata["provider_reported_model_tier_mismatch"] = claude_model_tier_mismatch(
+            response_model,
+            request_tier,
+            subject="provider reported model",
+        )
+        metadata["requested_model_tier_mismatch"] = claude_model_tier_mismatch(
+            request_model,
+            request_tier,
+            subject="requested model",
+        )
+    return metadata
+
+
+def _request_model_tier_from_metadata(metadata: Mapping[str, Any]) -> str:
+    for key in ("effective_model_tier", "model_tier", "requested_model_tier"):
+        tier = str(metadata.get(key, "") or "").strip().lower()
+        if tier in CLAUDE_MODEL_TIERS:
+            return tier
+    return ""
 
 
 def _openai_response_text(response: Any) -> str:

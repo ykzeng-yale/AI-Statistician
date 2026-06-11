@@ -125,16 +125,70 @@ def test_anthropic_generator_backend_surfaces_provider_reported_model(
         SimpleNamespace(Anthropic=FakeAnthropicClient),
     )
 
-    response = AnthropicGeneratorBackend(api_key="test-anthropic-key").generate(
-        _request()
+    request = GeneratorRequest(
+        **{
+            **_request().__dict__,
+            "model": "claude-sonnet-4-6",
+            "metadata": {"model_tier": "sonnet", "requested_model_tier": "sonnet"},
+        }
     )
+    response = AnthropicGeneratorBackend(api_key="test-anthropic-key").generate(request)
 
     assert response.model == "claude-sonnet-provider-reported"
-    assert response.metadata["requested_model"] == "test-model"
+    assert response.metadata["requested_model"] == "claude-sonnet-4-6"
     assert (
         response.metadata["provider_reported_model"]
         == "claude-sonnet-provider-reported"
     )
+    assert response.metadata["request_model_tier"] == "sonnet"
+    assert response.metadata["requested_model_tier"] == "sonnet"
+    assert response.metadata["request_model_family_tier"] == "sonnet"
+    assert response.metadata["provider_reported_model_tier"] == "sonnet"
+    assert response.metadata["provider_reported_model_tier_mismatch"] == ""
+    assert response.metadata["requested_model_tier_mismatch"] == ""
+
+
+def test_anthropic_generator_backend_records_provider_model_tier_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeMessages:
+        def create(self, **kwargs):
+            return SimpleNamespace(
+                content=[SimpleNamespace(text='{"ok": true}')],
+                model="claude-sonnet-4-6",
+            )
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        SimpleNamespace(Anthropic=FakeAnthropicClient),
+    )
+
+    request = GeneratorRequest(
+        **{
+            **_request().__dict__,
+            "model": "claude-haiku-4-5-20251001",
+            "metadata": {"model_tier": "haiku", "requested_model_tier": "haiku"},
+        }
+    )
+    response = AnthropicGeneratorBackend(api_key="test-anthropic-key").generate(request)
+
+    assert response.metadata["request_model_tier"] == "haiku"
+    assert response.metadata["requested_model_tier"] == "haiku"
+    assert response.metadata["request_model_family_tier"] == "haiku"
+    assert response.metadata["provider_reported_model_tier"] == "sonnet"
+    assert (
+        response.metadata["provider_reported_model_tier_mismatch"]
+        == (
+            "provider reported model expected Claude haiku tier but is "
+            "configured with claude-sonnet-4-6"
+        )
+    )
+    assert response.metadata["requested_model_tier_mismatch"] == ""
 
 
 def test_openai_generator_backend_surfaces_provider_reported_model(
