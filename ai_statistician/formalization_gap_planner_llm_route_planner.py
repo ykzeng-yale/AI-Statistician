@@ -637,6 +637,8 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
             ],
         },
         "new_definitions": ["definitions to add"],
+        "new_theory_primitives": ["new theory fragments to design"],
+        "first_principles_primitives": ["first-principles fragments to design"],
         "wrapper_lemmas": ["wrappers to write"],
         "bridge_lemmas": ["bridge lemmas to prove"],
         "source_port_lemmas": ["source-backed lemmas to port"],
@@ -1896,6 +1898,54 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for row in rows
         ),
+        "n_delta_action_witness_required_primitives": sum(
+            len(
+                _str_tuple(
+                    row.realization_coverage_witness.get(
+                        "delta_action_witness_required_primitives",
+                        [],
+                    )
+                )
+            )
+            for row in rows
+        ),
+        "n_delta_action_witness_missing_primitives": sum(
+            len(
+                _str_tuple(
+                    row.realization_coverage_witness.get(
+                        "delta_action_witness_missing_primitives",
+                        [],
+                    )
+                )
+            )
+            for row in rows
+        ),
+        "n_rows_with_delta_action_witness_obligations": sum(
+            1
+            for row in rows
+            if _str_tuple(
+                row.realization_coverage_witness.get(
+                    "delta_action_witness_required_primitives",
+                    [],
+                )
+            )
+        ),
+        "n_rows_with_complete_delta_action_witness": sum(
+            1
+            for row in rows
+            if _str_tuple(
+                row.realization_coverage_witness.get(
+                    "delta_action_witness_required_primitives",
+                    [],
+                )
+            )
+            and bool(
+                row.realization_coverage_witness.get(
+                    "delta_action_witness_complete",
+                    False,
+                )
+            )
+        ),
         "n_search_requests": sum(len(row.search_requests) for row in rows),
         "n_planner_next_actions": sum(len(row.planner_next_actions) for row in rows),
         "n_rows_with_planner_next_actions": sum(
@@ -2351,6 +2401,10 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_formal_realization_dag_nodes",
             "n_lean_realization_dag_nodes",
             "n_route_alignment_edges",
+            "n_delta_action_witness_required_primitives",
+            "n_delta_action_witness_missing_primitives",
+            "n_rows_with_delta_action_witness_obligations",
+            "n_rows_with_complete_delta_action_witness",
             "n_rows_with_context_packet_inventory",
             "n_row_schema_valid",
             "n_row_schema_invalid",
@@ -2496,6 +2550,10 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_formal_realization_dag_nodes": nonnegative_integer,
             "n_lean_realization_dag_nodes": nonnegative_integer,
             "n_route_alignment_edges": nonnegative_integer,
+            "n_delta_action_witness_required_primitives": nonnegative_integer,
+            "n_delta_action_witness_missing_primitives": nonnegative_integer,
+            "n_rows_with_delta_action_witness_obligations": nonnegative_integer,
+            "n_rows_with_complete_delta_action_witness": nonnegative_integer,
             "n_rows_with_context_packet_inventory": nonnegative_integer,
             "n_row_schema_valid": nonnegative_integer,
             "n_row_schema_invalid": nonnegative_integer,
@@ -2707,6 +2765,10 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                     "delta_primitives_missing_route_alignment_edge",
                     "introduced_primitives_with_route_alignment_edge",
                     "introduced_primitives_missing_route_alignment_edge",
+                    "delta_action_witness_required_primitives",
+                    "delta_action_witnessed_primitives",
+                    "delta_action_witness_missing_primitives",
+                    "delta_action_witness_complete",
                     "cost_hint_baseline_coverage_complete",
                     "selected_route_coverage_complete",
                     "selected_formal_coverage_complete",
@@ -2729,6 +2791,12 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                     "delta_primitives_missing_route_alignment_edge": witness_array,
                     "introduced_primitives_with_route_alignment_edge": witness_array,
                     "introduced_primitives_missing_route_alignment_edge": witness_array,
+                    "delta_action_witness_required_primitives": witness_array,
+                    "delta_action_witnessed_primitives": witness_array,
+                    "delta_action_witness_missing_primitives": witness_array,
+                    "delta_action_witness_complete": {"type": "boolean"},
+                    "delta_action_witness_rows": object_array,
+                    "missing_delta_action_witnesses": object_array,
                     "cost_hint_baseline_coverage_complete": {"type": "boolean"},
                     "selected_route_coverage_complete": {"type": "boolean"},
                     "selected_formal_coverage_complete": {"type": "boolean"},
@@ -5541,6 +5609,8 @@ def llm_route_planner_response_payload_schema(
             },
             "and_or_cost_graph": {"$ref": "#/$defs/and_or_cost_graph"},
             "new_definitions": string_array,
+            "new_theory_primitives": string_array,
+            "first_principles_primitives": string_array,
             "wrapper_lemmas": string_array,
             "bridge_lemmas": string_array,
             "source_port_lemmas": string_array,
@@ -11058,6 +11128,14 @@ def _response_primitive_coherence_errors(
             standalone_primitives=standalone_primitives,
         )
     )
+    errors.extend(
+        _minimal_delta_actionability_witness_errors(
+            minimal_delta=minimal_delta,
+            formal_nodes=formal_nodes,
+            standalone_primitives=standalone_primitives,
+            selected=selected,
+        )
+    )
     return errors
 
 
@@ -11104,6 +11182,206 @@ def _primitive_cost_coverage_evidence_errors(
                 f"{evidence_cost:g}"
             )
     return errors
+
+
+def _minimal_delta_actionability_witness_errors(
+    *,
+    minimal_delta: Mapping[str, Any],
+    formal_nodes: tuple[dict[str, object], ...],
+    standalone_primitives: tuple[dict[str, object], ...],
+    selected: set[str],
+) -> list[str]:
+    errors: list[str] = []
+    witness = _minimal_delta_action_witness_status(
+        minimal_delta=minimal_delta,
+        formal_nodes=formal_nodes,
+        standalone_primitives=standalone_primitives,
+        selected=selected,
+    )
+    for item in _dict_tuple(witness.get("missing_delta_action_witnesses", [])):
+        primitive = str(item.get("primitive", "")).strip()
+        action_field = str(item.get("required_action_field", "")).strip()
+        acceptable_fields = _str_tuple(item.get("acceptable_action_fields", []))
+        sources = _str_tuple(item.get("requirement_sources", []))
+        if primitive and action_field:
+            errors.append(
+                "minimal_delta_plan selected primitive "
+                f"{primitive} requires action witness in "
+                f"{', '.join(acceptable_fields)} because "
+                + "; ".join(sources)
+            )
+    return errors
+
+
+def _minimal_delta_action_witness_status(
+    *,
+    minimal_delta: Mapping[str, Any],
+    formal_nodes: tuple[dict[str, object], ...],
+    standalone_primitives: tuple[dict[str, object], ...],
+    selected: set[str],
+) -> dict[str, object]:
+    required_by_primitive = _minimal_delta_action_requirements(
+        minimal_delta=minimal_delta,
+        formal_nodes=formal_nodes,
+        standalone_primitives=standalone_primitives,
+        selected=selected,
+    )
+    witnessed: list[str] = []
+    missing: list[str] = []
+    missing_rows: list[dict[str, object]] = []
+    witness_rows: list[dict[str, object]] = []
+    for primitive, action_fields in sorted(required_by_primitive.items()):
+        primitive_missing = False
+        for action_field, sources in sorted(action_fields.items()):
+            acceptable_fields = _minimal_delta_action_witness_fields(action_field)
+            matched_fields = [
+                field_name
+                for field_name in acceptable_fields
+                if _minimal_delta_action_list_mentions_primitive(
+                    minimal_delta.get(field_name, []),
+                    primitive,
+                )
+            ]
+            row = {
+                "primitive": primitive,
+                "required_action_field": action_field,
+                "acceptable_action_fields": list(acceptable_fields),
+                "requirement_sources": sorted(sources),
+                "matched_action_fields": matched_fields,
+            }
+            if matched_fields:
+                witness_rows.append(row)
+            else:
+                primitive_missing = True
+                missing_rows.append(row)
+        if primitive_missing:
+            missing.append(primitive)
+        else:
+            witnessed.append(primitive)
+    required_primitives = tuple(sorted(required_by_primitive))
+    return {
+        "delta_action_witness_required_primitives": list(required_primitives),
+        "delta_action_witnessed_primitives": sorted(set(witnessed)),
+        "delta_action_witness_missing_primitives": sorted(set(missing)),
+        "delta_action_witness_complete": not missing_rows,
+        "delta_action_witness_rows": witness_rows,
+        "missing_delta_action_witnesses": missing_rows,
+    }
+
+
+def _minimal_delta_action_requirements(
+    *,
+    minimal_delta: Mapping[str, Any],
+    formal_nodes: tuple[dict[str, object], ...],
+    standalone_primitives: tuple[dict[str, object], ...],
+    selected: set[str],
+) -> dict[str, dict[str, set[str]]]:
+    required_by_primitive: dict[str, dict[str, set[str]]] = {}
+    if not selected:
+        return required_by_primitive
+
+    def add_requirement(
+        primitive: str,
+        action_field: str,
+        *,
+        marker: str,
+        source_field: str,
+    ) -> None:
+        primitive_key = _primitive_key(primitive)
+        if not primitive_key or primitive_key not in selected:
+            return
+        required_by_primitive.setdefault(primitive_key, {}).setdefault(
+            action_field,
+            set(),
+        ).add(f"{source_field}={marker}")
+
+    for row in formal_nodes:
+        primitive = _primitive_key(row.get("primitive", ""))
+        for field_name in (
+            "coverage_bucket",
+            "coverage_status",
+            "formalization_action",
+            "alignment_status",
+        ):
+            marker = _primitive_key(row.get(field_name, ""))
+            for action_field in _minimal_delta_action_fields_for_marker(marker):
+                add_requirement(
+                    primitive,
+                    action_field,
+                    marker=marker,
+                    source_field=f"formal_realization_dag_nodes.{field_name}",
+                )
+    for row in standalone_primitives:
+        primitive = _primitive_key(row.get("primitive", ""))
+        for field_name in (
+            "coverage_bucket",
+            "coverage_status",
+            "formalization_action",
+            "alignment_status",
+        ):
+            marker = _primitive_key(row.get(field_name, ""))
+            for action_field in _minimal_delta_action_fields_for_marker(marker):
+                add_requirement(
+                    primitive,
+                    action_field,
+                    marker=marker,
+                    source_field=f"standalone_route.primitives.{field_name}",
+                )
+    for index, row in enumerate(_dict_tuple(minimal_delta.get("primitive_costs", []))):
+        primitive = _primitive_key(row.get("primitive", ""))
+        marker = _primitive_key(row.get("coverage_bucket", ""))
+        for action_field in _minimal_delta_action_fields_for_marker(marker):
+            add_requirement(
+                primitive,
+                action_field,
+                marker=marker,
+                source_field=(
+                    "minimal_delta_plan.primitive_costs"
+                    f"[{index}].coverage_bucket"
+                ),
+            )
+    return required_by_primitive
+
+
+def _minimal_delta_action_fields_for_marker(marker: str) -> tuple[str, ...]:
+    bucket = _coverage_marker_policy_bucket(marker)
+    if bucket in {"wrapper", "wrapper_needed"}:
+        return ("wrapper_lemmas",)
+    if bucket in {"bridge", "bridge_needed"}:
+        return ("bridge_lemmas",)
+    if bucket in {"source_port", "source_port_needed"}:
+        return ("source_port_lemmas",)
+    if bucket == "new_definition":
+        return ("new_definitions",)
+    if bucket in {"new_theory", "new_theory_needed"}:
+        return ("new_theory_primitives",)
+    return tuple()
+
+
+def _minimal_delta_action_witness_fields(action_field: str) -> tuple[str, ...]:
+    if action_field == "new_theory_primitives":
+        return (
+            "new_theory_primitives",
+            "first_principles_primitives",
+            "new_definitions",
+        )
+    return (action_field,)
+
+
+def _minimal_delta_action_list_mentions_primitive(
+    values: object,
+    primitive: str,
+) -> bool:
+    primitive_key = _primitive_key(primitive)
+    if not primitive_key:
+        return False
+    for value in _str_tuple(values):
+        value_key = _primitive_key(value)
+        if value_key == primitive_key:
+            return True
+        if primitive_key in value_key or value_key in primitive_key:
+            return True
+    return False
 
 
 def _minimal_delta_request_hint_errors(
@@ -11456,6 +11734,15 @@ def _realization_coverage_witness(
     introduced_missing_alignment = tuple(
         primitive for primitive in sorted(introduced) if primitive not in aligned
     )
+    action_witness = _minimal_delta_action_witness_status(
+        minimal_delta=minimal_delta,
+        formal_nodes=formal_nodes,
+        standalone_primitives=_dict_tuple(standalone_route.get("primitives", [])),
+        selected=selected,
+    )
+    action_witness_complete = bool(
+        action_witness.get("delta_action_witness_complete", False)
+    )
     return {
         "selected_primitives": list(selected_order),
         "delta_primitives": sorted(delta_primitives),
@@ -11487,6 +11774,7 @@ def _realization_coverage_witness(
         "introduced_primitives_missing_route_alignment_edge": list(
             introduced_missing_alignment
         ),
+        **action_witness,
         "cost_hint_baseline_coverage_complete": not omitted_cost_hint,
         "selected_route_coverage_complete": bool(selected_order)
         and not selected_missing_route,
@@ -11498,7 +11786,8 @@ def _realization_coverage_witness(
         and not selected_missing_route
         and not selected_missing_formal
         and not delta_missing_alignment
-        and not introduced_missing_alignment,
+        and not introduced_missing_alignment
+        and action_witness_complete,
     }
 
 
@@ -12632,6 +12921,9 @@ def _compact_realization_witness(value: object) -> dict[str, object]:
         "selected_primitives_missing_formal_realization_node",
         "delta_primitives_missing_route_alignment_edge",
         "introduced_primitives_missing_route_alignment_edge",
+        "delta_action_witness_required_primitives",
+        "delta_action_witnessed_primitives",
+        "delta_action_witness_missing_primitives",
     )
     compact: dict[str, object] = {
         field_name: list(_str_tuple(witness.get(field_name, [])))
@@ -12641,6 +12933,18 @@ def _compact_realization_witness(value: object) -> dict[str, object]:
     compact["realization_coverage_complete"] = bool(
         witness.get("realization_coverage_complete", False)
     )
+    if (
+        "delta_action_witness_complete" in witness
+        or _str_tuple(witness.get("delta_action_witness_required_primitives", []))
+        or _str_tuple(witness.get("delta_action_witness_missing_primitives", []))
+    ):
+        compact["delta_action_witness_complete"] = bool(
+            witness.get("delta_action_witness_complete", False)
+        )
+        compact["missing_delta_action_witnesses"] = [
+            dict(row)
+            for row in _dict_tuple(witness.get("missing_delta_action_witnesses", []))[:8]
+        ]
     if (
         "cost_hint_baseline_coverage_complete" in witness
         or _str_tuple(witness.get("cost_hint_baseline_primitives", []))
@@ -12680,6 +12984,23 @@ def _realization_feedback_next_actions(
                 "action": "add_route_alignment_edges_for_delta_primitives",
                 "target_primitives": list(missing_delta[:12]),
                 "reason": "delta primitives lack informal-to-formal route alignment edges",
+            }
+        )
+    missing_action_witness = _str_tuple(
+        realization_coverage.get("missing_delta_action_witness_primitives", [])
+    )
+    if missing_action_witness:
+        actions.append(
+            {
+                "source": "realization_coverage_witness",
+                "owner": "formalization_planner",
+                "action": "add_minimal_delta_action_witnesses",
+                "target_primitives": list(missing_action_witness[:12]),
+                "reason": (
+                    "selected positive-delta primitives must be listed in "
+                    "wrapper_lemmas, bridge_lemmas, source_port_lemmas, "
+                    "new_definitions, or new_theory_primitives"
+                ),
             }
         )
     omitted_cost_hint = _str_tuple(
@@ -15503,6 +15824,15 @@ def _realization_coverage_summary_for_witness(
         "missing_delta_alignment_primitives": list(
             _str_tuple(witness.get("delta_primitives_missing_route_alignment_edge", []))
         ),
+        "missing_delta_action_witness_primitives": list(
+            _str_tuple(witness.get("delta_action_witness_missing_primitives", []))
+        ),
+        "delta_action_witness_required_primitives": list(
+            _str_tuple(witness.get("delta_action_witness_required_primitives", []))
+        ),
+        "delta_action_witness_complete": bool(
+            witness.get("delta_action_witness_complete", True)
+        ),
         "cost_hint_baseline_primitives": list(
             _str_tuple(witness.get("cost_hint_baseline_primitives", []))
         ),
@@ -15534,6 +15864,8 @@ def _trigger_kind_for_realization_coverage_action(
     action_name = str(action.get("action", "")).strip()
     if action_name == "review_or_restore_omitted_cost_hint_primitives":
         return "omitted_cost_hint_primitives_review_required"
+    if action_name == "add_minimal_delta_action_witnesses":
+        return "minimal_delta_action_witness_repair_required"
     return "realization_coverage_repair_required"
 
 
@@ -16882,6 +17214,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Informal DAG nodes: {payload.get('n_informal_knowledge_dag_nodes')}",
         f"- Formal realization nodes: {payload.get('n_formal_realization_dag_nodes')}",
         f"- Alignment edges: {payload.get('n_route_alignment_edges')}",
+        f"- Delta action witness required/missing: {payload.get('n_delta_action_witness_required_primitives')}/{payload.get('n_delta_action_witness_missing_primitives')}",
         f"- Search requests: {payload.get('n_search_requests')}",
         f"- Planner next actions: {payload.get('n_planner_next_actions')}",
         f"- All OK: {payload.get('all_ok')}",

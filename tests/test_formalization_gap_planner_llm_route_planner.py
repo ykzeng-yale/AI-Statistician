@@ -1806,6 +1806,43 @@ def test_llm_route_planner_accepts_registry_bound_actions_without_queue() -> Non
     assert row["planner_next_actions"][0]["owner"] == "lean_lsp_mcp"
 
 
+def test_llm_route_planner_rejects_missing_delta_action_witness() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_missing_delta_action"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    minimal_delta = bad_response["minimal_delta_plan"]
+    assert isinstance(minimal_delta, dict)
+    minimal_delta["bridge_lemmas"] = []
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    witness = row["realization_coverage_witness"]
+    assert witness["delta_action_witness_missing_primitives"] == [
+        "rank_uniformity"
+    ]
+    assert witness["delta_action_witness_complete"] is False
+    assert witness["realization_coverage_complete"] is False
+    assert payload["n_delta_action_witness_missing_primitives"] == 1
+    assert any(
+        "selected primitive rank_uniformity requires action witness in bridge_lemmas"
+        in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_action_only_hooks"
@@ -4493,6 +4530,10 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["n_rows_with_source_snippets"] == 1
     assert payload["n_rows_with_minimal_delta_rationale"] == 1
     assert payload["n_rows_with_minimal_delta_cost_witness"] == 1
+    assert payload["n_delta_action_witness_required_primitives"] == 1
+    assert payload["n_delta_action_witness_missing_primitives"] == 0
+    assert payload["n_rows_with_delta_action_witness_obligations"] == 1
+    assert payload["n_rows_with_complete_delta_action_witness"] == 1
     row = payload["rows"][0]
     assert row["acceptance_status"] == "ACCEPTED_WITH_SEARCH_REQUESTS"
     assert row["route_adoption_status"] == (
@@ -4535,6 +4576,8 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "cost_hint_baseline_primitives" in witness_schema["required"]
     assert "omitted_cost_hint_primitives" in witness_schema["required"]
     assert "cost_hint_baseline_coverage_complete" in witness_schema["required"]
+    assert "delta_action_witness_required_primitives" in witness_schema["required"]
+    assert "delta_action_witness_complete" in witness_schema["required"]
     assert "delta_primitives_missing_route_alignment_edge" in witness_schema["required"]
     manifest_schema = llm_route_planner_manifest_json_schema()
     assert "legacy_response_field_aliases" in manifest_schema["required"]
@@ -4561,6 +4604,15 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert witness["selected_primitives_missing_formal_realization_node"] == []
     assert witness["delta_primitives"] == ["rank_uniformity"]
     assert witness["delta_primitives_missing_route_alignment_edge"] == []
+    assert witness["delta_action_witness_required_primitives"] == [
+        "rank_uniformity"
+    ]
+    assert witness["delta_action_witnessed_primitives"] == ["rank_uniformity"]
+    assert witness["delta_action_witness_missing_primitives"] == []
+    assert witness["delta_action_witness_complete"] is True
+    assert witness["delta_action_witness_rows"][0]["matched_action_fields"] == [
+        "bridge_lemmas"
+    ]
     assert witness["realization_coverage_complete"] is True
     assert row["source_snippets"][0]["source_ref"] == (
         "conformal_prediction_textbook"

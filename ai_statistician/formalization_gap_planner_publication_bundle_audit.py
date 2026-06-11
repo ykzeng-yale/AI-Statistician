@@ -2790,6 +2790,78 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_delta_action_witness_required_primitives": int(
+            payload.get(
+                "n_delta_action_witness_required_primitives",
+                sum(
+                    len(
+                        _str_tuple(
+                            _dict_value(
+                                row,
+                                "realization_coverage_witness",
+                            ).get("delta_action_witness_required_primitives", [])
+                        )
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_delta_action_witness_missing_primitives": int(
+            payload.get(
+                "n_delta_action_witness_missing_primitives",
+                sum(
+                    len(
+                        _str_tuple(
+                            _dict_value(
+                                row,
+                                "realization_coverage_witness",
+                            ).get("delta_action_witness_missing_primitives", [])
+                        )
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_rows_with_delta_action_witness_obligations": int(
+            payload.get(
+                "n_rows_with_delta_action_witness_obligations",
+                sum(
+                    1
+                    for row in rows
+                    if _str_tuple(
+                        _dict_value(
+                            row,
+                            "realization_coverage_witness",
+                        ).get("delta_action_witness_required_primitives", [])
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_rows_with_complete_delta_action_witness": int(
+            payload.get(
+                "n_rows_with_complete_delta_action_witness",
+                sum(
+                    1
+                    for row in rows
+                    if _str_tuple(
+                        _dict_value(
+                            row,
+                            "realization_coverage_witness",
+                        ).get("delta_action_witness_required_primitives", [])
+                    )
+                    and bool(
+                        _dict_value(
+                            row,
+                            "realization_coverage_witness",
+                        ).get("delta_action_witness_complete", False)
+                    )
+                ),
+            )
+            or 0
+        ),
         "n_accepted_route_plans": int(
             payload.get(
                 "n_accepted_route_plans",

@@ -222,7 +222,14 @@ route synthesis. Accepted LLM rows must include
 source-grounded informal DAG nodes, formal-realization DAG nodes, alignment
 rationales, a minimality rationale, a versioned minimal-delta cost witness, and
 an explicit proof-evidence boundary; `kernel_verified=true` claims are
-rejected. The LLM response validator and standalone input validator reject the
+rejected. When a selected primitive is priced or marked as a wrapper, bridge
+lemma, source port, new definition, or new theory fragment, the same
+`minimal_delta_plan` must also list that primitive in the matching concrete
+action bucket such as `wrapper_lemmas`, `bridge_lemmas`,
+`source_port_lemmas`, `new_definitions`, or `new_theory_primitives`. This
+prevents a route from claiming a positive formalization delta without giving
+downstream prover adapters an executable work item. The LLM response validator
+and standalone input validator reject the
 same proof overclaim recursively, including nested `kernel_verified=true`,
 `full_frontier_theorem_proved=true`, or `claim_status` /
 `proof_evidence_status` values that assert a proved or kernel-verified theorem
@@ -452,7 +459,10 @@ discharged field/value totals, so public bundles show whether route-planner
 prompts still require prover/resource evidence before adoption. They also
 expose Haiku-to-Sonnet repair-escalation counts and structured tier-decision
 evidence counts from the primary and feedback LLM route-planner manifests, so
-cost-aware routing remains auditable in public supplements. They also
+cost-aware routing remains auditable in public supplements. They also expose
+minimal-delta action-witness counts, so a bundle shows whether selected
+positive-delta primitives have concrete wrapper, bridge, source-port,
+definition, or new-theory work-list entries. They also
 preserve the generic informal DAG, formal realization DAG, Lean legacy
 realization alias, and route-alignment edge counts from the packaged planner
 manifests, so non-Lean prover routes remain visible in the public summary

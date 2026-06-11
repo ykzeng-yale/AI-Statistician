@@ -2264,6 +2264,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "legacy_response_field_aliases",
             "n_lean_realization_dag_nodes",
             "n_route_alignment_edges",
+            "n_delta_action_witness_required_primitives",
+            "n_delta_action_witness_missing_primitives",
+            "n_rows_with_delta_action_witness_obligations",
+            "n_rows_with_complete_delta_action_witness",
             "n_accepted_route_plans",
             "n_route_adoption_ready",
             "n_route_adoption_pending_refinement",
@@ -2339,6 +2343,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "legacy_response_field_aliases": {"type": "object"},
             "n_lean_realization_dag_nodes": nonnegative_integer,
             "n_route_alignment_edges": nonnegative_integer,
+            "n_delta_action_witness_required_primitives": nonnegative_integer,
+            "n_delta_action_witness_missing_primitives": nonnegative_integer,
+            "n_rows_with_delta_action_witness_obligations": nonnegative_integer,
+            "n_rows_with_complete_delta_action_witness": nonnegative_integer,
             "n_accepted_route_plans": nonnegative_integer,
             "n_route_adoption_ready": nonnegative_integer,
             "n_route_adoption_pending_refinement": nonnegative_integer,
@@ -4440,6 +4448,10 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "legacy_response_field_aliases": {},
         "n_lean_realization_dag_nodes": 0,
         "n_route_alignment_edges": 0,
+        "n_delta_action_witness_required_primitives": 0,
+        "n_delta_action_witness_missing_primitives": 0,
+        "n_rows_with_delta_action_witness_obligations": 0,
+        "n_rows_with_complete_delta_action_witness": 0,
         "n_accepted_route_plans": 0,
         "n_route_adoption_ready": 0,
         "n_route_adoption_pending_refinement": 0,
@@ -4680,6 +4692,78 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             payload.get(
                 "n_route_alignment_edges",
                 _jsonl_row_collection_count(rows, "route_alignment_edges"),
+            )
+            or 0
+        ),
+        "n_delta_action_witness_required_primitives": int(
+            payload.get(
+                "n_delta_action_witness_required_primitives",
+                sum(
+                    len(
+                        _str_tuple(
+                            _dict_value(
+                                row,
+                                "realization_coverage_witness",
+                            ).get("delta_action_witness_required_primitives", [])
+                        )
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_delta_action_witness_missing_primitives": int(
+            payload.get(
+                "n_delta_action_witness_missing_primitives",
+                sum(
+                    len(
+                        _str_tuple(
+                            _dict_value(
+                                row,
+                                "realization_coverage_witness",
+                            ).get("delta_action_witness_missing_primitives", [])
+                        )
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_rows_with_delta_action_witness_obligations": int(
+            payload.get(
+                "n_rows_with_delta_action_witness_obligations",
+                sum(
+                    1
+                    for row in rows
+                    if _str_tuple(
+                        _dict_value(
+                            row,
+                            "realization_coverage_witness",
+                        ).get("delta_action_witness_required_primitives", [])
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_rows_with_complete_delta_action_witness": int(
+            payload.get(
+                "n_rows_with_complete_delta_action_witness",
+                sum(
+                    1
+                    for row in rows
+                    if _str_tuple(
+                        _dict_value(
+                            row,
+                            "realization_coverage_witness",
+                        ).get("delta_action_witness_required_primitives", [])
+                    )
+                    and bool(
+                        _dict_value(
+                            row,
+                            "realization_coverage_witness",
+                        ).get("delta_action_witness_complete", False)
+                    )
+                ),
             )
             or 0
         ),
