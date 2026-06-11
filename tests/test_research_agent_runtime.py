@@ -1062,6 +1062,58 @@ def test_runtime_learning_memory_skips_already_kernel_verified_obligations() -> 
     assert rejected == ()
 
 
+def test_theorem_closure_learning_memory_reroutes_to_upstream_semantics() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {
+                        "kernel_verified_proof_obligation_ids": verified_ids,
+                        "kernel_verified_theorem_reduction_closure_work_order_ids": [
+                            "theorem_reduction_closure_work_order:good_rank"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_target_ids": [
+                            "split_conformal_finite_sample_coverage_reduction_closure"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_goal_ids": [
+                            "split_conformal_finite_sample_coverage"
+                        ],
+                    }
+                ],
+            },
+            "environment_feedback": {
+                "high_priority_agenda": [
+                    {
+                        "id": "formal_gap:theorem_reduction_closure",
+                        "owner_subsystem": "Formalizer/LeanProver",
+                    }
+                ]
+            },
+        },
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["proof_bank_bridge_catalog_exhausted_by_memory"] is True
+    assert summary["theorem_reduction_closure_already_kernel_verified"] is True
+    assert summary["theorem_reduction_closure_required"] is False
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_semantic_primitive_closure"
+    )
+    assert summary["memory_kernel_verified_theorem_reduction_closure_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+
+
 def test_formalization_runtime_suppresses_llm_requests_already_kernel_verified_in_memory() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     question_payload = {
@@ -1534,6 +1586,73 @@ def test_critic_routes_formal_gap_to_theorem_closure_after_proof_bank_exhausted(
         "theorem_reduction_closure_work_order:test"
     ]
     assert feedback_row["formal_gap_target_ids"] == ["conformal:split_conformal_finite_sample_coverage"]
+
+
+def test_critic_routes_to_source_primitives_after_verified_theorem_closure() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    formalization_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:verified_closure_remaining_semantics",
+        "counts": {"formal_gap": 1, "kernel_verified": 1, "proved": 1, "failed": 0},
+        "deterministic_theorem_goals": [
+            {"id": "split_conformal_finite_sample_coverage", "status": "FORMAL_GAP"}
+        ],
+        "formal_subclaims": [
+            {
+                "id": "conformal:prob_measure_univ",
+                "claim_type": "lean_obligation",
+                "proof_obligation_id": "prob_measure_univ",
+                "status": "PROVED",
+                "kernel_verified": True,
+            },
+            {
+                "id": "conformal:split_conformal_finite_sample_coverage",
+                "claim_type": "theorem_goal",
+                "status": "FORMAL_GAP",
+            },
+        ],
+        "proof_obligation_control": {
+            "candidate_proof_obligation_ids": ["prob_measure_univ"],
+            "selected_proof_obligation_ids": [],
+            "selected_priority_proof_obligation_ids": [],
+            "deferred_proof_obligation_ids_due_to_max": [],
+            "deferred_priority_proof_obligation_ids_due_to_max": [],
+            "memory_kernel_verified_proof_obligation_ids": ["prob_measure_univ"],
+            "excluded_candidate_proof_obligation_ids": ["prob_measure_univ"],
+            "proof_bank_bridge_catalog_exhausted_by_memory": True,
+            "theorem_reduction_closure_required": False,
+            "theorem_reduction_closure_already_kernel_verified": True,
+            "memory_kernel_verified_theorem_reduction_closure_work_order_ids": [
+                "theorem_reduction_closure_work_order:good_rank"
+            ],
+            "memory_kernel_verified_theorem_reduction_closure_goal_ids": [
+                "split_conformal_finite_sample_coverage"
+            ],
+        },
+        "proof_bank_runtime_memory_summary": {
+            "proof_bank_bridge_catalog_exhausted_by_memory": True,
+            "theorem_reduction_closure_required": False,
+            "theorem_reduction_closure_already_kernel_verified": True,
+            "recommended_formalizer_target_mode": (
+                "source_theorem_semantic_primitive_closure"
+            ),
+        },
+        "theorem_reduction_closure_work_orders": [],
+    }
+
+    agenda = _critic_next_action_agenda(
+        question=question,
+        retrieval_manifest={"counts": {"formal_source_hits": 1}},
+        theory_packet={"packet_id": "theory:conformal"},
+        simulation_manifest={"simulation_passed": True},
+        algorithm_manifest={"n_executed": 1},
+        formalization_manifest=formalization_manifest,
+    )
+    agenda_ids = {row["id"] for row in agenda}
+
+    assert "formal_gap:source_theorem_semantic_primitives" in agenda_ids
+    assert "formal_gap:theorem_reduction_closure" not in agenda_ids
+    assert "formal_gap:proof_bank_expansion" not in agenda_ids
 
 
 def test_proof_audit_learning_export_marks_kernel_verified_obligations_as_memory(tmp_path: Path) -> None:

@@ -1106,6 +1106,26 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 False,
             )
         )
+        proof_obligation_control["theorem_reduction_closure_already_kernel_verified"] = bool(
+            proof_bank_runtime_memory_summary.get(
+                "theorem_reduction_closure_already_kernel_verified",
+                False,
+            )
+        )
+        proof_obligation_control["memory_kernel_verified_theorem_reduction_closure_work_order_ids"] = list(
+            proof_bank_runtime_memory_summary.get(
+                "memory_kernel_verified_theorem_reduction_closure_work_order_ids",
+                [],
+            )
+            or []
+        )
+        proof_obligation_control["memory_kernel_verified_theorem_reduction_closure_goal_ids"] = list(
+            proof_bank_runtime_memory_summary.get(
+                "memory_kernel_verified_theorem_reduction_closure_goal_ids",
+                [],
+            )
+            or []
+        )
         proof_obligation_control["remaining_unverified_proof_bank_obligation_ids"] = list(
             proof_bank_runtime_memory_summary.get(
                 "remaining_unverified_proof_bank_obligation_ids",
@@ -2528,6 +2548,27 @@ def _critic_next_action_agenda(
                     "proof_boundary": KERNEL_PROOF_BOUNDARY,
                 }
             )
+        elif _formalization_manifest_has_kernel_verified_theorem_closure(
+            formalization_manifest
+        ):
+            agenda.append(
+                {
+                    "id": "formal_gap:source_theorem_semantic_primitives",
+                    "owner_subsystem": "TheoryDeveloper/Formalizer/LeanProver",
+                    "trigger": "FORMAL_GAP_AFTER_KERNEL_VERIFIED_THEOREM_REDUCTION_CLOSURE",
+                    "action": (
+                        "formalize the upstream statistical semantics needed by the source theorem, "
+                        "such as exchangeability-to-uniform-rank and order-statistic quantile construction"
+                    ),
+                    "acceptance_gate": (
+                        "AXLE/local Lean kernel verifies each upstream primitive, and the manifest "
+                        "keeps theorem-reduction closure evidence separate from full source theorem proof"
+                    ),
+                    "target_ids": [row for row in gap_goals if row],
+                    "priority": "high",
+                    "proof_boundary": KERNEL_PROOF_BOUNDARY,
+                }
+            )
         else:
             agenda.append(
                 {
@@ -2710,6 +2751,71 @@ def _formalization_manifest_has_remaining_proof_bank_work(
     return bool(candidate_ids - kernel_verified_ids)
 
 
+def _formalization_manifest_has_kernel_verified_theorem_closure(
+    formalization_manifest: Mapping[str, Any],
+) -> bool:
+    proof_control = (
+        formalization_manifest.get("proof_obligation_control", {})
+        if isinstance(formalization_manifest.get("proof_obligation_control"), Mapping)
+        else {}
+    )
+    if proof_control.get("theorem_reduction_closure_already_kernel_verified") is True:
+        return True
+    summary = (
+        formalization_manifest.get("proof_bank_runtime_memory_summary", {})
+        if isinstance(
+            formalization_manifest.get("proof_bank_runtime_memory_summary"),
+            Mapping,
+        )
+        else {}
+    )
+    return summary.get("theorem_reduction_closure_already_kernel_verified") is True
+
+
+def _runtime_learning_memory_kernel_verified_theorem_reduction_closure(
+    architect_context: Mapping[str, Any],
+) -> dict[str, tuple[str, ...]]:
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if not isinstance(memory, Mapping) or memory.get("artifact_kind") != "RuntimeLearningMemoryContext":
+        return {"work_order_ids": (), "target_ids": (), "goal_ids": ()}
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    work_order_ids: list[str] = []
+    target_ids: list[str] = []
+    goal_ids: list[str] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        for key, bucket in (
+            ("kernel_verified_theorem_reduction_closure_work_order_ids", work_order_ids),
+            ("kernel_verified_theorem_reduction_closure_target_ids", target_ids),
+            ("kernel_verified_theorem_reduction_closure_goal_ids", goal_ids),
+        ):
+            for value in row.get(key, []) or []:
+                text = str(value).strip()
+                if text:
+                    bucket.append(text)
+        input_summary = row.get("input_summary", {})
+        if isinstance(input_summary, Mapping):
+            for key, bucket in (
+                ("kernel_verified_theorem_reduction_closure_work_order_ids", work_order_ids),
+                ("kernel_verified_theorem_reduction_closure_target_ids", target_ids),
+                ("kernel_verified_theorem_reduction_closure_goal_ids", goal_ids),
+            ):
+                for value in input_summary.get(key, []) or []:
+                    text = str(value).strip()
+                    if text:
+                        bucket.append(text)
+    return {
+        "work_order_ids": tuple(dict.fromkeys(work_order_ids)),
+        "target_ids": tuple(dict.fromkeys(target_ids)),
+        "goal_ids": tuple(dict.fromkeys(goal_ids)),
+    }
+
+
 def _formalizer_proof_bank_runtime_memory_summary(
     *,
     context: Mapping[str, Any],
@@ -2747,8 +2853,16 @@ def _formalizer_proof_bank_runtime_memory_summary(
     )
     catalog_exhausted = bool(catalog_ids) and not remaining_ids
     theorem_goal_ids = tuple(_theorem_goal_id(row) for row in theorem_goals if _theorem_goal_id(row))
+    theorem_closure_memory = _runtime_learning_memory_kernel_verified_theorem_reduction_closure(
+        context
+    )
+    closure_goal_ids = tuple(
+        row for row in theorem_closure_memory["goal_ids"] if row in set(theorem_goal_ids)
+    )
+    theorem_reduction_closure_already_kernel_verified = bool(closure_goal_ids)
     theorem_reduction_closure_required = bool(
-        theorem_closure_requested_by_critic or catalog_exhausted
+        (theorem_closure_requested_by_critic or catalog_exhausted)
+        and not theorem_reduction_closure_already_kernel_verified
     )
     return {
         "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -2759,18 +2873,32 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "remaining_unverified_proof_bank_obligation_ids": list(remaining_ids),
         "proof_bank_bridge_catalog_exhausted_by_memory": catalog_exhausted,
         "critic_high_priority_agenda_ids": list(high_priority_agenda_ids),
+        "theorem_reduction_closure_already_kernel_verified": theorem_reduction_closure_already_kernel_verified,
+        "memory_kernel_verified_theorem_reduction_closure_work_order_ids": list(
+            theorem_closure_memory["work_order_ids"]
+        ),
+        "memory_kernel_verified_theorem_reduction_closure_target_ids": list(
+            theorem_closure_memory["target_ids"]
+        ),
+        "memory_kernel_verified_theorem_reduction_closure_goal_ids": list(
+            closure_goal_ids
+        ),
         "theorem_reduction_closure_required": theorem_reduction_closure_required,
         "remaining_theorem_goal_ids": list(theorem_goal_ids),
         "recommended_formalizer_target_mode": (
             "theorem_level_reduction_closure"
             if theorem_reduction_closure_required
+            else "source_theorem_semantic_primitive_closure"
+            if theorem_reduction_closure_already_kernel_verified
             else "registered_proof_bank_obligation_selection"
         ),
         "boundary": (
             "Runtime learning memory records prior kernel-verified bridge obligations and routing hints only. "
             "It is not new proof evidence. When the registered bridge catalog is already exhausted, the "
             "Formalizer should target a theorem-level Lean reduction that connects those verified bridge "
-            "obligations to the remaining frontier theorem goal."
+            "obligations to the remaining frontier theorem goal. If runtime memory already records a "
+            "kernel-verified theorem-reduction closure, subsequent iterations should target upstream "
+            "source-theorem semantic primitives instead of repeating the same closure work order."
         ),
     }
 
