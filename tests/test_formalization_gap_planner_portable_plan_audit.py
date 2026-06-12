@@ -103,6 +103,111 @@ def test_portable_plan_audit_accepts_standalone_plan() -> None:
     ).exists()
 
 
+def test_portable_plan_audit_checks_route_option_cost_graph_scope() -> None:
+    root = Path("runs/test_formalization_gap_planner_portable_plan_audit_route_options")
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    audit_dir = root / "audit"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "mathlib4_route_option_fixture",
+                "routes": [
+                    {
+                        "display_name": "route_option_scope",
+                        "theorem_statement": "A selected bridge avoids a broader baseline.",
+                        "selected_primitives": ["selected_bridge"],
+                        "minimal_delta_and_or_cost_graph": {
+                            "graph_kind": "AND_OR_ROUTE_COST_GRAPH",
+                            "selected_route_option_id": "route_option:selected",
+                            "route_options": [
+                                {
+                                    "route_option_id": "route_option:selected",
+                                    "selected": True,
+                                    "selected_primitives": ["selected_bridge"],
+                                    "route_cost": 4,
+                                },
+                                {
+                                    "route_option_id": "route_option:baseline",
+                                    "selected": False,
+                                    "selected_primitives": [
+                                        "selected_bridge",
+                                        "comparison_boundary",
+                                    ],
+                                    "route_cost": 24,
+                                },
+                            ],
+                            "and_edges": [
+                                {
+                                    "route_option_id": "route_option:selected",
+                                    "requires": ["selected_bridge"],
+                                },
+                                {
+                                    "route_option_id": "route_option:baseline",
+                                    "requires": [
+                                        "selected_bridge",
+                                        "comparison_boundary",
+                                    ],
+                                },
+                            ],
+                        },
+                        "primitives": [
+                            {
+                                "primitive": "selected_bridge",
+                                "coverage_status": "bridge_needed",
+                            },
+                            {
+                                "primitive": "comparison_boundary",
+                                "coverage_status": "unknown",
+                            },
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+
+    payload = audit_formalization_gap_planner_portable_plan(plan_dir, audit_dir)
+
+    assert payload["all_ok"]
+    assert payload["n_rows_with_route_option_cost_graph"] == 1
+    assert payload["n_rows_with_valid_route_option_cost_graph"] == 1
+    route_graph_checks = [
+        row
+        for row in payload["checks"]
+        if row["category"] == "route_option_cost_graph"
+    ]
+    assert route_graph_checks
+    assert all(row["ok"] for row in route_graph_checks)
+
+    manifest_path = plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    row = manifest["rows"][0]
+    leaked_node = dict(row["minimal_additional_formalization_nodes"][0])
+    leaked_node["primitive"] = "comparison_boundary"
+    leaked_node["label"] = "comparison_boundary"
+    row["minimal_additional_formalization_nodes"].append(leaked_node)
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    rejected = audit_formalization_gap_planner_portable_plan(plan_dir, audit_dir)
+
+    assert not rejected["all_ok"]
+    failed = [row for row in rejected["checks"] if not row["ok"]]
+    assert any(
+        row["check_name"].endswith("route_option_cost_graph")
+        and "comparison_only_primitives overlap selected work nodes" in row["observed"]
+        for row in failed
+    )
+
+
 def test_portable_plan_audit_accepts_generic_formal_realization_without_legacy_lean_alias() -> None:
     root = Path("runs/test_formalization_gap_planner_portable_plan_audit_generic_formal")
     input_json = root / "standalone_input.json"

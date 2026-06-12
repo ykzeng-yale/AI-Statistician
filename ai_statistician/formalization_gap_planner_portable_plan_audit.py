@@ -126,6 +126,12 @@ def audit_formalization_gap_planner_portable_plan(
         "n_route_alignment_edge_schema_invalid": n_route_alignment_edge_schema_invalid,
         "route_alignment_edge_schema": route_alignment_edge_schema,
         "n_rows_with_and_or_plan": sum(1 for row in rows if _has_and_or_plan(row)),
+        "n_rows_with_route_option_cost_graph": sum(
+            1 for row in rows if _has_route_option_cost_graph(row)
+        ),
+        "n_rows_with_valid_route_option_cost_graph": sum(
+            1 for row in rows if not _route_option_cost_graph_errors(row)
+        ),
         "n_rows_with_work_packets": sum(1 for row in rows if _has_work_packets(row)),
         "n_rows_with_refinement_hooks": sum(
             1 for row in rows if _has_refinement_hooks(row)
@@ -370,6 +376,13 @@ def _aggregate_row_checks(
             len(rows),
         ),
         _aggregate_check(
+            "rows_with_valid_route_option_cost_graph",
+            "route_option_cost_graph",
+            "all rows expose a valid route-option comparison graph",
+            sum(1 for row in rows if not _route_option_cost_graph_errors(row)),
+            len(rows),
+        ),
+        _aggregate_check(
             "rows_with_work_packets",
             "work_packets",
             "all rows have portable work packets",
@@ -435,6 +448,7 @@ def _row_checks(
         kernel_claims = _kernel_claim_paths(row)
         legacy_alias_errors = _non_lean_legacy_realization_alias_errors(row)
         declaration_target_errors = _declaration_evidence_target_errors(row)
+        route_option_errors = _route_option_cost_graph_errors(row)
         checks.extend(
             [
                 _check(
@@ -481,6 +495,18 @@ def _row_checks(
                     "AND/OR graph has nodes and edges",
                     row_label,
                     _has_and_or_plan(row),
+                ),
+                _check(
+                    row_prefix + "route_option_cost_graph",
+                    "route_option_cost_graph",
+                    (
+                        "route-option comparison graph preserves the selected "
+                        "cut and keeps comparison-only primitives out of "
+                        "selected work"
+                    ),
+                    "; ".join(route_option_errors) if route_option_errors else row_label,
+                    not route_option_errors,
+                    errors=route_option_errors,
                 ),
                 _check(
                     row_prefix + "work_packets",
@@ -736,6 +762,111 @@ def _has_and_or_plan(row: dict[str, Any]) -> bool:
     return bool(row.get("and_or_plan_nodes")) and bool(row.get("and_or_plan_edges"))
 
 
+def _has_route_option_cost_graph(row: dict[str, Any]) -> bool:
+    return isinstance(row.get("route_option_cost_graph", {}), dict) and bool(
+        row.get("route_option_cost_graph", {})
+    )
+
+
+def _route_option_cost_graph_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    graph = row.get("route_option_cost_graph", {})
+    summary = row.get("route_option_cost_graph_summary", {})
+    if not isinstance(graph, dict):
+        return ("route_option_cost_graph is not an object",)
+    if not graph:
+        return ("route_option_cost_graph missing",)
+    if not isinstance(summary, dict):
+        return ("route_option_cost_graph_summary is not an object",)
+    selected = set(_str_tuple(row.get("selected_primitives", [])))
+    realized = _realized_primitive_set(row)
+    route_options = _dict_tuple(graph.get("route_options", []))
+    if not route_options:
+        return ("route_option_cost_graph.route_options missing",)
+    route_option_ids = tuple(
+        str(option.get("route_option_id", ""))
+        for option in route_options
+        if str(option.get("route_option_id", ""))
+    )
+    selected_route_option_id = str(graph.get("selected_route_option_id", ""))
+    selected_options = tuple(
+        option
+        for option in route_options
+        if option.get("selected")
+        or str(option.get("route_option_id", "")) == selected_route_option_id
+    )
+    errors: list[str] = []
+    if not selected_route_option_id:
+        errors.append("selected_route_option_id missing")
+    elif selected_route_option_id not in set(route_option_ids):
+        errors.append("selected_route_option_id not in route_options")
+    if len(selected_options) != 1:
+        errors.append("exactly one selected route option required")
+    if selected_options:
+        selected_option_primitives = set(
+            _str_tuple(selected_options[0].get("selected_primitives", []))
+        )
+        if selected_option_primitives != selected:
+            errors.append(
+                "selected route option primitives differ from row selected_primitives"
+            )
+    graph_primitives = set()
+    for option in route_options:
+        option_id = str(option.get("route_option_id", ""))
+        if not option_id:
+            errors.append("route option missing route_option_id")
+        primitives = set(_str_tuple(option.get("selected_primitives", [])))
+        if not primitives:
+            errors.append(f"route option {option_id or '<missing>'} primitives missing")
+        graph_primitives.update(primitives)
+    expected_comparison_only = graph_primitives - selected
+    summary_comparison_only = set(
+        _str_tuple(summary.get("comparison_only_primitives", []))
+    )
+    if summary_comparison_only != expected_comparison_only:
+        errors.append("comparison_only_primitives summary mismatch")
+    if summary_comparison_only & selected:
+        errors.append("comparison_only_primitives overlap selected_primitives")
+    if summary_comparison_only & realized:
+        errors.append("comparison_only_primitives overlap selected work nodes")
+    if _int_or_negative_one(summary.get("n_route_options")) != len(route_options):
+        errors.append("n_route_options summary mismatch")
+    unselected_ids = set(route_option_ids) - {selected_route_option_id}
+    summary_unselected_ids = set(
+        _str_tuple(summary.get("unselected_route_option_ids", []))
+    )
+    if summary_unselected_ids != unselected_ids:
+        errors.append("unselected_route_option_ids summary mismatch")
+    if _int_or_negative_one(
+        summary.get("n_unselected_route_options")
+    ) != len(unselected_ids):
+        errors.append("n_unselected_route_options summary mismatch")
+    return tuple(sorted(set(errors)))
+
+
+def _int_or_negative_one(value: object) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return -1
+
+
+def _realized_primitive_set(row: dict[str, Any]) -> set[str]:
+    primitives: set[str] = set()
+    for field_name in (
+        "existing_reuse_nodes",
+        "minimal_additional_formalization_nodes",
+    ):
+        rows = row.get(field_name, [])
+        if not isinstance(rows, (list, tuple)):
+            continue
+        primitives.update(
+            str(node.get("primitive", ""))
+            for node in rows
+            if isinstance(node, dict) and str(node.get("primitive", ""))
+        )
+    return primitives
+
+
 def _has_work_packets(row: dict[str, Any]) -> bool:
     packets = row.get("portable_work_packets", row.get("next_work_packets", []))
     if not isinstance(packets, (list, tuple)) or not packets:
@@ -850,6 +981,12 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     if not isinstance(values, (list, tuple, set)):
         return tuple()
     return tuple(str(value) for value in values if str(value))
+
+
+def _dict_tuple(values: Any) -> tuple[dict[str, Any], ...]:
+    if not isinstance(values, (list, tuple, set)):
+        return tuple()
+    return tuple(dict(value) for value in values if isinstance(value, dict))
 
 
 def _schema_property_errors(

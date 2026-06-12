@@ -900,7 +900,8 @@ for older Lean-only consumers, and the target-intake manifest plus row schema
 publish `legacy_target_intake_field_aliases` / `legacy_field_aliases` mapping
 that alias back to `formal_library_grounding_queries`.
 The portable-plan audit validates schema identity, two-DAG structure,
-AND/OR graph shape, work packets, interactive hooks, and absence of
+AND/OR graph shape, route-option cost-graph consistency, work packets,
+interactive hooks, and absence of
 kernel-proof claims. The library-coverage-map command exports one row per
 selected primitive, mapping the informal route atom to the selected current
 library realization candidate and classifying it as exact reuse, near reuse,
@@ -1801,8 +1802,9 @@ The current implementation composes four existing AI Statistician artifacts:
 7. `formalization_gap_planner_portable_plan_audit`
    Validates any portable planner manifest before downstream reuse. It checks
    schema identity, proof-boundary discipline, two-DAG and AND/OR graph
-   presence, selected-primitive alignment edges, work-packet gates,
-   interactive hooks, rejects kernel-proof claims in the planning layer, and
+   presence, selected-primitive alignment edges, route-option cost-graph
+   consistency, work-packet gates, interactive hooks, rejects kernel-proof
+   claims in the planning layer, and
    rejects non-Lean rows that still carry Lean-only realization DAG aliases or
    declaration evidence from a different target prover.
    The audit JSONL is self-contained: each check row carries its proof-boundary
