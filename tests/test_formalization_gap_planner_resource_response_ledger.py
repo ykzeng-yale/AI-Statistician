@@ -1237,6 +1237,76 @@ def test_resource_response_ledger_rejects_expanded_actionable_work_items() -> No
     )
 
 
+def test_resource_response_ledger_rejects_off_scope_evidence_primitives() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_resource_response_ledger_evidence_scope"
+    )
+    ledger_dir = root / "ledger"
+    response_jsonl = root / "resource_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    request_payload, request_queue_dir = _build_request_queue(root)
+    request = next(
+        row
+        for row in request_payload["rows"]
+        if row["resource_id"] == "paperclip_cli_mcp"
+    )
+    response = {
+        "resource_request_id": request["resource_request_id"],
+        "resource_id": request["resource_id"],
+        "expected_response_artifact": request["expected_response_artifact"],
+        "response_payload": {
+            "response_summary": "coverage_inequality source evidence found",
+            "source_refs": ["source:coverage_inequality"],
+            "route_evidence_nodes": [
+                {
+                    "node_id": "spectral_gap:source",
+                    "primitive": "spectral_gap",
+                    "claim": "spectral_gap follows from compactness",
+                }
+            ],
+            "coverage_updates": {"spectral_gap": "exact_exists"},
+        },
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+    response_jsonl.write_text(
+        json.dumps(response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    assert payload["n_response_contract_ok"] == 0
+    assert payload["n_response_evidence_scope_expansion_rows"] == 1
+    row = next(
+        row
+        for row in payload["rows"]
+        if row["resource_request_id"] == request["resource_request_id"]
+    )
+    assert row["acceptance_status"] == "REJECTED_RESPONSE_EVIDENCE_SCOPE_EXPANSION"
+    assert row["response_contract_minimum_met"] is True
+    assert row["response_contract_ok"] is False
+    assert tuple(row["target_primitives"]) == tuple(request["target_primitives"])
+    assert any(
+        "coverage_updates primitives must not expand beyond resource request target_primitives"
+        in error
+        and "spectral_gap" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "route_evidence_nodes[0] primitives must not expand beyond resource request target_primitives"
+        in error
+        and "spectral_gap" in error
+        for error in row["errors"]
+    )
+
+
 def test_resource_response_ledger_rejects_response_not_grounded_in_playbook() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_resource_response_ledger_playbook_mismatch"

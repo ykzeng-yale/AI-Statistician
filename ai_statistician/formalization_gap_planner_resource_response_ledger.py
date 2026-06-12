@@ -248,6 +248,10 @@ def export_formalization_gap_planner_resource_response_ledger(
             "REJECTED_RESPONSE_REQUEST_MISMATCH",
             0,
         ),
+        "n_response_evidence_scope_expansion_rows": by_acceptance_status.get(
+            "REJECTED_RESPONSE_EVIDENCE_SCOPE_EXPANSION",
+            0,
+        ),
         "n_with_dispatch_specs": sum(1 for row in rows if row.dispatch_spec),
         "n_with_resource_contract_ids": sum(
             1 for row in rows if row.resource_contract_ids
@@ -341,6 +345,7 @@ def export_formalization_gap_planner_resource_response_ledger(
             "a present response must match at least one queued response_contract_field before it can be accepted",
             "present responses must echo the requested resource and expected artifact before they can be accepted",
             "present responses for request-playbook rows must overlap the bounded playbook ask before they can be accepted",
+            "present responses must not introduce coverage, source, or declaration evidence for primitives outside the queued target_primitives",
         ],
     }
     if out_dir is not None:
@@ -788,6 +793,10 @@ def _ledger_row(
     expanded_actionable_work_items = sorted(
         set(response_actionable_work_items) - set(request_actionable_work_items)
     )
+    evidence_scope_errors = _response_evidence_scope_expansion_errors(
+        request_target_primitives,
+        response_values,
+    )
     formal_declaration_hits = _dict_tuple(
         response_values.get(
             "formal_declaration_hits",
@@ -842,6 +851,8 @@ def _ledger_row(
             "actionable_work_items must not expand beyond resource request actionable_work_items: "
             + ", ".join(expanded_actionable_work_items[:8])
         )
+    if response_present and evidence_scope_errors:
+        row_errors.extend(evidence_scope_errors)
     if response_present and declaration_hit_errors:
         row_errors.extend(declaration_hit_errors)
     if response_present and llm_trace_mismatches:
@@ -867,6 +878,7 @@ def _ledger_row(
         and response_contract_minimum_met
         and not expanded_target_primitives
         and not expanded_actionable_work_items
+        and not evidence_scope_errors
         and not declaration_hit_errors
         and not llm_trace_mismatches
         and (not request_playbook_present or response_playbook_grounded)
@@ -885,6 +897,8 @@ def _ledger_row(
         acceptance_status = "REJECTED_RESPONSE_TARGET_SCOPE_EXPANSION"
     elif expanded_actionable_work_items:
         acceptance_status = "REJECTED_RESPONSE_ACTIONABLE_SCOPE_EXPANSION"
+    elif evidence_scope_errors:
+        acceptance_status = "REJECTED_RESPONSE_EVIDENCE_SCOPE_EXPANSION"
     elif declaration_hit_errors:
         acceptance_status = "REJECTED_DECLARATION_TARGET_MISMATCH"
     elif llm_trace_mismatches:
@@ -1239,6 +1253,65 @@ def _request_actionable_work_items(request_row: dict[str, Any]) -> tuple[str, ..
                 ]
             )
         )
+    )
+
+
+def _response_evidence_scope_expansion_errors(
+    request_target_primitives: tuple[str, ...],
+    response_values: dict[str, Any],
+) -> tuple[str, ...]:
+    allowed = {primitive for primitive in request_target_primitives if primitive}
+    if not allowed:
+        return tuple()
+    errors: list[str] = []
+    coverage_update_primitives = _str_tuple(
+        list(_dict_value(response_values, "coverage_updates").keys())
+    )
+    errors.extend(
+        _primitive_scope_errors(
+            "coverage_updates",
+            coverage_update_primitives,
+            allowed,
+        )
+    )
+    for field_name in (
+        "route_evidence_nodes",
+        "source_snippets",
+        "formal_declaration_hits",
+        "lean_declaration_hits",
+    ):
+        for index, row in enumerate(_dict_tuple(response_values.get(field_name, []))):
+            errors.extend(
+                _primitive_scope_errors(
+                    f"{field_name}[{index}]",
+                    _evidence_row_scope_primitives(row),
+                    allowed,
+                )
+            )
+    return tuple(errors)
+
+
+def _evidence_row_scope_primitives(row: dict[str, object]) -> tuple[str, ...]:
+    return _str_tuple(
+        [
+            str(row.get("primitive", "") or ""),
+            *_str_tuple(row.get("target_primitives", [])),
+        ]
+    )
+
+
+def _primitive_scope_errors(
+    field_name: str,
+    observed_primitives: tuple[str, ...],
+    allowed_primitives: set[str],
+) -> tuple[str, ...]:
+    expanded = sorted(set(observed_primitives) - allowed_primitives)
+    if not expanded:
+        return tuple()
+    return (
+        f"{field_name} primitives must not expand beyond resource request "
+        "target_primitives: "
+        + ", ".join(expanded[:8]),
     )
 
 

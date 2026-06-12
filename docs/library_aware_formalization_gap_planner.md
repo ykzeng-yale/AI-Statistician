@@ -938,7 +938,11 @@ try to expand `target_primitives` beyond the queued request scope are rejected
 and cannot count as `response_contract_ok`, instead of silently broadening the
 formalization target. The same rule applies to `actionable_work_items`: the
 ledger carries the queued work items forward, accepts exact response echoes, and
-rejects responses that introduce unrelated formalization tasks. When bundled,
+rejects responses that introduce unrelated formalization tasks. The bounded
+scope check also applies to evidence-bearing fields such as `coverage_updates`,
+`route_evidence_nodes`, `source_snippets`, and declaration-hit primitive tags,
+so an adapter cannot smuggle an unrelated primitive into route repair without a
+fresh queued request. When bundled,
 the publication audit checks that each ledger row resolves to its request row
 and that matched plus missing response fields exactly account for that
 resource request's response contract. Ledger rows also retain the request
@@ -1832,9 +1836,12 @@ The current implementation composes four existing AI Statistician artifacts:
    revision recommendations. It also carries forward the request
    `dispatch_spec` and `target_primitives` so downstream route-revision traces remain tied to the
    requested adapter surface and primitive scope. Missing responses are awaiting work; kernel-proof
-   claims are rejected. Ledger rows are adapter evidence and planner feedback,
-   not theorem proof evidence. Publication-bundle audit rows also verify
-   request-row resolution and response-contract field accounting.
+   claims are rejected. Responses that add off-scope coverage updates, source
+   or route-evidence primitives, source-snippet targets, or declaration-hit
+   primitive tags are rejected before they can become accepted planner
+   feedback. Ledger rows are adapter evidence and planner feedback, not theorem
+   proof evidence. Publication-bundle audit rows also verify request-row
+   resolution and response-contract field accounting.
 
 14. `formalization_gap_planner_refinement_queue`
    Turns route-revision triggers and interactive hooks into auditable work
