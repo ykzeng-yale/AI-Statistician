@@ -12041,12 +12041,14 @@ def _available_source_ref_keys_for_request(
     refs = list(_str_tuple(context_packet.get("available_source_refs", [])))
     if not refs:
         _collect_source_refs(request.get("target_route", {}), refs)
-        _collect_source_refs(context_packet, refs)
+        _collect_source_refs(_source_ref_admissible_context(context_packet), refs)
     return {_source_ref_key(ref) for ref in refs if _source_ref_key(ref)}
 
 
 def _collect_source_refs(value: Any, refs: list[str]) -> None:
     if isinstance(value, Mapping):
+        if _mapping_is_inadmissible_for_context_evidence(value):
+            return
         for key, item in value.items():
             key_text = str(key)
             if key_text in {
@@ -13961,6 +13963,10 @@ def _collect_primitive_values(value: Any, primitives: list[str]) -> None:
 
 
 def _mapping_is_inadmissible_for_primitive_scope(value: Mapping[str, Any]) -> bool:
+    return _mapping_is_inadmissible_for_context_evidence(value)
+
+
+def _mapping_is_inadmissible_for_context_evidence(value: Mapping[str, Any]) -> bool:
     status = str(value.get("acceptance_status", "") or "").strip().upper()
     if status.startswith("REJECTED"):
         return True
@@ -15482,6 +15488,8 @@ def _collect_source_snippets_from_value(
     snippets: list[dict[str, object]],
 ) -> None:
     if isinstance(value, Mapping):
+        if _mapping_is_inadmissible_for_context_evidence(value):
+            return
         snippets.extend(_row_source_snippet_candidates(value))
         for item in value.values():
             _collect_source_snippets_from_value(item, snippets)

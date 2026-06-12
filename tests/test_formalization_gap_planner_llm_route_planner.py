@@ -805,6 +805,20 @@ def _replace_source_snippets(value, snippet: dict[str, object]):
     return value
 
 
+def _drop_source_snippets(value):
+    if isinstance(value, dict):
+        return {
+            key: _drop_source_snippets(item)
+            for key, item in value.items()
+            if key != "source_snippets"
+        }
+    if isinstance(value, list):
+        return [_drop_source_snippets(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_drop_source_snippets(item) for item in value)
+    return value
+
+
 def _write_interactive_session(root: Path) -> Path:
     session_dir = root / "interactive_session"
     session_dir.mkdir(parents=True, exist_ok=True)
@@ -5931,6 +5945,96 @@ def test_llm_route_planner_response_payload_validator_request_context_accepts_pa
     ]["total_context_rows"]
     assert row["n_schema_errors"] == 0
     assert row["n_request_context_errors"] == 0
+
+
+def test_llm_route_planner_response_payload_validator_rejects_failed_context_source_ref_fallback() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_payload_validate_rejected_source_fallback"
+    )
+    planner_dir = root / "llm_route_planner"
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    request_context_json = root / "request_context.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    staged = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        planner_dir,
+        provider_name="prompt_only",
+    )
+    request = deepcopy(staged["request_packets"][0])
+    rejected_source_ref = "paper:rejected-resource#rank-uniformity"
+    context = request["context_packet"]
+    context.pop("available_source_refs", None)
+    context.pop("available_source_snippets", None)
+    context.pop("context_packet_inventory", None)
+    context.pop("route_planning_brief", None)
+    context["resource_response_ledger_rows"] = [
+        {
+            "resource_response_ledger_id": "resource-response:rejected-rank-route",
+            "resource_request_id": "resource-request:rejected-rank-route",
+            "route_id": request["route_id"],
+            "resource_id": "paperclip_mcp",
+            "response_present": True,
+            "response_contract_ok": False,
+            "response_contract_minimum_met": False,
+            "ok": False,
+            "acceptance_status": "REJECTED_MISSING_RESPONSE_CONTRACT_FIELDS",
+            "source_refs": [rejected_source_ref],
+            "response_payload": {
+                "source_refs": [rejected_source_ref],
+                "source_snippets": [
+                    {
+                        "source_ref": rejected_source_ref,
+                        "claim": "Rejected Paperclip evidence should not ground the route.",
+                        "excerpt": (
+                            "This rejected resource response is retained for audit "
+                            "but is not admissible route evidence."
+                        ),
+                    }
+                ],
+            },
+        }
+    ]
+    assert rejected_source_ref in json.dumps(context["resource_response_ledger_rows"])
+    request_context_json.write_text(json.dumps(request, indent=2), encoding="utf-8")
+
+    response = _replace_source_ref(
+        _drop_source_snippets(_llm_response_payload()),
+        "conformal_prediction_textbook",
+        rejected_source_ref,
+    )
+    response_json.write_text(
+        json.dumps(
+            {
+                "request_id": request["request_id"],
+                "route_id": request["route_id"],
+                "response_payload": response,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+        request_context_json=request_context_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_request_bound_payloads"] == 1
+    assert payload["n_invalid_payloads"] == 1
+    row = payload["rows"][0]
+    assert row["request_context_validation_mode"] == "request_bound"
+    assert row["n_schema_errors"] == 0
+    assert row["n_request_context_errors"] == 1
+    assert any(
+        "response source_refs must be drawn from request/context evidence" in error
+        and rejected_source_ref in error
+        for error in row["errors"]
+    )
 
 
 def test_llm_route_planner_response_payload_validator_counts_target_prover_mismatch() -> None:
