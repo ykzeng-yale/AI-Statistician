@@ -54,6 +54,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_formalization_gap_planner_bridge,
     _runtime_formalization_gap_planner_target_intake_payload,
     _runtime_theorem_reduction_closure_work_order_rows,
+    _runtime_evidence_summary,
     _runtime_failure_summary,
     _llm_agent_topology_row,
     _run_generated_python_sandbox,
@@ -1134,6 +1135,59 @@ def test_theorem_closure_learning_memory_reroutes_to_upstream_semantics() -> Non
         "source_theorem_semantic_primitive_closure"
     )
     assert summary["memory_kernel_verified_theorem_reduction_closure_goal_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+
+
+def test_runtime_evidence_summary_preserves_theorem_closure_memory_fields() -> None:
+    summary = _runtime_evidence_summary(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        "formalization_manifest:test": {
+                            "artifact_kind": "RuntimeFormalizationManifest",
+                            "counts": {
+                                "proved": 0,
+                                "kernel_verified": 0,
+                                "formal_gap": 1,
+                                "failed": 0,
+                            },
+                            "registered_proof_bank_obligation_catalog": [],
+                            "theorem_reduction_closure_work_orders": [],
+                            "proof_obligation_control": {
+                                "proof_bank_bridge_catalog_exhausted_by_memory": True,
+                                "theorem_reduction_closure_required": False,
+                                "theorem_reduction_closure_already_kernel_verified": True,
+                                "memory_kernel_verified_theorem_reduction_closure_work_order_ids": [
+                                    "theorem_reduction_closure_work_order:abc"
+                                ],
+                                "memory_kernel_verified_theorem_reduction_closure_target_ids": [
+                                    "split_conformal_finite_sample_coverage_reduction_closure"
+                                ],
+                                "memory_kernel_verified_theorem_reduction_closure_goal_ids": [
+                                    "split_conformal_finite_sample_coverage"
+                                ],
+                                "remaining_unverified_proof_bank_obligation_ids": [],
+                            },
+                        }
+                    }
+                }
+            }
+        ]
+    )
+
+    control = summary["proof"]["proof_obligation_control"]
+    assert control["proof_bank_bridge_catalog_exhausted_by_memory"] is True
+    assert control["theorem_reduction_closure_required"] is False
+    assert control["theorem_reduction_closure_already_kernel_verified"] is True
+    assert control["memory_kernel_verified_theorem_reduction_closure_work_order_ids"] == [
+        "theorem_reduction_closure_work_order:abc"
+    ]
+    assert control["memory_kernel_verified_theorem_reduction_closure_target_ids"] == [
+        "split_conformal_finite_sample_coverage_reduction_closure"
+    ]
+    assert control["memory_kernel_verified_theorem_reduction_closure_goal_ids"] == [
         "split_conformal_finite_sample_coverage"
     ]
 

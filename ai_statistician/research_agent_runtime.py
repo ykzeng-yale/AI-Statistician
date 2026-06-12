@@ -1134,6 +1134,13 @@ class FormalizationEvaluatorRuntimeSubsystem:
             )
             or []
         )
+        proof_obligation_control["memory_kernel_verified_theorem_reduction_closure_target_ids"] = list(
+            proof_bank_runtime_memory_summary.get(
+                "memory_kernel_verified_theorem_reduction_closure_target_ids",
+                [],
+            )
+            or []
+        )
         proof_obligation_control["remaining_unverified_proof_bank_obligation_ids"] = list(
             proof_bank_runtime_memory_summary.get(
                 "remaining_unverified_proof_bank_obligation_ids",
@@ -1907,6 +1914,33 @@ def run_research_agent_runtime(
         ),
         "theorem_reduction_closure_required": bool(
             proof_control_summary.get("theorem_reduction_closure_required", False)
+        ),
+        "theorem_reduction_closure_already_kernel_verified": bool(
+            proof_control_summary.get(
+                "theorem_reduction_closure_already_kernel_verified",
+                False,
+            )
+        ),
+        "memory_kernel_verified_theorem_reduction_closure_work_order_ids": list(
+            proof_control_summary.get(
+                "memory_kernel_verified_theorem_reduction_closure_work_order_ids",
+                [],
+            )
+            or []
+        ),
+        "memory_kernel_verified_theorem_reduction_closure_target_ids": list(
+            proof_control_summary.get(
+                "memory_kernel_verified_theorem_reduction_closure_target_ids",
+                [],
+            )
+            or []
+        ),
+        "memory_kernel_verified_theorem_reduction_closure_goal_ids": list(
+            proof_control_summary.get(
+                "memory_kernel_verified_theorem_reduction_closure_goal_ids",
+                [],
+            )
+            or []
         ),
         "remaining_unverified_proof_bank_obligation_ids": list(
             proof_control_summary.get("remaining_unverified_proof_bank_obligation_ids", []) or []
@@ -4868,6 +4902,10 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             "remaining_unverified_proof_bank_obligation_ids": [],
             "proof_bank_bridge_catalog_exhausted_by_memory": False,
             "theorem_reduction_closure_required": False,
+            "theorem_reduction_closure_already_kernel_verified": False,
+            "memory_kernel_verified_theorem_reduction_closure_work_order_ids": [],
+            "memory_kernel_verified_theorem_reduction_closure_target_ids": [],
+            "memory_kernel_verified_theorem_reduction_closure_goal_ids": [],
             "selection_boundary": (
                 "Proof-obligation controls limit registered proof-bank subclaim verification only. "
                 "They do not remove frontier formal gaps and do not prove the full theorem."
@@ -5042,6 +5080,25 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     proof_control.get("theorem_reduction_closure_required", False)
                     or control.get("theorem_reduction_closure_required", False)
                 )
+                proof_control["theorem_reduction_closure_already_kernel_verified"] = bool(
+                    proof_control.get(
+                        "theorem_reduction_closure_already_kernel_verified",
+                        False,
+                    )
+                    or control.get(
+                        "theorem_reduction_closure_already_kernel_verified",
+                        False,
+                    )
+                )
+                for key in (
+                    "memory_kernel_verified_theorem_reduction_closure_work_order_ids",
+                    "memory_kernel_verified_theorem_reduction_closure_target_ids",
+                    "memory_kernel_verified_theorem_reduction_closure_goal_ids",
+                ):
+                    proof_control[key] = sorted(
+                        set(proof_control.get(key, []) or [])
+                        | {str(row) for row in control.get(key, []) or []}
+                    )
                 for verifier in artifact.get("verifiers", []) or []:
                     if str(verifier).strip():
                         verifier_names.add(str(verifier))
