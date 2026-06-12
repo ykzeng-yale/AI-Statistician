@@ -87,6 +87,9 @@ from .simulation_engineer_llm import (
     SIMULATION_ENGINEER_BOUNDARY,
     SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
 )
+from .source_theorem_semantic_primitive_proofengineer_bridge import (
+    run_source_theorem_semantic_primitive_proofengineer_bridge,
+)
 from .theorem_reduction_closure_proofengineer_bridge import (
     run_theorem_reduction_closure_proofengineer_bridge,
 )
@@ -126,6 +129,10 @@ class ResearchAgentRuntimeConfig:
     theorem_closure_proofengineer_local_lean: bool = False
     theorem_closure_proofengineer_lean_project: str = ""
     theorem_closure_proofengineer_lean_timeout: int = 240
+    source_semantic_proofengineer_bridge: bool = False
+    source_semantic_proofengineer_local_lean: bool = False
+    source_semantic_proofengineer_lean_project: str = ""
+    source_semantic_proofengineer_lean_timeout: int = 90
 
 
 class ArchitectCoordinatorRuntimeSubsystem:
@@ -1142,6 +1149,21 @@ class FormalizationEvaluatorRuntimeSubsystem:
             )
             or []
         )
+        proof_obligation_control["memory_kernel_verified_source_theorem_semantic_primitive_ids"] = list(
+            proof_bank_runtime_memory_summary.get(
+                "memory_kernel_verified_source_theorem_semantic_primitive_ids",
+                [],
+            )
+            or []
+        )
+        proof_obligation_control[
+            "source_theorem_semantic_primitive_support_already_kernel_verified"
+        ] = bool(
+            proof_bank_runtime_memory_summary.get(
+                "source_theorem_semantic_primitive_support_already_kernel_verified",
+                False,
+            )
+        )
         proof_obligation_control["remaining_unverified_proof_bank_obligation_ids"] = list(
             proof_bank_runtime_memory_summary.get(
                 "remaining_unverified_proof_bank_obligation_ids",
@@ -1943,6 +1965,19 @@ def run_research_agent_runtime(
             )
             or []
         ),
+        "memory_kernel_verified_source_theorem_semantic_primitive_ids": list(
+            proof_control_summary.get(
+                "memory_kernel_verified_source_theorem_semantic_primitive_ids",
+                [],
+            )
+            or []
+        ),
+        "source_theorem_semantic_primitive_support_already_kernel_verified": bool(
+            proof_control_summary.get(
+                "source_theorem_semantic_primitive_support_already_kernel_verified",
+                False,
+            )
+        ),
         "remaining_unverified_proof_bank_obligation_ids": list(
             proof_control_summary.get("remaining_unverified_proof_bank_obligation_ids", []) or []
         ),
@@ -2010,6 +2045,26 @@ def run_research_agent_runtime(
             ),
             lean_timeout=config.theorem_closure_proofengineer_lean_timeout,
         )
+    source_semantic_bridge_manifest: dict[str, Any] | None = None
+    if (
+        config.source_semantic_proofengineer_bridge
+        and source_theorem_semantic_primitive_work_order_rows
+    ):
+        source_semantic_bridge_manifest = (
+            run_source_theorem_semantic_primitive_proofengineer_bridge(
+                out_dir=out_dir
+                / "runtime_source_theorem_semantic_primitive_proofengineer_bridge",
+                queue_jsonl=source_theorem_semantic_primitive_work_orders_path,
+                question_id=questions[0].id if len(questions) == 1 else "",
+                local_lean=config.source_semantic_proofengineer_local_lean,
+                lean_project=(
+                    Path(config.source_semantic_proofengineer_lean_project)
+                    if config.source_semantic_proofengineer_lean_project
+                    else None
+                ),
+                lean_timeout=config.source_semantic_proofengineer_lean_timeout,
+            )
+        )
     _write_runtime_formalization_gap_planner_seed_files(
         gap_planner_bridge_rows,
         seed_dir=gap_planner_seed_dir,
@@ -2046,6 +2101,23 @@ def run_research_agent_runtime(
         manifest["artifacts"][
             "runtime_theorem_reduction_closure_proofengineer_audit_manifest"
         ] = str(theorem_closure_bridge_manifest["audit_manifest"])
+    if source_semantic_bridge_manifest is not None:
+        manifest["artifacts"][
+            "runtime_source_theorem_semantic_primitive_proofengineer_bridge_manifest"
+        ] = str(
+            out_dir
+            / "runtime_source_theorem_semantic_primitive_proofengineer_bridge"
+            / "source_theorem_semantic_primitive_proofengineer_bridge_manifest.json"
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_semantic_primitive_proofengineer_learning_rows_jsonl"
+        ] = str(source_semantic_bridge_manifest["runtime_learning_rows_jsonl"])
+        manifest["artifacts"][
+            "runtime_source_theorem_semantic_primitive_proofengineer_learning_export_manifest"
+        ] = str(source_semantic_bridge_manifest["runtime_learning_export_manifest"])
+        manifest["artifacts"][
+            "runtime_source_theorem_semantic_primitive_proofengineer_checks_jsonl"
+        ] = str(source_semantic_bridge_manifest["checks_jsonl"])
     manifest["artifacts"]["runtime_formalization_gap_planner_bridges_jsonl"] = str(
         gap_planner_bridges_path
     )
@@ -2101,6 +2173,46 @@ def run_research_agent_runtime(
         "runtime-learning rows for a later run. It does not retroactively "
         "prove the current run, and it is proof evidence only for closure "
         "rows whose referenced audit manifest has kernel_verified=true."
+    )
+    manifest["source_semantic_proofengineer_bridge_requested"] = bool(
+        config.source_semantic_proofengineer_bridge
+    )
+    manifest["source_semantic_proofengineer_bridge_ran"] = (
+        source_semantic_bridge_manifest is not None
+    )
+    manifest["source_semantic_proofengineer_bridge_skipped_reason"] = (
+        ""
+        if source_semantic_bridge_manifest is not None
+        else (
+            "bridge_disabled"
+            if not config.source_semantic_proofengineer_bridge
+            else "no_source_theorem_semantic_primitive_work_orders"
+        )
+    )
+    manifest["source_semantic_proofengineer_bridge_runtime_learning_ready"] = bool(
+        source_semantic_bridge_manifest
+        and source_semantic_bridge_manifest.get("runtime_learning_ready") is True
+    )
+    manifest["source_semantic_proofengineer_bridge_n_kernel_verified_registered_candidates"] = int(
+        source_semantic_bridge_manifest.get(
+            "n_kernel_verified_registered_candidate_obligations",
+            0,
+        )
+        if source_semantic_bridge_manifest
+        else 0
+    )
+    manifest["source_semantic_proofengineer_bridge_proof_evidence_status"] = str(
+        source_semantic_bridge_manifest.get("proof_evidence_status", "")
+        if source_semantic_bridge_manifest
+        else ""
+    )
+    manifest["source_semantic_proofengineer_bridge_boundary"] = (
+        "The runtime source-semantic ProofEngineer bridge consumes upstream "
+        "semantic primitive work orders after the current runtime loop and may "
+        "export separate runtime-learning rows for a later run. It does not "
+        "retroactively prove the current run, and verified registered semantic "
+        "bridges do not by themselves prove the full source theorem or any "
+        "unformalized upstream statistical definition."
     )
     manifest["n_runtime_formalization_gap_planner_bridges"] = len(
         gap_planner_bridge_rows
@@ -2687,6 +2799,30 @@ def _critic_next_action_agenda(
             )
         elif _formalization_manifest_has_kernel_verified_theorem_closure(
             formalization_manifest
+        ) and _formalization_manifest_has_kernel_verified_source_semantic_support(
+            formalization_manifest
+        ):
+            agenda.append(
+                {
+                    "id": "formal_gap:source_theorem_exact_semantics_or_promotion",
+                    "owner_subsystem": "TheoryDeveloper/Formalizer/LeanProver",
+                    "trigger": "FORMAL_GAP_AFTER_KERNEL_VERIFIED_CLOSURE_AND_SEMANTIC_BRIDGE_SUPPORT",
+                    "action": (
+                        "target exact upstream statistical semantic definitions or source-theorem "
+                        "promotion, while preserving the distinction between verified registered "
+                        "semantic bridges and the full source theorem"
+                    ),
+                    "acceptance_gate": (
+                        "AXLE/local Lean kernel verifies exact upstream semantic primitives or "
+                        "the full source theorem; registered bridge evidence remains separately scoped"
+                    ),
+                    "target_ids": [row for row in gap_goals if row],
+                    "priority": "high",
+                    "proof_boundary": KERNEL_PROOF_BOUNDARY,
+                }
+            )
+        elif _formalization_manifest_has_kernel_verified_theorem_closure(
+            formalization_manifest
         ):
             agenda.append(
                 {
@@ -2909,6 +3045,41 @@ def _formalization_manifest_has_kernel_verified_theorem_closure(
     return summary.get("theorem_reduction_closure_already_kernel_verified") is True
 
 
+def _formalization_manifest_has_kernel_verified_source_semantic_support(
+    formalization_manifest: Mapping[str, Any],
+) -> bool:
+    proof_control = (
+        formalization_manifest.get("proof_obligation_control", {})
+        if isinstance(formalization_manifest.get("proof_obligation_control"), Mapping)
+        else {}
+    )
+    if any(
+        str(row).strip()
+        for row in proof_control.get(
+            "memory_kernel_verified_source_theorem_semantic_primitive_ids",
+            [],
+        )
+        or []
+    ):
+        return True
+    summary = (
+        formalization_manifest.get("proof_bank_runtime_memory_summary", {})
+        if isinstance(
+            formalization_manifest.get("proof_bank_runtime_memory_summary"),
+            Mapping,
+        )
+        else {}
+    )
+    return any(
+        str(row).strip()
+        for row in summary.get(
+            "memory_kernel_verified_source_theorem_semantic_primitive_ids",
+            [],
+        )
+        or []
+    )
+
+
 def _runtime_learning_memory_kernel_verified_theorem_reduction_closure(
     architect_context: Mapping[str, Any],
 ) -> dict[str, tuple[str, ...]]:
@@ -2953,6 +3124,37 @@ def _runtime_learning_memory_kernel_verified_theorem_reduction_closure(
     }
 
 
+def _runtime_learning_memory_kernel_verified_source_theorem_semantic_primitives(
+    architect_context: Mapping[str, Any],
+) -> tuple[str, ...]:
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if not isinstance(memory, Mapping) or memory.get("artifact_kind") != "RuntimeLearningMemoryContext":
+        return ()
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    primitive_ids: list[str] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        for value in row.get("kernel_verified_source_theorem_semantic_primitive_ids", []) or []:
+            text = str(value).strip()
+            if text:
+                primitive_ids.append(text)
+        input_summary = row.get("input_summary", {})
+        if isinstance(input_summary, Mapping):
+            for value in input_summary.get(
+                "kernel_verified_source_theorem_semantic_primitive_ids",
+                [],
+            ) or []:
+                text = str(value).strip()
+                if text:
+                    primitive_ids.append(text)
+    return tuple(dict.fromkeys(primitive_ids))
+
+
 def _formalizer_proof_bank_runtime_memory_summary(
     *,
     context: Mapping[str, Any],
@@ -2993,10 +3195,18 @@ def _formalizer_proof_bank_runtime_memory_summary(
     theorem_closure_memory = _runtime_learning_memory_kernel_verified_theorem_reduction_closure(
         context
     )
+    source_semantic_memory_ids = (
+        _runtime_learning_memory_kernel_verified_source_theorem_semantic_primitives(
+            context
+        )
+    )
     closure_goal_ids = tuple(
         row for row in theorem_closure_memory["goal_ids"] if row in set(theorem_goal_ids)
     )
     theorem_reduction_closure_already_kernel_verified = bool(closure_goal_ids)
+    source_theorem_semantic_primitive_support_already_kernel_verified = bool(
+        theorem_reduction_closure_already_kernel_verified and source_semantic_memory_ids
+    )
     theorem_reduction_closure_required = bool(
         (theorem_closure_requested_by_critic or catalog_exhausted)
         and not theorem_reduction_closure_already_kernel_verified
@@ -3020,11 +3230,19 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "memory_kernel_verified_theorem_reduction_closure_goal_ids": list(
             closure_goal_ids
         ),
+        "memory_kernel_verified_source_theorem_semantic_primitive_ids": list(
+            source_semantic_memory_ids
+        ),
+        "source_theorem_semantic_primitive_support_already_kernel_verified": (
+            source_theorem_semantic_primitive_support_already_kernel_verified
+        ),
         "theorem_reduction_closure_required": theorem_reduction_closure_required,
         "remaining_theorem_goal_ids": list(theorem_goal_ids),
         "recommended_formalizer_target_mode": (
             "theorem_level_reduction_closure"
             if theorem_reduction_closure_required
+            else "source_theorem_exact_semantics_or_theorem_promotion"
+            if source_theorem_semantic_primitive_support_already_kernel_verified
             else "source_theorem_semantic_primitive_closure"
             if theorem_reduction_closure_already_kernel_verified
             else "registered_proof_bank_obligation_selection"
@@ -3035,7 +3253,10 @@ def _formalizer_proof_bank_runtime_memory_summary(
             "Formalizer should target a theorem-level Lean reduction that connects those verified bridge "
             "obligations to the remaining frontier theorem goal. If runtime memory already records a "
             "kernel-verified theorem-reduction closure, subsequent iterations should target upstream "
-            "source-theorem semantic primitives instead of repeating the same closure work order."
+            "source-theorem semantic primitives instead of repeating the same closure work order. If "
+            "source-semantic bridge support is also kernel verified, subsequent iterations should target "
+            "exact upstream semantic definitions or source-theorem promotion while keeping those stronger "
+            "claims separate from the registered bridge evidence."
         ),
     }
 
@@ -5158,6 +5379,8 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             "memory_kernel_verified_theorem_reduction_closure_work_order_ids": [],
             "memory_kernel_verified_theorem_reduction_closure_target_ids": [],
             "memory_kernel_verified_theorem_reduction_closure_goal_ids": [],
+            "memory_kernel_verified_source_theorem_semantic_primitive_ids": [],
+            "source_theorem_semantic_primitive_support_already_kernel_verified": False,
             "selection_boundary": (
                 "Proof-obligation controls limit registered proof-bank subclaim verification only. "
                 "They do not remove frontier formal gaps and do not prove the full theorem."
@@ -5346,11 +5569,24 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     "memory_kernel_verified_theorem_reduction_closure_work_order_ids",
                     "memory_kernel_verified_theorem_reduction_closure_target_ids",
                     "memory_kernel_verified_theorem_reduction_closure_goal_ids",
+                    "memory_kernel_verified_source_theorem_semantic_primitive_ids",
                 ):
                     proof_control[key] = sorted(
                         set(proof_control.get(key, []) or [])
                         | {str(row) for row in control.get(key, []) or []}
                     )
+                proof_control[
+                    "source_theorem_semantic_primitive_support_already_kernel_verified"
+                ] = bool(
+                    proof_control.get(
+                        "source_theorem_semantic_primitive_support_already_kernel_verified",
+                        False,
+                    )
+                    or control.get(
+                        "source_theorem_semantic_primitive_support_already_kernel_verified",
+                        False,
+                    )
+                )
                 for verifier in artifact.get("verifiers", []) or []:
                     if str(verifier).strip():
                         verifier_names.add(str(verifier))

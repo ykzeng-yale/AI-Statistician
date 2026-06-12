@@ -1211,6 +1211,94 @@ def test_source_theorem_semantic_primitive_work_orders_follow_verified_closure()
     assert all(row["proof_mode"] == "source_theorem_semantic_primitive_closure" for row in work_orders)
 
 
+def test_source_semantic_learning_memory_advances_beyond_repeat_queue() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {
+                        "kernel_verified_proof_obligation_ids": verified_ids,
+                        "kernel_verified_theorem_reduction_closure_work_order_ids": [
+                            "theorem_reduction_closure_work_order:good_rank"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_target_ids": [
+                            "split_conformal_finite_sample_coverage_reduction_closure"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_goal_ids": [
+                            "split_conformal_finite_sample_coverage"
+                        ],
+                        "kernel_verified_source_theorem_semantic_primitive_ids": [
+                            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+                            "split_conformal_good_rank_set_inclusion_bridge",
+                        ],
+                    }
+                ],
+            }
+        },
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    proposal = {
+        "packet_id": "formalizer_proposal:source_primitives",
+        "formal_targets": [{"id": "split_conformal_finite_sample_coverage_lean"}],
+        "gap_taxonomy": [
+            {
+                "gap": "order statistic quantile semantics must be formalized.",
+                "kind": "formal_primitives",
+                "next_owner": "FormalizerProofEngineer",
+            }
+        ],
+    }
+    formalization_manifest = {
+        "counts": {"formal_gap": 1},
+        "deterministic_theorem_goals": [
+            {"id": "split_conformal_finite_sample_coverage"}
+        ],
+        "proof_bank_runtime_memory_summary": summary,
+        "proof_obligation_control": {
+            "theorem_reduction_closure_already_kernel_verified": True,
+            "memory_kernel_verified_source_theorem_semantic_primitive_ids": [
+                "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+                "split_conformal_good_rank_set_inclusion_bridge",
+            ],
+        },
+    }
+
+    work_orders = _formalizer_source_theorem_semantic_primitive_work_orders(
+        proposal_packet=proposal,
+        proof_bank_runtime_memory_summary=summary,
+        theorem_goals=theorem_goals,
+    )
+    agenda = _critic_next_action_agenda(
+        question=question,
+        retrieval_manifest={"counts": {"formal_source_hits": 1}},
+        theory_packet={"packet_id": "theory:conformal"},
+        simulation_manifest={"simulation_passed": True},
+        algorithm_manifest={"n_executed": 1},
+        formalization_manifest=formalization_manifest,
+    )
+    agenda_ids = {row["id"] for row in agenda}
+
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_exact_semantics_or_theorem_promotion"
+    )
+    assert summary[
+        "source_theorem_semantic_primitive_support_already_kernel_verified"
+    ] is True
+    assert work_orders == []
+    assert "formal_gap:source_theorem_exact_semantics_or_promotion" in agenda_ids
+    assert "formal_gap:source_theorem_semantic_primitives" not in agenda_ids
+
+
 def test_runtime_exports_source_theorem_semantic_primitive_queue_rows() -> None:
     formalization_manifest = {
         "artifact_kind": "RuntimeFormalizationManifest",

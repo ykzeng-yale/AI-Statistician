@@ -6266,6 +6266,18 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             theorem_closure_proofengineer_lean_timeout=int(
                 getattr(args, "theorem_closure_proofengineer_lean_timeout", 240)
             ),
+            source_semantic_proofengineer_bridge=bool(
+                getattr(args, "source_semantic_proofengineer_bridge", False)
+            ),
+            source_semantic_proofengineer_local_lean=bool(
+                getattr(args, "source_semantic_proofengineer_local_lean", False)
+            ),
+            source_semantic_proofengineer_lean_project=str(
+                getattr(args, "source_semantic_proofengineer_lean_project", "") or ""
+            ),
+            source_semantic_proofengineer_lean_timeout=int(
+                getattr(args, "source_semantic_proofengineer_lean_timeout", 90)
+            ),
         ),
     )
     print("\nAI Statistician Agent Runtime")
@@ -11099,6 +11111,34 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=240,
         help="timeout seconds for each theorem-closure local Lean check",
+    )
+    research_agent_runtime.add_argument(
+        "--source-semantic-proofengineer-bridge",
+        action="store_true",
+        help=(
+            "after the runtime loop emits source-theorem semantic primitive "
+            "work orders, run the ProofEngineer bridge and export separate "
+            "learning rows for a later run"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-semantic-proofengineer-local-lean",
+        action="store_true",
+        help=(
+            "when the source-semantic ProofEngineer bridge is enabled, run "
+            "local lake env lean for registered semantic-bridge obligations"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-semantic-proofengineer-lean-project",
+        default="",
+        help="local Lake project used by --source-semantic-proofengineer-local-lean",
+    )
+    research_agent_runtime.add_argument(
+        "--source-semantic-proofengineer-lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each source-semantic local Lean check",
     )
     research_agent_runtime.add_argument(
         "--proof-obligation-id",
