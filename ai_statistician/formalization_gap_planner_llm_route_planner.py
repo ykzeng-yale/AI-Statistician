@@ -8623,6 +8623,12 @@ def _response_contract_errors(
     if residual_goals and not _dict_tuple(payload.get("residual_interpretations", [])):
         errors.append("residual_interpretations required when request has residual_goals")
     errors.extend(_response_residual_interpretation_errors(payload, request))
+    errors.extend(
+        _response_residual_interpretation_primitive_grounding_errors(
+            payload,
+            request,
+        )
+    )
     errors.extend(_response_residual_source_grounding_errors(payload))
     return errors
 
@@ -9535,6 +9541,57 @@ def _response_residual_interpretation_errors(
             + "; ".join(missing[:8])
         )
     return errors
+
+
+def _response_residual_interpretation_primitive_grounding_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    allowed_primitives = _bounded_action_allowed_primitive_keys(
+        payload,
+        request,
+        include_residual_interpretations=False,
+    )
+    errors: list[str] = []
+    for index, interpretation in enumerate(
+        _dict_tuple(payload.get("residual_interpretations", []))
+    ):
+        target_primitives = _residual_interpretation_declared_primitive_keys(
+            interpretation
+        )
+        if not target_primitives:
+            continue
+        ungrounded = sorted(target_primitives - allowed_primitives)
+        if ungrounded:
+            errors.append(
+                "residual_interpretations"
+                f"[{index}].target_primitives must be drawn from request, route, "
+                "formal-realization, or cost-hint primitive evidence; "
+                "ungrounded target_primitives: "
+                + ", ".join(ungrounded[:8])
+            )
+    return errors
+
+
+def _residual_interpretation_declared_primitive_keys(
+    interpretation: Mapping[str, Any],
+) -> set[str]:
+    primitives: set[str] = set()
+    for field_name in (
+        "target_primitive",
+        "target_primitives",
+        "residual_primitive",
+        "residual_primitives",
+        "primitive",
+        "primitives",
+    ):
+        primitives.update(
+            _primitive_key(primitive)
+            for primitive in _primitive_values(interpretation.get(field_name))
+            if _primitive_key(primitive)
+        )
+    primitives.discard("")
+    return primitives
 
 
 def _response_residual_source_grounding_errors(
@@ -11389,6 +11446,8 @@ def _response_target_primitive_grounding_errors(
 def _bounded_action_allowed_primitive_keys(
     payload: Mapping[str, Any],
     request: Mapping[str, Any],
+    *,
+    include_residual_interpretations: bool = True,
 ) -> set[str]:
     target_prover_family = str(request.get("target_prover_family", ""))
     minimal_delta = _dict_value(payload, "minimal_delta_plan")
@@ -11424,8 +11483,9 @@ def _bounded_action_allowed_primitive_keys(
         primitive = _primitive_key(edge.get("primitive", ""))
         if primitive:
             allowed.add(primitive)
-    for interpretation in _dict_tuple(payload.get("residual_interpretations", [])):
-        allowed.update(_residual_interpretation_search_primitives(interpretation))
+    if include_residual_interpretations:
+        for interpretation in _dict_tuple(payload.get("residual_interpretations", [])):
+            allowed.update(_residual_interpretation_search_primitives(interpretation))
     allowed.discard("")
     return allowed
 

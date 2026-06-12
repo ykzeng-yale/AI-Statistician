@@ -10572,6 +10572,54 @@ def test_llm_route_planner_rejects_unmatched_residual_interpretation() -> None:
     assert any("missing request residual_goals" in error for error in row["errors"])
 
 
+def test_llm_route_planner_rejects_off_scope_residual_target_primitives() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_residual_scope"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    bad_response = _llm_response_payload()
+    bad_response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": (
+                "The residual is a local side condition for the rank route."
+            ),
+            "route_repair": (
+                "Keep the repair bounded to the existing rank-uniformity route."
+            ),
+            "target_primitives": ["spectral_gap"],
+            "residual_primitives": ["spectral_gap"],
+            "formal_gap_boundary": (
+                "The residual repair is bounded to the existing rank theorem "
+                "side condition and needs separate source confirmation before adoption."
+            ),
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "residual_interpretations[0].target_primitives must be drawn from request"
+        in error
+        and "spectral_gap" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_ungrounded_candidate_declarations() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_rejects_declarations")
     response_json = root / "bad_response.json"

@@ -323,7 +323,12 @@ instead of silently becoming tool policy. Explicit
 `planner_next_actions.target_primitives` must also resolve to primitives already
 present in the request, selected/delta/cost-hint plan, formal realization DAG,
 standalone route, alignment edges, or residual interpretations, and accepted
-refinement hooks preserve those explicit primitive targets. The publication
+refinement hooks preserve those explicit primitive targets. Explicit
+`residual_interpretations.target_primitives` and
+`residual_interpretations.residual_primitives` are stricter: they must resolve
+to request, route, formal-realization, or cost-hint primitive evidence and
+cannot self-ground by merely appearing in the same residual interpretation. The
+publication
 bundle audit rechecks the same target-primitive, resource id, resource-contract,
 quality-control, and queued-playbook grounding, so corrupted JSONL rows cannot
 redirect refinement work toward ungrounded theorem content or invented tool
