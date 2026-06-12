@@ -52,9 +52,11 @@ from ai_statistician.research_agent_runtime import (
     _runtime_completion_summary,
     _formalizer_proof_bank_runtime_memory_summary,
     _formalizer_source_theorem_semantic_primitive_work_orders,
+    _formalizer_source_theorem_promotion_work_orders,
     _runtime_formalization_gap_planner_bridge,
     _runtime_formalization_gap_planner_target_intake_payload,
     _runtime_source_theorem_semantic_primitive_work_order_rows,
+    _runtime_source_theorem_promotion_work_order_rows,
     _runtime_theorem_reduction_closure_work_order_rows,
     _runtime_evidence_summary,
     _runtime_failure_summary,
@@ -1199,6 +1201,11 @@ def test_source_theorem_semantic_primitive_work_orders_follow_verified_closure()
         proof_bank_runtime_memory_summary=summary,
         theorem_goals=theorem_goals,
     )
+    promotion_work_orders = _formalizer_source_theorem_promotion_work_orders(
+        proposal_packet=proposal,
+        proof_bank_runtime_memory_summary=summary,
+        theorem_goals=theorem_goals,
+    )
     primitive_ids = {row["semantic_primitive_id"] for row in work_orders}
 
     assert summary["recommended_formalizer_target_mode"] == (
@@ -1295,8 +1302,91 @@ def test_source_semantic_learning_memory_advances_beyond_repeat_queue() -> None:
         "source_theorem_semantic_primitive_support_already_kernel_verified"
     ] is True
     assert work_orders == []
+    assert len(promotion_work_orders) == 1
+    assert promotion_work_orders[0]["artifact_kind"] == "SourceTheoremPromotionWorkOrder"
+    assert promotion_work_orders[0]["proof_evidence_status"] == (
+        "WORK_ORDER_NOT_PROOF_EVIDENCE"
+    )
+    assert promotion_work_orders[0][
+        "kernel_verified_source_theorem_semantic_primitive_ids"
+    ] == [
+        "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+        "split_conformal_good_rank_set_inclusion_bridge",
+    ]
     assert "formal_gap:source_theorem_exact_semantics_or_promotion" in agenda_ids
     assert "formal_gap:source_theorem_semantic_primitives" not in agenda_ids
+
+
+def test_runtime_exports_source_theorem_promotion_queue_rows() -> None:
+    formalization_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:source_promotion",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal prediction interval coverage",
+        },
+        "llm_formalizer_proof_engineer_proposal_id": "formalizer_proposal:source_promotion",
+        "deterministic_theorem_goals": [
+            {"id": "split_conformal_finite_sample_coverage"}
+        ],
+        "proof_bank_runtime_memory_summary": {
+            "recommended_formalizer_target_mode": (
+                "source_theorem_exact_semantics_or_theorem_promotion"
+            ),
+            "source_theorem_semantic_primitive_support_already_kernel_verified": True,
+            "remaining_theorem_goal_ids": [
+                "split_conformal_finite_sample_coverage"
+            ],
+            "memory_kernel_verified_theorem_reduction_closure_work_order_ids": [
+                "theorem_reduction_closure_work_order:good_rank"
+            ],
+            "memory_kernel_verified_theorem_reduction_closure_target_ids": [
+                "split_conformal_finite_sample_coverage_reduction_closure"
+            ],
+            "memory_kernel_verified_source_theorem_semantic_primitive_ids": [
+                "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+                "split_conformal_good_rank_set_inclusion_bridge",
+            ],
+        },
+    }
+    proposal = {
+        "artifact_kind": "FormalizerProofEngineerProposalPacket",
+        "packet_id": "formalizer_proposal:source_promotion",
+        "formal_targets": [
+            {
+                "id": "split_conformal_finite_sample_coverage_lean",
+                "informal_source": "split conformal finite-sample coverage",
+                "lean_statement_sketch": "theorem split_conformal_coverage : True := by trivial",
+                "semantic_alignment_constraints": ["marginal coverage only"],
+            }
+        ],
+    }
+    rows = _runtime_source_theorem_promotion_work_order_rows(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        "formalization_manifest:source_promotion": formalization_manifest,
+                        "formalizer_proposal:source_promotion": proposal,
+                    }
+                }
+            }
+        ]
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["artifact_kind"] == "SourceTheoremPromotionWorkOrder"
+    assert rows[0]["runtime_queue_status"] == (
+        "PENDING_SOURCE_THEOREM_TARGET_RESOLUTION_OR_PROMOTION"
+    )
+    assert rows[0]["question_id"] == "conformal_prediction_coverage"
+    assert rows[0]["source_formal_target_id"] == (
+        "split_conformal_finite_sample_coverage_lean"
+    )
+    assert rows[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+    assert rows[0]["kernel_verified_theorem_reduction_closure_work_order_ids"] == [
+        "theorem_reduction_closure_work_order:good_rank"
+    ]
 
 
 def test_runtime_exports_source_theorem_semantic_primitive_queue_rows() -> None:
