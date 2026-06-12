@@ -90,6 +90,8 @@ class GoalConditionedMinimalFormalizationPlanRow:
     and_or_plan: dict[str, object]
     and_or_plan_nodes: tuple[dict[str, object], ...]
     and_or_plan_edges: tuple[dict[str, object], ...]
+    route_option_cost_graph: dict[str, object]
+    route_option_cost_graph_summary: dict[str, object]
     informal_knowledge_dag: dict[str, object]
     informal_knowledge_dag_nodes: tuple[dict[str, object], ...]
     informal_knowledge_dag_edges: tuple[dict[str, object], ...]
@@ -268,6 +270,33 @@ def export_goal_conditioned_minimal_formalization_plan(
         "n_route_cost_breakdown_terms": sum(len(row.route_cost_breakdown) for row in rows),
         "n_and_or_plan_nodes": sum(_graph_count(row.and_or_plan, "nodes") for row in rows),
         "n_and_or_plan_edges": sum(_graph_count(row.and_or_plan, "edges") for row in rows),
+        "n_route_option_cost_graphs": sum(
+            1 for row in rows if row.route_option_cost_graph
+        ),
+        "n_route_option_cost_graph_route_options": sum(
+            int(row.route_option_cost_graph_summary.get("n_route_options", 0) or 0)
+            for row in rows
+        ),
+        "n_route_option_cost_graph_unselected_route_options": sum(
+            int(
+                row.route_option_cost_graph_summary.get(
+                    "n_unselected_route_options",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
+        "n_route_option_cost_graph_comparison_only_primitives": sum(
+            int(
+                row.route_option_cost_graph_summary.get(
+                    "n_comparison_only_primitives",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
         "n_informal_knowledge_dag_nodes": sum(
             _graph_count(row.informal_knowledge_dag, "nodes") for row in rows
         ),
@@ -539,6 +568,16 @@ def _plan_row(
         minimal_nodes=minimal_nodes,
         blockers=blockers,
     )
+    route_option_cost_graph = _route_option_cost_graph(
+        route,
+        route_id=route_id,
+        selected_primitives=selected_primitives,
+        best_route_cost=best_route_cost,
+    )
+    route_option_cost_graph_summary = _route_option_cost_graph_summary(
+        route_option_cost_graph,
+        selected_primitives=selected_primitives,
+    )
     informal_knowledge_dag = _informal_knowledge_dag(
         route_id=route_id,
         display_name=str(route.get("display_name", "")),
@@ -648,6 +687,8 @@ def _plan_row(
         and_or_plan=and_or_plan,
         and_or_plan_nodes=tuple(and_or_plan.get("nodes", [])),
         and_or_plan_edges=tuple(and_or_plan.get("edges", [])),
+        route_option_cost_graph=route_option_cost_graph,
+        route_option_cost_graph_summary=route_option_cost_graph_summary,
         informal_knowledge_dag=informal_knowledge_dag,
         informal_knowledge_dag_nodes=tuple(informal_knowledge_dag.get("nodes", [])),
         informal_knowledge_dag_edges=tuple(informal_knowledge_dag.get("edges", [])),
@@ -1286,6 +1327,121 @@ def _and_or_plan(
     }
 
 
+def _route_option_cost_graph(
+    route: dict[str, Any],
+    *,
+    route_id: str,
+    selected_primitives: tuple[str, ...],
+    best_route_cost: int,
+) -> dict[str, object]:
+    trace = route.get("standalone_input_trace", {})
+    trace = trace if isinstance(trace, dict) else {}
+    graph = route.get("minimal_delta_and_or_cost_graph", {})
+    if not isinstance(graph, dict) or not graph:
+        graph = trace.get("minimal_delta_and_or_cost_graph", {})
+    if isinstance(graph, dict) and graph:
+        normalized = dict(graph)
+        normalized["source"] = str(
+            normalized.get("source") or "llm_route_planner_minimal_delta_plan"
+        )
+        normalized["proof_evidence_status"] = PROOF_EVIDENCE_STATUS
+        normalized["boundary"] = (
+            "Route-option cost graphs are route-comparison evidence for "
+            "minimal-delta planning. They are not target-prover dependency "
+            "graphs or theorem proof evidence."
+        )
+        return normalized
+    selected_option_id = "route_option:" + stable_hash(
+        [route_id, selected_primitives, best_route_cost]
+    )[:16]
+    return {
+        "graph_kind": "SELECTED_ROUTE_ONLY_COST_GRAPH",
+        "source": "goal_conditioned_minimal_formalization_plan",
+        "selected_route_option_id": selected_option_id,
+        "route_options": [
+            {
+                "route_option_id": selected_option_id,
+                "selected": True,
+                "selected_primitives": list(selected_primitives),
+                "route_cost": best_route_cost,
+                "cost_rationale": (
+                    "No upstream route-option cost graph was supplied; this "
+                    "records only the selected route cost."
+                ),
+            }
+        ],
+        "or_nodes": [],
+        "and_edges": [
+            {
+                "route_option_id": selected_option_id,
+                "requires": list(selected_primitives),
+            }
+        ],
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "boundary": (
+            "Selected-route-only cost graphs are fallback route-comparison "
+            "evidence. They do not certify that all possible alternatives were "
+            "enumerated, and they are not theorem proof evidence."
+        ),
+    }
+
+
+def _route_option_cost_graph_summary(
+    graph: dict[str, object],
+    *,
+    selected_primitives: tuple[str, ...],
+) -> dict[str, object]:
+    route_options = _dict_tuple(graph.get("route_options", []))
+    selected_route_option_id = str(graph.get("selected_route_option_id", ""))
+    selected_option_ids = tuple(
+        dict.fromkeys(
+            str(option.get("route_option_id", ""))
+            for option in route_options
+            if option.get("selected")
+            or str(option.get("route_option_id", "")) == selected_route_option_id
+        )
+    )
+    selected_option_primitives = list(dict.fromkeys(selected_primitives))
+    route_option_primitives: list[str] = []
+    for option in route_options:
+        option_id = str(option.get("route_option_id", ""))
+        primitives = _str_tuple(option.get("selected_primitives", []))
+        route_option_primitives.extend(primitives)
+        if option_id in selected_option_ids:
+            for primitive in primitives:
+                if primitive not in selected_option_primitives:
+                    selected_option_primitives.append(primitive)
+    unique_route_option_primitives = tuple(dict.fromkeys(route_option_primitives))
+    comparison_only_primitives = tuple(
+        primitive
+        for primitive in unique_route_option_primitives
+        if primitive not in set(selected_primitives)
+    )
+    unselected_route_option_ids = tuple(
+        str(option.get("route_option_id", ""))
+        for option in route_options
+        if str(option.get("route_option_id", "")) not in set(selected_option_ids)
+    )
+    return {
+        "graph_kind": str(graph.get("graph_kind", "")),
+        "source": str(graph.get("source", "")),
+        "selected_route_option_id": selected_route_option_id,
+        "selected_route_option_ids": list(selected_option_ids),
+        "unselected_route_option_ids": list(unselected_route_option_ids),
+        "n_route_options": len(route_options),
+        "n_selected_route_options": len(selected_option_ids),
+        "n_unselected_route_options": len(unselected_route_option_ids),
+        "route_option_primitives": list(unique_route_option_primitives),
+        "selected_primitives": list(selected_primitives),
+        "selected_option_primitives": selected_option_primitives,
+        "comparison_only_primitives": list(comparison_only_primitives),
+        "n_route_option_primitives": len(unique_route_option_primitives),
+        "n_comparison_only_primitives": len(comparison_only_primitives),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "boundary": str(graph.get("boundary", "")),
+    }
+
+
 def _informal_knowledge_dag(
     *,
     route_id: str,
@@ -1765,6 +1921,16 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Cost-breakdown terms: {payload.get('n_route_cost_breakdown_terms')}",
         f"- Target prover family: {payload.get('target_prover_family')}",
         f"- AND/OR plan graph: {payload.get('n_and_or_plan_nodes')} nodes / {payload.get('n_and_or_plan_edges')} edges",
+        (
+            f"- Route-option cost graphs/options/unselected: "
+            f"{payload.get('n_route_option_cost_graphs')}/"
+            f"{payload.get('n_route_option_cost_graph_route_options')}/"
+            f"{payload.get('n_route_option_cost_graph_unselected_route_options')}"
+        ),
+        (
+            f"- Route-option comparison-only primitives: "
+            f"{payload.get('n_route_option_cost_graph_comparison_only_primitives')}"
+        ),
         f"- Informal knowledge DAG: {payload.get('n_informal_knowledge_dag_nodes')} nodes / {payload.get('n_informal_knowledge_dag_edges')} edges",
         f"- Formal realization DAG: {payload.get('n_formal_realization_dag_nodes')} nodes / {payload.get('n_formal_realization_dag_edges')} edges",
         (
@@ -1791,6 +1957,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"efficiency={row.get('route_efficiency_score')} class={row.get('route_class')}"
         )
         lines.append(f"  selected primitives: {', '.join(row.get('selected_primitives', []))}")
+        graph_summary = row.get("route_option_cost_graph_summary", {})
+        if isinstance(graph_summary, dict):
+            lines.append(
+                "  route options: "
+                f"{graph_summary.get('n_route_options', 0)} total, "
+                f"{graph_summary.get('n_unselected_route_options', 0)} unselected"
+            )
         nodes = row.get("minimal_additional_formalization_nodes", [])
         if nodes:
             lines.append(

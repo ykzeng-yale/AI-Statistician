@@ -146,6 +146,49 @@ def test_goal_conditioned_plan_honors_explicit_selected_primitives() -> None:
                         "route_class": "bridge_or_wrapper",
                         "total_estimated_cost": 4,
                         "selected_primitives": ["selected_bridge"],
+                        "minimal_delta_and_or_cost_graph": {
+                            "graph_kind": "AND_OR_ROUTE_COST_GRAPH",
+                            "selected_route_option_id": "route_option:selected",
+                            "route_options": [
+                                {
+                                    "route_option_id": "route_option:selected",
+                                    "selected": True,
+                                    "selected_primitives": ["selected_bridge"],
+                                    "route_cost": 4,
+                                },
+                                {
+                                    "route_option_id": "route_option:comparison",
+                                    "selected": False,
+                                    "selected_primitives": [
+                                        "selected_bridge",
+                                        "comparison_boundary",
+                                    ],
+                                    "route_cost": 24,
+                                },
+                            ],
+                            "and_edges": [
+                                {
+                                    "route_option_id": "route_option:selected",
+                                    "requires": ["selected_bridge"],
+                                },
+                                {
+                                    "route_option_id": "route_option:comparison",
+                                    "requires": [
+                                        "selected_bridge",
+                                        "comparison_boundary",
+                                    ],
+                                },
+                            ],
+                            "or_nodes": [
+                                {
+                                    "node_id": "or:selected_subset",
+                                    "choices": [
+                                        "route_option:selected",
+                                        "route_option:comparison",
+                                    ],
+                                }
+                            ],
+                        },
                         "actions": [
                             {
                                 "primitive": "selected_bridge",
@@ -202,6 +245,19 @@ def test_goal_conditioned_plan_honors_explicit_selected_primitives() -> None:
         "selected_bridge"
     ]
     assert "comparison_boundary" in row["do_not_formalize_now"]
+    assert row["route_option_cost_graph"]["selected_route_option_id"] == (
+        "route_option:selected"
+    )
+    assert row["route_option_cost_graph_summary"]["n_route_options"] == 2
+    assert row["route_option_cost_graph_summary"]["unselected_route_option_ids"] == [
+        "route_option:comparison"
+    ]
+    assert row["route_option_cost_graph_summary"]["comparison_only_primitives"] == [
+        "comparison_boundary"
+    ]
+    assert payload["n_route_option_cost_graph_route_options"] == 2
+    assert payload["n_route_option_cost_graph_unselected_route_options"] == 1
+    assert payload["n_route_option_cost_graph_comparison_only_primitives"] == 1
 
 
 def test_goal_conditioned_plan_reports_mixed_route_targets() -> None:

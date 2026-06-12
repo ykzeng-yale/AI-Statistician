@@ -327,6 +327,8 @@ def portable_gap_plan_json_schema() -> dict[str, object]:
                     "next_work_packets",
                     "and_or_plan_nodes",
                     "and_or_plan_edges",
+                    "route_option_cost_graph",
+                    "route_option_cost_graph_summary",
                     "informal_knowledge_dag_nodes",
                     "informal_knowledge_dag_edges",
                     "formal_realization_dag_nodes",
@@ -378,6 +380,42 @@ def portable_gap_plan_json_schema() -> dict[str, object]:
                     "and_or_plan_edges": {
                         "type": "array",
                         "items": {"$ref": "#/$defs/and_or_edge"},
+                    },
+                    "route_option_cost_graph": {
+                        "type": "object",
+                        "additionalProperties": True,
+                        "description": (
+                            "Route-option cost comparison graph used to justify "
+                            "the selected minimal-delta cut. This is planning "
+                            "evidence, not target-prover proof evidence."
+                        ),
+                    },
+                    "route_option_cost_graph_summary": {
+                        "type": "object",
+                        "additionalProperties": True,
+                        "properties": {
+                            "selected_route_option_id": {"type": "string"},
+                            "selected_route_option_ids": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "unselected_route_option_ids": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "n_route_options": {"type": "integer", "minimum": 0},
+                            "n_unselected_route_options": {
+                                "type": "integer",
+                                "minimum": 0,
+                            },
+                            "comparison_only_primitives": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "proof_evidence_status": {
+                                "const": PROOF_EVIDENCE_STATUS
+                            },
+                        },
                     },
                     "informal_knowledge_dag_nodes": {
                         "type": "array",
@@ -864,6 +902,8 @@ def _validate_row(
         "next_work_packets",
         "and_or_plan_nodes",
         "and_or_plan_edges",
+        "route_option_cost_graph",
+        "route_option_cost_graph_summary",
         "informal_knowledge_dag_nodes",
         "informal_knowledge_dag_edges",
         "formal_realization_dag_nodes",
@@ -888,6 +928,12 @@ def _validate_row(
         errors.append(f"rows[{idx}].and_or_plan_nodes must be a list")
     if not isinstance(row.get("and_or_plan_edges", []), (list, tuple)):
         errors.append(f"rows[{idx}].and_or_plan_edges must be a list")
+    if not isinstance(row.get("route_option_cost_graph", {}), dict):
+        errors.append(f"rows[{idx}].route_option_cost_graph must be an object")
+    if not isinstance(row.get("route_option_cost_graph_summary", {}), dict):
+        errors.append(
+            f"rows[{idx}].route_option_cost_graph_summary must be an object"
+        )
     if not isinstance(row.get("next_work_packets", []), (list, tuple)):
         errors.append(f"rows[{idx}].next_work_packets must be a list")
     for dag_field in (

@@ -4362,6 +4362,22 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         "exchangeability",
         "rank_uniformity",
     ]
+    assert plan_rows[0]["route_option_cost_graph"]["selected_route_option_id"] == (
+        "route_option:reuse_exchangeability_bridge_rank"
+    )
+    assert plan_rows[0]["route_option_cost_graph_summary"]["n_route_options"] == 3
+    assert (
+        plan_rows[0]["route_option_cost_graph_summary"][
+            "n_unselected_route_options"
+        ]
+        == 2
+    )
+    assert (
+        plan_rows[0]["route_option_cost_graph_summary"][
+            "n_comparison_only_primitives"
+        ]
+        == 8
+    )
     assert plan_rows[0]["existing_reuse_nodes"][0]["candidate_declaration_rows"] == [
         {
             "declaration": "Probability.exchangeable",

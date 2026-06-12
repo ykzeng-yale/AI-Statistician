@@ -466,6 +466,14 @@ inspect resource contracts, gates, validation signals, and stop conditions
 without parsing the full replan metadata blob. The selected route-option and
 primitive costs are used when present instead of falling back to coverage-label
 defaults.
+The portable plan row also promotes the route-option comparison graph to
+first-class `route_option_cost_graph` and `route_option_cost_graph_summary`
+fields. This keeps the executable `and_or_plan` focused on the selected minimal
+cut while preserving unselected source-port or baseline alternatives as
+auditable cost-comparison evidence. The summary records selected and unselected
+route-option ids, route-option primitive coverage, and comparison-only
+primitives that justify `do_not_formalize_now` hints without turning those
+baseline primitives into selected work packets.
 Evaluation rows then surface `minimal_delta_cost_graph_present`,
 `minimal_delta_route_option_count`, `minimal_delta_selected_route_option_id`,
 `minimal_delta_selected_route_cost`, `realization_coverage_witness_present`,
