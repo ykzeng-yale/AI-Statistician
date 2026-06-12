@@ -8161,6 +8161,85 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         encoding="utf-8",
     )
 
+    duplicate_route_option_rows = json.loads(json.dumps(rows))
+    duplicate_route_option_graph = duplicate_route_option_rows[0]["minimal_delta_plan"][
+        "and_or_cost_graph"
+    ]
+    duplicate_route_option_graph["route_options"][1]["route_option_id"] = (
+        "route_option:rank_bridge"
+    )
+    duplicate_route_option_graph["or_nodes"][0]["choices"] = [
+        "route_option:rank_bridge",
+        "route_option:current_route_min_delta_baseline",
+    ]
+    duplicate_route_option_graph["and_edges"][1]["route_option_id"] = (
+        "route_option:rank_bridge"
+    )
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True) for row in duplicate_route_option_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_duplicate_route_option_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_duplicate_route_option_id",
+        )
+    )
+    duplicate_route_option_checks = [
+        row
+        for row in rejected_duplicate_route_option_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert duplicate_route_option_checks
+    assert not duplicate_route_option_checks[0]["ok"]
+    assert any(
+        "route_options[1].route_option_id duplicates another route option" in error
+        and "route_option:rank_bridge" in error
+        for error in duplicate_route_option_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    duplicate_and_edge_rows = json.loads(json.dumps(rows))
+    duplicate_and_edge_graph = duplicate_and_edge_rows[0]["minimal_delta_plan"][
+        "and_or_cost_graph"
+    ]
+    duplicate_and_edge_graph["and_edges"].append(
+        dict(duplicate_and_edge_graph["and_edges"][0])
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in duplicate_and_edge_rows)
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_duplicate_and_edge_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_duplicate_and_edge",
+        )
+    )
+    duplicate_and_edge_checks = [
+        row
+        for row in rejected_duplicate_and_edge_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert duplicate_and_edge_checks
+    assert not duplicate_and_edge_checks[0]["ok"]
+    assert any(
+        "and_edges must include exactly one edge per route option" in error
+        and "route_option:rank_bridge" in error
+        for error in duplicate_and_edge_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
     unreachable_option_rows = json.loads(json.dumps(rows))
     unreachable_graph = unreachable_option_rows[0]["minimal_delta_plan"][
         "and_or_cost_graph"

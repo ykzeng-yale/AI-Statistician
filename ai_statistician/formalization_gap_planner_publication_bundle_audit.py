@@ -8934,6 +8934,12 @@ def _llm_row_and_or_cost_graph_errors(
                 "row minimal_delta_plan.and_or_cost_graph."
                 f"route_options[{index}].route_option_id missing"
             )
+        elif option_id in route_option_ids:
+            errors.append(
+                "row minimal_delta_plan.and_or_cost_graph."
+                f"route_options[{index}].route_option_id duplicates another route option: "
+                + option_id
+            )
         else:
             route_option_ids.add(option_id)
         option_cost = option.get("route_cost")
@@ -9124,6 +9130,7 @@ def _llm_row_and_or_cost_graph_structure_errors(
         )
     and_edges = _dict_tuple(graph.get("and_edges", []))
     route_options_referenced_by_and_edges: set[str] = set()
+    and_edge_count_by_route_option: dict[str, int] = {}
     if not and_edges:
         errors.append(f"{prefix}.and_edges must be non-empty")
     for index, edge in enumerate(and_edges):
@@ -9137,6 +9144,9 @@ def _llm_row_and_or_cost_graph_structure_errors(
             )
         else:
             route_options_referenced_by_and_edges.add(option_id)
+            and_edge_count_by_route_option[option_id] = (
+                and_edge_count_by_route_option.get(option_id, 0) + 1
+            )
         requires = _str_tuple(edge.get("requires", []))
         if not requires:
             errors.append(f"{prefix}.and_edges[{index}].requires must be non-empty")
@@ -9171,6 +9181,17 @@ def _llm_row_and_or_cost_graph_structure_errors(
             f"{prefix}.and_edges must include every route option; "
             "route options without AND edges: "
             + ", ".join(route_options_without_and_edges[:8])
+        )
+    route_options_with_duplicate_and_edges = sorted(
+        option_id
+        for option_id, count in and_edge_count_by_route_option.items()
+        if count > 1
+    )
+    if route_options_with_duplicate_and_edges:
+        errors.append(
+            f"{prefix}.and_edges must include exactly one edge per route option; "
+            "route options with duplicate AND edges: "
+            + ", ".join(route_options_with_duplicate_and_edges[:8])
         )
     return errors
 
