@@ -615,7 +615,23 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
             )
         )
         errors.extend(
+            _legacy_lean_realization_node_input_errors(
+                route,
+                location=f"routes[{idx}]",
+                target_prover_family=effective_target,
+                target_prover_key=effective_target_key,
+            )
+        )
+        errors.extend(
             _legacy_lean_declaration_hit_input_errors(
+                metadata,
+                location=f"routes[{idx}].replan_metadata",
+                target_prover_family=effective_target,
+                target_prover_key=effective_target_key,
+            )
+        )
+        errors.extend(
+            _legacy_lean_realization_node_input_errors(
                 metadata,
                 location=f"routes[{idx}].replan_metadata",
                 target_prover_family=effective_target,
@@ -2194,7 +2210,7 @@ def _legacy_lean_declaration_hit_input_errors(
 ) -> list[str]:
     if not target_prover_key or _is_lean_target_prover(target_prover_family):
         return []
-    if not _nonempty_legacy_declaration_hit_value(row.get("lean_declaration_hits")):
+    if not _nonempty_legacy_field_value(row.get("lean_declaration_hits")):
         return []
     return [
         (
@@ -2205,7 +2221,7 @@ def _legacy_lean_declaration_hit_input_errors(
     ]
 
 
-def _nonempty_legacy_declaration_hit_value(value: object) -> bool:
+def _nonempty_legacy_field_value(value: object) -> bool:
     if value is None:
         return False
     if isinstance(value, str):
@@ -2213,8 +2229,31 @@ def _nonempty_legacy_declaration_hit_value(value: object) -> bool:
     if isinstance(value, Mapping):
         return bool(value)
     if isinstance(value, (list, tuple, set)):
-        return any(_nonempty_legacy_declaration_hit_value(item) for item in value)
+        return any(_nonempty_legacy_field_value(item) for item in value)
     return bool(value)
+
+
+def _legacy_lean_realization_node_input_errors(
+    row: Mapping[str, Any],
+    *,
+    location: str,
+    target_prover_family: str,
+    target_prover_key: str,
+) -> list[str]:
+    if not target_prover_key or _is_lean_target_prover(target_prover_family):
+        return []
+    if not _nonempty_legacy_field_value(
+        row.get("revised_lean_realization_dag_nodes")
+    ):
+        return []
+    return [
+        (
+            f"{location}.revised_lean_realization_dag_nodes is a Lean-only "
+            "legacy alias; non-Lean standalone targets must use "
+            "revised_formal_realization_dag_nodes for target_prover_family "
+            f"{target_prover_family}"
+        )
+    ]
 
 
 def _declaration_hits_for_standalone_trace(

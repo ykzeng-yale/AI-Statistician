@@ -902,6 +902,57 @@ def test_standalone_input_rejects_non_lean_legacy_lean_declaration_hits() -> Non
     assert not plan_payload["all_ok"]
 
 
+def test_standalone_input_rejects_non_lean_legacy_revised_lean_realization_nodes() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_standalone_bad_revised_lean_alias"
+    )
+    input_json = root / "standalone_input.json"
+    out_dir = root / "plan"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    legacy_node = {
+        "node_id": "formal:rank_uniformity",
+        "primitive": "rank_uniformity",
+        "coverage_bucket": "bridge",
+    }
+    payload = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "target_prover_family": "rocq",
+        "library_snapshot_ref": "rocq:legacy-lean-realization-guard",
+        "routes": [
+            {
+                "route_id": "rocq_rank_route",
+                "display_name": "rocq_rank_route",
+                "target_prover_family": "rocq",
+                "theorem_statement": "A Rocq rank lemma should use Rocq DAG fields.",
+                "revised_lean_realization_dag_nodes": [legacy_node],
+                "replan_metadata": {
+                    "target_prover_family": "rocq",
+                    "revised_lean_realization_dag_nodes": [legacy_node],
+                },
+                "primitives": [{"primitive": "rank_uniformity"}],
+            }
+        ],
+    }
+    input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    errors = validate_standalone_input_payload(payload)
+
+    assert any(
+        "routes[0].revised_lean_realization_dag_nodes is a Lean-only legacy alias"
+        in error
+        for error in errors
+    )
+    assert any(
+        "routes[0].replan_metadata.revised_lean_realization_dag_nodes is a "
+        "Lean-only legacy alias" in error
+        for error in errors
+    )
+    plan_payload = export_formalization_gap_planner_standalone_plan(input_json, out_dir)
+    assert not plan_payload["all_ok"]
+
+
 def test_standalone_input_accepts_target_prover_aliases_for_declaration_rows() -> None:
     payload = {
         "schema_version": 1,

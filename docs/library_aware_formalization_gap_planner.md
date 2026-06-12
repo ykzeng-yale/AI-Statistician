@@ -1071,7 +1071,10 @@ schema-valid counts so external users can validate the frontier-tool/MCP
 inventory without importing this repository. Route-revision adapters must now
 declare `revised_formal_realization_dag_nodes` in addition to any legacy
 `revised_lean_realization_dag_nodes` alias, so non-Lean prover clients can
-consume the generic DAG contract directly.
+consume the generic DAG contract directly. Standalone input validation rejects
+`revised_lean_realization_dag_nodes` for non-Lean targets, including route and
+replan-metadata locations, so Rocq/Isabelle/Agda-style seeds cannot rely on a
+Lean-only alias to carry their formal realization DAG.
 The adapter-registry audit validates that the registry covers the required
 literature, formal-library, proof-state, route-revision, offline-regression,
 and cross-prover reuse surfaces; it also checks response fields, resource URLs,
