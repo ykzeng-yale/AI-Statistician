@@ -316,7 +316,9 @@ instead of silently becoming tool policy. Explicit
 `planner_next_actions.target_primitives` must also resolve to primitives already
 present in the request, selected/delta/cost-hint plan, formal realization DAG,
 standalone route, alignment edges, or residual interpretations, and accepted
-refinement hooks preserve those explicit primitive targets.
+refinement hooks preserve those explicit primitive targets. The publication
+bundle audit rechecks the same target-primitive grounding, so corrupted JSONL
+rows cannot redirect refinement work toward ungrounded theorem content.
 Normalized refinement-evidence rows and route-revision proposals expose the same
 `target_primitives` field, and refinement tool responses are rejected if they
 expand beyond the queued target scope.

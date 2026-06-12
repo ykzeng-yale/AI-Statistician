@@ -8874,6 +8874,40 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         encoding="utf-8",
     )
 
+    ungrounded_search_target_rows = json.loads(json.dumps(rows))
+    ungrounded_search_target_rows[0]["search_requests"][0][
+        "target_primitives"
+    ] = ["spectral_gap"]
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in ungrounded_search_target_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_search_target_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_ungrounded_search_target_primitive",
+    )
+    search_target_checks = [
+        row
+        for row in rejected_search_target_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert search_target_checks
+    assert not search_target_checks[0]["ok"]
+    assert any(
+        "row search_requests[0].target_primitives must be drawn from request"
+        in error
+        and "spectral_gap" in error
+        for error in search_target_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
     malformed_action_rows = json.loads(json.dumps(rows))
     malformed_action_rows[0]["planner_next_actions"] = [
         {
@@ -8912,6 +8946,44 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         "row planner_next_actions[0] does not resolve to a supported hook family"
         in error
         for error in malformed_action_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    ungrounded_action_target_rows = json.loads(json.dumps(rows))
+    ungrounded_action_target_rows[0]["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": "run proof_state_feedback for the spectral gap side condition",
+            "target_primitives": ["spectral_gap"],
+        }
+    ]
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in ungrounded_action_target_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_action_target_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_ungrounded_action_target_primitive",
+    )
+    action_target_checks = [
+        row
+        for row in rejected_action_target_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert action_target_checks
+    assert not action_target_checks[0]["ok"]
+    assert any(
+        "row planner_next_actions[0].target_primitives must be drawn from request"
+        in error
+        and "spectral_gap" in error
+        for error in action_target_checks[0]["errors"]
     )
     rows_path.write_text(
         "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",

@@ -8248,6 +8248,20 @@ def _llm_row_request_evidence_errors(
     errors.extend(_llm_row_residual_source_grounding_errors(row))
     errors.extend(_llm_row_search_request_contract_errors(row))
     errors.extend(_llm_row_planner_next_action_contract_errors(row))
+    errors.extend(
+        _llm_row_target_primitive_grounding_errors(
+            row,
+            request,
+            collection_name="search_requests",
+        )
+    )
+    errors.extend(
+        _llm_row_target_primitive_grounding_errors(
+            row,
+            request,
+            collection_name="planner_next_actions",
+        )
+    )
     errors.extend(_llm_row_source_search_obligation_errors(row))
     errors.extend(_llm_row_formal_search_obligation_errors(row))
     errors.extend(_llm_row_minimal_delta_cost_errors(row, request))
@@ -8450,6 +8464,89 @@ def _llm_row_planner_next_action_contract_errors(row: dict[str, Any]) -> tuple[s
                 f"[{index}] does not resolve to a supported hook family"
             )
     return tuple(errors)
+
+
+def _llm_row_target_primitive_grounding_errors(
+    row: dict[str, Any],
+    request: dict[str, Any],
+    *,
+    collection_name: str,
+) -> tuple[str, ...]:
+    allowed_primitives = _llm_row_bounded_action_allowed_primitive_keys(row, request)
+    errors: list[str] = []
+    for index, action in enumerate(_dict_tuple(row.get(collection_name, []))):
+        target_primitives = _llm_planner_action_target_primitive_keys(action)
+        if not target_primitives:
+            continue
+        ungrounded = sorted(target_primitives - allowed_primitives)
+        if ungrounded:
+            errors.append(
+                f"row {collection_name}[{index}].target_primitives must be drawn "
+                "from request, route, formal-realization, residual, or "
+                "cost-hint primitive evidence; ungrounded target_primitives: "
+                + ",".join(ungrounded[:8])
+            )
+    return tuple(errors)
+
+
+def _llm_row_bounded_action_allowed_primitive_keys(
+    row: dict[str, Any],
+    request: dict[str, Any],
+) -> set[str]:
+    minimal_delta = _dict_value(row, "minimal_delta_plan")
+    selected, delta_primitives = _llm_row_selected_and_delta_primitive_keys(row)
+    allowed = set(_llm_available_primitive_keys(request))
+    allowed.update(selected)
+    allowed.update(delta_primitives)
+    allowed.update(_llm_request_primitive_cost_hints_by_primitive(request))
+    allowed.update(_llm_row_route_option_primitive_keys(row))
+    for cost_row in _dict_tuple(minimal_delta.get("primitive_costs", [])):
+        primitive = _llm_primitive_key(cost_row.get("primitive", ""))
+        if primitive:
+            allowed.add(primitive)
+    for option in _dict_tuple(
+        _dict_value(minimal_delta, "and_or_cost_graph").get("route_options", [])
+    ):
+        for cost_row in _dict_tuple(option.get("primitive_costs", [])):
+            primitive = _llm_primitive_key(cost_row.get("primitive", ""))
+            if primitive:
+                allowed.add(primitive)
+    for node in _llm_formal_realization_nodes(row):
+        primitive = _llm_primitive_key(node.get("primitive", ""))
+        if primitive:
+            allowed.add(primitive)
+    for primitive_row in _dict_tuple(
+        _dict_value(row, "standalone_route").get("primitives", [])
+    ):
+        primitive = _llm_primitive_key(primitive_row.get("primitive", ""))
+        if primitive:
+            allowed.add(primitive)
+    allowed.update(_llm_alignment_edges_by_primitive(row))
+    for interpretation in _dict_tuple(row.get("residual_interpretations", [])):
+        allowed.update(_llm_residual_interpretation_search_primitives(interpretation))
+    allowed.discard("")
+    return allowed
+
+
+def _llm_planner_action_target_primitive_keys(
+    action: dict[str, Any],
+) -> set[str]:
+    primitives: set[str] = set()
+    for field_name in (
+        "target_primitive",
+        "target_primitives",
+        "primitive",
+        "primitives",
+    ):
+        primitives.update(
+            primitive
+            for primitive in (
+                _llm_primitive_key(value)
+                for value in _llm_primitive_values(action.get(field_name))
+            )
+            if primitive
+        )
+    return primitives
 
 
 def _llm_planner_next_action_has_supported_hook(action: dict[str, Any]) -> bool:
