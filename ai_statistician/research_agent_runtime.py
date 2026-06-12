@@ -1966,11 +1966,17 @@ def run_research_agent_runtime(
     theorem_reduction_closure_work_order_rows = (
         _runtime_theorem_reduction_closure_work_order_rows(results)
     )
+    source_theorem_semantic_primitive_work_order_rows = (
+        _runtime_source_theorem_semantic_primitive_work_order_rows(results)
+    )
     gap_planner_bridge_rows = _runtime_formalization_gap_planner_bridge_rows(results)
     agenda_path = out_dir / "runtime_next_action_agenda.jsonl"
     learning_path = out_dir / "runtime_learning_rows.jsonl"
     theorem_reduction_closure_work_orders_path = (
         out_dir / "runtime_theorem_reduction_closure_work_orders.jsonl"
+    )
+    source_theorem_semantic_primitive_work_orders_path = (
+        out_dir / "runtime_source_theorem_semantic_primitive_work_orders.jsonl"
     )
     gap_planner_bridges_path = out_dir / "runtime_formalization_gap_planner_bridges.jsonl"
     gap_planner_seed_dir = out_dir / "runtime_formalization_gap_planner_seeds"
@@ -1981,6 +1987,10 @@ def run_research_agent_runtime(
     _write_jsonl(
         theorem_reduction_closure_work_orders_path,
         theorem_reduction_closure_work_order_rows,
+    )
+    _write_jsonl(
+        source_theorem_semantic_primitive_work_orders_path,
+        source_theorem_semantic_primitive_work_order_rows,
     )
     theorem_closure_bridge_manifest: dict[str, Any] | None = None
     if (
@@ -2018,6 +2028,9 @@ def run_research_agent_runtime(
     manifest["artifacts"]["runtime_theorem_reduction_closure_work_orders_jsonl"] = str(
         theorem_reduction_closure_work_orders_path
     )
+    manifest["artifacts"][
+        "runtime_source_theorem_semantic_primitive_work_orders_jsonl"
+    ] = str(source_theorem_semantic_primitive_work_orders_path)
     if theorem_closure_bridge_manifest is not None:
         manifest["artifacts"][
             "runtime_theorem_reduction_closure_proofengineer_bridge_manifest"
@@ -2048,6 +2061,9 @@ def run_research_agent_runtime(
     manifest["n_runtime_learning_rows"] = len(learning_rows)
     manifest["n_runtime_theorem_reduction_closure_work_orders"] = len(
         theorem_reduction_closure_work_order_rows
+    )
+    manifest["n_runtime_source_theorem_semantic_primitive_work_orders"] = len(
+        source_theorem_semantic_primitive_work_order_rows
     )
     manifest["theorem_closure_proofengineer_bridge_requested"] = bool(
         config.theorem_closure_proofengineer_bridge
@@ -3301,6 +3317,162 @@ def _formalizer_theorem_reduction_closure_work_orders(
     return work_orders
 
 
+def _source_semantic_primitive_id(gap_text: str, gap_kind: str) -> str:
+    text = f"{gap_kind} {gap_text}".lower()
+    if "exchangeab" in text and "rank" in text:
+        return "exchangeability_to_uniform_rank_semantics"
+    if "exchangeab" in text:
+        return "exchangeability_semantics"
+    if "orderstat" in text or "order statistic" in text or "quantile" in text:
+        return "order_statistic_quantile_semantics"
+    if "rank" in text and "uniform" in text:
+        return "rank_uniformity_semantics"
+    if "measur" in text:
+        return "measurability_semantics"
+    return "source_theorem_semantic_primitive:" + stable_hash(
+        [gap_kind, gap_text]
+    )[:16]
+
+
+def _formalizer_source_theorem_semantic_primitive_work_orders(
+    *,
+    proposal_packet: Mapping[str, Any],
+    proof_bank_runtime_memory_summary: Mapping[str, Any],
+    theorem_goals: list[Any],
+) -> list[dict[str, Any]]:
+    target_mode = str(
+        proof_bank_runtime_memory_summary.get("recommended_formalizer_target_mode", "")
+        or ""
+    )
+    if target_mode != "source_theorem_semantic_primitive_closure":
+        return []
+    if not proof_bank_runtime_memory_summary.get(
+        "theorem_reduction_closure_already_kernel_verified"
+    ):
+        return []
+
+    target_goal_ids = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get("remaining_theorem_goal_ids", []) or []
+        if str(row).strip()
+    ] or [_theorem_goal_id(row) for row in theorem_goals if _theorem_goal_id(row)]
+    closure_work_order_ids = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get(
+            "memory_kernel_verified_theorem_reduction_closure_work_order_ids",
+            [],
+        )
+        or []
+        if str(row).strip()
+    ]
+    closure_target_ids = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get(
+            "memory_kernel_verified_theorem_reduction_closure_target_ids",
+            [],
+        )
+        or []
+        if str(row).strip()
+    ]
+    verified_bridge_ids = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get(
+            "memory_kernel_verified_proof_obligation_ids",
+            [],
+        )
+        or []
+        if str(row).strip()
+    ]
+    source_formal_target_ids = [
+        str(row.get("id", "") or "").strip()
+        for row in proposal_packet.get("formal_targets", []) or []
+        if isinstance(row, Mapping) and str(row.get("id", "") or "").strip()
+    ]
+    gap_rows = [
+        dict(row)
+        for row in proposal_packet.get("gap_taxonomy", []) or []
+        if isinstance(row, Mapping)
+    ]
+    selected_gaps: list[dict[str, str]] = []
+    for row in gap_rows:
+        gap = str(row.get("gap", "") or "").strip()
+        kind = str(row.get("kind", "") or "").strip()
+        next_owner = str(row.get("next_owner", "") or "").strip()
+        text = f"{kind} {gap}".lower()
+        stale_reduction_gap = (
+            "reduction closure" in text
+            or "reduction_closure" in text
+            or "single lean proof term" in text
+        )
+        source_semantic_gap = (
+            "formal_primitive" in text
+            or "formal primitive" in text
+            or "exchangeab" in text
+            or "orderstat" in text
+            or "order statistic" in text
+            or "quantile" in text
+            or "rank uniform" in text
+            or "source theorem semantic" in text
+        )
+        if gap and source_semantic_gap and not stale_reduction_gap:
+            selected_gaps.append(
+                {"gap": gap, "kind": kind, "next_owner": next_owner}
+            )
+
+    if not selected_gaps:
+        selected_gaps.append(
+            {
+                "gap": (
+                    "Formalize the upstream statistical semantics required to connect "
+                    "the kernel-verified theorem-reduction closure to the source theorem."
+                ),
+                "kind": "source_theorem_semantic_primitives",
+                "next_owner": "FormalizerProofEngineer",
+            }
+        )
+
+    work_orders: list[dict[str, Any]] = []
+    for gap_row in selected_gaps[:8]:
+        gap = gap_row["gap"]
+        kind = gap_row["kind"]
+        primitive_id = _source_semantic_primitive_id(gap, kind)
+        work_orders.append(
+            {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "SourceTheoremSemanticPrimitiveWorkOrder",
+                "work_order_id": "source_theorem_semantic_primitive_work_order:"
+                + stable_hash(
+                    [
+                        primitive_id,
+                        gap,
+                        target_goal_ids,
+                        closure_work_order_ids,
+                        source_formal_target_ids,
+                    ]
+                )[:20],
+                "semantic_primitive_id": primitive_id,
+                "semantic_primitive_gap": gap,
+                "semantic_primitive_gap_kind": kind,
+                "next_owner": gap_row["next_owner"] or "FormalizerProofEngineer",
+                "source_formalizer_packet_id": str(proposal_packet.get("packet_id", "")),
+                "source_formal_target_ids": source_formal_target_ids,
+                "target_theorem_goal_ids": target_goal_ids,
+                "kernel_verified_theorem_reduction_closure_work_order_ids": closure_work_order_ids,
+                "kernel_verified_theorem_reduction_closure_target_ids": closure_target_ids,
+                "memory_kernel_verified_bridge_obligation_ids": verified_bridge_ids,
+                "proof_mode": "source_theorem_semantic_primitive_closure",
+                "acceptance_gate": (
+                    "AXLE/local Lean kernel verifies the upstream semantic primitive "
+                    "with no sorry, and the manifest keeps this primitive evidence "
+                    "separate from theorem-reduction closure and full source theorem proof."
+                ),
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+        )
+    return work_orders
+
+
 def _theorem_goal_id(row: Any) -> str:
     if isinstance(row, Mapping):
         return str(row.get("id", "") or "").strip()
@@ -3573,6 +3745,85 @@ def _runtime_theorem_reduction_closure_work_order_rows(
                     "This queue row is a proof task exported from live runtime. "
                     "It is not proof evidence until AXLE/local Lean kernel verification "
                     "accepts the theorem-level reduction."
+                )
+                work_order_id = str(row.get("work_order_id", "") or "").strip()
+                source_manifest_id = str(row.get("source_formalization_manifest_id", "") or "")
+                if work_order_id in by_work_order_id:
+                    existing = rows[by_work_order_id[work_order_id]]
+                    source_ids = [
+                        str(value)
+                        for value in existing.get("source_formalization_manifest_ids", []) or []
+                        if str(value).strip()
+                    ]
+                    if source_manifest_id and source_manifest_id not in source_ids:
+                        source_ids.append(source_manifest_id)
+                    existing["source_formalization_manifest_ids"] = source_ids
+                    existing["n_source_formalization_manifests"] = len(source_ids)
+                    continue
+                row["source_formalization_manifest_ids"] = (
+                    [source_manifest_id] if source_manifest_id else []
+                )
+                row["n_source_formalization_manifests"] = len(
+                    row["source_formalization_manifest_ids"]
+                )
+                if work_order_id:
+                    by_work_order_id[work_order_id] = len(rows)
+                rows.append(row)
+    return rows
+
+
+def _runtime_source_theorem_semantic_primitive_work_order_rows(
+    results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    by_work_order_id: dict[str, int] = {}
+    for result in results:
+        artifacts = result.get("blackboard", {}).get("artifacts", {})
+        if not isinstance(artifacts, Mapping):
+            continue
+        for artifact in artifacts.values():
+            if not (
+                isinstance(artifact, Mapping)
+                and artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
+            ):
+                continue
+            question = artifact.get("question", {}) if isinstance(artifact.get("question"), Mapping) else {}
+            proposal_id = str(
+                artifact.get("llm_formalizer_proof_engineer_proposal_id", "") or ""
+            )
+            proposal_packet = artifacts.get(proposal_id, {})
+            if not isinstance(proposal_packet, Mapping):
+                continue
+            proof_bank_summary = (
+                artifact.get("proof_bank_runtime_memory_summary", {})
+                if isinstance(artifact.get("proof_bank_runtime_memory_summary"), Mapping)
+                else {}
+            )
+            theorem_goals = [
+                row
+                for row in artifact.get("deterministic_theorem_goals", []) or []
+                if isinstance(row, Mapping)
+            ]
+            work_order_items = _formalizer_source_theorem_semantic_primitive_work_orders(
+                proposal_packet=proposal_packet,
+                proof_bank_runtime_memory_summary=proof_bank_summary,
+                theorem_goals=theorem_goals,
+            )
+            for item in work_order_items:
+                if not isinstance(item, Mapping):
+                    continue
+                row = dict(item)
+                row["source_formalization_manifest_id"] = str(
+                    artifact.get("manifest_id", "")
+                )
+                row["question_id"] = str(question.get("id", "") or "")
+                row["question_title"] = str(question.get("title", "") or "")
+                row["runtime_queue_status"] = "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT"
+                row["runtime_queue_boundary"] = (
+                    "This queue row is an upstream source-theorem semantic primitive "
+                    "proof task exported from live runtime. It is not proof evidence "
+                    "until AXLE/local Lean kernel verification accepts the intended "
+                    "semantic primitive."
                 )
                 work_order_id = str(row.get("work_order_id", "") or "").strip()
                 source_manifest_id = str(row.get("source_formalization_manifest_id", "") or "")

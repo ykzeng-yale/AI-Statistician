@@ -51,8 +51,10 @@ from ai_statistician.research_agent_runtime import (
     _runtime_learning_memory_proof_obligation_ids,
     _runtime_completion_summary,
     _formalizer_proof_bank_runtime_memory_summary,
+    _formalizer_source_theorem_semantic_primitive_work_orders,
     _runtime_formalization_gap_planner_bridge,
     _runtime_formalization_gap_planner_target_intake_payload,
+    _runtime_source_theorem_semantic_primitive_work_order_rows,
     _runtime_theorem_reduction_closure_work_order_rows,
     _runtime_evidence_summary,
     _runtime_failure_summary,
@@ -1136,6 +1138,144 @@ def test_theorem_closure_learning_memory_reroutes_to_upstream_semantics() -> Non
     )
     assert summary["memory_kernel_verified_theorem_reduction_closure_goal_ids"] == [
         "split_conformal_finite_sample_coverage"
+    ]
+
+
+def test_source_theorem_semantic_primitive_work_orders_follow_verified_closure() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {
+                        "kernel_verified_proof_obligation_ids": verified_ids,
+                        "kernel_verified_theorem_reduction_closure_work_order_ids": [
+                            "theorem_reduction_closure_work_order:good_rank"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_target_ids": [
+                            "split_conformal_finite_sample_coverage_reduction_closure"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_goal_ids": [
+                            "split_conformal_finite_sample_coverage"
+                        ],
+                    }
+                ],
+            }
+        },
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    proposal = {
+        "packet_id": "formalizer_proposal:source_primitives",
+        "formal_targets": [{"id": "split_conformal_finite_sample_coverage_lean"}],
+        "gap_taxonomy": [
+            {
+                "gap": "Lean Exchangeable predicate for finite index families is not tied to uniform-rank semantics.",
+                "kind": "formal_primitives",
+                "next_owner": "FormalizerProofEngineer",
+            },
+            {
+                "gap": "orderStat lacks a canonical finite-family order-statistic definition.",
+                "kind": "formal_primitives",
+                "next_owner": "FormalizerProofEngineer",
+            },
+            {
+                "gap": "Reduction closure is not yet assembled into a single Lean proof term.",
+                "kind": "source_theorem",
+                "next_owner": "AgentRuntime",
+            },
+        ],
+    }
+
+    work_orders = _formalizer_source_theorem_semantic_primitive_work_orders(
+        proposal_packet=proposal,
+        proof_bank_runtime_memory_summary=summary,
+        theorem_goals=theorem_goals,
+    )
+    primitive_ids = {row["semantic_primitive_id"] for row in work_orders}
+
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_semantic_primitive_closure"
+    )
+    assert "exchangeability_to_uniform_rank_semantics" in primitive_ids
+    assert "order_statistic_quantile_semantics" in primitive_ids
+    assert len(work_orders) == 2
+    assert all(row["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE" for row in work_orders)
+    assert all(row["proof_mode"] == "source_theorem_semantic_primitive_closure" for row in work_orders)
+
+
+def test_runtime_exports_source_theorem_semantic_primitive_queue_rows() -> None:
+    formalization_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:source_primitives",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal prediction interval coverage",
+        },
+        "llm_formalizer_proof_engineer_proposal_id": "formalizer_proposal:source_primitives",
+        "deterministic_theorem_goals": [
+            {"id": "split_conformal_finite_sample_coverage"}
+        ],
+        "proof_bank_runtime_memory_summary": {
+            "recommended_formalizer_target_mode": (
+                "source_theorem_semantic_primitive_closure"
+            ),
+            "theorem_reduction_closure_already_kernel_verified": True,
+            "remaining_theorem_goal_ids": [
+                "split_conformal_finite_sample_coverage"
+            ],
+            "memory_kernel_verified_theorem_reduction_closure_work_order_ids": [
+                "theorem_reduction_closure_work_order:good_rank"
+            ],
+            "memory_kernel_verified_theorem_reduction_closure_target_ids": [
+                "split_conformal_finite_sample_coverage_reduction_closure"
+            ],
+            "memory_kernel_verified_proof_obligation_ids": [
+                "split_conformal_good_rank_coverage_bridge"
+            ],
+        },
+    }
+    proposal = {
+        "artifact_kind": "FormalizerProofEngineerProposalPacket",
+        "packet_id": "formalizer_proposal:source_primitives",
+        "formal_targets": [{"id": "split_conformal_finite_sample_coverage_lean"}],
+        "gap_taxonomy": [
+            {
+                "gap": "order statistic quantile semantics must be formalized for finite calibration scores.",
+                "kind": "formal_primitives",
+                "next_owner": "FormalizerProofEngineer",
+            }
+        ],
+    }
+    rows = _runtime_source_theorem_semantic_primitive_work_order_rows(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        "formalization_manifest:source_primitives": formalization_manifest,
+                        "formalizer_proposal:source_primitives": proposal,
+                    }
+                }
+            }
+        ]
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["artifact_kind"] == "SourceTheoremSemanticPrimitiveWorkOrder"
+    assert rows[0]["question_id"] == "conformal_prediction_coverage"
+    assert rows[0]["runtime_queue_status"] == (
+        "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT"
+    )
+    assert rows[0]["semantic_primitive_id"] == "order_statistic_quantile_semantics"
+    assert rows[0]["kernel_verified_theorem_reduction_closure_work_order_ids"] == [
+        "theorem_reduction_closure_work_order:good_rank"
     ]
 
 
