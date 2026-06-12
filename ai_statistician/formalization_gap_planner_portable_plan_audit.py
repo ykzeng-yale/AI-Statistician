@@ -136,6 +136,9 @@ def audit_formalization_gap_planner_portable_plan(
         "n_rows_without_non_lean_legacy_realization_aliases": sum(
             1 for row in rows if not _non_lean_legacy_realization_alias_errors(row)
         ),
+        "n_rows_with_declaration_evidence_target_consistency": sum(
+            1 for row in rows if not _declaration_evidence_target_errors(row)
+        ),
         "all_ok": (
             not errors
             and bool(checks)
@@ -394,6 +397,13 @@ def _aggregate_row_checks(
             sum(1 for row in rows if not _non_lean_legacy_realization_alias_errors(row)),
             len(rows),
         ),
+        _aggregate_check(
+            "rows_with_declaration_evidence_target_consistency",
+            "cross_prover",
+            "declaration evidence rows match each row target prover",
+            sum(1 for row in rows if not _declaration_evidence_target_errors(row)),
+            len(rows),
+        ),
     ]
 
 
@@ -424,6 +434,7 @@ def _row_checks(
         excluded_selected = tuple(sorted(selected & do_not_formalize))
         kernel_claims = _kernel_claim_paths(row)
         legacy_alias_errors = _non_lean_legacy_realization_alias_errors(row)
+        declaration_target_errors = _declaration_evidence_target_errors(row)
         checks.extend(
             [
                 _check(
@@ -500,6 +511,18 @@ def _row_checks(
                     "; ".join(legacy_alias_errors) if legacy_alias_errors else row_label,
                     not legacy_alias_errors,
                     errors=legacy_alias_errors,
+                ),
+                _check(
+                    row_prefix + "declaration_evidence_target_consistency",
+                    "cross_prover",
+                    "candidate and formal declaration evidence targets match row target",
+                    (
+                        "; ".join(declaration_target_errors)
+                        if declaration_target_errors
+                        else row_label
+                    ),
+                    not declaration_target_errors,
+                    errors=declaration_target_errors,
                 ),
             ]
         )
@@ -625,6 +648,61 @@ def _nonempty_legacy_field_value(value: object) -> bool:
     return bool(value)
 
 
+def _declaration_evidence_target_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    expected_key = _target_prover_key(row.get("target_prover_family", ""))
+    if not expected_key:
+        return tuple()
+    errors: list[str] = []
+
+    def check_rows(value: object, *, path: str, field_name: str) -> None:
+        if not isinstance(value, (list, tuple)):
+            if _nonempty_legacy_field_value(value):
+                errors.append(f"{path}.{field_name} must be an array of objects")
+            return
+        for index, item in enumerate(value):
+            if not isinstance(item, dict):
+                if _nonempty_legacy_field_value(item):
+                    errors.append(f"{path}.{field_name}[{index}] must be an object")
+                continue
+            target = str(
+                item.get("target_prover_family", "") or item.get("target_prover", "")
+            ).strip()
+            if not target:
+                continue
+            actual_key = _target_prover_key(target)
+            if actual_key != expected_key:
+                errors.append(
+                    f"{path}.{field_name}[{index}].target_prover_family {target} "
+                    f"does not match row target_prover_family "
+                    f"{row.get('target_prover_family', '')}"
+                )
+
+    def visit(value: object, path: str) -> None:
+        if isinstance(value, dict):
+            if "lean_declaration_hits" in value and expected_key != "lean4":
+                if _nonempty_legacy_field_value(value.get("lean_declaration_hits")):
+                    errors.append(
+                        f"{path}.lean_declaration_hits is a Lean-only legacy alias; "
+                        "non-Lean portable plan rows must use formal_declaration_hits"
+                    )
+            for field_name in ("candidate_declaration_rows", "formal_declaration_hits"):
+                if field_name in value:
+                    check_rows(
+                        value.get(field_name),
+                        path=path,
+                        field_name=field_name,
+                    )
+            for key, nested in value.items():
+                nested_path = f"{path}.{key}" if path else str(key)
+                visit(nested, nested_path)
+        elif isinstance(value, (list, tuple)):
+            for index, nested in enumerate(value):
+                visit(nested, f"{path}[{index}]")
+
+    visit(row, "row")
+    return tuple(sorted(set(errors)))
+
+
 def _is_lean_target_prover(value: object) -> bool:
     return _target_prover_key(value) == "lean4"
 
@@ -632,6 +710,12 @@ def _is_lean_target_prover(value: object) -> bool:
 def _target_prover_key(value: object) -> str:
     key = str(value).strip().lower().replace("-", "_")
     aliases = {
+        "coq": "rocq",
+        "coq8": "rocq",
+        "coq_8": "rocq",
+        "coq_rocq": "rocq",
+        "rocq_coq": "rocq",
+        "isabelle_hol": "isabelle",
         "lean": "lean4",
         "lean_4": "lean4",
     }

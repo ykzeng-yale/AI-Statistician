@@ -674,7 +674,12 @@ standalone portable plan, realization DAG nodes, reuse nodes, primitive action
 rows, and library-coverage map preserve the same bounded declaration-row fields
 rather than collapsing them back to a flat declaration name; this keeps external
 prover adapters from losing which theorem primitive a declaration was meant to
-support. Pending resource-request candidates are treated as search
+support. Portable-plan audit recursively checks these declaration evidence rows:
+any explicit `target_prover_family` or `target_prover` in
+`candidate_declaration_rows` or `formal_declaration_hits` must match the
+portable row's target prover family, modulo accepted aliases such as Coq/Rocq,
+and non-Lean rows may not carry `lean_declaration_hits`.
+Pending resource-request candidates are treated as search
 seeds, not as accepted library evidence: an LLM route may use them to ask for
 formal-library or prover feedback, but it cannot justify `already_exists`,
 `exact_exists`, or reuse coverage from them until a route-level formal context
@@ -1709,7 +1714,8 @@ The current implementation composes four existing AI Statistician artifacts:
    schema identity, proof-boundary discipline, two-DAG and AND/OR graph
    presence, selected-primitive alignment edges, work-packet gates,
    interactive hooks, rejects kernel-proof claims in the planning layer, and
-   rejects non-Lean rows that still carry Lean-only realization DAG aliases.
+   rejects non-Lean rows that still carry Lean-only realization DAG aliases or
+   declaration evidence from a different target prover.
    The audit JSONL is self-contained: each check row carries its proof-boundary
    status and is validated against
    `formalization_gap_planner_portable_plan_audit_row.schema.json`.
