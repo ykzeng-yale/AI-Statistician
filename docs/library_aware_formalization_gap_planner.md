@@ -1960,7 +1960,8 @@ The current implementation composes four existing AI Statistician artifacts:
    `formalization_gap_planner_cross_prover_target_summary.json` for downstream
    prover adapters. The target summary records the target families, packet
    counts, standalone-trace counts, replan-metadata trace counts,
-   quality-control field summaries, and per-target filter values needed to
+   target-library snapshot trace counts and mismatch counts, quality-control
+   field summaries, and per-target filter values needed to
    consume the aggregate JSONL files from a publication
    bundle. It also writes
    `formalization_gap_planner_cross_prover_target_summary.schema.json`, and the

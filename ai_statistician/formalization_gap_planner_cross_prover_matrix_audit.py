@@ -61,6 +61,9 @@ class FormalizationGapPlannerCrossProverMatrixRow:
     n_packets_missing_alignment: int
     n_packets_with_standalone_input_trace: int
     n_packets_missing_standalone_input_trace: int
+    n_packets_with_target_library_snapshot_trace: int
+    n_packets_missing_target_library_snapshot_trace: int
+    n_packets_target_library_snapshot_mismatch: int
     n_packets_with_replan_metadata_trace: int
     n_packets_with_quality_controls: int
     n_packet_quality_control_fields: int
@@ -144,6 +147,9 @@ def audit_formalization_gap_planner_cross_prover_matrix(
     packet_counts = {row.n_packets for row in rows}
     packet_alignment_counts = {row.n_packets_with_alignment for row in rows}
     packet_trace_counts = {row.n_packets_with_standalone_input_trace for row in rows}
+    packet_target_snapshot_counts = {
+        row.n_packets_with_target_library_snapshot_trace for row in rows
+    }
     packet_quality_control_counts = {
         row.n_packets_with_quality_controls for row in rows
     }
@@ -241,6 +247,15 @@ def audit_formalization_gap_planner_cross_prover_matrix(
         "n_total_packets_missing_standalone_input_trace": sum(
             row.n_packets_missing_standalone_input_trace for row in rows
         ),
+        "n_total_packets_with_target_library_snapshot_trace": sum(
+            row.n_packets_with_target_library_snapshot_trace for row in rows
+        ),
+        "n_total_packets_missing_target_library_snapshot_trace": sum(
+            row.n_packets_missing_target_library_snapshot_trace for row in rows
+        ),
+        "n_total_packets_target_library_snapshot_mismatch": sum(
+            row.n_packets_target_library_snapshot_mismatch for row in rows
+        ),
         "n_total_packets_with_replan_metadata_trace": sum(
             row.n_packets_with_replan_metadata_trace for row in rows
         ),
@@ -314,6 +329,9 @@ def audit_formalization_gap_planner_cross_prover_matrix(
         "n_distinct_packet_counts": len(packet_counts),
         "n_distinct_alignment_packet_counts": len(packet_alignment_counts),
         "n_distinct_standalone_input_trace_packet_counts": len(packet_trace_counts),
+        "n_distinct_target_library_snapshot_trace_packet_counts": len(
+            packet_target_snapshot_counts
+        ),
         "n_distinct_quality_control_packet_counts": len(
             packet_quality_control_counts
         ),
@@ -323,6 +341,9 @@ def audit_formalization_gap_planner_cross_prover_matrix(
         ),
         "standalone_input_trace_packet_count_consistent": (
             len(packet_trace_counts) == 1 if rows else False
+        ),
+        "target_library_snapshot_trace_packet_count_consistent": (
+            len(packet_target_snapshot_counts) == 1 if rows else False
         ),
         "quality_control_packet_count_consistent": (
             len(packet_quality_control_counts) == 1 if rows else False
@@ -349,10 +370,15 @@ def audit_formalization_gap_planner_cross_prover_matrix(
             and len(packet_counts) == 1
             and len(packet_alignment_counts) == 1
             and len(packet_trace_counts) == 1
+            and len(packet_target_snapshot_counts) == 1
             and len(packet_quality_control_counts) == 1
             and sum(row.n_packets_schema_invalid for row in rows) == 0
             and sum(row.n_packets_missing_alignment for row in rows) == 0
             and sum(row.n_packets_missing_standalone_input_trace for row in rows) == 0
+            and sum(row.n_packets_missing_target_library_snapshot_trace for row in rows)
+            == 0
+            and sum(row.n_packets_target_library_snapshot_mismatch for row in rows)
+            == 0
             and sum(row.n_unmatched_adapter_responses for row in rows) == 0
             and sum(row.n_rejected for row in rows) == 0
             and sum(row.n_kernel_verified_claims_rejected for row in rows) == 0
@@ -476,6 +502,9 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
             "n_total_packets_with_alignment",
             "n_total_packets_with_standalone_input_trace",
             "n_total_packets_missing_standalone_input_trace",
+            "n_total_packets_with_target_library_snapshot_trace",
+            "n_total_packets_missing_target_library_snapshot_trace",
+            "n_total_packets_target_library_snapshot_mismatch",
             "n_total_packets_with_replan_metadata_trace",
             "n_total_packets_with_quality_controls",
             "n_total_packet_quality_control_fields",
@@ -513,6 +542,9 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
             "n_total_packets_with_alignment": {"type": "integer"},
             "n_total_packets_with_standalone_input_trace": {"type": "integer"},
             "n_total_packets_missing_standalone_input_trace": {"type": "integer"},
+            "n_total_packets_with_target_library_snapshot_trace": {"type": "integer"},
+            "n_total_packets_missing_target_library_snapshot_trace": {"type": "integer"},
+            "n_total_packets_target_library_snapshot_mismatch": {"type": "integer"},
             "n_total_packets_with_replan_metadata_trace": {"type": "integer"},
             "n_total_packets_with_quality_controls": {"type": "integer"},
             "n_total_packet_quality_control_fields": {"type": "integer"},
@@ -562,6 +594,9 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                     "n_packets_with_alignment",
                     "n_packets_with_standalone_input_trace",
                     "n_packets_missing_standalone_input_trace",
+                    "n_packets_with_target_library_snapshot_trace",
+                    "n_packets_missing_target_library_snapshot_trace",
+                    "n_packets_target_library_snapshot_mismatch",
                     "n_packets_with_replan_metadata_trace",
                     "n_packets_with_quality_controls",
                     "n_packet_quality_control_fields",
@@ -598,6 +633,9 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                     "n_packets_with_alignment": {"type": "integer"},
                     "n_packets_with_standalone_input_trace": {"type": "integer"},
                     "n_packets_missing_standalone_input_trace": {"type": "integer"},
+                    "n_packets_with_target_library_snapshot_trace": {"type": "integer"},
+                    "n_packets_missing_target_library_snapshot_trace": {"type": "integer"},
+                    "n_packets_target_library_snapshot_mismatch": {"type": "integer"},
                     "n_packets_with_replan_metadata_trace": {"type": "integer"},
                     "n_packets_with_quality_controls": {"type": "integer"},
                     "n_packet_quality_control_fields": {"type": "integer"},
@@ -756,6 +794,25 @@ def validate_cross_prover_target_summary_payload(
         errors.append(
             "n_total_packets_missing_standalone_input_trace must equal target missing trace total"
         )
+    if payload.get("n_total_packets_with_target_library_snapshot_trace") != sum(
+        _int(row.get("n_packets_with_target_library_snapshot_trace")) for row in rows
+    ):
+        errors.append(
+            "n_total_packets_with_target_library_snapshot_trace must equal target snapshot trace total"
+        )
+    if payload.get("n_total_packets_missing_target_library_snapshot_trace") != sum(
+        _int(row.get("n_packets_missing_target_library_snapshot_trace"))
+        for row in rows
+    ):
+        errors.append(
+            "n_total_packets_missing_target_library_snapshot_trace must equal target missing snapshot trace total"
+        )
+    if payload.get("n_total_packets_target_library_snapshot_mismatch") != sum(
+        _int(row.get("n_packets_target_library_snapshot_mismatch")) for row in rows
+    ):
+        errors.append(
+            "n_total_packets_target_library_snapshot_mismatch must equal target snapshot mismatch total"
+        )
     if payload.get("n_total_packets_with_replan_metadata_trace") != sum(
         _int(row.get("n_packets_with_replan_metadata_trace")) for row in rows
     ):
@@ -903,6 +960,22 @@ def validate_cross_prover_target_summary_payload(
         errors.append("all_ok target summary must not miss standalone input traces")
     if (
         payload.get("all_ok") is True
+        and _int(payload.get("n_total_packets_missing_target_library_snapshot_trace"))
+        != 0
+    ):
+        errors.append(
+            "all_ok target summary must not miss target library snapshot traces"
+        )
+    if (
+        payload.get("all_ok") is True
+        and _int(payload.get("n_total_packets_target_library_snapshot_mismatch"))
+        != 0
+    ):
+        errors.append(
+            "all_ok target summary must not have target library snapshot mismatches"
+        )
+    if (
+        payload.get("all_ok") is True
         and _int(payload.get("n_unmatched_adapter_responses")) != 0
     ):
         errors.append("all_ok target summary must not have unmatched adapter responses")
@@ -942,6 +1015,9 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
             "n_packets_missing_alignment",
             "n_packets_with_standalone_input_trace",
             "n_packets_missing_standalone_input_trace",
+            "n_packets_with_target_library_snapshot_trace",
+            "n_packets_missing_target_library_snapshot_trace",
+            "n_packets_target_library_snapshot_mismatch",
             "n_packets_with_replan_metadata_trace",
             "n_packets_with_quality_controls",
             "n_packet_quality_control_fields",
@@ -992,6 +1068,9 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
             "n_packets_missing_alignment": {"type": "integer"},
             "n_packets_with_standalone_input_trace": {"type": "integer"},
             "n_packets_missing_standalone_input_trace": {"type": "integer"},
+            "n_packets_with_target_library_snapshot_trace": {"type": "integer"},
+            "n_packets_missing_target_library_snapshot_trace": {"type": "integer"},
+            "n_packets_target_library_snapshot_mismatch": {"type": "integer"},
             "n_packets_with_replan_metadata_trace": {"type": "integer"},
             "n_packets_with_quality_controls": {"type": "integer"},
             "n_packet_quality_control_fields": {"type": "integer"},
@@ -1071,6 +1150,17 @@ def _matrix_row(
     n_packets_with_trace = _int(
         contract_payload.get("n_packets_with_standalone_input_trace")
     )
+    packet_rows = [
+        packet
+        for packet in contract_payload.get("packets", [])
+        if isinstance(packet, dict)
+    ]
+    n_packets_with_target_snapshot = sum(
+        1 for packet in packet_rows if _packet_has_target_library_snapshot_trace(packet)
+    )
+    n_packets_target_snapshot_mismatch = sum(
+        1 for packet in packet_rows if _packet_target_library_snapshot_mismatch(packet)
+    )
     return FormalizationGapPlannerCrossProverMatrixRow(
         schema_version=FORMALIZATION_GAP_PLANNER_CROSS_PROVER_MATRIX_AUDIT_SCHEMA_VERSION,
         matrix_row_id="formalization_gap_planner_cross_prover_matrix:"
@@ -1106,6 +1196,14 @@ def _matrix_row(
         n_packets_missing_standalone_input_trace=max(
             0,
             n_packets - n_packets_with_trace,
+        ),
+        n_packets_with_target_library_snapshot_trace=n_packets_with_target_snapshot,
+        n_packets_missing_target_library_snapshot_trace=max(
+            0,
+            n_packets - n_packets_with_target_snapshot,
+        ),
+        n_packets_target_library_snapshot_mismatch=(
+            n_packets_target_snapshot_mismatch
         ),
         n_packets_with_replan_metadata_trace=_int(
             contract_payload.get("n_packets_with_replan_metadata_trace")
@@ -1197,6 +1295,8 @@ def _matrix_row(
         and _int(contract_payload.get("n_packets_with_alignment"))
         == n_packets
         and n_packets_with_trace == n_packets
+        and n_packets_with_target_snapshot == n_packets
+        and n_packets_target_snapshot_mismatch == 0
         and _int(contract_payload.get("n_unmatched_adapter_responses")) == 0
         and _int(contract_payload.get("n_rejected")) == 0
         and _int(contract_payload.get("n_kernel_verified_claims_rejected")) == 0,
@@ -1228,6 +1328,16 @@ def _target_summary_payload(
             for packet in target_packet_rows
             if isinstance(packet.get("standalone_input_trace"), dict)
             and packet.get("standalone_input_trace")
+        )
+        n_packets_with_target_snapshot = sum(
+            1
+            for packet in target_packet_rows
+            if _packet_has_target_library_snapshot_trace(packet)
+        )
+        n_packets_target_snapshot_mismatch = sum(
+            1
+            for packet in target_packet_rows
+            if _packet_target_library_snapshot_mismatch(packet)
         )
         n_packets_with_quality_controls = sum(
             1
@@ -1274,6 +1384,16 @@ def _target_summary_payload(
                 "n_packets_missing_standalone_input_trace": max(
                     0,
                     len(target_packet_rows) - n_packets_with_trace,
+                ),
+                "n_packets_with_target_library_snapshot_trace": (
+                    n_packets_with_target_snapshot
+                ),
+                "n_packets_missing_target_library_snapshot_trace": max(
+                    0,
+                    len(target_packet_rows) - n_packets_with_target_snapshot,
+                ),
+                "n_packets_target_library_snapshot_mismatch": (
+                    n_packets_target_snapshot_mismatch
                 ),
                 "n_packets_with_replan_metadata_trace": sum(
                     1
@@ -1397,6 +1517,18 @@ def _target_summary_payload(
             _int(row["n_packets_missing_standalone_input_trace"])
             for row in target_rows
         ),
+        "n_total_packets_with_target_library_snapshot_trace": sum(
+            _int(row["n_packets_with_target_library_snapshot_trace"])
+            for row in target_rows
+        ),
+        "n_total_packets_missing_target_library_snapshot_trace": sum(
+            _int(row["n_packets_missing_target_library_snapshot_trace"])
+            for row in target_rows
+        ),
+        "n_total_packets_target_library_snapshot_mismatch": sum(
+            _int(row["n_packets_target_library_snapshot_mismatch"])
+            for row in target_rows
+        ),
         "n_total_packets_with_replan_metadata_trace": sum(
             _int(row["n_packets_with_replan_metadata_trace"])
             for row in target_rows
@@ -1493,6 +1625,16 @@ def _target_summary_payload(
         )
         == 0
         and sum(
+            _int(row["n_packets_missing_target_library_snapshot_trace"])
+            for row in target_rows
+        )
+        == 0
+        and sum(
+            _int(row["n_packets_target_library_snapshot_mismatch"])
+            for row in target_rows
+        )
+        == 0
+        and sum(
             _int(row.get("n_unmatched_adapter_responses")) for row in target_rows
         )
         == 0,
@@ -1548,6 +1690,26 @@ def _quality_controls_from_packet_row(
         if values:
             controls[field_name] = values
     return controls
+
+
+def _packet_target_library_snapshot_value(packet: dict[str, Any]) -> str:
+    trace = packet.get("standalone_input_trace", {})
+    if not isinstance(trace, dict):
+        return ""
+    return str(
+        trace.get("target_library_snapshot_ref", "")
+        or trace.get("library_snapshot_ref", "")
+    ).strip()
+
+
+def _packet_has_target_library_snapshot_trace(packet: dict[str, Any]) -> bool:
+    return bool(_packet_target_library_snapshot_value(packet))
+
+
+def _packet_target_library_snapshot_mismatch(packet: dict[str, Any]) -> bool:
+    observed = _packet_target_library_snapshot_value(packet)
+    expected = str(packet.get("library_snapshot_ref", "")).strip()
+    return bool(observed and expected and observed != expected)
 
 
 def _quality_control_fields_from_packet_rows(

@@ -104,6 +104,12 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         == payload["n_total_packets"]
     )
     assert payload["n_total_packets_missing_standalone_input_trace"] == 0
+    assert (
+        payload["n_total_packets_with_target_library_snapshot_trace"]
+        == payload["n_total_packets"]
+    )
+    assert payload["n_total_packets_missing_target_library_snapshot_trace"] == 0
+    assert payload["n_total_packets_target_library_snapshot_mismatch"] == 0
     assert payload["n_total_packets_with_replan_metadata_trace"] == 0
     assert payload["n_total_packets_with_quality_controls"] == payload[
         "n_total_packets"
@@ -150,6 +156,7 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
     assert payload["packet_count_consistent"]
     assert payload["alignment_packet_count_consistent"]
     assert payload["standalone_input_trace_packet_count_consistent"]
+    assert payload["target_library_snapshot_trace_packet_count_consistent"]
     assert payload["quality_control_packet_count_consistent"]
     assert (
         payload["target_summary"]["n_total_packets_with_standalone_input_trace"]
@@ -157,6 +164,22 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
     )
     assert (
         payload["target_summary"]["n_total_packets_missing_standalone_input_trace"]
+        == 0
+    )
+    assert (
+        payload["target_summary"][
+            "n_total_packets_with_target_library_snapshot_trace"
+        ]
+        == payload["n_total_packets"]
+    )
+    assert (
+        payload["target_summary"][
+            "n_total_packets_missing_target_library_snapshot_trace"
+        ]
+        == 0
+    )
+    assert (
+        payload["target_summary"]["n_total_packets_target_library_snapshot_mismatch"]
         == 0
     )
     assert payload["target_summary"]["n_unmatched_adapter_responses"] == 0
@@ -199,6 +222,9 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         and row["n_packets_missing_alignment"] == 0
         and row["n_packets_with_standalone_input_trace"] == row["n_packets"]
         and row["n_packets_missing_standalone_input_trace"] == 0
+        and row["n_packets_with_target_library_snapshot_trace"] == row["n_packets"]
+        and row["n_packets_missing_target_library_snapshot_trace"] == 0
+        and row["n_packets_target_library_snapshot_mismatch"] == 0
         and row["n_packets_with_quality_controls"] == row["n_packets"]
         and row["n_packet_quality_control_fields"] == 3 * row["n_packets"]
         and row["packet_quality_control_fields"]
@@ -220,6 +246,8 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         packet["standalone_input_trace"]["source_prover_family"] == "lean4"
         and packet["standalone_input_trace"]["target_prover_family"]
         == packet["target_prover_family"]
+        and packet["standalone_input_trace"]["target_library_snapshot_ref"]
+        == packet["library_snapshot_ref"]
         and packet["standalone_input_trace"]["trace_target_projection"]
         == "target_prover_adapter_contract"
         and packet["standalone_input_trace"]["has_quality_controls"]
