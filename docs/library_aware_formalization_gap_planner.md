@@ -614,10 +614,13 @@ action stored in the refinement-queue trace. The
 standalone seed and each
 standalone-plan `standalone_input_trace` preserve the same fields, so a public
 consumer can filter adoption-ready route plans without reopening raw LLM
-responses. The route-planner manifest also exposes
-`route_adoption_blocker_counts` and `by_route_adoption_blocker`, so downstream
-evaluation, publication bundles, and independent prover integrations can audit
-which blocker classes caused pending adoption without re-parsing every row.
+responses. The route-planner manifest also exposes `standalone_replay_gate`,
+`standalone_replay_gate_ok`,
+`n_standalone_replay_adoptable_route_candidates`,
+`route_adoption_blocker_counts`, and `by_route_adoption_blocker`, so downstream
+evaluation, publication bundles, and independent prover integrations can tell
+contract-clean prompt staging apart from a selected route that is actually safe
+to replay as standalone planner input without re-parsing every row.
 LLM seed selection also publishes
 `adoptable_for_standalone_replay` on each ranked selection row, plus
 `selected_route_adoptable_for_standalone_replay`,

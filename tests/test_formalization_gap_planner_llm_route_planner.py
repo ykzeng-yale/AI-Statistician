@@ -1085,6 +1085,22 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["n_request_route_option_cost_hints"] == 1
     assert payload["n_response_present"] == 0
     assert payload["n_awaiting_llm_response"] == 1
+    assert payload["standalone_replay_gate_ok"] is False
+    assert payload["n_standalone_replay_route_candidates"] == 1
+    assert payload["n_standalone_replay_adoptable_route_candidates"] == 0
+    assert payload["n_standalone_replay_blocked_route_candidates"] == 1
+    assert payload["standalone_replay_gate_blockers"] == [
+        "llm_route_planner_response_missing"
+    ]
+    assert payload["standalone_replay_gate"]["gate_status"] == (
+        "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
+    )
+    assert (
+        payload["standalone_replay_gate"][
+            "selected_route_adoptable_for_standalone_replay"
+        ]
+        is False
+    )
     assert payload["route_adoption_blocker_counts"] == {
         "llm_route_planner_response_missing": 1
     }
@@ -4588,6 +4604,8 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["n_request_route_planning_focus_rows"] >= 4
     assert "repair_attempt_ledger" in manifest_schema["required"]
     assert "n_repair_attempt_ledger_rows" in manifest_schema["required"]
+    assert "standalone_replay_gate" in manifest_schema["required"]
+    assert "standalone_replay_gate_ok" in manifest_schema["required"]
     assert payload["repair_attempt_ledger"] == ()
     assert payload["n_repair_attempt_ledger_rows"] == 0
     assert payload["n_requests_with_repair_attempt_ledger"] == 0
@@ -4647,6 +4665,31 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_repair_attempt_ledger_rows must match repair_attempt_ledger"
         in validate_llm_route_planner_manifest(
             drifted_repair_ledger_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_replay_gate_manifest = deepcopy(payload)
+    drifted_replay_gate_manifest["standalone_replay_gate"] = {
+        **drifted_replay_gate_manifest["standalone_replay_gate"],
+        "gate_ok": not drifted_replay_gate_manifest["standalone_replay_gate"][
+            "gate_ok"
+        ],
+    }
+    assert (
+        "standalone_replay_gate must match rows and standalone_seed"
+        in validate_llm_route_planner_manifest(
+            drifted_replay_gate_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_replay_gate_count_manifest = deepcopy(payload)
+    drifted_replay_gate_count_manifest[
+        "n_standalone_replay_adoptable_route_candidates"
+    ] = 999
+    assert (
+        "n_standalone_replay_adoptable_route_candidates must match standalone_replay_gate"
+        in validate_llm_route_planner_manifest(
+            drifted_replay_gate_count_manifest,
             manifest_schema,
         )
     )
@@ -5850,6 +5893,20 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
     assert payload["all_ok"]
     assert payload["n_route_adoption_ready"] == 1
     assert payload["n_route_adoption_pending_refinement"] == 0
+    assert payload["standalone_replay_gate_ok"] is True
+    assert payload["n_standalone_replay_route_candidates"] == 1
+    assert payload["n_standalone_replay_adoptable_route_candidates"] == 1
+    assert payload["n_standalone_replay_blocked_route_candidates"] == 0
+    assert payload["standalone_replay_gate_blockers"] == []
+    assert payload["standalone_replay_gate"]["gate_status"] == (
+        "READY_FOR_STANDALONE_REPLAY"
+    )
+    assert (
+        payload["standalone_replay_gate"][
+            "selected_route_adoptable_for_standalone_replay"
+        ]
+        is True
+    )
     assert payload["by_route_adoption_status"] == {
         "READY_FOR_STANDALONE_REPLAY": 1
     }

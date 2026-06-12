@@ -202,6 +202,9 @@ ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID = (
 ROUTE_ADOPTION_BLOCKER_TAXONOMY_COMPONENT = (
     "formalization_gap_planner_route_adoption_blocker_taxonomy"
 )
+STANDALONE_REPLAY_GATE_KIND = (
+    "formalization_gap_planner_llm_route_planner_standalone_replay_gate"
+)
 ROUTE_ADOPTION_BLOCKER_DEFINITIONS = {
     ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED: (
         "The LLM route-planner response was rejected or failed response "
@@ -982,6 +985,7 @@ def export_formalization_gap_planner_llm_route_planner(
         for ledger_row in row.repair_attempt_ledger
     )
     standalone_seed = _standalone_seed(input_payload, rows)
+    standalone_replay_gate = _standalone_replay_gate(row_dicts, standalone_seed)
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1998,6 +2002,20 @@ def export_formalization_gap_planner_llm_route_planner(
         "request_packets": request_packets,
         "rows": row_dicts,
         "standalone_seed": standalone_seed,
+        "standalone_replay_gate": standalone_replay_gate,
+        "standalone_replay_gate_ok": bool(standalone_replay_gate.get("gate_ok", False)),
+        "n_standalone_replay_route_candidates": int(
+            standalone_replay_gate.get("n_route_candidates", 0) or 0
+        ),
+        "n_standalone_replay_adoptable_route_candidates": int(
+            standalone_replay_gate.get("n_adoptable_route_candidates", 0) or 0
+        ),
+        "n_standalone_replay_blocked_route_candidates": int(
+            standalone_replay_gate.get("n_blocked_route_candidates", 0) or 0
+        ),
+        "standalone_replay_gate_blockers": list(
+            _str_tuple(standalone_replay_gate.get("gate_blockers", []))
+        ),
         "by_acceptance_status": dict(sorted(by_acceptance_status.items())),
         "all_ok": (
             not errors
@@ -2429,6 +2447,12 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "request_packets",
             "rows",
             "standalone_seed",
+            "standalone_replay_gate",
+            "standalone_replay_gate_ok",
+            "n_standalone_replay_route_candidates",
+            "n_standalone_replay_adoptable_route_candidates",
+            "n_standalone_replay_blocked_route_candidates",
+            "standalone_replay_gate_blockers",
             "by_acceptance_status",
             "all_ok",
             "errors",
@@ -2606,6 +2630,48 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "request_packets": object_array,
             "rows": object_array,
             "standalone_seed": {"type": "object"},
+            "standalone_replay_gate": {
+                "type": "object",
+                "required": [
+                    "gate_kind",
+                    "gate_ok",
+                    "gate_status",
+                    "selected_route_adoptable_for_standalone_replay",
+                    "n_route_candidates",
+                    "n_adoptable_route_candidates",
+                    "n_blocked_route_candidates",
+                    "gate_blockers",
+                    "proof_evidence_boundary",
+                ],
+                "properties": {
+                    "gate_kind": {"const": STANDALONE_REPLAY_GATE_KIND},
+                    "gate_ok": {"type": "boolean"},
+                    "gate_status": {"type": "string", "minLength": 1},
+                    "selected_route_adoptable_for_standalone_replay": {
+                        "type": "boolean"
+                    },
+                    "selected_route_adoption_status": {"type": "string"},
+                    "selected_route_adoption_blockers": string_array,
+                    "n_route_candidates": nonnegative_integer,
+                    "n_contract_valid_route_candidates": nonnegative_integer,
+                    "n_ready_route_candidates": nonnegative_integer,
+                    "n_adoptable_route_candidates": nonnegative_integer,
+                    "n_blocked_route_candidates": nonnegative_integer,
+                    "n_manifest_rows": nonnegative_integer,
+                    "n_manifest_rows_response_contract_ok": nonnegative_integer,
+                    "gate_blockers": string_array,
+                    "proof_evidence_status": {"const": PROOF_EVIDENCE_STATUS},
+                    "proof_evidence_boundary": {
+                        "type": "string",
+                        "pattern": "not theorem proof evidence",
+                    },
+                },
+            },
+            "standalone_replay_gate_ok": {"type": "boolean"},
+            "n_standalone_replay_route_candidates": nonnegative_integer,
+            "n_standalone_replay_adoptable_route_candidates": nonnegative_integer,
+            "n_standalone_replay_blocked_route_candidates": nonnegative_integer,
+            "standalone_replay_gate_blockers": string_array,
             "by_acceptance_status": {"type": "object"},
             "all_ok": {"type": "boolean"},
             "errors": string_array,
@@ -3311,6 +3377,49 @@ def validate_llm_route_planner_manifest(
     ) != sum(int(row.get("error_count", 0) or 0) for row in repair_attempt_ledger):
         errors.append(
             "n_repair_attempt_ledger_error_items must match repair_attempt_ledger"
+        )
+    expected_standalone_replay_gate = _standalone_replay_gate(
+        manifest_rows,
+        _dict_value(manifest, "standalone_seed"),
+    )
+    observed_standalone_replay_gate = _dict_value(
+        manifest,
+        "standalone_replay_gate",
+    )
+    if observed_standalone_replay_gate != expected_standalone_replay_gate:
+        errors.append("standalone_replay_gate must match rows and standalone_seed")
+    if bool(manifest.get("standalone_replay_gate_ok", False)) != bool(
+        expected_standalone_replay_gate.get("gate_ok", False)
+    ):
+        errors.append("standalone_replay_gate_ok must match standalone_replay_gate")
+    if int(
+        manifest.get("n_standalone_replay_route_candidates", 0) or 0
+    ) != int(expected_standalone_replay_gate.get("n_route_candidates", 0) or 0):
+        errors.append(
+            "n_standalone_replay_route_candidates must match standalone_replay_gate"
+        )
+    if int(
+        manifest.get("n_standalone_replay_adoptable_route_candidates", 0) or 0
+    ) != int(
+        expected_standalone_replay_gate.get("n_adoptable_route_candidates", 0)
+        or 0
+    ):
+        errors.append(
+            "n_standalone_replay_adoptable_route_candidates must match standalone_replay_gate"
+        )
+    if int(
+        manifest.get("n_standalone_replay_blocked_route_candidates", 0) or 0
+    ) != int(
+        expected_standalone_replay_gate.get("n_blocked_route_candidates", 0) or 0
+    ):
+        errors.append(
+            "n_standalone_replay_blocked_route_candidates must match standalone_replay_gate"
+        )
+    if list(_str_tuple(manifest.get("standalone_replay_gate_blockers", []))) != (
+        list(_str_tuple(expected_standalone_replay_gate.get("gate_blockers", [])))
+    ):
+        errors.append(
+            "standalone_replay_gate_blockers must match standalone_replay_gate"
         )
     embedded_schema_ids = {
         "request_schema": LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
@@ -14732,6 +14841,86 @@ def _standalone_seed_route_selection_summary(
     }
 
 
+def _standalone_replay_gate(
+    rows: Iterable[Mapping[str, object]],
+    standalone_seed: Mapping[str, object],
+) -> dict[str, object]:
+    selection = _dict_value(
+        standalone_seed,
+        "llm_route_planner_seed_route_selection",
+    )
+    selection_rows = _dict_tuple(selection.get("selection_rows", []))
+    selected = next(
+        (row for row in selection_rows if bool(row.get("selected", False))),
+        {},
+    )
+    selected_blockers = list(_str_tuple(selected.get("route_adoption_blockers", [])))
+    gate_blockers = sorted(
+        {
+            blocker
+            for row in selection_rows
+            for blocker in _str_tuple(row.get("route_adoption_blockers", []))
+        }
+    )
+    n_adoptable = sum(
+        1
+        for row in selection_rows
+        if bool(row.get("adoptable_for_standalone_replay", False))
+    )
+    n_candidates = len(selection_rows)
+    selected_adoptable = bool(
+        selection.get("selected_route_adoptable_for_standalone_replay", False)
+    )
+    selected_status = str(selected.get("route_adoption_status", "") or "")
+    if selected_adoptable:
+        gate_status = ROUTE_ADOPTION_READY_STATUS
+    elif not selection_rows:
+        gate_status = "NO_ROUTE_CANDIDATES"
+    elif selected_status == ROUTE_ADOPTION_AWAITING_STATUS:
+        gate_status = ROUTE_ADOPTION_AWAITING_STATUS
+    elif selected_status == ROUTE_ADOPTION_REJECTED_STATUS:
+        gate_status = ROUTE_ADOPTION_REJECTED_STATUS
+    else:
+        gate_status = ROUTE_ADOPTION_PENDING_STATUS
+    row_maps = tuple(rows)
+    return {
+        "gate_kind": STANDALONE_REPLAY_GATE_KIND,
+        "gate_ok": selected_adoptable,
+        "gate_status": gate_status,
+        "selected_route_adoptable_for_standalone_replay": selected_adoptable,
+        "selected_route_id": str(selection.get("selected_route_id", "")),
+        "selected_seed_route_id": str(selection.get("selected_seed_route_id", "")),
+        "selected_llm_route_planner_row_id": str(
+            selection.get("selected_llm_route_planner_row_id", "")
+        ),
+        "selected_request_id": str(selection.get("selected_request_id", "")),
+        "selected_route_adoption_status": selected_status,
+        "selected_route_adoption_blockers": selected_blockers,
+        "n_route_candidates": n_candidates,
+        "n_contract_valid_route_candidates": sum(
+            1
+            for row in selection_rows
+            if bool(row.get("response_contract_ok", False))
+        ),
+        "n_ready_route_candidates": sum(
+            1
+            for row in selection_rows
+            if str(row.get("route_adoption_status", "")) == ROUTE_ADOPTION_READY_STATUS
+        ),
+        "n_adoptable_route_candidates": n_adoptable,
+        "n_blocked_route_candidates": max(0, n_candidates - n_adoptable),
+        "n_manifest_rows": len(row_maps),
+        "n_manifest_rows_response_contract_ok": sum(
+            1 for row in row_maps if bool(row.get("response_contract_ok", False))
+        ),
+        "gate_blockers": gate_blockers,
+        "selection_status": str(selection.get("selection_status", "")),
+        "selection_policy": str(selection.get("selection_policy", "")),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
 def _apply_seed_route_selection(
     route: dict[str, object],
     selection_row: Mapping[str, object],
@@ -17800,6 +17989,9 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Accepted route plans: {payload.get('n_accepted_route_plans')}",
         f"- Route adoption ready: {payload.get('n_route_adoption_ready')}",
         f"- Route adoption pending refinement: {payload.get('n_route_adoption_pending_refinement')}",
+        f"- Standalone replay gate OK: {payload.get('standalone_replay_gate_ok')}",
+        f"- Standalone replay adoptable candidates: {payload.get('n_standalone_replay_adoptable_route_candidates')}/{payload.get('n_standalone_replay_route_candidates')}",
+        f"- Standalone replay blockers: {payload.get('standalone_replay_gate_blockers')}",
         f"- Route adoption blocker counts: {payload.get('route_adoption_blocker_counts')}",
         f"- Awaiting LLM response: {payload.get('n_awaiting_llm_response')}",
         f"- Rejected: {payload.get('n_rejected')}",
