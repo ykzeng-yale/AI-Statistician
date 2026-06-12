@@ -42,6 +42,19 @@ PROOF_EVIDENCE_BOUNDARY = (
     "translated statement and proof with no placeholders."
 )
 PROVER_FAMILIES = ("lean4", "rocq", "isabelle", "agda", "other")
+PROVER_FAMILY_RESPONSE_VALUES = (
+    "lean4",
+    "lean",
+    "rocq",
+    "coq",
+    "coq8",
+    "coq_8",
+    "isabelle",
+    "isabelle/hol",
+    "isabelle_hol",
+    "agda",
+    "other",
+)
 MAPPING_STATUSES = (
     "ready_for_kernel_attempt",
     "needs_statement_translation",
@@ -620,7 +633,7 @@ def prover_adapter_response_json_schema() -> dict[str, object]:
             "goal_plan_id": {"type": "string"},
             "route_id": {"type": "string"},
             "primitive": {"type": "string", "minLength": 1},
-            "target_prover_family": {"enum": list(PROVER_FAMILIES)},
+            "target_prover_family": {"enum": list(PROVER_FAMILY_RESPONSE_VALUES)},
             "mapping_status": {"enum": list(MAPPING_STATUSES)},
             "translated_statement": {"type": "string"},
             "translated_imports": {
@@ -1141,7 +1154,9 @@ def _validate_response(
     ):
         if not value:
             errors.append(f"{field_name} missing")
-    if target_prover_family != packet.target_prover_family:
+    response_target_key = _normalize_prover_family(target_prover_family)
+    packet_target_key = _normalize_prover_family(packet.target_prover_family)
+    if response_target_key != packet_target_key:
         errors.append(
             f"target_prover_family {target_prover_family} does not match packet {packet.target_prover_family}"
         )
@@ -1362,14 +1377,19 @@ def _schema_property_errors(
 
 
 def _normalize_prover_family(value: str) -> str:
-    lowered = value.strip().lower()
+    lowered = value.strip().lower().replace("-", "_")
     aliases = {
         "lean": "lean4",
         "lean4": "lean4",
         "coq": "rocq",
+        "coq8": "rocq",
+        "coq_8": "rocq",
+        "coq_rocq": "rocq",
+        "rocq_coq": "rocq",
         "rocq": "rocq",
         "isabelle": "isabelle",
         "isabelle/hol": "isabelle",
+        "isabelle_hol": "isabelle",
         "agda": "agda",
         "other": "other",
     }

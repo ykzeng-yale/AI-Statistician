@@ -100,7 +100,7 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
                 "goal_plan_id": "goal:test",
                 "route_id": "route:test",
                 "primitive": "conditional_mean_residual_zero",
-                "target_prover_family": "rocq",
+                "target_prover_family": "coq",
                 "mapping_status": "ready_for_kernel_attempt",
                 "translated_statement": "Theorem conditional_mean_residual_zero : True.",
                 "translated_imports": ["Coq.Init.Logic"],
@@ -165,7 +165,11 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
     assert payload["n_response_present"] == 1
     assert payload["n_response_contract_ok"] == 1
     assert payload["n_rejected"] == 0
+    assert "coq" in prover_adapter_response_json_schema()["properties"][
+        "target_prover_family"
+    ]["enum"]
     assert payload["response_validation_rows"][0]["mapping_status"] == "ready_for_kernel_attempt"
+    assert payload["response_validation_rows"][0]["target_prover_family"] == "rocq"
     assert "kernel verification" in payload["packets"][0]["acceptance_gate"]
     assert payload["packets"][0]["alignment_status"] == "bridge_delta"
     assert payload["packets"][0]["route_alignment_edge"]["primitive"] == (

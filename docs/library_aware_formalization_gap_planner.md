@@ -1941,7 +1941,9 @@ The current implementation composes four existing AI Statistician artifacts:
    another prover family. Each packet carries its route-alignment edge and
    alignment status plus compact `quality_controls` traces when the standalone
    route exposes bounded tool policy. It writes a packet JSON Schema for incoming adapter work
-   and a response JSON Schema for adapter output; the reuse-smoke manifest
+   and a response JSON Schema for adapter output; raw adapter responses may use
+   accepted prover-family aliases such as `coq` or `isabelle/hol`, while packet
+   and validation rows stay canonical (`rocq`, `isabelle`). The reuse-smoke manifest
    exposes both schema files as top-level reusable artifacts. It rejects
    `kernel_verified=true` claims because proof promotion belongs to a separate
    target-prover replay/calibration gate.
