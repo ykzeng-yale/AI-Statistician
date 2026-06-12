@@ -114,7 +114,15 @@ stages Anthropic/Claude request packets and prompts without calling a model.
 `prompt_only` remains an explicit no-provider mode. With a reviewed
 `--response-json` or `--static-response-file`, it validates the LLM route
 proposal and emits a revised standalone seed. With `--invoke-provider`, it can
-call the configured generator backend. For external teams that only need to
+call the configured generator backend. Each staged request also writes
+`formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl`.
+Those rows are self-identifying with `schema_id`, `schema_version`, `route_id`,
+and `display_name`, and they are validated by the published
+`formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json`
+contract. This gives external prover teams a direct table of reuse-ready,
+wrapper, bridge, source-port, new-definition, new-theory, and unknown
+primitive alignment classes without reverse-engineering the full prompt packet.
+For external teams that only need to
 preflight JSON before handing it to the full route planner, the
 `formalization-gap-planner-llm-route-planner-response-payload-validate` command
 accepts a raw response payload, wrapper response, list, or `responses` bundle

@@ -1145,10 +1145,24 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["request_schema"]["$defs"]["library_alignment_summary"][
         "$id"
     ] == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
+    assert "library_alignment_summary" in payload["request_schema"]["properties"][
+        "context_packet"
+    ]["required"]
     assert (
         out_dir
         / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
     ).exists()
+    library_alignment_summary_rows = [
+        json.loads(line)
+        for line in (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl"
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert len(library_alignment_summary_rows) == 1
     request = payload["request_packets"][0]
     assert "LLM route planner" in request["prompt_messages"]["system"]
     assert "required_output_contract" in request["prompt_messages"]["user"]
@@ -1251,9 +1265,17 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     ] == "bridge_needed"
     assert cost_hints["route_option_hints"][0]["minimum_route_base_cost"] == 4.0
     alignment_summary = context["library_alignment_summary"]
+    assert library_alignment_summary_rows[0] == alignment_summary
+    assert alignment_summary["schema_version"] == 1
+    assert (
+        alignment_summary["schema_id"]
+        == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
+    )
     assert alignment_summary["summary_kind"] == (
         "formalization_gap_planner_llm_route_planner_library_alignment_summary"
     )
+    assert alignment_summary["route_id"] == "rank_route"
+    assert alignment_summary["display_name"] == "distribution_free_rank_bound"
     assert alignment_summary["n_primitives"] == 2
     assert alignment_summary["n_reuse_ready_primitives"] == 1
     assert alignment_summary["n_bridge_primitives"] == 1
@@ -1597,6 +1619,11 @@ def test_llm_route_planner_cost_hints_use_library_coverage_lower_bound() -> None
     } >= {("Probability.rankUniformityBridge", "lean4")}
     assert cost_hints["route_option_hints"][0]["minimum_route_base_cost"] == 4.0
     alignment_summary = request["context_packet"]["library_alignment_summary"]
+    assert (
+        alignment_summary["schema_id"]
+        == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
+    )
+    assert alignment_summary["route_id"] == "rank_route_light"
     assert alignment_summary["n_primitives"] == 2
     assert alignment_summary["n_bridge_primitives"] == 1
     assert alignment_summary["n_bridge_or_harder_primitives"] == 1

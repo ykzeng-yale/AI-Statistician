@@ -2397,6 +2397,7 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
             "target_route": {"type": "object"},
             "context_packet": {
                 "type": "object",
+                "required": ["library_alignment_summary"],
                 "properties": {
                     "library_alignment_summary": {
                         "$ref": "#/$defs/library_alignment_summary"
@@ -2432,7 +2433,11 @@ def llm_route_planner_library_alignment_summary_json_schema() -> dict[str, objec
         "type": "object",
         "additionalProperties": True,
         "required": [
+            "schema_version",
+            "schema_id",
             "summary_kind",
+            "route_id",
+            "display_name",
             "target_prover_family",
             "library_snapshot_ref",
             "cost_policy_id",
@@ -2453,10 +2458,20 @@ def llm_route_planner_library_alignment_summary_json_schema() -> dict[str, objec
             "proof_evidence_boundary",
         ],
         "properties": {
+            "schema_version": {
+                "type": "integer",
+                "const": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
+            },
+            "schema_id": {
+                "type": "string",
+                "const": LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
+            },
             "summary_kind": {
                 "type": "string",
                 "const": LIBRARY_ALIGNMENT_SUMMARY_KIND,
             },
+            "route_id": {"type": "string", "minLength": 1},
+            "display_name": {"type": "string", "minLength": 1},
             "target_prover_family": {"type": "string", "minLength": 1},
             "library_snapshot_ref": {"type": "string"},
             "cost_policy_id": {
@@ -4229,6 +4244,8 @@ def _request_packet(
     )
     context_packet = {
         "standalone_input_component": str(input_payload.get("component_name", "")),
+        "route_id": route_id,
+        "display_name": display_name,
         "target_prover_family": target_prover_family,
         "library_snapshot_ref": library_snapshot_ref,
         "current_route": dict(route),
@@ -4321,6 +4338,8 @@ def _request_packet(
     )
     context_packet["library_alignment_summary"] = _library_alignment_summary(
         context_packet,
+        route_id=route_id,
+        display_name=display_name,
         target_prover_family=target_prover_family,
         library_snapshot_ref=library_snapshot_ref,
     )
@@ -4408,6 +4427,8 @@ def _request_packet(
 def _library_alignment_summary(
     context_packet: Mapping[str, Any],
     *,
+    route_id: str,
+    display_name: str,
     target_prover_family: str,
     library_snapshot_ref: str,
 ) -> dict[str, object]:
@@ -4460,7 +4481,11 @@ def _library_alignment_summary(
         ]
     )
     return {
+        "schema_version": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
+        "schema_id": LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
         "summary_kind": LIBRARY_ALIGNMENT_SUMMARY_KIND,
+        "route_id": route_id,
+        "display_name": display_name,
         "target_prover_family": target_prover_family,
         "library_snapshot_ref": library_snapshot_ref,
         "cost_policy_id": MINIMAL_DELTA_COST_POLICY_ID,
@@ -5139,12 +5164,21 @@ def _library_alignment_summary_errors(
         return []
     expected = _library_alignment_summary(
         context_packet,
+        route_id=str(context_packet.get("route_id", "")),
+        display_name=str(
+            context_packet.get("display_name", "")
+            or context_packet.get("route_id", "")
+        ),
         target_prover_family=str(context_packet.get("target_prover_family", "")),
         library_snapshot_ref=str(context_packet.get("library_snapshot_ref", "")),
     )
     errors: list[str] = []
     scalar_fields = (
+        "schema_version",
+        "schema_id",
         "summary_kind",
+        "route_id",
+        "display_name",
         "target_prover_family",
         "library_snapshot_ref",
         "cost_policy_id",
@@ -18483,6 +18517,25 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
             if isinstance(row, dict)
         )
         + ("\n" if payload.get("request_packets") else ""),
+        encoding="utf-8",
+    )
+    library_alignment_summaries = []
+    for row in payload.get("request_packets", []):
+        if not isinstance(row, Mapping):
+            continue
+        summary = _request_library_alignment_summary(row)
+        if summary:
+            library_alignment_summaries.append(summary)
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl"
+    ).write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in library_alignment_summaries
+            if isinstance(row, dict)
+        )
+        + ("\n" if library_alignment_summaries else ""),
         encoding="utf-8",
     )
     (out_dir / "formalization_gap_planner_llm_route_planner.jsonl").write_text(
