@@ -8216,6 +8216,7 @@ def _llm_row_request_evidence_errors(
     errors: list[str] = []
     if not request:
         return ("matching request packet missing",)
+    errors.extend(_llm_row_request_model_policy_errors(row, request))
     available_sources = _llm_available_source_keys(request)
     row_sources = _llm_row_source_keys(row)
     missing_sources = sorted(row_sources - available_sources)
@@ -8292,11 +8293,167 @@ def _llm_row_request_evidence_observed(
     row_primitives = _llm_row_selected_delta_primitive_keys(row)
     return (
         "matching_request=true; "
+        f"provider={row.get('provider_name', '')}/{request.get('provider_name', '')}; "
+        f"model_tier={row.get('model_tier', '')}/{request.get('model_tier', '')}; "
         f"source_refs={len(row_sources - available_sources)}_missing/{len(row_sources)}; "
         f"candidate_declarations={len(row_declarations - available_declarations)}_missing/{len(row_declarations)}; "
         f"residuals={len(row_residuals.intersection(request_residuals))}/{len(request_residuals)}; "
         f"introduced_primitives={len(row_primitives - available_primitives)}/{len(row_primitives)}"
     )
+
+
+def _llm_row_request_model_policy_errors(
+    row: dict[str, Any],
+    request: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    row_provider = str(row.get("provider_name", "") or "").strip().lower()
+    request_provider = str(request.get("provider_name", "") or "").strip().lower()
+    row_model = str(row.get("model", "") or "").strip()
+    request_model = str(request.get("model", "") or "").strip()
+    row_tier = str(row.get("model_tier", "") or "").strip().lower()
+    request_tier = str(request.get("model_tier", "") or "").strip().lower()
+    row_evidence = _dict_value(row, "model_tier_decision_evidence")
+    request_evidence = _dict_value(request, "model_tier_decision_evidence")
+
+    if row_provider != request_provider:
+        errors.append("row provider_name does not match request provider_name")
+
+    if _llm_row_model_tier_escalated(row):
+        errors.extend(
+            _llm_row_request_model_escalation_errors(
+                row,
+                request,
+                row_provider=row_provider,
+                request_provider=request_provider,
+                row_tier=row_tier,
+                request_tier=request_tier,
+                row_evidence=row_evidence,
+                request_evidence=request_evidence,
+            )
+        )
+    else:
+        if row_tier != request_tier:
+            errors.append("row model_tier does not match request model_tier")
+        if request_provider in {"anthropic", "static"} and row_model != request_model:
+            errors.append("row model does not match request model")
+        if row_evidence != request_evidence:
+            errors.append(
+                "row model_tier_decision_evidence does not match request "
+                "model_tier_decision_evidence"
+            )
+
+    metadata = _dict_value(row, "generator_metadata")
+    if metadata:
+        metadata_requested = str(
+            metadata.get("requested_model_tier", "") or ""
+        ).strip().lower()
+        metadata_effective = str(
+            metadata.get("effective_model_tier", "") or ""
+        ).strip().lower()
+        if metadata_requested and metadata_requested != request_tier:
+            errors.append(
+                "row generator_metadata.requested_model_tier does not match "
+                "request model_tier"
+            )
+        if metadata_effective and metadata_effective != row_tier:
+            errors.append(
+                "row generator_metadata.effective_model_tier does not match "
+                "row model_tier"
+            )
+    return tuple(errors)
+
+
+def _llm_row_request_model_escalation_errors(
+    row: dict[str, Any],
+    request: dict[str, Any],
+    *,
+    row_provider: str,
+    request_provider: str,
+    row_tier: str,
+    request_tier: str,
+    row_evidence: dict[str, Any],
+    request_evidence: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    if request_provider != "anthropic" or row_provider != "anthropic":
+        errors.append("row model_tier_escalated is allowed only for Anthropic")
+    if request_tier != "haiku":
+        errors.append("row model_tier_escalated requires request model_tier haiku")
+    if row_tier != "sonnet":
+        errors.append("row model_tier_escalated requires row model_tier sonnet")
+
+    metadata = _dict_value(row, "generator_metadata")
+    reason = str(
+        metadata.get("model_tier_escalation_reason", "")
+        or row.get("model_tier_escalation_reason", "")
+        or ""
+    ).strip()
+    if not reason:
+        errors.append("row model_tier_escalated requires escalation reason")
+
+    if not _llm_row_has_haiku_to_sonnet_repair_ledger(row):
+        errors.append(
+            "row model_tier_escalated requires repair_attempt_ledger "
+            "documenting haiku-to-sonnet retry"
+        )
+
+    row_base = _llm_model_tier_decision_evidence_request_base(row_evidence)
+    request_base = _llm_model_tier_decision_evidence_request_base(
+        request_evidence
+    )
+    if row_base != request_base:
+        errors.append(
+            "row model_tier_decision_evidence changed request decision fields "
+            "outside allowed repair escalation fields"
+        )
+    if str(row_evidence.get("effective_model_tier", "") or "").strip().lower() != (
+        row_tier
+    ):
+        errors.append(
+            "row model_tier_decision_evidence.effective_model_tier does not "
+            "match row model_tier"
+        )
+    if not bool(row_evidence.get("model_tier_escalated", False)):
+        errors.append(
+            "row model_tier_decision_evidence.model_tier_escalated must be true"
+        )
+    if not str(
+        row_evidence.get("model_tier_escalation_reason", "") or reason
+    ).strip():
+        errors.append(
+            "row model_tier_decision_evidence.model_tier_escalation_reason missing"
+        )
+    return tuple(errors)
+
+
+def _llm_model_tier_decision_evidence_request_base(
+    evidence: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        str(key): value
+        for key, value in evidence.items()
+        if str(key)
+        not in {
+            "effective_model_tier",
+            "model_tier_escalated",
+            "model_tier_escalation_reason",
+        }
+    }
+
+
+def _llm_row_has_haiku_to_sonnet_repair_ledger(row: dict[str, Any]) -> bool:
+    for item in _dict_tuple(row.get("repair_attempt_ledger", [])):
+        escalation = str(item.get("model_tier_escalation", "") or "").strip().lower()
+        failed_tier = str(
+            item.get("failed_attempt_model_tier", "") or ""
+        ).strip().lower()
+        next_tier = str(item.get("next_repair_model_tier", "") or "").strip().lower()
+        if escalation == "haiku_to_sonnet":
+            return True
+        if failed_tier == "haiku" and next_tier == "sonnet":
+            return True
+    return False
 
 
 def _llm_row_residual_source_grounding_errors(row: dict[str, Any]) -> tuple[str, ...]:

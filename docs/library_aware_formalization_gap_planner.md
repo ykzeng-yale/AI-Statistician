@@ -219,6 +219,10 @@ provider, resolved model, selected/requested tier, Claude pinned model policy,
 auto-tier rules, and explicit `codex`/`codex_exec` exclusion. This lets an
 external prover team audit a single JSONL request without reopening the full
 publication bundle or assuming the local runtime configuration is available.
+The publication-bundle audit binds accepted LLM rows back to that staged
+request policy: provider, Claude model tier, model-tier decision evidence, and
+generator metadata must match the request, except for a documented Anthropic
+Haiku-to-Sonnet repair retry with matching repair-ledger evidence.
 Each request and row also carries `model_tier_decision_evidence`: structured
 counts, coverage/action markers, Sonnet trigger reasons, Haiku bounded-route
 safety checks, and any Haiku-to-Sonnet repair escalation. This keeps the

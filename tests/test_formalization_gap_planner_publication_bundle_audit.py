@@ -8065,6 +8065,63 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         for line in rows_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
+    model_policy_corrupted_rows = json.loads(json.dumps(rows))
+    model_policy_corrupted_rows[0]["model"] = "claude-opus-4-8"
+    model_policy_corrupted_rows[0]["model_tier"] = "opus"
+    model_policy_evidence = model_policy_corrupted_rows[0][
+        "model_tier_decision_evidence"
+    ]
+    model_policy_evidence["selected_model_tier"] = "opus"
+    model_policy_evidence["effective_model_tier"] = "opus"
+    model_policy_evidence["selection_mode"] = "operator_requested"
+    model_policy_evidence["decision_basis"] = "operator_override"
+    model_policy_evidence["sonnet_triggers"] = []
+    model_policy_evidence["haiku_safety_checks"] = {}
+    model_policy_evidence["model_tier_escalated"] = False
+    model_policy_evidence.pop("model_tier_escalation_reason", None)
+    model_policy_metadata = model_policy_corrupted_rows[0]["generator_metadata"]
+    model_policy_metadata["requested_model_tier"] = "opus"
+    model_policy_metadata["effective_model_tier"] = "opus"
+    model_policy_metadata["model_tier_escalated"] = False
+    model_policy_metadata["model_tier_escalation_reason"] = ""
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in model_policy_corrupted_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_model_policy_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_row_request_model_policy_drift",
+    )
+    model_policy_checks = [
+        row
+        for row in rejected_model_policy_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert model_policy_checks
+    assert not model_policy_checks[0]["ok"]
+    assert any(
+        "row model_tier does not match request model_tier" in error
+        for error in model_policy_checks[0]["errors"]
+    )
+    assert any(
+        "row model_tier_decision_evidence does not match request "
+        "model_tier_decision_evidence" in error
+        for error in model_policy_checks[0]["errors"]
+    )
+    assert any(
+        "row generator_metadata.requested_model_tier does not match request "
+        "model_tier" in error
+        for error in model_policy_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
     cost_corrupted_rows = json.loads(json.dumps(rows))
     for field_name in (
         "cost_model_version",
