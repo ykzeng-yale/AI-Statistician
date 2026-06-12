@@ -5986,6 +5986,11 @@ def _artifact_paths(out_dir: Path) -> dict[str, str]:
             / "formalization_gap_planner_llm_route_planner"
             / "formalization_gap_planner_llm_route_planner_requests.jsonl"
         ),
+        "llm_route_planner_library_alignment_summaries_jsonl": str(
+            out_dir
+            / "formalization_gap_planner_llm_route_planner"
+            / "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl"
+        ),
         "llm_route_planner_jsonl": str(
             out_dir
             / "formalization_gap_planner_llm_route_planner"
@@ -5995,6 +6000,11 @@ def _artifact_paths(out_dir: Path) -> dict[str, str]:
             out_dir
             / "formalization_gap_planner_llm_route_planner"
             / "formalization_gap_planner_llm_route_planner_request.schema.json"
+        ),
+        "llm_route_planner_library_alignment_summary_schema": str(
+            out_dir
+            / "formalization_gap_planner_llm_route_planner"
+            / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
         ),
         "llm_route_planner_response_schema": str(
             out_dir
@@ -6026,10 +6036,20 @@ def _artifact_paths(out_dir: Path) -> dict[str, str]:
             / "formalization_gap_planner_feedback_llm_route_planner"
             / "formalization_gap_planner_llm_route_planner_requests.jsonl"
         ),
+        "feedback_llm_route_planner_library_alignment_summaries_jsonl": str(
+            out_dir
+            / "formalization_gap_planner_feedback_llm_route_planner"
+            / "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl"
+        ),
         "feedback_llm_route_planner_jsonl": str(
             out_dir
             / "formalization_gap_planner_feedback_llm_route_planner"
             / "formalization_gap_planner_llm_route_planner.jsonl"
+        ),
+        "feedback_llm_route_planner_library_alignment_summary_schema": str(
+            out_dir
+            / "formalization_gap_planner_feedback_llm_route_planner"
+            / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
         ),
         "feedback_llm_route_planner_standalone_seed": str(
             out_dir

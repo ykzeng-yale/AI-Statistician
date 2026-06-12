@@ -12,6 +12,7 @@ from ai_statistician.formalization_gap_planner_local_formal_source_adapter impor
     LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
 )
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
 )
 
@@ -425,6 +426,25 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload[
         "llm_route_planner_by_request_library_alignment_minimum_coverage_bucket"
     ]
+    primary_alignment_rows = [
+        json.loads(line)
+        for line in Path(
+            payload["artifacts"][
+                "llm_route_planner_library_alignment_summaries_jsonl"
+            ]
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert len(primary_alignment_rows) == payload[
+        "n_llm_route_planner_requests_with_library_alignment_summary"
+    ]
+    assert json.loads(
+        Path(
+            payload["artifacts"]["llm_route_planner_library_alignment_summary_schema"]
+        ).read_text(encoding="utf-8")
+    )["$id"] == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
     assert payload["n_llm_route_planner_generation_preflight_blocked"] == 0
     assert payload["llm_route_planner_generation_preflight_errors"] == []
     assert (
@@ -626,6 +646,27 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload[
         "feedback_llm_route_planner_by_request_library_alignment_minimum_coverage_bucket"
     ]
+    feedback_alignment_rows = [
+        json.loads(line)
+        for line in Path(
+            payload["artifacts"][
+                "feedback_llm_route_planner_library_alignment_summaries_jsonl"
+            ]
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert len(feedback_alignment_rows) == payload[
+        "n_feedback_llm_route_planner_requests_with_library_alignment_summary"
+    ]
+    assert json.loads(
+        Path(
+            payload["artifacts"][
+                "feedback_llm_route_planner_library_alignment_summary_schema"
+            ]
+        ).read_text(encoding="utf-8")
+    )["$id"] == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
     assert payload["n_feedback_llm_route_planner_generation_preflight_blocked"] == 0
     assert payload["feedback_llm_route_planner_generation_preflight_errors"] == []
     assert (
