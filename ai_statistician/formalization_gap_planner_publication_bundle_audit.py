@@ -86,6 +86,7 @@ from .formalization_gap_planner_llm_route_planner import (
     validate_llm_route_planner_response_payload_validation_manifest,
     validate_llm_route_planner_response_payload_validation_row,
     validate_llm_route_planner_row,
+    _response_resource_request_alignment_errors as _llm_route_planner_resource_request_alignment_errors,
 )
 from .formalization_gap_planner_primitive_action_queue import (
     PRIMITIVE_ACTION_QUEUE_ROW_SCHEMA_ID,
@@ -8268,6 +8269,7 @@ def _llm_row_request_evidence_errors(
             collection_name="planner_next_actions",
         )
     )
+    errors.extend(_llm_row_resource_request_alignment_errors(row, request))
     errors.extend(_llm_row_source_search_obligation_errors(row))
     errors.extend(_llm_row_formal_search_obligation_errors(row))
     errors.extend(_llm_row_minimal_delta_cost_errors(row, request))
@@ -8811,6 +8813,19 @@ def _llm_row_target_primitive_grounding_errors(
                 + ",".join(ungrounded[:8])
             )
     return tuple(errors)
+
+
+def _llm_row_resource_request_alignment_errors(
+    row: dict[str, Any],
+    request: dict[str, Any],
+) -> tuple[str, ...]:
+    return tuple(
+        "row " + error
+        for error in _llm_route_planner_resource_request_alignment_errors(
+            row,
+            request,
+        )
+    )
 
 
 def _llm_row_bounded_action_allowed_primitive_keys(

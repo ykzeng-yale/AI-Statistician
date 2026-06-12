@@ -8122,6 +8122,40 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         encoding="utf-8",
     )
 
+    invented_resource_request_rows = json.loads(json.dumps(rows))
+    invented_resource_request_rows[0]["search_requests"][0][
+        "resource_request_id"
+    ] = "resource-request:invented"
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in invented_resource_request_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_resource_request_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_invented_resource_request_id",
+        )
+    )
+    resource_request_checks = [
+        row
+        for row in rejected_resource_request_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert resource_request_checks
+    assert not resource_request_checks[0]["ok"]
+    assert any(
+        "row search_requests[0] references unknown resource_request_id" in error
+        for error in resource_request_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
     cost_corrupted_rows = json.loads(json.dumps(rows))
     for field_name in (
         "cost_model_version",
