@@ -597,6 +597,24 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
                                 "selected_primitives": ["rank_uniformity"],
                                 "route_cost": 7,
                                 "cost_rationale": "A source port is broader than this route.",
+                                "primitive_costs": [
+                                    {
+                                        "primitive": "rank_uniformity",
+                                        "coverage_bucket": "source_port",
+                                        "base_cost": 7,
+                                        "proof_difficulty_cost": 0,
+                                        "import_cone_cost": 0,
+                                        "definition_or_typeclass_cost": 0,
+                                        "semantic_risk_cost": 0,
+                                        "reuse_credit": 0,
+                                        "total_cost": 7,
+                                        "cost_rationale": (
+                                            "This alternative ports the "
+                                            "source theorem rather than proving "
+                                            "the focused bridge."
+                                        ),
+                                    }
+                                ],
                             },
                             {
                                 "route_option_id": (
@@ -8085,6 +8103,47 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert any(
         "cost dimension fields missing: reuse_credit" in error
         for error in cost_dimension_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    route_option_cost_accounting_rows = json.loads(json.dumps(rows))
+    route_option_cost_accounting_graph = route_option_cost_accounting_rows[0][
+        "minimal_delta_plan"
+    ]["and_or_cost_graph"]
+    route_option_cost_accounting_graph["route_options"][1].pop(
+        "primitive_costs",
+        None,
+    )
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in route_option_cost_accounting_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_route_option_cost_accounting_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_route_option_cost_without_witness",
+        )
+    )
+    route_option_cost_accounting_checks = [
+        row
+        for row in rejected_route_option_cost_accounting_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert route_option_cost_accounting_checks
+    assert not route_option_cost_accounting_checks[0]["ok"]
+    assert any(
+        "route_options[1].route_cost must equal the sum of route option primitive_costs"
+        in error
+        and "route_cost=7" in error
+        and "primitive_total=4" in error
+        for error in route_option_cost_accounting_checks[0]["errors"]
     )
     rows_path.write_text(
         "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",

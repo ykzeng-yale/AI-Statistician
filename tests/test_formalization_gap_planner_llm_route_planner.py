@@ -290,6 +290,38 @@ def _llm_response_payload() -> dict[str, object]:
                         "selected_primitives": ["exchangeability", "rank_uniformity"],
                         "route_cost": 7,
                         "cost_rationale": "Porting a source theorem costs more than the focused bridge.",
+                        "primitive_costs": [
+                            {
+                                "primitive": "exchangeability",
+                                "coverage_bucket": "already_exists",
+                                "base_cost": 0,
+                                "proof_difficulty_cost": 0,
+                                "import_cone_cost": 0,
+                                "definition_or_typeclass_cost": 0,
+                                "semantic_risk_cost": 0,
+                                "reuse_credit": 0,
+                                "total_cost": 0,
+                                "cost_rationale": (
+                                    "The source-port route still reuses the "
+                                    "existing exchangeability declaration."
+                                ),
+                            },
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_bucket": "source_port",
+                                "base_cost": 7,
+                                "proof_difficulty_cost": 0,
+                                "import_cone_cost": 0,
+                                "definition_or_typeclass_cost": 0,
+                                "semantic_risk_cost": 0,
+                                "reuse_credit": 0,
+                                "total_cost": 7,
+                                "cost_rationale": (
+                                    "This alternative ports the rank theorem "
+                                    "instead of proving the bridge lemma."
+                                ),
+                            },
+                        ],
                     },
                 ],
                 "or_nodes": [
@@ -391,12 +423,27 @@ def _append_bridge_cost(
     assert isinstance(graph, dict)
     route_options = graph["route_options"]
     assert isinstance(route_options, list)
+    added_cost_row = {
+        "primitive": primitive,
+        "coverage_bucket": "bridge_needed",
+        "base_cost": total_cost,
+        "proof_difficulty_cost": 0,
+        "import_cone_cost": 0,
+        "definition_or_typeclass_cost": 0,
+        "semantic_risk_cost": 0,
+        "reuse_credit": 0,
+        "total_cost": total_cost,
+        "cost_rationale": "The added primitive is modeled as one focused bridge lemma.",
+    }
     for option in route_options:
         option["route_cost"] = int(option["route_cost"]) + total_cost
         option["selected_primitives"] = [
             *option.get("selected_primitives", []),
             primitive,
         ]
+        option_costs = option.get("primitive_costs")
+        if isinstance(option_costs, list):
+            option_costs.append(dict(added_cost_row))
     edge_primitives_by_option = {
         str(option.get("route_option_id", "")): list(option["selected_primitives"])
         for option in route_options
@@ -683,6 +730,37 @@ def _promote_response_to_source_port_costs(response: dict[str, object]) -> None:
         "The selected replan route carries two source-port obligations."
     )
     route_options[1]["route_cost"] = 16
+    route_options[1]["primitive_costs"] = [
+        {
+            "primitive": "exchangeability",
+            "coverage_bucket": "source_port_needed",
+            "base_cost": 7,
+            "proof_difficulty_cost": 0,
+            "import_cone_cost": 0,
+            "definition_or_typeclass_cost": 0,
+            "semantic_risk_cost": 0,
+            "reuse_credit": 0,
+            "total_cost": 7,
+            "cost_rationale": (
+                "The alternative replan route ports the exchangeability premise."
+            ),
+        },
+        {
+            "primitive": "rank_uniformity",
+            "coverage_bucket": "source_port_needed",
+            "base_cost": 7,
+            "proof_difficulty_cost": 2,
+            "import_cone_cost": 0,
+            "definition_or_typeclass_cost": 0,
+            "semantic_risk_cost": 0,
+            "reuse_credit": 0,
+            "total_cost": 9,
+            "cost_rationale": (
+                "The alternative replan route ports the rank lemma with an "
+                "extra proof-difficulty allowance."
+            ),
+        },
+    ]
     standalone_route = response.get("standalone_route", {})
     if isinstance(standalone_route, dict):
         for primitive in standalone_route.get("primitives", []):
@@ -4746,6 +4824,10 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert minimal_delta_schema["properties"]["primitive_costs"]["items"] == {
         "$ref": "#/$defs/primitive_cost"
     }
+    route_option_schema = response_payload_schema["$defs"]["route_option"]
+    assert route_option_schema["properties"]["primitive_costs"]["items"] == {
+        "$ref": "#/$defs/primitive_cost"
+    }
     residual_schema = response_payload_schema["properties"]["residual_interpretations"][
         "items"
     ]
@@ -6208,6 +6290,19 @@ def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() ->
     for option in high_cost_graph["route_options"]:
         assert isinstance(option, dict)
         option["route_cost"] = 8 if option["selected"] else 9
+        option_costs = option.get("primitive_costs")
+        if isinstance(option_costs, list):
+            for cost_row in option_costs:
+                if (
+                    isinstance(cost_row, dict)
+                    and cost_row.get("primitive") == "rank_uniformity"
+                ):
+                    cost_row["proof_difficulty_cost"] = 2
+                    cost_row["total_cost"] = 9
+                    cost_row["cost_rationale"] = (
+                        "The source-port alternative carries an extra "
+                        "proof-difficulty allowance in this high-cost fixture."
+                    )
 
     low_cost = _llm_response_payload()
     low_cost["search_requests"] = []
@@ -7182,6 +7277,24 @@ def test_llm_route_planner_accepts_introduced_reuse_with_candidate_declaration_r
     )
     for option in minimal_delta["and_or_cost_graph"]["route_options"]:
         option["selected_primitives"].append("rank_order_statistic")
+        option_costs = option.get("primitive_costs")
+        if isinstance(option_costs, list):
+            option_costs.append(
+                {
+                    "primitive": "rank_order_statistic",
+                    "coverage_bucket": "already_exists",
+                    "base_cost": 0,
+                    "proof_difficulty_cost": 0,
+                    "import_cone_cost": 0,
+                    "definition_or_typeclass_cost": 0,
+                    "semantic_risk_cost": 0,
+                    "reuse_credit": 0,
+                    "total_cost": 0,
+                    "cost_rationale": (
+                        "The helper is reused exactly in this route option."
+                    ),
+                }
+            )
     option_primitives_by_id = {
         option["route_option_id"]: list(option["selected_primitives"])
         for option in minimal_delta["and_or_cost_graph"]["route_options"]
@@ -9891,6 +10004,38 @@ def test_llm_route_planner_rejects_route_cost_not_matching_primitive_totals() ->
     assert any(
         "route_cost must equal the sum of selected primitive_costs total_cost values"
         in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_route_option_cost_without_witness() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_route_option_cost_without_witness"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    graph = bad_response["minimal_delta_plan"]["and_or_cost_graph"]
+    graph["route_options"][1].pop("primitive_costs", None)
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "route_options[1].route_cost must equal the sum of route option primitive_costs"
+        in error
+        and "route_cost=7" in error
+        and "primitive_total=4" in error
         for error in row["errors"]
     )
 

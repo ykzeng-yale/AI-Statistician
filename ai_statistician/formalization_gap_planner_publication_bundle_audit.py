@@ -8845,6 +8845,12 @@ def _llm_row_minimal_delta_cost_errors(
         )
         if route_cost_error:
             errors.append(route_cost_error)
+        errors.extend(
+            _llm_row_route_option_cost_accounting_errors(
+                minimal_delta,
+                global_cost_rows_by_primitive=cost_rows_by_primitive,
+            )
+        )
     errors.extend(
         _llm_row_and_or_cost_graph_errors(
             minimal_delta,
@@ -8937,6 +8943,134 @@ def _llm_row_route_cost_selected_primitive_error(
         return (
             "row minimal_delta_plan.route_cost must equal the sum of selected "
             "primitive_costs total_cost values"
+        )
+    return ""
+
+
+def _llm_row_route_option_cost_accounting_errors(
+    minimal_delta: Mapping[str, Any],
+    *,
+    global_cost_rows_by_primitive: Mapping[str, list[dict[str, object]]],
+) -> list[str]:
+    errors: list[str] = []
+    graph = _dict_value(minimal_delta, "and_or_cost_graph")
+    for option_index, option in enumerate(_dict_tuple(graph.get("route_options", []))):
+        route_cost = option.get("route_cost")
+        if not _nonnegative_number(route_cost):
+            continue
+        option_primitives = tuple(
+            dict.fromkeys(
+                primitive
+                for primitive in (
+                    _llm_primitive_key(value)
+                    for value in _str_tuple(option.get("selected_primitives", []))
+                )
+                if primitive
+            )
+        )
+        if not option_primitives:
+            continue
+        option_cost_rows = _dict_tuple(option.get("primitive_costs", []))
+        if option_cost_rows:
+            cost_rows_by_primitive: dict[str, list[dict[str, object]]] = {}
+            for row_index, cost_row in enumerate(option_cost_rows):
+                primitive = _llm_primitive_key(cost_row.get("primitive", ""))
+                if not primitive:
+                    errors.append(
+                        "row minimal_delta_plan.and_or_cost_graph."
+                        f"route_options[{option_index}].primitive_costs"
+                        f"[{row_index}].primitive missing"
+                    )
+                    continue
+                cost_rows_by_primitive.setdefault(primitive, []).append(cost_row)
+                if not _nonnegative_number(cost_row.get("total_cost")):
+                    errors.append(
+                        "row minimal_delta_plan.and_or_cost_graph."
+                        f"route_options[{option_index}].primitive_costs"
+                        f"[{row_index}].total_cost must be a nonnegative number"
+                    )
+                cost_dimension_error = _llm_row_primitive_cost_dimension_error(cost_row)
+                if cost_dimension_error:
+                    errors.append(
+                        "row minimal_delta_plan.and_or_cost_graph."
+                        f"route_options[{option_index}].primitive_costs"
+                        f"[{row_index}].{cost_dimension_error}"
+                    )
+                if not str(cost_row.get("cost_rationale", "")).strip():
+                    errors.append(
+                        "row minimal_delta_plan.and_or_cost_graph."
+                        f"route_options[{option_index}].primitive_costs"
+                        f"[{row_index}].cost_rationale missing"
+                    )
+            option_primitive_set = set(option_primitives)
+            unknown = sorted(set(cost_rows_by_primitive) - option_primitive_set)
+            if unknown:
+                errors.append(
+                    "row minimal_delta_plan.and_or_cost_graph."
+                    f"route_options[{option_index}].primitive_costs reference "
+                    "primitives not selected by the route option: "
+                    + ", ".join(unknown[:8])
+                )
+            missing = sorted(option_primitive_set - set(cost_rows_by_primitive))
+            if missing:
+                errors.append(
+                    "row minimal_delta_plan.and_or_cost_graph."
+                    f"route_options[{option_index}].primitive_costs missing "
+                    "route option primitives: "
+                    + ", ".join(missing[:8])
+                )
+            duplicate = sorted(
+                primitive
+                for primitive, rows in cost_rows_by_primitive.items()
+                if primitive in option_primitive_set and len(rows) != 1
+            )
+            if duplicate:
+                errors.append(
+                    "row minimal_delta_plan.and_or_cost_graph."
+                    f"route_options[{option_index}].primitive_costs must contain "
+                    "exactly one row per route option primitive: "
+                    + ", ".join(duplicate[:8])
+                )
+        else:
+            cost_rows_by_primitive = {
+                primitive: list(rows)
+                for primitive, rows in global_cost_rows_by_primitive.items()
+            }
+        accounting_error = _llm_row_route_option_cost_accounting_error(
+            route_cost,
+            option_primitives=option_primitives,
+            cost_rows_by_primitive=cost_rows_by_primitive,
+        )
+        if accounting_error:
+            errors.append(
+                "row minimal_delta_plan.and_or_cost_graph."
+                f"route_options[{option_index}].route_cost "
+                + accounting_error
+            )
+    return errors
+
+
+def _llm_row_route_option_cost_accounting_error(
+    route_cost: object,
+    *,
+    option_primitives: tuple[str, ...],
+    cost_rows_by_primitive: Mapping[str, list[dict[str, object]]],
+) -> str:
+    if not _nonnegative_number(route_cost) or not option_primitives:
+        return ""
+    option_rows: list[dict[str, object]] = []
+    for primitive in option_primitives:
+        rows = cost_rows_by_primitive.get(primitive, [])
+        if len(rows) != 1 or not _nonnegative_number(rows[0].get("total_cost")):
+            return ""
+        option_rows.append(rows[0])
+    primitive_total = sum(float(row.get("total_cost", 0) or 0) for row in option_rows)
+    if abs(primitive_total - float(route_cost)) > 1e-9:
+        return (
+            "must equal the sum of route option primitive_costs total_cost values "
+            f"(route_cost={float(route_cost):g}, primitive_total={primitive_total:g}); "
+            "add route_options[].primitive_costs when this option uses "
+            "route-specific primitive costs"
         )
     return ""
 

@@ -630,6 +630,20 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
                     "selected_primitives": ["primitive ids"],
                     "route_cost": "nonnegative number",
                     "cost_rationale": "why this route option costs this much",
+                    "primitive_costs": [
+                        {
+                            "primitive": "route option primitive id",
+                            "coverage_bucket": "route-specific coverage/action bucket",
+                            "base_cost": "number",
+                            "proof_difficulty_cost": "number",
+                            "import_cone_cost": "number",
+                            "definition_or_typeclass_cost": "number",
+                            "semantic_risk_cost": "number",
+                            "reuse_credit": "number",
+                            "total_cost": "number",
+                            "cost_rationale": "why this primitive has this route-specific cost",
+                        }
+                    ],
                 }
             ],
             "or_nodes": [
@@ -5961,7 +5975,7 @@ def _user_prompt(
             "Every primitive used by selected_primitives or any and_or_cost_graph route option must have exactly one primitive_costs row with base_cost, proof_difficulty_cost, import_cone_cost, definition_or_typeclass_cost, semantic_risk_cost, reuse_credit, total_cost, and cost_rationale.",
             "Every primitive_costs coverage_bucket must be listed in minimal_delta_cost_policy.coverage_bucket_base_cost, and base_cost must equal that bucket base cost.",
             "A primitive_costs coverage_bucket/base_cost must not be cheaper than the explicit coverage_bucket, coverage_status, or formalization_action markers on the corresponding formal_realization_dag_nodes or standalone_route.primitives.",
-            "Every primitive_costs row must satisfy total_cost = base_cost + proof_difficulty_cost + import_cone_cost + definition_or_typeclass_cost + semantic_risk_cost - reuse_credit; route_cost must equal the sum of selected primitive total_cost values.",
+            "Every primitive_costs row must satisfy total_cost = base_cost + proof_difficulty_cost + import_cone_cost + definition_or_typeclass_cost + semantic_risk_cost - reuse_credit; route_cost must equal the sum of selected primitive total_cost values, and every route_options row must either include route-specific primitive_costs summing to route_cost or have a route_cost equal to the global primitive_costs for its selected_primitives.",
             "and_or_cost_graph must enumerate route_options with unique route_option_id values and duplicate-free selected_primitives, a selected_route_option_id that names one route_options row, non-empty or_nodes with duplicate-free choices, and non-empty and_edges; every route option must be reachable from an OR choice and have exactly one AND edge listing exactly its selected_primitives.",
             "Every selected primitive must appear in standalone_route.primitives and formal_realization_dag_nodes.",
             "Every wrapper, bridge, source-port, new-definition, or first-principles delta primitive must have a route_alignment_edge.",
@@ -6593,6 +6607,10 @@ def llm_route_planner_response_payload_schema(
             "selected_primitives": string_array,
             "route_cost": {"type": "number"},
             "cost_rationale": {"type": "string", "minLength": 1},
+            "primitive_costs": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/primitive_cost"},
+            },
         },
     }
     and_or_cost_graph = {
@@ -8922,6 +8940,12 @@ def _minimal_delta_cost_witness_errors(
         )
         if route_cost_accounting_error:
             errors.append(route_cost_accounting_error)
+        errors.extend(
+            _route_option_cost_accounting_errors(
+                minimal_delta,
+                global_cost_rows_by_primitive=cost_rows_by_primitive,
+            )
+        )
     errors.extend(
         _minimal_delta_and_or_cost_graph_errors(
             minimal_delta,
@@ -9045,6 +9069,141 @@ def _route_cost_selected_primitive_accounting_error(
         return (
             "minimal_delta_plan.route_cost must equal the sum of selected "
             "primitive_costs total_cost values"
+        )
+    return ""
+
+
+def _route_option_cost_accounting_errors(
+    minimal_delta: Mapping[str, Any],
+    *,
+    global_cost_rows_by_primitive: Mapping[str, list[dict[str, object]]],
+) -> list[str]:
+    errors: list[str] = []
+    graph = _dict_value(minimal_delta, "and_or_cost_graph")
+    for option_index, option in enumerate(_dict_tuple(graph.get("route_options", []))):
+        route_cost = option.get("route_cost")
+        if not _is_nonnegative_number(route_cost):
+            continue
+        option_primitives = tuple(
+            dict.fromkeys(
+                primitive
+                for primitive in (
+                    _primitive_key(value)
+                    for value in _str_tuple(option.get("selected_primitives", []))
+                )
+                if primitive
+            )
+        )
+        if not option_primitives:
+            continue
+        option_cost_rows = _dict_tuple(option.get("primitive_costs", []))
+        if option_cost_rows:
+            cost_rows_by_primitive: dict[str, list[dict[str, object]]] = {}
+            for row_index, row in enumerate(option_cost_rows):
+                primitive = _primitive_key(row.get("primitive", ""))
+                if not primitive:
+                    errors.append(
+                        "minimal_delta_plan.and_or_cost_graph."
+                        f"route_options[{option_index}].primitive_costs"
+                        f"[{row_index}].primitive missing"
+                    )
+                    continue
+                cost_rows_by_primitive.setdefault(primitive, []).append(row)
+                if not _is_nonnegative_number(row.get("total_cost")):
+                    errors.append(
+                        "minimal_delta_plan.and_or_cost_graph."
+                        f"route_options[{option_index}].primitive_costs"
+                        f"[{row_index}].total_cost must be a nonnegative number"
+                    )
+                dimension_error = _primitive_cost_dimension_accounting_error(row)
+                if dimension_error:
+                    errors.append(
+                        "minimal_delta_plan.and_or_cost_graph."
+                        f"route_options[{option_index}].primitive_costs"
+                        f"[{row_index}].{dimension_error}"
+                    )
+                base_cost_policy_error = _primitive_cost_base_cost_policy_error(row)
+                if base_cost_policy_error:
+                    errors.append(
+                        "minimal_delta_plan.and_or_cost_graph."
+                        f"route_options[{option_index}].primitive_costs"
+                        f"[{row_index}].{base_cost_policy_error}"
+                    )
+                if not str(row.get("cost_rationale", "")).strip():
+                    errors.append(
+                        "minimal_delta_plan.and_or_cost_graph."
+                        f"route_options[{option_index}].primitive_costs"
+                        f"[{row_index}].cost_rationale missing"
+                    )
+            option_primitive_set = set(option_primitives)
+            unknown = sorted(set(cost_rows_by_primitive) - option_primitive_set)
+            if unknown:
+                errors.append(
+                    "minimal_delta_plan.and_or_cost_graph."
+                    f"route_options[{option_index}].primitive_costs reference "
+                    "primitives not selected by the route option: "
+                    + ", ".join(unknown[:8])
+                )
+            missing = sorted(option_primitive_set - set(cost_rows_by_primitive))
+            if missing:
+                errors.append(
+                    "minimal_delta_plan.and_or_cost_graph."
+                    f"route_options[{option_index}].primitive_costs missing "
+                    "route option primitives: "
+                    + ", ".join(missing[:8])
+                )
+            duplicate = sorted(
+                primitive
+                for primitive, rows in cost_rows_by_primitive.items()
+                if primitive in option_primitive_set and len(rows) != 1
+            )
+            if duplicate:
+                errors.append(
+                    "minimal_delta_plan.and_or_cost_graph."
+                    f"route_options[{option_index}].primitive_costs must contain "
+                    "exactly one row per route option primitive: "
+                    + ", ".join(duplicate[:8])
+                )
+        else:
+            cost_rows_by_primitive = {
+                primitive: list(rows)
+                for primitive, rows in global_cost_rows_by_primitive.items()
+            }
+        accounting_error = _route_option_cost_accounting_error(
+            route_cost,
+            option_primitives=option_primitives,
+            cost_rows_by_primitive=cost_rows_by_primitive,
+        )
+        if accounting_error:
+            errors.append(
+                "minimal_delta_plan.and_or_cost_graph."
+                f"route_options[{option_index}].route_cost "
+                + accounting_error
+            )
+    return errors
+
+
+def _route_option_cost_accounting_error(
+    route_cost: object,
+    *,
+    option_primitives: tuple[str, ...],
+    cost_rows_by_primitive: Mapping[str, list[dict[str, object]]],
+) -> str:
+    if not _is_nonnegative_number(route_cost) or not option_primitives:
+        return ""
+    option_rows: list[dict[str, object]] = []
+    for primitive in option_primitives:
+        rows = cost_rows_by_primitive.get(primitive, [])
+        if len(rows) != 1 or not _is_nonnegative_number(rows[0].get("total_cost")):
+            return ""
+        option_rows.append(rows[0])
+    primitive_total = sum(float(row.get("total_cost", 0) or 0) for row in option_rows)
+    if abs(primitive_total - float(route_cost)) > 1e-9:
+        return (
+            "must equal the sum of route option primitive_costs total_cost values "
+            f"(route_cost={float(route_cost):g}, primitive_total={primitive_total:g}); "
+            "add route_options[].primitive_costs when this option uses "
+            "route-specific primitive costs"
         )
     return ""
 
