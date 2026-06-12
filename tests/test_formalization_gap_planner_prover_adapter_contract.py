@@ -507,6 +507,105 @@ def test_prover_adapter_contract_rejects_kernel_claims_in_mapping_layer() -> Non
     assert "kernel_verified=true" in payload["response_validation_rows"][0]["errors"][0]
 
 
+def test_prover_adapter_contract_rejects_wrong_family_verifier_command() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_prover_adapter_contract_wrong_command"
+    )
+    plan_dir = root / "plan"
+    out_dir = root / "contract"
+    response_jsonl = root / "adapter_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
+                "portable_schema_id": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:wrong-command",
+                        "route_id": "route:wrong-command",
+                        "display_name": "wrong command target",
+                        "target_prover_family": "lean4",
+                        "route_alignment_edges": [
+                            {
+                                "source": "informal:demo",
+                                "target": "formal:demo",
+                                "kind": "aligned_to_formal_realization_candidate",
+                                "edge_type": "informal_to_formal_alignment",
+                                "primitive": "demo_primitive",
+                                "action_class": "bridge_lemma",
+                                "alignment_status": "bridge_delta",
+                                "proof_evidence_status": (
+                                    "GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_NOT_PROOF_EVIDENCE"
+                                ),
+                                "proof_evidence_boundary": "not theorem proof evidence",
+                            }
+                        ],
+                        "portable_work_packets": [
+                            {
+                                "primitive": "demo_primitive",
+                                "action_class": "bridge_lemma",
+                                "expected_cost": "small",
+                                "worker_packet_kind": "prove_bridge_lemma",
+                                "required_gate": "target prover kernel verification",
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    response_jsonl.write_text(
+        json.dumps(
+            {
+                "goal_plan_id": "goal:wrong-command",
+                "route_id": "route:wrong-command",
+                "primitive": "demo_primitive",
+                "target_prover_family": "isabelle",
+                "mapping_status": "ready_for_kernel_attempt",
+                "translated_statement": "theorem demo_primitive: True",
+                "translated_imports": ["Main"],
+                "verifier_command": "coqc WrongTarget.v",
+                "library_snapshot_ref": "isabelle_fixture",
+                "semantic_alignment_notes": (
+                    "The command intentionally names the wrong prover executable."
+                ),
+                "kernel_verified": False,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_prover_adapter_contract(
+        plan_dir,
+        out_dir,
+        target_prover_family="isabelle",
+        library_snapshot_ref="isabelle_fixture",
+        adapter_response_jsonl=response_jsonl,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    validation = payload["response_validation_rows"][0]
+    assert validation["acceptance_status"] == (
+        "REJECTED_PROVER_ADAPTER_MAPPING_CONTRACT"
+    )
+    assert any(
+        "verifier_command executable coqc is not compatible with "
+        "target_prover_family isabelle"
+        in error
+        for error in validation["errors"]
+    )
+    assert "target_prover_family" in prover_adapter_response_json_schema()[
+        "properties"
+    ]["verifier_command"]["description"]
+
+
 def test_prover_adapter_contract_rejects_unmatched_and_stale_responses() -> None:
     root = Path("runs/test_formalization_gap_planner_prover_adapter_contract_unmatched")
     plan_dir = root / "plan"

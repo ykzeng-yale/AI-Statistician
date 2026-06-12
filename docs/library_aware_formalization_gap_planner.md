@@ -1606,6 +1606,11 @@ existing reuse and missing formalization work. Prover-adapter packets preserve
 the relevant `route_alignment_edge` for each primitive, so a target-prover
 adapter can see which informal semantic atom and Lean realization candidate it
 is translating.
+Adapter responses must also name a verifier command compatible with the target
+family before a packet can be marked ready for kernel attempt: Lean4 responses
+use `lake`, `lean`, or `elan`; Rocq/Coq responses use `coqc`, `coqtop`, `rocq`,
+`rocqtop`, or `dune`; Isabelle responses use `isabelle`; and Agda responses use
+`agda`.
 
 Every run also writes
 `library_aware_formalization_gap_plan.schema.json` and
@@ -2023,7 +2028,9 @@ The current implementation composes four existing AI Statistician artifacts:
    and validation rows stay canonical (`rocq`, `isabelle`). Packet validation
    also checks that `standalone_input_trace.target_library_snapshot_ref` matches
    the packet library snapshot, so external replay does not silently use stale
-   target-library context. The reuse-smoke manifest
+   target-library context. Response validation also rejects verifier commands
+   whose executable does not match the target family, such as a Rocq `coqc`
+   command in an Isabelle adapter row. The reuse-smoke manifest
    exposes both schema files as top-level reusable artifacts. It rejects
    `kernel_verified=true` claims because proof promotion belongs to a separate
    target-prover replay/calibration gate.

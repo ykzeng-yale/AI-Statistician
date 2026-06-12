@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -42,6 +43,12 @@ PROOF_EVIDENCE_BOUNDARY = (
     "translated statement and proof with no placeholders."
 )
 PROVER_FAMILIES = ("lean4", "rocq", "isabelle", "agda", "other")
+PROVER_VERIFIER_COMMAND_EXECUTABLES = {
+    "lean4": ("lake", "lean", "elan"),
+    "rocq": ("coqc", "coqtop", "rocq", "rocqtop", "dune"),
+    "isabelle": ("isabelle",),
+    "agda": ("agda",),
+}
 PROVER_FAMILY_RESPONSE_VALUES = (
     "lean4",
     "lean",
@@ -641,7 +648,15 @@ def prover_adapter_response_json_schema() -> dict[str, object]:
                 "type": "array",
                 "items": {"type": "string"},
             },
-            "verifier_command": {"type": "string"},
+            "verifier_command": {
+                "type": "string",
+                "description": (
+                    "Target-prover replay command. The first executable must "
+                    "match target_prover_family: lean4 uses lake/lean/elan, "
+                    "rocq/coq uses coqc/coqtop/rocq/rocqtop/dune, isabelle "
+                    "uses isabelle, and agda uses agda."
+                ),
+            },
             "library_snapshot_ref": {"type": "string"},
             "semantic_alignment_notes": {"type": "string"},
             "residual_translation_gaps": {
@@ -1178,6 +1193,19 @@ def _validate_response(
         errors.append(
             f"library_snapshot_ref {library_snapshot_ref} does not match packet {packet.library_snapshot_ref}"
         )
+    if verifier_command and not _verifier_command_matches_target_prover(
+        verifier_command,
+        packet_target_key,
+    ):
+        executable = _verifier_command_executable(verifier_command) or "<unparseable>"
+        expected = ", ".join(
+            PROVER_VERIFIER_COMMAND_EXECUTABLES.get(packet_target_key, ())
+        )
+        suffix = f"; expected one of: {expected}" if expected else ""
+        errors.append(
+            f"verifier_command executable {executable} is not compatible with "
+            f"target_prover_family {packet.target_prover_family}{suffix}"
+        )
     if mapping_status not in MAPPING_STATUSES:
         errors.append(f"unsupported mapping_status: {mapping_status}")
     if "translated_imports" in response and not isinstance(
@@ -1336,6 +1364,62 @@ def _match_optional(
     expected = str(getattr(packet, field_name))
     if actual and actual != expected:
         errors.append(f"{field_name} mismatch: {actual} != {expected}")
+
+
+def _verifier_command_matches_target_prover(
+    command: str,
+    target_prover_family: str,
+) -> bool:
+    family = _normalize_prover_family(target_prover_family)
+    expected_executables = PROVER_VERIFIER_COMMAND_EXECUTABLES.get(family, ())
+    if not expected_executables:
+        return True
+    return _verifier_command_executable(command) in expected_executables
+
+
+def _verifier_command_executable(command: str) -> str:
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        executable = Path(token).name.lower()
+        if _looks_env_assignment(token):
+            index += 1
+            continue
+        if executable == "env":
+            index += 1
+            while index < len(tokens):
+                env_token = tokens[index]
+                if env_token == "--" or env_token.startswith("-"):
+                    index += 1
+                    continue
+                if _looks_env_assignment(env_token):
+                    index += 1
+                    continue
+                break
+            continue
+        if executable in {"timeout", "gtimeout"}:
+            index += 1
+            while index < len(tokens) and tokens[index].startswith("-"):
+                index += 1
+            if index < len(tokens) and re.match(
+                r"^\d+(\.\d+)?[smhd]?$",
+                tokens[index],
+            ):
+                index += 1
+            continue
+        if executable in {"command", "exec"}:
+            index += 1
+            continue
+        return executable
+    return ""
+
+
+def _looks_env_assignment(token: str) -> bool:
+    return bool(re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", token))
 
 
 def _schema_property_errors(
