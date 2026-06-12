@@ -1640,6 +1640,105 @@ def test_formalization_runtime_uses_deterministic_theorem_closure_when_memory_ex
     assert proposal_evidence.status == "WORK_ORDER_SEED_RECORDED_NOT_PROOF_EVIDENCE"
 
 
+def test_runtime_optional_theorem_closure_bridge_exports_next_run_memory_without_kernel_claim(
+    tmp_path: Path,
+) -> None:
+    out_dir = tmp_path / "runtime"
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+
+    developer = LLMTheoryDeveloperAgent(
+        provider=StaticArchitectLLMProvider(_runtime_sample_response()),
+        config=ResearchArchitectConfig(provider_name="static", model="static-theory-model"),
+    )
+    simulation_engineer = LLMSimulationEngineerAgent(
+        provider=StaticArchitectLLMProvider(_simulation_sample_response()),
+        config=SimulationEngineerConfig(provider_name="static", model="static-simulation-model"),
+    )
+    algorithm_engineer = LLMAlgorithmEngineerAgent(
+        provider=StaticArchitectLLMProvider(_algorithm_sample_response()),
+        config=AlgorithmEngineerConfig(provider_name="static", model="static-algorithm-model"),
+    )
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(_formalizer_sample_response()),
+        config=FormalizerConfig(provider_name="static", model="static-formalizer-model"),
+    )
+    critic_evaluator = LLMCriticEvaluatorAgent(
+        provider=StaticArchitectLLMProvider(_critic_sample_response()),
+        config=CriticEvaluatorConfig(provider_name="static", model="static-critic-model"),
+    )
+
+    manifest = run_research_agent_runtime(
+        [question],
+        out_dir,
+        theory_developer=developer,
+        simulation_engineer=simulation_engineer,
+        algorithm_engineer=algorithm_engineer,
+        formalizer=formalizer,
+        critic_evaluator=critic_evaluator,
+        proof_state_provider=LocalLeanProofStateFeedbackProvider(lean_command=("true",)),
+        architect_context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {
+                        "kernel_verified_proof_obligation_ids": verified_ids,
+                        "recommended_proof_obligation_ids": verified_ids,
+                    }
+                ],
+            }
+        },
+        config=ResearchAgentRuntimeConfig(
+            n_runs=40,
+            seed=20260528,
+            max_iterations=8,
+            theorem_closure_proofengineer_bridge=True,
+            theorem_closure_proofengineer_local_lean=False,
+        ),
+    )
+
+    assert manifest["n_runtime_theorem_reduction_closure_work_orders"] == 1
+    assert manifest["theorem_closure_proofengineer_bridge_requested"] is True
+    assert manifest["theorem_closure_proofengineer_bridge_ran"] is True
+    assert manifest["theorem_closure_proofengineer_bridge_runtime_learning_ready"] is False
+    assert manifest["theorem_closure_proofengineer_bridge_n_kernel_verified"] == 0
+    assert manifest["theorem_closure_proofengineer_bridge_proof_evidence_status"] == (
+        "NO_KERNEL_VERIFIED_THEOREM_CLOSURE"
+    )
+    assert manifest["n_kernel_verified_subclaims"] == 0
+    assert "does not retroactively prove the current run" in manifest[
+        "theorem_closure_proofengineer_bridge_boundary"
+    ]
+
+    bridge_manifest_path = Path(
+        manifest["artifacts"][
+            "runtime_theorem_reduction_closure_proofengineer_bridge_manifest"
+        ]
+    )
+    learning_path = Path(
+        manifest["artifacts"][
+            "runtime_theorem_reduction_closure_proofengineer_learning_rows_jsonl"
+        ]
+    )
+    bridge_manifest = json.loads(bridge_manifest_path.read_text(encoding="utf-8"))
+    learning_rows = [
+        json.loads(line)
+        for line in learning_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert bridge_manifest["n_work_orders"] == 1
+    assert bridge_manifest["n_kernel_verified"] == 0
+    assert bridge_manifest["runtime_learning_ready"] is False
+    assert "not proof evidence unless" in bridge_manifest["boundary"]
+    assert len(learning_rows) == 1
+    assert learning_rows[0]["kernel_verified_theorem_reduction_closure_work_order_ids"] == []
+    assert "routing guidance" in learning_rows[0]["boundary"]
+
+
 def test_runtime_theorem_closure_queue_backfills_prior_formalizer_artifacts() -> None:
     proposal = dict(_formalizer_sample_response())
     proposal.update(

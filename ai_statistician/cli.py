@@ -326,6 +326,13 @@ from .release import ReleaseBundleConfig, build_release_bundle
 from .theorem_reduction_closure_work_order_audit import (
     audit_theorem_reduction_closure_work_orders,
 )
+from .theorem_reduction_closure_learning_export import (
+    export_theorem_reduction_closure_learning_from_manifest,
+)
+from .theorem_reduction_closure_proofengineer_bridge import (
+    resolve_theorem_reduction_queue_path,
+    run_theorem_reduction_closure_proofengineer_bridge,
+)
 from .research_evaluation import ResearchEvalConfig, run_research_seed_eval
 from .research_gap_audit import audit_research_gap_backlog
 from .research_intake_audit import audit_research_question_intake
@@ -532,98 +539,11 @@ def _export_theorem_reduction_closure_learning_from_manifest(
     out_dir: Path,
     question_id: str = "",
 ) -> dict[str, object]:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    checks = payload.get("checks", [])
-    if not isinstance(checks, list):
-        raise ValueError(
-            "theorem reduction closure audit manifest checks is not a list: "
-            f"{manifest_path}"
-        )
-    verified_checks = [
-        row
-        for row in checks
-        if isinstance(row, Mapping) and row.get("kernel_verified") is True
-    ]
-    work_order_ids = [
-        str(row.get("work_order_id", "")).strip()
-        for row in verified_checks
-        if str(row.get("work_order_id", "")).strip()
-    ]
-    target_ids = [
-        str(row.get("source_formal_target_id", "")).strip()
-        for row in verified_checks
-        if str(row.get("source_formal_target_id", "")).strip()
-    ]
-    goal_ids: list[str] = []
-    bridge_ids: list[str] = []
-    for row in verified_checks:
-        for goal_id in row.get("target_theorem_goal_ids", []) or []:
-            text = str(goal_id).strip()
-            if text and text not in goal_ids:
-                goal_ids.append(text)
-        for obligation_id in row.get("verified_bridge_obligation_ids", []) or []:
-            text = str(obligation_id).strip()
-            if text and text not in bridge_ids:
-                bridge_ids.append(text)
-    work_order_ids = list(dict.fromkeys(work_order_ids))
-    target_ids = list(dict.fromkeys(target_ids))
-    row = {
-        "schema_version": 1,
-        "question_id": str(question_id or ""),
-        "learning_task": "theorem_reduction_closure_kernel_overlay",
-        "input_summary": {
-            "theorem_reduction_closure_audit_manifest": str(manifest_path),
-            "kernel_verified_theorem_reduction_closure_work_order_ids": work_order_ids,
-            "kernel_verified_theorem_reduction_closure_target_ids": target_ids,
-            "kernel_verified_theorem_reduction_closure_goal_ids": goal_ids,
-            "verified_bridge_obligation_ids": bridge_ids,
-            "proof_evidence_status": str(payload.get("proof_evidence_status", "")),
-            "local_lean_project": str(payload.get("local_lean_project", "")),
-            "local_lean_timeout_seconds": payload.get("local_lean_timeout_seconds", ""),
-        },
-        "kernel_verified_theorem_reduction_closure_work_order_ids": work_order_ids,
-        "kernel_verified_theorem_reduction_closure_target_ids": target_ids,
-        "kernel_verified_theorem_reduction_closure_goal_ids": goal_ids,
-        "verified_bridge_obligation_ids": bridge_ids,
-        "target_behavior": (
-            "Treat listed theorem-reduction closure work orders as already kernel-verified "
-            "theorem-level reductions for routing memory. Do not treat them as full source "
-            "theorem proof, and do not add their bridge ids as newly proved proof-bank subclaims."
-        ),
-        "acceptance_gate": (
-            "Only checks with kernel_verified=true from the referenced "
-            "theorem_reduction_closure_work_order_audit_manifest are exported."
-        ),
-        "boundary": (
-            "Theorem-closure learning rows are runtime memory and routing guidance. "
-            "They preserve the referenced local Lean/AXLE audit manifest as proof evidence "
-            "for the closure reduction only; they do not prove upstream statistical semantics "
-            "or the full paper/source theorem."
-        ),
-    }
-    learning_path = out_dir / "runtime_learning_rows.jsonl"
-    learning_path.write_text(json.dumps(row, default=str) + "\n", encoding="utf-8")
-    export_manifest = {
-        "schema_version": 1,
-        "artifact_kind": "TheoremReductionClosureRuntimeLearningExportManifest",
-        "theorem_reduction_closure_audit_manifest": str(manifest_path),
-        "runtime_learning_rows_jsonl": str(learning_path),
-        "n_kernel_verified_theorem_reduction_closure_work_order_ids": len(work_order_ids),
-        "kernel_verified_theorem_reduction_closure_work_order_ids": work_order_ids,
-        "kernel_verified_theorem_reduction_closure_target_ids": target_ids,
-        "kernel_verified_theorem_reduction_closure_goal_ids": goal_ids,
-        "verified_bridge_obligation_ids": bridge_ids,
-        "boundary": row["boundary"],
-    }
-    manifest_out = out_dir / "theorem_reduction_closure_runtime_learning_export_manifest.json"
-    manifest_out.write_text(json.dumps(export_manifest, indent=2, default=str), encoding="utf-8")
-    return {
-        "row": row,
-        "export_manifest": export_manifest,
-        "runtime_learning_rows_jsonl": learning_path,
-        "export_manifest_path": manifest_out,
-    }
+    return export_theorem_reduction_closure_learning_from_manifest(
+        manifest_path=manifest_path,
+        out_dir=out_dir,
+        question_id=question_id,
+    )
 
 
 def _theorem_reduction_closure_learning_export(args: argparse.Namespace) -> int:
@@ -1097,74 +1017,17 @@ def _theorem_reduction_closure_work_order_audit(args: argparse.Namespace) -> int
 
 def _theorem_reduction_closure_proofengineer_bridge(args: argparse.Namespace) -> int:
     out_dir = Path(args.out)
-    audit_dir = out_dir / "proofengineer_audit"
-    learning_dir = out_dir / "runtime_learning_export"
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    queue_path = _resolve_theorem_reduction_queue_path(args)
-    audit_payload = audit_theorem_reduction_closure_work_orders(
-        queue_path,
-        audit_dir,
-        run_local_lean=args.local_lean,
-        lean_project=Path(args.lean_project) if args.lean_project else None,
-        lean_timeout_seconds=args.lean_timeout,
-    )
-    audit_manifest_path = audit_dir / "theorem_reduction_closure_work_order_audit_manifest.json"
-    learning_result = _export_theorem_reduction_closure_learning_from_manifest(
-        manifest_path=audit_manifest_path,
-        out_dir=learning_dir,
+    bridge_manifest = run_theorem_reduction_closure_proofengineer_bridge(
+        out_dir=out_dir,
+        runtime_dir=Path(args.runtime_dir) if args.runtime_dir else None,
+        queue_jsonl=Path(args.queue_jsonl) if args.queue_jsonl else None,
         question_id=str(args.question_id or ""),
+        local_lean=bool(args.local_lean),
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout=int(args.lean_timeout),
     )
-    learning_export_manifest = learning_result["export_manifest"]
-    n_verified = int(audit_payload.get("n_kernel_verified", 0) or 0)
-    bridge_manifest = {
-        "schema_version": 1,
-        "artifact_kind": "TheoremReductionClosureProofEngineerBridgeManifest",
-        "source_runtime_dir": str(args.runtime_dir or ""),
-        "source_queue_jsonl": str(queue_path),
-        "audit_manifest": str(audit_manifest_path),
-        "runtime_learning_rows_jsonl": str(learning_result["runtime_learning_rows_jsonl"]),
-        "runtime_learning_export_manifest": str(learning_result["export_manifest_path"]),
-        "local_lean_requested": bool(args.local_lean),
-        "n_work_orders": int(audit_payload.get("n_work_orders", 0) or 0),
-        "n_kernel_verified": n_verified,
-        "runtime_learning_ready": n_verified > 0,
-        "proof_evidence_status": str(audit_payload.get("proof_evidence_status", "")),
-        "n_kernel_verified_theorem_reduction_closure_work_order_ids": int(
-            learning_export_manifest[
-                "n_kernel_verified_theorem_reduction_closure_work_order_ids"
-            ]
-        ),
-        "kernel_verified_theorem_reduction_closure_work_order_ids": list(
-            learning_export_manifest[
-                "kernel_verified_theorem_reduction_closure_work_order_ids"
-            ]
-        ),
-        "kernel_verified_theorem_reduction_closure_target_ids": list(
-            learning_export_manifest[
-                "kernel_verified_theorem_reduction_closure_target_ids"
-            ]
-        ),
-        "kernel_verified_theorem_reduction_closure_goal_ids": list(
-            learning_export_manifest[
-                "kernel_verified_theorem_reduction_closure_goal_ids"
-            ]
-        ),
-        "verified_bridge_obligation_ids": list(
-            learning_export_manifest["verified_bridge_obligation_ids"]
-        ),
-        "boundary": (
-            "This bridge composes theorem-reduction closure work-order audit and "
-            "runtime-learning export for the ProofEngineer loop. It is not proof "
-            "evidence unless the referenced audit manifest has kernel_verified=true "
-            "rows from local Lean/AXLE. Runtime learning rows are routing memory only."
-        ),
-    }
+    audit_manifest_path = Path(str(bridge_manifest["audit_manifest"]))
     bridge_manifest_path = out_dir / "theorem_reduction_closure_proofengineer_bridge_manifest.json"
-    bridge_manifest_path.write_text(
-        json.dumps(bridge_manifest, indent=2, default=str),
-        encoding="utf-8",
-    )
     print("\nAI Statistician Theorem-Reduction Closure ProofEngineer Bridge")
     print("=" * 72)
     print(
@@ -1182,32 +1045,10 @@ def _theorem_reduction_closure_proofengineer_bridge(args: argparse.Namespace) ->
 
 
 def _resolve_theorem_reduction_queue_path(args: argparse.Namespace) -> Path:
-    if args.queue_jsonl:
-        return Path(args.queue_jsonl)
-    runtime_dir = Path(args.runtime_dir)
-    manifest_path = runtime_dir / "research_agent_runtime_manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    artifacts = manifest.get("artifacts", {})
-    if not isinstance(artifacts, Mapping):
-        artifacts = {}
-    raw_path = str(artifacts.get("runtime_theorem_reduction_closure_work_orders_jsonl", "") or "")
-    if not raw_path:
-        raise ValueError(
-            "runtime manifest does not list runtime_theorem_reduction_closure_work_orders_jsonl"
-        )
-    queue_path = Path(raw_path)
-    if queue_path.is_absolute() or queue_path.exists():
-        return queue_path
-    candidates = [runtime_dir / queue_path]
-    parts = queue_path.parts
-    if len(parts) >= 2 and parts[0] == runtime_dir.parent.name:
-        candidates.append(runtime_dir.parent.parent / queue_path)
-    if parts and parts[0] == runtime_dir.name:
-        candidates.append(runtime_dir.parent / queue_path)
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return candidates[0]
+    return resolve_theorem_reduction_queue_path(
+        runtime_dir=Path(args.runtime_dir) if args.runtime_dir else None,
+        queue_jsonl=Path(args.queue_jsonl) if args.queue_jsonl else None,
+    )
 
 
 def _algorithm_audit(args: argparse.Namespace) -> int:
@@ -6412,6 +6253,18 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 if getattr(args, "capability_eval", False)
                 else "debug"
             ),
+            theorem_closure_proofengineer_bridge=bool(
+                getattr(args, "theorem_closure_proofengineer_bridge", False)
+            ),
+            theorem_closure_proofengineer_local_lean=bool(
+                getattr(args, "theorem_closure_proofengineer_local_lean", False)
+            ),
+            theorem_closure_proofengineer_lean_project=str(
+                getattr(args, "theorem_closure_proofengineer_lean_project", "") or ""
+            ),
+            theorem_closure_proofengineer_lean_timeout=int(
+                getattr(args, "theorem_closure_proofengineer_lean_timeout", 240)
+            ),
         ),
     )
     print("\nAI Statistician Agent Runtime")
@@ -11219,6 +11072,33 @@ def build_parser() -> argparse.ArgumentParser:
     research_agent_runtime.add_argument("--local-lean", action="store_true", help="use local lake env lean kernel verification for registered proof-bank subclaims")
     research_agent_runtime.add_argument("--lean-project", default="", help="local Lake project used by --local-lean")
     research_agent_runtime.add_argument("--lean-timeout", type=int, default=90, help="timeout seconds for each local Lean check")
+    research_agent_runtime.add_argument(
+        "--theorem-closure-proofengineer-bridge",
+        action="store_true",
+        help=(
+            "after the runtime loop emits theorem-reduction closure work orders, "
+            "run the ProofEngineer bridge and export separate learning rows for a later run"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--theorem-closure-proofengineer-local-lean",
+        action="store_true",
+        help=(
+            "when the theorem-closure ProofEngineer bridge is enabled, run local "
+            "lake env lean; only kernel-verified closure rows become proof evidence"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--theorem-closure-proofengineer-lean-project",
+        default="",
+        help="local Lake project used by --theorem-closure-proofengineer-local-lean",
+    )
+    research_agent_runtime.add_argument(
+        "--theorem-closure-proofengineer-lean-timeout",
+        type=int,
+        default=240,
+        help="timeout seconds for each theorem-closure local Lean check",
+    )
     research_agent_runtime.add_argument(
         "--proof-obligation-id",
         action="append",

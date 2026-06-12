@@ -85,6 +85,9 @@ from .simulation_engineer_llm import (
     SIMULATION_ENGINEER_BOUNDARY,
     SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE,
 )
+from .theorem_reduction_closure_proofengineer_bridge import (
+    run_theorem_reduction_closure_proofengineer_bridge,
+)
 from .verifier import ProofVerifier
 
 
@@ -117,6 +120,10 @@ class ResearchAgentRuntimeConfig:
     max_proof_obligations: int = 0
     llm_timeout_seconds: float = DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS
     evaluation_mode: str = "debug"
+    theorem_closure_proofengineer_bridge: bool = False
+    theorem_closure_proofengineer_local_lean: bool = False
+    theorem_closure_proofengineer_lean_project: str = ""
+    theorem_closure_proofengineer_lean_timeout: int = 240
 
 
 class ArchitectCoordinatorRuntimeSubsystem:
@@ -1940,6 +1947,23 @@ def run_research_agent_runtime(
         theorem_reduction_closure_work_orders_path,
         theorem_reduction_closure_work_order_rows,
     )
+    theorem_closure_bridge_manifest: dict[str, Any] | None = None
+    if (
+        config.theorem_closure_proofengineer_bridge
+        and theorem_reduction_closure_work_order_rows
+    ):
+        theorem_closure_bridge_manifest = run_theorem_reduction_closure_proofengineer_bridge(
+            out_dir=out_dir / "runtime_theorem_reduction_closure_proofengineer_bridge",
+            queue_jsonl=theorem_reduction_closure_work_orders_path,
+            question_id=questions[0].id if len(questions) == 1 else "",
+            local_lean=config.theorem_closure_proofengineer_local_lean,
+            lean_project=(
+                Path(config.theorem_closure_proofengineer_lean_project)
+                if config.theorem_closure_proofengineer_lean_project
+                else None
+            ),
+            lean_timeout=config.theorem_closure_proofengineer_lean_timeout,
+        )
     _write_runtime_formalization_gap_planner_seed_files(
         gap_planner_bridge_rows,
         seed_dir=gap_planner_seed_dir,
@@ -1959,6 +1983,20 @@ def run_research_agent_runtime(
     manifest["artifacts"]["runtime_theorem_reduction_closure_work_orders_jsonl"] = str(
         theorem_reduction_closure_work_orders_path
     )
+    if theorem_closure_bridge_manifest is not None:
+        manifest["artifacts"][
+            "runtime_theorem_reduction_closure_proofengineer_bridge_manifest"
+        ] = str(
+            out_dir
+            / "runtime_theorem_reduction_closure_proofengineer_bridge"
+            / "theorem_reduction_closure_proofengineer_bridge_manifest.json"
+        )
+        manifest["artifacts"][
+            "runtime_theorem_reduction_closure_proofengineer_learning_rows_jsonl"
+        ] = str(theorem_closure_bridge_manifest["runtime_learning_rows_jsonl"])
+        manifest["artifacts"][
+            "runtime_theorem_reduction_closure_proofengineer_audit_manifest"
+        ] = str(theorem_closure_bridge_manifest["audit_manifest"])
     manifest["artifacts"]["runtime_formalization_gap_planner_bridges_jsonl"] = str(
         gap_planner_bridges_path
     )
@@ -1975,6 +2013,42 @@ def run_research_agent_runtime(
     manifest["n_runtime_learning_rows"] = len(learning_rows)
     manifest["n_runtime_theorem_reduction_closure_work_orders"] = len(
         theorem_reduction_closure_work_order_rows
+    )
+    manifest["theorem_closure_proofengineer_bridge_requested"] = bool(
+        config.theorem_closure_proofengineer_bridge
+    )
+    manifest["theorem_closure_proofengineer_bridge_ran"] = (
+        theorem_closure_bridge_manifest is not None
+    )
+    manifest["theorem_closure_proofengineer_bridge_skipped_reason"] = (
+        ""
+        if theorem_closure_bridge_manifest is not None
+        else (
+            "bridge_disabled"
+            if not config.theorem_closure_proofengineer_bridge
+            else "no_theorem_reduction_closure_work_orders"
+        )
+    )
+    manifest["theorem_closure_proofengineer_bridge_runtime_learning_ready"] = bool(
+        theorem_closure_bridge_manifest
+        and theorem_closure_bridge_manifest.get("runtime_learning_ready") is True
+    )
+    manifest["theorem_closure_proofengineer_bridge_n_kernel_verified"] = int(
+        theorem_closure_bridge_manifest.get("n_kernel_verified", 0)
+        if theorem_closure_bridge_manifest
+        else 0
+    )
+    manifest["theorem_closure_proofengineer_bridge_proof_evidence_status"] = str(
+        theorem_closure_bridge_manifest.get("proof_evidence_status", "")
+        if theorem_closure_bridge_manifest
+        else ""
+    )
+    manifest["theorem_closure_proofengineer_bridge_boundary"] = (
+        "The runtime theorem-closure ProofEngineer bridge consumes emitted "
+        "work orders after the current runtime loop and exports separate "
+        "runtime-learning rows for a later run. It does not retroactively "
+        "prove the current run, and it is proof evidence only for closure "
+        "rows whose referenced audit manifest has kernel_verified=true."
     )
     manifest["n_runtime_formalization_gap_planner_bridges"] = len(
         gap_planner_bridge_rows
