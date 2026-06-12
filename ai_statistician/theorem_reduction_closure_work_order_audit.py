@@ -35,6 +35,8 @@ def audit_theorem_reduction_closure_work_orders(
     optionally run `lake env lean` as the trusted kernel gate.
     """
 
+    out_dir = out_dir.expanduser().resolve()
+    queue_jsonl = queue_jsonl.expanduser().resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     lean_export_dir = out_dir / "lean_statement_sketches"
     lean_export_dir.mkdir(parents=True, exist_ok=True)
@@ -126,7 +128,7 @@ def _audit_one_work_order(
         check["errors"] = ["work order has no lean_statement_sketch"]
         return check
 
-    lean_export_path = lean_export_dir / f"{_safe_filename(work_order_id)}.lean"
+    lean_export_path = (lean_export_dir / f"{_safe_filename(work_order_id)}.lean").resolve()
     lean_export_path.write_text(_lean_export_content(row, lean_statement_sketch), encoding="utf-8")
     check["lean_export_path"] = str(lean_export_path)
 
@@ -159,7 +161,7 @@ def _audit_one_work_order(
     check["local_lean_attempted"] = True
     try:
         completed = subprocess.run(
-            ["lake", "env", "lean", str(lean_export_path)],
+            ["lake", "env", "lean", str(lean_export_path.resolve())],
             cwd=str(lean_project),
             capture_output=True,
             text=True,
