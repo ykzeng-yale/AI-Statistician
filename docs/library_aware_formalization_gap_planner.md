@@ -397,7 +397,9 @@ Each primitive cost row must use a `coverage_bucket` listed in
 equal to that published bucket cost. That bucket/base cost also cannot be
 cheaper than the explicit `coverage_bucket`, `coverage_status`, or
 `formalization_action` markers on the matching formal-realization nodes or
-standalone-route primitives. The top-level `selected_primitives` list must be
+standalone-route primitives. Every primitive used by either the top-level
+`selected_primitives` list or any route option must have exactly one
+`primitive_costs` witness row. The top-level `selected_primitives` list must be
 duplicate-free. The plan must also include an `and_or_cost_graph` with
 enumerated route options with unique `route_option_id` values and duplicate-free
 `selected_primitives`, a `selected_route_option_id` naming one enumerated route

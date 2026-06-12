@@ -8807,6 +8807,17 @@ def _llm_row_minimal_delta_cost_errors(
                 "row minimal_delta_plan.primitive_costs missing selected primitives: "
                 + ", ".join(missing[:8])
             )
+        route_option_primitives = _llm_minimal_delta_route_option_primitive_keys(
+            minimal_delta
+        )
+        missing_route_option_cost_rows = sorted(
+            route_option_primitives - set(cost_rows_by_primitive)
+        )
+        if missing_route_option_cost_rows:
+            errors.append(
+                "row minimal_delta_plan.primitive_costs missing route option primitives: "
+                + ", ".join(missing_route_option_cost_rows[:8])
+            )
         duplicate = sorted(
             primitive
             for primitive in selected
@@ -8816,6 +8827,16 @@ def _llm_row_minimal_delta_cost_errors(
             errors.append(
                 "row minimal_delta_plan.primitive_costs must contain exactly one row per selected primitive: "
                 + ", ".join(duplicate[:8])
+            )
+        duplicate_route_option_cost_rows = sorted(
+            primitive
+            for primitive, rows in cost_rows_by_primitive.items()
+            if primitive in route_option_primitives and len(rows) != 1
+        )
+        if duplicate_route_option_cost_rows:
+            errors.append(
+                "row minimal_delta_plan.primitive_costs must contain exactly one row per route option primitive: "
+                + ", ".join(duplicate_route_option_cost_rows[:8])
             )
         route_cost_error = _llm_row_route_cost_selected_primitive_error(
             minimal_delta,
@@ -8837,6 +8858,23 @@ def _llm_row_minimal_delta_cost_errors(
         )
     )
     return tuple(errors)
+
+
+def _llm_minimal_delta_route_option_primitive_keys(
+    minimal_delta: Mapping[str, Any],
+) -> set[str]:
+    graph = _dict_value(minimal_delta, "and_or_cost_graph")
+    primitives: set[str] = set()
+    for option in _dict_tuple(graph.get("route_options", [])):
+        primitives.update(
+            primitive
+            for primitive in (
+                _llm_primitive_key(value)
+                for value in _str_tuple(option.get("selected_primitives", []))
+            )
+            if primitive
+        )
+    return primitives
 
 
 def _llm_row_primitive_cost_dimension_error(cost_row: dict[str, object]) -> str:

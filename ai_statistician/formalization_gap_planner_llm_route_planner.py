@@ -5958,7 +5958,7 @@ def _user_prompt(
             "Use minimal_delta_cost_policy as the AND/OR graph cost surface; pick the route with the lowest current formalization delta cost.",
             "When context_packet.minimal_delta_cost_hints is present, use primitive_cost_hints as lower-bound coverage evidence and do not choose route options cheaper than their minimum_route_base_cost.",
             "If the selected route omits any primitive from context_packet.minimal_delta_cost_hints.route_option_hints, and_or_cost_graph.route_options must still enumerate that baseline primitive set with route_cost at least minimum_route_base_cost.",
-            "Every selected primitive must have exactly one primitive_costs row with base_cost, proof_difficulty_cost, import_cone_cost, definition_or_typeclass_cost, semantic_risk_cost, reuse_credit, total_cost, and cost_rationale.",
+            "Every primitive used by selected_primitives or any and_or_cost_graph route option must have exactly one primitive_costs row with base_cost, proof_difficulty_cost, import_cone_cost, definition_or_typeclass_cost, semantic_risk_cost, reuse_credit, total_cost, and cost_rationale.",
             "Every primitive_costs coverage_bucket must be listed in minimal_delta_cost_policy.coverage_bucket_base_cost, and base_cost must equal that bucket base cost.",
             "A primitive_costs coverage_bucket/base_cost must not be cheaper than the explicit coverage_bucket, coverage_status, or formalization_action markers on the corresponding formal_realization_dag_nodes or standalone_route.primitives.",
             "Every primitive_costs row must satisfy total_cost = base_cost + proof_difficulty_cost + import_cone_cost + definition_or_typeclass_cost + semantic_risk_cost - reuse_credit; route_cost must equal the sum of selected primitive total_cost values.",
@@ -8884,6 +8884,17 @@ def _minimal_delta_cost_witness_errors(
                 "minimal_delta_plan.primitive_costs missing selected primitives: "
                 + ", ".join(missing_cost_rows)
             )
+        route_option_primitives = _minimal_delta_route_option_primitive_keys(
+            minimal_delta
+        )
+        missing_route_option_cost_rows = sorted(
+            route_option_primitives - set(cost_rows_by_primitive)
+        )
+        if missing_route_option_cost_rows:
+            errors.append(
+                "minimal_delta_plan.primitive_costs missing route option primitives: "
+                + ", ".join(missing_route_option_cost_rows[:8])
+            )
         duplicate_cost_rows = sorted(
             primitive
             for primitive, rows in cost_rows_by_primitive.items()
@@ -8893,6 +8904,16 @@ def _minimal_delta_cost_witness_errors(
             errors.append(
                 "minimal_delta_plan.primitive_costs must contain exactly one row per selected primitive: "
                 + ", ".join(duplicate_cost_rows)
+            )
+        duplicate_route_option_cost_rows = sorted(
+            primitive
+            for primitive, rows in cost_rows_by_primitive.items()
+            if primitive in route_option_primitives and len(rows) != 1
+        )
+        if duplicate_route_option_cost_rows:
+            errors.append(
+                "minimal_delta_plan.primitive_costs must contain exactly one row per route option primitive: "
+                + ", ".join(duplicate_route_option_cost_rows[:8])
             )
         route_cost_accounting_error = _route_cost_selected_primitive_accounting_error(
             minimal_delta,
@@ -8908,6 +8929,23 @@ def _minimal_delta_cost_witness_errors(
         )
     )
     return errors
+
+
+def _minimal_delta_route_option_primitive_keys(
+    minimal_delta: Mapping[str, Any],
+) -> set[str]:
+    graph = _dict_value(minimal_delta, "and_or_cost_graph")
+    primitives: set[str] = set()
+    for option in _dict_tuple(graph.get("route_options", [])):
+        primitives.update(
+            primitive
+            for primitive in (
+                _primitive_key(value)
+                for value in _str_tuple(option.get("selected_primitives", []))
+            )
+            if primitive
+        )
+    return primitives
 
 
 def _primitive_cost_base_cost_policy_error(

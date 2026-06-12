@@ -535,6 +535,39 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
                             "reuse_credit": 0,
                             "total_cost": 4,
                             "cost_rationale": "The reviewed route adds one focused bridge lemma.",
+                        },
+                        {
+                            "primitive": (
+                                "a_source_backed_rank_uniformity_bridge_closes_the"
+                            ),
+                            "coverage_bucket": "unknown",
+                            "base_cost": 20,
+                            "proof_difficulty_cost": 0,
+                            "import_cone_cost": 0,
+                            "definition_or_typeclass_cost": 0,
+                            "semantic_risk_cost": 0,
+                            "reuse_credit": 0,
+                            "total_cost": 20,
+                            "cost_rationale": (
+                                "Baseline alternative retains a request-derived "
+                                "primitive not selected by the minimal route."
+                            ),
+                        },
+                        {
+                            "primitive": "uniform_bound",
+                            "coverage_bucket": "unknown",
+                            "base_cost": 20,
+                            "proof_difficulty_cost": 0,
+                            "import_cone_cost": 0,
+                            "definition_or_typeclass_cost": 0,
+                            "semantic_risk_cost": 0,
+                            "reuse_credit": 0,
+                            "total_cost": 20,
+                            "cost_rationale": (
+                                "Baseline alternative retains a request-derived "
+                                "uniform-bound primitive not selected by the "
+                                "minimal route."
+                            ),
                         }
                     ],
                     "new_definitions": [],
@@ -8052,6 +8085,46 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert any(
         "cost dimension fields missing: reuse_credit" in error
         for error in cost_dimension_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    route_option_cost_witness_rows = json.loads(json.dumps(rows))
+    route_option_cost_witness_graph = route_option_cost_witness_rows[0][
+        "minimal_delta_plan"
+    ]["and_or_cost_graph"]
+    route_option_cost_witness_graph["route_options"][1][
+        "selected_primitives"
+    ].append("rank_order_statistic")
+    route_option_cost_witness_graph["and_edges"][1]["requires"].append(
+        "rank_order_statistic"
+    )
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True) for row in route_option_cost_witness_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_route_option_cost_witness_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_route_option_primitive_without_cost_row",
+        )
+    )
+    route_option_cost_witness_checks = [
+        row
+        for row in rejected_route_option_cost_witness_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert route_option_cost_witness_checks
+    assert not route_option_cost_witness_checks[0]["ok"]
+    assert any(
+        "primitive_costs missing route option primitives" in error
+        and "rank_order_statistic" in error
+        for error in route_option_cost_witness_checks[0]["errors"]
     )
     rows_path.write_text(
         "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
