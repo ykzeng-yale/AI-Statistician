@@ -157,6 +157,9 @@ CONTEXT_PACKET_INVENTORY_KIND = (
 ROUTE_PLANNING_BRIEF_KIND = (
     "formalization_gap_planner_llm_route_planner_route_planning_brief"
 )
+LIBRARY_ALIGNMENT_SUMMARY_KIND = (
+    "formalization_gap_planner_llm_route_planner_library_alignment_summary"
+)
 CONTEXT_PACKET_ROW_FIELDS = (
     "target_intake_rows",
     "library_coverage_rows",
@@ -915,6 +918,19 @@ def export_formalization_gap_planner_llm_route_planner(
             _dict_value(packet, "llm_generation_policy")
         )
     ]
+    library_alignment_summaries = tuple(
+        _request_library_alignment_summary(packet) for packet in request_packets
+    )
+    by_library_delta_class = Counter(
+        str(row.get("library_delta_class", "") or "unknown")
+        for summary in library_alignment_summaries
+        for row in _dict_tuple(summary.get("primitive_alignment", []))
+    )
+    by_library_minimum_coverage_bucket = Counter(
+        str(row.get("minimum_coverage_bucket", "") or "unknown")
+        for summary in library_alignment_summaries
+        for row in _dict_tuple(summary.get("primitive_alignment", []))
+    )
     request_model_tier_mismatches = _request_model_tier_mismatches(request_packets)
     request_schema = llm_route_planner_request_json_schema()
     response_payload_schema = llm_route_planner_response_payload_schema()
@@ -1055,6 +1071,48 @@ def export_formalization_gap_planner_llm_route_planner(
                 )
             )
             for packet in request_packets
+        ),
+        "n_requests_with_library_alignment_summary": sum(
+            1 for summary in library_alignment_summaries if summary
+        ),
+        "n_request_library_alignment_primitives": sum(
+            int(summary.get("n_primitives", 0) or 0)
+            for summary in library_alignment_summaries
+        ),
+        "n_request_library_alignment_reuse_ready_primitives": (
+            by_library_delta_class.get("reuse_ready", 0)
+        ),
+        "n_request_library_alignment_wrapper_primitives": (
+            by_library_delta_class.get("wrapper", 0)
+        ),
+        "n_request_library_alignment_bridge_primitives": (
+            by_library_delta_class.get("bridge", 0)
+        ),
+        "n_request_library_alignment_source_port_primitives": (
+            by_library_delta_class.get("source_port", 0)
+        ),
+        "n_request_library_alignment_new_definition_primitives": (
+            by_library_delta_class.get("new_definition", 0)
+        ),
+        "n_request_library_alignment_new_theory_primitives": (
+            by_library_delta_class.get("new_theory", 0)
+        ),
+        "n_request_library_alignment_unknown_primitives": (
+            by_library_delta_class.get("unknown", 0)
+        ),
+        "n_request_library_alignment_bridge_or_harder_primitives": sum(
+            int(summary.get("n_bridge_or_harder_primitives", 0) or 0)
+            for summary in library_alignment_summaries
+        ),
+        "n_request_library_alignment_target_compatible_reuse_declarations": sum(
+            int(summary.get("n_target_compatible_reuse_declarations", 0) or 0)
+            for summary in library_alignment_summaries
+        ),
+        "by_request_library_alignment_delta_class": dict(
+            sorted(by_library_delta_class.items())
+        ),
+        "by_request_library_alignment_minimum_coverage_bucket": dict(
+            sorted(by_library_minimum_coverage_bucket.items())
         ),
         "n_requests_with_legacy_context_field_aliases": sum(
             1
@@ -2372,6 +2430,19 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_route_planning_brief",
             "n_request_route_planning_focus_rows",
             "n_request_route_planning_evidence_gaps",
+            "n_requests_with_library_alignment_summary",
+            "n_request_library_alignment_primitives",
+            "n_request_library_alignment_reuse_ready_primitives",
+            "n_request_library_alignment_wrapper_primitives",
+            "n_request_library_alignment_bridge_primitives",
+            "n_request_library_alignment_source_port_primitives",
+            "n_request_library_alignment_new_definition_primitives",
+            "n_request_library_alignment_new_theory_primitives",
+            "n_request_library_alignment_unknown_primitives",
+            "n_request_library_alignment_bridge_or_harder_primitives",
+            "n_request_library_alignment_target_compatible_reuse_declarations",
+            "by_request_library_alignment_delta_class",
+            "by_request_library_alignment_minimum_coverage_bucket",
             "n_requests_with_legacy_context_field_aliases",
             "n_request_model_tier_haiku",
             "n_request_model_tier_sonnet",
@@ -2499,6 +2570,29 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_route_planning_brief": nonnegative_integer,
             "n_request_route_planning_focus_rows": nonnegative_integer,
             "n_request_route_planning_evidence_gaps": nonnegative_integer,
+            "n_requests_with_library_alignment_summary": nonnegative_integer,
+            "n_request_library_alignment_primitives": nonnegative_integer,
+            "n_request_library_alignment_reuse_ready_primitives": nonnegative_integer,
+            "n_request_library_alignment_wrapper_primitives": nonnegative_integer,
+            "n_request_library_alignment_bridge_primitives": nonnegative_integer,
+            "n_request_library_alignment_source_port_primitives": nonnegative_integer,
+            "n_request_library_alignment_new_definition_primitives": (
+                nonnegative_integer
+            ),
+            "n_request_library_alignment_new_theory_primitives": (
+                nonnegative_integer
+            ),
+            "n_request_library_alignment_unknown_primitives": nonnegative_integer,
+            "n_request_library_alignment_bridge_or_harder_primitives": (
+                nonnegative_integer
+            ),
+            "n_request_library_alignment_target_compatible_reuse_declarations": (
+                nonnegative_integer
+            ),
+            "by_request_library_alignment_delta_class": {"type": "object"},
+            "by_request_library_alignment_minimum_coverage_bucket": {
+                "type": "object"
+            },
             "n_requests_with_legacy_context_field_aliases": nonnegative_integer,
             "n_request_model_tier_haiku": nonnegative_integer,
             "n_request_model_tier_sonnet": nonnegative_integer,
@@ -3227,6 +3321,100 @@ def validate_llm_route_planner_manifest(
     ) != n_route_planning_evidence_gaps:
         errors.append(
             "n_request_route_planning_evidence_gaps must match request_packets"
+        )
+    library_alignment_summaries = tuple(
+        _request_library_alignment_summary(packet) for packet in request_packets
+    )
+    library_alignment_rows = tuple(
+        row
+        for summary in library_alignment_summaries
+        for row in _dict_tuple(summary.get("primitive_alignment", []))
+    )
+    library_delta_class_counts = Counter(
+        str(row.get("library_delta_class", "") or "unknown")
+        for row in library_alignment_rows
+    )
+    library_minimum_bucket_counts = Counter(
+        str(row.get("minimum_coverage_bucket", "") or "unknown")
+        for row in library_alignment_rows
+    )
+    library_alignment_count_checks = (
+        (
+            "n_requests_with_library_alignment_summary",
+            sum(1 for summary in library_alignment_summaries if summary),
+        ),
+        (
+            "n_request_library_alignment_primitives",
+            sum(
+                int(summary.get("n_primitives", 0) or 0)
+                for summary in library_alignment_summaries
+            ),
+        ),
+        (
+            "n_request_library_alignment_reuse_ready_primitives",
+            library_delta_class_counts.get("reuse_ready", 0),
+        ),
+        (
+            "n_request_library_alignment_wrapper_primitives",
+            library_delta_class_counts.get("wrapper", 0),
+        ),
+        (
+            "n_request_library_alignment_bridge_primitives",
+            library_delta_class_counts.get("bridge", 0),
+        ),
+        (
+            "n_request_library_alignment_source_port_primitives",
+            library_delta_class_counts.get("source_port", 0),
+        ),
+        (
+            "n_request_library_alignment_new_definition_primitives",
+            library_delta_class_counts.get("new_definition", 0),
+        ),
+        (
+            "n_request_library_alignment_new_theory_primitives",
+            library_delta_class_counts.get("new_theory", 0),
+        ),
+        (
+            "n_request_library_alignment_unknown_primitives",
+            library_delta_class_counts.get("unknown", 0),
+        ),
+        (
+            "n_request_library_alignment_bridge_or_harder_primitives",
+            sum(
+                int(summary.get("n_bridge_or_harder_primitives", 0) or 0)
+                for summary in library_alignment_summaries
+            ),
+        ),
+        (
+            "n_request_library_alignment_target_compatible_reuse_declarations",
+            sum(
+                int(
+                    summary.get(
+                        "n_target_compatible_reuse_declarations",
+                        0,
+                    )
+                    or 0
+                )
+                for summary in library_alignment_summaries
+            ),
+        ),
+    )
+    for field_name, expected_value in library_alignment_count_checks:
+        if int(manifest.get(field_name, 0) or 0) != int(expected_value):
+            errors.append(f"{field_name} must match request_packets")
+    if dict(
+        manifest.get("by_request_library_alignment_delta_class", {}) or {}
+    ) != dict(sorted(library_delta_class_counts.items())):
+        errors.append(
+            "by_request_library_alignment_delta_class must match request_packets"
+        )
+    if dict(
+        manifest.get("by_request_library_alignment_minimum_coverage_bucket", {})
+        or {}
+    ) != dict(sorted(library_minimum_bucket_counts.items())):
+        errors.append(
+            "by_request_library_alignment_minimum_coverage_bucket must match "
+            "request_packets"
         )
     decision_evidence_rows = tuple(
         _dict_value(packet, "model_tier_decision_evidence")
@@ -3993,6 +4181,11 @@ def _request_packet(
         context_packet,
         target_prover_family=target_prover_family,
     )
+    context_packet["library_alignment_summary"] = _library_alignment_summary(
+        context_packet,
+        target_prover_family=target_prover_family,
+        library_snapshot_ref=library_snapshot_ref,
+    )
     context_packet["source_grounding_obligations"] = (
         _source_grounding_obligation_summary(context_packet)
     )
@@ -4074,6 +4267,119 @@ def _request_packet(
     }
 
 
+def _library_alignment_summary(
+    context_packet: Mapping[str, Any],
+    *,
+    target_prover_family: str,
+    library_snapshot_ref: str,
+) -> dict[str, object]:
+    cost_hints = _dict_value(context_packet, "minimal_delta_cost_hints")
+    primitive_rows: list[dict[str, object]] = []
+    for hint in _dict_tuple(cost_hints.get("primitive_cost_hints", [])):
+        primitive = _primitive_key(hint.get("primitive", ""))
+        if not primitive:
+            continue
+        bucket = _primitive_key(hint.get("minimum_coverage_bucket", ""))
+        if not bucket:
+            bucket = "unknown"
+        delta_class = _library_delta_class_for_bucket(bucket)
+        declaration_rows = _target_compatible_formal_declaration_rows(
+            _dict_tuple(hint.get("candidate_declaration_rows", [])),
+            target_prover_family=target_prover_family,
+        )
+        declarations = [
+            str(row.get("declaration", ""))
+            for row in declaration_rows
+            if str(row.get("declaration", "")).strip()
+        ]
+        primitive_rows.append(
+            {
+                "primitive": primitive,
+                "minimum_coverage_bucket": bucket,
+                "library_delta_class": delta_class,
+                "minimum_base_cost": hint.get("minimum_base_cost", 20),
+                "minimum_cost_source": str(hint.get("minimum_cost_source", "")),
+                "minimum_cost_marker": str(hint.get("minimum_cost_marker", "")),
+                "evidence_sources": list(_str_tuple(hint.get("evidence_sources", []))),
+                "has_target_compatible_declaration": bool(declarations),
+                "target_compatible_declarations": declarations,
+                "target_compatible_declaration_count": len(declarations),
+                "candidate_declaration_row_count": len(
+                    _dict_tuple(hint.get("candidate_declaration_rows", []))
+                ),
+            }
+        )
+    by_class = _value_counts(
+        [
+            str(row.get("library_delta_class", "unknown"))
+            for row in primitive_rows
+        ]
+    )
+    by_bucket = _value_counts(
+        [
+            str(row.get("minimum_coverage_bucket", "unknown"))
+            for row in primitive_rows
+        ]
+    )
+    return {
+        "summary_kind": LIBRARY_ALIGNMENT_SUMMARY_KIND,
+        "target_prover_family": target_prover_family,
+        "library_snapshot_ref": library_snapshot_ref,
+        "cost_policy_id": MINIMAL_DELTA_COST_POLICY_ID,
+        "n_primitives": len(primitive_rows),
+        "n_reuse_ready_primitives": by_class.get("reuse_ready", 0),
+        "n_wrapper_primitives": by_class.get("wrapper", 0),
+        "n_bridge_primitives": by_class.get("bridge", 0),
+        "n_source_port_primitives": by_class.get("source_port", 0),
+        "n_new_definition_primitives": by_class.get("new_definition", 0),
+        "n_new_theory_primitives": by_class.get("new_theory", 0),
+        "n_unknown_primitives": by_class.get("unknown", 0),
+        "n_bridge_or_harder_primitives": sum(
+            by_class.get(delta_class, 0)
+            for delta_class in (
+                "bridge",
+                "source_port",
+                "new_definition",
+                "new_theory",
+                "unknown",
+            )
+        ),
+        "n_target_compatible_reuse_declarations": sum(
+            int(row.get("target_compatible_declaration_count", 0) or 0)
+            for row in primitive_rows
+        ),
+        "by_library_delta_class": dict(sorted(by_class.items())),
+        "by_minimum_coverage_bucket": dict(sorted(by_bucket.items())),
+        "primitive_alignment": primitive_rows,
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _library_delta_class_for_bucket(bucket: str) -> str:
+    normalized = _coverage_marker_policy_bucket(_primitive_key(bucket)) or _primitive_key(
+        bucket
+    )
+    if normalized in {
+        "already_exists",
+        "exact_exists",
+        "different_formulation",
+        "near_exists",
+    }:
+        return "reuse_ready"
+    if normalized in {"wrapper", "wrapper_needed"}:
+        return "wrapper"
+    if normalized in {"bridge", "bridge_needed"}:
+        return "bridge"
+    if normalized in {"source_port", "source_port_needed"}:
+        return "source_port"
+    if normalized in {"new_definition", "new_definition_needed"}:
+        return "new_definition"
+    if normalized in {"new_theory", "new_theory_needed", "first_principles"}:
+        return "new_theory"
+    return "unknown"
+
+
 def _route_planning_brief(
     *,
     route_id: str,
@@ -4090,6 +4396,7 @@ def _route_planning_brief(
         context_packet.get("available_formal_declaration_rows", [])
     )
     cost_hints = _dict_value(context_packet, "minimal_delta_cost_hints")
+    alignment_summary = _dict_value(context_packet, "library_alignment_summary")
     primitive_cost_hints = _dict_tuple(cost_hints.get("primitive_cost_hints", []))
     route_option_hints = _dict_tuple(cost_hints.get("route_option_hints", []))
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
@@ -4242,6 +4549,27 @@ def _route_planning_brief(
                 "minimal_delta_plan.and_or_cost_graph",
             ),
         )
+    if alignment_summary:
+        add_focus(
+            "honor_library_alignment_summary",
+            priority=3,
+            action=(
+                "use per-primitive library alignment classes as lower-bound "
+                "reuse versus delta decisions"
+            ),
+            reason=(
+                "library_alignment_summary classifies each primitive against "
+                "current target-prover coverage and target-compatible declarations"
+            ),
+            evidence_fields=(
+                "context_packet.library_alignment_summary",
+                "context_packet.minimal_delta_cost_hints",
+            ),
+            required_output_fields=(
+                "formal_realization_dag_nodes",
+                "minimal_delta_plan.primitive_costs",
+            ),
+        )
     if bool(feedback_summary.get("replan_required", False)):
         add_focus(
             "revise_route_from_feedback",
@@ -4353,6 +4681,19 @@ def _route_planning_brief(
         "residual_goal_count": len(residual_goals),
         "primitive_cost_hint_count": len(primitive_cost_hints),
         "route_option_cost_hint_count": len(route_option_hints),
+        "library_alignment_primitive_count": int(
+            alignment_summary.get("n_primitives", 0) or 0
+        ),
+        "library_alignment_bridge_or_harder_count": int(
+            alignment_summary.get("n_bridge_or_harder_primitives", 0) or 0
+        ),
+        "library_alignment_unknown_count": int(
+            alignment_summary.get("n_unknown_primitives", 0) or 0
+        ),
+        "target_compatible_reuse_declaration_count": int(
+            alignment_summary.get("n_target_compatible_reuse_declarations", 0)
+            or 0
+        ),
         "resource_request_playbook_count": len(playbooks),
         "feedback_replan_required": bool(feedback_summary.get("replan_required", False)),
         "pending_quality_control_value_count": int(
@@ -4496,6 +4837,7 @@ def _context_packet_inventory(
     }
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
     cost_hints = _dict_value(context_packet, "minimal_delta_cost_hints")
+    alignment_summary = _dict_value(context_packet, "library_alignment_summary")
     registry_context = _dict_value(
         context_packet,
         "component_resource_registry_context",
@@ -4544,6 +4886,38 @@ def _context_packet_inventory(
         ),
         "route_option_cost_hint_count": len(
             _dict_tuple(cost_hints.get("route_option_hints", []))
+        ),
+        "library_alignment_summary_present": bool(alignment_summary),
+        "library_alignment_primitive_count": int(
+            alignment_summary.get("n_primitives", 0) or 0
+        ),
+        "library_alignment_reuse_ready_count": int(
+            alignment_summary.get("n_reuse_ready_primitives", 0) or 0
+        ),
+        "library_alignment_wrapper_count": int(
+            alignment_summary.get("n_wrapper_primitives", 0) or 0
+        ),
+        "library_alignment_bridge_count": int(
+            alignment_summary.get("n_bridge_primitives", 0) or 0
+        ),
+        "library_alignment_source_port_count": int(
+            alignment_summary.get("n_source_port_primitives", 0) or 0
+        ),
+        "library_alignment_new_definition_count": int(
+            alignment_summary.get("n_new_definition_primitives", 0) or 0
+        ),
+        "library_alignment_new_theory_count": int(
+            alignment_summary.get("n_new_theory_primitives", 0) or 0
+        ),
+        "library_alignment_unknown_count": int(
+            alignment_summary.get("n_unknown_primitives", 0) or 0
+        ),
+        "library_alignment_bridge_or_harder_count": int(
+            alignment_summary.get("n_bridge_or_harder_primitives", 0) or 0
+        ),
+        "library_alignment_target_compatible_reuse_declaration_count": int(
+            alignment_summary.get("n_target_compatible_reuse_declarations", 0)
+            or 0
         ),
         "component_resource_count": len(
             _dict_tuple(registry_context.get("resource_rows", []))
@@ -4617,6 +4991,55 @@ def _context_packet_inventory(
             or 0
         ),
     }
+
+
+def _library_alignment_summary_errors(
+    context_packet: Mapping[str, Any],
+) -> list[str]:
+    summary = _dict_value(context_packet, "library_alignment_summary")
+    if not summary:
+        return []
+    expected = _library_alignment_summary(
+        context_packet,
+        target_prover_family=str(context_packet.get("target_prover_family", "")),
+        library_snapshot_ref=str(context_packet.get("library_snapshot_ref", "")),
+    )
+    errors: list[str] = []
+    scalar_fields = (
+        "summary_kind",
+        "target_prover_family",
+        "library_snapshot_ref",
+        "cost_policy_id",
+        "n_primitives",
+        "n_reuse_ready_primitives",
+        "n_wrapper_primitives",
+        "n_bridge_primitives",
+        "n_source_port_primitives",
+        "n_new_definition_primitives",
+        "n_new_theory_primitives",
+        "n_unknown_primitives",
+        "n_bridge_or_harder_primitives",
+        "n_target_compatible_reuse_declarations",
+        "proof_evidence_status",
+        "proof_evidence_boundary",
+    )
+    for field_name in scalar_fields:
+        if summary.get(field_name) != expected.get(field_name):
+            errors.append(
+                "context_packet.library_alignment_summary."
+                f"{field_name} must match minimal_delta_cost_hints"
+            )
+    for field_name in (
+        "by_library_delta_class",
+        "by_minimum_coverage_bucket",
+        "primitive_alignment",
+    ):
+        if summary.get(field_name) != expected.get(field_name):
+            errors.append(
+                "context_packet.library_alignment_summary."
+                f"{field_name} must match minimal_delta_cost_hints"
+            )
+    return errors
 
 
 def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
@@ -4709,6 +5132,47 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             "context_packet.context_packet_inventory.route_option_cost_hint_count "
             "must match context_packet.minimal_delta_cost_hints"
         )
+    alignment_summary = _dict_value(context_packet, "library_alignment_summary")
+    if bool(inventory.get("library_alignment_summary_present", False)) != bool(
+        alignment_summary
+    ):
+        errors.append(
+            "context_packet.context_packet_inventory."
+            "library_alignment_summary_present must match "
+            "context_packet.library_alignment_summary"
+        )
+    if alignment_summary:
+        errors.extend(_library_alignment_summary_errors(context_packet))
+        alignment_count_checks = (
+            ("library_alignment_primitive_count", "n_primitives"),
+            ("library_alignment_reuse_ready_count", "n_reuse_ready_primitives"),
+            ("library_alignment_wrapper_count", "n_wrapper_primitives"),
+            ("library_alignment_bridge_count", "n_bridge_primitives"),
+            ("library_alignment_source_port_count", "n_source_port_primitives"),
+            (
+                "library_alignment_new_definition_count",
+                "n_new_definition_primitives",
+            ),
+            ("library_alignment_new_theory_count", "n_new_theory_primitives"),
+            ("library_alignment_unknown_count", "n_unknown_primitives"),
+            (
+                "library_alignment_bridge_or_harder_count",
+                "n_bridge_or_harder_primitives",
+            ),
+            (
+                "library_alignment_target_compatible_reuse_declaration_count",
+                "n_target_compatible_reuse_declarations",
+            ),
+        )
+        for inventory_field, summary_field in alignment_count_checks:
+            if int(inventory.get(inventory_field, 0) or 0) != int(
+                alignment_summary.get(summary_field, 0) or 0
+            ):
+                errors.append(
+                    "context_packet.context_packet_inventory."
+                    f"{inventory_field} must match "
+                    "context_packet.library_alignment_summary"
+                )
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
     if bool(inventory.get("feedback_loop_summary_present", False)) != bool(
         feedback_summary
@@ -4817,6 +5281,31 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             (
                 "route_option_cost_hint_count",
                 len(_dict_tuple(cost_hints.get("route_option_hints", []))),
+            ),
+            (
+                "library_alignment_primitive_count",
+                int(alignment_summary.get("n_primitives", 0) or 0),
+            ),
+            (
+                "library_alignment_bridge_or_harder_count",
+                int(
+                    alignment_summary.get("n_bridge_or_harder_primitives", 0)
+                    or 0
+                ),
+            ),
+            (
+                "library_alignment_unknown_count",
+                int(alignment_summary.get("n_unknown_primitives", 0) or 0),
+            ),
+            (
+                "target_compatible_reuse_declaration_count",
+                int(
+                    alignment_summary.get(
+                        "n_target_compatible_reuse_declarations",
+                        0,
+                    )
+                    or 0
+                ),
             ),
             (
                 "resource_request_playbook_count",
@@ -13260,6 +13749,14 @@ def _request_context_packet_inventory(
     context = _dict_value(request, "context_packet")
     inventory = context.get("context_packet_inventory", {})
     return dict(inventory) if isinstance(inventory, Mapping) else {}
+
+
+def _request_library_alignment_summary(
+    request: Mapping[str, Any],
+) -> dict[str, object]:
+    context = _dict_value(request, "context_packet")
+    summary = context.get("library_alignment_summary", {})
+    return dict(summary) if isinstance(summary, Mapping) else {}
 
 
 def _feedback_loop_summary(

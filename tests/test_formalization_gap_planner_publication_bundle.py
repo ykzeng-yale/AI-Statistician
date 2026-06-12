@@ -890,6 +890,30 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         == 0
     )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_requests_with_library_alignment_summary"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_library_alignment_primitives"
+        ]
+        >= 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_library_alignment_bridge_or_harder_primitives"
+        ]
+        >= 0
+    )
+    assert manifest["llm_route_planner_summary"][
+        "by_request_library_alignment_delta_class"
+    ]
+    assert manifest["llm_route_planner_summary"][
+        "by_request_library_alignment_minimum_coverage_bucket"
+    ]
     assert manifest["llm_route_planner_summary"][
         "n_informal_knowledge_dag_nodes"
     ] == 0
@@ -940,6 +964,21 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     )
     assert manifest["feedback_llm_route_planner_summary"]["requested"] is True
     assert manifest["feedback_llm_route_planner_summary"]["n_request_packets"] == 1
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_library_alignment_summary"
+        ]
+        == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_library_alignment_primitives"
+        ]
+        >= 1
+    )
+    assert manifest["feedback_llm_route_planner_summary"][
+        "by_request_library_alignment_delta_class"
+    ]
     assert (
         manifest["feedback_llm_route_planner_summary"][
             "n_requests_with_context_packet_inventory"

@@ -1083,6 +1083,23 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["n_requests_with_minimal_delta_cost_hints"] == 1
     assert payload["n_request_primitive_cost_hints"] == 2
     assert payload["n_request_route_option_cost_hints"] == 1
+    assert payload["n_requests_with_library_alignment_summary"] == 1
+    assert payload["n_request_library_alignment_primitives"] == 2
+    assert payload["n_request_library_alignment_reuse_ready_primitives"] == 1
+    assert payload["n_request_library_alignment_bridge_primitives"] == 1
+    assert payload["n_request_library_alignment_bridge_or_harder_primitives"] == 1
+    assert (
+        payload["n_request_library_alignment_target_compatible_reuse_declarations"]
+        >= 1
+    )
+    assert payload["by_request_library_alignment_delta_class"] == {
+        "bridge": 1,
+        "reuse_ready": 1,
+    }
+    assert payload["by_request_library_alignment_minimum_coverage_bucket"] == {
+        "bridge_needed": 1,
+        "exact_exists": 1,
+    }
     assert payload["n_response_present"] == 0
     assert payload["n_awaiting_llm_response"] == 1
     assert payload["standalone_replay_gate_ok"] is False
@@ -1179,6 +1196,11 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     )
     assert inventory["primitive_cost_hint_count"] == 2
     assert inventory["route_option_cost_hint_count"] == 1
+    assert inventory["library_alignment_summary_present"] is True
+    assert inventory["library_alignment_primitive_count"] == 2
+    assert inventory["library_alignment_reuse_ready_count"] == 1
+    assert inventory["library_alignment_bridge_count"] == 1
+    assert inventory["library_alignment_bridge_or_harder_count"] == 1
     assert inventory["feedback_loop_summary_present"] is bool(
         context["feedback_loop_summary"]
     )
@@ -1214,6 +1236,28 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         "minimum_coverage_bucket"
     ] == "bridge_needed"
     assert cost_hints["route_option_hints"][0]["minimum_route_base_cost"] == 4.0
+    alignment_summary = context["library_alignment_summary"]
+    assert alignment_summary["summary_kind"] == (
+        "formalization_gap_planner_llm_route_planner_library_alignment_summary"
+    )
+    assert alignment_summary["n_primitives"] == 2
+    assert alignment_summary["n_reuse_ready_primitives"] == 1
+    assert alignment_summary["n_bridge_primitives"] == 1
+    assert alignment_summary["n_bridge_or_harder_primitives"] == 1
+    alignment_by_primitive = {
+        row["primitive"]: row for row in alignment_summary["primitive_alignment"]
+    }
+    assert alignment_by_primitive["exchangeability"]["library_delta_class"] == (
+        "reuse_ready"
+    )
+    assert alignment_by_primitive["rank_uniformity"]["library_delta_class"] == (
+        "bridge"
+    )
+    assert "Probability.exchangeable" in set(
+        alignment_by_primitive["exchangeability"][
+            "target_compatible_declarations"
+        ]
+    )
     assert "available_source_refs" in request["prompt_messages"]["user"]
     assert "available_source_snippets" in request["prompt_messages"]["user"]
     assert "available_formal_declarations" in request["prompt_messages"]["user"]
@@ -1223,6 +1267,7 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert "legacy_context_field_aliases" in request["prompt_messages"]["user"]
     assert "prefer portable fields" in request["prompt_messages"]["user"]
     assert "minimal_delta_cost_hints" in request["prompt_messages"]["user"]
+    assert "library_alignment_summary" in request["prompt_messages"]["user"]
     assert "minimum_base_cost" in request["prompt_messages"]["user"]
     assert "context_packet_inventory" in request["prompt_messages"]["user"]
     assert "route_planning_brief" in request["prompt_messages"]["user"]
@@ -1537,6 +1582,21 @@ def test_llm_route_planner_cost_hints_use_library_coverage_lower_bound() -> None
         for row in rank_hint["candidate_declaration_rows"]
     } >= {("Probability.rankUniformityBridge", "lean4")}
     assert cost_hints["route_option_hints"][0]["minimum_route_base_cost"] == 4.0
+    alignment_summary = request["context_packet"]["library_alignment_summary"]
+    assert alignment_summary["n_primitives"] == 2
+    assert alignment_summary["n_bridge_primitives"] == 1
+    assert alignment_summary["n_bridge_or_harder_primitives"] == 1
+    assert alignment_summary["by_library_delta_class"]["bridge"] == 1
+    rank_alignment = {
+        row["primitive"]: row for row in alignment_summary["primitive_alignment"]
+    }["rank_uniformity"]
+    assert rank_alignment["minimum_coverage_bucket"] == "bridge_needed"
+    assert rank_alignment["library_delta_class"] == "bridge"
+    assert "Probability.rankUniformityBridge" in set(
+        rank_alignment["target_compatible_declarations"]
+    )
+    assert payload["n_request_library_alignment_bridge_primitives"] == 1
+    assert payload["n_request_library_alignment_bridge_or_harder_primitives"] == 1
 
 
 def test_llm_route_planner_stages_target_intake_context() -> None:

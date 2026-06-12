@@ -2130,6 +2130,42 @@ def run_formalization_gap_planner_reuse_smoke(
                 {},
             )
         ),
+        "n_publication_bundle_llm_route_planner_summary_requests_with_library_alignment_summary": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_requests_with_library_alignment_summary",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_library_alignment_primitives": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_library_alignment_primitives",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_library_alignment_bridge_or_harder_primitives": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_library_alignment_bridge_or_harder_primitives",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_library_alignment_target_compatible_reuse_declarations": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_library_alignment_target_compatible_reuse_declarations",
+                0,
+            )
+        ),
+        "publication_bundle_llm_route_planner_summary_by_request_library_alignment_delta_class": (
+            publication_bundle_llm_route_planner_summary.get(
+                "by_request_library_alignment_delta_class",
+                {},
+            )
+        ),
+        "publication_bundle_llm_route_planner_summary_by_request_library_alignment_minimum_coverage_bucket": (
+            publication_bundle_llm_route_planner_summary.get(
+                "by_request_library_alignment_minimum_coverage_bucket",
+                {},
+            )
+        ),
         "publication_bundle_llm_route_planner_summary_standalone_replay_gate": (
             publication_bundle_llm_route_planner_summary.get(
                 "standalone_replay_gate",
@@ -2387,6 +2423,42 @@ def run_formalization_gap_planner_reuse_smoke(
                 {},
             )
         ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_library_alignment_summary": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_requests_with_library_alignment_summary",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_library_alignment_primitives": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_library_alignment_primitives",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_library_alignment_bridge_or_harder_primitives": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_library_alignment_bridge_or_harder_primitives",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_library_alignment_target_compatible_reuse_declarations": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_library_alignment_target_compatible_reuse_declarations",
+                0,
+            )
+        ),
+        "publication_bundle_feedback_llm_route_planner_summary_by_request_library_alignment_delta_class": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "by_request_library_alignment_delta_class",
+                {},
+            )
+        ),
+        "publication_bundle_feedback_llm_route_planner_summary_by_request_library_alignment_minimum_coverage_bucket": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "by_request_library_alignment_minimum_coverage_bucket",
+                {},
+            )
+        ),
         "publication_bundle_feedback_llm_route_planner_summary_standalone_replay_gate": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "standalone_replay_gate",
@@ -2601,6 +2673,42 @@ def run_formalization_gap_planner_reuse_smoke(
             llm_route_planner_payload.get(
                 "n_request_llm_generation_policy_current_claude_tier_source",
                 0,
+            )
+        ),
+        "n_llm_route_planner_requests_with_library_alignment_summary": (
+            llm_route_planner_payload.get(
+                "n_requests_with_library_alignment_summary",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_library_alignment_primitives": (
+            llm_route_planner_payload.get(
+                "n_request_library_alignment_primitives",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_library_alignment_bridge_or_harder_primitives": (
+            llm_route_planner_payload.get(
+                "n_request_library_alignment_bridge_or_harder_primitives",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_library_alignment_target_compatible_reuse_declarations": (
+            llm_route_planner_payload.get(
+                "n_request_library_alignment_target_compatible_reuse_declarations",
+                0,
+            )
+        ),
+        "llm_route_planner_by_request_library_alignment_delta_class": (
+            llm_route_planner_payload.get(
+                "by_request_library_alignment_delta_class",
+                {},
+            )
+        ),
+        "llm_route_planner_by_request_library_alignment_minimum_coverage_bucket": (
+            llm_route_planner_payload.get(
+                "by_request_library_alignment_minimum_coverage_bucket",
+                {},
             )
         ),
         "n_llm_route_planner_generation_preflight_blocked": (
@@ -3094,6 +3202,42 @@ def run_formalization_gap_planner_reuse_smoke(
             feedback_llm_route_planner_payload.get(
                 "n_request_llm_generation_policy_current_claude_tier_source",
                 0,
+            )
+        ),
+        "n_feedback_llm_route_planner_requests_with_library_alignment_summary": (
+            feedback_llm_route_planner_payload.get(
+                "n_requests_with_library_alignment_summary",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_library_alignment_primitives": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_library_alignment_primitives",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_library_alignment_bridge_or_harder_primitives": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_library_alignment_bridge_or_harder_primitives",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_library_alignment_target_compatible_reuse_declarations": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_library_alignment_target_compatible_reuse_declarations",
+                0,
+            )
+        ),
+        "feedback_llm_route_planner_by_request_library_alignment_delta_class": (
+            feedback_llm_route_planner_payload.get(
+                "by_request_library_alignment_delta_class",
+                {},
+            )
+        ),
+        "feedback_llm_route_planner_by_request_library_alignment_minimum_coverage_bucket": (
+            feedback_llm_route_planner_payload.get(
+                "by_request_library_alignment_minimum_coverage_bucket",
+                {},
             )
         ),
         "n_feedback_llm_route_planner_generation_preflight_blocked": (

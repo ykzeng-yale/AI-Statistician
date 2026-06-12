@@ -410,6 +410,21 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == payload["n_llm_route_planner_request_packets"]
     )
+    assert (
+        payload["n_llm_route_planner_requests_with_library_alignment_summary"]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert payload["n_llm_route_planner_request_library_alignment_primitives"] > 0
+    assert (
+        payload[
+            "n_llm_route_planner_request_library_alignment_bridge_or_harder_primitives"
+        ]
+        >= 0
+    )
+    assert payload["llm_route_planner_by_request_library_alignment_delta_class"]
+    assert payload[
+        "llm_route_planner_by_request_library_alignment_minimum_coverage_bucket"
+    ]
     assert payload["n_llm_route_planner_generation_preflight_blocked"] == 0
     assert payload["llm_route_planner_generation_preflight_errors"] == []
     assert (
@@ -593,6 +608,24 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == payload["n_feedback_llm_route_planner_request_packets"]
     )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_requests_with_library_alignment_summary"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_library_alignment_primitives"
+        ]
+        > 0
+    )
+    assert payload[
+        "feedback_llm_route_planner_by_request_library_alignment_delta_class"
+    ]
+    assert payload[
+        "feedback_llm_route_planner_by_request_library_alignment_minimum_coverage_bucket"
+    ]
     assert payload["n_feedback_llm_route_planner_generation_preflight_blocked"] == 0
     assert payload["feedback_llm_route_planner_generation_preflight_errors"] == []
     assert (
@@ -2809,6 +2842,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload["n_llm_route_planner_request_packets"]
     )
+    assert (
+        payload["n_llm_route_planner_requests_with_library_alignment_summary"]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert payload["n_llm_route_planner_request_library_alignment_primitives"] > 0
+    assert payload["llm_route_planner_by_request_library_alignment_delta_class"]
+    assert payload[
+        "llm_route_planner_by_request_library_alignment_minimum_coverage_bucket"
+    ]
     assert payload["n_llm_route_planner_rows_with_generator_metadata"] == 1
     assert payload["n_llm_route_planner_rows_with_generation_errors"] == 0
     assert payload["n_llm_route_planner_response_contract_ok"] == 1
@@ -2915,6 +2957,24 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload["n_feedback_llm_route_planner_request_packets"]
     )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_requests_with_library_alignment_summary"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_library_alignment_primitives"
+        ]
+        > 0
+    )
+    assert payload[
+        "feedback_llm_route_planner_by_request_library_alignment_delta_class"
+    ]
+    assert payload[
+        "feedback_llm_route_planner_by_request_library_alignment_minimum_coverage_bucket"
+    ]
     assert payload["n_feedback_llm_route_planner_rows_with_generator_metadata"] == 1
     assert payload["n_feedback_llm_route_planner_rows_with_generation_errors"] == 0
     assert payload["n_feedback_llm_route_planner_response_contract_ok"] == 1
@@ -3322,6 +3382,48 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_llm_route_planner_summary_requests_with_library_alignment_summary"
+        ]
+        == payload["n_llm_route_planner_requests_with_library_alignment_summary"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_request_library_alignment_primitives"
+        ]
+        == payload["n_llm_route_planner_request_library_alignment_primitives"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_request_library_alignment_bridge_or_harder_primitives"
+        ]
+        == payload[
+            "n_llm_route_planner_request_library_alignment_bridge_or_harder_primitives"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_request_library_alignment_target_compatible_reuse_declarations"
+        ]
+        == payload[
+            "n_llm_route_planner_request_library_alignment_target_compatible_reuse_declarations"
+        ]
+    )
+    assert (
+        payload[
+            "publication_bundle_llm_route_planner_summary_by_request_library_alignment_delta_class"
+        ]
+        == payload["llm_route_planner_by_request_library_alignment_delta_class"]
+    )
+    assert (
+        payload[
+            "publication_bundle_llm_route_planner_summary_by_request_library_alignment_minimum_coverage_bucket"
+        ]
+        == payload[
+            "llm_route_planner_by_request_library_alignment_minimum_coverage_bucket"
+        ]
+    )
+    assert (
+        payload[
             "publication_bundle_llm_route_planner_summary_standalone_replay_gate_ok"
         ]
         == payload["llm_route_planner_standalone_replay_gate_ok"]
@@ -3557,6 +3659,54 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload[
             "feedback_llm_route_planner_by_request_model_tier_decision_basis"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_library_alignment_summary"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_requests_with_library_alignment_summary"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_library_alignment_primitives"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_request_library_alignment_primitives"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_library_alignment_bridge_or_harder_primitives"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_request_library_alignment_bridge_or_harder_primitives"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_library_alignment_target_compatible_reuse_declarations"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_request_library_alignment_target_compatible_reuse_declarations"
+        ]
+    )
+    assert (
+        payload[
+            "publication_bundle_feedback_llm_route_planner_summary_by_request_library_alignment_delta_class"
+        ]
+        == payload[
+            "feedback_llm_route_planner_by_request_library_alignment_delta_class"
+        ]
+    )
+    assert (
+        payload[
+            "publication_bundle_feedback_llm_route_planner_summary_by_request_library_alignment_minimum_coverage_bucket"
+        ]
+        == payload[
+            "feedback_llm_route_planner_by_request_library_alignment_minimum_coverage_bucket"
         ]
     )
     assert (
