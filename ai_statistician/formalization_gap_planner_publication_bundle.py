@@ -2296,6 +2296,11 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_library_alignment_unknown_primitives",
             "n_request_library_alignment_bridge_or_harder_primitives",
             "n_request_library_alignment_target_compatible_reuse_declarations",
+            "n_request_library_alignment_route_options",
+            "n_request_library_alignment_route_option_primitives",
+            "n_request_library_alignment_route_option_bridge_or_harder_primitives",
+            "n_request_library_alignment_route_option_target_compatible_reuse_declarations",
+            "total_request_library_alignment_route_option_minimum_base_cost",
             "by_request_library_alignment_delta_class",
             "by_request_library_alignment_minimum_coverage_bucket",
             "n_informal_knowledge_dag_nodes",
@@ -2402,6 +2407,20 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_library_alignment_target_compatible_reuse_declarations": (
                 nonnegative_integer
             ),
+            "n_request_library_alignment_route_options": nonnegative_integer,
+            "n_request_library_alignment_route_option_primitives": (
+                nonnegative_integer
+            ),
+            "n_request_library_alignment_route_option_bridge_or_harder_primitives": (
+                nonnegative_integer
+            ),
+            "n_request_library_alignment_route_option_target_compatible_reuse_declarations": (
+                nonnegative_integer
+            ),
+            "total_request_library_alignment_route_option_minimum_base_cost": {
+                "type": "number",
+                "minimum": 0,
+            },
             "by_request_library_alignment_delta_class": {"type": "object"},
             "by_request_library_alignment_minimum_coverage_bucket": {
                 "type": "object"
@@ -4534,6 +4553,11 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_library_alignment_unknown_primitives": 0,
         "n_request_library_alignment_bridge_or_harder_primitives": 0,
         "n_request_library_alignment_target_compatible_reuse_declarations": 0,
+        "n_request_library_alignment_route_options": 0,
+        "n_request_library_alignment_route_option_primitives": 0,
+        "n_request_library_alignment_route_option_bridge_or_harder_primitives": 0,
+        "n_request_library_alignment_route_option_target_compatible_reuse_declarations": 0,
+        "total_request_library_alignment_route_option_minimum_base_cost": 0.0,
         "by_request_library_alignment_delta_class": {},
         "by_request_library_alignment_minimum_coverage_bucket": {},
         "n_informal_knowledge_dag_nodes": 0,
@@ -4582,6 +4606,11 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         row
         for summary in library_alignment_summaries
         for row in _dict_tuple(summary.get("primitive_alignment", []))
+    )
+    library_alignment_route_option_rows = tuple(
+        row
+        for summary in library_alignment_summaries
+        for row in _dict_tuple(summary.get("route_option_alignment", []))
     )
     library_delta_class_counts = Counter(
         str(row.get("library_delta_class", "") or "unknown")
@@ -4867,6 +4896,57 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                         or 0
                     )
                     for summary in library_alignment_summaries
+                ),
+            )
+            or 0
+        ),
+        "n_request_library_alignment_route_options": int(
+            payload.get(
+                "n_request_library_alignment_route_options",
+                len(library_alignment_route_option_rows),
+            )
+            or 0
+        ),
+        "n_request_library_alignment_route_option_primitives": int(
+            payload.get(
+                "n_request_library_alignment_route_option_primitives",
+                sum(
+                    int(row.get("n_selected_primitives", 0) or 0)
+                    for row in library_alignment_route_option_rows
+                ),
+            )
+            or 0
+        ),
+        "n_request_library_alignment_route_option_bridge_or_harder_primitives": int(
+            payload.get(
+                "n_request_library_alignment_route_option_bridge_or_harder_primitives",
+                sum(
+                    int(row.get("n_bridge_or_harder_primitives", 0) or 0)
+                    for row in library_alignment_route_option_rows
+                ),
+            )
+            or 0
+        ),
+        "n_request_library_alignment_route_option_target_compatible_reuse_declarations": int(
+            payload.get(
+                "n_request_library_alignment_route_option_target_compatible_reuse_declarations",
+                sum(
+                    int(row.get("n_target_compatible_reuse_declarations", 0) or 0)
+                    for row in library_alignment_route_option_rows
+                ),
+            )
+            or 0
+        ),
+        "total_request_library_alignment_route_option_minimum_base_cost": float(
+            payload.get(
+                "total_request_library_alignment_route_option_minimum_base_cost",
+                sum(
+                    float(row.get("minimum_route_base_cost", 0) or 0)
+                    for row in library_alignment_route_option_rows
+                    if isinstance(
+                        row.get("minimum_route_base_cost", 0),
+                        (int, float),
+                    )
                 ),
             )
             or 0

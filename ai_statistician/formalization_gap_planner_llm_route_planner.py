@@ -925,6 +925,11 @@ def export_formalization_gap_planner_llm_route_planner(
     library_alignment_summaries = tuple(
         _request_library_alignment_summary(packet) for packet in request_packets
     )
+    library_alignment_route_option_rows = tuple(
+        row
+        for summary in library_alignment_summaries
+        for row in _dict_tuple(summary.get("route_option_alignment", []))
+    )
     by_library_delta_class = Counter(
         str(row.get("library_delta_class", "") or "unknown")
         for summary in library_alignment_summaries
@@ -1111,6 +1116,26 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_request_library_alignment_target_compatible_reuse_declarations": sum(
             int(summary.get("n_target_compatible_reuse_declarations", 0) or 0)
             for summary in library_alignment_summaries
+        ),
+        "n_request_library_alignment_route_options": len(
+            library_alignment_route_option_rows
+        ),
+        "n_request_library_alignment_route_option_primitives": sum(
+            int(row.get("n_selected_primitives", 0) or 0)
+            for row in library_alignment_route_option_rows
+        ),
+        "n_request_library_alignment_route_option_bridge_or_harder_primitives": sum(
+            int(row.get("n_bridge_or_harder_primitives", 0) or 0)
+            for row in library_alignment_route_option_rows
+        ),
+        "n_request_library_alignment_route_option_target_compatible_reuse_declarations": sum(
+            int(row.get("n_target_compatible_reuse_declarations", 0) or 0)
+            for row in library_alignment_route_option_rows
+        ),
+        "total_request_library_alignment_route_option_minimum_base_cost": sum(
+            float(row.get("minimum_route_base_cost", 0) or 0)
+            for row in library_alignment_route_option_rows
+            if _is_nonnegative_number(row.get("minimum_route_base_cost"))
         ),
         "by_request_library_alignment_delta_class": dict(
             sorted(by_library_delta_class.items())
@@ -2604,6 +2629,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
     object_array = {"type": "array", "items": {"type": "object"}}
     nonnegative_integer = {"type": "integer", "minimum": 0}
+    nonnegative_number = {"type": "number", "minimum": 0}
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
@@ -2639,6 +2665,11 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_library_alignment_unknown_primitives",
             "n_request_library_alignment_bridge_or_harder_primitives",
             "n_request_library_alignment_target_compatible_reuse_declarations",
+            "n_request_library_alignment_route_options",
+            "n_request_library_alignment_route_option_primitives",
+            "n_request_library_alignment_route_option_bridge_or_harder_primitives",
+            "n_request_library_alignment_route_option_target_compatible_reuse_declarations",
+            "total_request_library_alignment_route_option_minimum_base_cost",
             "by_request_library_alignment_delta_class",
             "by_request_library_alignment_minimum_coverage_bucket",
             "n_requests_with_legacy_context_field_aliases",
@@ -2786,6 +2817,19 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             ),
             "n_request_library_alignment_target_compatible_reuse_declarations": (
                 nonnegative_integer
+            ),
+            "n_request_library_alignment_route_options": nonnegative_integer,
+            "n_request_library_alignment_route_option_primitives": (
+                nonnegative_integer
+            ),
+            "n_request_library_alignment_route_option_bridge_or_harder_primitives": (
+                nonnegative_integer
+            ),
+            "n_request_library_alignment_route_option_target_compatible_reuse_declarations": (
+                nonnegative_integer
+            ),
+            "total_request_library_alignment_route_option_minimum_base_cost": (
+                nonnegative_number
             ),
             "by_request_library_alignment_delta_class": {"type": "object"},
             "by_request_library_alignment_minimum_coverage_bucket": {
@@ -3528,6 +3572,11 @@ def validate_llm_route_planner_manifest(
         for summary in library_alignment_summaries
         for row in _dict_tuple(summary.get("primitive_alignment", []))
     )
+    library_alignment_route_option_rows = tuple(
+        row
+        for summary in library_alignment_summaries
+        for row in _dict_tuple(summary.get("route_option_alignment", []))
+    )
     library_delta_class_counts = Counter(
         str(row.get("library_delta_class", "") or "unknown")
         for row in library_alignment_rows
@@ -3596,10 +3645,54 @@ def validate_llm_route_planner_manifest(
                 for summary in library_alignment_summaries
             ),
         ),
+        (
+            "n_request_library_alignment_route_options",
+            len(library_alignment_route_option_rows),
+        ),
+        (
+            "n_request_library_alignment_route_option_primitives",
+            sum(
+                int(row.get("n_selected_primitives", 0) or 0)
+                for row in library_alignment_route_option_rows
+            ),
+        ),
+        (
+            "n_request_library_alignment_route_option_bridge_or_harder_primitives",
+            sum(
+                int(row.get("n_bridge_or_harder_primitives", 0) or 0)
+                for row in library_alignment_route_option_rows
+            ),
+        ),
+        (
+            "n_request_library_alignment_route_option_target_compatible_reuse_declarations",
+            sum(
+                int(row.get("n_target_compatible_reuse_declarations", 0) or 0)
+                for row in library_alignment_route_option_rows
+            ),
+        ),
     )
     for field_name, expected_value in library_alignment_count_checks:
         if int(manifest.get(field_name, 0) or 0) != int(expected_value):
             errors.append(f"{field_name} must match request_packets")
+    expected_route_option_cost = sum(
+        float(row.get("minimum_route_base_cost", 0) or 0)
+        for row in library_alignment_route_option_rows
+        if _is_nonnegative_number(row.get("minimum_route_base_cost"))
+    )
+    if abs(
+        float(
+            manifest.get(
+                "total_request_library_alignment_route_option_minimum_base_cost",
+                0,
+            )
+            or 0
+        )
+        - expected_route_option_cost
+    ) > 1e-9:
+        errors.append(
+            "total_request_library_alignment_route_option_minimum_base_cost "
+            "must match request_packets"
+        )
     if dict(
         manifest.get("by_request_library_alignment_delta_class", {}) or {}
     ) != dict(sorted(library_delta_class_counts.items())):

@@ -910,6 +910,36 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         >= 0
     )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_library_alignment_route_options"
+        ]
+        >= 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_library_alignment_route_option_primitives"
+        ]
+        >= 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_library_alignment_route_option_bridge_or_harder_primitives"
+        ]
+        >= 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_library_alignment_route_option_target_compatible_reuse_declarations"
+        ]
+        >= 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "total_request_library_alignment_route_option_minimum_base_cost"
+        ]
+        >= 0
+    )
     assert manifest["llm_route_planner_summary"][
         "by_request_library_alignment_delta_class"
     ]
@@ -977,6 +1007,24 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
             "n_request_library_alignment_primitives"
         ]
         >= 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_library_alignment_route_options"
+        ]
+        >= 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_library_alignment_route_option_primitives"
+        ]
+        >= 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "total_request_library_alignment_route_option_minimum_base_cost"
+        ]
+        >= 0
     )
     assert manifest["feedback_llm_route_planner_summary"][
         "by_request_library_alignment_delta_class"

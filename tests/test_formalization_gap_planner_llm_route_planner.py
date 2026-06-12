@@ -1094,6 +1094,26 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         payload["n_request_library_alignment_target_compatible_reuse_declarations"]
         >= 1
     )
+    assert payload["n_request_library_alignment_route_options"] == 1
+    assert payload["n_request_library_alignment_route_option_primitives"] == 2
+    assert (
+        payload[
+            "n_request_library_alignment_route_option_bridge_or_harder_primitives"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_request_library_alignment_route_option_target_compatible_reuse_declarations"
+        ]
+        >= 1
+    )
+    assert (
+        payload[
+            "total_request_library_alignment_route_option_minimum_base_cost"
+        ]
+        == 4.0
+    )
     assert payload["by_request_library_alignment_delta_class"] == {
         "bridge": 1,
         "reuse_ready": 1,
@@ -1657,6 +1677,13 @@ def test_llm_route_planner_cost_hints_use_library_coverage_lower_bound() -> None
     )
     assert payload["n_request_library_alignment_bridge_primitives"] == 1
     assert payload["n_request_library_alignment_bridge_or_harder_primitives"] == 1
+    assert payload["n_request_library_alignment_route_options"] == 1
+    assert (
+        payload[
+            "total_request_library_alignment_route_option_minimum_base_cost"
+        ]
+        == 4.0
+    )
 
 
 def test_llm_route_planner_stages_target_intake_context() -> None:
