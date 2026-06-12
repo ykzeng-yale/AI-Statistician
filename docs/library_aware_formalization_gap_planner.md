@@ -733,6 +733,10 @@ scope/provenance fields such as `source_fields`, `target_primitives`,
 `supported_target_primitives`, `unsupported_target_primitives`, `source_refs`,
 and `matched_terms` in the standalone seed, so external prover adapters can
 audit the declaration support without recovering the raw LLM response. The
+request packet's `minimal_delta_cost_hints.primitive_cost_hints` preserves the
+same scoped declaration-row fields before the LLM call, so route synthesis can
+see whether a declaration is accepted evidence for the target primitive, merely
+a search hint, or explicitly unsupported for that primitive. The
 standalone portable plan, realization DAG nodes, reuse nodes, primitive action
 rows, and library-coverage map preserve the same bounded declaration-row fields
 rather than collapsing them back to a flat declaration name; this keeps external

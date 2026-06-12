@@ -3021,6 +3021,56 @@ def test_llm_route_planner_feedback_coverage_updates_raise_cost_hint_floor() -> 
     assert "Probability.rankUniformityBridge" in rank_hint["candidate_declarations"]
 
 
+def test_llm_route_planner_cost_hints_preserve_candidate_declaration_scope() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_cost_hint_declaration_scope"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    rank_primitive = input_payload["routes"][0]["primitives"][1]
+    declaration_row = {
+        "declaration": "Probability.rankUniformityBridge",
+        "target_prover_family": "lean4",
+        "source_field": "route_level_formal_context",
+        "source_fields": [
+            "route_level_formal_context",
+            "local_formal_source_adapter",
+        ],
+        "target_primitives": ["rank_uniformity"],
+        "supported_target_primitives": ["rank_uniformity"],
+        "unsupported_target_primitives": ["exchangeability"],
+        "source_refs": ["conformal_prediction_textbook"],
+        "matched_terms": ["rank uniformity", "exchangeability"],
+    }
+    rank_primitive["candidate_declaration_rows"] = [declaration_row]
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+    )
+
+    assert payload["all_ok"]
+    request = payload["request_packets"][0]
+    cost_hints = request["context_packet"]["minimal_delta_cost_hints"]
+    rank_hint = {
+        row["primitive"]: row for row in cost_hints["primitive_cost_hints"]
+    }["rank_uniformity"]
+    scoped_rows = [
+        row
+        for row in rank_hint["candidate_declaration_rows"]
+        if row["declaration"] == "Probability.rankUniformityBridge"
+    ]
+    assert len(scoped_rows) == 1
+    assert scoped_rows[0] == declaration_row
+    prompt_text = request["prompt_messages"]["user"]
+    assert "supported_target_primitives" in prompt_text
+    assert "matched_terms" in prompt_text
+
+
 def test_llm_route_planner_feedback_cost_hints_ignore_non_lean_legacy_alias() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rocq_feedback_cost_hint"

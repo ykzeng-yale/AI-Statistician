@@ -14346,7 +14346,15 @@ def _compact_candidate_declaration_rows(
     rows: list[dict[str, object]],
 ) -> list[dict[str, object]]:
     compact: list[dict[str, object]] = []
-    seen: set[tuple[str, str, str]] = set()
+    compact_by_key: dict[tuple[str, str, str], dict[str, object]] = {}
+    preserved_list_fields = (
+        "source_fields",
+        "target_primitives",
+        "supported_target_primitives",
+        "unsupported_target_primitives",
+        "source_refs",
+        "matched_terms",
+    )
     for row in rows:
         declaration = str(row.get("declaration", "")).strip()
         if not declaration:
@@ -14358,16 +14366,29 @@ def _compact_candidate_declaration_rows(
             _target_prover_key(target),
             source_field,
         )
-        if key in seen:
-            continue
-        seen.add(key)
-        compact.append(
-            {
+        current = compact_by_key.get(key)
+        if current is None:
+            current = {
                 "declaration": declaration,
                 "target_prover_family": target,
                 "source_field": source_field,
             }
-        )
+            compact_by_key[key] = current
+            compact.append(current)
+        for field_name in preserved_list_fields:
+            merged = tuple(
+                dict.fromkeys(
+                    [
+                        *_str_tuple(current.get(field_name, [])),
+                        *_candidate_declaration_row_list_field_values(
+                            field_name,
+                            row.get(field_name, []),
+                        ),
+                    ]
+                )
+            )
+            if merged:
+                current[field_name] = list(merged)
     return compact
 
 
