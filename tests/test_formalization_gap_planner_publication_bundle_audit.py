@@ -7677,6 +7677,24 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         and row["ok"]
         for row in audit_payload["checks"]
     )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_library_alignment_route_option_aggregates"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_library_alignment_route_option_aggregate_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_library_alignment_route_option_aggregate_valid"
+        ]
+        == 1
+    )
     original_seed = json.loads(seed_path.read_text(encoding="utf-8"))
     alias_corrupted_rows = json.loads(json.dumps(original_rows))
     alias_corrupted_seed = json.loads(json.dumps(original_seed))
@@ -7771,6 +7789,46 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         / "formalization_gap_planner_llm_route_planner_manifest.json"
     )
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    route_option_corrupted_manifest = json.loads(json.dumps(manifest))
+    route_option_corrupted_manifest["n_request_library_alignment_route_options"] = (
+        int(
+            route_option_corrupted_manifest.get(
+                "n_request_library_alignment_route_options",
+                0,
+            )
+            or 0
+        )
+        + 1
+    )
+    manifest_path.write_text(
+        json.dumps(route_option_corrupted_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_route_option_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_route_planner_route_option_aggregate_drift",
+    )
+    route_option_checks = [
+        row
+        for row in rejected_route_option_payload["checks"]
+        if row["check_name"]
+        == "optional_llm_route_planner_library_alignment_route_option_aggregates"
+    ]
+    assert route_option_checks
+    assert not route_option_checks[0]["ok"]
+    assert any(
+        "n_request_library_alignment_route_options mismatch" in error
+        for error in route_option_checks[0]["errors"]
+    )
+    assert (
+        rejected_route_option_payload[
+            "n_optional_llm_route_planner_library_alignment_route_option_aggregate_valid"
+        ]
+        == 0
+    )
+    assert not rejected_route_option_payload["all_ok"]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
     count_corrupted_manifest = json.loads(json.dumps(manifest))
     count_corrupted_manifest["n_rows"] = int(
         count_corrupted_manifest.get("n_rows", 0)

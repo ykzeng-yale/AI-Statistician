@@ -1318,6 +1318,19 @@ def audit_formalization_gap_planner_publication_bundle(
             == "optional_llm_route_planner_generation_preflight_policy"
             and check.ok
         ),
+        "n_optional_llm_route_planner_library_alignment_route_option_aggregate_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_library_alignment_route_option_aggregates"
+        ),
+        "n_optional_llm_route_planner_library_alignment_route_option_aggregate_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_library_alignment_route_option_aggregates"
+            and check.ok
+        ),
         "n_optional_llm_route_planner_route_adoption_blocker_summary_checked": sum(
             1
             for check in checks
@@ -7384,6 +7397,23 @@ def _llm_route_planner_optional_checks(
             library_alignment_summary_rows == request_library_alignment_summaries,
         ),
         _check(
+            f"{check_prefix}_library_alignment_route_option_aggregates",
+            "optional_artifacts",
+            "LLM route-planner route-option library-alignment aggregates match manifest counts",
+            _llm_library_alignment_route_option_aggregate_observed(
+                manifest,
+                library_alignment_summary_rows,
+            ),
+            not _llm_library_alignment_route_option_aggregate_errors(
+                manifest,
+                library_alignment_summary_rows,
+            ),
+            errors=_llm_library_alignment_route_option_aggregate_errors(
+                manifest,
+                library_alignment_summary_rows,
+            ),
+        ),
+        _check(
             f"{check_prefix}_request_model_tier_mismatch_policy",
             "optional_artifacts",
             "LLM route-planner manifest reports no Claude request model-tier mismatches",
@@ -7617,6 +7647,98 @@ def _llm_route_planner_optional_checks(
                 )
             )
     return checks
+
+
+def _llm_library_alignment_route_option_aggregate_errors(
+    manifest: dict[str, Any],
+    summary_rows: list[dict[str, Any]],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    expected = _llm_library_alignment_route_option_aggregates(summary_rows)
+    for field_name in (
+        "n_request_library_alignment_route_options",
+        "n_request_library_alignment_route_option_primitives",
+        "n_request_library_alignment_route_option_bridge_or_harder_primitives",
+        "n_request_library_alignment_route_option_target_compatible_reuse_declarations",
+    ):
+        observed = _int_or_none(manifest.get(field_name))
+        if observed is None:
+            errors.append(f"{field_name} is not an integer")
+            continue
+        if observed != expected[field_name]:
+            errors.append(
+                f"{field_name} mismatch: observed={observed} "
+                f"expected={expected[field_name]}"
+            )
+    cost_field = "total_request_library_alignment_route_option_minimum_base_cost"
+    observed_cost = _float_or_none(manifest.get(cost_field))
+    if observed_cost is None:
+        errors.append(f"{cost_field} is not a number")
+    elif abs(observed_cost - float(expected[cost_field])) > 1e-9:
+        errors.append(
+            f"{cost_field} mismatch: observed={observed_cost} "
+            f"expected={expected[cost_field]}"
+        )
+    return tuple(errors)
+
+
+def _llm_library_alignment_route_option_aggregate_observed(
+    manifest: dict[str, Any],
+    summary_rows: list[dict[str, Any]],
+) -> str:
+    expected = _llm_library_alignment_route_option_aggregates(summary_rows)
+    return (
+        "observed="
+        + json.dumps(
+            {field_name: manifest.get(field_name) for field_name in expected},
+            sort_keys=True,
+        )
+        + "; expected="
+        + json.dumps(expected, sort_keys=True)
+    )
+
+
+def _llm_library_alignment_route_option_aggregates(
+    summary_rows: list[dict[str, Any]],
+) -> dict[str, int | float]:
+    route_option_rows = tuple(
+        row
+        for summary in _dict_tuple(summary_rows)
+        for row in _dict_tuple(summary.get("route_option_alignment", []))
+    )
+    return {
+        "n_request_library_alignment_route_options": len(route_option_rows),
+        "n_request_library_alignment_route_option_primitives": sum(
+            _nonnegative_int(row.get("n_selected_primitives"))
+            for row in route_option_rows
+        ),
+        "n_request_library_alignment_route_option_bridge_or_harder_primitives": sum(
+            _nonnegative_int(row.get("n_bridge_or_harder_primitives"))
+            for row in route_option_rows
+        ),
+        "n_request_library_alignment_route_option_target_compatible_reuse_declarations": sum(
+            _nonnegative_int(row.get("n_target_compatible_reuse_declarations"))
+            for row in route_option_rows
+        ),
+        "total_request_library_alignment_route_option_minimum_base_cost": sum(
+            _nonnegative_float(row.get("minimum_route_base_cost"))
+            for row in route_option_rows
+        ),
+    }
+
+
+def _nonnegative_int(value: Any) -> int:
+    parsed = _int_or_none(value)
+    if parsed is None:
+        return 0
+    return max(0, parsed)
+
+
+def _nonnegative_float(value: Any) -> float:
+    parsed = _float_or_none(value)
+    if parsed is None:
+        return 0.0
+    return max(0.0, parsed)
 
 
 def _llm_request_model_tier_mismatch_errors(
