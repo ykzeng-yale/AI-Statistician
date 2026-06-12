@@ -365,6 +365,51 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_llm_route_planner_request_model_tier_mismatches"] == 0
     assert payload["llm_route_planner_request_model_tier_mismatches"] == []
+    assert (
+        payload["n_llm_route_planner_requests_with_model_tier_decision_evidence"]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_request_model_tier_decision_auto_haiku_bounded"
+        ]
+        + payload[
+            "n_llm_route_planner_request_model_tier_decision_auto_sonnet_triggered"
+        ]
+        + payload[
+            "n_llm_route_planner_request_model_tier_decision_operator_override"
+        ]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_request_model_tier_decision_evidence_invalid"
+        ]
+        == 0
+    )
+    assert payload["llm_route_planner_by_request_model_tier_decision_basis"]
+    assert (
+        payload["n_llm_route_planner_requests_with_llm_generation_policy"]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_request_llm_generation_policy_tier_model_matches"
+        ]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_request_llm_generation_policy_codex_exclusions"
+        ]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_request_llm_generation_policy_current_claude_tier_source"
+        ]
+        == payload["n_llm_route_planner_request_packets"]
+    )
     assert payload["n_llm_route_planner_generation_preflight_blocked"] == 0
     assert payload["llm_route_planner_generation_preflight_errors"] == []
     assert (
@@ -501,6 +546,53 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_feedback_llm_route_planner_request_model_tier_mismatches"] == 0
     assert payload["feedback_llm_route_planner_request_model_tier_mismatches"] == []
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_requests_with_model_tier_decision_evidence"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_model_tier_decision_auto_haiku_bounded"
+        ]
+        + payload[
+            "n_feedback_llm_route_planner_request_model_tier_decision_auto_sonnet_triggered"
+        ]
+        + payload[
+            "n_feedback_llm_route_planner_request_model_tier_decision_operator_override"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_model_tier_decision_evidence_invalid"
+        ]
+        == 0
+    )
+    assert payload["feedback_llm_route_planner_by_request_model_tier_decision_basis"]
+    assert (
+        payload["n_feedback_llm_route_planner_requests_with_llm_generation_policy"]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_llm_generation_policy_tier_model_matches"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_llm_generation_policy_codex_exclusions"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_llm_generation_policy_current_claude_tier_source"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
     assert payload["n_feedback_llm_route_planner_generation_preflight_blocked"] == 0
     assert payload["feedback_llm_route_planner_generation_preflight_errors"] == []
     assert (
@@ -2672,6 +2764,51 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert payload["n_llm_route_planner_provider_failures"] == 0
     assert payload["n_llm_route_planner_request_model_tier_mismatches"] == 0
     assert payload["llm_route_planner_request_model_tier_mismatches"] == []
+    assert (
+        payload["n_llm_route_planner_requests_with_model_tier_decision_evidence"]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_request_model_tier_decision_auto_haiku_bounded"
+        ]
+        + payload[
+            "n_llm_route_planner_request_model_tier_decision_auto_sonnet_triggered"
+        ]
+        + payload[
+            "n_llm_route_planner_request_model_tier_decision_operator_override"
+        ]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_request_model_tier_decision_evidence_invalid"
+        ]
+        == 0
+    )
+    assert payload["llm_route_planner_by_request_model_tier_decision_basis"]
+    assert (
+        payload["n_llm_route_planner_requests_with_llm_generation_policy"]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_request_llm_generation_policy_tier_model_matches"
+        ]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_request_llm_generation_policy_codex_exclusions"
+        ]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_request_llm_generation_policy_current_claude_tier_source"
+        ]
+        == payload["n_llm_route_planner_request_packets"]
+    )
     assert payload["n_llm_route_planner_rows_with_generator_metadata"] == 1
     assert payload["n_llm_route_planner_rows_with_generation_errors"] == 0
     assert payload["n_llm_route_planner_response_contract_ok"] == 1
@@ -2731,6 +2868,53 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert payload["n_feedback_llm_route_planner_provider_failures"] == 0
     assert payload["n_feedback_llm_route_planner_request_model_tier_mismatches"] == 0
     assert payload["feedback_llm_route_planner_request_model_tier_mismatches"] == []
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_requests_with_model_tier_decision_evidence"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_model_tier_decision_auto_haiku_bounded"
+        ]
+        + payload[
+            "n_feedback_llm_route_planner_request_model_tier_decision_auto_sonnet_triggered"
+        ]
+        + payload[
+            "n_feedback_llm_route_planner_request_model_tier_decision_operator_override"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_model_tier_decision_evidence_invalid"
+        ]
+        == 0
+    )
+    assert payload["feedback_llm_route_planner_by_request_model_tier_decision_basis"]
+    assert (
+        payload["n_feedback_llm_route_planner_requests_with_llm_generation_policy"]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_llm_generation_policy_tier_model_matches"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_llm_generation_policy_codex_exclusions"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_llm_generation_policy_current_claude_tier_source"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
     assert payload["n_feedback_llm_route_planner_rows_with_generator_metadata"] == 1
     assert payload["n_feedback_llm_route_planner_rows_with_generation_errors"] == 0
     assert payload["n_feedback_llm_route_planner_response_contract_ok"] == 1
@@ -3085,6 +3269,59 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_llm_route_planner_summary_requests_with_model_tier_decision_evidence"
+        ]
+        == payload["n_llm_route_planner_requests_with_model_tier_decision_evidence"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_auto_haiku_bounded"
+        ]
+        == payload[
+            "n_llm_route_planner_request_model_tier_decision_auto_haiku_bounded"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_auto_sonnet_triggered"
+        ]
+        == payload[
+            "n_llm_route_planner_request_model_tier_decision_auto_sonnet_triggered"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_operator_override"
+        ]
+        == payload[
+            "n_llm_route_planner_request_model_tier_decision_operator_override"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_sonnet_triggers"
+        ]
+        == payload[
+            "n_llm_route_planner_request_model_tier_decision_sonnet_triggers"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_evidence_invalid"
+        ]
+        == payload[
+            "n_llm_route_planner_request_model_tier_decision_evidence_invalid"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "publication_bundle_llm_route_planner_summary_by_request_model_tier_decision_basis"
+        ]
+        == payload["llm_route_planner_by_request_model_tier_decision_basis"]
+    )
+    assert (
+        payload[
             "publication_bundle_llm_route_planner_summary_standalone_replay_gate_ok"
         ]
         == payload["llm_route_planner_standalone_replay_gate_ok"]
@@ -3264,6 +3501,63 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "publication_bundle_feedback_llm_route_planner_summary_by_route_adoption_blocker"
         ]["feedback_summary_actions_pending_resolution"]["n_rows"]
         == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_model_tier_decision_evidence"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_requests_with_model_tier_decision_evidence"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_auto_haiku_bounded"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_request_model_tier_decision_auto_haiku_bounded"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_auto_sonnet_triggered"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_request_model_tier_decision_auto_sonnet_triggered"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_operator_override"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_request_model_tier_decision_operator_override"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_sonnet_triggers"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_request_model_tier_decision_sonnet_triggers"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_evidence_invalid"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_request_model_tier_decision_evidence_invalid"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "publication_bundle_feedback_llm_route_planner_summary_by_request_model_tier_decision_basis"
+        ]
+        == payload[
+            "feedback_llm_route_planner_by_request_model_tier_decision_basis"
+        ]
     )
     assert (
         payload[

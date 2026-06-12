@@ -2088,6 +2088,48 @@ def run_formalization_gap_planner_reuse_smoke(
                 {},
             )
         ),
+        "n_publication_bundle_llm_route_planner_summary_requests_with_model_tier_decision_evidence": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_requests_with_model_tier_decision_evidence",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_auto_haiku_bounded": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_auto_haiku_bounded",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_auto_sonnet_triggered": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_auto_sonnet_triggered",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_operator_override": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_operator_override",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_sonnet_triggers": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_sonnet_triggers",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_evidence_invalid": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_evidence_invalid",
+                0,
+            )
+        ),
+        "publication_bundle_llm_route_planner_summary_by_request_model_tier_decision_basis": (
+            publication_bundle_llm_route_planner_summary.get(
+                "by_request_model_tier_decision_basis",
+                {},
+            )
+        ),
         "publication_bundle_llm_route_planner_summary_standalone_replay_gate": (
             publication_bundle_llm_route_planner_summary.get(
                 "standalone_replay_gate",
@@ -2303,6 +2345,48 @@ def run_formalization_gap_planner_reuse_smoke(
                 {},
             )
         ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_model_tier_decision_evidence": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_requests_with_model_tier_decision_evidence",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_auto_haiku_bounded": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_auto_haiku_bounded",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_auto_sonnet_triggered": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_auto_sonnet_triggered",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_operator_override": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_operator_override",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_sonnet_triggers": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_sonnet_triggers",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_evidence_invalid": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_evidence_invalid",
+                0,
+            )
+        ),
+        "publication_bundle_feedback_llm_route_planner_summary_by_request_model_tier_decision_basis": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "by_request_model_tier_decision_basis",
+                {},
+            )
+        ),
         "publication_bundle_feedback_llm_route_planner_summary_standalone_replay_gate": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "standalone_replay_gate",
@@ -2451,6 +2535,72 @@ def run_formalization_gap_planner_reuse_smoke(
             llm_route_planner_payload.get(
                 "request_model_tier_mismatches",
                 [],
+            )
+        ),
+        "n_llm_route_planner_requests_with_model_tier_decision_evidence": (
+            llm_route_planner_payload.get(
+                "n_requests_with_model_tier_decision_evidence",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_model_tier_decision_auto_haiku_bounded": (
+            llm_route_planner_payload.get(
+                "n_request_model_tier_decision_auto_haiku_bounded",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_model_tier_decision_auto_sonnet_triggered": (
+            llm_route_planner_payload.get(
+                "n_request_model_tier_decision_auto_sonnet_triggered",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_model_tier_decision_operator_override": (
+            llm_route_planner_payload.get(
+                "n_request_model_tier_decision_operator_override",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_model_tier_decision_sonnet_triggers": (
+            llm_route_planner_payload.get(
+                "n_request_model_tier_decision_sonnet_triggers",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_model_tier_decision_evidence_invalid": (
+            llm_route_planner_payload.get(
+                "n_request_model_tier_decision_evidence_invalid",
+                0,
+            )
+        ),
+        "llm_route_planner_by_request_model_tier_decision_basis": (
+            llm_route_planner_payload.get(
+                "by_request_model_tier_decision_basis",
+                {},
+            )
+        ),
+        "n_llm_route_planner_requests_with_llm_generation_policy": (
+            llm_route_planner_payload.get(
+                "n_requests_with_llm_generation_policy",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_llm_generation_policy_tier_model_matches": (
+            llm_route_planner_payload.get(
+                "n_request_llm_generation_policy_tier_model_matches",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_llm_generation_policy_codex_exclusions": (
+            llm_route_planner_payload.get(
+                "n_request_llm_generation_policy_codex_exclusions",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_llm_generation_policy_current_claude_tier_source": (
+            llm_route_planner_payload.get(
+                "n_request_llm_generation_policy_current_claude_tier_source",
+                0,
             )
         ),
         "n_llm_route_planner_generation_preflight_blocked": (
@@ -2878,6 +3028,72 @@ def run_formalization_gap_planner_reuse_smoke(
             feedback_llm_route_planner_payload.get(
                 "request_model_tier_mismatches",
                 [],
+            )
+        ),
+        "n_feedback_llm_route_planner_requests_with_model_tier_decision_evidence": (
+            feedback_llm_route_planner_payload.get(
+                "n_requests_with_model_tier_decision_evidence",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_model_tier_decision_auto_haiku_bounded": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_decision_auto_haiku_bounded",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_model_tier_decision_auto_sonnet_triggered": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_decision_auto_sonnet_triggered",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_model_tier_decision_operator_override": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_decision_operator_override",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_model_tier_decision_sonnet_triggers": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_decision_sonnet_triggers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_model_tier_decision_evidence_invalid": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_decision_evidence_invalid",
+                0,
+            )
+        ),
+        "feedback_llm_route_planner_by_request_model_tier_decision_basis": (
+            feedback_llm_route_planner_payload.get(
+                "by_request_model_tier_decision_basis",
+                {},
+            )
+        ),
+        "n_feedback_llm_route_planner_requests_with_llm_generation_policy": (
+            feedback_llm_route_planner_payload.get(
+                "n_requests_with_llm_generation_policy",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_llm_generation_policy_tier_model_matches": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_llm_generation_policy_tier_model_matches",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_llm_generation_policy_codex_exclusions": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_llm_generation_policy_codex_exclusions",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_llm_generation_policy_current_claude_tier_source": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_llm_generation_policy_current_claude_tier_source",
+                0,
             )
         ),
         "n_feedback_llm_route_planner_generation_preflight_blocked": (
