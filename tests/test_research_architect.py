@@ -60,6 +60,11 @@ class SequentialGeneratorBackend:
         )
 
 
+class ProviderWithoutIdentity:
+    def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+        return GeneratorResponse(text="{}", provider="", model=request.model)
+
+
 def _sample_response() -> dict[str, object]:
     return {
         "problem_card": {
@@ -300,6 +305,34 @@ def test_generator_theory_proposer_resolves_haiku_tier_at_request_time(
     assert proposal.source == "anthropic:claude-haiku-policy-test"
     assert proposal.dgp_family == "normal"
     assert proposal.estimator_family == "sample_mean"
+
+
+def test_generator_theory_proposer_requires_provider_identity() -> None:
+    proposer = GeneratorTheoryProposer(provider=ProviderWithoutIdentity())
+
+    with pytest.raises(ValueError, match="requires an explicit provider_name"):
+        proposer.propose({"question": "estimate a normal mean"})
+
+
+def test_generator_theory_proposer_rejects_codex_provider_alias() -> None:
+    provider = SequentialGeneratorBackend(
+        [
+            {
+                "dgp_family": "normal",
+                "estimator_family": "sample_mean",
+                "true_params": {"mean": 0.0, "variance": 1.0},
+            }
+        ]
+    )
+    proposer = GeneratorTheoryProposer(
+        provider=provider,
+        provider_name="codex_exec",
+    )
+
+    with pytest.raises(ValueError, match="Codex/Codex exec are not accepted"):
+        proposer.propose({"question": "estimate a normal mean"})
+
+    assert provider.requests == []
 
 
 def test_research_architect_cli_static_provider_exports_artifacts() -> None:

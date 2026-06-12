@@ -16,6 +16,7 @@ from .model_backend import (
 
 SUPPORTED_DGP_FAMILIES = ("normal", "bernoulli", "constant")
 SUPPORTED_ESTIMATOR_FAMILIES = ("sample_mean", "sample_proportion", "constant_estimator")
+PROHIBITED_THEORY_PROPOSER_PROVIDERS = ("codex", "codex_exec")
 
 
 @dataclass(frozen=True)
@@ -82,7 +83,7 @@ class GeneratorTheoryProposer:
         self.max_tokens = max_tokens
 
     def propose(self, raw_question: dict[str, Any]) -> TheoryProposal:
-        provider_name = self.provider_name or getattr(self.provider, "provider_name", "")
+        provider_name = _resolved_provider_name(self.provider_name, self.provider)
         request_model = resolve_generator_model(
             provider_name=provider_name,
             requested_model=self.model,
@@ -106,7 +107,6 @@ class GeneratorTheoryProposer:
             )
         )
         payload = _extract_json(response.text)
-        provider_name = self.provider_name or response.provider
         return proposal_from_payload(
             payload,
             source=f"{provider_name}:{response.model or request_model or 'default'}",
@@ -206,6 +206,25 @@ def _extract_json(text: str) -> dict[str, Any]:
     if not match:
         raise ValueError(f"LLM response did not contain JSON: {text[:200]!r}")
     return json.loads(match.group(0))
+
+
+def _resolved_provider_name(
+    configured_provider_name: str,
+    provider: GeneratorBackend,
+) -> str:
+    provider_name = str(
+        configured_provider_name or getattr(provider, "provider_name", "") or ""
+    ).strip().lower()
+    if not provider_name:
+        raise ValueError(
+            "GeneratorTheoryProposer requires an explicit provider_name or a "
+            "backend.provider_name before resolving a model tier"
+        )
+    if provider_name in PROHIBITED_THEORY_PROPOSER_PROVIDERS:
+        raise ValueError(
+            "Codex/Codex exec are not accepted as pure LLM theory proposer providers"
+        )
+    return provider_name
 
 
 def proposal_to_json(proposal: TheoryProposal) -> dict[str, Any]:
