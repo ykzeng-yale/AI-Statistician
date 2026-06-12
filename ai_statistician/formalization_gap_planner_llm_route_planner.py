@@ -16806,6 +16806,7 @@ def _accepted_route_for_seed(
     ]
     route["minimal_delta_and_or_cost_graph"] = dict(and_or_cost_graph)
     route["realization_coverage_witness"] = realization_coverage_witness
+    route["selected_primitives"] = list(selected_primitives)
     route["llm_route_planner_row_id"] = row.llm_route_planner_row_id
     route["llm_route_planner_acceptance_status"] = row.acceptance_status
     route["llm_route_planner_route_adoption_status"] = row.route_adoption_status

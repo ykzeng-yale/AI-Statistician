@@ -1555,9 +1555,17 @@ def _route_specs(
             )
             for primitive_idx, primitive in enumerate(_raw_primitives(raw_route))
         ]
-        selected_primitives = [
-            str(action.get("primitive", "")) for action in actions if action.get("primitive")
-        ]
+        selected_primitives = _str_list(raw_route.get("selected_primitives", []))
+        if not selected_primitives:
+            selected_primitives = _str_list(
+                metadata.get("revised_selected_primitives", [])
+            )
+        if not selected_primitives:
+            selected_primitives = [
+                str(action.get("primitive", ""))
+                for action in actions
+                if action.get("primitive")
+            ]
         if not selected_primitives:
             errors.append(f"routes[{idx}] has no selected primitives")
         route_class = str(raw_route.get("route_class", "")).strip() or _route_class(actions)
@@ -1583,6 +1591,7 @@ def _route_specs(
             "informal_proof_steps": _str_tuple(raw_route.get("informal_proof_steps", [])),
             "route_class": route_class,
             "total_estimated_cost": int(total_estimated_cost or 0),
+            "selected_primitives": selected_primitives,
             "standalone_input_trace": _standalone_input_trace(
                 raw_route,
                 route_id=route_id,

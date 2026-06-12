@@ -17,6 +17,71 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
 )
 
 
+def _reviewed_primitive_cost(
+    primitive: str,
+    coverage_bucket: str,
+    base_cost: int,
+    rationale: str,
+) -> dict[str, object]:
+    return {
+        "primitive": primitive,
+        "coverage_bucket": coverage_bucket,
+        "base_cost": base_cost,
+        "proof_difficulty_cost": 0,
+        "import_cone_cost": 0,
+        "definition_or_typeclass_cost": 0,
+        "semantic_risk_cost": 0,
+        "reuse_credit": 0,
+        "total_cost": base_cost,
+        "cost_rationale": rationale,
+    }
+
+
+def _reviewed_baseline_boundary_text() -> str:
+    return (
+        "Current target-intake baseline primitive retained only for AND/OR "
+        "cost comparison; it is not selected by this focused reviewed LLM route."
+    )
+
+
+def _reviewed_baseline_formal_node(primitive: str) -> dict[str, object]:
+    return {
+        "node_id": f"formal:{primitive}_baseline_boundary",
+        "primitive": primitive,
+        "coverage_bucket": "unknown",
+        "formalization_action": "defer_formal_library_grounding",
+        "formal_gap_boundary": _reviewed_baseline_boundary_text(),
+    }
+
+
+def _reviewed_baseline_standalone_primitive(
+    primitive: str,
+) -> dict[str, object]:
+    return {
+        "primitive": primitive,
+        "coverage_status": "unknown",
+        "source_refs": ["conformal_prediction_textbook"],
+        "formal_gap_boundary": _reviewed_baseline_boundary_text(),
+    }
+
+
+def _reviewed_target_adapter_boundary_residual(
+    primitive: str,
+) -> dict[str, object]:
+    return {
+        "residual_goal": f"rocq:{primitive}: awaiting prover adapter mapping",
+        "interpretation": (
+            "The target Rocq route still needs a prover-adapter mapping for "
+            f"{primitive} before any kernel replay can be claimed."
+        ),
+        "repair_action": f"run target-prover adapter mapping for {primitive}",
+        "formal_gap_boundary": (
+            "Awaiting Rocq adapter mapping is target-prover feedback, not "
+            "source evidence or theorem proof evidence."
+        ),
+    }
+
+
 def _reviewed_llm_route_response_payload() -> dict[str, object]:
     current_route_baseline_primitives = [
         "calibration_scores",
@@ -29,6 +94,38 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
         "rank_uniformity",
         "split_conformal_prediction_set",
         "test_score",
+    ]
+    selected_primitives = {"exchangeability", "rank_uniformity"}
+    baseline_boundary_primitives = [
+        primitive
+        for primitive in current_route_baseline_primitives
+        if primitive not in selected_primitives
+    ]
+    baseline_boundary_cost_rows = [
+        _reviewed_primitive_cost(
+            primitive,
+            "unknown",
+            20,
+            (
+                "Current target-intake baseline primitive is retained as an "
+                "unselected formal-library grounding boundary."
+            ),
+        )
+        for primitive in baseline_boundary_primitives
+    ]
+    source_port_option_cost_rows = [
+        _reviewed_primitive_cost(
+            "exchangeability",
+            "already_exists",
+            0,
+            "Existing exchangeability support is reused by the source-port route.",
+        ),
+        _reviewed_primitive_cost(
+            "rank_uniformity",
+            "source_port_needed",
+            7,
+            "The source-port route imports broader rank theory than the bridge.",
+        ),
     ]
     return {
         "informal_knowledge_dag_nodes": [
@@ -70,6 +167,10 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                 "candidate_declarations": [],
                 "formalization_action": "prove_bridge",
             },
+            *[
+                _reviewed_baseline_formal_node(primitive)
+                for primitive in baseline_boundary_primitives
+            ],
         ],
         "route_alignment_edges": [
             {
@@ -111,6 +212,7 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                     "total_cost": 4,
                     "cost_rationale": "Only a focused rank-uniformity bridge is added.",
                 },
+                *baseline_boundary_cost_rows,
             ],
             "new_definitions": [],
             "wrapper_lemmas": [],
@@ -138,6 +240,7 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                         "selected": False,
                         "selected_primitives": ["exchangeability", "rank_uniformity"],
                         "route_cost": 7,
+                        "primitive_costs": source_port_option_cost_rows,
                         "cost_rationale": "A source port is broader than the selected bridge.",
                     },
                     {
@@ -165,6 +268,10 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                 "and_edges": [
                     {
                         "route_option_id": "route_option:reuse_exchangeability_bridge_rank",
+                        "requires": ["exchangeability", "rank_uniformity"],
+                    },
+                    {
+                        "route_option_id": "route_option:source_port_rank_theory",
                         "requires": ["exchangeability", "rank_uniformity"],
                     },
                     {
@@ -244,6 +351,10 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                     "coverage_status": "bridge_needed",
                     "source_refs": ["conformal_prediction_textbook"],
                 },
+                *[
+                    _reviewed_baseline_standalone_primitive(primitive)
+                    for primitive in baseline_boundary_primitives
+                ],
             ],
         },
         "proof_evidence_boundary": LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
@@ -2685,18 +2796,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         "coverage_status"
     ] = "wrapper_needed"
     feedback_response["residual_interpretations"] = [
-        {
-            "residual_goal": "rocq:rank_uniformity: awaiting prover adapter mapping",
-            "interpretation": (
-                "The target Rocq route still needs a prover-adapter mapping for "
-                "rank_uniformity before any kernel replay can be claimed."
-            ),
-            "repair_action": "run target-prover adapter mapping for rank_uniformity",
-            "formal_gap_boundary": (
-                "Awaiting Rocq adapter mapping is target-prover feedback, not "
-                "source evidence or theorem proof evidence."
-            ),
-        }
+        _reviewed_target_adapter_boundary_residual("rank_uniformity")
     ]
     feedback_response_path.write_text(
         json.dumps(feedback_response, indent=2),
@@ -2845,7 +2945,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         payload["n_evaluation_rows_pending_refinement_before_route_adoption"]
         == 1
     )
-    assert payload["n_evaluation_llm_route_adoption_blockers"] == 5
+    assert payload["n_evaluation_llm_route_adoption_blockers"] == 6
     assert (
         payload[
             "n_evaluation_llm_route_adoption_pending_quality_control_blockers"
@@ -2859,6 +2959,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         == 0
     )
     assert set(payload["evaluation_llm_route_adoption_blockers"]) == {
+        "formal_gap_boundaries_require_resolution",
         "omitted_cost_hint_primitives_require_review",
         "planner_next_actions_pending_evidence",
         "search_requests_pending_evidence",
@@ -2866,6 +2967,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         "uncertainty_flags_require_review",
     }
     assert payload["evaluation_llm_route_adoption_blocker_counts"] == {
+        "formal_gap_boundaries_require_resolution": 1,
         "omitted_cost_hint_primitives_require_review": 1,
         "planner_next_actions_pending_evidence": 1,
         "search_requests_pending_evidence": 1,
@@ -2877,7 +2979,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "n_rows": 1,
             "n_ok": 0,
             "n_matched_ground_truth": 1,
-            "n_route_adoption_blockers": 5,
+            "n_route_adoption_blockers": 6,
             "mean_route_recall": 1.0,
             "mean_delta_precision": 1.0,
         }
@@ -2986,7 +3088,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         payload[
             "n_llm_route_planner_route_adoption_pending_formal_gap_boundary_blockers"
         ]
-        == 0
+        == 1
     )
     assert (
         payload[
@@ -3404,7 +3506,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         == payload[
             "n_llm_route_planner_route_adoption_pending_formal_gap_boundary_blockers"
         ]
-        == 0
+        == 1
     )
     assert (
         payload[

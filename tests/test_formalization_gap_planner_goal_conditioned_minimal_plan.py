@@ -119,6 +119,91 @@ def test_goal_conditioned_plan_preserves_route_target_prover_family() -> None:
     )
 
 
+def test_goal_conditioned_plan_honors_explicit_selected_primitives() -> None:
+    root = Path("runs/test_formalization_gap_planner_goal_conditioned_selected_subset")
+    delta_dir = root / "delta"
+    queue_dir = root / "queue"
+    out_dir = root / "plan"
+    shutil.rmtree(root, ignore_errors=True)
+    delta_dir.mkdir(parents=True, exist_ok=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    (delta_dir / "formalization_delta_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "target_prover_family": "lean4",
+                "rows": [
+                    {"primitive": "selected_bridge"},
+                    {"primitive": "comparison_boundary"},
+                ],
+                "theorem_formalization_routes": [
+                    {
+                        "route_id": "route:selected_subset",
+                        "task_id": "task:selected_subset",
+                        "display_name": "Selected subset route",
+                        "theorem_skeleton": "theorem selected_subset : True := by trivial",
+                        "theorem_statement": "Selected subset route can reuse True.intro.",
+                        "target_prover_family": "lean4",
+                        "route_class": "bridge_or_wrapper",
+                        "total_estimated_cost": 4,
+                        "selected_primitives": ["selected_bridge"],
+                        "actions": [
+                            {
+                                "primitive": "selected_bridge",
+                                "action_id": "action:selected_bridge",
+                                "action_class": "design_bridge_lemma",
+                                "total_cost": 4,
+                                "candidate_declarations": ["True.intro"],
+                            },
+                            {
+                                "primitive": "comparison_boundary",
+                                "action_id": "action:comparison_boundary",
+                                "action_class": "design_from_first_principles",
+                                "total_cost": 20,
+                            },
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (queue_dir / "formal_verifier_queue_manifest.json").write_text(
+        json.dumps(
+            {
+                "target_prover_family": "lean4",
+                "rows": [
+                    {
+                        "route_id": "route:selected_subset",
+                        "target_prover_family": "lean4",
+                        "import_cone_size": 0,
+                        "dependency_graph_depth": 0,
+                        "blocker_count": 0,
+                        "source_trust_level": "local_candidate_declarations",
+                        "recommended_action": "prove selected bridge",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_goal_conditioned_minimal_formalization_plan(
+        delta_dir,
+        queue_dir,
+        out_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["selected_primitives"] == ("selected_bridge",)
+    assert [node["primitive"] for node in row["minimal_additional_formalization_nodes"]] == [
+        "selected_bridge"
+    ]
+    assert "comparison_boundary" in row["do_not_formalize_now"]
+
+
 def test_goal_conditioned_plan_reports_mixed_route_targets() -> None:
     root = Path("runs/test_formalization_gap_planner_goal_conditioned_mixed_targets")
     delta_dir = root / "delta"

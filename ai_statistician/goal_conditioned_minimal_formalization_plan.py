@@ -363,20 +363,50 @@ def _plan_row(
         queue_row,
         source_target_prover_family=source_target_prover_family,
     )
-    actions = [
+    all_actions = [
         action for action in route.get("actions", []) if isinstance(action, dict)
     ]
-    selected_primitives = tuple(
-        sorted({str(action.get("primitive", "")) for action in actions if action.get("primitive")})
+    action_primitives = tuple(
+        sorted(
+            {
+                str(action.get("primitive", ""))
+                for action in all_actions
+                if action.get("primitive")
+            }
+        )
+    )
+    explicit_selected_primitives = tuple(
+        dict.fromkeys(_str_tuple(route.get("selected_primitives", [])))
+    )
+    selected_primitives = explicit_selected_primitives or action_primitives
+    selected_primitive_set = set(selected_primitives)
+    actions = (
+        [
+            action
+            for action in all_actions
+            if str(action.get("primitive", "")) in selected_primitive_set
+        ]
+        if explicit_selected_primitives
+        else all_actions
     )
     if not route_id:
         errors.append("route_id missing")
     if not task_id:
         errors.append("task_id missing")
-    if not actions:
+    if not all_actions:
         errors.append("route actions missing")
     if not selected_primitives:
         errors.append("selected_primitives missing")
+    missing_selected_actions = tuple(
+        primitive
+        for primitive in selected_primitives
+        if primitive not in set(action_primitives)
+    )
+    if missing_selected_actions:
+        errors.append(
+            "selected_primitives missing matching route actions: "
+            + ", ".join(missing_selected_actions)
+        )
 
     existing_reuse = _nodes_for_actions(
         actions,
