@@ -9,6 +9,7 @@ from ai_statistician.cli import main
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES,
     LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES,
+    LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
@@ -24,6 +25,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     _route_adoption_readiness,
     _target_compatible_formal_declaration_rows,
     export_formalization_gap_planner_llm_route_planner,
+    llm_route_planner_library_alignment_summary_json_schema,
     llm_route_planner_manifest_json_schema,
     llm_route_planner_response_payload_schema,
     llm_route_planner_row_json_schema,
@@ -1135,6 +1137,18 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     ] == 1
     assert payload["request_schema"]["$id"] == LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID
     assert "llm_generation_policy" in payload["request_schema"]["required"]
+    alignment_schema = llm_route_planner_library_alignment_summary_json_schema()
+    assert (
+        alignment_schema["$id"]
+        == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
+    )
+    assert payload["request_schema"]["$defs"]["library_alignment_summary"][
+        "$id"
+    ] == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
+    assert (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
+    ).exists()
     request = payload["request_packets"][0]
     assert "LLM route planner" in request["prompt_messages"]["system"]
     assert "required_output_contract" in request["prompt_messages"]["user"]

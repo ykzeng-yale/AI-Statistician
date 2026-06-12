@@ -59,6 +59,10 @@ LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-response-payload-validation-row:1"
 )
+LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-llm-route-planner-library-alignment-summary:1"
+)
 LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-manifest:1"
@@ -2345,6 +2349,9 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
 
 def llm_route_planner_request_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
+    library_alignment_summary_schema = (
+        llm_route_planner_library_alignment_summary_json_schema()
+    )
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
@@ -2388,12 +2395,143 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
             "target_prover_family": {"type": "string", "minLength": 1},
             "library_snapshot_ref": {"type": "string", "minLength": 1},
             "target_route": {"type": "object"},
-            "context_packet": {"type": "object"},
+            "context_packet": {
+                "type": "object",
+                "properties": {
+                    "library_alignment_summary": {
+                        "$ref": "#/$defs/library_alignment_summary"
+                    }
+                },
+            },
             "minimal_delta_cost_policy": {"type": "object"},
             "residual_goals": string_array,
             "required_output_contract": {"type": "object"},
             "prompt_messages": {"type": "object"},
             "proof_evidence_status": {"type": "string", "const": PROOF_EVIDENCE_STATUS},
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
+        },
+        "$defs": {
+            "library_alignment_summary": library_alignment_summary_schema,
+        },
+    }
+
+
+def llm_route_planner_library_alignment_summary_json_schema() -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    nonnegative_integer = {"type": "integer", "minimum": 0}
+    nonnegative_number = {"type": "number", "minimum": 0}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
+        "title": (
+            "Formalization Gap Planner LLM Route Planner Library Alignment Summary"
+        ),
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "summary_kind",
+            "target_prover_family",
+            "library_snapshot_ref",
+            "cost_policy_id",
+            "n_primitives",
+            "n_reuse_ready_primitives",
+            "n_wrapper_primitives",
+            "n_bridge_primitives",
+            "n_source_port_primitives",
+            "n_new_definition_primitives",
+            "n_new_theory_primitives",
+            "n_unknown_primitives",
+            "n_bridge_or_harder_primitives",
+            "n_target_compatible_reuse_declarations",
+            "by_library_delta_class",
+            "by_minimum_coverage_bucket",
+            "primitive_alignment",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ],
+        "properties": {
+            "summary_kind": {
+                "type": "string",
+                "const": LIBRARY_ALIGNMENT_SUMMARY_KIND,
+            },
+            "target_prover_family": {"type": "string", "minLength": 1},
+            "library_snapshot_ref": {"type": "string"},
+            "cost_policy_id": {
+                "type": "string",
+                "const": MINIMAL_DELTA_COST_POLICY_ID,
+            },
+            "n_primitives": nonnegative_integer,
+            "n_reuse_ready_primitives": nonnegative_integer,
+            "n_wrapper_primitives": nonnegative_integer,
+            "n_bridge_primitives": nonnegative_integer,
+            "n_source_port_primitives": nonnegative_integer,
+            "n_new_definition_primitives": nonnegative_integer,
+            "n_new_theory_primitives": nonnegative_integer,
+            "n_unknown_primitives": nonnegative_integer,
+            "n_bridge_or_harder_primitives": nonnegative_integer,
+            "n_target_compatible_reuse_declarations": nonnegative_integer,
+            "by_library_delta_class": {
+                "type": "object",
+                "additionalProperties": nonnegative_integer,
+            },
+            "by_minimum_coverage_bucket": {
+                "type": "object",
+                "additionalProperties": nonnegative_integer,
+            },
+            "primitive_alignment": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": [
+                        "primitive",
+                        "minimum_coverage_bucket",
+                        "library_delta_class",
+                        "minimum_base_cost",
+                        "minimum_cost_source",
+                        "minimum_cost_marker",
+                        "evidence_sources",
+                        "has_target_compatible_declaration",
+                        "target_compatible_declarations",
+                        "target_compatible_declaration_count",
+                        "candidate_declaration_row_count",
+                    ],
+                    "properties": {
+                        "primitive": {"type": "string", "minLength": 1},
+                        "minimum_coverage_bucket": {
+                            "type": "string",
+                            "minLength": 1,
+                        },
+                        "library_delta_class": {
+                            "type": "string",
+                            "enum": [
+                                "reuse_ready",
+                                "wrapper",
+                                "bridge",
+                                "source_port",
+                                "new_definition",
+                                "new_theory",
+                                "unknown",
+                            ],
+                        },
+                        "minimum_base_cost": nonnegative_number,
+                        "minimum_cost_source": {"type": "string"},
+                        "minimum_cost_marker": {"type": "string"},
+                        "evidence_sources": string_array,
+                        "has_target_compatible_declaration": {"type": "boolean"},
+                        "target_compatible_declarations": string_array,
+                        "target_compatible_declaration_count": nonnegative_integer,
+                        "candidate_declaration_row_count": nonnegative_integer,
+                    },
+                },
+            },
+            "proof_evidence_status": {
+                "type": "string",
+                "const": PROOF_EVIDENCE_STATUS,
+            },
             "proof_evidence_boundary": {
                 "type": "string",
                 "pattern": "not theorem proof evidence",
@@ -18358,6 +18496,13 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
     )
     (out_dir / "formalization_gap_planner_llm_route_planner_request.schema.json").write_text(
         json.dumps(llm_route_planner_request_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
+    ).write_text(
+        json.dumps(llm_route_planner_library_alignment_summary_json_schema(), indent=2),
         encoding="utf-8",
     )
     (out_dir / "formalization_gap_planner_llm_route_planner_response.schema.json").write_text(

@@ -40,6 +40,7 @@ from ai_statistician.formalization_gap_planner_local_formal_source_adapter impor
     LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
 )
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
@@ -51,6 +52,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
     export_formalization_gap_planner_llm_route_planner,
+    llm_route_planner_library_alignment_summary_json_schema,
     route_adoption_blocker_taxonomy_json_schema,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
     validate_route_adoption_blocker_taxonomy_payload,
@@ -2407,6 +2409,21 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         )["$id"]
         == LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID
     )
+    library_alignment_summary_schema_payload = json.loads(
+        (
+            out_dir
+            / "contract"
+            / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert (
+        library_alignment_summary_schema_payload["$id"]
+        == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
+    )
+    assert (
+        library_alignment_summary_schema_payload
+        == llm_route_planner_library_alignment_summary_json_schema()
+    )
     assert (
         json.loads(
             (
@@ -2772,6 +2789,13 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "portable_plan_row_schema" in schema_catalog_entry_names
     assert "target_intake_row_schema" in schema_catalog_entry_names
     assert "llm_route_planner_request_schema" in schema_catalog_entry_names
+    assert (
+        "llm_route_planner_library_alignment_summary_schema"
+        in schema_catalog_entry_names
+    )
+    assert schema_catalog_entries_by_name[
+        "llm_route_planner_library_alignment_summary_schema"
+    ]["schema_id"] == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
     assert "llm_route_planner_response_schema" in schema_catalog_entry_names
     assert "llm_route_planner_response_payload_schema" in schema_catalog_entry_names
     assert (
@@ -3397,6 +3421,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert (
         "contract/formalization_gap_planner_llm_route_planner_request.schema.json"
+        in reproduction_payload["bundle_relative_artifacts"]
+    )
+    assert (
+        "contract/formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
         in reproduction_payload["bundle_relative_artifacts"]
     )
     assert (
