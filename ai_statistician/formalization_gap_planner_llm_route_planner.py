@@ -3418,6 +3418,7 @@ def validate_llm_route_planner_response_payload(
         errors.append("response_payload cannot claim kernel_verified=true")
     errors.extend(_kernel_proof_claim_errors(payload, location="response_payload"))
     errors.extend(_response_payload_realization_field_contract_errors(payload))
+    errors.extend(_response_payload_lean_legacy_declaration_field_errors(payload))
     errors.extend(_response_payload_target_prover_internal_consistency_errors(payload))
     return sorted(set(errors))
 
@@ -7691,6 +7692,51 @@ def _response_payload_realization_field_contract_errors(
             "formal_realization_dag_nodes only"
         ]
     return []
+
+
+def _nonempty_legacy_declaration_hit_value(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, Mapping):
+        return bool(value)
+    if isinstance(value, (list, tuple, set)):
+        return any(_nonempty_legacy_declaration_hit_value(item) for item in value)
+    return bool(value)
+
+
+def _response_payload_lean_legacy_declaration_field_errors(
+    payload: Mapping[str, Any],
+) -> list[str]:
+    target_prover_key = _target_prover_key(
+        _declared_payload_target_prover_family(payload)
+    )
+    if not target_prover_key or target_prover_key == "lean4":
+        return []
+
+    errors: list[str] = []
+
+    def check_container(location: str, container: Mapping[str, Any]) -> None:
+        if _nonempty_legacy_declaration_hit_value(
+            container.get("lean_declaration_hits")
+        ):
+            errors.append(
+                f"{location}.lean_declaration_hits is a Lean-only legacy "
+                "declaration field; non-Lean target prover responses must use "
+                "formal_declaration_hits or candidate_declaration_rows"
+            )
+
+    check_container("response_payload", payload)
+    route = _dict_value(payload, "standalone_route")
+    check_container("standalone_route", route)
+    for index, node in enumerate(
+        _dict_tuple(payload.get("formal_realization_dag_nodes", []))
+    ):
+        check_container(f"formal_realization_dag_nodes[{index}]", node)
+    for index, primitive in enumerate(_dict_tuple(route.get("primitives", []))):
+        check_container(f"standalone_route.primitives[{index}]", primitive)
+    return errors
 
 
 def _response_payload_target_prover_internal_consistency_errors(

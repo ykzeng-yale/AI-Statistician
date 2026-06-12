@@ -5414,6 +5414,58 @@ def test_llm_route_planner_payload_validator_rejects_candidate_row_target_mismat
     )
 
 
+def test_llm_route_planner_payload_validator_rejects_non_lean_legacy_declaration_hits_schema_only() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_payload_validate_rocq_legacy_hits"
+    )
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response = _llm_response_payload()
+    response["target_prover_family"] = "rocq"
+    response["formal_realization_dag_nodes"] = response.pop(
+        "lean_realization_dag_nodes"
+    )
+    response["standalone_route"]["target_prover_family"] = "rocq"
+    response["formal_realization_dag_nodes"][0]["lean_declaration_hits"] = [
+        {"declaration": "Mathlib.Probability.exchangeable"}
+    ]
+    response["standalone_route"]["primitives"][0]["lean_declaration_hits"] = [
+        {"declaration": "Mathlib.Probability.exchangeable"}
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    direct_errors = validate_llm_route_planner_response_payload(response)
+    assert any(
+        "formal_realization_dag_nodes[0].lean_declaration_hits is a Lean-only "
+        "legacy declaration field" in error
+        for error in direct_errors
+    )
+    assert any(
+        "standalone_route.primitives[0].lean_declaration_hits is a Lean-only "
+        "legacy declaration field" in error
+        for error in direct_errors
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_payloads"] == 1
+    assert payload["n_valid_payloads"] == 0
+    assert payload["n_invalid_payloads"] == 1
+    row = payload["rows"][0]
+    assert row["request_context_validation_mode"] == "schema_only"
+    assert row["n_schema_errors"] >= 2
+    assert any(
+        "lean_declaration_hits is a Lean-only legacy declaration field" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_response_payload_validator_request_context_accepts_payload() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_payload_validate_request_bound")
     planner_dir = root / "llm_route_planner"
