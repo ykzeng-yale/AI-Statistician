@@ -2013,6 +2013,12 @@ def run_research_agent_runtime(
             source_theorem_promotion_work_order_rows
         )
     )
+    source_theorem_promotion_materialization_seed_rows = (
+        _runtime_source_theorem_promotion_materialization_seed_rows(
+            source_theorem_promotion_handoff_rows,
+            runtime_out_dir=out_dir,
+        )
+    )
     gap_planner_bridge_rows = _runtime_formalization_gap_planner_bridge_rows(results)
     agenda_path = out_dir / "runtime_next_action_agenda.jsonl"
     learning_path = out_dir / "runtime_learning_rows.jsonl"
@@ -2027,6 +2033,12 @@ def run_research_agent_runtime(
     )
     source_theorem_promotion_handoffs_path = (
         out_dir / "runtime_source_theorem_promotion_handoffs.jsonl"
+    )
+    source_theorem_promotion_materialization_seeds_path = (
+        out_dir / "runtime_source_theorem_promotion_materialization_seeds.jsonl"
+    )
+    source_theorem_promotion_materialization_seed_queue_dir = (
+        out_dir / "runtime_source_theorem_promotion_materialization_seed_queue"
     )
     gap_planner_bridges_path = out_dir / "runtime_formalization_gap_planner_bridges.jsonl"
     gap_planner_seed_dir = out_dir / "runtime_formalization_gap_planner_seeds"
@@ -2049,6 +2061,14 @@ def run_research_agent_runtime(
     _write_jsonl(
         source_theorem_promotion_handoffs_path,
         source_theorem_promotion_handoff_rows,
+    )
+    _write_jsonl(
+        source_theorem_promotion_materialization_seeds_path,
+        source_theorem_promotion_materialization_seed_rows,
+    )
+    _write_runtime_source_theorem_promotion_materialization_seed_queue(
+        source_theorem_promotion_materialization_seed_rows,
+        queue_dir=source_theorem_promotion_materialization_seed_queue_dir,
     )
     theorem_closure_bridge_manifest: dict[str, Any] | None = None
     if (
@@ -2115,6 +2135,12 @@ def run_research_agent_runtime(
     manifest["artifacts"]["runtime_source_theorem_promotion_handoffs_jsonl"] = str(
         source_theorem_promotion_handoffs_path
     )
+    manifest["artifacts"][
+        "runtime_source_theorem_promotion_materialization_seeds_jsonl"
+    ] = str(source_theorem_promotion_materialization_seeds_path)
+    manifest["artifacts"][
+        "runtime_source_theorem_promotion_materialization_seed_queue_dir"
+    ] = str(source_theorem_promotion_materialization_seed_queue_dir)
     if theorem_closure_bridge_manifest is not None:
         manifest["artifacts"][
             "runtime_theorem_reduction_closure_proofengineer_bridge_manifest"
@@ -2171,6 +2197,9 @@ def run_research_agent_runtime(
     )
     manifest["n_runtime_source_theorem_promotion_handoffs"] = len(
         source_theorem_promotion_handoff_rows
+    )
+    manifest["n_runtime_source_theorem_promotion_materialization_seeds"] = len(
+        source_theorem_promotion_materialization_seed_rows
     )
     manifest["theorem_closure_proofengineer_bridge_requested"] = bool(
         config.theorem_closure_proofengineer_bridge
@@ -4389,6 +4418,273 @@ def _runtime_source_theorem_promotion_handoff_rows(
         }
         rows.append(row)
     return rows
+
+
+def _runtime_source_theorem_promotion_materialization_seed_rows(
+    handoff_rows: list[dict[str, Any]],
+    *,
+    runtime_out_dir: Path,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for rank, item in enumerate(handoff_rows, start=1):
+        if not isinstance(item, Mapping):
+            continue
+        handoff_id = str(item.get("handoff_id", "") or "").strip()
+        work_order_id = str(
+            item.get("source_theorem_promotion_work_order_id", "") or ""
+        ).strip()
+        source_target_id = str(item.get("source_formal_target_id", "") or "").strip()
+        target_lean_declaration = str(
+            item.get("target_lean_declaration", "") or ""
+        ).strip()
+        target_status = str(item.get("target_resolution_status", "") or "")
+        target_known = (
+            target_status == "SOURCE_THEOREM_TARGET_SKETCH_PRESENT"
+            and bool(target_lean_declaration)
+        )
+        seed_hash = stable_hash(
+            [handoff_id, work_order_id, source_target_id, target_lean_declaration]
+        )[:16]
+        execution_queue_id = (
+            "runtime_source_theorem_promotion_materialization_seed:" + seed_hash
+        )
+        safe_name = _safe_identifier(
+            target_lean_declaration or source_target_id or work_order_id or "source_theorem"
+        )
+        candidate_artifact_path = (
+            runtime_out_dir
+            / "runtime_source_theorem_promotion_candidate_artifacts"
+            / f"{safe_name}_{seed_hash}.lean"
+        )
+        execution_transcript_path = (
+            runtime_out_dir
+            / "runtime_source_theorem_promotion_execution_transcripts"
+            / f"{safe_name}_{seed_hash}.jsonl"
+        )
+        verified_closure_ids = [
+            str(value)
+            for value in item.get(
+                "kernel_verified_theorem_reduction_closure_target_ids", []
+            )
+            or []
+            if str(value).strip()
+        ]
+        verified_semantic_ids = [
+            str(value)
+            for value in item.get(
+                "kernel_verified_source_theorem_semantic_primitive_ids", []
+            )
+            or []
+            if str(value).strip()
+        ]
+        target_goal_ids = [
+            str(value)
+            for value in item.get("target_theorem_goal_ids", []) or []
+            if str(value).strip()
+        ]
+        semantic_constraints = [
+            str(value)
+            for value in item.get("semantic_alignment_constraints", []) or []
+            if str(value).strip()
+        ]
+        materialization_status = (
+            "READY_FOR_AGENTIC_PROOF_EXECUTION_MATERIALIZER"
+            if target_known
+            else "BLOCKED_NEEDS_EXACT_SOURCE_THEOREM_TARGET"
+        )
+        row = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeSourceTheoremPromotionMaterializationSeed",
+            "materialization_seed_id": execution_queue_id,
+            "execution_queue_id": execution_queue_id,
+            "population_entry_id": "runtime_source_theorem_promotion:" + seed_hash,
+            "safety_policy_id": "runtime_source_theorem_promotion_materialization_seed",
+            "candidate_evaluation_id": "runtime_source_theorem_promotion:" + seed_hash,
+            "strategy_id": "runtime_source_theorem_promotion_route_probe",
+            "followup_id": handoff_id,
+            "residual_obligation_id": work_order_id or source_target_id,
+            "source_theorem_promotion_handoff_id": handoff_id,
+            "source_theorem_promotion_work_order_id": work_order_id,
+            "source_formalization_manifest_id": str(
+                item.get("source_formalization_manifest_id", "") or ""
+            ),
+            "source_formalizer_packet_id": str(
+                item.get("source_formalizer_packet_id", "") or ""
+            ),
+            "question_id": str(item.get("question_id", "") or ""),
+            "question_title": str(item.get("question_title", "") or ""),
+            "source_formal_target_id": source_target_id,
+            "display_name": (
+                "Materialize source-theorem promotion route probe for "
+                + (target_lean_declaration or source_target_id or "source theorem")
+            ),
+            "target_theorem_name": target_lean_declaration or source_target_id,
+            "candidate_bridge_lemma_name": target_lean_declaration,
+            "residual_gap": (
+                "exact source-theorem proof artifact must be materialized and "
+                "kernel verified before source-theorem promotion"
+            ),
+            "action_class": "materialize_source_theorem_promotion_candidate_artifact",
+            "generation_mode": "runtime_source_theorem_promotion_materialization_seed",
+            "population_bucket": "source_theorem_promotion_attempt",
+            "goal_cache_key": "runtime_source_theorem_promotion:" + (
+                target_lean_declaration or source_target_id or seed_hash
+            ),
+            "candidate_database_key": (
+                "runtime_source_theorem_promotion_candidate_database:" + seed_hash
+            ),
+            "candidate_lineage_key": (
+                "runtime_source_theorem_promotion_lineage:" + seed_hash
+            ),
+            "proof_sketch_population_key": (
+                "runtime_source_theorem_promotion_sketch_population:" + seed_hash
+            ),
+            "kernel_overlay_context": {
+                "source_theorem_promotion_handoff_id": handoff_id,
+                "source_theorem_promotion_work_order_id": work_order_id,
+                "source_formal_target_id": source_target_id,
+                "source_theorem_target_known": target_known,
+                "target_location": {
+                    "target_lean_declaration": target_lean_declaration,
+                    "target_imports": [],
+                },
+                "already_kernel_verified_subclaims": [
+                    *verified_closure_ids,
+                    *verified_semantic_ids,
+                ],
+                "target_blockers": [
+                    *target_goal_ids,
+                    *semantic_constraints,
+                    "exact_source_theorem_statement_alignment",
+                    "artifact_kernel_verified_before_source_theorem_promotion",
+                ],
+                "source_theorem_boundary": (
+                    "The materialized route probe is proof-worker input only; "
+                    "it is not the source theorem proof."
+                ),
+            },
+            "candidate_artifact_path": str(candidate_artifact_path),
+            "execution_transcript_path": str(execution_transcript_path),
+            "target_location_preflight": {
+                "live_goal_requested": True,
+                "live_goal_location_ready": False,
+                "execution_preflight_status": (
+                    "NEEDS_MATERIALIZED_CANDIDATE_ARTIFACT"
+                    if target_known
+                    else "NEEDS_EXACT_SOURCE_THEOREM_TARGET"
+                ),
+                "target_lean_declaration": target_lean_declaration,
+                "candidate_artifact_path": str(candidate_artifact_path),
+                "next_step": (
+                    "run formal_verifier_agentic_proof_execution_materializer on "
+                    "the runtime source-theorem promotion seed queue"
+                ),
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            },
+            "live_goal_location_ready": False,
+            "execution_preflight_status": (
+                "NEEDS_MATERIALIZED_CANDIDATE_ARTIFACT"
+                if target_known
+                else "NEEDS_EXACT_SOURCE_THEOREM_TARGET"
+            ),
+            "proof_state_provider_plan": [
+                "lean_goal",
+                "lean_diagnostic_messages",
+                "lean_local_search",
+                "lean_multi_attempt",
+            ],
+            "proof_route_dag_plan": [
+                "materialize route probe with existing kernel-verified closure and semantic bridge memory",
+                "inspect live Lean goal before changing proof body",
+                "do not promote until exact source theorem artifact is kernel verified",
+            ],
+            "verified_sketch_gate_plan": [
+                "candidate artifact is only a route probe",
+                "artifact verifier must report artifact_kernel_verified=true before source theorem promotion",
+            ],
+            "blueprint_export_plan": [
+                "label this row as proof-worker input, not proof evidence",
+                "separate closure/bridge evidence from exact source theorem proof",
+            ],
+            "command_plan": [
+                "run formal_verifier_agentic_proof_execution_materializer on the seed queue",
+                "run formal_verifier_agentic_proof_execution_artifact_verifier on the materialized artifact",
+                "feed only kernel-verified artifact rows into source-theorem promotion",
+            ],
+            "required_static_checks": [
+                "candidate artifact has no sorry/admit/axiom/unsafe tokens",
+                "candidate route probe does not restate an unverified source theorem as proven",
+                "source theorem promotion remains blocked until artifact verifier accepts",
+            ],
+            "required_dynamic_checks": [
+                "lean_goal",
+                "lean_diagnostic_messages",
+                "local Lean or AXLE kernel verification",
+                "source-theorem promotion queue exact-target review",
+            ],
+            "output_contract": [
+                "write a bounded Lean route-probe artifact at candidate_artifact_path",
+                "write execution transcript and live proof-state request",
+                "mark proof evidence only after artifact verifier and source-theorem promotion succeed",
+            ],
+            "promotion_gate": (
+                "source theorem promotion requires a downstream artifact verifier row "
+                "with artifact_kernel_verified=true for the exact source theorem target"
+            ),
+            "materialization_seed_status": materialization_status,
+            "execution_status": materialization_status,
+            "owner_agent": "Formalizer/ProofEngineer",
+            "priority_score": 95 if target_known else 10,
+            "rank": rank,
+            "source_theorem_target_known": target_known,
+            "proof_evidence_status": "MATERIALIZATION_SEED_NOT_PROOF_EVIDENCE",
+            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            "ok": target_known,
+            "errors": [] if target_known else ["target Lean declaration missing"],
+        }
+        rows.append(row)
+    return rows
+
+
+def _write_runtime_source_theorem_promotion_materialization_seed_queue(
+    seed_rows: list[dict[str, Any]],
+    *,
+    queue_dir: Path,
+) -> dict[str, Any]:
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    ready_rows = [
+        row
+        for row in seed_rows
+        if row.get("materialization_seed_status")
+        == "READY_FOR_AGENTIC_PROOF_EXECUTION_MATERIALIZER"
+    ]
+    payload = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "artifact_kind": "RuntimeSourceTheoremPromotionMaterializationSeedQueue",
+        "n_source_theorem_promotion_materialization_seeds": len(seed_rows),
+        "n_execution_queue_items": len(ready_rows),
+        "n_blocked": len(seed_rows) - len(ready_rows),
+        "all_ok": all(bool(row.get("ok")) for row in seed_rows),
+        "rows": ready_rows,
+        "proof_evidence_status": "MATERIALIZATION_SEED_QUEUE_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        "limitations": [
+            "seed queue rows are materializer inputs, not proof outputs",
+            "materialized route probes are still not source theorem proofs",
+            "source theorem promotion remains blocked until local Lean/AXLE accepts the exact target artifact",
+        ],
+    }
+    (queue_dir / "formal_verifier_agentic_proof_execution_queue_manifest.json").write_text(
+        json.dumps(payload, indent=2, default=str),
+        encoding="utf-8",
+    )
+    (queue_dir / "formal_verifier_agentic_proof_execution_queue.jsonl").write_text(
+        "\n".join(json.dumps(row, sort_keys=True, default=str) for row in ready_rows)
+        + ("\n" if ready_rows else ""),
+        encoding="utf-8",
+    )
+    return payload
 
 
 def _lean_declaration_name(lean_statement: str) -> str:

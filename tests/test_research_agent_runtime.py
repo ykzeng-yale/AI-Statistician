@@ -58,6 +58,8 @@ from ai_statistician.research_agent_runtime import (
     _runtime_source_theorem_semantic_primitive_work_order_rows,
     _runtime_source_theorem_promotion_work_order_rows,
     _runtime_source_theorem_promotion_handoff_rows,
+    _runtime_source_theorem_promotion_materialization_seed_rows,
+    _write_runtime_source_theorem_promotion_materialization_seed_queue,
     _runtime_theorem_reduction_closure_work_order_rows,
     _runtime_evidence_summary,
     _runtime_failure_summary,
@@ -65,6 +67,9 @@ from ai_statistician.research_agent_runtime import (
     _run_generated_python_sandbox,
     _run_split_conformal_interval_prototype,
     run_research_agent_runtime,
+)
+from ai_statistician.formal_verifier_agentic_proof_execution_materializer import (
+    export_formal_verifier_agentic_proof_execution_materializer,
 )
 from ai_statistician.research_agent_runtime_audit import (
     _audit_topology,
@@ -1257,7 +1262,15 @@ def test_source_semantic_learning_memory_advances_beyond_repeat_queue() -> None:
     )
     proposal = {
         "packet_id": "formalizer_proposal:source_primitives",
-        "formal_targets": [{"id": "split_conformal_finite_sample_coverage_lean"}],
+        "formal_targets": [
+            {
+                "id": "split_conformal_finite_sample_coverage_lean",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_coverage : True := by trivial"
+                ),
+                "semantic_alignment_constraints": ["marginal coverage only"],
+            }
+        ],
         "gap_taxonomy": [
             {
                 "gap": "order statistic quantile semantics must be formalized.",
@@ -1282,6 +1295,11 @@ def test_source_semantic_learning_memory_advances_beyond_repeat_queue() -> None:
     }
 
     work_orders = _formalizer_source_theorem_semantic_primitive_work_orders(
+        proposal_packet=proposal,
+        proof_bank_runtime_memory_summary=summary,
+        theorem_goals=theorem_goals,
+    )
+    promotion_work_orders = _formalizer_source_theorem_promotion_work_orders(
         proposal_packet=proposal,
         proof_bank_runtime_memory_summary=summary,
         theorem_goals=theorem_goals,
@@ -1318,7 +1336,7 @@ def test_source_semantic_learning_memory_advances_beyond_repeat_queue() -> None:
     assert "formal_gap:source_theorem_semantic_primitives" not in agenda_ids
 
 
-def test_runtime_exports_source_theorem_promotion_queue_rows() -> None:
+def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> None:
     formalization_manifest = {
         "artifact_kind": "RuntimeFormalizationManifest",
         "manifest_id": "formalization_manifest:source_promotion",
@@ -1375,6 +1393,25 @@ def test_runtime_exports_source_theorem_promotion_queue_rows() -> None:
         ]
     )
     handoff_rows = _runtime_source_theorem_promotion_handoff_rows(rows)
+    materialization_seed_rows = (
+        _runtime_source_theorem_promotion_materialization_seed_rows(
+            handoff_rows,
+            runtime_out_dir=tmp_path,
+        )
+    )
+    materialization_seed_queue_dir = (
+        tmp_path / "runtime_source_theorem_promotion_materialization_seed_queue"
+    )
+    materialization_seed_queue_manifest = (
+        _write_runtime_source_theorem_promotion_materialization_seed_queue(
+            materialization_seed_rows,
+            queue_dir=materialization_seed_queue_dir,
+        )
+    )
+    materializer_payload = export_formal_verifier_agentic_proof_execution_materializer(
+        materialization_seed_queue_dir,
+        tmp_path / "materialized_source_theorem_promotion_route_probe",
+    )
 
     assert len(rows) == 1
     assert rows[0]["artifact_kind"] == "SourceTheoremPromotionWorkOrder"
@@ -1405,6 +1442,34 @@ def test_runtime_exports_source_theorem_promotion_queue_rows() -> None:
         "ready_for_existing_source_theorem_promotion_queue"
     ] is False
     assert handoff_rows[0]["proof_evidence_status"] == "HANDOFF_NOT_PROOF_EVIDENCE"
+    assert len(materialization_seed_rows) == 1
+    assert materialization_seed_rows[0]["artifact_kind"] == (
+        "RuntimeSourceTheoremPromotionMaterializationSeed"
+    )
+    assert materialization_seed_rows[0]["materialization_seed_status"] == (
+        "READY_FOR_AGENTIC_PROOF_EXECUTION_MATERIALIZER"
+    )
+    assert materialization_seed_rows[0]["source_theorem_target_known"] is True
+    assert materialization_seed_rows[0]["population_bucket"] == (
+        "source_theorem_promotion_attempt"
+    )
+    assert materialization_seed_rows[0]["candidate_bridge_lemma_name"] == (
+        "split_conformal_coverage"
+    )
+    assert materialization_seed_rows[0]["proof_evidence_status"] == (
+        "MATERIALIZATION_SEED_NOT_PROOF_EVIDENCE"
+    )
+    assert materialization_seed_queue_manifest["n_execution_queue_items"] == 1
+    assert materialization_seed_queue_manifest["proof_evidence_status"] == (
+        "MATERIALIZATION_SEED_QUEUE_NOT_PROOF_EVIDENCE"
+    )
+    assert materializer_payload["n_materialized_artifacts"] == 1
+    assert materializer_payload["n_live_goal_location_ready"] == 1
+    assert materializer_payload["n_kernel_verified"] == 0
+    assert materializer_payload["proof_evidence_status"] == (
+        "AGENTIC_PROOF_EXECUTION_MATERIALIZER_NOT_PROOF_EVIDENCE"
+    )
+    assert materializer_payload["rows"][0]["kernel_verified"] is False
 
 
 def test_runtime_exports_source_theorem_semantic_primitive_queue_rows() -> None:
