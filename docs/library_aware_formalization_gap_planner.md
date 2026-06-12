@@ -122,6 +122,9 @@ and `display_name`, and they are validated by the published
 contract. This gives external prover teams a direct table of reuse-ready,
 wrapper, bridge, source-port, new-definition, new-theory, and unknown
 primitive alignment classes without reverse-engineering the full prompt packet.
+Publication bundles copy that JSONL and schema for both the primary and
+feedback LLM route-planner artifacts, and the bundle audit checks that the
+packaged rows match the request packets and manifest counts.
 For external teams that only need to
 preflight JSON before handing it to the full route planner, the
 `formalization-gap-planner-llm-route-planner-response-payload-validate` command

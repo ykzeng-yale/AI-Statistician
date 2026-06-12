@@ -1111,6 +1111,37 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         / "formalization_gap_planner_llm_route_planner"
         / "formalization_gap_planner_llm_route_planner_requests.jsonl"
     ).exists()
+    primary_alignment_jsonl = (
+        out_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner"
+        / "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl"
+    )
+    primary_alignment_schema = (
+        out_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner"
+        / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
+    )
+    assert primary_alignment_jsonl.exists()
+    assert primary_alignment_schema.exists()
+    assert json.loads(primary_alignment_schema.read_text(encoding="utf-8"))[
+        "$id"
+    ] == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
+    primary_alignment_rows = [
+        json.loads(line)
+        for line in primary_alignment_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(primary_alignment_rows) == manifest["llm_route_planner_summary"][
+        "n_requests_with_library_alignment_summary"
+    ]
+    assert (
+        out_dir
+        / "artifacts"
+        / "formalization_gap_planner_feedback_llm_route_planner"
+        / "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl"
+    ).exists()
     assert (
         out_dir
         / "artifacts"

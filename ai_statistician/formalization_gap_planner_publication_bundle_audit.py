@@ -55,6 +55,7 @@ from .formalization_gap_planner_local_formal_source_adapter import (
 )
 from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES,
+    LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
     LLM_ROUTE_PLANNER_PLANNER_NEXT_ACTION_HOOK_ALIASES,
@@ -7055,9 +7056,17 @@ def _llm_route_planner_optional_checks(
     requests_jsonl_path = (
         artifact_dir / "formalization_gap_planner_llm_route_planner_requests.jsonl"
     )
+    library_alignment_summaries_jsonl_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl"
+    )
     rows_jsonl_path = artifact_dir / "formalization_gap_planner_llm_route_planner.jsonl"
     request_schema_path = (
         artifact_dir / "formalization_gap_planner_llm_route_planner_request.schema.json"
+    )
+    library_alignment_summary_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
     )
     response_schema_path = (
         artifact_dir / "formalization_gap_planner_llm_route_planner_response.schema.json"
@@ -7088,6 +7097,9 @@ def _llm_route_planner_optional_checks(
     manifest = _read_json_no_error(manifest_path)
     manifest_schema = _read_json_no_error(manifest_schema_path)
     request_schema = _read_json_no_error(request_schema_path)
+    library_alignment_summary_schema = _read_json_no_error(
+        library_alignment_summary_schema_path
+    )
     response_schema = _read_json_no_error(response_schema_path)
     response_payload_schema = _read_json_no_error(response_payload_schema_path)
     response_payload_validation_manifest_schema = _read_json_no_error(
@@ -7102,7 +7114,15 @@ def _llm_route_planner_optional_checks(
     )
     seed_payload = _read_json_no_error(standalone_seed_path)
     requests, request_errors = _read_jsonl_dict_rows_no_error(requests_jsonl_path)
+    library_alignment_summary_rows, library_alignment_summary_errors = (
+        _read_jsonl_dict_rows_no_error(library_alignment_summaries_jsonl_path)
+    )
     rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    request_library_alignment_summaries = [
+        _dict_value(_dict_value(request, "context_packet"), "library_alignment_summary")
+        for request in requests
+        if _dict_value(_dict_value(request, "context_packet"), "library_alignment_summary")
+    ]
     seed_errors = validate_standalone_input_payload(seed_payload)
     seed_route_selection_contract_errors = (
         validate_llm_route_planner_seed_route_selection_payload(
@@ -7180,6 +7200,21 @@ def _llm_route_planner_optional_checks(
             LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
             str(request_schema.get("$id", "")),
             request_schema.get("$id") == LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+        ),
+        _check(
+            f"{check_prefix}_library_alignment_summary_schema_file",
+            "optional_artifacts",
+            "LLM route-planner library-alignment summary schema exists",
+            str(library_alignment_summary_schema_path.exists()),
+            library_alignment_summary_schema_path.exists(),
+        ),
+        _check(
+            f"{check_prefix}_library_alignment_summary_schema_id",
+            "optional_artifacts",
+            LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
+            str(library_alignment_summary_schema.get("$id", "")),
+            library_alignment_summary_schema.get("$id")
+            == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
         ),
         _check(
             f"{check_prefix}_response_schema_file",
@@ -7299,6 +7334,18 @@ def _llm_route_planner_optional_checks(
             errors=request_errors,
         ),
         _check(
+            f"{check_prefix}_library_alignment_summaries_parse",
+            "optional_artifacts",
+            "LLM route-planner library-alignment summaries JSONL parses into object rows",
+            (
+                "; ".join(library_alignment_summary_errors)
+                if library_alignment_summary_errors
+                else f"rows={len(library_alignment_summary_rows)}"
+            ),
+            not library_alignment_summary_errors,
+            errors=library_alignment_summary_errors,
+        ),
+        _check(
             f"{check_prefix}_rows_parse",
             "optional_artifacts",
             "LLM route-planner rows JSONL parses into object rows",
@@ -7312,6 +7359,29 @@ def _llm_route_planner_optional_checks(
             "LLM route-planner requests match manifest count",
             f"jsonl={len(requests)} manifest={manifest.get('n_request_packets', 0)}",
             len(requests) == int(manifest.get("n_request_packets", 0) or 0),
+        ),
+        _check(
+            f"{check_prefix}_library_alignment_summary_count",
+            "optional_artifacts",
+            "LLM route-planner library-alignment summaries match manifest count",
+            (
+                f"jsonl={len(library_alignment_summary_rows)} "
+                f"manifest={manifest.get('n_requests_with_library_alignment_summary', 0)}"
+            ),
+            len(library_alignment_summary_rows)
+            == int(
+                manifest.get("n_requests_with_library_alignment_summary", 0) or 0
+            ),
+        ),
+        _check(
+            f"{check_prefix}_library_alignment_summary_request_match",
+            "optional_artifacts",
+            "LLM route-planner library-alignment summaries match request packets",
+            (
+                f"jsonl={len(library_alignment_summary_rows)} "
+                f"requests={len(request_library_alignment_summaries)}"
+            ),
+            library_alignment_summary_rows == request_library_alignment_summaries,
         ),
         _check(
             f"{check_prefix}_request_model_tier_mismatch_policy",

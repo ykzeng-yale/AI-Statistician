@@ -26,6 +26,7 @@ from ai_statistician.formalization_gap_planner_local_formal_source_adapter impor
     LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
 )
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
+    LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
     export_formalization_gap_planner_llm_route_planner,
@@ -7638,6 +7639,14 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         bundle_dir / "artifacts" / "formalization_gap_planner_llm_route_planner"
     )
     rows_path = llm_artifact_dir / "formalization_gap_planner_llm_route_planner.jsonl"
+    alignment_summaries_path = (
+        llm_artifact_dir
+        / "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl"
+    )
+    alignment_summary_schema_path = (
+        llm_artifact_dir
+        / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
+    )
     seed_path = (
         llm_artifact_dir
         / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
@@ -7647,6 +7656,27 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         for line in rows_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
+    original_alignment_summaries = [
+        json.loads(line)
+        for line in alignment_summaries_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert original_alignment_summaries
+    assert json.loads(alignment_summary_schema_path.read_text(encoding="utf-8"))[
+        "$id"
+    ] == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_library_alignment_summary_count"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_library_alignment_summary_request_match"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
     original_seed = json.loads(seed_path.read_text(encoding="utf-8"))
     alias_corrupted_rows = json.loads(json.dumps(original_rows))
     alias_corrupted_seed = json.loads(json.dumps(original_seed))
@@ -7702,6 +7732,37 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         encoding="utf-8",
     )
     seed_path.write_text(json.dumps(original_seed, indent=2), encoding="utf-8")
+
+    corrupted_alignment_summaries = json.loads(json.dumps(original_alignment_summaries))
+    corrupted_alignment_summaries[0]["n_primitives"] = int(
+        corrupted_alignment_summaries[0].get("n_primitives", 0) or 0
+    ) + 1
+    alignment_summaries_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True) for row in corrupted_alignment_summaries
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_alignment_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_route_planner_alignment_summary_drift",
+    )
+    alignment_failed_names = {
+        row["check_name"]
+        for row in rejected_alignment_payload["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_alignment_payload["all_ok"]
+    assert (
+        "optional_llm_route_planner_library_alignment_summary_request_match"
+        in alignment_failed_names
+    )
+    alignment_summaries_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in original_alignment_summaries)
+        + "\n",
+        encoding="utf-8",
+    )
 
     manifest_path = (
         bundle_dir
