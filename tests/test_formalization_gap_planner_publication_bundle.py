@@ -428,13 +428,57 @@ def _fixture_cross_prover_matrix_row(
         "n_packets_missing_alignment": 0,
         "n_packets_with_standalone_input_trace": 1,
         "n_packets_missing_standalone_input_trace": 0,
+        "n_packets_with_target_library_snapshot_trace": 1,
+        "n_packets_missing_target_library_snapshot_trace": 0,
+        "n_packets_target_library_snapshot_mismatch": 0,
         "n_packets_with_replan_metadata_trace": 1,
+        "n_packets_with_quality_controls": 1,
+        "n_packet_quality_control_fields": 4,
+        "packet_quality_control_fields": [
+            "required_quality_signals",
+            "resource_contract_ids",
+            "response_validation_signals",
+            "stop_conditions",
+        ],
+        "packet_quality_control_resource_contract_ids": [
+            "lean_lsp:proof_state_feedback"
+        ],
+        "packet_quality_control_response_validation_signals": [
+            "residual_goals_or_diagnostics_present"
+        ],
+        "packet_quality_control_stop_conditions": [
+            "residual interpreted or source search requested"
+        ],
+        "by_packet_quality_control_field": {
+            "required_quality_signals": {
+                "n_packets": 1,
+                "n_values": 1,
+                "values": ["diagnostic_signature"],
+            },
+            "resource_contract_ids": {
+                "n_packets": 1,
+                "n_values": 1,
+                "values": ["lean_lsp:proof_state_feedback"],
+            },
+            "response_validation_signals": {
+                "n_packets": 1,
+                "n_values": 1,
+                "values": ["residual_goals_or_diagnostics_present"],
+            },
+            "stop_conditions": {
+                "n_packets": 1,
+                "n_values": 1,
+                "values": ["residual interpreted or source search requested"],
+            },
+        },
         "n_packets_with_llm_route_adoption_status": 1,
         "n_packets_llm_route_adoption_ready": 0,
         "n_packets_llm_route_adoption_pending_refinement": 1,
         "n_packets_llm_route_adoption_rejected": 0,
         "n_packets_llm_route_adoption_awaiting_response": 0,
         "n_packet_llm_route_adoption_blockers": 2,
+        "n_packet_llm_route_adoption_pending_quality_control_blockers": 1,
+        "n_packet_llm_route_adoption_pending_source_grounding_blockers": 0,
         "by_packet_llm_route_adoption_status": {
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
         },
@@ -466,13 +510,57 @@ def _fixture_cross_prover_target_summary(
         "n_total_packets_with_alignment": 1,
         "n_total_packets_with_standalone_input_trace": 1,
         "n_total_packets_missing_standalone_input_trace": 0,
+        "n_total_packets_with_target_library_snapshot_trace": 1,
+        "n_total_packets_missing_target_library_snapshot_trace": 0,
+        "n_total_packets_target_library_snapshot_mismatch": 0,
         "n_total_packets_with_replan_metadata_trace": 1,
+        "n_total_packets_with_quality_controls": 1,
+        "n_total_packet_quality_control_fields": 4,
+        "packet_quality_control_fields": [
+            "required_quality_signals",
+            "resource_contract_ids",
+            "response_validation_signals",
+            "stop_conditions",
+        ],
+        "packet_quality_control_resource_contract_ids": [
+            "lean_lsp:proof_state_feedback"
+        ],
+        "packet_quality_control_response_validation_signals": [
+            "residual_goals_or_diagnostics_present"
+        ],
+        "packet_quality_control_stop_conditions": [
+            "residual interpreted or source search requested"
+        ],
+        "by_total_packet_quality_control_field": {
+            "required_quality_signals": {
+                "n_packets": 1,
+                "n_values": 1,
+                "values": ["diagnostic_signature"],
+            },
+            "resource_contract_ids": {
+                "n_packets": 1,
+                "n_values": 1,
+                "values": ["lean_lsp:proof_state_feedback"],
+            },
+            "response_validation_signals": {
+                "n_packets": 1,
+                "n_values": 1,
+                "values": ["residual_goals_or_diagnostics_present"],
+            },
+            "stop_conditions": {
+                "n_packets": 1,
+                "n_values": 1,
+                "values": ["residual interpreted or source search requested"],
+            },
+        },
         "n_total_packets_with_llm_route_adoption_status": 1,
         "n_total_packets_llm_route_adoption_ready": 0,
         "n_total_packets_llm_route_adoption_pending_refinement": 1,
         "n_total_packets_llm_route_adoption_rejected": 0,
         "n_total_packets_llm_route_adoption_awaiting_response": 0,
         "n_total_packet_llm_route_adoption_blockers": 2,
+        "n_total_packet_llm_route_adoption_pending_quality_control_blockers": 1,
+        "n_total_packet_llm_route_adoption_pending_source_grounding_blockers": 0,
         "by_total_packet_llm_route_adoption_status": {
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
         },
@@ -484,13 +572,59 @@ def _fixture_cross_prover_target_summary(
                 "n_packets_with_alignment": 1,
                 "n_packets_with_standalone_input_trace": 1,
                 "n_packets_missing_standalone_input_trace": 0,
+                "n_packets_with_target_library_snapshot_trace": 1,
+                "n_packets_missing_target_library_snapshot_trace": 0,
+                "n_packets_target_library_snapshot_mismatch": 0,
                 "n_packets_with_replan_metadata_trace": 1,
+                "n_packets_with_quality_controls": 1,
+                "n_packet_quality_control_fields": 4,
+                "packet_quality_control_fields": [
+                    "required_quality_signals",
+                    "resource_contract_ids",
+                    "response_validation_signals",
+                    "stop_conditions",
+                ],
+                "packet_quality_control_resource_contract_ids": [
+                    "lean_lsp:proof_state_feedback"
+                ],
+                "packet_quality_control_response_validation_signals": [
+                    "residual_goals_or_diagnostics_present"
+                ],
+                "packet_quality_control_stop_conditions": [
+                    "residual interpreted or source search requested"
+                ],
+                "by_packet_quality_control_field": {
+                    "required_quality_signals": {
+                        "n_packets": 1,
+                        "n_values": 1,
+                        "values": ["diagnostic_signature"],
+                    },
+                    "resource_contract_ids": {
+                        "n_packets": 1,
+                        "n_values": 1,
+                        "values": ["lean_lsp:proof_state_feedback"],
+                    },
+                    "response_validation_signals": {
+                        "n_packets": 1,
+                        "n_values": 1,
+                        "values": ["residual_goals_or_diagnostics_present"],
+                    },
+                    "stop_conditions": {
+                        "n_packets": 1,
+                        "n_values": 1,
+                        "values": [
+                            "residual interpreted or source search requested"
+                        ],
+                    },
+                },
                 "n_packets_with_llm_route_adoption_status": 1,
                 "n_packets_llm_route_adoption_ready": 0,
                 "n_packets_llm_route_adoption_pending_refinement": 1,
                 "n_packets_llm_route_adoption_rejected": 0,
                 "n_packets_llm_route_adoption_awaiting_response": 0,
                 "n_packet_llm_route_adoption_blockers": 2,
+                "n_packet_llm_route_adoption_pending_quality_control_blockers": 1,
+                "n_packet_llm_route_adoption_pending_source_grounding_blockers": 0,
                 "by_packet_llm_route_adoption_status": {
                     "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
                 },
@@ -1796,19 +1930,67 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
                 "n_total_packets_missing_alignment": 0,
                 "n_total_packets_with_standalone_input_trace": 1,
                 "n_total_packets_missing_standalone_input_trace": 0,
+                "n_total_packets_with_target_library_snapshot_trace": 1,
+                "n_total_packets_missing_target_library_snapshot_trace": 0,
+                "n_total_packets_target_library_snapshot_mismatch": 0,
                 "n_total_packets_with_replan_metadata_trace": 1,
+                "n_total_packets_with_quality_controls": 1,
+                "n_total_packet_quality_control_fields": 4,
+                "packet_quality_control_fields": [
+                    "required_quality_signals",
+                    "resource_contract_ids",
+                    "response_validation_signals",
+                    "stop_conditions",
+                ],
+                "packet_quality_control_resource_contract_ids": [
+                    "lean_lsp:proof_state_feedback"
+                ],
+                "packet_quality_control_response_validation_signals": [
+                    "residual_goals_or_diagnostics_present"
+                ],
+                "packet_quality_control_stop_conditions": [
+                    "residual interpreted or source search requested"
+                ],
+                "by_total_packet_quality_control_field": {
+                    "required_quality_signals": {
+                        "n_packets": 1,
+                        "n_values": 1,
+                        "values": ["diagnostic_signature"],
+                    },
+                    "resource_contract_ids": {
+                        "n_packets": 1,
+                        "n_values": 1,
+                        "values": ["lean_lsp:proof_state_feedback"],
+                    },
+                    "response_validation_signals": {
+                        "n_packets": 1,
+                        "n_values": 1,
+                        "values": ["residual_goals_or_diagnostics_present"],
+                    },
+                    "stop_conditions": {
+                        "n_packets": 1,
+                        "n_values": 1,
+                        "values": [
+                            "residual interpreted or source search requested"
+                        ],
+                    },
+                },
                 "n_total_packets_with_llm_route_adoption_status": 1,
                 "n_total_packets_llm_route_adoption_ready": 0,
                 "n_total_packets_llm_route_adoption_pending_refinement": 1,
                 "n_total_packets_llm_route_adoption_rejected": 0,
                 "n_total_packets_llm_route_adoption_awaiting_response": 0,
                 "n_total_packet_llm_route_adoption_blockers": 2,
+                "n_total_packet_llm_route_adoption_pending_quality_control_blockers": 1,
+                "n_total_packet_llm_route_adoption_pending_source_grounding_blockers": 0,
                 "by_total_packet_llm_route_adoption_status": {
                     "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
                 },
                 "packet_count_consistent": True,
                 "alignment_packet_count_consistent": True,
                 "standalone_input_trace_packet_count_consistent": True,
+                "target_library_snapshot_trace_packet_count_consistent": True,
+                "quality_control_packet_count_consistent": True,
                 "all_ok": True,
             },
             indent=2,
@@ -2784,7 +2966,7 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert (
         llm_model_policy["source_checked_date"]
         == ANTHROPIC_MODEL_SOURCE_CHECKED_DATE
-        == "2026-06-11"
+        == "2026-06-12"
     )
     assert llm_model_policy["source_evidence"] == ANTHROPIC_MODEL_SOURCE_EVIDENCE
     assert llm_model_policy["source_evidence"][
