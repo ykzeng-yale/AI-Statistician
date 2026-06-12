@@ -54,6 +54,9 @@ from .formalization_gap_planner_local_formal_source_adapter import (
     LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
 )
 from .formalization_gap_planner_llm_route_planner import (
+    FORMAL_GAP_BOUNDARY_MIN_SUPPORT_TOKENS,
+    FORMAL_GAP_BOUNDARY_MIN_TWO_TOKEN_SUPPORT_CHARS,
+    FORMAL_GAP_BOUNDARY_TEXT_STOPWORDS,
     LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES,
     LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
@@ -8246,6 +8249,7 @@ def _llm_row_request_evidence_errors(
             "row residual_interpretations missing request residual_goals: "
             + "; ".join(missing_residuals[:8])
         )
+    errors.extend(_llm_row_formal_gap_boundary_errors(row))
     errors.extend(_llm_row_residual_source_grounding_errors(row))
     errors.extend(_llm_row_search_request_contract_errors(row))
     errors.extend(_llm_row_planner_next_action_contract_errors(row))
@@ -8322,6 +8326,72 @@ def _llm_row_residual_source_grounding_errors(row: dict[str, Any]) -> tuple[str,
             "a matching literature/source search_request, or formal_gap_boundary"
         )
     return tuple(errors)
+
+
+def _llm_row_formal_gap_boundary_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    for location, item in _llm_row_formal_gap_boundary_locations(row):
+        boundary = str(item.get("formal_gap_boundary", "") or "").strip()
+        status_key = _llm_source_ref_key(item.get("source_search_status", ""))
+        requires_boundary = bool(boundary) or status_key in {
+            "formal_gap_boundary",
+            "formal_boundary",
+            "formal_boundary_declared",
+        }
+        if not requires_boundary:
+            continue
+        if not boundary:
+            errors.append(
+                f"{location}.formal_gap_boundary required when "
+                "source_search_status declares a formal boundary"
+            )
+            continue
+        if not _llm_formal_gap_boundary_is_substantive(boundary):
+            errors.append(
+                f"{location}.formal_gap_boundary must be a substantive formal "
+                "boundary explanation, not a placeholder"
+            )
+    return tuple(errors)
+
+
+def _llm_row_formal_gap_boundary_locations(
+    row: dict[str, Any],
+) -> tuple[tuple[str, dict[str, object]], ...]:
+    locations: list[tuple[str, dict[str, object]]] = []
+    for index, node in enumerate(
+        _dict_tuple(row.get("informal_knowledge_dag_nodes", []))
+    ):
+        locations.append((f"row informal_knowledge_dag_nodes[{index}]", node))
+    for index, residual in enumerate(
+        _dict_tuple(row.get("residual_interpretations", []))
+    ):
+        locations.append((f"row residual_interpretations[{index}]", residual))
+    for index, node in enumerate(_llm_formal_realization_nodes(row)):
+        locations.append((f"row formal_realization_dag_nodes[{index}]", node))
+    standalone_route = _dict_value(row, "standalone_route")
+    locations.append(("row standalone_route", standalone_route))
+    for index, primitive in enumerate(
+        _dict_tuple(standalone_route.get("primitives", []))
+    ):
+        locations.append((f"row standalone_route.primitives[{index}]", primitive))
+    return tuple(locations)
+
+
+def _llm_formal_gap_boundary_is_substantive(text: object) -> bool:
+    stripped = str(text or "").strip()
+    if not stripped:
+        return False
+    tokens = [
+        token
+        for token in re.findall(r"[a-z0-9]+", stripped.lower())
+        if len(token) >= 4 and token not in FORMAL_GAP_BOUNDARY_TEXT_STOPWORDS
+    ]
+    if len(tokens) >= FORMAL_GAP_BOUNDARY_MIN_SUPPORT_TOKENS:
+        return True
+    return (
+        len(tokens) >= 2
+        and len(stripped) >= FORMAL_GAP_BOUNDARY_MIN_TWO_TOKEN_SUPPORT_CHARS
+    )
 
 
 def _llm_row_target_prover_consistency_errors(
@@ -8430,7 +8500,9 @@ def _llm_residual_interpretation_has_source_refs(
 def _llm_residual_interpretation_has_formal_boundary(
     interpretation: dict[str, object],
 ) -> bool:
-    if str(interpretation.get("formal_gap_boundary", "")).strip():
+    if _llm_formal_gap_boundary_is_substantive(
+        interpretation.get("formal_gap_boundary", "")
+    ):
         return True
     return _llm_source_ref_key(interpretation.get("source_search_status", "")) in {
         "formal_gap_boundary",
@@ -8853,7 +8925,7 @@ def _llm_row_formal_search_obligation_errors(row: dict[str, Any]) -> tuple[str, 
 def _llm_formal_node_requires_library_search(node: dict[str, object]) -> bool:
     if _str_tuple(node.get("candidate_declarations", [])):
         return False
-    if str(node.get("formal_gap_boundary", "")).strip():
+    if _llm_formal_gap_boundary_is_substantive(node.get("formal_gap_boundary", "")):
         return False
     markers = (
         node.get("coverage_bucket", ""),
@@ -10187,7 +10259,7 @@ def _llm_informal_node_supports_introduced_primitive(
 ) -> bool:
     if _str_tuple(node.get("source_refs", [])):
         return True
-    if str(node.get("formal_gap_boundary", "")).strip():
+    if _llm_formal_gap_boundary_is_substantive(node.get("formal_gap_boundary", "")):
         return True
     status = _llm_source_ref_key(node.get("source_search_status", ""))
     if status in {"formal_gap_boundary", "formal_boundary_declared"}:
@@ -10217,7 +10289,7 @@ def _llm_formal_node_supports_introduced_primitive(
         return False
     if _llm_formal_node_claims_existing_library(node):
         return bool(_str_tuple(node.get("candidate_declarations", [])))
-    if str(node.get("formal_gap_boundary", "")).strip():
+    if _llm_formal_gap_boundary_is_substantive(node.get("formal_gap_boundary", "")):
         return True
     markers = (
         node.get("coverage_bucket", ""),

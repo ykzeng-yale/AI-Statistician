@@ -9149,6 +9149,72 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         encoding="utf-8",
     )
 
+    placeholder_boundary_rows = json.loads(json.dumps(rows))
+    placeholder_boundary_rows[0]["formal_realization_dag_nodes"][0][
+        "formal_gap_boundary"
+    ] = "todo"
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True) for row in placeholder_boundary_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_placeholder_boundary_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_placeholder_formal_gap_boundary",
+        )
+    )
+    placeholder_boundary_checks = [
+        row
+        for row in rejected_placeholder_boundary_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert placeholder_boundary_checks
+    assert not placeholder_boundary_checks[0]["ok"]
+    assert any(
+        "row formal_realization_dag_nodes[0].formal_gap_boundary must be a substantive"
+        in error
+        for error in placeholder_boundary_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    missing_boundary_rows = json.loads(json.dumps(rows))
+    missing_boundary_rows[0]["standalone_route"]["primitives"][0][
+        "source_search_status"
+    ] = "FORMAL_GAP_BOUNDARY"
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in missing_boundary_rows)
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_missing_boundary_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_missing_formal_gap_boundary",
+        )
+    )
+    missing_boundary_checks = [
+        row
+        for row in rejected_missing_boundary_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert missing_boundary_checks
+    assert not missing_boundary_checks[0]["ok"]
+    assert any(
+        "row standalone_route.primitives[0].formal_gap_boundary required"
+        in error
+        for error in missing_boundary_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
     corrupted_requests = json.loads(json.dumps(requests))
     corrupted_requests[0]["context_packet"].pop(
         "component_resource_registry_context",

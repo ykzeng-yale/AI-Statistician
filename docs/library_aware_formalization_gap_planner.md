@@ -264,7 +264,10 @@ vocabulary; arbitrary confidence labels do not count as evidence or bounded
 follow-up work. Formal-boundary statuses and `formal_gap_boundary` fields must
 include a substantive explanation of the boundary; placeholders such as
 `todo` or `later` do not discharge a source, library-search, or residual-repair
-obligation. Accepted routes that carry formal-gap boundaries remain
+obligation. The publication-bundle audit rechecks the same requirement on
+accepted LLM rows so public JSONL cannot replace evidence obligations with
+placeholder formal boundaries. Accepted routes that carry formal-gap boundaries
+remain
 `PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION` with the
 `formal_gap_boundaries_require_resolution` blocker; the boundary is honest
 planning output, not a standalone-replay certificate. LLM route-planner
