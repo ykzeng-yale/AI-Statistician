@@ -57,6 +57,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_formalization_gap_planner_target_intake_payload,
     _runtime_source_theorem_semantic_primitive_work_order_rows,
     _runtime_source_theorem_promotion_work_order_rows,
+    _runtime_source_theorem_promotion_handoff_rows,
     _runtime_theorem_reduction_closure_work_order_rows,
     _runtime_evidence_summary,
     _runtime_failure_summary,
@@ -1373,6 +1374,7 @@ def test_runtime_exports_source_theorem_promotion_queue_rows() -> None:
             }
         ]
     )
+    handoff_rows = _runtime_source_theorem_promotion_handoff_rows(rows)
 
     assert len(rows) == 1
     assert rows[0]["artifact_kind"] == "SourceTheoremPromotionWorkOrder"
@@ -1387,6 +1389,22 @@ def test_runtime_exports_source_theorem_promotion_queue_rows() -> None:
     assert rows[0]["kernel_verified_theorem_reduction_closure_work_order_ids"] == [
         "theorem_reduction_closure_work_order:good_rank"
     ]
+    assert len(handoff_rows) == 1
+    assert handoff_rows[0]["artifact_kind"] == "RuntimeSourceTheoremPromotionHandoff"
+    assert handoff_rows[0]["source_theorem_promotion_work_order_id"] == rows[0][
+        "work_order_id"
+    ]
+    assert handoff_rows[0]["target_lean_declaration"] == "split_conformal_coverage"
+    assert handoff_rows[0]["target_resolution_status"] == (
+        "SOURCE_THEOREM_TARGET_SKETCH_PRESENT"
+    )
+    assert handoff_rows[0]["handoff_status"] == (
+        "NEEDS_KERNEL_VERIFIED_PROOF_ARTIFACT_BEFORE_PROMOTION"
+    )
+    assert handoff_rows[0]["downstream_queue_contract"][
+        "ready_for_existing_source_theorem_promotion_queue"
+    ] is False
+    assert handoff_rows[0]["proof_evidence_status"] == "HANDOFF_NOT_PROOF_EVIDENCE"
 
 
 def test_runtime_exports_source_theorem_semantic_primitive_queue_rows() -> None:

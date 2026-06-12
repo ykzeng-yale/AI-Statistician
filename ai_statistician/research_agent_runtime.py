@@ -2008,6 +2008,11 @@ def run_research_agent_runtime(
     source_theorem_promotion_work_order_rows = (
         _runtime_source_theorem_promotion_work_order_rows(results)
     )
+    source_theorem_promotion_handoff_rows = (
+        _runtime_source_theorem_promotion_handoff_rows(
+            source_theorem_promotion_work_order_rows
+        )
+    )
     gap_planner_bridge_rows = _runtime_formalization_gap_planner_bridge_rows(results)
     agenda_path = out_dir / "runtime_next_action_agenda.jsonl"
     learning_path = out_dir / "runtime_learning_rows.jsonl"
@@ -2019,6 +2024,9 @@ def run_research_agent_runtime(
     )
     source_theorem_promotion_work_orders_path = (
         out_dir / "runtime_source_theorem_promotion_work_orders.jsonl"
+    )
+    source_theorem_promotion_handoffs_path = (
+        out_dir / "runtime_source_theorem_promotion_handoffs.jsonl"
     )
     gap_planner_bridges_path = out_dir / "runtime_formalization_gap_planner_bridges.jsonl"
     gap_planner_seed_dir = out_dir / "runtime_formalization_gap_planner_seeds"
@@ -2037,6 +2045,10 @@ def run_research_agent_runtime(
     _write_jsonl(
         source_theorem_promotion_work_orders_path,
         source_theorem_promotion_work_order_rows,
+    )
+    _write_jsonl(
+        source_theorem_promotion_handoffs_path,
+        source_theorem_promotion_handoff_rows,
     )
     theorem_closure_bridge_manifest: dict[str, Any] | None = None
     if (
@@ -2100,6 +2112,9 @@ def run_research_agent_runtime(
     manifest["artifacts"]["runtime_source_theorem_promotion_work_orders_jsonl"] = str(
         source_theorem_promotion_work_orders_path
     )
+    manifest["artifacts"]["runtime_source_theorem_promotion_handoffs_jsonl"] = str(
+        source_theorem_promotion_handoffs_path
+    )
     if theorem_closure_bridge_manifest is not None:
         manifest["artifacts"][
             "runtime_theorem_reduction_closure_proofengineer_bridge_manifest"
@@ -2153,6 +2168,9 @@ def run_research_agent_runtime(
     )
     manifest["n_runtime_source_theorem_promotion_work_orders"] = len(
         source_theorem_promotion_work_order_rows
+    )
+    manifest["n_runtime_source_theorem_promotion_handoffs"] = len(
+        source_theorem_promotion_handoff_rows
     )
     manifest["theorem_closure_proofengineer_bridge_requested"] = bool(
         config.theorem_closure_proofengineer_bridge
@@ -4280,6 +4298,105 @@ def _runtime_source_theorem_promotion_work_order_rows(
                     by_work_order_id[work_order_id] = len(rows)
                 rows.append(row)
     return rows
+
+
+def _runtime_source_theorem_promotion_handoff_rows(
+    work_order_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in work_order_rows:
+        if not isinstance(item, Mapping):
+            continue
+        work_order_id = str(item.get("work_order_id", "") or "").strip()
+        source_target_id = str(item.get("source_formal_target_id", "") or "").strip()
+        lean_statement_sketch = str(item.get("lean_statement_sketch", "") or "").strip()
+        target_lean_declaration = _lean_declaration_name(lean_statement_sketch)
+        target_status = (
+            "SOURCE_THEOREM_TARGET_SKETCH_PRESENT"
+            if lean_statement_sketch
+            else "NEEDS_EXACT_SOURCE_THEOREM_TARGET"
+        )
+        handoff_status = (
+            "NEEDS_KERNEL_VERIFIED_PROOF_ARTIFACT_BEFORE_PROMOTION"
+        )
+        row = {
+            "schema_version": RUNTIME_SCHEMA_VERSION,
+            "artifact_kind": "RuntimeSourceTheoremPromotionHandoff",
+            "handoff_id": "runtime_source_theorem_promotion_handoff:"
+            + stable_hash([work_order_id, source_target_id, target_lean_declaration])[:20],
+            "source_theorem_promotion_work_order_id": work_order_id,
+            "source_formalization_manifest_id": str(
+                item.get("source_formalization_manifest_id", "") or ""
+            ),
+            "source_formalizer_packet_id": str(
+                item.get("source_formalizer_packet_id", "") or ""
+            ),
+            "question_id": str(item.get("question_id", "") or ""),
+            "question_title": str(item.get("question_title", "") or ""),
+            "source_formal_target_id": source_target_id,
+            "target_theorem_goal_ids": list(
+                item.get("target_theorem_goal_ids", []) or []
+            ),
+            "target_lean_declaration": target_lean_declaration,
+            "target_resolution_status": target_status,
+            "handoff_status": handoff_status,
+            "owner_agent": "Formalizer/ProofEngineer",
+            "action_type": "materialize_source_theorem_proof_artifact_before_promotion",
+            "kernel_verified_theorem_reduction_closure_work_order_ids": list(
+                item.get("kernel_verified_theorem_reduction_closure_work_order_ids", [])
+                or []
+            ),
+            "kernel_verified_theorem_reduction_closure_target_ids": list(
+                item.get("kernel_verified_theorem_reduction_closure_target_ids", [])
+                or []
+            ),
+            "kernel_verified_source_theorem_semantic_primitive_ids": list(
+                item.get("kernel_verified_source_theorem_semantic_primitive_ids", [])
+                or []
+            ),
+            "lean_statement_sketch": lean_statement_sketch,
+            "semantic_alignment_constraints": list(
+                item.get("semantic_alignment_constraints", []) or []
+            ),
+            "downstream_queue_contract": {
+                "next_queue": (
+                    "formal_verifier_agentic_proof_execution_materializer -> "
+                    "formal_verifier_agentic_proof_execution_artifact_verifier -> "
+                    "formal_verifier_agentic_proof_source_theorem_promotion_queue"
+                ),
+                "required_artifact_fields": [
+                    "candidate_artifact_path",
+                    "target_lean_declaration",
+                    "artifact_kernel_verified",
+                    "source_theorem_target_known or source_theorem_lean_file",
+                ],
+                "current_artifact_kernel_verified": False,
+                "ready_for_existing_source_theorem_promotion_queue": False,
+            },
+            "command_plan": [
+                "materialize a bounded Lean proof artifact for the source theorem target from this work order",
+                "run the artifact verifier with AXLE/local Lean until artifact_kernel_verified=true",
+                "feed the verified artifact row into formal_verifier_agentic_proof_source_theorem_promotion_queue",
+                "promote only after the exact source theorem target passes AXLE/local Lean",
+            ],
+            "acceptance_gate": (
+                "A downstream artifact verifier row has artifact_kernel_verified=true, "
+                "then source-theorem promotion proves the exact source theorem target. "
+                "Bridge/closure evidence alone is insufficient."
+            ),
+            "proof_evidence_status": "HANDOFF_NOT_PROOF_EVIDENCE",
+            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        }
+        rows.append(row)
+    return rows
+
+
+def _lean_declaration_name(lean_statement: str) -> str:
+    match = re.search(
+        r"\b(?:theorem|lemma|def|example)\s+([A-Za-z_][A-Za-z0-9_'.]*)",
+        lean_statement,
+    )
+    return match.group(1) if match else ""
 
 
 def _runtime_input_context_summary(architect_context: Mapping[str, Any]) -> dict[str, Any]:
