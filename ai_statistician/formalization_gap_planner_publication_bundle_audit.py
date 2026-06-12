@@ -2534,8 +2534,12 @@ def _bundle_llm_route_planner_summary_errors(
                 normalized_observed = _normalized_summary_dict(observed_dict)
                 normalized_expected = _normalized_summary_dict(expected_value)
             else:
-                normalized_observed = _int_mapping(observed_dict)
-                normalized_expected = _int_mapping(expected_value)
+                try:
+                    normalized_observed = _int_mapping(observed_dict)
+                    normalized_expected = _int_mapping(expected_value)
+                except (TypeError, ValueError):
+                    normalized_observed = _normalized_summary_dict(observed_dict)
+                    normalized_expected = _normalized_summary_dict(expected_value)
             if normalized_observed != normalized_expected:
                 errors.append(
                     f"{summary_field}.{field_name} mismatch: "
@@ -2570,6 +2574,7 @@ def _expected_bundle_llm_route_planner_summary(
         payload,
         rows,
     )
+    standalone_replay_gate = _dict_value(payload, "standalone_replay_gate")
     return {
         "requested": manifest_path.exists(),
         "n_request_packets": int(payload.get("n_request_packets", len(rows)) or 0),
@@ -2902,6 +2907,40 @@ def _expected_bundle_llm_route_planner_summary(
         "by_route_adoption_blocker": _llm_route_planner_blocker_summary_for_summary(
             payload,
             rows,
+        ),
+        "standalone_replay_gate": dict(standalone_replay_gate),
+        "standalone_replay_gate_ok": bool(
+            payload.get(
+                "standalone_replay_gate_ok",
+                standalone_replay_gate.get("gate_ok", False),
+            )
+        ),
+        "n_standalone_replay_route_candidates": int(
+            payload.get(
+                "n_standalone_replay_route_candidates",
+                standalone_replay_gate.get("n_route_candidates", 0),
+            )
+            or 0
+        ),
+        "n_standalone_replay_adoptable_route_candidates": int(
+            payload.get(
+                "n_standalone_replay_adoptable_route_candidates",
+                standalone_replay_gate.get("n_adoptable_route_candidates", 0),
+            )
+            or 0
+        ),
+        "n_standalone_replay_blocked_route_candidates": int(
+            payload.get(
+                "n_standalone_replay_blocked_route_candidates",
+                standalone_replay_gate.get("n_blocked_route_candidates", 0),
+            )
+            or 0
+        ),
+        "standalone_replay_gate_blockers": _str_tuple(
+            payload.get(
+                "standalone_replay_gate_blockers",
+                standalone_replay_gate.get("gate_blockers", []),
+            )
         ),
         "n_row_schema_valid": int(payload.get("n_row_schema_valid", 0) or 0),
         "n_row_schema_invalid": int(payload.get("n_row_schema_invalid", 0) or 0),

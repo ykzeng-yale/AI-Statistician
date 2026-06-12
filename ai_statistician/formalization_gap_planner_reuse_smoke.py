@@ -2088,6 +2088,44 @@ def run_formalization_gap_planner_reuse_smoke(
                 {},
             )
         ),
+        "publication_bundle_llm_route_planner_summary_standalone_replay_gate": (
+            publication_bundle_llm_route_planner_summary.get(
+                "standalone_replay_gate",
+                {},
+            )
+        ),
+        "publication_bundle_llm_route_planner_summary_standalone_replay_gate_ok": bool(
+            publication_bundle_llm_route_planner_summary.get(
+                "standalone_replay_gate_ok",
+                False,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_standalone_replay_route_candidates": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_standalone_replay_route_candidates",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_standalone_replay_adoptable_route_candidates": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_standalone_replay_adoptable_route_candidates",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_standalone_replay_blocked_route_candidates": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_standalone_replay_blocked_route_candidates",
+                0,
+            )
+        ),
+        "publication_bundle_llm_route_planner_summary_standalone_replay_gate_blockers": (
+            _str_list(
+                publication_bundle_llm_route_planner_summary.get(
+                    "standalone_replay_gate_blockers",
+                    (),
+                )
+            )
+        ),
         "publication_bundle_feedback_llm_route_planner_summary_requested": bool(
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "requested",
@@ -2263,6 +2301,44 @@ def run_formalization_gap_planner_reuse_smoke(
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "by_route_adoption_blocker",
                 {},
+            )
+        ),
+        "publication_bundle_feedback_llm_route_planner_summary_standalone_replay_gate": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "standalone_replay_gate",
+                {},
+            )
+        ),
+        "publication_bundle_feedback_llm_route_planner_summary_standalone_replay_gate_ok": bool(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "standalone_replay_gate_ok",
+                False,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_standalone_replay_route_candidates": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_standalone_replay_route_candidates",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_standalone_replay_adoptable_route_candidates": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_standalone_replay_adoptable_route_candidates",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_standalone_replay_blocked_route_candidates": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_standalone_replay_blocked_route_candidates",
+                0,
+            )
+        ),
+        "publication_bundle_feedback_llm_route_planner_summary_standalone_replay_gate_blockers": (
+            _str_list(
+                publication_bundle_feedback_llm_route_planner_summary.get(
+                    "standalone_replay_gate_blockers",
+                    (),
+                )
             )
         ),
         "n_publication_bundle_llm_route_planner_summary_checked": publication_bundle_audit_payload.get(
@@ -2466,6 +2542,29 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_llm_route_planner_route_adoption_rejected": llm_route_planner_payload.get(
             "n_route_adoption_rejected",
             0,
+        ),
+        "llm_route_planner_standalone_replay_gate_ok": bool(
+            llm_route_planner_payload.get("standalone_replay_gate_ok", False)
+        ),
+        "n_llm_route_planner_standalone_replay_route_candidates": (
+            llm_route_planner_payload.get("n_standalone_replay_route_candidates", 0)
+        ),
+        "n_llm_route_planner_standalone_replay_adoptable_route_candidates": (
+            llm_route_planner_payload.get(
+                "n_standalone_replay_adoptable_route_candidates",
+                0,
+            )
+        ),
+        "n_llm_route_planner_standalone_replay_blocked_route_candidates": (
+            llm_route_planner_payload.get(
+                "n_standalone_replay_blocked_route_candidates",
+                0,
+            )
+        ),
+        "llm_route_planner_standalone_replay_gate_blockers": (
+            _str_list(
+                llm_route_planner_payload.get("standalone_replay_gate_blockers", ())
+            )
         ),
         "llm_route_planner_route_adoption_blocker_counts": (
             llm_route_planner_payload.get("route_adoption_blocker_counts", {})
@@ -2889,6 +2988,38 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_feedback_llm_route_planner_route_adoption_rejected": (
             feedback_llm_route_planner_payload.get("n_route_adoption_rejected", 0)
+        ),
+        "feedback_llm_route_planner_standalone_replay_gate_ok": bool(
+            feedback_llm_route_planner_payload.get(
+                "standalone_replay_gate_ok",
+                False,
+            )
+        ),
+        "n_feedback_llm_route_planner_standalone_replay_route_candidates": (
+            feedback_llm_route_planner_payload.get(
+                "n_standalone_replay_route_candidates",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_standalone_replay_adoptable_route_candidates": (
+            feedback_llm_route_planner_payload.get(
+                "n_standalone_replay_adoptable_route_candidates",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_standalone_replay_blocked_route_candidates": (
+            feedback_llm_route_planner_payload.get(
+                "n_standalone_replay_blocked_route_candidates",
+                0,
+            )
+        ),
+        "feedback_llm_route_planner_standalone_replay_gate_blockers": (
+            _str_list(
+                feedback_llm_route_planner_payload.get(
+                    "standalone_replay_gate_blockers",
+                    (),
+                )
+            )
         ),
         "feedback_llm_route_planner_route_adoption_blocker_counts": (
             feedback_llm_route_planner_payload.get("route_adoption_blocker_counts", {})
@@ -5393,6 +5524,10 @@ def _unique_strs(values: Any) -> tuple[str, ...]:
     if not isinstance(values, (list, tuple, set)):
         values = tuple(values) if values is not None else tuple()
     return tuple(dict.fromkeys(str(value) for value in values if str(value)))
+
+
+def _str_list(values: Any) -> list[str]:
+    return list(_unique_strs(values))
 
 
 def _stage_row(

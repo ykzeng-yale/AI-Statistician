@@ -6738,6 +6738,43 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         == 1
     )
     assert (
+        bundle_manifest["llm_route_planner_summary"]["standalone_replay_gate_ok"]
+        is False
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_standalone_replay_route_candidates"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_standalone_replay_adoptable_route_candidates"
+        ]
+        == 0
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_standalone_replay_blocked_route_candidates"
+        ]
+        == 1
+    )
+    assert (
+        "search_requests_pending_evidence"
+        in bundle_manifest["llm_route_planner_summary"][
+            "standalone_replay_gate_blockers"
+        ]
+    )
+    assert (
+        "omitted_cost_hint_primitives_require_review"
+        in bundle_manifest["llm_route_planner_summary"][
+            "standalone_replay_gate_blockers"
+        ]
+    )
+    assert bundle_manifest["llm_route_planner_summary"]["standalone_replay_gate"][
+        "gate_status"
+    ] == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    assert (
         bundle_manifest["llm_route_planner_summary"][
             "route_adoption_blocker_counts"
         ]["search_requests_pending_evidence"]
@@ -6783,6 +6820,36 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         bundle_manifest["feedback_llm_route_planner_summary"]["n_accepted_route_plans"]
         == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "standalone_replay_gate_ok"
+        ]
+        is False
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_standalone_replay_route_candidates"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_standalone_replay_adoptable_route_candidates"
+        ]
+        == 0
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_standalone_replay_blocked_route_candidates"
+        ]
+        == 1
+    )
+    assert (
+        "search_requests_pending_evidence"
+        in bundle_manifest["feedback_llm_route_planner_summary"][
+            "standalone_replay_gate_blockers"
+        ]
     )
     assert (
         bundle_manifest["feedback_llm_route_planner_summary"][
@@ -8743,6 +8810,13 @@ def test_publication_bundle_audit_rejects_bundle_llm_summary_drift() -> None:
     corrupted_primary["llm_route_planner_summary"][
         "n_rows_with_model_tier_escalation"
     ] = 0
+    corrupted_primary["llm_route_planner_summary"]["standalone_replay_gate_ok"] = True
+    corrupted_primary["llm_route_planner_summary"][
+        "n_standalone_replay_adoptable_route_candidates"
+    ] = 1
+    corrupted_primary["llm_route_planner_summary"]["standalone_replay_gate"][
+        "gate_ok"
+    ] = True
     corrupted_primary["llm_route_planner_summary"]["by_route_adoption_blocker"] = {}
     manifest_path.write_text(
         json.dumps(corrupted_primary, indent=2),
@@ -8789,6 +8863,12 @@ def test_publication_bundle_audit_rejects_bundle_llm_summary_drift() -> None:
     corrupted_feedback["feedback_llm_route_planner_summary"][
         "n_repair_attempt_ledger_model_tier_escalations"
     ] = 0
+    corrupted_feedback["feedback_llm_route_planner_summary"][
+        "standalone_replay_gate_ok"
+    ] = True
+    corrupted_feedback["feedback_llm_route_planner_summary"][
+        "standalone_replay_gate_blockers"
+    ] = []
     corrupted_feedback["feedback_llm_route_planner_summary"][
         "by_route_adoption_blocker"
     ] = {}

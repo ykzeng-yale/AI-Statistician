@@ -2280,6 +2280,12 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "route_adoption_blocker_counts",
             "by_route_adoption_status",
             "by_route_adoption_blocker",
+            "standalone_replay_gate",
+            "standalone_replay_gate_ok",
+            "n_standalone_replay_route_candidates",
+            "n_standalone_replay_adoptable_route_candidates",
+            "n_standalone_replay_blocked_route_candidates",
+            "standalone_replay_gate_blockers",
             "n_row_schema_valid",
             "n_row_schema_invalid",
             "all_ok",
@@ -2370,6 +2376,12 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 "type": "object",
                 "additionalProperties": {"type": "object"},
             },
+            "standalone_replay_gate": {"type": "object"},
+            "standalone_replay_gate_ok": {"type": "boolean"},
+            "n_standalone_replay_route_candidates": nonnegative_integer,
+            "n_standalone_replay_adoptable_route_candidates": nonnegative_integer,
+            "n_standalone_replay_blocked_route_candidates": nonnegative_integer,
+            "standalone_replay_gate_blockers": string_array,
             "n_row_schema_valid": nonnegative_integer,
             "n_row_schema_invalid": nonnegative_integer,
             "all_ok": {"type": "boolean"},
@@ -4469,6 +4481,12 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "route_adoption_blocker_counts": {},
         "by_route_adoption_status": {},
         "by_route_adoption_blocker": {},
+        "standalone_replay_gate": {},
+        "standalone_replay_gate_ok": False,
+        "n_standalone_replay_route_candidates": 0,
+        "n_standalone_replay_adoptable_route_candidates": 0,
+        "n_standalone_replay_blocked_route_candidates": 0,
+        "standalone_replay_gate_blockers": (),
         "n_row_schema_valid": 0,
         "n_row_schema_invalid": 0,
         "all_ok": False,
@@ -4483,6 +4501,7 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
     decision_basis_counts = _llm_route_planner_decision_basis_counts(request_packets)
     route_adoption_status_counts = _llm_route_planner_status_counts(payload, rows)
     route_adoption_blocker_counts = _llm_route_planner_blocker_counts(payload, rows)
+    standalone_replay_gate = _dict_value(payload, "standalone_replay_gate")
     return {
         **zero_summary,
         "requested": True,
@@ -4817,6 +4836,40 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "by_route_adoption_blocker": _llm_route_planner_blocker_summary(
             payload,
             rows,
+        ),
+        "standalone_replay_gate": dict(standalone_replay_gate),
+        "standalone_replay_gate_ok": bool(
+            payload.get(
+                "standalone_replay_gate_ok",
+                standalone_replay_gate.get("gate_ok", False),
+            )
+        ),
+        "n_standalone_replay_route_candidates": int(
+            payload.get(
+                "n_standalone_replay_route_candidates",
+                standalone_replay_gate.get("n_route_candidates", 0),
+            )
+            or 0
+        ),
+        "n_standalone_replay_adoptable_route_candidates": int(
+            payload.get(
+                "n_standalone_replay_adoptable_route_candidates",
+                standalone_replay_gate.get("n_adoptable_route_candidates", 0),
+            )
+            or 0
+        ),
+        "n_standalone_replay_blocked_route_candidates": int(
+            payload.get(
+                "n_standalone_replay_blocked_route_candidates",
+                standalone_replay_gate.get("n_blocked_route_candidates", 0),
+            )
+            or 0
+        ),
+        "standalone_replay_gate_blockers": _str_tuple(
+            payload.get(
+                "standalone_replay_gate_blockers",
+                standalone_replay_gate.get("gate_blockers", []),
+            )
         ),
         "n_row_schema_valid": int(payload.get("n_row_schema_valid", 0) or 0),
         "n_row_schema_invalid": int(payload.get("n_row_schema_invalid", 0) or 0),
@@ -5380,10 +5433,24 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('llm_route_planner_summary', {}).get('n_route_adoption_blockers')}"
         ),
         (
+            f"- LLM standalone replay gate: "
+            f"{payload.get('llm_route_planner_summary', {}).get('standalone_replay_gate_ok')} "
+            f"adoptable={payload.get('llm_route_planner_summary', {}).get('n_standalone_replay_adoptable_route_candidates')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_standalone_replay_route_candidates')} "
+            f"blockers={payload.get('llm_route_planner_summary', {}).get('standalone_replay_gate_blockers')}"
+        ),
+        (
             f"- Feedback LLM route planner ready/pending/blockers: "
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_ready')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_pending_refinement')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_blockers')}"
+        ),
+        (
+            f"- Feedback LLM standalone replay gate: "
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('standalone_replay_gate_ok')} "
+            f"adoptable={payload.get('feedback_llm_route_planner_summary', {}).get('n_standalone_replay_adoptable_route_candidates')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_standalone_replay_route_candidates')} "
+            f"blockers={payload.get('feedback_llm_route_planner_summary', {}).get('standalone_replay_gate_blockers')}"
         ),
         (
             f"- Adapter registry row schema valid: "

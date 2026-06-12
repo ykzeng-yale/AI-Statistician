@@ -776,6 +776,28 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         == 1
     )
+    assert manifest["llm_route_planner_summary"]["standalone_replay_gate_ok"] is False
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_standalone_replay_route_candidates"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_standalone_replay_adoptable_route_candidates"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_standalone_replay_blocked_route_candidates"
+        ]
+        == 1
+    )
+    assert manifest["llm_route_planner_summary"]["standalone_replay_gate_blockers"] == [
+        "llm_route_planner_response_missing"
+    ]
     assert (
         manifest["llm_route_planner_summary"][
             "n_route_adoption_pending_formal_gap_boundary_blockers"
@@ -849,6 +871,31 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         == 1
     )
+    assert (
+        manifest["feedback_llm_route_planner_summary"]["standalone_replay_gate_ok"]
+        is False
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_standalone_replay_route_candidates"
+        ]
+        == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_standalone_replay_adoptable_route_candidates"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_standalone_replay_blocked_route_candidates"
+        ]
+        == 1
+    )
+    assert manifest["feedback_llm_route_planner_summary"][
+        "standalone_replay_gate_blockers"
+    ] == ["llm_route_planner_response_missing"]
     assert (
         manifest["feedback_llm_route_planner_summary"][
             "n_route_adoption_pending_formal_gap_boundary_blockers"

@@ -3083,6 +3083,41 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]["search_requests_pending_evidence"]["n_rows"]
         == 1
     )
+    assert (
+        payload[
+            "publication_bundle_llm_route_planner_summary_standalone_replay_gate_ok"
+        ]
+        == payload["llm_route_planner_standalone_replay_gate_ok"]
+        is False
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_standalone_replay_route_candidates"
+        ]
+        == payload["n_llm_route_planner_standalone_replay_route_candidates"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_standalone_replay_adoptable_route_candidates"
+        ]
+        == payload["n_llm_route_planner_standalone_replay_adoptable_route_candidates"]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_standalone_replay_blocked_route_candidates"
+        ]
+        == payload["n_llm_route_planner_standalone_replay_blocked_route_candidates"]
+        == 1
+    )
+    assert payload[
+        "publication_bundle_llm_route_planner_summary_standalone_replay_gate_blockers"
+    ] == payload["llm_route_planner_standalone_replay_gate_blockers"]
+    assert (
+        "search_requests_pending_evidence"
+        in payload["publication_bundle_llm_route_planner_summary_standalone_replay_gate_blockers"]
+    )
     assert payload["publication_bundle_feedback_llm_route_planner_summary_requested"]
     assert (
         payload[
@@ -3230,6 +3265,41 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]["feedback_summary_actions_pending_resolution"]["n_rows"]
         == 1
     )
+    assert (
+        payload[
+            "publication_bundle_feedback_llm_route_planner_summary_standalone_replay_gate_ok"
+        ]
+        == payload["feedback_llm_route_planner_standalone_replay_gate_ok"]
+        is False
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_standalone_replay_route_candidates"
+        ]
+        == payload["n_feedback_llm_route_planner_standalone_replay_route_candidates"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_standalone_replay_adoptable_route_candidates"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_standalone_replay_adoptable_route_candidates"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_standalone_replay_blocked_route_candidates"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_standalone_replay_blocked_route_candidates"
+        ]
+        == 1
+    )
+    assert payload[
+        "publication_bundle_feedback_llm_route_planner_summary_standalone_replay_gate_blockers"
+    ] == payload["feedback_llm_route_planner_standalone_replay_gate_blockers"]
     assert (
         payload["n_publication_bundle_llm_route_planner_summary_valid"]
         == payload["n_publication_bundle_llm_route_planner_summary_checked"]
