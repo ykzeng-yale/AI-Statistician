@@ -397,12 +397,13 @@ Each primitive cost row must use a `coverage_bucket` listed in
 equal to that published bucket cost. That bucket/base cost also cannot be
 cheaper than the explicit `coverage_bucket`, `coverage_status`, or
 `formalization_action` markers on the matching formal-realization nodes or
-standalone-route primitives. It must also include an `and_or_cost_graph` with
-enumerated route options with unique `route_option_id` values, exactly one
-selected option, every route option reachable from an OR choice, every route
-option expanded by exactly one AND edge whose `requires` list exactly matches
-that option's `selected_primitives`, and no listed alternative with lower
-`route_cost`.
+standalone-route primitives. The top-level `selected_primitives` list must be
+duplicate-free. The plan must also include an `and_or_cost_graph` with
+enumerated route options with unique `route_option_id` values and duplicate-free
+`selected_primitives`, exactly one selected option, every route option reachable
+from an OR choice, every route option expanded by exactly one AND edge whose
+duplicate-free `requires` list exactly matches that option's
+`selected_primitives`, and no listed alternative with lower `route_cost`.
 Those costs are planning evidence for comparing exact reuse, wrappers, bridge
 lemmas, source ports, new definitions, typeclass/import burden, semantic risk,
 and reuse credit. They are not proof evidence.

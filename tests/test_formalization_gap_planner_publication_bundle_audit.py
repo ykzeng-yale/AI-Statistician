@@ -8240,6 +8240,125 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         encoding="utf-8",
     )
 
+    duplicate_selected_primitive_rows = json.loads(json.dumps(rows))
+    duplicate_selected_primitive_rows[0]["minimal_delta_plan"][
+        "selected_primitives"
+    ].append("rank_uniformity")
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in duplicate_selected_primitive_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_duplicate_selected_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_duplicate_selected_primitive",
+        )
+    )
+    duplicate_selected_checks = [
+        row
+        for row in rejected_duplicate_selected_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert duplicate_selected_checks
+    assert not duplicate_selected_checks[0]["ok"]
+    assert any(
+        "selected_primitives must not contain duplicates" in error
+        and "rank_uniformity" in error
+        for error in duplicate_selected_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    duplicate_route_option_primitive_rows = json.loads(json.dumps(rows))
+    duplicate_route_option_primitive_graph = duplicate_route_option_primitive_rows[0][
+        "minimal_delta_plan"
+    ]["and_or_cost_graph"]
+    duplicate_route_option_primitive_graph["route_options"][1][
+        "selected_primitives"
+    ].append("rank_uniformity")
+    duplicate_route_option_primitive_graph["and_edges"][1]["requires"].append(
+        "rank_uniformity"
+    )
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in duplicate_route_option_primitive_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_duplicate_option_primitive_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_duplicate_route_option_primitive",
+        )
+    )
+    duplicate_option_primitive_checks = [
+        row
+        for row in rejected_duplicate_option_primitive_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert duplicate_option_primitive_checks
+    assert not duplicate_option_primitive_checks[0]["ok"]
+    assert any(
+        "route_options[1].selected_primitives must not contain duplicates" in error
+        and "rank_uniformity" in error
+        for error in duplicate_option_primitive_checks[0]["errors"]
+    )
+    assert any(
+        "and_edges[1].requires must not contain duplicate primitives" in error
+        and "rank_uniformity" in error
+        for error in duplicate_option_primitive_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    duplicate_required_primitive_rows = json.loads(json.dumps(rows))
+    duplicate_required_primitive_graph = duplicate_required_primitive_rows[0][
+        "minimal_delta_plan"
+    ]["and_or_cost_graph"]
+    duplicate_required_primitive_graph["and_edges"][1]["requires"].append(
+        "rank_uniformity"
+    )
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in duplicate_required_primitive_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_duplicate_required_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_duplicate_required_primitive",
+        )
+    )
+    duplicate_required_checks = [
+        row
+        for row in rejected_duplicate_required_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert duplicate_required_checks
+    assert not duplicate_required_checks[0]["ok"]
+    assert any(
+        "and_edges[1].requires must not contain duplicate primitives" in error
+        and "rank_uniformity" in error
+        for error in duplicate_required_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
     unreachable_option_rows = json.loads(json.dumps(rows))
     unreachable_graph = unreachable_option_rows[0]["minimal_delta_plan"][
         "and_or_cost_graph"

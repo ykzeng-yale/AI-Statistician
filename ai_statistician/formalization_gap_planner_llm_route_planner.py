@@ -5954,7 +5954,7 @@ def _user_prompt(
             "Every alignment edge must include an alignment_rationale.",
             "Every alignment edge informal_node_id/formal_node_id must reference nodes present in the returned informal and formal DAGs.",
             formal_realization_requirement,
-            "Minimal delta must include selected_primitives, cost_model_version, route_cost, primitive_costs, and_or_cost_graph, and minimality_rationale.",
+            "Minimal delta must include duplicate-free selected_primitives, cost_model_version, route_cost, primitive_costs, and_or_cost_graph, and minimality_rationale.",
             "Use minimal_delta_cost_policy as the AND/OR graph cost surface; pick the route with the lowest current formalization delta cost.",
             "When context_packet.minimal_delta_cost_hints is present, use primitive_cost_hints as lower-bound coverage evidence and do not choose route options cheaper than their minimum_route_base_cost.",
             "If the selected route omits any primitive from context_packet.minimal_delta_cost_hints.route_option_hints, and_or_cost_graph.route_options must still enumerate that baseline primitive set with route_cost at least minimum_route_base_cost.",
@@ -5962,7 +5962,7 @@ def _user_prompt(
             "Every primitive_costs coverage_bucket must be listed in minimal_delta_cost_policy.coverage_bucket_base_cost, and base_cost must equal that bucket base cost.",
             "A primitive_costs coverage_bucket/base_cost must not be cheaper than the explicit coverage_bucket, coverage_status, or formalization_action markers on the corresponding formal_realization_dag_nodes or standalone_route.primitives.",
             "Every primitive_costs row must satisfy total_cost = base_cost + proof_difficulty_cost + import_cone_cost + definition_or_typeclass_cost + semantic_risk_cost - reuse_credit; route_cost must equal the sum of selected primitive total_cost values.",
-            "and_or_cost_graph must enumerate route_options with unique route_option_id values, non-empty or_nodes, and non-empty and_edges; every route option must be reachable from an OR choice and have exactly one AND edge listing exactly its selected_primitives.",
+            "and_or_cost_graph must enumerate route_options with unique route_option_id values and duplicate-free selected_primitives, non-empty or_nodes, and non-empty and_edges; every route option must be reachable from an OR choice and have exactly one AND edge listing exactly its selected_primitives.",
             "Every selected primitive must appear in standalone_route.primitives and formal_realization_dag_nodes.",
             "Every wrapper, bridge, source-port, new-definition, or first-principles delta primitive must have a route_alignment_edge.",
             "Every wrapper_lemmas, bridge_lemmas, source_port_lemmas, new_definitions, new_theory_primitives, or first_principles_primitives item used as a selected-delta action witness must be an actionable work item, not only the primitive name; include the primitive plus a theorem statement, definition goal, porting target, proof obligation, or construction description.",
@@ -8551,6 +8551,12 @@ def _response_contract_errors(
     selected_primitives = _str_tuple(minimal_delta.get("selected_primitives", []))
     if not selected_primitives:
         errors.append("minimal_delta_plan.selected_primitives must be non-empty")
+    duplicate_selected_primitives = _duplicate_primitive_keys(selected_primitives)
+    if duplicate_selected_primitives:
+        errors.append(
+            "minimal_delta_plan.selected_primitives must not contain duplicates: "
+            + ", ".join(duplicate_selected_primitives[:8])
+        )
     if not str(minimal_delta.get("minimality_rationale", "")).strip():
         errors.append("minimal_delta_plan.minimality_rationale missing")
     errors.extend(
@@ -9064,6 +9070,15 @@ def _minimal_delta_and_or_cost_graph_errors(
                 "minimal_delta_plan.and_or_cost_graph."
                 f"route_options[{index}].cost_rationale missing"
             )
+        duplicate_option_primitives = _duplicate_primitive_keys(
+            option.get("selected_primitives", [])
+        )
+        if duplicate_option_primitives:
+            errors.append(
+                "minimal_delta_plan.and_or_cost_graph."
+                f"route_options[{index}].selected_primitives must not contain duplicates: "
+                + ", ".join(duplicate_option_primitives[:8])
+            )
         option_primitives = {
             _primitive_key(primitive)
             for primitive in _str_tuple(option.get("selected_primitives", []))
@@ -9192,6 +9207,12 @@ def _and_or_cost_graph_structure_errors(
         requires = _str_tuple(edge.get("requires", []))
         if not requires:
             errors.append(f"{prefix}.and_edges[{index}].requires must be non-empty")
+        duplicate_requires = _duplicate_primitive_keys(requires)
+        if duplicate_requires:
+            errors.append(
+                f"{prefix}.and_edges[{index}].requires must not contain duplicate primitives: "
+                + ", ".join(duplicate_requires[:8])
+            )
         require_primitives = {
             _primitive_key(primitive)
             for primitive in requires
@@ -13634,6 +13655,25 @@ def _primitive_values(value: Any) -> tuple[str, ...]:
 
 def _primitive_key(value: object) -> str:
     return str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
+
+
+def _duplicate_primitive_keys(values: Any) -> tuple[str, ...]:
+    if isinstance(values, str):
+        raw_values = (values,)
+    elif isinstance(values, (list, tuple)):
+        raw_values = values
+    else:
+        return tuple()
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for value in raw_values:
+        primitive = _primitive_key(value)
+        if not primitive:
+            continue
+        if primitive in seen and primitive not in duplicates:
+            duplicates.append(primitive)
+        seen.add(primitive)
+    return tuple(duplicates)
 
 
 def _minimal_delta_cost_hints(

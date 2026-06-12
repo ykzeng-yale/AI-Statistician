@@ -8765,6 +8765,14 @@ def _llm_row_minimal_delta_cost_errors(
         for primitive in _str_tuple(minimal_delta.get("selected_primitives", []))
         if _llm_primitive_key(primitive)
     }
+    duplicate_selected_primitives = _llm_duplicate_primitive_keys(
+        minimal_delta.get("selected_primitives", [])
+    )
+    if duplicate_selected_primitives:
+        errors.append(
+            "row minimal_delta_plan.selected_primitives must not contain duplicates: "
+            + ", ".join(duplicate_selected_primitives[:8])
+        )
     primitive_costs = _dict_tuple(minimal_delta.get("primitive_costs", []))
     if not primitive_costs:
         errors.append("row minimal_delta_plan.primitive_costs must be non-empty")
@@ -8952,6 +8960,15 @@ def _llm_row_and_or_cost_graph_errors(
             errors.append(
                 "row minimal_delta_plan.and_or_cost_graph."
                 f"route_options[{index}].cost_rationale missing"
+            )
+        duplicate_option_primitives = _llm_duplicate_primitive_keys(
+            option.get("selected_primitives", [])
+        )
+        if duplicate_option_primitives:
+            errors.append(
+                "row minimal_delta_plan.and_or_cost_graph."
+                f"route_options[{index}].selected_primitives must not contain duplicates: "
+                + ", ".join(duplicate_option_primitives[:8])
             )
         option_primitives = {
             _llm_primitive_key(primitive)
@@ -9150,6 +9167,12 @@ def _llm_row_and_or_cost_graph_structure_errors(
         requires = _str_tuple(edge.get("requires", []))
         if not requires:
             errors.append(f"{prefix}.and_edges[{index}].requires must be non-empty")
+        duplicate_requires = _llm_duplicate_primitive_keys(edge.get("requires", []))
+        if duplicate_requires:
+            errors.append(
+                f"{prefix}.and_edges[{index}].requires must not contain duplicate primitives: "
+                + ", ".join(duplicate_requires[:8])
+            )
         require_primitives = {
             _llm_primitive_key(primitive)
             for primitive in requires
@@ -9906,6 +9929,25 @@ def _llm_primitive_values(value: Any) -> tuple[str, ...]:
 
 def _llm_primitive_key(value: object) -> str:
     return str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
+
+
+def _llm_duplicate_primitive_keys(values: Any) -> tuple[str, ...]:
+    if isinstance(values, str):
+        raw_values = (values,)
+    elif isinstance(values, (list, tuple)):
+        raw_values = values
+    else:
+        return tuple()
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for value in raw_values:
+        primitive = _llm_primitive_key(value)
+        if not primitive:
+            continue
+        if primitive in seen and primitive not in duplicates:
+            duplicates.append(primitive)
+        seen.add(primitive)
+    return tuple(duplicates)
 
 
 def _llm_seed_route_for_row(
