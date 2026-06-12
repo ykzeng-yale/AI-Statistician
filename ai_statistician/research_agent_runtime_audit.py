@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .model_backend import SUPPORTED_LIVE_GENERATOR_PROVIDERS
 from .proof_bank import FORMAL_OBLIGATIONS
 
 
@@ -25,7 +26,7 @@ REQUIRED_SUBSYSTEMS = (
     "CriticEvaluator",
 )
 REQUIRED_ARCHITECT_SUBSYSTEMS = ("ArchitectCoordinator", *REQUIRED_SUBSYSTEMS)
-SUPPORTED_GENERATOR_PROVIDERS = {"anthropic", "openai", "static"}
+SUPPORTED_GENERATOR_PROVIDERS = set(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
 REAL_KERNEL_VERIFIERS = {"axle.verify_proof", "local.lake_env_lean"}
 
 

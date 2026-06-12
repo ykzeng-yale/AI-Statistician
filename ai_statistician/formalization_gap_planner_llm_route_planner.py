@@ -33,6 +33,7 @@ from .model_backend import (
     GeneratorRequest,
     OpenAIResponsesGeneratorBackend,
     StaticJSONGeneratorBackend,
+    SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     claude_model_tier_mismatch,
     default_generator_model,
 )
@@ -7227,7 +7228,7 @@ def _llm_generation_policy_snapshot(
         "default_mode": LLM_ROUTE_PLANNER_MODEL_TIER_POLICY["default_mode"],
         "auto_tier_rules": list(LLM_ROUTE_PLANNER_MODEL_TIER_POLICY["auto_tier_rules"]),
         "route_planner_provider_names": list(LLM_ROUTE_PLANNER_PROVIDER_NAMES),
-        "supported_live_generator_providers": ["anthropic", "openai", "static"],
+        "supported_live_generator_providers": list(SUPPORTED_LIVE_GENERATOR_PROVIDERS),
         "prohibited_generator_providers": ["codex", "codex_exec"],
         "codex_policy": (
             "Codex/Codex exec are not accepted as pure LLM route-planner "

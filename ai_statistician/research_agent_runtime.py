@@ -51,6 +51,7 @@ from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     CLAUDE_MODEL_TIERS,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     claude_model_freshness_warnings,
     claude_model_tier_mismatch,
     claude_model_tier_policy_violations,
@@ -2188,7 +2189,7 @@ def _runtime_llm_topology(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "policy": {
             "default_live_provider": "anthropic",
-            "supported_generator_providers": ["anthropic", "openai", "static"],
+            "supported_generator_providers": list(SUPPORTED_LIVE_GENERATOR_PROVIDERS),
             "claude_model_selection": ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
             "resolved_claude_models_by_tier": resolved_claude_models_by_tier,
             "resolved_claude_model_tier_policy_status": (
@@ -2284,7 +2285,7 @@ def _has_unsupported_generator_provider(row: Mapping[str, Any]) -> bool:
 
 
 def _unsupported_generator_providers(row: Mapping[str, Any]) -> set[str]:
-    allowed = {"anthropic", "openai", "static"}
+    allowed = set(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
     providers = {
         str(row.get("provider_name", "") or "").strip().lower(),
         str(row.get("backend_provider_name", "") or "").strip().lower(),

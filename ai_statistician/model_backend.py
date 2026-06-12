@@ -7,6 +7,14 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Protocol
 
 
+SUPPORTED_LIVE_GENERATOR_PROVIDERS = ("anthropic", "openai", "static")
+PROHIBITED_AGENT_GENERATOR_PROVIDERS = (
+    "codex",
+    "codex_exec",
+    "claude_code",
+    "cursor",
+    "gemini_cli",
+)
 DEFAULT_LIVE_GENERATOR_PROVIDER = "anthropic"
 DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL = "claude-opus-4-8"
 DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL = "claude-haiku-4-5-20251001"
@@ -140,9 +148,40 @@ def default_generator_provider(env: Mapping[str, str] | None = None) -> str:
 
     env = env or os.environ
     provider = (env.get("AI_STATISTICIAN_LLM_PROVIDER") or DEFAULT_LIVE_GENERATOR_PROVIDER).strip().lower()
-    if provider in {"anthropic", "openai", "static"}:
+    if provider in SUPPORTED_LIVE_GENERATOR_PROVIDERS:
         return provider
     return DEFAULT_LIVE_GENERATOR_PROVIDER
+
+
+def generator_provider_override_warnings(
+    env: Mapping[str, str] | None = None,
+) -> list[str]:
+    """Return operator warnings for unsupported generator provider overrides."""
+
+    env = env or os.environ
+    raw_provider = str(env.get("AI_STATISTICIAN_LLM_PROVIDER", "") or "").strip()
+    if not raw_provider:
+        return []
+    provider = raw_provider.lower()
+    if provider in SUPPORTED_LIVE_GENERATOR_PROVIDERS:
+        return []
+    if provider in PROHIBITED_AGENT_GENERATOR_PROVIDERS:
+        return [
+            (
+                "AI_STATISTICIAN_LLM_PROVIDER is set to agent-style provider "
+                f"{raw_provider!r}; Codex/Claude Code/Cursor/Gemini CLI-style "
+                "agents are not accepted as pure LLM generator backends. The "
+                f"runtime falls back to {DEFAULT_LIVE_GENERATOR_PROVIDER!r}."
+            )
+        ]
+    return [
+        (
+            "AI_STATISTICIAN_LLM_PROVIDER is set to unsupported provider "
+            f"{raw_provider!r}; supported generator-only providers are "
+            + ", ".join(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
+            + f". The runtime falls back to {DEFAULT_LIVE_GENERATOR_PROVIDER!r}."
+        )
+    ]
 
 
 def default_generator_model(
@@ -163,7 +202,16 @@ def default_generator_model(
         return requested
     env = env or os.environ
     provider = (provider_name or default_generator_provider(env)).strip().lower()
-    global_model = (env.get("AI_STATISTICIAN_LLM_MODEL") or "").strip()
+    global_model = (
+        (env.get("AI_STATISTICIAN_LLM_MODEL") or "").strip()
+        if _global_model_override_applies(env, provider)
+        else ""
+    )
+    global_theory_model = (
+        (env.get("AI_STATISTICIAN_THEORY_MODEL") or "").strip()
+        if _global_model_override_applies(env, provider)
+        else ""
+    )
     if provider == "anthropic":
         tier = (model_tier or "sonnet").strip().lower()
         if tier == "haiku":
@@ -184,7 +232,7 @@ def default_generator_model(
                 env.get(tier_env_keys[0])
                 or env.get(tier_env_keys[1])
                 or env.get("AI_STATISTICIAN_ANTHROPIC_MODEL")
-                or env.get("AI_STATISTICIAN_THEORY_MODEL")
+                or global_theory_model
                 or global_model
                 or tier_default
             ).strip()
@@ -199,6 +247,13 @@ def default_generator_model(
     if provider == "static":
         return DEFAULT_STATIC_GENERATOR_MODEL
     return ""
+
+
+def _global_model_override_applies(env: Mapping[str, str], provider: str) -> bool:
+    raw_provider = str(env.get("AI_STATISTICIAN_LLM_PROVIDER", "") or "").strip().lower()
+    if not raw_provider:
+        return True
+    return raw_provider == str(provider or "").strip().lower()
 
 
 def resolve_generator_model(

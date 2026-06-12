@@ -41,7 +41,13 @@ automatically for AI Statistician helper tiers. Use `AI_STATISTICIAN_CLAUDE_HAIK
 `AI_STATISTICIAN_CLAUDE_OPUS_MODEL` for tier-specific overrides. Leave
 `AI_STATISTICIAN_LLM_MODEL` unset in normal Anthropic runs; the global override
 is treated as a Sonnet-tier compatibility default and must not collapse
-cost-aware Haiku/Sonnet routing. `ai_statistician doctor` and runtime topology
+cost-aware Haiku/Sonnet routing. If `AI_STATISTICIAN_LLM_PROVIDER` is set to an
+unsupported or agent-style provider such as `codex_exec`, runtime defaults stay
+on Anthropic and `ai_statistician doctor` emits a provider-override warning
+instead of silently treating the agent as a pure generator; generic global model
+overrides such as `AI_STATISTICIAN_LLM_MODEL=gpt-*` are ignored for that
+fallback so they cannot be sent to the Anthropic API by accident.
+`ai_statistician doctor` and runtime topology
 manifests separately report same-tier freshness warnings when a resolved Claude
 tier does not match the current source-checked API ID, so stale Sonnet/Haiku
 aliases stay visible without being confused with cross-tier routing failures.

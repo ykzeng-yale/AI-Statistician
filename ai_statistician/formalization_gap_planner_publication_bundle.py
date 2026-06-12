@@ -158,6 +158,8 @@ from .model_backend import (
     DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
     DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     DEFAULT_LIVE_GENERATOR_PROVIDER,
+    PROHIBITED_AGENT_GENERATOR_PROVIDERS,
+    SUPPORTED_LIVE_GENERATOR_PROVIDERS,
 )
 
 
@@ -2891,8 +2893,8 @@ def _llm_model_policy_payload() -> dict[str, object]:
         ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY.get("models_by_tier", {})
     )
     outside_cost_tier_models = dict(CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS)
-    supported_providers = ("anthropic", "openai", "static")
-    prohibited_providers = ("codex", "codex_exec")
+    supported_providers = tuple(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
+    prohibited_providers = tuple(PROHIBITED_AGENT_GENERATOR_PROVIDERS[:2])
     all_ok = (
         DEFAULT_LIVE_GENERATOR_PROVIDER == "anthropic"
         and models_by_tier

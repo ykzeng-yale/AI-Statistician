@@ -6396,6 +6396,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(report["summary"]["llm_models"]["haiku"], "claude-haiku-4-5-20251001")
         self.assertEqual(report["summary"]["llm_models"]["sonnet"], "claude-sonnet-4-6")
         self.assertEqual(report["summary"]["llm_models"]["opus"], "claude-opus-4-8")
+        self.assertEqual(report["summary"]["llm_provider_override_warnings"], [])
         self.assertEqual(report["summary"]["llm_model_tier_policy_violations"], [])
         self.assertEqual(report["summary"]["llm_model_freshness_warnings"], [])
         serialized = json.dumps(report)
@@ -6423,8 +6424,36 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(report["summary"]["llm_models"]["sonnet"], "claude-sonnet-4-6")
         self.assertEqual(report["summary"]["llm_models"]["opus"], "claude-opus-4-8")
         checks = {row["name"]: row for row in report["checks"]}
+        self.assertEqual(checks["LLM provider override policy"]["status"], "OK")
         self.assertEqual(checks["LLM Claude tier policy"]["status"], "OK")
         self.assertEqual(checks["LLM Claude model freshness"]["status"], "OK")
+        self.assertNotIn("do-not-print-anthropic", json.dumps(report))
+
+    def test_doctor_report_warns_on_prohibited_llm_provider_override(self) -> None:
+        report = build_doctor_report(
+            root=Path("."),
+            env_file=Path(".env"),
+            environ={
+                "ANTHROPIC_API_KEY": "do-not-print-anthropic",
+                "AI_STATISTICIAN_LLM_PROVIDER": "codex_exec",
+                "AI_STATISTICIAN_LLM_MODEL": "gpt-codex-test",
+            },
+            max_manifests=0,
+        )
+
+        self.assertEqual(report["summary"]["llm_provider"], "anthropic")
+        warnings = report["summary"]["llm_provider_override_warnings"]
+        self.assertTrue(
+            any(
+                "agent-style provider 'codex_exec'" in warning
+                and "not accepted as pure LLM generator backends" in warning
+                for warning in warnings
+            )
+        )
+        self.assertEqual(report["summary"]["llm_models"]["haiku"], "claude-haiku-4-5-20251001")
+        self.assertEqual(report["summary"]["llm_models"]["sonnet"], "claude-sonnet-4-6")
+        checks = {row["name"]: row for row in report["checks"]}
+        self.assertEqual(checks["LLM provider override policy"]["status"], "WARN")
         self.assertNotIn("do-not-print-anthropic", json.dumps(report))
 
     def test_doctor_report_warns_on_stale_same_tier_claude_models(self) -> None:

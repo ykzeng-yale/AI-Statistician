@@ -357,6 +357,7 @@ from .architect_coordinator_llm import ArchitectCoordinatorConfig, LLMArchitectC
 from .algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEngineerAgent
 from .model_backend import (
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     OpenAIResponsesGeneratorBackend,
     default_generator_model,
     default_generator_provider,
@@ -566,7 +567,7 @@ def _theorem_reduction_closure_learning_export(args: argparse.Namespace) -> int:
     return 0
 
 
-LIVE_GENERATOR_PROVIDER_CHOICES = ("anthropic", "openai", "static")
+LIVE_GENERATOR_PROVIDER_CHOICES = SUPPORTED_LIVE_GENERATOR_PROVIDERS
 SUBSYSTEM_GENERATOR_PROVIDER_CHOICES = (
     "same",
     "anthropic",
