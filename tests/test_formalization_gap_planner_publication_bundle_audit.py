@@ -8205,6 +8205,44 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         encoding="utf-8",
     )
 
+    unknown_selected_route_option_rows = json.loads(json.dumps(rows))
+    unknown_selected_route_option_graph = unknown_selected_route_option_rows[0][
+        "minimal_delta_plan"
+    ]["and_or_cost_graph"]
+    unknown_selected_route_option_graph["selected_route_option_id"] = (
+        "route_option:missing_candidate"
+    )
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in unknown_selected_route_option_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_unknown_selected_route_option_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_unknown_selected_route_option_id",
+        )
+    )
+    unknown_selected_route_option_checks = [
+        row
+        for row in rejected_unknown_selected_route_option_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert unknown_selected_route_option_checks
+    assert not unknown_selected_route_option_checks[0]["ok"]
+    assert any(
+        "selected_route_option_id references unknown route option" in error
+        and "route_option:missing_candidate" in error
+        for error in unknown_selected_route_option_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
     duplicate_or_choice_rows = json.loads(json.dumps(rows))
     duplicate_or_choice_graph = duplicate_or_choice_rows[0]["minimal_delta_plan"][
         "and_or_cost_graph"

@@ -5962,7 +5962,7 @@ def _user_prompt(
             "Every primitive_costs coverage_bucket must be listed in minimal_delta_cost_policy.coverage_bucket_base_cost, and base_cost must equal that bucket base cost.",
             "A primitive_costs coverage_bucket/base_cost must not be cheaper than the explicit coverage_bucket, coverage_status, or formalization_action markers on the corresponding formal_realization_dag_nodes or standalone_route.primitives.",
             "Every primitive_costs row must satisfy total_cost = base_cost + proof_difficulty_cost + import_cone_cost + definition_or_typeclass_cost + semantic_risk_cost - reuse_credit; route_cost must equal the sum of selected primitive total_cost values.",
-            "and_or_cost_graph must enumerate route_options with unique route_option_id values and duplicate-free selected_primitives, non-empty or_nodes with duplicate-free choices, and non-empty and_edges; every route option must be reachable from an OR choice and have exactly one AND edge listing exactly its selected_primitives.",
+            "and_or_cost_graph must enumerate route_options with unique route_option_id values and duplicate-free selected_primitives, a selected_route_option_id that names one route_options row, non-empty or_nodes with duplicate-free choices, and non-empty and_edges; every route option must be reachable from an OR choice and have exactly one AND edge listing exactly its selected_primitives.",
             "Every selected primitive must appear in standalone_route.primitives and formal_realization_dag_nodes.",
             "Every wrapper, bridge, source-port, new-definition, or first-principles delta primitive must have a route_alignment_edge.",
             "Every wrapper_lemmas, bridge_lemmas, source_port_lemmas, new_definitions, new_theory_primitives, or first_principles_primitives item used as a selected-delta action witness must be an actionable work item, not only the primitive name; include the primitive plus a theorem statement, definition goal, porting target, proof obligation, or construction description.",
@@ -9106,6 +9106,12 @@ def _minimal_delta_and_or_cost_graph_errors(
                     "minimal_delta_plan.and_or_cost_graph selected route option "
                     "selected_primitives must match minimal_delta_plan.selected_primitives"
                 )
+    if selected_route_option_id and selected_route_option_id not in route_option_ids:
+        errors.append(
+            "minimal_delta_plan.and_or_cost_graph.selected_route_option_id "
+            "references unknown route option: "
+            + selected_route_option_id
+        )
     errors.extend(
         _and_or_cost_graph_structure_errors(
             graph,

@@ -8997,6 +8997,12 @@ def _llm_row_and_or_cost_graph_errors(
                     "row minimal_delta_plan.and_or_cost_graph selected route option "
                     "selected_primitives must match selected_primitives"
                 )
+    if selected_route_option_id and selected_route_option_id not in route_option_ids:
+        errors.append(
+            "row minimal_delta_plan.and_or_cost_graph.selected_route_option_id "
+            "references unknown route option: "
+            + selected_route_option_id
+        )
     errors.extend(
         _llm_row_and_or_cost_graph_structure_errors(
             graph,
