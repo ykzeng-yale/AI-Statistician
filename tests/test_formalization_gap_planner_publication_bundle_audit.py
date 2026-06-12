@@ -8074,6 +8074,39 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         encoding="utf-8",
     )
 
+    edge_mismatch_rows = json.loads(json.dumps(rows))
+    edge_mismatch_graph = edge_mismatch_rows[0]["minimal_delta_plan"][
+        "and_or_cost_graph"
+    ]
+    edge_mismatch_graph["and_edges"][0]["requires"] = ["exchangeability"]
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in edge_mismatch_rows)
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_edge_mismatch_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_minimal_delta_and_edge_mismatch",
+        )
+    )
+    edge_mismatch_checks = [
+        row
+        for row in rejected_edge_mismatch_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert edge_mismatch_checks
+    assert not edge_mismatch_checks[0]["ok"]
+    assert any(
+        "and_edges[0].requires must match route_options selected_primitives"
+        in error
+        for error in edge_mismatch_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
     search_obligation_corrupted_rows = json.loads(json.dumps(rows))
     rank_node = search_obligation_corrupted_rows[0]["informal_knowledge_dag_nodes"][0]
     rank_node["source_refs"] = []

@@ -387,18 +387,28 @@ def _append_bridge_cost(
     assert isinstance(graph, dict)
     route_options = graph["route_options"]
     assert isinstance(route_options, list)
+    selected_route_option_id = graph["selected_route_option_id"]
+    selected_route_primitives: list[str] = []
     for option in route_options:
         option["route_cost"] = int(option["route_cost"]) + total_cost
         option["selected_primitives"] = [
             *option.get("selected_primitives", []),
             primitive,
         ]
-    graph["and_edges"].append(
-        {
-            "route_option_id": graph["selected_route_option_id"],
-            "requires": [primitive],
-        }
-    )
+        if option.get("route_option_id") == selected_route_option_id:
+            selected_route_primitives = list(option["selected_primitives"])
+    selected_edge_found = False
+    for edge in graph["and_edges"]:
+        if edge.get("route_option_id") == selected_route_option_id:
+            edge["requires"] = selected_route_primitives
+            selected_edge_found = True
+    if not selected_edge_found:
+        graph["and_edges"].append(
+            {
+                "route_option_id": selected_route_option_id,
+                "requires": selected_route_primitives,
+            }
+        )
 
 
 def _make_rank_uniformity_near_exists_response() -> dict[str, object]:
@@ -7126,6 +7136,12 @@ def test_llm_route_planner_accepts_introduced_reuse_with_candidate_declaration_r
     )
     for option in minimal_delta["and_or_cost_graph"]["route_options"]:
         option["selected_primitives"].append("rank_order_statistic")
+    for edge in minimal_delta["and_or_cost_graph"]["and_edges"]:
+        if (
+            edge.get("route_option_id")
+            == minimal_delta["and_or_cost_graph"]["selected_route_option_id"]
+        ):
+            edge["requires"] = list(minimal_delta["selected_primitives"])
     response_json.write_text(json.dumps(response), encoding="utf-8")
 
     payload = export_formalization_gap_planner_llm_route_planner(
@@ -9825,6 +9841,36 @@ def test_llm_route_planner_rejects_flat_and_or_cost_graph() -> None:
     assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
     assert any("and_or_cost_graph.or_nodes must be non-empty" in error for error in row["errors"])
     assert any("and_or_cost_graph.and_edges must be non-empty" in error for error in row["errors"])
+
+
+def test_llm_route_planner_rejects_and_edge_route_option_mismatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_and_edge_mismatch"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    graph = bad_response["minimal_delta_plan"]["and_or_cost_graph"]
+    graph["and_edges"][0]["requires"] = ["exchangeability"]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "and_edges[0].requires must match route_options selected_primitives"
+        in error
+        for error in row["errors"]
+    )
 
 
 def test_llm_route_planner_rejects_nonminimal_route_option_cost() -> None:

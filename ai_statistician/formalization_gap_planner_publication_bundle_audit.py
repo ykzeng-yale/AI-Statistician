@@ -8917,6 +8917,7 @@ def _llm_row_and_or_cost_graph_errors(
     selected_option_cost: float | None = None
     route_option_ids: set[str] = set()
     route_option_primitives: set[str] = set()
+    route_option_primitives_by_id: dict[str, set[str]] = {}
     for index, option in enumerate(route_options):
         option_id = str(option.get("route_option_id", "")).strip()
         if not option_id:
@@ -8943,6 +8944,8 @@ def _llm_row_and_or_cost_graph_errors(
             if _llm_primitive_key(primitive)
         }
         route_option_primitives.update(option_primitives)
+        if option_id:
+            route_option_primitives_by_id[option_id] = option_primitives
         if not option_primitives:
             errors.append(
                 "row minimal_delta_plan.and_or_cost_graph."
@@ -8967,6 +8970,7 @@ def _llm_row_and_or_cost_graph_errors(
             graph,
             route_option_ids=route_option_ids,
             route_option_primitives=route_option_primitives,
+            route_option_primitives_by_id=route_option_primitives_by_id,
         )
     )
     if len(selected_options) != 1:
@@ -8999,6 +9003,7 @@ def _llm_row_and_or_cost_graph_structure_errors(
     *,
     route_option_ids: set[str],
     route_option_primitives: set[str],
+    route_option_primitives_by_id: dict[str, set[str]],
 ) -> list[str]:
     prefix = "row minimal_delta_plan.and_or_cost_graph"
     errors: list[str] = []
@@ -9039,6 +9044,19 @@ def _llm_row_and_or_cost_graph_structure_errors(
         requires = _str_tuple(edge.get("requires", []))
         if not requires:
             errors.append(f"{prefix}.and_edges[{index}].requires must be non-empty")
+        require_primitives = {
+            _llm_primitive_key(primitive)
+            for primitive in requires
+            if _llm_primitive_key(primitive)
+        }
+        if option_id in route_option_primitives_by_id:
+            expected_primitives = route_option_primitives_by_id[option_id]
+            if require_primitives != expected_primitives:
+                errors.append(
+                    f"{prefix}.and_edges[{index}].requires must match "
+                    "route_options selected_primitives for route_option_id "
+                    f"{option_id}"
+                )
         unknown_requires = [
             primitive
             for primitive in requires
