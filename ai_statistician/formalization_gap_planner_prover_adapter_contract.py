@@ -598,6 +598,7 @@ def validate_prover_adapter_packet_row(
                 standalone_input_trace,
                 source_prover_family=str(row.get("source_prover_family", "")),
                 target_prover_family=str(row.get("target_prover_family", "")),
+                target_library_snapshot_ref=str(row.get("library_snapshot_ref", "")),
             )
         )
         errors.extend(_standalone_trace_quality_control_errors(standalone_input_trace))
@@ -824,6 +825,7 @@ def _packet_for_work_packet(
             standalone_input_trace,
             source_prover_family=source_prover_family,
             target_prover_family=target_prover_family,
+            target_library_snapshot_ref=library_snapshot_ref,
         )
     )
     llm_route_adoption_status = str(
@@ -915,6 +917,7 @@ def _standalone_input_trace_for_packet(
         "source_prover_family": str(plan_row.get("target_prover_family", "")),
         "target_prover_family": target_prover_family,
         "library_snapshot_ref": library_snapshot_ref,
+        "target_library_snapshot_ref": library_snapshot_ref,
         "has_replan_metadata": bool(replan_metadata),
         "replan_metadata_keys": tuple(sorted(str(key) for key in replan_metadata)),
         "route_revision_trigger_count": (
@@ -935,10 +938,15 @@ def _standalone_trace_target_errors(
     *,
     source_prover_family: str,
     target_prover_family: str,
+    target_library_snapshot_ref: str = "",
 ) -> tuple[str, ...]:
     errors: list[str] = []
     trace_source = str(trace.get("source_prover_family", "")).strip()
     trace_target = str(trace.get("target_prover_family", "")).strip()
+    trace_target_snapshot = str(
+        trace.get("target_library_snapshot_ref", "")
+        or trace.get("library_snapshot_ref", "")
+    ).strip()
     if source_prover_family and trace_source != source_prover_family:
         errors.append(
             "standalone_input_trace.source_prover_family "
@@ -948,6 +956,12 @@ def _standalone_trace_target_errors(
         errors.append(
             "standalone_input_trace.target_prover_family "
             f"{trace_target} does not match packet {target_prover_family}"
+        )
+    if target_library_snapshot_ref and trace_target_snapshot != target_library_snapshot_ref:
+        errors.append(
+            "standalone_input_trace.target_library_snapshot_ref "
+            f"{trace_target_snapshot} does not match packet "
+            f"{target_library_snapshot_ref}"
         )
     return tuple(errors)
 

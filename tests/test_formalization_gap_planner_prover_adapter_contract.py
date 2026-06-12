@@ -243,6 +243,19 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
     )
     bad_packet = dict(payload["packets"][0])
     bad_packet["standalone_input_trace"] = dict(bad_packet["standalone_input_trace"])
+    bad_packet["standalone_input_trace"][
+        "target_library_snapshot_ref"
+    ] = "stale_rocq_snapshot"
+    assert (
+        "standalone_input_trace.target_library_snapshot_ref stale_rocq_snapshot "
+        "does not match packet rocq_fixture_snapshot"
+        in validate_prover_adapter_packet_row(
+            bad_packet,
+            prover_adapter_packet_json_schema(),
+        )
+    )
+    bad_packet = dict(payload["packets"][0])
+    bad_packet["standalone_input_trace"] = dict(bad_packet["standalone_input_trace"])
     bad_packet["standalone_input_trace"]["has_quality_controls"] = False
     assert any(
         "standalone_input_trace.has_quality_controls mismatch" in error
