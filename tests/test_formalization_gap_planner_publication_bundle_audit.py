@@ -5553,6 +5553,8 @@ def test_publication_bundle_audit_rejects_resource_response_evidence_scope_expan
     ]
     rows[0]["response_payload"] = {
         "coverage_updates": {"spectral_gap": "exact_exists"},
+        "revised_selected_primitives": ["rank_uniformity", "spectral_gap"],
+        "revised_delta_primitives": ["spectral_gap"],
         "route_evidence_nodes": rows[0]["route_evidence_nodes"],
     }
     ledger_jsonl.write_text(
@@ -5588,6 +5590,8 @@ def test_publication_bundle_audit_rejects_resource_response_evidence_scope_expan
     )
     accounting_errors = "; ".join(accounting_check["errors"])
     assert "coverage_updates primitives must not expand" in accounting_errors
+    assert "revised_selected_primitives primitives must not expand" in accounting_errors
+    assert "revised_delta_primitives primitives must not expand" in accounting_errors
     assert "route_evidence_nodes" in accounting_errors
     assert "spectral_gap" in accounting_errors
 

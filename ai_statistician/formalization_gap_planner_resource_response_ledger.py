@@ -1274,6 +1274,14 @@ def _response_evidence_scope_expansion_errors(
             allowed,
         )
     )
+    for field_name in ("revised_selected_primitives", "revised_delta_primitives"):
+        errors.extend(
+            _primitive_scope_errors(
+                field_name,
+                _str_tuple(response_values.get(field_name, [])),
+                allowed,
+            )
+        )
     for field_name in (
         "route_evidence_nodes",
         "source_snippets",

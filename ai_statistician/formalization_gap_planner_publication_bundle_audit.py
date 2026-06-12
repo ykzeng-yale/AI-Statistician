@@ -13141,7 +13141,9 @@ def _resource_response_scope_errors(
     payload = _dict_value(row, "response_payload")
     row_target_primitives = set(_str_tuple(row.get("target_primitives", [])))
     payload_target_primitives = set(_str_tuple(payload.get("target_primitives", [])))
-    expanded_targets = sorted((row_target_primitives | payload_target_primitives) - allowed)
+    expanded_targets = sorted(
+        (row_target_primitives | payload_target_primitives) - allowed
+    )
     if expanded_targets:
         errors.append(
             "target_primitives must not expand beyond resource request target_primitives: "
@@ -13158,6 +13160,16 @@ def _resource_response_scope_errors(
             allowed,
         )
     )
+    for field_name in ("revised_selected_primitives", "revised_delta_primitives"):
+        observed_primitives = set(_str_tuple(row.get(field_name, [])))
+        observed_primitives.update(_str_tuple(payload.get(field_name, [])))
+        errors.extend(
+            _resource_response_primitive_scope_errors(
+                field_name,
+                observed_primitives,
+                allowed,
+            )
+        )
     for field_name in (
         "route_evidence_nodes",
         "source_snippets",

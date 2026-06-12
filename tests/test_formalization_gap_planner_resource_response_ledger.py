@@ -1258,6 +1258,8 @@ def test_resource_response_ledger_rejects_off_scope_evidence_primitives() -> Non
         "response_payload": {
             "response_summary": "coverage_inequality source evidence found",
             "source_refs": ["source:coverage_inequality"],
+            "revised_selected_primitives": ["coverage_inequality", "spectral_gap"],
+            "revised_delta_primitives": ["spectral_gap"],
             "route_evidence_nodes": [
                 {
                     "node_id": "spectral_gap:source",
@@ -1295,6 +1297,18 @@ def test_resource_response_ledger_rejects_off_scope_evidence_primitives() -> Non
     assert tuple(row["target_primitives"]) == tuple(request["target_primitives"])
     assert any(
         "coverage_updates primitives must not expand beyond resource request target_primitives"
+        in error
+        and "spectral_gap" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "revised_selected_primitives primitives must not expand beyond resource request target_primitives"
+        in error
+        and "spectral_gap" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "revised_delta_primitives primitives must not expand beyond resource request target_primitives"
         in error
         and "spectral_gap" in error
         for error in row["errors"]
