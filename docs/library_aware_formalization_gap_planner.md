@@ -945,7 +945,9 @@ so an adapter cannot smuggle an unrelated primitive into route repair without a
 fresh queued request. When bundled,
 the publication audit checks that each ledger row resolves to its request row
 and that matched plus missing response fields exactly account for that
-resource request's response contract. Ledger rows also retain the request
+resource request's response contract; it also rechecks the bounded
+target-primitive scope for accepted coverage, source, and declaration evidence.
+Ledger rows also retain the request
 `dispatch_spec` and structured `candidate_declaration_rows`, so response
 provenance still names the adapter surface and formal-declaration target after
 the original request packet has been consumed. They also retain the queued
@@ -1841,7 +1843,8 @@ The current implementation composes four existing AI Statistician artifacts:
    primitive tags are rejected before they can become accepted planner
    feedback. Ledger rows are adapter evidence and planner feedback, not theorem
    proof evidence. Publication-bundle audit rows also verify request-row
-   resolution and response-contract field accounting.
+   resolution, response-contract field accounting, and the same bounded
+   target-primitive scope for evidence-bearing response fields.
 
 14. `formalization_gap_planner_refinement_queue`
    Turns route-revision triggers and interactive hooks into auditable work

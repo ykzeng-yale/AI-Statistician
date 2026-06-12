@@ -13073,6 +13073,7 @@ def _resource_response_contract_field_accounting_errors(
         errors.append(
             "actionable_work_items mismatch between ledger row and request row"
         )
+    errors.extend(_resource_response_scope_errors(row, request_row))
     expected_fields = set(_str_tuple(request_row.get("response_contract_fields", [])))
     row_response_contract_fields = set(
         _str_tuple(row.get("response_contract_fields", []))
@@ -13127,6 +13128,93 @@ def _resource_response_contract_field_accounting_errors(
             "accepted resource response requires response_playbook_grounded when request_playbook_present"
         )
     return tuple(errors)
+
+
+def _resource_response_scope_errors(
+    row: dict[str, Any],
+    request_row: dict[str, Any],
+) -> tuple[str, ...]:
+    allowed = set(_resource_request_target_primitives(request_row))
+    if not allowed:
+        return tuple()
+    errors: list[str] = []
+    payload = _dict_value(row, "response_payload")
+    row_target_primitives = set(_str_tuple(row.get("target_primitives", [])))
+    payload_target_primitives = set(_str_tuple(payload.get("target_primitives", [])))
+    expanded_targets = sorted((row_target_primitives | payload_target_primitives) - allowed)
+    if expanded_targets:
+        errors.append(
+            "target_primitives must not expand beyond resource request target_primitives: "
+            + ", ".join(expanded_targets[:8])
+        )
+    coverage_primitives = set(_str_tuple(list(_dict_value(row, "coverage_updates").keys())))
+    coverage_primitives.update(
+        _str_tuple(list(_dict_value(payload, "coverage_updates").keys()))
+    )
+    errors.extend(
+        _resource_response_primitive_scope_errors(
+            "coverage_updates",
+            coverage_primitives,
+            allowed,
+        )
+    )
+    for field_name in (
+        "route_evidence_nodes",
+        "source_snippets",
+        "formal_declaration_hits",
+        "lean_declaration_hits",
+    ):
+        field_rows = [
+            *_dict_tuple(row.get(field_name, [])),
+            *_dict_tuple(payload.get(field_name, [])),
+        ]
+        for index, evidence_row in enumerate(field_rows):
+            errors.extend(
+                _resource_response_primitive_scope_errors(
+                    f"{field_name}[{index}]",
+                    set(_resource_response_evidence_row_primitives(evidence_row)),
+                    allowed,
+                )
+            )
+    return tuple(errors)
+
+
+def _resource_request_target_primitives(
+    request_row: dict[str, Any],
+) -> tuple[str, ...]:
+    primitive = str(request_row.get("primitive", "")).strip()
+    return _str_tuple(
+        [
+            *_str_tuple(request_row.get("target_primitives", [])),
+            *([primitive] if primitive else []),
+        ]
+    )
+
+
+def _resource_response_evidence_row_primitives(
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    return _str_tuple(
+        [
+            str(row.get("primitive", "") or ""),
+            *_str_tuple(row.get("target_primitives", [])),
+        ]
+    )
+
+
+def _resource_response_primitive_scope_errors(
+    field_name: str,
+    observed_primitives: set[str],
+    allowed_primitives: set[str],
+) -> tuple[str, ...]:
+    expanded = sorted(observed_primitives - allowed_primitives)
+    if not expanded:
+        return tuple()
+    return (
+        f"{field_name} primitives must not expand beyond resource request "
+        "target_primitives: "
+        + ", ".join(expanded[:8]),
+    )
 
 
 def _portable_plan_audit_optional_checks(
