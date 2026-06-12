@@ -506,7 +506,23 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
                         "coverage_bucket": "bridge",
                         "candidate_declarations": [],
                         "formalization_action": "prove_bridge",
-                    }
+                    },
+                    {
+                        "node_id": "formal:baseline_rank_route_statement",
+                        "primitive": (
+                            "a_source_backed_rank_uniformity_bridge_closes_the"
+                        ),
+                        "coverage_bucket": "definition_or_theory_missing",
+                        "candidate_declarations": [],
+                        "formalization_action": "define_new",
+                    },
+                    {
+                        "node_id": "formal:uniform_bound",
+                        "primitive": "uniform_bound",
+                        "coverage_bucket": "definition_or_theory_missing",
+                        "candidate_declarations": [],
+                        "formalization_action": "define_new",
+                    },
                 ],
                 "route_alignment_edges": [
                     {
@@ -704,7 +720,19 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
                             "primitive": "rank_uniformity",
                             "coverage_status": "bridge_needed",
                             "source_refs": ["fixture_source"],
-                        }
+                        },
+                        {
+                            "primitive": (
+                                "a_source_backed_rank_uniformity_bridge_closes_the"
+                            ),
+                            "coverage_status": "definition_or_theory_missing",
+                            "source_refs": ["fixture_source"],
+                        },
+                        {
+                            "primitive": "uniform_bound",
+                            "coverage_status": "definition_or_theory_missing",
+                            "source_refs": ["fixture_source"],
+                        },
                     ],
                 },
                 "proof_evidence_boundary": LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
@@ -8185,6 +8213,68 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         and "rank_order_statistic" in error
         for error in route_option_cost_witness_checks[0]["errors"]
     )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    route_option_realization_rows = json.loads(json.dumps(rows))
+    route_option_realization_graph = route_option_realization_rows[0][
+        "minimal_delta_plan"
+    ]["and_or_cost_graph"]
+    alternative = route_option_realization_graph["route_options"][1]
+    alternative["selected_primitives"].append("rank_order_statistic")
+    alternative["primitive_costs"].append(
+        {
+            "primitive": "rank_order_statistic",
+            "coverage_bucket": "already_exists",
+            "base_cost": 0,
+            "proof_difficulty_cost": 0,
+            "import_cone_cost": 0,
+            "definition_or_typeclass_cost": 0,
+            "semantic_risk_cost": 0,
+            "reuse_credit": 0,
+            "total_cost": 0,
+            "cost_rationale": (
+                "This corrupted alternative claims the extra primitive is free."
+            ),
+        }
+    )
+    route_option_realization_graph["and_edges"][1]["requires"].append(
+        "rank_order_statistic"
+    )
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True) for row in route_option_realization_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_route_option_realization_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_route_option_primitive_without_realization",
+        )
+    )
+    route_option_realization_checks = [
+        row
+        for row in rejected_route_option_realization_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert route_option_realization_checks
+    assert not route_option_realization_checks[0]["ok"]
+    route_option_realization_errors = "\n".join(
+        route_option_realization_checks[0]["errors"]
+    )
+    assert (
+        "route option primitives missing from standalone_route.primitives"
+        in route_option_realization_errors
+    )
+    assert (
+        "route option primitives missing from formal_realization_dag_nodes"
+        in route_option_realization_errors
+    )
+    assert "rank_order_statistic" in route_option_realization_errors
     rows_path.write_text(
         "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
         encoding="utf-8",

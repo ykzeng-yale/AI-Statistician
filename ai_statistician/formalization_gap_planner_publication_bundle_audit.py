@@ -8252,6 +8252,7 @@ def _llm_row_request_evidence_errors(
     errors.extend(_llm_row_formal_search_obligation_errors(row))
     errors.extend(_llm_row_minimal_delta_cost_errors(row, request))
     errors.extend(_llm_row_alignment_reference_errors(row))
+    errors.extend(_llm_row_route_option_realization_coverage_errors(row))
     errors.extend(_llm_row_primitive_evidence_errors(row, request))
     return tuple(errors)
 
@@ -9702,6 +9703,46 @@ def _llm_row_primitive_evidence_errors(
     return tuple(errors)
 
 
+def _llm_row_route_option_realization_coverage_errors(
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    route_option_primitives = _llm_row_route_option_primitive_keys(row)
+    if not route_option_primitives:
+        return tuple()
+    standalone = {
+        primitive
+        for primitive in (
+            _llm_primitive_key(item.get("primitive", ""))
+            for item in _dict_tuple(_dict_value(row, "standalone_route").get("primitives", []))
+        )
+        if primitive
+    }
+    formal = {
+        primitive
+        for primitive in (
+            _llm_primitive_key(node.get("primitive", ""))
+            for node in _llm_formal_realization_nodes(row)
+        )
+        if primitive
+    }
+    errors: list[str] = []
+    missing_route = sorted(route_option_primitives - standalone)
+    if missing_route:
+        errors.append(
+            "row minimal_delta_plan.and_or_cost_graph route option primitives "
+            "missing from standalone_route.primitives: "
+            + ",".join(missing_route[:8])
+        )
+    missing_formal = sorted(route_option_primitives - formal)
+    if missing_formal:
+        errors.append(
+            "row minimal_delta_plan.and_or_cost_graph route option primitives "
+            "missing from formal_realization_dag_nodes: "
+            + ",".join(missing_formal[:8])
+        )
+    return tuple(errors)
+
+
 def _llm_row_alignment_reference_errors(row: dict[str, Any]) -> tuple[str, ...]:
     errors: list[str] = []
     informal_node_ids = {
@@ -9752,6 +9793,21 @@ def _llm_available_primitive_keys(request: dict[str, Any]) -> set[str]:
 def _llm_row_selected_delta_primitive_keys(row: dict[str, Any]) -> set[str]:
     selected, delta_primitives = _llm_row_selected_and_delta_primitive_keys(row)
     return selected | delta_primitives
+
+
+def _llm_row_route_option_primitive_keys(row: dict[str, Any]) -> set[str]:
+    graph = _dict_value(_dict_value(row, "minimal_delta_plan"), "and_or_cost_graph")
+    primitives: set[str] = set()
+    for option in _dict_tuple(graph.get("route_options", [])):
+        primitives.update(
+            primitive
+            for primitive in (
+                _llm_primitive_key(value)
+                for value in _str_tuple(option.get("selected_primitives", []))
+            )
+            if primitive
+        )
+    return primitives
 
 
 def _llm_row_selected_and_delta_primitive_keys(
@@ -10990,12 +11046,19 @@ def _llm_realization_witness_schema_errors(schema: dict[str, Any]) -> tuple[str,
         "selected_primitives_missing_standalone_route_node",
         "selected_primitives_with_formal_realization_node",
         "selected_primitives_missing_formal_realization_node",
+        "route_option_primitives",
+        "route_option_primitives_with_standalone_route_node",
+        "route_option_primitives_missing_standalone_route_node",
+        "route_option_primitives_with_formal_realization_node",
+        "route_option_primitives_missing_formal_realization_node",
         "delta_primitives_with_route_alignment_edge",
         "delta_primitives_missing_route_alignment_edge",
         "introduced_primitives_with_route_alignment_edge",
         "introduced_primitives_missing_route_alignment_edge",
         "selected_route_coverage_complete",
         "selected_formal_coverage_complete",
+        "route_option_route_coverage_complete",
+        "route_option_formal_coverage_complete",
         "delta_alignment_complete",
         "introduced_alignment_complete",
         "realization_coverage_complete",

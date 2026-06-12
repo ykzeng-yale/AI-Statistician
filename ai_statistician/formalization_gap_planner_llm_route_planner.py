@@ -3199,6 +3199,11 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                     "selected_primitives_missing_standalone_route_node",
                     "selected_primitives_with_formal_realization_node",
                     "selected_primitives_missing_formal_realization_node",
+                    "route_option_primitives",
+                    "route_option_primitives_with_standalone_route_node",
+                    "route_option_primitives_missing_standalone_route_node",
+                    "route_option_primitives_with_formal_realization_node",
+                    "route_option_primitives_missing_formal_realization_node",
                     "cost_hint_baseline_primitives",
                     "omitted_cost_hint_primitives",
                     "delta_primitives_with_route_alignment_edge",
@@ -3212,6 +3217,8 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                     "cost_hint_baseline_coverage_complete",
                     "selected_route_coverage_complete",
                     "selected_formal_coverage_complete",
+                    "route_option_route_coverage_complete",
+                    "route_option_formal_coverage_complete",
                     "delta_alignment_complete",
                     "introduced_alignment_complete",
                     "realization_coverage_complete",
@@ -3225,6 +3232,11 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                     "selected_primitives_missing_standalone_route_node": witness_array,
                     "selected_primitives_with_formal_realization_node": witness_array,
                     "selected_primitives_missing_formal_realization_node": witness_array,
+                    "route_option_primitives": witness_array,
+                    "route_option_primitives_with_standalone_route_node": witness_array,
+                    "route_option_primitives_missing_standalone_route_node": witness_array,
+                    "route_option_primitives_with_formal_realization_node": witness_array,
+                    "route_option_primitives_missing_formal_realization_node": witness_array,
                     "cost_hint_baseline_primitives": witness_array,
                     "omitted_cost_hint_primitives": witness_array,
                     "delta_primitives_with_route_alignment_edge": witness_array,
@@ -3240,6 +3252,8 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                     "cost_hint_baseline_coverage_complete": {"type": "boolean"},
                     "selected_route_coverage_complete": {"type": "boolean"},
                     "selected_formal_coverage_complete": {"type": "boolean"},
+                    "route_option_route_coverage_complete": {"type": "boolean"},
+                    "route_option_formal_coverage_complete": {"type": "boolean"},
                     "delta_alignment_complete": {"type": "boolean"},
                     "introduced_alignment_complete": {"type": "boolean"},
                     "realization_coverage_complete": {"type": "boolean"},
@@ -5977,7 +5991,7 @@ def _user_prompt(
             "A primitive_costs coverage_bucket/base_cost must not be cheaper than the explicit coverage_bucket, coverage_status, or formalization_action markers on the corresponding formal_realization_dag_nodes or standalone_route.primitives.",
             "Every primitive_costs row must satisfy total_cost = base_cost + proof_difficulty_cost + import_cone_cost + definition_or_typeclass_cost + semantic_risk_cost - reuse_credit; route_cost must equal the sum of selected primitive total_cost values, and every route_options row must either include route-specific primitive_costs summing to route_cost or have a route_cost equal to the global primitive_costs for its selected_primitives.",
             "and_or_cost_graph must enumerate route_options with unique route_option_id values and duplicate-free selected_primitives, a selected_route_option_id that names one route_options row, non-empty or_nodes with duplicate-free choices, and non-empty and_edges; every route option must be reachable from an OR choice and have exactly one AND edge listing exactly its selected_primitives.",
-            "Every selected primitive must appear in standalone_route.primitives and formal_realization_dag_nodes.",
+            "Every selected primitive and every route option primitive must appear in standalone_route.primitives and formal_realization_dag_nodes.",
             "Every wrapper, bridge, source-port, new-definition, or first-principles delta primitive must have a route_alignment_edge.",
             "Every wrapper_lemmas, bridge_lemmas, source_port_lemmas, new_definitions, new_theory_primitives, or first_principles_primitives item used as a selected-delta action witness must be an actionable work item, not only the primitive name; include the primitive plus a theorem statement, definition goal, porting target, proof obligation, or construction description.",
             "New selected or delta primitives not already present in the target route or context packet must be justified by an aligned informal node with grounded source_refs, a matching literature search_request, or a formal_gap_boundary.",
@@ -12681,6 +12695,19 @@ def _response_primitive_coherence_errors(
             "minimal_delta_plan.selected_primitives missing from formal_realization_dag_nodes: "
             + ", ".join(selected_missing_formal)
         )
+    route_option_primitives = _minimal_delta_route_option_primitive_keys(minimal_delta)
+    route_option_missing_route = sorted(route_option_primitives - standalone)
+    if route_option_missing_route:
+        errors.append(
+            "minimal_delta_plan.and_or_cost_graph route option primitives missing from standalone_route.primitives: "
+            + ", ".join(route_option_missing_route[:8])
+        )
+    route_option_missing_formal = sorted(route_option_primitives - formal)
+    if route_option_missing_formal:
+        errors.append(
+            "minimal_delta_plan.and_or_cost_graph route option primitives missing from formal_realization_dag_nodes: "
+            + ", ".join(route_option_missing_formal[:8])
+        )
     delta_primitives = _minimal_delta_primitives(minimal_delta, selected)
     delta_missing_alignment = sorted(delta_primitives - alignment)
     if delta_missing_alignment:
@@ -13472,6 +13499,9 @@ def _realization_coverage_witness(
         if primitive
     }
     aligned = _alignment_primitive_keys(alignment_edges, formal_nodes)
+    route_option_primitives = tuple(
+        sorted(_minimal_delta_route_option_primitive_keys(minimal_delta))
+    )
     delta_primitives = _minimal_delta_primitives(minimal_delta, selected)
     available = _available_primitive_keys_for_request(request)
     introduced = (selected | delta_primitives) - available
@@ -13483,6 +13513,12 @@ def _realization_coverage_witness(
     )
     selected_missing_formal = tuple(
         primitive for primitive in selected_order if primitive not in formal
+    )
+    route_option_missing_route = tuple(
+        primitive for primitive in route_option_primitives if primitive not in standalone
+    )
+    route_option_missing_formal = tuple(
+        primitive for primitive in route_option_primitives if primitive not in formal
     )
     delta_missing_alignment = tuple(
         primitive for primitive in sorted(delta_primitives) if primitive not in aligned
@@ -13516,6 +13552,19 @@ def _realization_coverage_witness(
         "selected_primitives_missing_formal_realization_node": list(
             selected_missing_formal
         ),
+        "route_option_primitives": list(route_option_primitives),
+        "route_option_primitives_with_standalone_route_node": [
+            primitive for primitive in route_option_primitives if primitive in standalone
+        ],
+        "route_option_primitives_missing_standalone_route_node": list(
+            route_option_missing_route
+        ),
+        "route_option_primitives_with_formal_realization_node": [
+            primitive for primitive in route_option_primitives if primitive in formal
+        ],
+        "route_option_primitives_missing_formal_realization_node": list(
+            route_option_missing_formal
+        ),
         "cost_hint_baseline_primitives": list(cost_hint_baseline),
         "omitted_cost_hint_primitives": list(omitted_cost_hint),
         "delta_primitives_with_route_alignment_edge": [
@@ -13536,11 +13585,15 @@ def _realization_coverage_witness(
         and not selected_missing_route,
         "selected_formal_coverage_complete": bool(selected_order)
         and not selected_missing_formal,
+        "route_option_route_coverage_complete": not route_option_missing_route,
+        "route_option_formal_coverage_complete": not route_option_missing_formal,
         "delta_alignment_complete": not delta_missing_alignment,
         "introduced_alignment_complete": not introduced_missing_alignment,
         "realization_coverage_complete": bool(selected_order)
         and not selected_missing_route
         and not selected_missing_formal
+        and not route_option_missing_route
+        and not route_option_missing_formal
         and not delta_missing_alignment
         and not introduced_missing_alignment
         and action_witness_complete,

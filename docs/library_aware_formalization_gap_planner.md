@@ -403,7 +403,10 @@ top-level `primitive_costs` witness row. Each route option's `route_cost` must
 also be auditable: it either equals the sum of those global cost rows for its
 `selected_primitives`, or the route option carries its own `primitive_costs`
 rows for route-specific actions such as source ports versus bridge lemmas. The
-top-level `selected_primitives` list must be duplicate-free. The plan must also
+same route-option primitives must appear in `standalone_route.primitives` and
+the formal-realization DAG, so rejected alternatives are still library-aware
+routes rather than numeric placeholders. The top-level `selected_primitives`
+list must be duplicate-free. The plan must also
 include an `and_or_cost_graph` with enumerated route options with unique
 `route_option_id` values and duplicate-free `selected_primitives`, a
 `selected_route_option_id` naming one enumerated route option, exactly one

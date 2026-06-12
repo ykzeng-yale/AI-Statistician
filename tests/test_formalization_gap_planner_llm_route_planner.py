@@ -571,6 +571,16 @@ def _make_rank_uniformity_omitted_response(
     response["lean_realization_dag_nodes"] = [
         response["lean_realization_dag_nodes"][0]
     ]
+    if include_baseline_route_option:
+        response["lean_realization_dag_nodes"].append(
+            {
+                "node_id": "formal:rank_uniformity_bridge",
+                "primitive": "rank_uniformity",
+                "coverage_bucket": "bridge",
+                "candidate_declarations": [],
+                "formalization_action": "prove_bridge",
+            }
+        )
     response["route_alignment_edges"] = [
         {
             "informal_node_id": "informal:exchangeability",
@@ -632,9 +642,10 @@ def _make_rank_uniformity_omitted_response(
         }
         for option in route_options
     ]
-    response["standalone_route"]["primitives"] = [
-        response["standalone_route"]["primitives"][0]
-    ]
+    standalone_primitives = [response["standalone_route"]["primitives"][0]]
+    if include_baseline_route_option:
+        standalone_primitives.append(response["standalone_route"]["primitives"][1])
+    response["standalone_route"]["primitives"] = standalone_primitives
     response["standalone_route"]["theorem_statement"] = (
         "A distribution-free rank bound follows from exchangeability."
     )
@@ -10069,6 +10080,59 @@ def test_llm_route_planner_rejects_route_option_primitive_without_cost_row() -> 
         and "rank_order_statistic" in error
         for error in row["errors"]
     )
+
+
+def test_llm_route_planner_rejects_route_option_primitive_without_realization_coverage() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_route_option_primitive_without_realization_coverage"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    graph = bad_response["minimal_delta_plan"]["and_or_cost_graph"]
+    alternative = graph["route_options"][1]
+    alternative["selected_primitives"].append("rank_order_statistic")
+    alternative["primitive_costs"].append(
+        {
+            "primitive": "rank_order_statistic",
+            "coverage_bucket": "already_exists",
+            "base_cost": 0,
+            "proof_difficulty_cost": 0,
+            "import_cone_cost": 0,
+            "definition_or_typeclass_cost": 0,
+            "semantic_risk_cost": 0,
+            "reuse_credit": 0,
+            "total_cost": 0,
+            "cost_rationale": (
+                "This corrupted alternative claims the extra primitive is free."
+            ),
+        }
+    )
+    graph["and_edges"][1]["requires"].append("rank_order_statistic")
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert (
+        "route option primitives missing from standalone_route.primitives"
+        in error_text
+    )
+    assert (
+        "route option primitives missing from formal_realization_dag_nodes"
+        in error_text
+    )
+    assert "rank_order_statistic" in error_text
 
 
 def test_llm_route_planner_rejects_flat_and_or_cost_graph() -> None:
