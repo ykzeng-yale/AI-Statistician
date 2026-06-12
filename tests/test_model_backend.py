@@ -21,6 +21,7 @@ from ai_statistician.model_backend import (
     OpenAIResponsesGeneratorBackend,
     StaticJSONGeneratorBackend,
     claude_outside_cost_tier_family_for_model,
+    claude_model_freshness_warnings,
     claude_model_tier_for_model,
     claude_model_tier_mismatch,
     claude_model_tier_policy_violations,
@@ -440,6 +441,7 @@ def test_global_model_env_does_not_collapse_anthropic_cost_aware_tiers(
         "opus": "claude-opus-4-8",
     }
     assert claude_model_tier_policy_violations(models) == []
+    assert claude_model_freshness_warnings(models) == []
 
 
 def test_claude_model_tier_policy_violations_detect_configured_model_collapse() -> None:
@@ -461,6 +463,33 @@ def test_claude_model_tier_policy_violations_detect_configured_model_collapse() 
         }
     )
     assert any("outside-tier Claude fable model" in item for item in outside_tier_violations)
+
+
+def test_claude_model_freshness_warnings_detect_stale_same_tier_ids() -> None:
+    warnings = claude_model_freshness_warnings(
+        {
+            "haiku": "claude-haiku-4-5",
+            "sonnet": "claude-sonnet-4-5",
+            "opus": "claude-opus-4-7",
+        }
+    )
+
+    assert len(warnings) == 3
+    assert any(
+        "Claude haiku tier resolves to claude-haiku-4-5" in item
+        and "claude-haiku-4-5-20251001" in item
+        for item in warnings
+    )
+    assert any(
+        "Claude sonnet tier resolves to claude-sonnet-4-5" in item
+        and "claude-sonnet-4-6" in item
+        for item in warnings
+    )
+    assert any(
+        "Claude opus tier resolves to claude-opus-4-7" in item
+        and "claude-opus-4-8" in item
+        for item in warnings
+    )
 
 
 def test_claude_model_tier_helpers_detect_cross_tier_model_overrides() -> None:

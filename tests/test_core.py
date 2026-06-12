@@ -6397,6 +6397,7 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(report["summary"]["llm_models"]["sonnet"], "claude-sonnet-4-6")
         self.assertEqual(report["summary"]["llm_models"]["opus"], "claude-opus-4-8")
         self.assertEqual(report["summary"]["llm_model_tier_policy_violations"], [])
+        self.assertEqual(report["summary"]["llm_model_freshness_warnings"], [])
         serialized = json.dumps(report)
         self.assertNotIn("do-not-print-axle", serialized)
         self.assertNotIn("do-not-print-anthropic", serialized)
@@ -6423,6 +6424,32 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(report["summary"]["llm_models"]["opus"], "claude-opus-4-8")
         checks = {row["name"]: row for row in report["checks"]}
         self.assertEqual(checks["LLM Claude tier policy"]["status"], "OK")
+        self.assertEqual(checks["LLM Claude model freshness"]["status"], "OK")
+        self.assertNotIn("do-not-print-anthropic", json.dumps(report))
+
+    def test_doctor_report_warns_on_stale_same_tier_claude_models(self) -> None:
+        report = build_doctor_report(
+            root=Path("."),
+            env_file=Path(".env"),
+            environ={
+                "ANTHROPIC_API_KEY": "do-not-print-anthropic",
+                "AI_STATISTICIAN_CLAUDE_SONNET_MODEL": "claude-sonnet-4-5",
+            },
+            max_manifests=0,
+        )
+
+        self.assertEqual(report["summary"]["llm_model_tier_policy_violations"], [])
+        warnings = report["summary"]["llm_model_freshness_warnings"]
+        self.assertTrue(
+            any(
+                "Claude sonnet tier resolves to claude-sonnet-4-5" in warning
+                and "claude-sonnet-4-6" in warning
+                for warning in warnings
+            )
+        )
+        checks = {row["name"]: row for row in report["checks"]}
+        self.assertEqual(checks["LLM Claude tier policy"]["status"], "OK")
+        self.assertEqual(checks["LLM Claude model freshness"]["status"], "WARN")
         self.assertNotIn("do-not-print-anthropic", json.dumps(report))
 
     def test_capability_audit_maps_objective_to_evidence(self) -> None:

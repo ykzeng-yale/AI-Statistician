@@ -51,6 +51,7 @@ from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     CLAUDE_MODEL_TIERS,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    claude_model_freshness_warnings,
     claude_model_tier_mismatch,
     claude_model_tier_policy_violations,
     resolve_generator_model,
@@ -2124,6 +2125,9 @@ def _runtime_llm_topology(
     resolved_claude_model_tier_policy_violations = (
         claude_model_tier_policy_violations(resolved_claude_models_by_tier)
     )
+    resolved_claude_model_freshness_warnings = (
+        claude_model_freshness_warnings(resolved_claude_models_by_tier)
+    )
     violations = _llm_topology_policy_violations(agents) + [
         "resolved Claude model tier policy violation: " + violation
         for violation in resolved_claude_model_tier_policy_violations
@@ -2144,6 +2148,14 @@ def _runtime_llm_topology(
             ),
             "resolved_claude_model_tier_policy_violations": (
                 resolved_claude_model_tier_policy_violations
+            ),
+            "resolved_claude_model_freshness_status": (
+                "CURRENT"
+                if not resolved_claude_model_freshness_warnings
+                else "NON_CURRENT"
+            ),
+            "resolved_claude_model_freshness_warnings": (
+                resolved_claude_model_freshness_warnings
             ),
             "primary_cost_split": "sonnet_for_architect_theory_formalizer__haiku_for_simulation_algorithm_critic",
             "backend_boundary": (

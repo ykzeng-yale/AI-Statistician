@@ -41,7 +41,11 @@ automatically for AI Statistician helper tiers. Use `AI_STATISTICIAN_CLAUDE_HAIK
 `AI_STATISTICIAN_CLAUDE_OPUS_MODEL` for tier-specific overrides. Leave
 `AI_STATISTICIAN_LLM_MODEL` unset in normal Anthropic runs; the global override
 is treated as a Sonnet-tier compatibility default and must not collapse
-cost-aware Haiku/Sonnet routing. The formalization gap planner's auto route
+cost-aware Haiku/Sonnet routing. `ai_statistician doctor` and runtime topology
+manifests separately report same-tier freshness warnings when a resolved Claude
+tier does not match the current source-checked API ID, so stale Sonnet/Haiku
+aliases stay visible without being confused with cross-tier routing failures.
+The formalization gap planner's auto route
 tier uses the same split: small source-backed reuse/wrapper triage stays on
 Haiku, while target-intake rows with missing proof sources, library-search
 requirements, proof-state probes, complex theorem shape, many generic

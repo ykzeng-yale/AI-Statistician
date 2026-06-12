@@ -2860,6 +2860,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     }
     assert topology["policy"]["resolved_claude_model_tier_policy_status"] == "OK"
     assert topology["policy"]["resolved_claude_model_tier_policy_violations"] == []
+    assert topology["policy"]["resolved_claude_model_freshness_status"] == "CURRENT"
+    assert topology["policy"]["resolved_claude_model_freshness_warnings"] == []
     assert "not evergreen aliases" in topology["policy"]["claude_model_selection"]["model_id_versioning"]
     assert "LLM backends generate structured proposals only" in topology["policy"]["backend_boundary"]
     assert Path(manifest["artifacts"]["runtime_next_action_agenda_jsonl"]).exists()

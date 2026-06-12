@@ -306,6 +306,25 @@ def claude_model_tier_policy_violations(
     return sorted(set(violations))
 
 
+def claude_model_freshness_warnings(
+    models_by_tier: Mapping[str, str],
+) -> list[str]:
+    """Warn when a Claude tier resolves to a non-current same-tier model ID."""
+
+    warnings: list[str] = []
+    for tier, current_model in DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER.items():
+        model = str(models_by_tier.get(tier, "") or "").strip()
+        if not model or model == current_model:
+            continue
+        if claude_model_tier_for_model(model) != tier:
+            continue
+        warnings.append(
+            f"Claude {tier} tier resolves to {model}; current source-checked "
+            f"API ID is {current_model} as of {ANTHROPIC_MODEL_SOURCE_CHECKED_DATE}"
+        )
+    return sorted(set(warnings))
+
+
 @dataclass(frozen=True)
 class GeneratorRequest:
     """One LLM generation request.
