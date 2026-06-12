@@ -9123,6 +9123,7 @@ def _llm_row_and_or_cost_graph_structure_errors(
             + ", ".join(unreachable_route_options[:8])
         )
     and_edges = _dict_tuple(graph.get("and_edges", []))
+    route_options_referenced_by_and_edges: set[str] = set()
     if not and_edges:
         errors.append(f"{prefix}.and_edges must be non-empty")
     for index, edge in enumerate(and_edges):
@@ -9134,6 +9135,8 @@ def _llm_row_and_or_cost_graph_structure_errors(
                 f"{prefix}.and_edges[{index}].route_option_id references unknown route option: "
                 + option_id
             )
+        else:
+            route_options_referenced_by_and_edges.add(option_id)
         requires = _str_tuple(edge.get("requires", []))
         if not requires:
             errors.append(f"{prefix}.and_edges[{index}].requires must be non-empty")
@@ -9160,6 +9163,15 @@ def _llm_row_and_or_cost_graph_structure_errors(
                 f"{prefix}.and_edges[{index}].requires reference unknown primitives: "
                 + ", ".join(unknown_requires[:8])
             )
+    route_options_without_and_edges = sorted(
+        route_option_ids - route_options_referenced_by_and_edges
+    )
+    if route_options_without_and_edges:
+        errors.append(
+            f"{prefix}.and_edges must include every route option; "
+            "route options without AND edges: "
+            + ", ".join(route_options_without_and_edges[:8])
+        )
     return errors
 
 

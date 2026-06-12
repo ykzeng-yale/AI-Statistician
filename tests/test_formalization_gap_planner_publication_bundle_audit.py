@@ -600,7 +600,24 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
                             {
                                 "route_option_id": "route_option:rank_bridge",
                                 "requires": ["rank_uniformity"],
-                            }
+                            },
+                            {
+                                "route_option_id": "route_option:rank_source_port",
+                                "requires": ["rank_uniformity"],
+                            },
+                            {
+                                "route_option_id": (
+                                    "route_option:current_route_min_delta_baseline"
+                                ),
+                                "requires": [
+                                    (
+                                        "a_source_backed_rank_uniformity_bridge_"
+                                        "closes_the"
+                                    ),
+                                    "rank_uniformity",
+                                    "uniform_bound",
+                                ],
+                            },
                         ],
                     },
                     "minimality_rationale": (
@@ -8101,6 +8118,43 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         "and_edges[0].requires must match route_options selected_primitives"
         in error
         for error in edge_mismatch_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    missing_and_edge_rows = json.loads(json.dumps(rows))
+    missing_and_edge_graph = missing_and_edge_rows[0]["minimal_delta_plan"][
+        "and_or_cost_graph"
+    ]
+    missing_and_edge_graph["and_edges"] = [
+        edge
+        for edge in missing_and_edge_graph["and_edges"]
+        if edge["route_option_id"] != "route_option:current_route_min_delta_baseline"
+    ]
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in missing_and_edge_rows)
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_missing_and_edge_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_route_option_without_and_edge",
+        )
+    )
+    missing_and_edge_checks = [
+        row
+        for row in rejected_missing_and_edge_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert missing_and_edge_checks
+    assert not missing_and_edge_checks[0]["ok"]
+    assert any(
+        "and_edges must include every route option" in error
+        and "route_option:current_route_min_delta_baseline" in error
+        for error in missing_and_edge_checks[0]["errors"]
     )
     rows_path.write_text(
         "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
