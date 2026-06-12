@@ -1454,7 +1454,9 @@ The current manifest therefore exports two separate DAG views:
   Current-library reuse, near matches, wrappers, bridge lemmas, source ports,
   new primitives, and excluded alternatives. `lean_realization_dag_nodes`
   remains a legacy alias for Lean-oriented clients; prover-generic artifacts
-  should prefer the `formal_*` field names.
+  should prefer the `formal_*` field names, and portable-plan audit rejects
+  non-Lean rows with nonempty Lean realization aliases even when the generic
+  DAG fields are present.
 
 - `route_alignment_edges`
   Explicit links from informal semantic atoms to formal realization candidates.
@@ -1706,7 +1708,8 @@ The current implementation composes four existing AI Statistician artifacts:
    Validates any portable planner manifest before downstream reuse. It checks
    schema identity, proof-boundary discipline, two-DAG and AND/OR graph
    presence, selected-primitive alignment edges, work-packet gates,
-   interactive hooks, and rejects kernel-proof claims in the planning layer.
+   interactive hooks, rejects kernel-proof claims in the planning layer, and
+   rejects non-Lean rows that still carry Lean-only realization DAG aliases.
    The audit JSONL is self-contained: each check row carries its proof-boundary
    status and is validated against
    `formalization_gap_planner_portable_plan_audit_row.schema.json`.

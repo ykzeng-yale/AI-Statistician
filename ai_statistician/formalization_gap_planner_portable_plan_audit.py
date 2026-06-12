@@ -133,6 +133,9 @@ def audit_formalization_gap_planner_portable_plan(
         "n_rows_without_kernel_claims": sum(
             1 for row in rows if not _kernel_claim_paths(row)
         ),
+        "n_rows_without_non_lean_legacy_realization_aliases": sum(
+            1 for row in rows if not _non_lean_legacy_realization_alias_errors(row)
+        ),
         "all_ok": (
             not errors
             and bool(checks)
@@ -384,6 +387,13 @@ def _aggregate_row_checks(
             sum(1 for row in rows if not _kernel_claim_paths(row)),
             len(rows),
         ),
+        _aggregate_check(
+            "rows_without_non_lean_legacy_realization_aliases",
+            "cross_prover",
+            "non-Lean rows do not carry Lean realization DAG aliases",
+            sum(1 for row in rows if not _non_lean_legacy_realization_alias_errors(row)),
+            len(rows),
+        ),
     ]
 
 
@@ -413,6 +423,7 @@ def _row_checks(
         do_not_formalize = set(_str_tuple(row.get("do_not_formalize_now", [])))
         excluded_selected = tuple(sorted(selected & do_not_formalize))
         kernel_claims = _kernel_claim_paths(row)
+        legacy_alias_errors = _non_lean_legacy_realization_alias_errors(row)
         checks.extend(
             [
                 _check(
@@ -481,6 +492,14 @@ def _row_checks(
                     ",".join(kernel_claims),
                     not kernel_claims,
                     errors=kernel_claims,
+                ),
+                _check(
+                    row_prefix + "non_lean_legacy_realization_aliases",
+                    "cross_prover",
+                    "non-Lean rows use formal_realization_dag_* fields only",
+                    "; ".join(legacy_alias_errors) if legacy_alias_errors else row_label,
+                    not legacy_alias_errors,
+                    errors=legacy_alias_errors,
                 ),
             ]
         )
@@ -574,6 +593,36 @@ def _formal_realization_nodes(row: dict[str, Any]) -> tuple[dict[str, Any], ...]
     if not isinstance(nodes, (list, tuple)):
         return tuple()
     return tuple(node for node in nodes if isinstance(node, dict))
+
+
+def _non_lean_legacy_realization_alias_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    target_key = _target_prover_key(row.get("target_prover_family", ""))
+    if not target_key or target_key == "lean4":
+        return tuple()
+    errors: list[str] = []
+    if _nonempty_legacy_field_value(row.get("lean_realization_dag_nodes")):
+        errors.append(
+            "lean_realization_dag_nodes is a Lean-only legacy alias; "
+            "non-Lean portable plan rows must use formal_realization_dag_nodes"
+        )
+    if _nonempty_legacy_field_value(row.get("lean_realization_dag_edges")):
+        errors.append(
+            "lean_realization_dag_edges is a Lean-only legacy alias; "
+            "non-Lean portable plan rows must use formal_realization_dag_edges"
+        )
+    return tuple(errors)
+
+
+def _nonempty_legacy_field_value(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, dict):
+        return bool(value)
+    if isinstance(value, (list, tuple, set)):
+        return any(_nonempty_legacy_field_value(item) for item in value)
+    return bool(value)
 
 
 def _is_lean_target_prover(value: object) -> bool:
