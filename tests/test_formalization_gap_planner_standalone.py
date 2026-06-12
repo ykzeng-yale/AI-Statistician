@@ -866,6 +866,15 @@ def test_standalone_input_rejects_non_lean_legacy_lean_declaration_hits() -> Non
             }
         ],
     }
+    payload["routes"][0]["primitives"][0]["lean_declaration_hits"] = [
+        {"declaration": "Mathlib.Probability.exchangeable"}
+    ]
+    payload["routes"][0]["primitives"].append(
+        {
+            "primitive": "rank_uniformity",
+            "lean_declaration_hits": ["Mathlib.Probability.rankUniformity"],
+        }
+    )
     input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     errors = validate_standalone_input_payload(payload)
@@ -876,6 +885,16 @@ def test_standalone_input_rejects_non_lean_legacy_lean_declaration_hits() -> Non
     )
     assert any(
         "routes[0].replan_metadata.lean_declaration_hits is a Lean-only legacy alias"
+        in error
+        for error in errors
+    )
+    assert any(
+        "routes[0].primitives[0].lean_declaration_hits is a Lean-only legacy alias"
+        in error
+        for error in errors
+    )
+    assert any(
+        "routes[0].primitives[1].lean_declaration_hits is a Lean-only legacy alias"
         in error
         for error in errors
     )

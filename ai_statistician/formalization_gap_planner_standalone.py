@@ -637,6 +637,14 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
             if not str(primitive.get("primitive", "")).strip():
                 errors.append(f"routes[{idx}].primitives[{primitive_idx}].primitive missing")
             errors.extend(
+                _legacy_lean_declaration_hit_input_errors(
+                    primitive,
+                    location=f"routes[{idx}].primitives[{primitive_idx}]",
+                    target_prover_family=effective_target,
+                    target_prover_key=effective_target_key,
+                )
+            )
+            errors.extend(
                 _candidate_declaration_row_input_errors(
                     primitive.get("candidate_declaration_rows", []),
                     location=(
@@ -2186,7 +2194,7 @@ def _legacy_lean_declaration_hit_input_errors(
 ) -> list[str]:
     if not target_prover_key or _is_lean_target_prover(target_prover_family):
         return []
-    if not _dict_list(row.get("lean_declaration_hits", [])):
+    if not _nonempty_legacy_declaration_hit_value(row.get("lean_declaration_hits")):
         return []
     return [
         (
@@ -2195,6 +2203,18 @@ def _legacy_lean_declaration_hit_input_errors(
             f"for target_prover_family {target_prover_family}"
         )
     ]
+
+
+def _nonempty_legacy_declaration_hit_value(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, Mapping):
+        return bool(value)
+    if isinstance(value, (list, tuple, set)):
+        return any(_nonempty_legacy_declaration_hit_value(item) for item in value)
+    return bool(value)
 
 
 def _declaration_hits_for_standalone_trace(
