@@ -8229,6 +8229,7 @@ def _llm_row_request_evidence_errors(
             "row candidate_declarations not present in request available_formal_declarations: "
             + ",".join(missing_declarations[:8])
         )
+    errors.extend(_llm_row_target_prover_consistency_errors(row, request))
     request_residuals = _llm_request_residual_keys(request)
     row_residuals = _llm_row_residual_keys(row)
     if row_residuals and not request_residuals:
@@ -8321,6 +8322,100 @@ def _llm_row_residual_source_grounding_errors(row: dict[str, Any]) -> tuple[str,
             "a matching literature/source search_request, or formal_gap_boundary"
         )
     return tuple(errors)
+
+
+def _llm_row_target_prover_consistency_errors(
+    row: dict[str, Any],
+    request: dict[str, Any],
+) -> tuple[str, ...]:
+    expected_raw = str(request.get("target_prover_family", "") or "").strip()
+    expected = _target_prover_key(expected_raw)
+    if not expected:
+        return tuple()
+    errors: list[str] = []
+    target_checks: list[tuple[str, object]] = [
+        ("row.target_prover_family", row.get("target_prover_family", "")),
+    ]
+    standalone_route = _dict_value(row, "standalone_route")
+    target_checks.append(
+        (
+            "row standalone_route.target_prover_family",
+            standalone_route.get("target_prover_family", ""),
+        )
+    )
+    replan_metadata = _dict_value(standalone_route, "replan_metadata")
+    target_checks.append(
+        (
+            "row standalone_route.replan_metadata.target_prover_family",
+            replan_metadata.get("target_prover_family", ""),
+        )
+    )
+    for index, node in enumerate(_llm_formal_realization_nodes(row)):
+        target_checks.append(
+            (
+                f"row formal_realization_dag_nodes[{index}].target_prover_family",
+                node.get("target_prover_family", ""),
+            )
+        )
+    for location, hit in _llm_row_declaration_hit_locations(row):
+        target_checks.append(
+            (f"{location}.target_prover_family", hit.get("target_prover_family", ""))
+        )
+        target_checks.append((f"{location}.target_prover", hit.get("target_prover", "")))
+    for location, raw_value in target_checks:
+        value = str(raw_value or "").strip()
+        if not value:
+            continue
+        if _target_prover_key(value) != expected:
+            errors.append(
+                f"{location} {value} does not match request target_prover_family "
+                f"{expected_raw}"
+            )
+    if _is_non_lean_target_prover(expected_raw):
+        if _dict_tuple(row.get("lean_realization_dag_nodes", [])):
+            errors.append(
+                "row lean_realization_dag_nodes is a Lean-only legacy alias "
+                f"but request target_prover_family is {expected_raw}"
+            )
+        for location, _hit in _llm_row_lean_declaration_hit_locations(row):
+            errors.append(
+                f"{location} is a Lean-only legacy declaration field "
+                f"but request target_prover_family is {expected_raw}"
+            )
+    return tuple(errors)
+
+
+def _llm_row_declaration_hit_locations(
+    row: dict[str, Any],
+) -> tuple[tuple[str, dict[str, Any]], ...]:
+    locations: list[tuple[str, dict[str, Any]]] = []
+    containers: list[tuple[str, dict[str, Any]]] = [("row", row)]
+    for index, node in enumerate(_llm_formal_realization_nodes(row)):
+        containers.append((f"row formal_realization_dag_nodes[{index}]", node))
+    standalone_route = _dict_value(row, "standalone_route")
+    for index, primitive_row in enumerate(
+        _dict_tuple(standalone_route.get("primitives", []))
+    ):
+        containers.append((f"row standalone_route.primitives[{index}]", primitive_row))
+    for location, container in containers:
+        for field_name in (
+            "candidate_declaration_rows",
+            "formal_declaration_hits",
+            "lean_declaration_hits",
+        ):
+            for index, hit in enumerate(_dict_tuple(container.get(field_name, []))):
+                locations.append((f"{location}.{field_name}[{index}]", hit))
+    return tuple(locations)
+
+
+def _llm_row_lean_declaration_hit_locations(
+    row: dict[str, Any],
+) -> tuple[tuple[str, dict[str, Any]], ...]:
+    return tuple(
+        (location, hit)
+        for location, hit in _llm_row_declaration_hit_locations(row)
+        if ".lean_declaration_hits[" in location
+    )
 
 
 def _llm_residual_interpretation_has_source_refs(

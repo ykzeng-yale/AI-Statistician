@@ -688,7 +688,10 @@ Any explicit `target_prover_family` in the response payload, standalone route,
 `replan_metadata`, or formal-realization nodes must match the request target
 prover family, modulo accepted aliases such as Coq/Rocq. The standalone seed
 still writes the request target explicitly, but mismatched LLM proposals are not
-silently accepted and overwritten.
+silently accepted and overwritten. The publication-bundle audit rechecks the
+same target-prover consistency on accepted LLM rows, including formal
+realization nodes and declaration-hit rows, so public artifacts cannot drift
+from the request target after generation.
 Formal-library reuse is likewise target-aware. The request context exposes a
 legacy flat `available_formal_declarations` list containing declarations
 compatible with the request target, plus structured

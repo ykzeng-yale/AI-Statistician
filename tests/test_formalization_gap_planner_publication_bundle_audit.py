@@ -8990,6 +8990,68 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         encoding="utf-8",
     )
 
+    target_drift_rows = json.loads(json.dumps(rows))
+    target_drift_rows[0]["target_prover_family"] = "rocq"
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in target_drift_rows)
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_target_drift_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_row_target_prover_drift",
+    )
+    target_drift_checks = [
+        row
+        for row in rejected_target_drift_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert target_drift_checks
+    assert not target_drift_checks[0]["ok"]
+    assert any(
+        "row.target_prover_family rocq does not match request target_prover_family lean4"
+        in error
+        for error in target_drift_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    formal_target_drift_rows = json.loads(json.dumps(rows))
+    formal_target_drift_rows[0]["formal_realization_dag_nodes"][0][
+        "target_prover_family"
+    ] = "rocq"
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True) for row in formal_target_drift_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_formal_target_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_formal_node_target_prover_drift",
+        )
+    )
+    formal_target_checks = [
+        row
+        for row in rejected_formal_target_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert formal_target_checks
+    assert not formal_target_checks[0]["ok"]
+    assert any(
+        "row formal_realization_dag_nodes[0].target_prover_family rocq "
+        "does not match request target_prover_family lean4" in error
+        for error in formal_target_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
     corrupted_rows = json.loads(json.dumps(rows))
     corrupted_rows[0]["source_refs"].append("invented_source")
     rows_path.write_text(
