@@ -93,6 +93,118 @@ def test_refinement_evidence_rejects_expanded_target_primitives() -> None:
     )
 
 
+def test_refinement_evidence_rejects_off_scope_revision_fields() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_refinement_evidence_revision_scope"
+    )
+    queue_dir = root / "queue"
+    evidence_dir = root / "evidence"
+    response_jsonl = root / "responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    queue_row = {
+        "refinement_item_id": "refinement:route-revision",
+        "goal_plan_id": "goal:test",
+        "route_id": "route:test",
+        "display_name": "demo:rank_uniformity",
+        "hook_kind": "route_revision",
+        "refinement_stage": "route_repair",
+        "owner_agent": "planner",
+        "target_prover_family": "rocq",
+        "target_primitives": ["rank_uniformity"],
+        "resource_request_bindings": [],
+    }
+    (
+        queue_dir / "formalization_gap_planner_refinement_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_refinement_queue",
+                "rows": [queue_row],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    response_jsonl.write_text(
+        json.dumps(
+            {
+                "refinement_item_id": "refinement:route-revision",
+                "route_id": "route:test",
+                "display_name": "demo:rank_uniformity",
+                "evidence_kind": "route_revision_proposal",
+                "tool_name": "fixture_route_revision_adapter",
+                "target_prover_family": "rocq",
+                "target_primitives": ["rank_uniformity"],
+                "coverage_updates": {"spectral_gap": "bridge_lemma_needed"},
+                "route_evidence_nodes": [
+                    {
+                        "node_id": "informal:spectral_gap",
+                        "primitive": "spectral_gap",
+                        "target_primitives": ["spectral_gap"],
+                    }
+                ],
+                "source_snippets": [
+                    {
+                        "source_ref": "paper:demo",
+                        "primitive": "spectral_gap",
+                        "target_primitives": ["spectral_gap"],
+                    }
+                ],
+                "formal_declaration_hits": [
+                    {
+                        "declaration": "Stats.SpectralGap.bound",
+                        "primitive": "spectral_gap",
+                        "target_primitives": ["spectral_gap"],
+                    }
+                ],
+                "route_revision_summary": "attempted off-scope route repair",
+                "revised_selected_primitives": ["rank_uniformity", "spectral_gap"],
+                "revised_delta_primitives": ["spectral_gap"],
+                "route_revision_reasons": [
+                    "adapter attempted to introduce an unqueued primitive",
+                ],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_refinement_evidence(
+        queue_dir,
+        evidence_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_REFINEMENT_EVIDENCE_CONTRACT"
+    assert row["target_primitives"] == ("rank_uniformity",)
+    assert row["revised_delta_primitives"] == ("spectral_gap",)
+    for field_name in (
+        "coverage_updates",
+        "route_evidence_nodes[0]",
+        "source_snippets[0]",
+        "formal_declaration_hits[0]",
+        "revised_selected_primitives",
+        "revised_delta_primitives",
+    ):
+        assert any(
+            f"{field_name} primitives must not expand beyond refinement queue "
+            "target_primitives" in error
+            and "spectral_gap" in error
+            for error in row["errors"]
+        )
+    proposal = payload["route_revision_proposals"][0]
+    assert proposal["response_contract_ok"] is False
+    assert proposal["acceptance_status"] == "REJECTED_REFINEMENT_EVIDENCE_CONTRACT"
+    assert proposal["ok"] is False
+    assert proposal["errors"] == row["errors"]
+    assert proposal["revised_delta_primitives"] == ("spectral_gap",)
+
+
 def test_refinement_evidence_preserves_queue_level_quality_controls() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_refinement_evidence_queue_controls"

@@ -768,6 +768,18 @@ def _evidence_row(
         response.get("revised_selected_primitives", [])
     )
     revised_delta_primitives = _str_tuple(response.get("revised_delta_primitives", []))
+    errors.extend(
+        _response_scope_errors(
+            queue_target_primitives,
+            coverage_updates=coverage_updates,
+            route_evidence_nodes=route_evidence_nodes,
+            source_snippets=source_snippets,
+            formal_declaration_hits=formal_declaration_hits,
+            lean_declaration_hits=lean_declaration_hits,
+            revised_selected_primitives=revised_selected_primitives,
+            revised_delta_primitives=revised_delta_primitives,
+        )
+    )
     revised_informal_nodes = _dict_tuple(
         response.get("revised_informal_knowledge_dag_nodes", [])
     )
@@ -1201,6 +1213,68 @@ def _coverage_updates(values: Any, errors: list[str]) -> dict[str, str]:
             errors.append("coverage_updates must be an object")
         return {}
     return {str(key): str(value) for key, value in values.items() if str(key) and str(value)}
+
+
+def _response_scope_errors(
+    queue_target_primitives: tuple[str, ...],
+    *,
+    coverage_updates: dict[str, str],
+    route_evidence_nodes: tuple[dict[str, object], ...],
+    source_snippets: tuple[dict[str, object], ...],
+    formal_declaration_hits: tuple[dict[str, object], ...],
+    lean_declaration_hits: tuple[dict[str, object], ...],
+    revised_selected_primitives: tuple[str, ...],
+    revised_delta_primitives: tuple[str, ...],
+) -> tuple[str, ...]:
+    allowed = {primitive for primitive in queue_target_primitives if primitive}
+    if not allowed:
+        return tuple()
+    errors: list[str] = []
+    for field_name, primitives in (
+        ("coverage_updates", _str_tuple(list(coverage_updates.keys()))),
+        ("revised_selected_primitives", revised_selected_primitives),
+        ("revised_delta_primitives", revised_delta_primitives),
+    ):
+        errors.extend(_primitive_scope_errors(field_name, primitives, allowed))
+    for field_name, rows in (
+        ("route_evidence_nodes", route_evidence_nodes),
+        ("source_snippets", source_snippets),
+        ("formal_declaration_hits", formal_declaration_hits),
+        ("lean_declaration_hits", lean_declaration_hits),
+    ):
+        for index, row in enumerate(rows):
+            errors.extend(
+                _primitive_scope_errors(
+                    f"{field_name}[{index}]",
+                    _evidence_row_scope_primitives(row),
+                    allowed,
+                )
+            )
+    return tuple(errors)
+
+
+def _evidence_row_scope_primitives(row: dict[str, object]) -> tuple[str, ...]:
+    return _str_tuple(
+        [
+            str(row.get("primitive", "") or ""),
+            *_str_tuple(row.get("target_primitives", [])),
+        ]
+    )
+
+
+def _primitive_scope_errors(
+    field_name: str,
+    observed_primitives: tuple[str, ...],
+    allowed_primitives: set[str],
+) -> tuple[str, ...]:
+    expanded = sorted(set(observed_primitives) - allowed_primitives)
+    if not expanded:
+        return tuple()
+    return (
+        f"{field_name} primitives must not expand beyond refinement queue "
+        "target_primitives: "
+        + ", ".join(expanded[:8]),
+    )
 
 
 def _source_snippets_from_route_evidence_nodes(

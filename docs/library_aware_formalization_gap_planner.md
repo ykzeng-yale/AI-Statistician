@@ -330,7 +330,12 @@ redirect refinement work toward ungrounded theorem content or invented tool
 dispatches.
 Normalized refinement-evidence rows and route-revision proposals expose the same
 `target_primitives` field, and refinement tool responses are rejected if they
-expand beyond the queued target scope.
+expand beyond the queued target scope. The same queue-scope check is applied to
+evidence-bearing fields that can feed route repair, including coverage-update
+keys, route-evidence nodes, source snippets, formal or Lean declaration-hit
+primitive tags, and `revised_selected_primitives`/`revised_delta_primitives`,
+so a tool response cannot introduce an unqueued theorem primitive through a
+secondary route-revision field.
 Accepted controls are preserved on route hooks and resource-request bindings so
 the refinement queue can dispatch the same bounded tool contract; refinement
 adapter responses and normalized refinement-evidence rows also expose a compact
