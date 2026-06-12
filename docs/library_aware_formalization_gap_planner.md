@@ -401,8 +401,8 @@ standalone-route primitives. The top-level `selected_primitives` list must be
 duplicate-free. The plan must also include an `and_or_cost_graph` with
 enumerated route options with unique `route_option_id` values and duplicate-free
 `selected_primitives`, exactly one selected option, every route option reachable
-from an OR choice, every route option expanded by exactly one AND edge whose
-duplicate-free `requires` list exactly matches that option's
+from a duplicate-free OR choice list, every route option expanded by exactly
+one AND edge whose duplicate-free `requires` list exactly matches that option's
 `selected_primitives`, and no listed alternative with lower `route_cost`.
 Those costs are planning evidence for comparing exact reuse, wrappers, bridge
 lemmas, source ports, new definitions, typeclass/import burden, semantic risk,

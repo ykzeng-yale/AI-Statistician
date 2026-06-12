@@ -8205,6 +8205,41 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         encoding="utf-8",
     )
 
+    duplicate_or_choice_rows = json.loads(json.dumps(rows))
+    duplicate_or_choice_graph = duplicate_or_choice_rows[0]["minimal_delta_plan"][
+        "and_or_cost_graph"
+    ]
+    duplicate_or_choice_graph["or_nodes"][0]["choices"].append(
+        "route_option:rank_source_port"
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in duplicate_or_choice_rows)
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_duplicate_or_choice_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_duplicate_or_choice",
+        )
+    )
+    duplicate_or_choice_checks = [
+        row
+        for row in rejected_duplicate_or_choice_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert duplicate_or_choice_checks
+    assert not duplicate_or_choice_checks[0]["ok"]
+    assert any(
+        "or_nodes[0].choices must not contain duplicates" in error
+        and "route_option:rank_source_port" in error
+        for error in duplicate_or_choice_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
     duplicate_and_edge_rows = json.loads(json.dumps(rows))
     duplicate_and_edge_graph = duplicate_and_edge_rows[0]["minimal_delta_plan"][
         "and_or_cost_graph"

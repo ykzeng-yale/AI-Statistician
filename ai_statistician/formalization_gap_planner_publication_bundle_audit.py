@@ -9123,6 +9123,12 @@ def _llm_row_and_or_cost_graph_structure_errors(
         )
         if not choices:
             errors.append(f"{prefix}.or_nodes[{index}].choices must be non-empty")
+        duplicate_choices = _llm_duplicate_string_keys(node.get("choices", []))
+        if duplicate_choices:
+            errors.append(
+                f"{prefix}.or_nodes[{index}].choices must not contain duplicates: "
+                + ", ".join(duplicate_choices[:8])
+            )
         unknown_choices = [
             choice
             for choice in choices
@@ -9947,6 +9953,25 @@ def _llm_duplicate_primitive_keys(values: Any) -> tuple[str, ...]:
         if primitive in seen and primitive not in duplicates:
             duplicates.append(primitive)
         seen.add(primitive)
+    return tuple(duplicates)
+
+
+def _llm_duplicate_string_keys(values: Any) -> tuple[str, ...]:
+    if isinstance(values, str):
+        raw_values = (values,)
+    elif isinstance(values, (list, tuple)):
+        raw_values = values
+    else:
+        return tuple()
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for value in raw_values:
+        key = str(value or "").strip()
+        if not key:
+            continue
+        if key in seen and key not in duplicates:
+            duplicates.append(key)
+        seen.add(key)
     return tuple(duplicates)
 
 
