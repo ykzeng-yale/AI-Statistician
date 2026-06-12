@@ -12834,6 +12834,12 @@ def _minimal_delta_request_hint_errors(
                 f"source={hint.get('minimum_cost_source', '')} "
                 f"marker={hint.get('minimum_cost_marker', '')}"
             )
+    errors.extend(
+        _minimal_delta_route_option_primitive_hint_errors(
+            minimal_delta,
+            primitive_hints,
+        )
+    )
 
     selected = {
         _primitive_key(primitive)
@@ -12983,6 +12989,61 @@ def _request_primitive_cost_hints_by_primitive(
         ) > float(current.get("minimum_base_cost", 0) or 0):
             by_primitive[primitive] = dict(hint)
     return by_primitive
+
+
+def _minimal_delta_route_option_primitive_hint_errors(
+    minimal_delta: Mapping[str, Any],
+    primitive_hints: Mapping[str, Mapping[str, object]],
+) -> list[str]:
+    """Reject route options cheaper than request-provided primitive lower bounds."""
+
+    graph = _dict_value(minimal_delta, "and_or_cost_graph")
+    errors: list[str] = []
+    if not primitive_hints:
+        return errors
+    for index, option in enumerate(_dict_tuple(graph.get("route_options", []))):
+        option_cost = option.get("route_cost")
+        if not _is_nonnegative_number(option_cost):
+            continue
+        option_primitives = tuple(
+            dict.fromkeys(
+                primitive
+                for primitive in (
+                    _primitive_key(value)
+                    for value in _str_tuple(option.get("selected_primitives", []))
+                )
+                if primitive
+            )
+        )
+        hinted_primitives: list[str] = []
+        minimum_known_base_cost = 0.0
+        sources: list[str] = []
+        markers: list[str] = []
+        for primitive in option_primitives:
+            hint = primitive_hints.get(primitive)
+            if not hint:
+                continue
+            hinted_primitives.append(primitive)
+            minimum_known_base_cost += float(hint.get("minimum_base_cost", 0) or 0)
+            source = str(hint.get("minimum_cost_source", "")).strip()
+            marker = str(hint.get("minimum_cost_marker", "")).strip()
+            if source:
+                sources.append(source)
+            if marker:
+                markers.append(marker)
+        if not hinted_primitives:
+            continue
+        if float(option_cost or 0) + 1e-9 < minimum_known_base_cost:
+            errors.append(
+                "minimal_delta_plan.and_or_cost_graph.route_options"
+                f"[{index}].route_cost underprices request primitive cost hints: "
+                f"route_cost={float(option_cost or 0):g} but "
+                f"minimum_known_base_cost={minimum_known_base_cost:g} "
+                f"primitives={','.join(hinted_primitives)} "
+                f"sources={','.join(dict.fromkeys(sources))} "
+                f"markers={','.join(dict.fromkeys(markers))}"
+            )
+    return errors
 
 
 def _minimal_delta_selected_route_option_hint_errors(

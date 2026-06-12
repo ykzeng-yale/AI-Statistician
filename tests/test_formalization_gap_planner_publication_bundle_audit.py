@@ -8107,6 +8107,65 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         encoding="utf-8",
     )
 
+    underpriced_option_rows = json.loads(json.dumps(rows))
+    underpriced_graph = underpriced_option_rows[0]["minimal_delta_plan"][
+        "and_or_cost_graph"
+    ]
+    underpriced_option = {
+        "route_option_id": "route_option:underpriced_request_bound_baseline",
+        "selected": False,
+        "selected_primitives": [
+            "a_source_backed_rank_uniformity_bridge_closes_the",
+            "rank_uniformity",
+            "uniform_bound",
+        ],
+        "route_cost": 43,
+        "cost_rationale": (
+            "This corrupted option underprices the request primitive hints."
+        ),
+    }
+    underpriced_graph["route_options"].append(underpriced_option)
+    underpriced_graph["or_nodes"][0]["choices"].append(
+        underpriced_option["route_option_id"]
+    )
+    underpriced_graph["and_edges"].append(
+        {
+            "route_option_id": underpriced_option["route_option_id"],
+            "requires": underpriced_option["selected_primitives"],
+        }
+    )
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True) for row in underpriced_option_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_underpriced_option_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_underpriced_route_option_primitive_hints",
+        )
+    )
+    underpriced_option_checks = [
+        row
+        for row in rejected_underpriced_option_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert underpriced_option_checks
+    assert not underpriced_option_checks[0]["ok"]
+    assert any(
+        "route_options[3].route_cost underprices request primitive cost hints"
+        in error
+        and "minimum_known_base_cost=44" in error
+        and "rank_uniformity" in error
+        for error in underpriced_option_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
     search_obligation_corrupted_rows = json.loads(json.dumps(rows))
     rank_node = search_obligation_corrupted_rows[0]["informal_knowledge_dag_nodes"][0]
     rank_node["source_refs"] = []

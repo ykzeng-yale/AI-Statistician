@@ -8250,7 +8250,7 @@ def _llm_row_request_evidence_errors(
     errors.extend(_llm_row_planner_next_action_contract_errors(row))
     errors.extend(_llm_row_source_search_obligation_errors(row))
     errors.extend(_llm_row_formal_search_obligation_errors(row))
-    errors.extend(_llm_row_minimal_delta_cost_errors(row))
+    errors.extend(_llm_row_minimal_delta_cost_errors(row, request))
     errors.extend(_llm_row_alignment_reference_errors(row))
     errors.extend(_llm_row_primitive_evidence_errors(row, request))
     return tuple(errors)
@@ -8747,7 +8747,10 @@ def _llm_has_formal_library_search_request_for_obligation(
     )
 
 
-def _llm_row_minimal_delta_cost_errors(row: dict[str, Any]) -> tuple[str, ...]:
+def _llm_row_minimal_delta_cost_errors(
+    row: dict[str, Any],
+    request: dict[str, Any],
+) -> tuple[str, ...]:
     errors: list[str] = []
     minimal_delta = _dict_value(row, "minimal_delta_plan")
     if str(minimal_delta.get("cost_model_version", "")).strip() != MINIMAL_DELTA_COST_POLICY_ID:
@@ -8817,6 +8820,12 @@ def _llm_row_minimal_delta_cost_errors(row: dict[str, Any]) -> tuple[str, ...]:
         _llm_row_and_or_cost_graph_errors(
             minimal_delta,
             selected=selected,
+        )
+    )
+    errors.extend(
+        _llm_row_route_option_primitive_hint_errors(
+            minimal_delta,
+            _llm_request_primitive_cost_hints_by_primitive(request),
         )
     )
     return tuple(errors)
@@ -8994,6 +9003,77 @@ def _llm_row_and_or_cost_graph_errors(
                 "row minimal_delta_plan.and_or_cost_graph selected route option is not minimal; "
                 "cheaper options: "
                 + ", ".join(cheaper[:8])
+            )
+    return tuple(errors)
+
+
+def _llm_request_primitive_cost_hints_by_primitive(
+    request: dict[str, Any],
+) -> dict[str, dict[str, object]]:
+    context = _dict_value(request, "context_packet")
+    hints = _dict_value(context, "minimal_delta_cost_hints")
+    by_primitive: dict[str, dict[str, object]] = {}
+    for hint in _dict_tuple(hints.get("primitive_cost_hints", [])):
+        primitive = _llm_primitive_key(hint.get("primitive", ""))
+        if not primitive or not _nonnegative_number(hint.get("minimum_base_cost")):
+            continue
+        current = by_primitive.get(primitive)
+        if current is None or float(hint.get("minimum_base_cost", 0) or 0) > float(
+            current.get("minimum_base_cost", 0) or 0
+        ):
+            by_primitive[primitive] = dict(hint)
+    return by_primitive
+
+
+def _llm_row_route_option_primitive_hint_errors(
+    minimal_delta: dict[str, Any],
+    primitive_hints: dict[str, dict[str, object]],
+) -> tuple[str, ...]:
+    graph = _dict_value(minimal_delta, "and_or_cost_graph")
+    errors: list[str] = []
+    if not primitive_hints:
+        return tuple(errors)
+    for index, option in enumerate(_dict_tuple(graph.get("route_options", []))):
+        option_cost = option.get("route_cost")
+        if not _nonnegative_number(option_cost):
+            continue
+        option_primitives = tuple(
+            dict.fromkeys(
+                primitive
+                for primitive in (
+                    _llm_primitive_key(value)
+                    for value in _str_tuple(option.get("selected_primitives", []))
+                )
+                if primitive
+            )
+        )
+        hinted_primitives: list[str] = []
+        minimum_known_base_cost = 0.0
+        sources: list[str] = []
+        markers: list[str] = []
+        for primitive in option_primitives:
+            hint = primitive_hints.get(primitive)
+            if not hint:
+                continue
+            hinted_primitives.append(primitive)
+            minimum_known_base_cost += float(hint.get("minimum_base_cost", 0) or 0)
+            source = str(hint.get("minimum_cost_source", "")).strip()
+            marker = str(hint.get("minimum_cost_marker", "")).strip()
+            if source:
+                sources.append(source)
+            if marker:
+                markers.append(marker)
+        if not hinted_primitives:
+            continue
+        if float(option_cost or 0) + 1e-9 < minimum_known_base_cost:
+            errors.append(
+                "row minimal_delta_plan.and_or_cost_graph.route_options"
+                f"[{index}].route_cost underprices request primitive cost hints: "
+                f"route_cost={float(option_cost or 0):g} but "
+                f"minimum_known_base_cost={minimum_known_base_cost:g} "
+                f"primitives={','.join(hinted_primitives)} "
+                f"sources={','.join(dict.fromkeys(sources))} "
+                f"markers={','.join(dict.fromkeys(markers))}"
             )
     return tuple(errors)
 

@@ -585,6 +585,43 @@ def _make_rank_uniformity_omitted_response(
     return response
 
 
+def _append_underpriced_rank_route_option(
+    response: dict[str, object],
+    *,
+    route_cost: int = 3,
+) -> None:
+    minimal_delta = response["minimal_delta_plan"]
+    assert isinstance(minimal_delta, dict)
+    graph = minimal_delta["and_or_cost_graph"]
+    assert isinstance(graph, dict)
+    route_options = graph["route_options"]
+    assert isinstance(route_options, list)
+    underpriced_option = {
+        "route_option_id": "route_option:underpriced_rank_only",
+        "selected": False,
+        "selected_primitives": ["rank_uniformity"],
+        "route_cost": route_cost,
+        "cost_rationale": (
+            "This corrupted option underprices the request-bound rank bridge."
+        ),
+    }
+    route_options.append(underpriced_option)
+    or_nodes = graph["or_nodes"]
+    assert isinstance(or_nodes, list)
+    assert isinstance(or_nodes[0], dict)
+    choices = or_nodes[0]["choices"]
+    assert isinstance(choices, list)
+    choices.append(underpriced_option["route_option_id"])
+    and_edges = graph["and_edges"]
+    assert isinstance(and_edges, list)
+    and_edges.append(
+        {
+            "route_option_id": underpriced_option["route_option_id"],
+            "requires": underpriced_option["selected_primitives"],
+        }
+    )
+
+
 def _promote_response_to_source_port_costs(response: dict[str, object]) -> None:
     for node in response.get("lean_realization_dag_nodes", []):
         if isinstance(node, dict):
@@ -9633,6 +9670,40 @@ def test_llm_route_planner_rejects_underpriced_baseline_option_when_cost_hint_pr
     assert row["response_contract_ok"] is False
     assert any(
         "baseline route option" in error and "minimum_route_base_cost=4" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_underpriced_unselected_option_from_primitive_hints() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_underpriced_unselected_option"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _make_rank_uniformity_omitted_response(
+        include_baseline_route_option=True,
+        baseline_route_cost=4,
+    )
+    _append_underpriced_rank_route_option(response, route_cost=3)
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    assert any(
+        "route_options[2].route_cost underprices request primitive cost hints" in error
+        and "minimum_known_base_cost=4" in error
+        and "rank_uniformity" in error
         for error in row["errors"]
     )
 
