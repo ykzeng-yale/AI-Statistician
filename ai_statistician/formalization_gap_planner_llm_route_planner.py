@@ -9130,12 +9130,16 @@ def _and_or_cost_graph_structure_errors(
 ) -> list[str]:
     errors: list[str] = []
     or_nodes = _dict_tuple(graph.get("or_nodes", []))
+    route_options_referenced_by_or_nodes: set[str] = set()
     if not or_nodes:
         errors.append(f"{prefix}.or_nodes must be non-empty")
     for index, node in enumerate(or_nodes):
         if not str(node.get("node_id", "")).strip():
             errors.append(f"{prefix}.or_nodes[{index}].node_id missing")
         choices = _str_tuple(node.get("choices", []))
+        route_options_referenced_by_or_nodes.update(
+            choice for choice in choices if choice in route_option_ids
+        )
         if not choices:
             errors.append(f"{prefix}.or_nodes[{index}].choices must be non-empty")
         unknown_choices = [
@@ -9151,6 +9155,15 @@ def _and_or_cost_graph_structure_errors(
             )
         if not str(node.get("selection_rationale", "")).strip():
             errors.append(f"{prefix}.or_nodes[{index}].selection_rationale missing")
+    unreachable_route_options = sorted(
+        route_option_ids - route_options_referenced_by_or_nodes
+    )
+    if unreachable_route_options:
+        errors.append(
+            f"{prefix}.or_nodes choices must reference every route option; "
+            "unreachable route options: "
+            + ", ".join(unreachable_route_options[:8])
+        )
     and_edges = _dict_tuple(graph.get("and_edges", []))
     if not and_edges:
         errors.append(f"{prefix}.and_edges must be non-empty")

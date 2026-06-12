@@ -9944,6 +9944,38 @@ def test_llm_route_planner_rejects_and_edge_route_option_mismatch() -> None:
     )
 
 
+def test_llm_route_planner_rejects_unreachable_route_option() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_unreachable_route_option"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    graph = bad_response["minimal_delta_plan"]["and_or_cost_graph"]
+    graph["or_nodes"][0]["choices"] = [
+        "route_option:reuse_exchangeability_bridge_rank"
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "or_nodes choices must reference every route option" in error
+        and "route_option:source_port_rank_theory" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_nonminimal_route_option_cost() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_rejects_nonminimal_cost")
     response_json = root / "bad_response.json"

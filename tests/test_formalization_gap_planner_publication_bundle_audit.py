@@ -8107,6 +8107,42 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         encoding="utf-8",
     )
 
+    unreachable_option_rows = json.loads(json.dumps(rows))
+    unreachable_graph = unreachable_option_rows[0]["minimal_delta_plan"][
+        "and_or_cost_graph"
+    ]
+    unreachable_graph["or_nodes"][0]["choices"] = [
+        "route_option:rank_bridge",
+        "route_option:rank_source_port",
+    ]
+    rows_path.write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True) for row in unreachable_option_rows
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_unreachable_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_unreachable_route_option",
+    )
+    unreachable_option_checks = [
+        row
+        for row in rejected_unreachable_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_row_0_request_evidence_bound"
+    ]
+    assert unreachable_option_checks
+    assert not unreachable_option_checks[0]["ok"]
+    assert any(
+        "or_nodes choices must reference every route option" in error
+        and "route_option:current_route_min_delta_baseline" in error
+        for error in unreachable_option_checks[0]["errors"]
+    )
+    rows_path.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
     underpriced_option_rows = json.loads(json.dumps(rows))
     underpriced_graph = underpriced_option_rows[0]["minimal_delta_plan"][
         "and_or_cost_graph"
