@@ -25,6 +25,7 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
     handoff_dir = root / "handoff"
     triage_dir = root / "triage"
     component_resource_registry_dir = root / "component_resource_registry"
+    resource_request_queue_dir = root / "resource_request_queue"
     out_dir = root / "session"
     shutil.rmtree(root, ignore_errors=True)
     for directory in (
@@ -35,6 +36,7 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
         handoff_dir,
         triage_dir,
         component_resource_registry_dir,
+        resource_request_queue_dir,
     ):
         directory.mkdir(parents=True, exist_ok=True)
 
@@ -312,6 +314,83 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
     export_formalization_gap_planner_component_resource_registry(
         component_resource_registry_dir
     )
+    resource_request_rows = [
+        {
+            "goal_plan_id": "goal:literature",
+            "route_id": "route:literature",
+            "display_name": "literature expansion conformal route",
+            "resource_request_id": "resource-request:literature",
+            "resource_id": "paperclip_cli_mcp",
+            "request_phase": "frontier_escalation",
+            "request_rank": 1,
+            "queue_action_kind": "literature_discovery",
+            "component_ids": ["literature_grounded_route_synthesis"],
+            "target_primitives": ["conditional_coverage"],
+            "actionable_work_items": [
+                "conditional coverage split conformal proof assumptions"
+            ],
+            "expected_response_artifact": (
+                "formalization_gap_planner_refinement_tool_response"
+            ),
+            "execution_command": (
+                "paperclip dispatch conditional coverage split conformal proof assumptions"
+            ),
+            "mcp_or_cli_hint": "Paperclip MCP",
+            "dispatch_spec": {
+                "resource_request_id": "resource-request:literature",
+                "resource_id": "paperclip_cli_mcp",
+                "adapter": "paperclip",
+            },
+            "request_payload": {
+                "llm_route_planner_queries": [
+                    "conditional coverage split conformal proof assumptions"
+                ]
+            },
+        },
+        {
+            "goal_plan_id": "goal:formal",
+            "route_id": "route:formal",
+            "display_name": "formal grounding expansion conformal route",
+            "resource_request_id": "resource-request:formal",
+            "resource_id": "leansearch",
+            "request_phase": "frontier_escalation",
+            "request_rank": 1,
+            "queue_action_kind": "formal_library_grounding",
+            "component_ids": ["formal_library_coverage_mapping"],
+            "target_primitives": ["rank_uniformity"],
+            "actionable_work_items": [
+                "rank_uniformity formal declaration coverage"
+            ],
+            "expected_response_artifact": (
+                "formalization_gap_planner_refinement_tool_response"
+            ),
+            "execution_command": (
+                "leansearch rank_uniformity formal declaration coverage"
+            ),
+            "mcp_or_cli_hint": "LeanSearch",
+            "dispatch_spec": {
+                "resource_request_id": "resource-request:formal",
+                "resource_id": "leansearch",
+                "adapter": "leansearch",
+            },
+        },
+    ]
+    (
+        resource_request_queue_dir
+        / "formalization_gap_planner_resource_request_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_resource_request_queue",
+                "resource_request_queue_row_schema": {
+                    "$id": "urn:ai-statistician:schemas:formalization-gap-planner-resource-request-queue-row:5"
+                },
+                "rows": resource_request_rows,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
     payload = export_formalization_gap_planner_interactive_session(
         plan_dir,
@@ -322,6 +401,7 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
         formalization_gap_planner_route_replan_handoff_dir=handoff_dir,
         formalization_gap_planner_proof_state_triage_dir=triage_dir,
         formalization_gap_planner_component_resource_registry_dir=component_resource_registry_dir,
+        formalization_gap_planner_resource_request_queue_dir=resource_request_queue_dir,
     )
 
     assert payload["all_ok"]
@@ -353,6 +433,13 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
     assert payload["n_run_formal_grounding"] == 1
     assert payload["n_run_lean_grounding"] == 0
     assert payload["n_rows_with_source_refs"] == 2
+    assert payload["n_rows_with_resource_requests"] == 2
+    assert payload["n_resource_requests_linked"] == 2
+    assert payload["n_resource_request_dispatch_summaries"] == 2
+    assert payload["n_resource_request_execution_commands"] == 2
+    assert "resource_request_ids" in payload["interactive_session_row_schema"][
+        "properties"
+    ]
     by_route = {row["route_id"]: row for row in payload["rows"]}
     assert by_route["route:stable"]["next_interaction_kind"] == "target_prover_replay"
     assert (
@@ -377,7 +464,28 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
         by_route["route:literature"]["next_interaction_kind"]
         == "literature_discovery"
     )
+    assert by_route["route:literature"]["resource_request_ids"] == (
+        "resource-request:literature",
+    )
+    assert by_route["route:literature"]["resource_request_resource_ids"] == (
+        "paperclip_cli_mcp",
+    )
+    assert by_route["route:literature"]["resource_request_queue_action_kinds"] == (
+        "literature_discovery",
+    )
     assert "paperclip_cli_mcp" in by_route["route:literature"]["next_tools"]
+    assert any(
+        command
+        == "paperclip dispatch conditional coverage split conformal proof assumptions"
+        for command in by_route["route:literature"]["next_commands"]
+    )
+    assert by_route["route:literature"]["evidence_summary"]["resource_requests"] == 1
+    assert (
+        by_route["route:literature"]["resource_request_dispatch_summaries"][0][
+            "resource_request_id"
+        ]
+        == "resource-request:literature"
+    )
     assert (
         by_route["route:formal"]["next_interaction_kind"]
         == "formal_library_grounding"
@@ -389,6 +497,13 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
     assert by_route["route:formal"]["needs_more_formal_grounding"]
     assert not by_route["route:formal"]["needs_more_lean_grounding"]
     assert "local_formal_source_index" in by_route["route:formal"]["next_tools"]
+    assert by_route["route:formal"]["resource_request_ids"] == (
+        "resource-request:formal",
+    )
+    assert "leansearch" in by_route["route:formal"]["next_tools"]
+    assert "leansearch rank_uniformity formal declaration coverage" in by_route[
+        "route:formal"
+    ]["resource_request_execution_commands"]
     policy_by_route = {row["route_id"]: row for row in payload["decision_policy_rows"]}
     assert (
         policy_by_route["route:stable"]["next_interaction_kind"]
@@ -450,6 +565,12 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
         policy_by_route["route:literature"]["next_interaction_kind"]
         == "literature_discovery"
     )
+    assert "resource_requests_ready" in policy_by_route["route:literature"][
+        "trigger_signals"
+    ]
+    assert "resource_request_queue_dispatch_specs" in policy_by_route[
+        "route:literature"
+    ]["evidence_inputs"]
     assert "literature_grounded_route_synthesis" in policy_by_route[
         "route:literature"
     ]["component_ids"]

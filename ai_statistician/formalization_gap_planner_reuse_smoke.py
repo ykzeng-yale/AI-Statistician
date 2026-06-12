@@ -705,6 +705,10 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_run_proof_state_feedback",
         "n_run_route_replan",
         "n_run_target_prover_replay",
+        "n_rows_with_resource_requests",
+        "n_resource_requests_linked",
+        "n_resource_request_dispatch_summaries",
+        "n_resource_request_execution_commands",
     ),
     "formalization_gap_planner_ablation_study": (
         "n_plan_rows",
@@ -1233,6 +1237,9 @@ def run_formalization_gap_planner_reuse_smoke(
             formalization_gap_planner_proof_state_triage_dir=proof_state_triage_dir,
             formalization_gap_planner_component_resource_registry_dir=(
                 component_resource_registry_dir
+            ),
+            formalization_gap_planner_resource_request_queue_dir=(
+                resource_request_queue_dir
             ),
         )
     )
@@ -5582,6 +5589,22 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_decision_policy_rows_with_response_validation_signals",
             0,
         ),
+        "n_interactive_session_rows_with_resource_requests": interactive_session_payload.get(
+            "n_rows_with_resource_requests",
+            0,
+        ),
+        "n_interactive_session_resource_requests_linked": interactive_session_payload.get(
+            "n_resource_requests_linked",
+            0,
+        ),
+        "n_interactive_session_resource_request_dispatch_summaries": interactive_session_payload.get(
+            "n_resource_request_dispatch_summaries",
+            0,
+        ),
+        "n_interactive_session_resource_request_execution_commands": interactive_session_payload.get(
+            "n_resource_request_execution_commands",
+            0,
+        ),
         "n_interactive_session_replan": interactive_session_payload.get(
             "n_run_route_replan",
             0,
@@ -7422,6 +7445,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Interactive session waiting for adapter responses: {payload.get('n_interactive_session_waiting_for_adapter_responses')}",
         f"- Interactive session rows requiring replan: {payload.get('n_interactive_session_rows_requiring_replan')}",
         f"- Interactive session replay-ready: {payload.get('n_interactive_session_replay')}",
+        f"- Interactive session rows with resource requests: {payload.get('n_interactive_session_rows_with_resource_requests')}",
+        f"- Interactive session linked resource requests: {payload.get('n_interactive_session_resource_requests_linked')}",
         f"- Ablation variants valid: {payload.get('n_ablation_row_schema_valid')}/{payload.get('n_ablation_variants')}",
         f"- Ablation largest route-recall drop: {payload.get('ablation_largest_route_recall_drop_variant')}",
         f"- Cross-prover targets: {payload.get('n_cross_prover_targets_ok')}/{payload.get('n_cross_prover_targets')}",

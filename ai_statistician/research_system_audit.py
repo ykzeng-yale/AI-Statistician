@@ -1262,6 +1262,8 @@ async def run_research_system_audit(
             / "formalization_gap_planner_proof_state_triage",
             formalization_gap_planner_component_resource_registry_dir=out_dir
             / "formalization_gap_planner_component_resource_registry",
+            formalization_gap_planner_resource_request_queue_dir=out_dir
+            / "formalization_gap_planner_resource_request_queue",
         )
     )
     stage_start = _record_stage(
@@ -4502,6 +4504,15 @@ async def run_research_system_audit(
             ],
             "formalization_gap_planner_interactive_session_residual_goals": formalization_gap_planner_interactive_session_manifest[
                 "n_rows_with_residual_goals"
+            ],
+            "formalization_gap_planner_interactive_session_rows_with_resource_requests": formalization_gap_planner_interactive_session_manifest[
+                "n_rows_with_resource_requests"
+            ],
+            "formalization_gap_planner_interactive_session_resource_requests_linked": formalization_gap_planner_interactive_session_manifest[
+                "n_resource_requests_linked"
+            ],
+            "formalization_gap_planner_interactive_session_resource_request_execution_commands": formalization_gap_planner_interactive_session_manifest[
+                "n_resource_request_execution_commands"
             ],
             "formalization_gap_planner_ablation_variants": formalization_gap_planner_ablation_study_manifest[
                 "n_ablation_variants"

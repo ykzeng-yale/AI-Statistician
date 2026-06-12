@@ -2964,6 +2964,11 @@ def _formalization_gap_planner_interactive_session(args: argparse.Namespace) -> 
         )
         if args.formalization_gap_planner_component_resource_registry_dir
         else None,
+        formalization_gap_planner_resource_request_queue_dir=Path(
+            args.formalization_gap_planner_resource_request_queue_dir
+        )
+        if args.formalization_gap_planner_resource_request_queue_dir
+        else None,
     )
     print("\nAI Statistical Theory Lab Formalization Gap Planner Interactive Session")
     print("=" * 72)
@@ -2972,6 +2977,7 @@ def _formalization_gap_planner_interactive_session(args: argparse.Namespace) -> 
         f"literature={payload['n_run_literature_search']} "
         f"lean={payload['n_run_lean_grounding']} "
         f"proof_state={payload['n_run_proof_state_feedback']} "
+        f"resource_requests={payload['n_resource_requests_linked']} "
         f"replan={payload['n_run_route_replan']} "
         f"replay={payload['n_run_target_prover_replay']} "
         f"all_ok={payload['all_ok']}"
@@ -8379,6 +8385,10 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_interactive_session.add_argument(
         "--formalization-gap-planner-component-resource-registry-dir",
         help="optional directory containing formalization_gap_planner_component_resource_registry_manifest.json",
+    )
+    formalization_gap_planner_interactive_session.add_argument(
+        "--formalization-gap-planner-resource-request-queue-dir",
+        help="optional directory containing formalization_gap_planner_resource_request_queue_manifest.json",
     )
     formalization_gap_planner_interactive_session.add_argument(
         "--out",

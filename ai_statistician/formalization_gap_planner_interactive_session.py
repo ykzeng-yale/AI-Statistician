@@ -20,6 +20,9 @@ from .formalization_gap_planner_component_resource_registry import (
     COMPONENT_RESOURCE_REGISTRY_COMPONENT_ROW_SCHEMA_ID,
     COMPONENT_RESOURCE_REGISTRY_RESOURCE_ROW_SCHEMA_ID,
 )
+from .formalization_gap_planner_resource_request_queue import (
+    RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID,
+)
 
 
 FORMALIZATION_GAP_PLANNER_INTERACTIVE_SESSION_SCHEMA_VERSION = 1
@@ -97,6 +100,11 @@ class FormalizationGapPlannerInteractiveSessionRow:
     responded_hook_kinds: tuple[str, ...]
     resource_response_awaiting_request_ids: tuple[str, ...]
     resource_response_rejected_request_ids: tuple[str, ...]
+    resource_request_ids: tuple[str, ...]
+    resource_request_resource_ids: tuple[str, ...]
+    resource_request_queue_action_kinds: tuple[str, ...]
+    resource_request_dispatch_summaries: tuple[dict[str, object], ...]
+    resource_request_execution_commands: tuple[str, ...]
     residual_goals: tuple[str, ...]
     source_refs: tuple[str, ...]
     formal_declaration_hits: tuple[dict[str, object], ...]
@@ -157,6 +165,7 @@ def export_formalization_gap_planner_interactive_session(
     formalization_gap_planner_route_replan_handoff_dir: Path | None = None,
     formalization_gap_planner_proof_state_triage_dir: Path | None = None,
     formalization_gap_planner_component_resource_registry_dir: Path | None = None,
+    formalization_gap_planner_resource_request_queue_dir: Path | None = None,
 ) -> dict[str, object]:
     """Export a route-level interaction ledger for the next planning round.
 
@@ -206,6 +215,16 @@ def export_formalization_gap_planner_interactive_session(
         "formalization_gap_planner_component_resource_registry_manifest.json",
         errors,
     )
+    resource_request_payload = _optional_manifest(
+        formalization_gap_planner_resource_request_queue_dir,
+        "formalization_gap_planner_resource_request_queue_manifest.json",
+        errors,
+    )
+    _validate_resource_request_queue_manifest(
+        resource_request_payload,
+        queue_dir=formalization_gap_planner_resource_request_queue_dir,
+        errors=errors,
+    )
     resource_registry = _resource_registry_context(
         component_resource_registry_payload,
         registry_dir=formalization_gap_planner_component_resource_registry_dir,
@@ -218,6 +237,7 @@ def export_formalization_gap_planner_interactive_session(
     stability_index = _row_index(stability_payload.get("rows", []))
     handoff_index = _row_index(handoff_payload.get("rows", []))
     triage_index = _row_index(triage_payload.get("rows", []))
+    resource_request_index = _row_index(resource_request_payload.get("rows", []))
 
     rows = [
         _session_row(
@@ -227,6 +247,7 @@ def export_formalization_gap_planner_interactive_session(
             stability_index,
             handoff_index,
             triage_index,
+            resource_request_index,
         )
         for plan_row in plan_rows
     ]
@@ -282,6 +303,9 @@ def export_formalization_gap_planner_interactive_session(
         "formalization_gap_planner_component_resource_registry_dir": str(
             formalization_gap_planner_component_resource_registry_dir or ""
         ),
+        "formalization_gap_planner_resource_request_queue_dir": str(
+            formalization_gap_planner_resource_request_queue_dir or ""
+        ),
         "n_plan_rows": len(plan_rows),
         "n_session_rows": len(rows),
         "n_ok": sum(1 for row in rows if row.ok),
@@ -299,6 +323,18 @@ def export_formalization_gap_planner_interactive_session(
         "n_rows_with_source_refs": sum(1 for row in rows if row.source_refs),
         "n_rows_with_residual_goals": sum(1 for row in rows if row.residual_goals),
         "n_rows_requiring_replan": sum(1 for row in rows if row.replan_required),
+        "n_rows_with_resource_requests": sum(
+            1 for row in rows if row.resource_request_ids
+        ),
+        "n_resource_requests_linked": sum(
+            len(row.resource_request_ids) for row in rows
+        ),
+        "n_resource_request_dispatch_summaries": sum(
+            len(row.resource_request_dispatch_summaries) for row in rows
+        ),
+        "n_resource_request_execution_commands": sum(
+            len(row.resource_request_execution_commands) for row in rows
+        ),
         "n_row_schema_valid": n_row_schema_valid,
         "n_row_schema_invalid": n_row_schema_invalid,
         "n_decision_policy_rows": len(decision_policy_rows),
@@ -470,6 +506,11 @@ def interactive_session_row_json_schema() -> dict[str, object]:
             "responded_hook_kinds": string_array,
             "resource_response_awaiting_request_ids": string_array,
             "resource_response_rejected_request_ids": string_array,
+            "resource_request_ids": string_array,
+            "resource_request_resource_ids": string_array,
+            "resource_request_queue_action_kinds": string_array,
+            "resource_request_dispatch_summaries": object_array,
+            "resource_request_execution_commands": string_array,
             "residual_goals": string_array,
             "source_refs": string_array,
             "formal_declaration_hits": object_array,
@@ -867,6 +908,24 @@ def _resource_registry_context(
     }
 
 
+def _validate_resource_request_queue_manifest(
+    payload: dict[str, Any],
+    *,
+    queue_dir: Path | None,
+    errors: list[str],
+) -> None:
+    if queue_dir is None:
+        return
+    if payload.get("component_name") != "formalization_gap_planner_resource_request_queue":
+        errors.append(
+            "resource-request queue manifest is not the resource-request queue"
+        )
+    if payload.get("resource_request_queue_row_schema", {}).get(
+        "$id"
+    ) != RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID:
+        errors.append("resource-request queue row schema id mismatch")
+
+
 def _resource_selection_for_interaction(
     row: FormalizationGapPlannerInteractiveSessionRow,
     resource_registry: dict[str, Any],
@@ -993,6 +1052,10 @@ def _decision_trigger_signals(
         signals.append("awaiting_resource_response_requests")
     if row.resource_response_rejected_request_ids:
         signals.append("rejected_resource_response_requests")
+    if row.resource_request_ids:
+        signals.append("resource_requests_ready")
+    if row.resource_request_dispatch_summaries:
+        signals.append("resource_request_dispatch_specs_ready")
     if row.stable_under_current_evidence_bound:
         signals.append("stable_under_current_evidence_bound")
     if row.residual_goals:
@@ -1023,6 +1086,8 @@ def _decision_evidence_inputs(
         or row.resource_response_rejected_request_ids
     ):
         inputs.append("resource_response_ledger_request_status")
+    if row.resource_request_ids:
+        inputs.append("resource_request_queue_dispatch_specs")
     if row.source_refs:
         inputs.append("source_refs")
     if row.formal_declaration_hits:
@@ -1226,6 +1291,7 @@ def _session_row(
     stability_index: dict[tuple[str, str], list[dict[str, Any]]],
     handoff_index: dict[tuple[str, str], list[dict[str, Any]]],
     triage_index: dict[tuple[str, str], list[dict[str, Any]]],
+    resource_request_index: dict[tuple[str, str], list[dict[str, Any]]],
 ) -> FormalizationGapPlannerInteractiveSessionRow:
     errors: list[str] = []
     goal_plan_id = str(plan_row.get("goal_plan_id", ""))
@@ -1244,6 +1310,9 @@ def _session_row(
     stability_row = _best_row(stability_index.get(key, []), "route_stability_audit_id")
     handoff_row = _best_row(handoff_index.get(key, []), "route_replan_handoff_id")
     triage_rows = _sort_by_rank(triage_index.get(key, []))
+    resource_request_rows = _sort_resource_request_rows(
+        resource_request_index.get(key, [])
+    )
     primary_triage = triage_rows[0] if triage_rows else {}
 
     source_refs = _str_tuple(
@@ -1377,10 +1446,31 @@ def _session_row(
         has_resource_response_status=has_resource_response_status,
     )
     selected_queue_rows = _queue_rows_for_next(queue_rows, next_kind)
+    selected_resource_request_rows = _resource_request_rows_for_next(
+        resource_request_rows,
+        next_kind,
+    )
+    resource_request_ids = _str_tuple(
+        row.get("resource_request_id", "") for row in selected_resource_request_rows
+    )
+    resource_request_resource_ids = _str_tuple(
+        row.get("resource_id", "") for row in selected_resource_request_rows
+    )
+    resource_request_queue_action_kinds = _str_tuple(
+        row.get("queue_action_kind", "") for row in selected_resource_request_rows
+    )
+    resource_request_dispatch_summaries = _dict_tuple(
+        _resource_request_dispatch_summary(row)
+        for row in selected_resource_request_rows
+    )
+    resource_request_execution_commands = _resource_request_execution_commands(
+        selected_resource_request_rows
+    )
     next_owner = _next_owner_agent(primary_triage, selected_queue_rows, next_kind)
     next_tools = _str_tuple(
         [
             *primary_triage.get("recommended_tools", []),
+            *resource_request_resource_ids,
             *(
                 ["resource_response_ledger"]
                 if (
@@ -1402,11 +1492,23 @@ def _session_row(
         ]
     )
     next_queries = _str_tuple(
-        query for row in selected_queue_rows for query in row.get("queries", [])
+        [
+            *[
+                query
+                for row in selected_queue_rows
+                for query in row.get("queries", [])
+            ],
+            *[
+                query
+                for row in selected_resource_request_rows
+                for query in _resource_request_queries(row)
+            ],
+        ]
     )
     next_commands = _next_commands(
         primary_triage=primary_triage,
         queue_rows=selected_queue_rows,
+        resource_request_rows=selected_resource_request_rows,
         handoff_row=handoff_row,
         next_kind=next_kind,
         resource_response_awaiting_request_ids=resource_response_awaiting_request_ids,
@@ -1449,6 +1551,13 @@ def _session_row(
             "triage_items": len(triage_rows),
             "prover_attempt_classes": len(applied_prover_attempt_classes),
             "target_prover_families": len(target_prover_families),
+            "resource_requests": len(resource_request_ids),
+            "resource_request_dispatch_summaries": len(
+                resource_request_dispatch_summaries
+            ),
+            "resource_request_execution_commands": len(
+                resource_request_execution_commands
+            ),
             "resource_response_awaiting_requests": len(
                 resource_response_awaiting_request_ids
             ),
@@ -1473,6 +1582,11 @@ def _session_row(
         resource_response_rejected_request_ids=(
             resource_response_rejected_request_ids
         ),
+        resource_request_ids=resource_request_ids,
+        resource_request_resource_ids=resource_request_resource_ids,
+        resource_request_queue_action_kinds=resource_request_queue_action_kinds,
+        resource_request_dispatch_summaries=resource_request_dispatch_summaries,
+        resource_request_execution_commands=resource_request_execution_commands,
         residual_goals=residual_goals,
         source_refs=source_refs,
         formal_declaration_hits=formal_hits,
@@ -1589,6 +1703,62 @@ def _queue_rows_for_next(
     return queue_rows
 
 
+def _resource_request_rows_for_next(
+    resource_request_rows: list[dict[str, Any]],
+    next_kind: str,
+) -> list[dict[str, Any]]:
+    if not resource_request_rows:
+        return []
+    component_ids = set(NEXT_INTERACTION_COMPONENT_IDS.get(next_kind, ()))
+    if component_ids:
+        selected_by_component = [
+            row
+            for row in resource_request_rows
+            if component_ids & set(_str_tuple(row.get("component_ids", ())))
+        ]
+        if selected_by_component:
+            return selected_by_component
+    selected_by_action = [
+        row
+        for row in resource_request_rows
+        if _resource_request_action_matches_next(row, next_kind)
+    ]
+    return selected_by_action or resource_request_rows
+
+
+def _resource_request_action_matches_next(
+    row: dict[str, Any],
+    next_kind: str,
+) -> bool:
+    text = _target_prover_key(
+        " ".join(
+            [
+                str(row.get("queue_action_kind", "")),
+                str(row.get("resource_id", "")),
+                str(row.get("expected_response_artifact", "")),
+                *(_str_tuple(row.get("target_primitives", ()))),
+                *(_str_tuple(row.get("actionable_work_items", ()))),
+            ]
+        )
+    )
+    expected_tokens = {
+        "literature_discovery": ("literature", "source", "paper", "citation"),
+        "formal_library_grounding": (
+            "formal",
+            "library",
+            "declaration",
+            "coverage",
+        ),
+        "lean_library_grounding": ("lean", "mathlib", "loogle", "leansearch"),
+        "proof_state_feedback": ("proof", "prover", "residual", "lsp"),
+        "route_replan": ("replan", "revision", "route"),
+        "route_revision": ("revision", "overlay", "route"),
+        "target_prover_replay": ("replay", "prover", "kernel"),
+        "await_refinement_response": ("response", "resource", "request"),
+    }.get(next_kind, ())
+    return any(token in text for token in expected_tokens)
+
+
 def _next_owner_agent(
     primary_triage: dict[str, Any],
     queue_rows: list[dict[str, Any]],
@@ -1626,6 +1796,7 @@ def _next_commands(
     *,
     primary_triage: dict[str, Any],
     queue_rows: list[dict[str, Any]],
+    resource_request_rows: list[dict[str, Any]],
     handoff_row: dict[str, Any],
     next_kind: str,
     resource_response_awaiting_request_ids: tuple[str, ...] = (),
@@ -1645,7 +1816,77 @@ def _next_commands(
         )
     for row in queue_rows:
         commands.extend(_str_tuple(row.get("execution_commands", [])))
+    commands.extend(_resource_request_execution_commands(resource_request_rows))
     return _str_tuple(commands)
+
+
+def _resource_request_execution_commands(
+    rows: list[dict[str, Any]],
+) -> tuple[str, ...]:
+    commands: list[str] = []
+    for row in rows:
+        command = str(row.get("execution_command", "")).strip()
+        if command:
+            commands.append(command)
+            continue
+        request_id = str(row.get("resource_request_id", "")).strip()
+        resource_id = str(row.get("resource_id", "")).strip()
+        if request_id:
+            hint = str(row.get("mcp_or_cli_hint", "")).strip()
+            commands.append(
+                "dispatch formalization_gap_planner_resource_request_queue row "
+                f"resource_request_id={request_id}"
+                + (f" via resource_id={resource_id}" if resource_id else "")
+                + (f" ({hint})" if hint else "")
+            )
+    return _str_tuple(commands)
+
+
+def _resource_request_dispatch_summary(
+    row: dict[str, Any],
+) -> dict[str, object]:
+    dispatch_spec = row.get("dispatch_spec", {})
+    return {
+        "resource_request_id": str(row.get("resource_request_id", "")),
+        "resource_id": str(row.get("resource_id", "")),
+        "request_phase": str(row.get("request_phase", "")),
+        "request_rank": _int(row.get("request_rank", 9999)),
+        "queue_action_kind": str(row.get("queue_action_kind", "")),
+        "expected_response_artifact": str(
+            row.get("expected_response_artifact", "")
+        ),
+        "mcp_or_cli_hint": str(row.get("mcp_or_cli_hint", "")),
+        "dispatch_spec": dispatch_spec if isinstance(dispatch_spec, dict) else {},
+    }
+
+
+def _resource_request_queries(row: dict[str, Any]) -> tuple[str, ...]:
+    payload = row.get("request_payload", {})
+    queries: list[object] = []
+    if isinstance(payload, dict):
+        queries.extend(_str_tuple(payload.get("llm_route_planner_queries", ())))
+        queries.extend(_str_tuple(payload.get("queries", ())))
+        queries.extend(_str_tuple(payload.get("query", ())))
+        source_item = payload.get("llm_route_planner_source_item", {})
+        if isinstance(source_item, dict):
+            queries.extend(_str_tuple(source_item.get("queries", ())))
+            queries.extend(_str_tuple(source_item.get("query", ())))
+    queries.extend(_str_tuple(row.get("actionable_work_items", ())))
+    queries.extend(_str_tuple(row.get("target_primitives", ())))
+    return _str_tuple(queries)
+
+
+def _sort_resource_request_rows(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return sorted(
+        rows,
+        key=lambda row: (
+            _int(row.get("request_rank", 9999)),
+            str(row.get("request_phase", "")),
+            str(row.get("resource_request_id", "")),
+        ),
+    )
 
 
 def _resource_response_status_commands(
@@ -2069,6 +2310,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Decision policy quality signals: {payload.get('n_decision_policy_rows_with_required_quality_signals')}/{payload.get('n_decision_policy_rows')}",
         f"- Decision policy quality gates: {payload.get('n_decision_policy_rows_with_quality_gates')}/{payload.get('n_decision_policy_rows')}",
         f"- Decision policy response-validation signals: {payload.get('n_decision_policy_rows_with_response_validation_signals')}/{payload.get('n_decision_policy_rows')}",
+        f"- Rows with resource requests: {payload.get('n_rows_with_resource_requests')}",
+        f"- Linked resource requests: {payload.get('n_resource_requests_linked')}",
+        f"- Resource request execution commands: {payload.get('n_resource_request_execution_commands')}",
         f"- All OK: {payload.get('all_ok')}",
         f"- Next literature searches: {payload.get('n_run_literature_search')}",
         f"- Next formal grounding actions: {payload.get('n_run_formal_grounding')}",
@@ -2095,6 +2339,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"- State: `{row.get('session_state')}`",
                 f"- Next interaction: `{row.get('next_interaction_kind')}`",
                 f"- Owner: `{row.get('next_owner_agent')}`",
+                f"- Resource requests: {len(row.get('resource_request_ids', []))}",
                 f"- User checkpoint: {row.get('user_checkpoint')}",
                 "",
             ]

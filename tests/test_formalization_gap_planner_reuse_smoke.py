@@ -2141,6 +2141,17 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_interactive_session_run_lean_grounding"] == 0
     assert payload["n_interactive_session_waiting_for_adapter_responses"] > 0
     assert payload["n_interactive_session_rows_requiring_replan"] > 0
+    assert payload["n_interactive_session_rows_with_resource_requests"] > 0
+    assert payload["n_interactive_session_resource_requests_linked"] >= payload[
+        "n_interactive_session_rows_with_resource_requests"
+    ]
+    assert payload["n_interactive_session_resource_request_dispatch_summaries"] == payload[
+        "n_interactive_session_resource_requests_linked"
+    ]
+    assert payload["n_interactive_session_resource_request_execution_commands"] > 0
+    assert payload["n_interactive_session_resource_request_execution_commands"] <= payload[
+        "n_interactive_session_resource_requests_linked"
+    ]
     assert payload["n_ablation_variants"] == 5
     assert payload["n_ablation_ok"] == payload["n_ablation_variants"]
     assert payload["n_ablation_row_schema_valid"] == payload["n_ablation_variants"]
@@ -2277,6 +2288,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     ]
     assert interactive_summary["n_run_lean_grounding"] == payload[
         "n_interactive_session_run_lean_grounding"
+    ]
+    assert interactive_summary["n_rows_with_resource_requests"] == payload[
+        "n_interactive_session_rows_with_resource_requests"
+    ]
+    assert interactive_summary["n_resource_requests_linked"] == payload[
+        "n_interactive_session_resource_requests_linked"
     ]
     assert (
         out_dir / "formalization_gap_planner_reuse_smoke_manifest.json"
