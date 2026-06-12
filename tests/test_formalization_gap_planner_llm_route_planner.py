@@ -1280,6 +1280,21 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert alignment_summary["n_reuse_ready_primitives"] == 1
     assert alignment_summary["n_bridge_primitives"] == 1
     assert alignment_summary["n_bridge_or_harder_primitives"] == 1
+    assert alignment_summary["n_route_options"] == 1
+    route_option_alignment = alignment_summary["route_option_alignment"][0]
+    assert route_option_alignment["route_option_id"] == (
+        "route_option:current_route_min_delta_baseline"
+    )
+    assert route_option_alignment["selected_primitives"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert route_option_alignment["minimum_route_base_cost"] == 4.0
+    assert route_option_alignment["n_bridge_or_harder_primitives"] == 1
+    assert route_option_alignment["by_library_delta_class"] == {
+        "bridge": 1,
+        "reuse_ready": 1,
+    }
     alignment_by_primitive = {
         row["primitive"]: row for row in alignment_summary["primitive_alignment"]
     }
@@ -1627,6 +1642,10 @@ def test_llm_route_planner_cost_hints_use_library_coverage_lower_bound() -> None
     assert alignment_summary["n_primitives"] == 2
     assert alignment_summary["n_bridge_primitives"] == 1
     assert alignment_summary["n_bridge_or_harder_primitives"] == 1
+    assert alignment_summary["n_route_options"] == 1
+    assert alignment_summary["route_option_alignment"][0][
+        "minimum_route_base_cost"
+    ] == 4.0
     assert alignment_summary["by_library_delta_class"]["bridge"] == 1
     rank_alignment = {
         row["primitive"]: row for row in alignment_summary["primitive_alignment"]

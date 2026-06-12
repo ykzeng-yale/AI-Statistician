@@ -2451,9 +2451,11 @@ def llm_route_planner_library_alignment_summary_json_schema() -> dict[str, objec
             "n_unknown_primitives",
             "n_bridge_or_harder_primitives",
             "n_target_compatible_reuse_declarations",
+            "n_route_options",
             "by_library_delta_class",
             "by_minimum_coverage_bucket",
             "primitive_alignment",
+            "route_option_alignment",
             "proof_evidence_status",
             "proof_evidence_boundary",
         ],
@@ -2488,6 +2490,7 @@ def llm_route_planner_library_alignment_summary_json_schema() -> dict[str, objec
             "n_unknown_primitives": nonnegative_integer,
             "n_bridge_or_harder_primitives": nonnegative_integer,
             "n_target_compatible_reuse_declarations": nonnegative_integer,
+            "n_route_options": nonnegative_integer,
             "by_library_delta_class": {
                 "type": "object",
                 "additionalProperties": nonnegative_integer,
@@ -2540,6 +2543,48 @@ def llm_route_planner_library_alignment_summary_json_schema() -> dict[str, objec
                         "target_compatible_declarations": string_array,
                         "target_compatible_declaration_count": nonnegative_integer,
                         "candidate_declaration_row_count": nonnegative_integer,
+                    },
+                },
+            },
+            "route_option_alignment": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": [
+                        "route_option_id",
+                        "option_kind",
+                        "selected_primitives",
+                        "n_selected_primitives",
+                        "minimum_route_base_cost",
+                        "cost_policy_id",
+                        "cost_rationale",
+                        "n_bridge_or_harder_primitives",
+                        "n_target_compatible_reuse_declarations",
+                        "by_library_delta_class",
+                        "by_minimum_coverage_bucket",
+                    ],
+                    "properties": {
+                        "route_option_id": {"type": "string", "minLength": 1},
+                        "option_kind": {"type": "string"},
+                        "selected_primitives": string_array,
+                        "n_selected_primitives": nonnegative_integer,
+                        "minimum_route_base_cost": nonnegative_number,
+                        "cost_policy_id": {
+                            "type": "string",
+                            "const": MINIMAL_DELTA_COST_POLICY_ID,
+                        },
+                        "cost_rationale": {"type": "string"},
+                        "n_bridge_or_harder_primitives": nonnegative_integer,
+                        "n_target_compatible_reuse_declarations": nonnegative_integer,
+                        "by_library_delta_class": {
+                            "type": "object",
+                            "additionalProperties": nonnegative_integer,
+                        },
+                        "by_minimum_coverage_bucket": {
+                            "type": "object",
+                            "additionalProperties": nonnegative_integer,
+                        },
                     },
                 },
             },
@@ -4480,6 +4525,67 @@ def _library_alignment_summary(
             for row in primitive_rows
         ]
     )
+    primitive_rows_by_name = {
+        str(row.get("primitive", "")): row for row in primitive_rows
+    }
+    route_option_rows: list[dict[str, object]] = []
+    for hint in _dict_tuple(cost_hints.get("route_option_hints", [])):
+        route_option_id = str(hint.get("route_option_id", "")).strip()
+        if not route_option_id:
+            continue
+        selected_primitives = [
+            _primitive_key(primitive)
+            for primitive in _str_tuple(hint.get("selected_primitives", []))
+            if _primitive_key(primitive)
+        ]
+        selected_rows = [
+            primitive_rows_by_name[primitive]
+            for primitive in selected_primitives
+            if primitive in primitive_rows_by_name
+        ]
+        selected_class_counts = _value_counts(
+            [
+                str(row.get("library_delta_class", "unknown"))
+                for row in selected_rows
+            ]
+        )
+        selected_bucket_counts = _value_counts(
+            [
+                str(row.get("minimum_coverage_bucket", "unknown"))
+                for row in selected_rows
+            ]
+        )
+        route_option_rows.append(
+            {
+                "route_option_id": route_option_id,
+                "option_kind": str(hint.get("option_kind", "")),
+                "selected_primitives": selected_primitives,
+                "n_selected_primitives": len(selected_primitives),
+                "minimum_route_base_cost": hint.get("minimum_route_base_cost", 0),
+                "cost_policy_id": str(
+                    hint.get("cost_policy_id", MINIMAL_DELTA_COST_POLICY_ID)
+                ),
+                "cost_rationale": str(hint.get("cost_rationale", "")),
+                "n_bridge_or_harder_primitives": sum(
+                    selected_class_counts.get(delta_class, 0)
+                    for delta_class in (
+                        "bridge",
+                        "source_port",
+                        "new_definition",
+                        "new_theory",
+                        "unknown",
+                    )
+                ),
+                "n_target_compatible_reuse_declarations": sum(
+                    int(row.get("target_compatible_declaration_count", 0) or 0)
+                    for row in selected_rows
+                ),
+                "by_library_delta_class": dict(sorted(selected_class_counts.items())),
+                "by_minimum_coverage_bucket": dict(
+                    sorted(selected_bucket_counts.items())
+                ),
+            }
+        )
     return {
         "schema_version": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
         "schema_id": LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
@@ -4511,9 +4617,11 @@ def _library_alignment_summary(
             int(row.get("target_compatible_declaration_count", 0) or 0)
             for row in primitive_rows
         ),
+        "n_route_options": len(route_option_rows),
         "by_library_delta_class": dict(sorted(by_class.items())),
         "by_minimum_coverage_bucket": dict(sorted(by_bucket.items())),
         "primitive_alignment": primitive_rows,
+        "route_option_alignment": route_option_rows,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
@@ -5192,6 +5300,7 @@ def _library_alignment_summary_errors(
         "n_unknown_primitives",
         "n_bridge_or_harder_primitives",
         "n_target_compatible_reuse_declarations",
+        "n_route_options",
         "proof_evidence_status",
         "proof_evidence_boundary",
     )
@@ -5205,6 +5314,7 @@ def _library_alignment_summary_errors(
         "by_library_delta_class",
         "by_minimum_coverage_bucket",
         "primitive_alignment",
+        "route_option_alignment",
     ):
         if summary.get(field_name) != expected.get(field_name):
             errors.append(
