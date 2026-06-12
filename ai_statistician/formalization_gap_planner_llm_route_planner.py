@@ -13926,6 +13926,8 @@ def _available_primitive_keys_for_request(request: Mapping[str, Any]) -> set[str
 
 def _collect_primitive_values(value: Any, primitives: list[str]) -> None:
     if isinstance(value, Mapping):
+        if _mapping_is_inadmissible_for_primitive_scope(value):
+            return
         for key, item in value.items():
             key_text = str(key)
             if key_text == "coverage_updates" and isinstance(item, Mapping):
@@ -13956,6 +13958,20 @@ def _collect_primitive_values(value: Any, primitives: list[str]) -> None:
     elif isinstance(value, (list, tuple, set)):
         for item in value:
             _collect_primitive_values(item, primitives)
+
+
+def _mapping_is_inadmissible_for_primitive_scope(value: Mapping[str, Any]) -> bool:
+    status = str(value.get("acceptance_status", "") or "").strip().upper()
+    if status.startswith("REJECTED"):
+        return True
+    for field_name in (
+        "ok",
+        "response_contract_ok",
+        "response_contract_minimum_met",
+    ):
+        if field_name in value and value.get(field_name) is False:
+            return True
+    return False
 
 
 def _primitive_values(value: Any) -> tuple[str, ...]:

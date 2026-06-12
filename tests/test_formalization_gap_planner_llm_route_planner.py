@@ -3400,6 +3400,66 @@ def test_llm_route_planner_rejected_resource_response_is_status_not_repair_signa
     assert summary["recommended_next_actions"] == []
 
 
+def test_llm_route_planner_rejects_action_primitive_from_rejected_context_row() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejected_context_scope"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    manifest_path = (
+        resource_response_ledger_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    row = manifest["rows"][0]
+    row["primitive"] = "spectral_gap"
+    row["target_primitives"] = ["spectral_gap"]
+    row["coverage_updates"] = {"spectral_gap": "bridge_needed"}
+    row["acceptance_status"] = "REJECTED_MISSING_RESPONSE_CONTRACT_FIELDS"
+    row["response_contract_ok"] = False
+    row["response_contract_minimum_met"] = False
+    row["ok"] = False
+    row["errors"] = ["resource response missing all queued response_contract_fields"]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    bad_response = _llm_response_payload()
+    bad_response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": "attempt proof-state feedback for rejected spectral_gap row",
+            "query": "spectral_gap residual goals",
+            "target_primitives": ["spectral_gap"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    request = payload["request_packets"][0]
+    ledger_row = request["context_packet"]["resource_response_ledger_rows"][0]
+    assert "spectral_gap" in json.dumps(ledger_row)
+    assert ledger_row["response_contract_ok"] is False
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "planner_next_actions[0].target_primitives must be drawn from request"
+        in error
+        and "spectral_gap" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejected_playbook_grounding_response_requests_redispatch() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejected_playbook_grounding"

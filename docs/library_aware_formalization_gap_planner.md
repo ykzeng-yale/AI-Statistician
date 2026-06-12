@@ -328,7 +328,10 @@ refinement hooks preserve those explicit primitive targets. Explicit
 `residual_interpretations.residual_primitives` are stricter: they must resolve
 to request, route, formal-realization, or cost-hint primitive evidence and
 cannot self-ground by merely appearing in the same residual interpretation. The
-publication
+request-bound primitive-scope collector also ignores rejected or failed-contract
+context rows, so status-only resource responses, rejected refinement evidence,
+and failed provider rows remain audit metadata rather than evidence for
+broadening the theorem route. The publication
 bundle audit rechecks the same target-primitive, resource id, resource-contract,
 quality-control, and queued-playbook grounding, so corrupted JSONL rows cannot
 redirect refinement work toward ungrounded theorem content or invented tool
