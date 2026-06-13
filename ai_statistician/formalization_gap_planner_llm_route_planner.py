@@ -628,7 +628,8 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
             "alignment_status": (
                 "exact|near|wrapper_needed|bridge_needed|source_port_needed|"
                 "new_definition_needed|new_theory_needed; use missing, unknown, "
-                "or uncertain only for non-selected refinement evidence"
+                "or uncertain only for non-selected refinement evidence; "
+                "unsupported free-text alignment statuses are rejected"
             ),
             "alignment_rationale": "why this formal node realizes the informal claim",
         }
@@ -8812,6 +8813,12 @@ def _response_contract_errors(
         ):
             if not str(edge.get(field_name, "")).strip():
                 errors.append(f"route_alignment_edges[{index}].{field_name} missing")
+        status = edge.get("alignment_status", "")
+        if str(status or "").strip() and not _route_alignment_status_is_known(status):
+            errors.append(
+                "route_alignment_edges"
+                f"[{index}].alignment_status unsupported: {_primitive_key(status)}"
+            )
     minimal_delta = _dict_value(payload, "minimal_delta_plan")
     selected_primitives = _str_tuple(minimal_delta.get("selected_primitives", []))
     if not selected_primitives:
@@ -14241,7 +14248,14 @@ def _route_alignment_edge_is_resolved(edge: Mapping[str, Any]) -> bool:
         return False
     if status.endswith("_pending") or status.endswith("_unknown"):
         return False
-    return True
+    return bool(_coverage_marker_policy_bucket(status))
+
+
+def _route_alignment_status_is_known(status: object) -> bool:
+    key = _primitive_key(status)
+    return key in UNRESOLVED_ROUTE_ALIGNMENT_STATUS_KEYS or bool(
+        _coverage_marker_policy_bucket(key)
+    )
 
 
 def _minimal_delta_primitives(

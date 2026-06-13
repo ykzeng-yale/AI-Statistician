@@ -6704,6 +6704,53 @@ def test_llm_route_planner_rejects_selected_primitive_with_unresolved_alignment_
     ]
 
 
+def test_llm_route_planner_rejects_free_text_alignment_status() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_free_text_alignment_status"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    for edge in response["route_alignment_edges"]:
+        if edge.get("formal_node_id") == "formal:exchangeability":
+            edge["alignment_status"] = "maybe_exact"
+            edge["alignment_rationale"] = (
+                "This free-text status should not be accepted as a resolved "
+                "library alignment."
+            )
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    assert any(
+        "route_alignment_edges[1].alignment_status unsupported: maybe_exact"
+        in error
+        for error in row["errors"]
+    )
+    assert any(
+        "minimal_delta_plan.selected_primitives have unresolved route_alignment_edges: "
+        "exchangeability" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_seed_route_selection")
     out_dir = root / "llm_route_planner"
