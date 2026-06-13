@@ -9941,9 +9941,21 @@ def _response_residual_interpretation_primitive_grounding_errors(
     for index, interpretation in enumerate(
         _dict_tuple(payload.get("residual_interpretations", []))
     ):
-        target_primitives = _residual_interpretation_declared_primitive_keys(
+        target_primitives = _residual_interpretation_explicit_or_prefixed_primitive_keys(
             interpretation
         )
+        has_repair = bool(
+            str(interpretation.get("route_repair", "")).strip()
+            or str(interpretation.get("repair_action", "")).strip()
+        )
+        if has_repair and not target_primitives:
+            errors.append(
+                "residual_interpretations"
+                f"[{index}] route repair requires target_primitives, "
+                "residual_primitives, primitive, or a primitive-prefixed "
+                "residual_goal such as `rank_uniformity: ...`"
+            )
+            continue
         if not target_primitives:
             continue
         ungrounded = sorted(target_primitives - allowed_primitives)
@@ -9977,6 +9989,27 @@ def _residual_interpretation_declared_primitive_keys(
         )
     primitives.discard("")
     return primitives
+
+
+def _residual_interpretation_explicit_or_prefixed_primitive_keys(
+    interpretation: Mapping[str, Any],
+) -> set[str]:
+    primitives = set(_residual_interpretation_declared_primitive_keys(interpretation))
+    prefixed = _residual_goal_prefixed_primitive_key(interpretation)
+    if prefixed:
+        primitives.add(prefixed)
+    primitives.discard("")
+    return primitives
+
+
+def _residual_goal_prefixed_primitive_key(
+    interpretation: Mapping[str, Any],
+) -> str:
+    residual_goal = str(interpretation.get("residual_goal", "") or "").strip()
+    if ":" not in residual_goal:
+        return ""
+    prefix = residual_goal.split(":", 1)[0]
+    return _primitive_key(prefix)
 
 
 def _response_residual_source_grounding_errors(
@@ -18539,12 +18572,20 @@ def _target_primitives_for_llm_residual_interpretation(
     *,
     selected_primitives: tuple[str, ...],
 ) -> tuple[str, ...]:
+    selected_by_key = {
+        _primitive_key(primitive): primitive
+        for primitive in selected_primitives
+        if _primitive_key(primitive)
+    }
     explicit = _explicit_target_primitives_for_llm_row(
         residual,
         selected_primitives=selected_primitives,
     )
     if explicit:
         return explicit
+    prefixed = _residual_goal_prefixed_primitive_key(residual)
+    if prefixed:
+        return _str_tuple([selected_by_key.get(prefixed, prefixed)])
     text = _primitive_key(" ".join(_residual_interpretation_queries(residual)))
     matched = [
         primitive

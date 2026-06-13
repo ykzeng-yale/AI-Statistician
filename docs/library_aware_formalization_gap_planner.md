@@ -332,7 +332,12 @@ refinement hooks preserve those explicit primitive targets. Explicit
 `residual_interpretations.target_primitives` and
 `residual_interpretations.residual_primitives` are stricter: they must resolve
 to request, route, formal-realization, or cost-hint primitive evidence and
-cannot self-ground by merely appearing in the same residual interpretation. The
+cannot self-ground by merely appearing in the same residual interpretation. A
+residual interpretation that proposes `route_repair` or `repair_action` must
+also name the affected primitive through `target_primitives`,
+`residual_primitives`, `primitive`, or the shorthand
+`primitive_id: residual goal`; otherwise the route-revision hook is too
+ambiguous for an external prover adapter to replay. The
 request-bound primitive-scope collector also ignores rejected or failed-contract
 context rows, so status-only resource responses, rejected refinement evidence,
 and failed provider rows remain audit metadata rather than evidence for

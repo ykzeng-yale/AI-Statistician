@@ -4313,6 +4313,7 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
             "residual_goal": "missing finite tie-breaking side condition",
             "interpretation": "The proof-state residual requires explicit finite tie-breaking.",
             "route_repair": "Keep proof-state feedback bounded to the Lean residual before route adoption.",
+            "target_primitives": ["rank_uniformity"],
             "source_refs": ["conformal_prediction_textbook"],
         }
     ]
@@ -4692,6 +4693,118 @@ def test_llm_route_planner_accepts_grounded_residual_interpretation() -> None:
     )
     assert residual_source_ref in row["source_refs"]
     assert primitive_source_ref in row["source_refs"]
+
+
+def test_llm_route_planner_rejects_residual_repair_without_target_primitive() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_residual_without_target_primitive"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["source_refs"].append("paper:tie-side-condition")
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    interactive_session_dir = _write_interactive_session(root)
+    bad_response = _llm_response_payload()
+    bad_response["search_requests"] = []
+    bad_response["planner_next_actions"] = []
+    bad_response["uncertainty_flags"] = []
+    bad_response["semantic_alignment_risks"] = []
+    bad_response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": "The proof route has not fixed deterministic tie handling.",
+            "route_repair": "Add a tie-breaking side condition before replay.",
+            "source_refs": ["paper:tie-side-condition"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "residual_interpretations[0] route repair requires target_primitives"
+        in error
+        and "primitive-prefixed residual_goal" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_accepts_prefixed_residual_goal_target_primitive() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_prefixed_residual_goal_target"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["source_refs"].append("paper:tie-side-condition")
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    interactive_session_dir = _write_interactive_session(root)
+    manifest_path = (
+        interactive_session_dir
+        / "formalization_gap_planner_interactive_session_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["rows"][0]["residual_goals"] = [
+        "rank_uniformity: missing finite tie-breaking side condition"
+    ]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": (
+                "rank_uniformity: missing finite tie-breaking side condition"
+            ),
+            "interpretation": "The proof route has not fixed deterministic tie handling.",
+            "route_repair": "Add a tie-breaking side condition before replay.",
+            "source_refs": ["paper:tie-side-condition"],
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_WITH_RESIDUAL_REPAIR"
+    seed = json.loads(
+        (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
+        ).read_text(encoding="utf-8")
+    )
+    replan_metadata = seed["routes"][0]["replan_metadata"]
+    residual_hooks = [
+        hook
+        for hook in replan_metadata["llm_route_planner_interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_residual_interpretation_index") == 0
+    ]
+    assert residual_hooks
+    assert residual_hooks[0]["target_primitives"] == ["rank_uniformity"]
 
 
 def test_llm_route_planner_marks_residual_repair_as_pending_replay() -> None:
