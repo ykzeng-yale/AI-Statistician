@@ -13068,6 +13068,12 @@ def _response_primitive_coherence_errors(
             + ", ".join(route_option_missing_formal[:8])
         )
     delta_primitives = _minimal_delta_primitives(minimal_delta, selected)
+    selected_missing_alignment = sorted(selected - alignment)
+    if selected_missing_alignment:
+        errors.append(
+            "minimal_delta_plan.selected_primitives missing route_alignment_edges: "
+            + ", ".join(selected_missing_alignment)
+        )
     delta_missing_alignment = sorted(delta_primitives - alignment)
     if delta_missing_alignment:
         errors.append(

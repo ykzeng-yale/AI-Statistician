@@ -240,7 +240,16 @@ def _llm_response_payload() -> dict[str, object]:
                     "The library has exchangeability but not the exact finite-rank "
                     "statement, so a bridge lemma is the minimal new Lean work."
                 ),
-            }
+            },
+            {
+                "informal_node_id": "informal:exchangeability",
+                "formal_node_id": "formal:exchangeability",
+                "alignment_status": "exact",
+                "alignment_rationale": (
+                    "The exchangeability assumption maps to the existing formal "
+                    "declaration listed in the request context."
+                ),
+            },
         ],
         "minimal_delta_plan": {
             "selected_primitives": ["exchangeability", "rank_uniformity"],
@@ -590,17 +599,6 @@ def _make_rank_uniformity_reuse_response(
     response["route_alignment_edges"][0]["alignment_rationale"] = (
         "The response claims the rank primitive can be reused from a listed "
         "formal declaration."
-    )
-    response["route_alignment_edges"].append(
-        {
-            "informal_node_id": "informal:exchangeability",
-            "formal_node_id": "formal:exchangeability",
-            "alignment_status": "exact",
-            "alignment_rationale": (
-                "The exchangeability assumption maps to the existing formal "
-                "declaration listed in the request context."
-            ),
-        }
     )
     minimal_delta = response["minimal_delta_plan"]
     assert isinstance(minimal_delta, dict)
@@ -5331,7 +5329,7 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         == LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES
         == {"lean_realization_dag_nodes": "formal_realization_dag_nodes"}
     )
-    assert payload["n_route_alignment_edges"] == 1
+    assert payload["n_route_alignment_edges"] == 2
     assert payload["n_rows_with_realization_coverage_witness"] == 1
     assert payload["n_rows_with_complete_realization_coverage"] == 1
     assert payload["n_rows_with_context_packet_inventory"] == 1
@@ -6619,6 +6617,46 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
     )
     assert trace["llm_route_planner_route_adoption_blockers"] == []
     assert trace["llm_route_planner_seed_adoptable_for_standalone_replay"] is True
+
+
+def test_llm_route_planner_rejects_selected_primitive_without_alignment_edge() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_selected_alignment_gap"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["route_alignment_edges"] = [
+        edge
+        for edge in response["route_alignment_edges"]
+        if edge.get("formal_node_id") != "formal:exchangeability"
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    assert any(
+        "minimal_delta_plan.selected_primitives missing route_alignment_edges: "
+        "exchangeability" in error
+        for error in row["errors"]
+    )
 
 
 def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() -> None:

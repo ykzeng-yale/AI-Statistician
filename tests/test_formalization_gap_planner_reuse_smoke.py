@@ -181,7 +181,17 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                     "Existing exchangeability support can be reused, while the "
                     "finite-rank statement remains the minimal bridge lemma."
                 ),
-            }
+            },
+            {
+                "informal_node_id": "informal:exchangeability",
+                "formal_node_id": "formal:exchangeability",
+                "alignment_status": "exact",
+                "alignment_rationale": (
+                    "The selected exchangeability primitive is source-backed "
+                    "informal evidence realized by the available formal "
+                    "exchangeability declaration."
+                ),
+            },
         ],
         "minimal_delta_plan": {
             "selected_primitives": ["exchangeability", "rank_uniformity"],
@@ -2765,17 +2775,13 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     feedback_response["lean_realization_dag_nodes"][0]["formalization_action"] = (
         "write_wrapper"
     )
-    feedback_response["route_alignment_edges"].append(
-        {
-            "informal_node_id": "informal:exchangeability",
-            "formal_node_id": "formal:exchangeability",
-            "alignment_status": "wrapper_needed",
-            "alignment_rationale": (
+    for edge in feedback_response["route_alignment_edges"]:
+        if edge.get("formal_node_id") == "formal:exchangeability":
+            edge["alignment_status"] = "wrapper_needed"
+            edge["alignment_rationale"] = (
                 "The Rocq feedback pass needs a target-prover wrapper for the "
                 "exchangeability declaration before reuse."
-            ),
-        }
-    )
+            )
     feedback_response["minimal_delta_plan"]["route_cost"] = 6
     feedback_response["minimal_delta_plan"]["primitive_costs"][0][
         "coverage_bucket"
