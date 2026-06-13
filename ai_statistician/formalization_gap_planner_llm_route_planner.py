@@ -8792,6 +8792,7 @@ def _response_contract_errors(
         )
     )
     errors.extend(_minimal_delta_request_hint_errors(payload, request))
+    errors.extend(_response_coverage_hint_floor_errors(payload, request))
     standalone_route = _standalone_route_from_payload(
         payload,
         target_prover_family=target_prover_family,
@@ -13623,6 +13624,115 @@ def _minimal_delta_request_hint_errors(
             )
         )
     return errors
+
+
+def _response_coverage_hint_floor_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    """Reject response coverage labels that are cheaper than request hints."""
+
+    hints = _dict_value(
+        _dict_value(request, "context_packet"),
+        "minimal_delta_cost_hints",
+    )
+    if not hints:
+        return []
+    primitive_hints = _request_primitive_cost_hints_by_primitive(hints)
+    if not primitive_hints:
+        return []
+
+    target_prover_family = str(request.get("target_prover_family", ""))
+    rows: list[tuple[str, int, dict[str, object]]] = []
+    rows.extend(
+        ("formal_realization_dag_nodes", index, node)
+        for index, node in enumerate(
+            _formal_realization_nodes_from_payload(
+                payload,
+                target_prover_family=target_prover_family,
+            )
+        )
+    )
+    standalone_route = _standalone_route_from_payload(
+        payload,
+        target_prover_family=target_prover_family,
+    )
+    rows.extend(
+        ("standalone_route.primitives", index, primitive)
+        for index, primitive in enumerate(
+            _dict_tuple(standalone_route.get("primitives", []))
+        )
+    )
+
+    errors: list[str] = []
+    for collection_name, index, row in rows:
+        primitive = _primitive_key(row.get("primitive", ""))
+        hint = primitive_hints.get(primitive)
+        if not primitive or not hint:
+            continue
+        if _coverage_hint_is_default_unknown(hint):
+            continue
+        minimum_base_cost = hint.get("minimum_base_cost")
+        if not _is_nonnegative_number(minimum_base_cost):
+            continue
+        minimum_cost = float(minimum_base_cost or 0)
+        cheaper_markers = [
+            marker
+            for marker in _coverage_marker_cost_entries(row)
+            if marker["base_cost"] + 1e-9 < minimum_cost
+        ]
+        if not cheaper_markers:
+            continue
+        marker = cheaper_markers[0]
+        errors.append(
+            f"{collection_name}[{index}].{marker['field_name']} downgrades "
+            "request minimal_delta_cost_hints for primitive "
+            f"{primitive}: marker={marker['marker']} maps to "
+            f"coverage_bucket={marker['coverage_bucket']} "
+            f"base_cost={marker['base_cost']:g} but request "
+            f"minimum_coverage_bucket={hint.get('minimum_coverage_bucket', '')} "
+            f"minimum_base_cost={minimum_cost:g} "
+            f"source={hint.get('minimum_cost_source', '')} "
+            f"hint_marker={hint.get('minimum_cost_marker', '')}"
+        )
+    return errors
+
+
+def _coverage_hint_is_default_unknown(hint: Mapping[str, object]) -> bool:
+    return (
+        _primitive_key(hint.get("minimum_coverage_bucket", "")) == "unknown"
+        and str(hint.get("minimum_cost_source", "")).strip()
+        == "minimal_delta_cost_hints.default"
+    )
+
+
+def _coverage_marker_cost_entries(
+    row: Mapping[str, object],
+) -> tuple[dict[str, object], ...]:
+    entries: list[dict[str, object]] = []
+    for field_name in (
+        "coverage_bucket",
+        "coverage_status",
+        "formalization_action",
+        "alignment_status",
+        "action_class",
+    ):
+        marker = _primitive_key(row.get(field_name, ""))
+        bucket = _coverage_marker_policy_bucket(marker)
+        if not bucket:
+            continue
+        cost = _coverage_bucket_base_cost(bucket)
+        if cost is None:
+            continue
+        entries.append(
+            {
+                "field_name": field_name,
+                "marker": marker,
+                "coverage_bucket": bucket,
+                "base_cost": cost,
+            }
+        )
+    return tuple(entries)
 
 
 def _cost_hint_baseline_primitives(

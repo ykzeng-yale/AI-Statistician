@@ -126,6 +126,15 @@ def _write_input(root: Path) -> Path:
     return input_json
 
 
+def _write_input_with_rank_bridge_candidate(root: Path) -> Path:
+    input_json = _write_input(root)
+    payload = json.loads(input_json.read_text(encoding="utf-8"))
+    rank_primitive = payload["routes"][0]["primitives"][1]
+    rank_primitive["candidate_declarations"] = ["Probability.rankUniformityBridge"]
+    input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return input_json
+
+
 def _write_light_input(root: Path) -> Path:
     input_json = root / "standalone_input_light.json"
     input_json.write_text(
@@ -501,6 +510,23 @@ def _make_rank_uniformity_near_exists_response() -> dict[str, object]:
     assert isinstance(standalone_rank, dict)
     standalone_rank["coverage_status"] = "near_exists"
     standalone_rank["candidate_declarations"] = ["Probability.exchangeable"]
+    return response
+
+
+def _make_rank_uniformity_coverage_downgrade_response() -> dict[str, object]:
+    response = _llm_response_payload()
+    rank_node = response["lean_realization_dag_nodes"][1]
+    assert isinstance(rank_node, dict)
+    rank_node["coverage_bucket"] = "near_exists"
+    rank_node["candidate_declarations"] = ["Probability.rankUniformityBridge"]
+    rank_node["formalization_action"] = "compose_existing_declarations"
+    response["route_alignment_edges"][0]["alignment_status"] = "near"
+    standalone_rank = response["standalone_route"]["primitives"][1]
+    assert isinstance(standalone_rank, dict)
+    standalone_rank["coverage_status"] = "near_exists"
+    standalone_rank["candidate_declarations"] = [
+        "Probability.rankUniformityBridge"
+    ]
     return response
 
 
@@ -10211,6 +10237,44 @@ def test_llm_route_planner_rejects_wrapper_without_formal_anchor() -> None:
     assert any(
         "standalone_route.primitives[1] wrapper coverage requires "
         "candidate_declarations" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_coverage_downgrade_against_request_hints() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_coverage_hint_downgrade"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input_with_rank_bridge_candidate(root)
+    response_json.write_text(
+        json.dumps(_make_rank_uniformity_coverage_downgrade_response()),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    assert any(
+        "formal_realization_dag_nodes[1].coverage_bucket downgrades "
+        "request minimal_delta_cost_hints for primitive rank_uniformity" in error
+        and "minimum_coverage_bucket=bridge_needed" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "standalone_route.primitives[1].coverage_status downgrades "
+        "request minimal_delta_cost_hints for primitive rank_uniformity" in error
+        and "minimum_base_cost=4" in error
         for error in row["errors"]
     )
 
