@@ -6071,7 +6071,7 @@ def _user_prompt(
             "standalone_route.theorem_statement must preserve the requested target theorem identity; route repairs may add explicit side-condition notes but must not switch to a different theorem.",
             "Every informal DAG node must have source_refs, a source_search_status, or a formal_gap_boundary.",
             "source_search_status values are limited to SOURCE_BACKED, SEARCH_REQUESTED/search_pending/source_search_pending/literature_search_pending, or FORMAL_GAP_BOUNDARY/formal_boundary_declared; unsupported status strings are rejected.",
-            "Any FORMAL_GAP_BOUNDARY/formal_boundary_declared status or formal_gap_boundary field must include a substantive boundary explanation, not a placeholder such as todo/later.",
+            "Any FORMAL_GAP_BOUNDARY/formal_boundary_declared status or formal_gap_boundary field must include a substantive boundary explanation, not a placeholder such as todo/later, and must anchor to the affected primitive/residual/claim.",
             "SOURCE_BACKED claims may cite only source_refs listed in context_packet.available_source_refs.",
             "Any standalone_route primitive marked SOURCE_BACKED must carry primitive-level source_refs or source_snippets; route-level source_refs do not silently justify that primitive.",
             "When context_packet.available_source_snippets contains relevant excerpts, reuse those source_snippets in informal DAG nodes or standalone_route primitives instead of paraphrasing unsupported evidence.",
@@ -11739,6 +11739,12 @@ def _response_formal_gap_boundary_errors(
                 f"{location}.formal_gap_boundary must be a substantive formal "
                 "boundary explanation, not a placeholder"
             )
+            continue
+        if not _formal_gap_boundary_is_anchored(boundary, row):
+            errors.append(
+                f"{location}.formal_gap_boundary must name the affected "
+                "primitive, residual, declaration, or local route claim"
+            )
     return errors
 
 
@@ -11800,6 +11806,77 @@ def _formal_gap_boundary_is_substantive(text: str) -> bool:
         len(tokens) >= 2
         and len(stripped) >= FORMAL_GAP_BOUNDARY_MIN_TWO_TOKEN_SUPPORT_CHARS
     )
+
+
+def _formal_gap_boundary_is_anchored(
+    boundary: str,
+    row: Mapping[str, Any],
+) -> bool:
+    boundary_tokens = _formal_gap_boundary_anchor_tokens_from_text(boundary)
+    if not boundary_tokens:
+        return False
+    anchor_tokens = _formal_gap_boundary_anchor_tokens(row)
+    if not anchor_tokens:
+        return False
+    return bool(boundary_tokens & anchor_tokens)
+
+
+def _formal_gap_boundary_anchor_tokens(row: Mapping[str, Any]) -> set[str]:
+    values: list[str] = []
+    for field_name in (
+        "primitive",
+        "primitives",
+        "target_primitive",
+        "target_primitives",
+        "residual_primitive",
+        "residual_primitives",
+        "declaration",
+        "candidate_declarations",
+        "node_id",
+        "route_id",
+        "display_name",
+        "label",
+        "claim",
+        "theorem_statement",
+        "residual_goal",
+        "interpretation",
+        "route_repair",
+        "repair_action",
+    ):
+        values.extend(_str_tuple(row.get(field_name, [])))
+    for declaration in _node_candidate_declarations(row):
+        values.append(declaration)
+    return _formal_gap_boundary_anchor_tokens_from_text(" ".join(values))
+
+
+def _formal_gap_boundary_anchor_tokens_from_text(text: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", str(text or "").lower())
+        if len(token) >= 4
+        and token
+        not in FORMAL_GAP_BOUNDARY_TEXT_STOPWORDS
+        | {
+            "adoption",
+            "boundary",
+            "claim",
+            "declaration",
+            "declarations",
+            "formal",
+            "kernel",
+            "lemma",
+            "library",
+            "proof",
+            "prover",
+            "repair",
+            "replay",
+            "route",
+            "search",
+            "source",
+            "target",
+            "theorem",
+        }
+    }
 
 
 def _response_search_request_contract_errors(

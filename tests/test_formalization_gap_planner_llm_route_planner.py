@@ -10098,6 +10098,42 @@ def test_llm_route_planner_rejects_placeholder_formal_gap_boundary() -> None:
     assert "standalone_route.primitives[0]" in error_text
 
 
+def test_llm_route_planner_rejects_unanchored_formal_gap_boundary() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_unanchored_boundary"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    unanchored_boundary = (
+        "Needs further investigation before adoption by the verification team."
+    )
+    bad_response["lean_realization_dag_nodes"][1][
+        "formal_gap_boundary"
+    ] = unanchored_boundary
+    bad_response["standalone_route"]["primitives"][1][
+        "formal_gap_boundary"
+    ] = unanchored_boundary
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert "formal_gap_boundary must name the affected primitive" in error_text
+    assert "formal_realization_dag_nodes[1]" in error_text
+    assert "standalone_route.primitives[1]" in error_text
+
+
 def test_llm_route_planner_rejects_source_backed_node_without_source_ref() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_rejects_source_backed_without_ref")
     response_json = root / "bad_response.json"
