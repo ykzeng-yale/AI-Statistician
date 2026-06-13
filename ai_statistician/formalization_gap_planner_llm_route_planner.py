@@ -11660,6 +11660,21 @@ def _response_source_ref_grounding_errors(
             errors.append(
                 f"informal_knowledge_dag_nodes[{index}] SOURCE_BACKED requires grounded source_refs"
             )
+    for index, residual in enumerate(
+        _dict_tuple(payload.get("residual_interpretations", []))
+    ):
+        status = _source_ref_key(residual.get("source_search_status", ""))
+        refs = _str_tuple(
+            [
+                *_str_tuple(residual.get("source_refs", [])),
+                *_source_refs_from_snippets(residual.get("source_snippets", [])),
+            ]
+        )
+        if status == "source_backed" and not refs:
+            errors.append(
+                "residual_interpretations"
+                f"[{index}] SOURCE_BACKED requires grounded source_refs"
+            )
     route = _dict_value(payload, "standalone_route")
     for index, primitive in enumerate(_dict_tuple(route.get("primitives", []))):
         status = _source_ref_key(primitive.get("source_search_status", ""))

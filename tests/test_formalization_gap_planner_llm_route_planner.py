@@ -10269,6 +10269,96 @@ def test_llm_route_planner_rejects_source_backed_primitive_without_source_ref() 
     )
 
 
+def test_llm_route_planner_rejects_source_backed_residual_without_source_ref() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_source_backed_residual_without_ref"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    bad_response = _llm_response_payload()
+    bad_response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": (
+                "The rank route still has a source-backed residual side condition."
+            ),
+            "route_repair": (
+                "Add the rank_uniformity side-condition repair after checking "
+                "the source route."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "source_search_status": "SOURCE_BACKED",
+        }
+    ]
+    bad_response["search_requests"].append(
+        {
+            "request_kind": "literature",
+            "query": "rank_uniformity residual source route",
+            "reason": "search request alone must not satisfy SOURCE_BACKED residual status",
+            "target_primitives": ["rank_uniformity"],
+        }
+    )
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "residual_interpretations[0] SOURCE_BACKED requires grounded source_refs"
+        in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_accepts_source_backed_residual_with_source_ref() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_source_backed_residual"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    response = _llm_response_payload()
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": (
+                "The rank route still has a source-backed residual side condition."
+            ),
+            "route_repair": (
+                "Add the rank_uniformity side-condition repair after checking "
+                "the source route."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "source_search_status": "SOURCE_BACKED",
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+
+
 def test_llm_route_planner_rejects_search_requested_without_search_request() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_search_status_without_request"
