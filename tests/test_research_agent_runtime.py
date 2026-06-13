@@ -1054,6 +1054,117 @@ def test_formalizer_prompt_includes_exact_source_candidate_repair_memory() -> No
     assert "split_conformal_coverage" in prompt
 
 
+def test_formalizer_prompt_includes_exact_source_proof_body_executor_feedback() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {
+                        "kernel_verified_proof_obligation_ids": verified_ids,
+                        "kernel_verified_theorem_reduction_closure_work_order_ids": [
+                            "theorem_reduction_closure_work_order:good_rank"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_target_ids": [
+                            "split_conformal_finite_sample_coverage_reduction_closure"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_goal_ids": [
+                            "split_conformal_finite_sample_coverage"
+                        ],
+                        "kernel_verified_source_theorem_semantic_primitive_ids": [
+                            "split_conformal_good_rank_set_inclusion_bridge"
+                        ],
+                    },
+                    {
+                        "learning_task": (
+                            "exact_source_theorem_proof_body_execution_feedback"
+                        ),
+                        "target_theorem_name": "split_conformal_coverage",
+                        "trigger": "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED",
+                        "input_summary": {
+                            "execution_status": (
+                                "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED"
+                            ),
+                            "target_theorem_name": "split_conformal_coverage",
+                            "candidate_artifact_path": (
+                                "runs/proof_body_attempt.lean"
+                            ),
+                            "source_theorem_kernel_verified": False,
+                            "failure_classification": (
+                                "formal_environment_placeholder_primitives"
+                            ),
+                            "formal_environment_placeholder_symbols": [
+                                "Exchangeable",
+                                "orderStat",
+                            ],
+                            "formal_environment_typeclass_blockers": [
+                                "HSub ℕ ℝ ENNReal"
+                            ],
+                            "diagnostics": [
+                                "split_conformal_coverage.lean:44:71: error: unsolved goals"
+                            ],
+                        },
+                    },
+                ],
+            }
+        },
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet={"packet_id": "theory:test", "formalization_requests": []},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": problem.problem_class},
+        theorem_goals=[
+            {
+                "id": row.id,
+                "title": row.title,
+                "proof_obligations": list(row.proof_obligations),
+            }
+            for row in theorem_goals
+        ],
+        proof_bank_obligation_catalog=catalog,
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert summary["source_theorem_exact_candidate_requires_repair"] is True
+    assert summary["source_theorem_exact_candidate_environment_gap"] is True
+    assert summary["source_theorem_exact_candidate_repair_triggers"] == [
+        "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED"
+    ]
+    assert summary["source_theorem_exact_candidate_failure_classifications"] == [
+        "formal_environment_placeholder_primitives"
+    ]
+    assert summary["source_theorem_exact_candidate_repair_diagnostics"][0][
+        "missing_formal_symbols"
+    ] == ["Exchangeable", "orderStat"]
+    assert summary["source_theorem_exact_candidate_repair_diagnostics"][0][
+        "verification_status"
+    ] == "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED"
+    assert summary["source_theorem_exact_candidate_repair_diagnostics"][0][
+        "candidate_artifact_path"
+    ] == "runs/proof_body_attempt.lean"
+    assert summary["source_theorem_exact_candidate_repair_diagnostics"][0][
+        "typeclass_blockers"
+    ] == ["HSub ℕ ℝ ENNReal"]
+    assert summary["recommended_source_theorem_integration_action"] == (
+        "repair_exact_source_theorem_candidate_formal_environment"
+    )
+    assert "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED" in prompt
+    assert "formal_environment_placeholder_primitives" in prompt
+    assert "repair_exact_source_theorem_candidate_formal_environment" in prompt
+    assert "Exchangeable" in prompt
+
+
 def test_formalizer_prompt_compacts_large_theory_context() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     prompt = build_formalizer_prompt(

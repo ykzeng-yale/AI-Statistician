@@ -3968,11 +3968,7 @@ def _runtime_learning_memory_source_theorem_promotion_ready_unproved_targets(
         if not isinstance(row, Mapping):
             continue
         input_summary = row.get("input_summary", {})
-        trigger = (
-            str(input_summary.get("trigger", "") or "")
-            if isinstance(input_summary, Mapping)
-            else ""
-        )
+        trigger = _runtime_learning_row_trigger(row, input_summary)
         if (
             str(row.get("learning_task", "") or "")
             != "source_theorem_promotion_bridge_feedback"
@@ -4010,11 +4006,16 @@ _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS = frozenset(
     {
         "SOURCE_THEOREM_EXACT_CANDIDATE_LOCAL_LEAN_FAILED",
         "SOURCE_THEOREM_EXACT_CANDIDATE_STATIC_CHECK_FAILED",
+        "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED",
+        "EXACT_SOURCE_PROOF_BODY_CANDIDATE_MATERIALIZED",
+        "EXACT_SOURCE_PROOF_BODY_ARTIFACT_KERNEL_ENVIRONMENT_OPEN",
     }
 )
 
 _SOURCE_THEOREM_EXACT_CANDIDATE_ENVIRONMENT_FAILURES = frozenset(
     {
+        "formal_environment_placeholder_primitives",
+        "formal_environment_typeclass_blockers_unreviewed",
         "lean_import_environment_missing",
         "formal_environment_symbol_missing",
         "formal_environment_instance_missing",
@@ -4022,6 +4023,17 @@ _SOURCE_THEOREM_EXACT_CANDIDATE_ENVIRONMENT_FAILURES = frozenset(
         "lean_syntax_or_import_environment_gap",
     }
 )
+
+
+def _runtime_learning_row_trigger(
+    row: Mapping[str, Any],
+    input_summary: Any,
+) -> str:
+    if isinstance(input_summary, Mapping):
+        trigger = str(input_summary.get("trigger", "") or "").strip()
+        if trigger:
+            return trigger
+    return str(row.get("trigger", "") or "").strip()
 
 
 def _source_theorem_missing_formal_symbols_from_diagnostics(
@@ -4147,11 +4159,7 @@ def _runtime_learning_memory_source_theorem_integrator_blockers(
         if not isinstance(row, Mapping):
             continue
         input_summary = row.get("input_summary", {})
-        trigger = (
-            str(input_summary.get("trigger", "") or "")
-            if isinstance(input_summary, Mapping)
-            else ""
-        )
+        trigger = _runtime_learning_row_trigger(row, input_summary)
         if (
             str(row.get("learning_task", "") or "")
             != "source_theorem_integrator_blocker_feedback"
@@ -4220,11 +4228,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         if not isinstance(row, Mapping):
             continue
         input_summary = row.get("input_summary", {})
-        trigger = (
-            str(input_summary.get("trigger", "") or "")
-            if isinstance(input_summary, Mapping)
-            else ""
-        )
+        trigger = _runtime_learning_row_trigger(row, input_summary)
         if (
             str(row.get("learning_task", "") or "")
             != "source_theorem_exact_candidate_lean_feedback"
@@ -4257,12 +4261,20 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
             )
             missing_symbols = [
                 str(value)
-                for value in input_summary.get("missing_formal_symbols", []) or []
+                for value in (
+                    input_summary.get("missing_formal_symbols", [])
+                    or input_summary.get("formal_environment_placeholder_symbols", [])
+                    or []
+                )
                 if str(value).strip()
             ]
             typeclass_blockers = [
                 str(value)
-                for value in input_summary.get("typeclass_blockers", []) or []
+                for value in (
+                    input_summary.get("typeclass_blockers", [])
+                    or input_summary.get("formal_environment_typeclass_blockers", [])
+                    or []
+                )
                 if str(value).strip()
             ]
             recommended_repair_tasks = [
@@ -4270,6 +4282,14 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 for value in input_summary.get("recommended_repair_tasks", []) or []
                 if str(value).strip()
             ]
+            if not recommended_repair_tasks and (
+                missing_symbols or typeclass_blockers or failure_classification
+            ):
+                recommended_repair_tasks = _source_theorem_formal_environment_repair_tasks(
+                    missing_symbols=missing_symbols,
+                    typeclass_blockers=typeclass_blockers,
+                    failure_classification=failure_classification,
+                )
         else:
             missing_symbols = []
             typeclass_blockers = []
@@ -4283,12 +4303,22 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 "target_theorem_name": target,
                 "trigger": trigger,
                 "verification_status": (
-                    str(input_summary.get("verification_status", "") or "")
+                    str(
+                        input_summary.get("verification_status")
+                        or input_summary.get("execution_status")
+                        or ""
+                    )
                     if isinstance(input_summary, Mapping)
                     else ""
                 ),
                 "candidate_artifact_path": str(
-                    row.get("candidate_artifact_path", "") or ""
+                    row.get("candidate_artifact_path")
+                    or (
+                        input_summary.get("candidate_artifact_path", "")
+                        if isinstance(input_summary, Mapping)
+                        else ""
+                    )
+                    or ""
                 ),
                 "failure_classification": failure_classification,
                 "diagnostics": diagnostics,
@@ -4529,6 +4559,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
             "integrator blocker, repair the source-theorem artifact into a non-vacuous exact theorem "
             "proof target; route probes, vacuous True targets, and artifacts that assume the target "
             "remain blocked and are not proof evidence. If memory records an exact source-theorem "
+            "proof-body executor failure, route the next Formalizer packet to the reported proof-body "
+            "or formal-environment repair target; placeholder formal primitives must be closed before "
+            "a compiled artifact can be treated as source-theorem proof. If memory records an exact source-theorem "
             "candidate that reached local Lean but failed, keep the exact declaration and repair the "
             "proof body/import/theory gaps from the verifier diagnostics instead of regenerating a "
             "route probe."
