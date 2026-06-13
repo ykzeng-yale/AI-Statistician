@@ -2273,6 +2273,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_discharged_quality_control_values",
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
+            "n_feedback_loop_summary_interactive_resource_requests",
+            "n_feedback_loop_summary_interactive_resource_request_dispatch_summaries",
+            "n_feedback_loop_summary_interactive_resource_request_execution_commands",
             "n_rows",
             "n_response_present",
             "n_response_contract_ok",
@@ -2359,6 +2362,15 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_interactive_resource_requests": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_interactive_resource_request_dispatch_summaries": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_interactive_resource_request_execution_commands": (
                 nonnegative_integer
             ),
             "n_rows": nonnegative_integer,
@@ -4529,6 +4541,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_discharged_quality_control_values": 0,
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
+        "n_feedback_loop_summary_interactive_resource_requests": 0,
+        "n_feedback_loop_summary_interactive_resource_request_dispatch_summaries": 0,
+        "n_feedback_loop_summary_interactive_resource_request_execution_commands": 0,
         "n_rows": 0,
         "n_response_present": 0,
         "n_response_contract_ok": 0,
@@ -4688,6 +4703,24 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces": int(
             payload.get(
                 "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
+                0,
+            )
+            or 0
+        ),
+        "n_feedback_loop_summary_interactive_resource_requests": int(
+            payload.get("n_feedback_loop_summary_interactive_resource_requests", 0)
+            or 0
+        ),
+        "n_feedback_loop_summary_interactive_resource_request_dispatch_summaries": int(
+            payload.get(
+                "n_feedback_loop_summary_interactive_resource_request_dispatch_summaries",
+                0,
+            )
+            or 0
+        ),
+        "n_feedback_loop_summary_interactive_resource_request_execution_commands": int(
+            payload.get(
+                "n_feedback_loop_summary_interactive_resource_request_execution_commands",
                 0,
             )
             or 0

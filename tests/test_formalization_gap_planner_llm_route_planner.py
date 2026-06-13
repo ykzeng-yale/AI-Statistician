@@ -838,6 +838,31 @@ def _write_interactive_session(root: Path) -> Path:
                         "next_tools": ["lean-lsp-mcp"],
                         "next_queries": ["rank_uniformity residual side conditions"],
                         "next_commands": ["lake build"],
+                        "resource_request_ids": ["resource-request:rank_route"],
+                        "resource_request_resource_ids": ["lean_lsp_mcp"],
+                        "resource_request_queue_action_kinds": [
+                            "proof_state_feedback"
+                        ],
+                        "resource_request_dispatch_summaries": [
+                            {
+                                "resource_request_id": "resource-request:rank_route",
+                                "resource_id": "lean_lsp_mcp",
+                                "request_phase": "frontier_escalation",
+                                "request_rank": 1,
+                                "queue_action_kind": "proof_state_feedback",
+                                "expected_response_artifact": (
+                                    "formalization_gap_planner_prover_adapter_packet"
+                                ),
+                                "dispatch_spec": {
+                                    "resource_request_id": "resource-request:rank_route",
+                                    "resource_id": "lean_lsp_mcp",
+                                    "adapter": "lean_lsp_mcp",
+                                },
+                            }
+                        ],
+                        "resource_request_execution_commands": [
+                            "lean-lsp-mcp goal rank_uniformity"
+                        ],
                         "user_checkpoint": "review proof-state residual before route adoption",
                         "stability_decision": "EXPAND_EVIDENCE_BOUND",
                         "stable_under_current_evidence_bound": False,
@@ -4120,18 +4145,63 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
     assert payload["n_requests_with_interactive_decision_policy_rows"] == 1
     assert payload["n_requests_with_feedback_loop_summary"] == 1
     assert payload["n_request_residual_goals"] == 1
+    assert payload["n_feedback_loop_summary_interactive_resource_requests"] == 1
+    assert (
+        payload[
+            "n_feedback_loop_summary_interactive_resource_request_dispatch_summaries"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_loop_summary_interactive_resource_request_execution_commands"
+        ]
+        == 1
+    )
     request = payload["request_packets"][0]
     context = request["context_packet"]
     assert context["interactive_session_rows"][0]["next_interaction_kind"] == "proof_state_feedback"
+    assert context["interactive_session_rows"][0]["resource_request_ids"] == [
+        "resource-request:rank_route"
+    ]
+    assert context["interactive_session_rows"][0][
+        "resource_request_dispatch_summaries"
+    ][0]["resource_id"] == "lean_lsp_mcp"
     assert context["interactive_decision_policy_rows"][0]["resource_contract_ids"] == [
         "lean_lsp:proof_state_feedback"
     ]
     assert tuple(context["residual_goals"]) == ("missing finite tie-breaking side condition",)
+    inventory = context["context_packet_inventory"]
+    assert inventory["interactive_session_resource_request_count"] == 1
+    assert (
+        inventory["interactive_session_resource_request_dispatch_summary_count"]
+        == 1
+    )
+    assert (
+        inventory["interactive_session_resource_request_execution_command_count"]
+        == 1
+    )
     assert context["feedback_loop_summary"]["needs_more_proof_state_feedback"] is True
+    assert context["feedback_loop_summary"]["interactive_session_resource_requests"][
+        "resource_request_ids"
+    ] == ["resource-request:rank_route"]
+    assert context["feedback_loop_summary"]["interactive_session_resource_requests"][
+        "resource_ids"
+    ] == ["lean_lsp_mcp"]
     assert context["feedback_loop_summary"]["recommended_next_actions"][0]["owner"] == (
         "formal_verifier"
     )
+    assert context["feedback_loop_summary"]["recommended_next_actions"][0][
+        "resource_request_ids"
+    ] == ["resource-request:rank_route"]
+    assert context["feedback_loop_summary"]["recommended_next_actions"][0][
+        "resource_request_dispatch_summaries"
+    ][0]["resource_id"] == "lean_lsp_mcp"
+    assert context["feedback_loop_summary"]["recommended_next_actions"][0][
+        "resource_request_execution_commands"
+    ] == ["lean-lsp-mcp goal rank_uniformity"]
     assert "interactive_decision_policy_rows" in request["prompt_messages"]["user"]
+    assert "resource_request_dispatch_summaries" in request["prompt_messages"]["user"]
 
 
 def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:

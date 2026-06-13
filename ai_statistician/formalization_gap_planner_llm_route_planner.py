@@ -1493,6 +1493,45 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for packet in request_packets
         ),
+        "n_feedback_loop_summary_interactive_resource_requests": sum(
+            int(
+                _dict_value(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "feedback_loop_summary",
+                    ),
+                    "interactive_session_resource_requests",
+                ).get("resource_request_count", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_feedback_loop_summary_interactive_resource_request_dispatch_summaries": sum(
+            int(
+                _dict_value(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "feedback_loop_summary",
+                    ),
+                    "interactive_session_resource_requests",
+                ).get("dispatch_summary_count", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_feedback_loop_summary_interactive_resource_request_execution_commands": sum(
+            int(
+                _dict_value(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "feedback_loop_summary",
+                    ),
+                    "interactive_session_resource_requests",
+                ).get("execution_command_count", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
         "n_feedback_loop_summary_resource_response_admissible": sum(
             int(
                 _dict_value(
@@ -2876,6 +2915,15 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "request_model_tier_mismatches": object_array,
             "n_generation_preflight_blocked": nonnegative_integer,
             "generation_preflight_errors": object_array,
+            "n_feedback_loop_summary_interactive_resource_requests": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_interactive_resource_request_dispatch_summaries": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_interactive_resource_request_execution_commands": (
+                nonnegative_integer
+            ),
             "n_request_source_grounding_rows": nonnegative_integer,
             "n_requests_with_source_grounding_obligation_inventory": (
                 nonnegative_integer
@@ -5240,6 +5288,9 @@ def _context_packet_inventory(
     source_grounding_obligations = _source_grounding_obligation_summary(
         context_packet
     )
+    interactive_resource_requests = _interactive_session_resource_request_summary(
+        _dict_tuple(context_packet.get("interactive_session_rows", []))
+    )
     quality_controls = _dict_value(quality_control_obligations, "quality_controls")
     pending_quality_controls = _dict_value(
         quality_control_obligations,
@@ -5270,6 +5321,15 @@ def _context_packet_inventory(
         ),
         "resource_request_playbook_count": len(
             _dict_tuple(context_packet.get("resource_request_playbooks", []))
+        ),
+        "interactive_session_resource_request_count": int(
+            interactive_resource_requests.get("resource_request_count", 0) or 0
+        ),
+        "interactive_session_resource_request_dispatch_summary_count": int(
+            interactive_resource_requests.get("dispatch_summary_count", 0) or 0
+        ),
+        "interactive_session_resource_request_execution_command_count": int(
+            interactive_resource_requests.get("execution_command_count", 0) or 0
         ),
         "legacy_context_field_alias_count": len(
             _dict_value(context_packet, "legacy_context_field_aliases")
@@ -5501,6 +5561,33 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
         (
             "resource_request_playbook_count",
             len(_dict_tuple(context_packet.get("resource_request_playbooks", []))),
+        ),
+        (
+            "interactive_session_resource_request_count",
+            int(
+                _interactive_session_resource_request_summary(
+                    _dict_tuple(context_packet.get("interactive_session_rows", []))
+                ).get("resource_request_count", 0)
+                or 0
+            ),
+        ),
+        (
+            "interactive_session_resource_request_dispatch_summary_count",
+            int(
+                _interactive_session_resource_request_summary(
+                    _dict_tuple(context_packet.get("interactive_session_rows", []))
+                ).get("dispatch_summary_count", 0)
+                or 0
+            ),
+        ),
+        (
+            "interactive_session_resource_request_execution_command_count",
+            int(
+                _interactive_session_resource_request_summary(
+                    _dict_tuple(context_packet.get("interactive_session_rows", []))
+                ).get("execution_command_count", 0)
+                or 0
+            ),
         ),
         (
             "legacy_context_field_alias_count",
@@ -14862,6 +14949,11 @@ def _feedback_loop_summary(
     if resource_request_playbooks:
         summary["resource_request_playbook_count"] = len(resource_request_playbooks)
         summary["resource_request_playbooks"] = resource_request_playbooks[:12]
+    interactive_resource_requests = _interactive_session_resource_request_summary(
+        rows_by_field.get("interactive_session_rows", ())
+    )
+    if interactive_resource_requests.get("resource_request_count"):
+        summary["interactive_session_resource_requests"] = interactive_resource_requests
     if realization_coverage:
         summary["realization_coverage"] = realization_coverage
     if quality_control_obligations.get("present"):
@@ -15205,6 +15297,47 @@ def _refinement_evidence_admissibility_summary(
     }
 
 
+def _interactive_session_resource_request_summary(
+    rows: tuple[dict[str, object], ...],
+) -> dict[str, object]:
+    request_ids: list[str] = []
+    resource_ids: list[str] = []
+    action_kinds: list[str] = []
+    execution_commands: list[str] = []
+    dispatch_summaries: list[dict[str, object]] = []
+    seen_dispatch: set[str] = set()
+    for row in rows:
+        request_ids.extend(_str_tuple(row.get("resource_request_ids", [])))
+        resource_ids.extend(_str_tuple(row.get("resource_request_resource_ids", [])))
+        action_kinds.extend(
+            _str_tuple(row.get("resource_request_queue_action_kinds", []))
+        )
+        execution_commands.extend(
+            _str_tuple(row.get("resource_request_execution_commands", []))
+        )
+        for dispatch_summary in _dict_tuple(
+            row.get("resource_request_dispatch_summaries", [])
+        ):
+            key = stable_hash(dispatch_summary)
+            if key in seen_dispatch:
+                continue
+            seen_dispatch.add(key)
+            dispatch_summaries.append(dict(dispatch_summary))
+    unique_request_ids = _unique_strings(request_ids)
+    return {
+        "resource_request_count": len(unique_request_ids),
+        "resource_request_ids": list(unique_request_ids[:25]),
+        "resource_id_count": len(_unique_strings(resource_ids)),
+        "resource_ids": list(_unique_strings(resource_ids)[:25]),
+        "queue_action_kind_count": len(_unique_strings(action_kinds)),
+        "queue_action_kinds": list(_unique_strings(action_kinds)[:25]),
+        "dispatch_summary_count": len(dispatch_summaries),
+        "dispatch_summaries": dispatch_summaries[:12],
+        "execution_command_count": len(_unique_strings(execution_commands)),
+        "execution_commands": list(_unique_strings(execution_commands)[:12]),
+    }
+
+
 def _feedback_next_actions(
     rows_by_field: Mapping[str, tuple[dict[str, object], ...]],
     *,
@@ -15227,6 +15360,28 @@ def _feedback_next_actions(
                 "tools": list(_str_tuple(row.get("next_tools", []))[:8]),
                 "queries": list(_str_tuple(row.get("next_queries", []))[:8]),
                 "commands": list(_str_tuple(row.get("next_commands", []))[:8]),
+                "resource_request_ids": list(
+                    _str_tuple(row.get("resource_request_ids", []))[:8]
+                ),
+                "resource_ids": list(
+                    _str_tuple(row.get("resource_request_resource_ids", []))[:8]
+                ),
+                "resource_request_queue_action_kinds": list(
+                    _str_tuple(
+                        row.get("resource_request_queue_action_kinds", [])
+                    )[:8]
+                ),
+                "resource_request_dispatch_summaries": [
+                    dict(summary_row)
+                    for summary_row in _dict_tuple(
+                        row.get("resource_request_dispatch_summaries", [])
+                    )[:8]
+                ],
+                "resource_request_execution_commands": list(
+                    _str_tuple(
+                        row.get("resource_request_execution_commands", [])
+                    )[:8]
+                ),
                 "gate": str(row.get("triage_required_gate", "")).strip(),
             }
         )
@@ -15802,6 +15957,11 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "resource_response_summary_by_acceptance_status",
         "resource_response_awaiting_request_ids",
         "resource_response_rejected_request_ids",
+        "resource_request_ids",
+        "resource_request_resource_ids",
+        "resource_request_queue_action_kinds",
+        "resource_request_dispatch_summaries",
+        "resource_request_execution_commands",
         "next_required_gate",
         "interactive_session_row_id",
         "decision_policy_row_id",

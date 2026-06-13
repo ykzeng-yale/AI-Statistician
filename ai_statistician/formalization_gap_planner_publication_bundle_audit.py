@@ -2655,6 +2655,24 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_feedback_loop_summary_interactive_resource_requests": int(
+            payload.get("n_feedback_loop_summary_interactive_resource_requests", 0)
+            or 0
+        ),
+        "n_feedback_loop_summary_interactive_resource_request_dispatch_summaries": int(
+            payload.get(
+                "n_feedback_loop_summary_interactive_resource_request_dispatch_summaries",
+                0,
+            )
+            or 0
+        ),
+        "n_feedback_loop_summary_interactive_resource_request_execution_commands": int(
+            payload.get(
+                "n_feedback_loop_summary_interactive_resource_request_execution_commands",
+                0,
+            )
+            or 0
+        ),
         "n_rows": int(payload.get("n_rows", len(rows)) or 0),
         "n_response_present": int(
             payload.get(
