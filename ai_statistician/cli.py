@@ -336,6 +336,9 @@ from .theorem_reduction_closure_proofengineer_bridge import (
     resolve_theorem_reduction_queue_path,
     run_theorem_reduction_closure_proofengineer_bridge,
 )
+from .source_theorem_formal_environment_proofengineer_bridge import (
+    run_source_theorem_formal_environment_proofengineer_bridge,
+)
 from .research_evaluation import ResearchEvalConfig, run_research_seed_eval
 from .research_gap_audit import audit_research_gap_backlog
 from .research_intake_audit import audit_research_question_intake
@@ -1049,6 +1052,37 @@ def _theorem_reduction_closure_proofengineer_bridge(args: argparse.Namespace) ->
         f"{Path(str(bridge_manifest['runtime_learning_rows_jsonl'])).resolve()}"
     )
     print(f"bridge manifest written to {bridge_manifest_path.resolve()}")
+    return 0
+
+
+def _source_theorem_formal_environment_proofengineer_bridge(
+    args: argparse.Namespace,
+) -> int:
+    out_dir = Path(args.out)
+    bridge_manifest = run_source_theorem_formal_environment_proofengineer_bridge(
+        out_dir=out_dir,
+        runtime_dir=Path(args.runtime_dir) if args.runtime_dir else None,
+        queue_jsonl=Path(args.queue_jsonl) if args.queue_jsonl else None,
+        question_id=str(args.question_id or ""),
+    )
+    bridge_manifest_path = (
+        out_dir / "source_theorem_formal_environment_proofengineer_bridge_manifest.json"
+    )
+    print("\nAI Statistician Source-Theorem Formal-Environment ProofEngineer Bridge")
+    print("=" * 72)
+    print(
+        f"work_orders={bridge_manifest['n_work_orders']} "
+        f"repair_packets={bridge_manifest['n_repair_packets']} "
+        f"missing_symbols={bridge_manifest['n_missing_formal_symbols']} "
+        f"typeclass_blockers={bridge_manifest['n_typeclass_blockers']}"
+    )
+    print(f"repair packets written to {Path(str(bridge_manifest['repair_packets_jsonl'])).resolve()}")
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(bridge_manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    print(f"bridge manifest written to {bridge_manifest_path.resolve()}")
+    print(f"proof_evidence_status={bridge_manifest['proof_evidence_status']}")
     return 0
 
 
@@ -6359,6 +6393,13 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             source_semantic_proofengineer_lean_timeout=int(
                 getattr(args, "source_semantic_proofengineer_lean_timeout", 90)
             ),
+            source_theorem_formal_environment_proofengineer_bridge=bool(
+                getattr(
+                    args,
+                    "source_theorem_formal_environment_proofengineer_bridge",
+                    False,
+                )
+            ),
             source_theorem_promotion_proofengineer_bridge=bool(
                 getattr(
                     args,
@@ -6657,6 +6698,46 @@ def build_parser() -> argparse.ArgumentParser:
     )
     theorem_reduction_closure_proofengineer_bridge.set_defaults(
         func=_theorem_reduction_closure_proofengineer_bridge
+    )
+
+    source_theorem_formal_environment_proofengineer_bridge = sub.add_parser(
+        "source-theorem-formal-environment-proofengineer-bridge",
+        help=(
+            "convert AgentRuntime source-theorem formal-environment work orders "
+            "into ProofEngineer repair packets and runtime learning rows"
+        ),
+    )
+    env_bridge_source = (
+        source_theorem_formal_environment_proofengineer_bridge.add_mutually_exclusive_group(
+            required=True
+        )
+    )
+    env_bridge_source.add_argument(
+        "--runtime-dir",
+        help=(
+            "research-agent-runtime output directory containing "
+            "research_agent_runtime_manifest.json"
+        ),
+    )
+    env_bridge_source.add_argument(
+        "--queue-jsonl",
+        help=(
+            "runtime_source_theorem_formal_environment_work_orders.jsonl or "
+            "formal-environment work orders emitted by the source-theorem promotion bridge"
+        ),
+    )
+    source_theorem_formal_environment_proofengineer_bridge.add_argument(
+        "--question-id",
+        default="",
+        help="optional question id to attach to exported runtime learning memory",
+    )
+    source_theorem_formal_environment_proofengineer_bridge.add_argument(
+        "--out",
+        default="runs/source_theorem_formal_environment_proofengineer_bridge",
+        help="bridge output directory",
+    )
+    source_theorem_formal_environment_proofengineer_bridge.set_defaults(
+        func=_source_theorem_formal_environment_proofengineer_bridge
     )
 
     proof_audit_learning_export = sub.add_parser(
@@ -11338,6 +11419,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=90,
         help="timeout seconds for each source-semantic local Lean check",
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-formal-environment-proofengineer-bridge",
+        action="store_true",
+        help=(
+            "after exact source-theorem environment work orders are emitted, "
+            "export ProofEngineer repair packets and runtime learning rows"
+        ),
     )
     research_agent_runtime.add_argument(
         "--source-theorem-promotion-proofengineer-bridge",

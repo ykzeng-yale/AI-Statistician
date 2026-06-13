@@ -102,6 +102,9 @@ from .simulation_engineer_llm import (
 from .source_theorem_semantic_primitive_proofengineer_bridge import (
     run_source_theorem_semantic_primitive_proofengineer_bridge,
 )
+from .source_theorem_formal_environment_proofengineer_bridge import (
+    run_source_theorem_formal_environment_proofengineer_bridge,
+)
 from .theorem_reduction_closure_proofengineer_bridge import (
     run_theorem_reduction_closure_proofengineer_bridge,
 )
@@ -145,6 +148,7 @@ class ResearchAgentRuntimeConfig:
     source_semantic_proofengineer_local_lean: bool = False
     source_semantic_proofengineer_lean_project: str = ""
     source_semantic_proofengineer_lean_timeout: int = 90
+    source_theorem_formal_environment_proofengineer_bridge: bool = False
     source_theorem_promotion_proofengineer_bridge: bool = False
     source_theorem_promotion_proofengineer_local_lean: bool = False
     source_theorem_promotion_proofengineer_overwrite_artifacts: bool = False
@@ -2163,8 +2167,50 @@ def run_research_agent_runtime(
         if source_theorem_promotion_bridge_manifest is not None
         else []
     )
+    source_theorem_formal_environment_bridge_manifest: dict[str, Any] | None = None
+    source_theorem_formal_environment_bridge_queue = (
+        source_theorem_formal_environment_work_orders_path
+        if source_theorem_formal_environment_work_order_rows
+        else None
+    )
+    if (
+        source_theorem_formal_environment_bridge_queue is None
+        and source_theorem_promotion_bridge_manifest is not None
+        and source_theorem_promotion_bridge_manifest.get(
+            "source_theorem_formal_environment_work_orders_jsonl"
+        )
+    ):
+        source_theorem_formal_environment_bridge_queue = Path(
+            str(
+                source_theorem_promotion_bridge_manifest[
+                    "source_theorem_formal_environment_work_orders_jsonl"
+                ]
+            )
+        )
+    if (
+        config.source_theorem_formal_environment_proofengineer_bridge
+        and source_theorem_formal_environment_bridge_queue is not None
+    ):
+        source_theorem_formal_environment_bridge_manifest = (
+            run_source_theorem_formal_environment_proofengineer_bridge(
+                out_dir=out_dir
+                / "runtime_source_theorem_formal_environment_proofengineer_bridge",
+                queue_jsonl=source_theorem_formal_environment_bridge_queue,
+                question_id=questions[0].id if len(questions) == 1 else "",
+            )
+        )
+    source_theorem_formal_environment_bridge_learning_rows = (
+        _runtime_source_theorem_formal_environment_bridge_learning_rows(
+            source_theorem_formal_environment_bridge_manifest
+        )
+        if source_theorem_formal_environment_bridge_manifest is not None
+        else []
+    )
     if source_theorem_promotion_bridge_learning_rows:
         learning_rows.extend(source_theorem_promotion_bridge_learning_rows)
+        _write_jsonl(learning_path, learning_rows)
+    if source_theorem_formal_environment_bridge_learning_rows:
+        learning_rows.extend(source_theorem_formal_environment_bridge_learning_rows)
         _write_jsonl(learning_path, learning_rows)
     _write_runtime_formalization_gap_planner_seed_files(
         gap_planner_bridge_rows,
@@ -2234,6 +2280,31 @@ def run_research_agent_runtime(
         manifest["artifacts"][
             "runtime_source_theorem_semantic_primitive_proofengineer_checks_jsonl"
         ] = str(source_semantic_bridge_manifest["checks_jsonl"])
+    if source_theorem_formal_environment_bridge_manifest is not None:
+        manifest["artifacts"][
+            "runtime_source_theorem_formal_environment_proofengineer_bridge_manifest"
+        ] = str(
+            out_dir
+            / "runtime_source_theorem_formal_environment_proofengineer_bridge"
+            / "source_theorem_formal_environment_proofengineer_bridge_manifest.json"
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_formal_environment_proofengineer_repair_packets_jsonl"
+        ] = str(source_theorem_formal_environment_bridge_manifest["repair_packets_jsonl"])
+        manifest["artifacts"][
+            "runtime_source_theorem_formal_environment_proofengineer_learning_rows_jsonl"
+        ] = str(
+            source_theorem_formal_environment_bridge_manifest[
+                "runtime_learning_rows_jsonl"
+            ]
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_formal_environment_proofengineer_learning_export_manifest"
+        ] = str(
+            source_theorem_formal_environment_bridge_manifest[
+                "runtime_learning_export_manifest"
+            ]
+        )
     if source_theorem_promotion_bridge_manifest is not None:
         manifest["artifacts"][
             "runtime_source_theorem_promotion_proofengineer_bridge_manifest"
@@ -2413,6 +2484,70 @@ def run_research_agent_runtime(
         "retroactively prove the current run, and verified registered semantic "
         "bridges do not by themselves prove the full source theorem or any "
         "unformalized upstream statistical definition."
+    )
+    manifest["source_theorem_formal_environment_proofengineer_bridge_requested"] = bool(
+        config.source_theorem_formal_environment_proofengineer_bridge
+    )
+    manifest["source_theorem_formal_environment_proofengineer_bridge_ran"] = (
+        source_theorem_formal_environment_bridge_manifest is not None
+    )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_bridge_skipped_reason"
+    ] = (
+        ""
+        if source_theorem_formal_environment_bridge_manifest is not None
+        else (
+            "bridge_disabled"
+            if not config.source_theorem_formal_environment_proofengineer_bridge
+            else "no_source_theorem_formal_environment_work_orders"
+        )
+    )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_bridge_n_repair_packets"
+    ] = int(
+        source_theorem_formal_environment_bridge_manifest.get("n_repair_packets", 0)
+        if source_theorem_formal_environment_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_bridge_n_missing_formal_symbols"
+    ] = int(
+        source_theorem_formal_environment_bridge_manifest.get(
+            "n_missing_formal_symbols",
+            0,
+        )
+        if source_theorem_formal_environment_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_bridge_n_typeclass_blockers"
+    ] = int(
+        source_theorem_formal_environment_bridge_manifest.get(
+            "n_typeclass_blockers",
+            0,
+        )
+        if source_theorem_formal_environment_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_bridge_n_learning_rows"
+    ] = len(source_theorem_formal_environment_bridge_learning_rows)
+    manifest[
+        "source_theorem_formal_environment_proofengineer_bridge_proof_evidence_status"
+    ] = str(
+        source_theorem_formal_environment_bridge_manifest.get(
+            "proof_evidence_status",
+            "",
+        )
+        if source_theorem_formal_environment_bridge_manifest
+        else ""
+    )
+    manifest["source_theorem_formal_environment_proofengineer_bridge_boundary"] = (
+        "The runtime source-theorem formal-environment ProofEngineer bridge "
+        "consumes exact-source environment work orders and exports repair "
+        "packets/runtime-learning rows for a later run. It does not prove the "
+        "current run; proof evidence requires a later local Lean/AXLE verifier "
+        "manifest with artifact/source theorem kernel verification."
     )
     manifest["source_theorem_promotion_proofengineer_bridge_requested"] = bool(
         config.source_theorem_promotion_proofengineer_bridge
@@ -6103,6 +6238,30 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
                 "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
             }
         )
+    return rows
+
+
+def _runtime_source_theorem_formal_environment_bridge_learning_rows(
+    bridge_manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    learning_rows_path_value = str(
+        bridge_manifest.get("runtime_learning_rows_jsonl", "") or ""
+    )
+    if not learning_rows_path_value:
+        return []
+    learning_rows_path = Path(learning_rows_path_value)
+    if not learning_rows_path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for raw_line in learning_rows_path.read_text(encoding="utf-8").splitlines():
+        if not raw_line.strip():
+            continue
+        try:
+            row = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
     return rows
 
 
