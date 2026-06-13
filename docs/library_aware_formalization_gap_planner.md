@@ -233,7 +233,12 @@ target-aware: Lean requests map legacy context fields such as
 `lean_grounding_queries` and `lean_declaration_hits` back to portable
 `formal_library_grounding_queries` and `formal_declaration_hits`, while non-Lean
 requests keep that map empty and the prompt requires new route output to prefer
-the portable fields.
+the portable fields. Response validation also checks target-specific tool and
+resource scope: a Rocq, Isabelle, or Agda route cannot silently dispatch
+Lean-specific hooks such as LeanSearch, Loogle, Lake, or `lean_lsp_mcp` merely
+by omitting `target_prover_family` on the action row; the tool owner, resource
+id, and adapter id must either be portable or match the request target prover
+family.
 `--model-tier auto`, the route planner also reads target-intake rows: missing
 proof sources, library-search-required review flags, proof-state probes, complex
 theorem shapes, many `formal_library_grounding_queries`, or large normalized

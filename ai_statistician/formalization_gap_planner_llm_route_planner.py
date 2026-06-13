@@ -534,6 +534,35 @@ LLM_ROUTE_PLANNER_PLANNER_NEXT_ACTION_HOOK_ALIASES = (
     "replan",
     "revise_route",
 )
+LLM_ROUTE_PLANNER_TARGET_SPECIFIC_TOOL_ALIASES = {
+    "lean4": (
+        "lean",
+        "lean4",
+        "lean_lsp",
+        "leansearch",
+        "lean_finder",
+        "leanfinder",
+        "loogle",
+        "lake",
+        "mathlib",
+        "leandojo",
+        "reprover",
+    ),
+    "rocq": (
+        "rocq",
+        "coq",
+        "coq_lsp",
+        "rocq_lsp",
+        "serapi",
+    ),
+    "isabelle": (
+        "isabelle",
+        "isabelle_hol",
+        "sledgehammer",
+        "afp",
+    ),
+    "agda": ("agda",),
+}
 
 
 LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
@@ -8821,6 +8850,7 @@ def _response_contract_errors(
     errors.extend(_response_source_ref_grounding_errors(payload, request))
     errors.extend(_response_target_theorem_identity_errors(payload, request))
     errors.extend(_response_target_prover_consistency_errors(payload, request))
+    errors.extend(_response_target_prover_tool_scope_errors(payload, request))
     errors.extend(_response_search_request_contract_errors(payload))
     errors.extend(_response_search_request_primitive_grounding_errors(payload, request))
     errors.extend(_response_planner_next_action_contract_errors(payload))
@@ -10555,6 +10585,52 @@ def _target_prover_key(value: object) -> str:
         "isabelle_hol": "isabelle",
     }
     return aliases.get(key, key)
+
+
+def _response_target_prover_tool_scope_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    expected = _target_prover_key(request.get("target_prover_family", ""))
+    if not expected:
+        return []
+    errors: list[str] = []
+    for collection_name in ("search_requests", "planner_next_actions"):
+        for index, row in enumerate(_dict_tuple(payload.get(collection_name, []))):
+            incompatible = _target_incompatible_tool_markers(
+                row,
+                expected_target=expected,
+            )
+            if incompatible:
+                errors.append(
+                    f"{collection_name}[{index}] uses target-specific "
+                    "tool/resource incompatible with request "
+                    f"target_prover_family {request.get('target_prover_family', '')}: "
+                    + "; ".join(incompatible[:8])
+                )
+    return errors
+
+
+def _target_incompatible_tool_markers(
+    row: Mapping[str, Any],
+    *,
+    expected_target: str,
+) -> tuple[str, ...]:
+    values: list[str] = []
+    refs = _structured_resource_refs(row)
+    for ref_values in refs.values():
+        values.extend(_str_tuple(ref_values))
+    incompatible: list[str] = []
+    for value in values:
+        key = _resource_ref_key(value)
+        if not key:
+            continue
+        for target, aliases in LLM_ROUTE_PLANNER_TARGET_SPECIFIC_TOOL_ALIASES.items():
+            if any(_text_key_contains_alias(key, alias) for alias in aliases):
+                if target != expected_target:
+                    incompatible.append(f"{value} targets {target}")
+                break
+    return tuple(dict.fromkeys(incompatible))
 
 
 def _response_formal_search_obligation_errors(
