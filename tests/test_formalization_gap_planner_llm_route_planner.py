@@ -10392,6 +10392,83 @@ def test_llm_route_planner_rejects_search_requested_without_search_request() -> 
     )
 
 
+def test_llm_route_planner_rejects_residual_search_requested_without_search_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_residual_search_without_request"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    bad_response = _llm_response_payload()
+    bad_response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": (
+                "The rank route still has a residual side condition that needs "
+                "literature confirmation."
+            ),
+            "route_repair": (
+                "Add the rank_uniformity side-condition repair only after "
+                "source search resolves the residual."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "source_search_status": "SEARCH_REQUESTED",
+        }
+    ]
+    bad_response["search_requests"] = []
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "residual_interpretations[0] SEARCH_REQUESTED requires a matching "
+        "literature/source search_request" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_route_search_requested_without_search_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_route_search_without_request"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["standalone_route"]["source_search_status"] = "SEARCH_REQUESTED"
+    bad_response["search_requests"] = []
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "standalone_route SEARCH_REQUESTED requires a matching "
+        "literature/source search_request" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_malformed_search_request() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_malformed_search_request"

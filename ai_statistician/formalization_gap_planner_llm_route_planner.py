@@ -12094,7 +12094,36 @@ def _response_source_search_obligation_errors(
                 "informal_knowledge_dag_nodes"
                 f"[{index}] SEARCH_REQUESTED requires a matching literature/source search_request"
             )
+    for index, residual in enumerate(
+        _dict_tuple(payload.get("residual_interpretations", []))
+    ):
+        status = _source_ref_key(residual.get("source_search_status", ""))
+        if not _source_search_status_requires_request(status):
+            continue
+        if not _has_literature_search_request_for_residual_interpretation(
+            search_requests,
+            interpretation=residual,
+        ):
+            errors.append(
+                "residual_interpretations"
+                f"[{index}] SEARCH_REQUESTED requires a matching literature/source search_request"
+            )
     route = _dict_value(payload, "standalone_route")
+    route_status = _source_ref_key(route.get("source_search_status", ""))
+    if _source_search_status_requires_request(route_status):
+        route_primitives = tuple(
+            _primitive_key(primitive.get("primitive", ""))
+            for primitive in _dict_tuple(route.get("primitives", []))
+            if _primitive_key(primitive.get("primitive", ""))
+        )
+        if not _has_literature_search_request_for_obligation(
+            search_requests,
+            primitives=route_primitives,
+        ):
+            errors.append(
+                "standalone_route SEARCH_REQUESTED requires a matching "
+                "literature/source search_request"
+            )
     for index, primitive_row in enumerate(_dict_tuple(route.get("primitives", []))):
         status = _source_ref_key(primitive_row.get("source_search_status", ""))
         if not _source_search_status_requires_request(status):
