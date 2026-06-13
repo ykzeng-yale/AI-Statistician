@@ -40,6 +40,7 @@ class FormalVerifierAgenticProofExecutionMaterializerRow:
     target_lean_line: int
     target_lean_column: int
     target_lean_declaration: str
+    source_theorem_target_known: bool
     evolve_block_start_line: int
     evolve_block_end_line: int
     target_blockers: tuple[str, ...]
@@ -168,6 +169,9 @@ def _materializer_row(
     reused_subclaims = _str_tuple(
         kernel_overlay_context.get("already_kernel_verified_subclaims", [])
     )
+    source_theorem_target_known = bool(
+        kernel_overlay_context.get("source_theorem_target_known", False)
+    )
     materialization_id = (
         "formal_verifier_agentic_proof_execution_materializer:"
         + stable_hash([execution_queue_id, candidate_artifact_path])[:16]
@@ -265,6 +269,7 @@ def _materializer_row(
         target_lean_line=target_lean_line,
         target_lean_column=target_lean_column,
         target_lean_declaration=target_lean_declaration,
+        source_theorem_target_known=source_theorem_target_known,
         evolve_block_start_line=evolve_start,
         evolve_block_end_line=evolve_end,
         target_blockers=target_blockers,
@@ -401,6 +406,16 @@ def _live_proof_state_request(
         "target_lean_line": target_lean_line,
         "target_lean_column": target_lean_column,
         "target_lean_declaration": target_lean_declaration,
+        "source_theorem_target_known": bool(
+            row.get("source_theorem_target_known", False)
+            or (
+                isinstance(row.get("kernel_overlay_context", {}), dict)
+                and row.get("kernel_overlay_context", {}).get(
+                    "source_theorem_target_known",
+                    False,
+                )
+            )
+        ),
         "goal_cache_key": str(row.get("goal_cache_key", "")),
         "candidate_database_key": str(row.get("candidate_database_key", "")),
         "candidate_lineage_key": str(row.get("candidate_lineage_key", "")),

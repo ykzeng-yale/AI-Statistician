@@ -6284,6 +6284,35 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
             source_semantic_proofengineer_lean_timeout=int(
                 getattr(args, "source_semantic_proofengineer_lean_timeout", 90)
             ),
+            source_theorem_promotion_proofengineer_bridge=bool(
+                getattr(
+                    args,
+                    "source_theorem_promotion_proofengineer_bridge",
+                    False,
+                )
+            ),
+            source_theorem_promotion_proofengineer_local_lean=bool(
+                getattr(
+                    args,
+                    "source_theorem_promotion_proofengineer_local_lean",
+                    False,
+                )
+            ),
+            source_theorem_promotion_proofengineer_lean_project=str(
+                getattr(
+                    args,
+                    "source_theorem_promotion_proofengineer_lean_project",
+                    "",
+                )
+                or ""
+            ),
+            source_theorem_promotion_proofengineer_lean_timeout=int(
+                getattr(
+                    args,
+                    "source_theorem_promotion_proofengineer_lean_timeout",
+                    90,
+                )
+            ),
         ),
     )
     print("\nAI Statistician Agent Runtime")
@@ -11149,6 +11178,37 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=90,
         help="timeout seconds for each source-semantic local Lean check",
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-promotion-proofengineer-bridge",
+        action="store_true",
+        help=(
+            "after the runtime loop emits source-theorem promotion materialization "
+            "seeds, run the materializer bridge and optionally local Lean artifact "
+            "checks before source-theorem promotion"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-promotion-proofengineer-local-lean",
+        action="store_true",
+        help=(
+            "when the source-theorem promotion ProofEngineer bridge is enabled, "
+            "run local Lean on materialized route-probe artifacts"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-promotion-proofengineer-lean-project",
+        default="",
+        help=(
+            "optional local Lake project used by "
+            "--source-theorem-promotion-proofengineer-local-lean"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-promotion-proofengineer-lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each source-theorem promotion artifact Lean check",
     )
     research_agent_runtime.add_argument(
         "--proof-obligation-id",

@@ -46,6 +46,7 @@ class FormalVerifierAgenticProofExecutionArtifactVerifierRow:
     local_lean_compiled: bool
     artifact_kernel_verified: bool
     source_theorem_kernel_verified: bool
+    source_theorem_target_known: bool
     verifier: str
     verification_strength: str
     lean_command: tuple[str, ...]
@@ -195,6 +196,9 @@ def _verifier_row(
     execution_transcript_path = Path(execution_transcript_raw) if execution_transcript_raw else None
     target_lean_declaration = str(row.get("target_lean_declaration", ""))
     target_lean_line = _int(row.get("target_lean_line"))
+    source_theorem_target_known = bool(
+        row.get("source_theorem_target_known", False)
+    )
     (
         live_request_id,
         live_request_valid,
@@ -284,6 +288,7 @@ def _verifier_row(
         local_lean_compiled=compiled,
         artifact_kernel_verified=compiled,
         source_theorem_kernel_verified=False,
+        source_theorem_target_known=source_theorem_target_known,
         verifier=verifier,
         verification_strength=verification_strength,
         returncode=returncode,
@@ -313,6 +318,7 @@ def _verifier_row(
         local_lean_compiled=compiled,
         artifact_kernel_verified=compiled,
         source_theorem_kernel_verified=False,
+        source_theorem_target_known=source_theorem_target_known,
         verifier=verifier,
         verification_strength=verification_strength,
         lean_command=lean_command,
@@ -347,6 +353,7 @@ def _append_verifier_transcript_event(
     local_lean_compiled: bool,
     artifact_kernel_verified: bool,
     source_theorem_kernel_verified: bool,
+    source_theorem_target_known: bool,
     verifier: str,
     verification_strength: str,
     returncode: int,
@@ -382,6 +389,7 @@ def _append_verifier_transcript_event(
             "local_lean_compiled": local_lean_compiled,
             "artifact_kernel_verified": artifact_kernel_verified,
             "source_theorem_kernel_verified": source_theorem_kernel_verified,
+            "source_theorem_target_known": source_theorem_target_known,
             "verifier": verifier,
             "verification_strength": verification_strength,
             "returncode": returncode,

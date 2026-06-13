@@ -38,6 +38,15 @@ from .critic_evaluator_llm import (
     LLMCriticEvaluatorAgent,
 )
 from .fingerprint import stable_hash
+from .formal_verifier_agentic_proof_execution_artifact_verifier import (
+    export_formal_verifier_agentic_proof_execution_artifact_verifier,
+)
+from .formal_verifier_agentic_proof_execution_materializer import (
+    export_formal_verifier_agentic_proof_execution_materializer,
+)
+from .formal_verifier_agentic_proof_source_theorem_promotion_queue import (
+    export_formal_verifier_agentic_proof_source_theorem_promotion_queue,
+)
 from .formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
@@ -133,6 +142,10 @@ class ResearchAgentRuntimeConfig:
     source_semantic_proofengineer_local_lean: bool = False
     source_semantic_proofengineer_lean_project: str = ""
     source_semantic_proofengineer_lean_timeout: int = 90
+    source_theorem_promotion_proofengineer_bridge: bool = False
+    source_theorem_promotion_proofengineer_local_lean: bool = False
+    source_theorem_promotion_proofengineer_lean_project: str = ""
+    source_theorem_promotion_proofengineer_lean_timeout: int = 90
 
 
 class ArchitectCoordinatorRuntimeSubsystem:
@@ -2107,6 +2120,25 @@ def run_research_agent_runtime(
                 lean_timeout=config.source_semantic_proofengineer_lean_timeout,
             )
         )
+    source_theorem_promotion_bridge_manifest: dict[str, Any] | None = None
+    if (
+        config.source_theorem_promotion_proofengineer_bridge
+        and source_theorem_promotion_materialization_seed_rows
+    ):
+        source_theorem_promotion_bridge_manifest = (
+            _run_runtime_source_theorem_promotion_proofengineer_bridge(
+                seed_queue_dir=source_theorem_promotion_materialization_seed_queue_dir,
+                out_dir=out_dir
+                / "runtime_source_theorem_promotion_proofengineer_bridge",
+                local_lean=config.source_theorem_promotion_proofengineer_local_lean,
+                lean_project=(
+                    Path(config.source_theorem_promotion_proofengineer_lean_project)
+                    if config.source_theorem_promotion_proofengineer_lean_project
+                    else None
+                ),
+                lean_timeout=config.source_theorem_promotion_proofengineer_lean_timeout,
+            )
+        )
     _write_runtime_formalization_gap_planner_seed_files(
         gap_planner_bridge_rows,
         seed_dir=gap_planner_seed_dir,
@@ -2172,6 +2204,44 @@ def run_research_agent_runtime(
         manifest["artifacts"][
             "runtime_source_theorem_semantic_primitive_proofengineer_checks_jsonl"
         ] = str(source_semantic_bridge_manifest["checks_jsonl"])
+    if source_theorem_promotion_bridge_manifest is not None:
+        manifest["artifacts"][
+            "runtime_source_theorem_promotion_proofengineer_bridge_manifest"
+        ] = str(source_theorem_promotion_bridge_manifest["bridge_manifest"])
+        manifest["artifacts"][
+            "runtime_source_theorem_promotion_proofengineer_materializer_manifest"
+        ] = str(source_theorem_promotion_bridge_manifest["materializer_manifest"])
+        manifest["artifacts"][
+            "runtime_source_theorem_promotion_proofengineer_materializer_dir"
+        ] = str(source_theorem_promotion_bridge_manifest["materializer_dir"])
+        if source_theorem_promotion_bridge_manifest.get("artifact_verifier_manifest"):
+            manifest["artifacts"][
+                "runtime_source_theorem_promotion_proofengineer_artifact_verifier_manifest"
+            ] = str(
+                source_theorem_promotion_bridge_manifest[
+                    "artifact_verifier_manifest"
+                ]
+            )
+            manifest["artifacts"][
+                "runtime_source_theorem_promotion_proofengineer_artifact_verifier_dir"
+            ] = str(source_theorem_promotion_bridge_manifest["artifact_verifier_dir"])
+        if source_theorem_promotion_bridge_manifest.get(
+            "source_theorem_promotion_queue_manifest"
+        ):
+            manifest["artifacts"][
+                "runtime_source_theorem_promotion_proofengineer_promotion_queue_manifest"
+            ] = str(
+                source_theorem_promotion_bridge_manifest[
+                    "source_theorem_promotion_queue_manifest"
+                ]
+            )
+            manifest["artifacts"][
+                "runtime_source_theorem_promotion_proofengineer_promotion_queue_dir"
+            ] = str(
+                source_theorem_promotion_bridge_manifest[
+                    "source_theorem_promotion_queue_dir"
+                ]
+            )
     manifest["artifacts"]["runtime_formalization_gap_planner_bridges_jsonl"] = str(
         gap_planner_bridges_path
     )
@@ -2276,6 +2346,70 @@ def run_research_agent_runtime(
         "retroactively prove the current run, and verified registered semantic "
         "bridges do not by themselves prove the full source theorem or any "
         "unformalized upstream statistical definition."
+    )
+    manifest["source_theorem_promotion_proofengineer_bridge_requested"] = bool(
+        config.source_theorem_promotion_proofengineer_bridge
+    )
+    manifest["source_theorem_promotion_proofengineer_bridge_ran"] = (
+        source_theorem_promotion_bridge_manifest is not None
+    )
+    manifest["source_theorem_promotion_proofengineer_bridge_skipped_reason"] = (
+        ""
+        if source_theorem_promotion_bridge_manifest is not None
+        else (
+            "bridge_disabled"
+            if not config.source_theorem_promotion_proofengineer_bridge
+            else "no_source_theorem_promotion_materialization_seeds"
+        )
+    )
+    manifest[
+        "source_theorem_promotion_proofengineer_bridge_local_lean_requested"
+    ] = bool(config.source_theorem_promotion_proofengineer_local_lean)
+    manifest[
+        "source_theorem_promotion_proofengineer_bridge_n_materialized_artifacts"
+    ] = int(
+        source_theorem_promotion_bridge_manifest.get("n_materialized_artifacts", 0)
+        if source_theorem_promotion_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_promotion_proofengineer_bridge_n_artifact_kernel_verified"
+    ] = int(
+        source_theorem_promotion_bridge_manifest.get("n_artifact_kernel_verified", 0)
+        if source_theorem_promotion_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_promotion_proofengineer_bridge_n_ready_for_source_theorem_integration"
+    ] = int(
+        source_theorem_promotion_bridge_manifest.get(
+            "n_ready_for_source_theorem_integration",
+            0,
+        )
+        if source_theorem_promotion_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_promotion_proofengineer_bridge_n_source_theorem_kernel_verified"
+    ] = int(
+        source_theorem_promotion_bridge_manifest.get(
+            "n_source_theorem_kernel_verified",
+            0,
+        )
+        if source_theorem_promotion_bridge_manifest
+        else 0
+    )
+    manifest["source_theorem_promotion_proofengineer_bridge_proof_evidence_status"] = str(
+        source_theorem_promotion_bridge_manifest.get("proof_evidence_status", "")
+        if source_theorem_promotion_bridge_manifest
+        else ""
+    )
+    manifest["source_theorem_promotion_proofengineer_bridge_boundary"] = (
+        "The runtime source-theorem promotion ProofEngineer bridge consumes "
+        "materialization seeds after the current runtime loop. Materialized "
+        "route probes and artifact-kernel checks are not source theorem proof; "
+        "source theorem proof requires source_theorem_kernel_verified=true for "
+        "the exact source target."
     )
     manifest["n_runtime_formalization_gap_planner_bridges"] = len(
         gap_planner_bridge_rows
@@ -4684,6 +4818,151 @@ def _write_runtime_source_theorem_promotion_materialization_seed_queue(
         + ("\n" if ready_rows else ""),
         encoding="utf-8",
     )
+    return payload
+
+
+def _run_runtime_source_theorem_promotion_proofengineer_bridge(
+    *,
+    seed_queue_dir: Path,
+    out_dir: Path,
+    local_lean: bool,
+    lean_project: Path | None,
+    lean_timeout: int,
+) -> dict[str, Any]:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    materializer_dir = out_dir / "formal_verifier_agentic_proof_execution_materializer"
+    materializer_payload = export_formal_verifier_agentic_proof_execution_materializer(
+        seed_queue_dir,
+        materializer_dir,
+    )
+    artifact_verifier_payload: dict[str, Any] | None = None
+    artifact_verifier_dir = out_dir / "formal_verifier_agentic_proof_execution_artifact_verifier"
+    source_theorem_promotion_queue_payload: dict[str, Any] | None = None
+    source_theorem_promotion_queue_dir = (
+        out_dir / "formal_verifier_agentic_proof_source_theorem_promotion_queue"
+    )
+    if local_lean and int(materializer_payload.get("n_materializer_rows", 0) or 0) > 0:
+        artifact_verifier_payload = (
+            export_formal_verifier_agentic_proof_execution_artifact_verifier(
+                materializer_dir,
+                artifact_verifier_dir,
+                lean_project=lean_project,
+                lean_timeout=lean_timeout,
+            )
+        )
+        source_theorem_promotion_queue_payload = (
+            export_formal_verifier_agentic_proof_source_theorem_promotion_queue(
+                artifact_verifier_dir,
+                source_theorem_promotion_queue_dir,
+            )
+        )
+    local_lean_skipped_reason = (
+        ""
+        if artifact_verifier_payload is not None
+        else (
+            "local_lean_disabled"
+            if not local_lean
+            else "no_materializer_rows"
+        )
+    )
+    bridge_manifest_path = (
+        out_dir / "runtime_source_theorem_promotion_proofengineer_bridge_manifest.json"
+    )
+    payload = {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "artifact_kind": "RuntimeSourceTheoremPromotionProofEngineerBridgeManifest",
+        "seed_queue_dir": str(seed_queue_dir),
+        "materializer_dir": str(materializer_dir),
+        "materializer_manifest": str(
+            materializer_dir
+            / "formal_verifier_agentic_proof_execution_materializer_manifest.json"
+        ),
+        "artifact_verifier_dir": (
+            str(artifact_verifier_dir) if artifact_verifier_payload is not None else ""
+        ),
+        "artifact_verifier_manifest": (
+            str(
+                artifact_verifier_dir
+                / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json"
+            )
+            if artifact_verifier_payload is not None
+            else ""
+        ),
+        "source_theorem_promotion_queue_dir": (
+            str(source_theorem_promotion_queue_dir)
+            if source_theorem_promotion_queue_payload is not None
+            else ""
+        ),
+        "source_theorem_promotion_queue_manifest": (
+            str(
+                source_theorem_promotion_queue_dir
+                / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json"
+            )
+            if source_theorem_promotion_queue_payload is not None
+            else ""
+        ),
+        "local_lean_requested": local_lean,
+        "local_lean_skipped_reason": local_lean_skipped_reason,
+        "lean_project": str(lean_project or ""),
+        "lean_timeout": lean_timeout,
+        "n_materializer_rows": int(
+            materializer_payload.get("n_materializer_rows", 0) or 0
+        ),
+        "n_materialized_artifacts": int(
+            materializer_payload.get("n_materialized_artifacts", 0) or 0
+        ),
+        "n_live_goal_location_ready": int(
+            materializer_payload.get("n_live_goal_location_ready", 0) or 0
+        ),
+        "n_artifact_verifier_rows": int(
+            artifact_verifier_payload.get("n_verifier_rows", 0)
+            if artifact_verifier_payload
+            else 0
+        ),
+        "n_artifact_kernel_verified": int(
+            artifact_verifier_payload.get("n_artifact_kernel_verified", 0)
+            if artifact_verifier_payload
+            else 0
+        ),
+        "n_source_theorem_kernel_verified": int(
+            artifact_verifier_payload.get("n_source_theorem_kernel_verified", 0)
+            if artifact_verifier_payload
+            else 0
+        ),
+        "n_source_theorem_promotion_rows": int(
+            source_theorem_promotion_queue_payload.get("n_promotion_rows", 0)
+            if source_theorem_promotion_queue_payload
+            else 0
+        ),
+        "n_ready_for_source_theorem_integration": int(
+            source_theorem_promotion_queue_payload.get(
+                "n_ready_for_source_theorem_integration",
+                0,
+            )
+            if source_theorem_promotion_queue_payload
+            else 0
+        ),
+        "proof_evidence_status": (
+            "SOURCE_THEOREM_PROMOTION_PROOFENGINEER_BRIDGE_NOT_SOURCE_THEOREM_PROOF"
+        ),
+        "proof_evidence_boundary": (
+            "This bridge may produce materialized route probes and local Lean "
+            "artifact-kernel checks. These are not source theorem proof evidence "
+            "unless a downstream row has source_theorem_kernel_verified=true for "
+            "the exact source target."
+        ),
+        "limitations": [
+            "materializer output is a route probe, not the source theorem",
+            "artifact_kernel_verified is evidence for the generated artifact only",
+            "source-theorem promotion remains a separate exact-target integration gate",
+        ],
+    }
+    bridge_manifest_path.write_text(
+        json.dumps(payload, indent=2, default=str),
+        encoding="utf-8",
+    )
+    payload["bridge_manifest"] = str(bridge_manifest_path)
     return payload
 
 

@@ -59,6 +59,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_source_theorem_promotion_work_order_rows,
     _runtime_source_theorem_promotion_handoff_rows,
     _runtime_source_theorem_promotion_materialization_seed_rows,
+    _run_runtime_source_theorem_promotion_proofengineer_bridge,
     _write_runtime_source_theorem_promotion_materialization_seed_queue,
     _runtime_theorem_reduction_closure_work_order_rows,
     _runtime_evidence_summary,
@@ -1412,6 +1413,13 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         materialization_seed_queue_dir,
         tmp_path / "materialized_source_theorem_promotion_route_probe",
     )
+    bridge_payload = _run_runtime_source_theorem_promotion_proofengineer_bridge(
+        seed_queue_dir=materialization_seed_queue_dir,
+        out_dir=tmp_path / "runtime_source_theorem_promotion_proofengineer_bridge",
+        local_lean=False,
+        lean_project=None,
+        lean_timeout=30,
+    )
 
     assert len(rows) == 1
     assert rows[0]["artifact_kind"] == "SourceTheoremPromotionWorkOrder"
@@ -1470,6 +1478,15 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         "AGENTIC_PROOF_EXECUTION_MATERIALIZER_NOT_PROOF_EVIDENCE"
     )
     assert materializer_payload["rows"][0]["kernel_verified"] is False
+    assert bridge_payload["n_materialized_artifacts"] == 1
+    assert bridge_payload["n_artifact_kernel_verified"] == 0
+    assert bridge_payload["n_source_theorem_kernel_verified"] == 0
+    assert bridge_payload["local_lean_skipped_reason"] == "local_lean_disabled"
+    assert bridge_payload["proof_evidence_status"] == (
+        "SOURCE_THEOREM_PROMOTION_PROOFENGINEER_BRIDGE_NOT_SOURCE_THEOREM_PROOF"
+    )
+    assert Path(bridge_payload["materializer_manifest"]).exists()
+    assert Path(bridge_payload["bridge_manifest"]).exists()
 
 
 def test_runtime_exports_source_theorem_semantic_primitive_queue_rows() -> None:
