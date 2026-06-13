@@ -1577,13 +1577,27 @@ theorem split_conformal_finite_sample_coverage_route_probe
         + "\n",
         encoding="utf-8",
     )
-    exact_artifact = tmp_path / "exact_source.lean"
-    exact_artifact.write_text(
+    vacuous_exact_artifact = tmp_path / "vacuous_exact_source.lean"
+    vacuous_exact_artifact.write_text(
         """
 namespace AIStatisticianExactSource
 
 theorem split_conformal_finite_sample_coverage : True := by
   exact True.intro
+
+end AIStatisticianExactSource
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    exact_artifact = tmp_path / "exact_source.lean"
+    exact_artifact.write_text(
+        """
+namespace AIStatisticianExactSource
+
+theorem split_conformal_finite_sample_coverage (coverage_claim : Prop)
+    (h_coverage : coverage_claim) : coverage_claim := by
+  exact h_coverage
 
 end AIStatisticianExactSource
 """.strip()
@@ -1596,6 +1610,12 @@ end AIStatisticianExactSource
             "source_theorem_promotion_id": "source_theorem_promotion:route_probe",
             "target_theorem_name": "split_conformal_finite_sample_coverage",
             "candidate_artifact_path": str(route_probe_artifact),
+        },
+        {
+            **ready_row,
+            "source_theorem_promotion_id": "source_theorem_promotion:vacuous",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "candidate_artifact_path": str(vacuous_exact_artifact),
         },
         {
             **ready_row,
@@ -1616,8 +1636,9 @@ end AIStatisticianExactSource
         tmp_path / "source_theorem_integrator",
         local_lean=False,
     )
-    assert integrator_payload["n_integration_rows"] == 2
+    assert integrator_payload["n_integration_rows"] == 3
     assert integrator_payload["n_blocked_route_probe"] == 1
+    assert integrator_payload["n_blocked_vacuous_true_target"] == 1
     assert integrator_payload["n_ready_for_local_lean"] == 1
     assert integrator_payload["n_source_theorem_kernel_verified"] == 0
     statuses = {
@@ -1626,6 +1647,9 @@ end AIStatisticianExactSource
     }
     assert statuses["source_theorem_promotion:route_probe"] == (
         "BLOCKED_ROUTE_PROBE_ARTIFACT"
+    )
+    assert statuses["source_theorem_promotion:vacuous"] == (
+        "BLOCKED_VACUOUS_TRUE_SOURCE_THEOREM"
     )
     assert statuses["source_theorem_promotion:exact"] == (
         "EXACT_SOURCE_THEOREM_READY_FOR_LOCAL_LEAN"

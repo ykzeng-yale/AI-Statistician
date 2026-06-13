@@ -44,6 +44,7 @@ class FormalVerifierAgenticProofSourceTheoremIntegratorRow:
     artifact_kernel_verified: bool
     source_theorem_target_known: bool
     exact_declaration_present: bool
+    vacuous_true_target_detected: bool
     route_probe_detected: bool
     target_assumption_detected: bool
     local_lean_requested: bool
@@ -116,6 +117,9 @@ def export_formal_verifier_agentic_proof_source_theorem_integrator(
         "n_exact_declaration_present": sum(
             1 for row in rows if row.exact_declaration_present
         ),
+        "n_vacuous_true_target_detected": sum(
+            1 for row in rows if row.vacuous_true_target_detected
+        ),
         "n_route_probe_detected": sum(1 for row in rows if row.route_probe_detected),
         "n_target_assumption_detected": sum(
             1 for row in rows if row.target_assumption_detected
@@ -130,6 +134,10 @@ def export_formal_verifier_agentic_proof_source_theorem_integrator(
             0,
         ),
         "n_blocked_route_probe": by_status.get("BLOCKED_ROUTE_PROBE_ARTIFACT", 0),
+        "n_blocked_vacuous_true_target": by_status.get(
+            "BLOCKED_VACUOUS_TRUE_SOURCE_THEOREM",
+            0,
+        ),
         "n_ok": sum(1 for row in rows if row.ok),
         "all_ok": not errors and all(row.ok for row in rows),
         "errors": errors,
@@ -211,6 +219,9 @@ def _integrator_row(
     exact_declaration_present = bool(
         target_theorem_name and _has_exact_declaration(source, target_theorem_name)
     )
+    vacuous_true_target_detected = bool(
+        target_theorem_name and _has_vacuous_true_target(source, target_theorem_name)
+    )
     route_probe_detected = any(marker in lower_source for marker in ROUTE_PROBE_MARKERS)
     target_assumption_detected = bool(
         target_theorem_name and _has_target_as_true_assumption(source, target_theorem_name)
@@ -222,6 +233,8 @@ def _integrator_row(
         )
     if source and not exact_declaration_present:
         errors.append("exact target declaration is missing")
+    if vacuous_true_target_detected:
+        errors.append("candidate source theorem target has vacuous True conclusion")
     if route_probe_detected:
         errors.append("candidate is a route probe, not the exact source theorem")
     if target_assumption_detected:
@@ -237,6 +250,8 @@ def _integrator_row(
         integration_status = "SKIPPED_PROMOTION_STATUS"
     elif route_probe_detected:
         integration_status = "BLOCKED_ROUTE_PROBE_ARTIFACT"
+    elif vacuous_true_target_detected:
+        integration_status = "BLOCKED_VACUOUS_TRUE_SOURCE_THEOREM"
     elif target_assumption_detected:
         integration_status = "BLOCKED_TARGET_ASSUMED_AS_HYPOTHESIS"
     elif errors:
@@ -283,6 +298,7 @@ def _integrator_row(
         artifact_kernel_verified=artifact_kernel_verified,
         source_theorem_target_known=source_theorem_target_known,
         exact_declaration_present=exact_declaration_present,
+        vacuous_true_target_detected=vacuous_true_target_detected,
         route_probe_detected=route_probe_detected,
         target_assumption_detected=target_assumption_detected,
         local_lean_requested=local_lean,
@@ -316,6 +332,17 @@ def _has_exact_declaration(source: str, declaration_name: str) -> bool:
     return re.search(pattern, source) is not None
 
 
+def _has_vacuous_true_target(source: str, declaration_name: str) -> bool:
+    if not source or not declaration_name:
+        return False
+    pattern = (
+        r"\b(?:theorem|lemma)\s+"
+        + re.escape(declaration_name)
+        + r"\b(?:(?!:=).)*:\s*True\s*:="
+    )
+    return re.search(pattern, source, flags=re.DOTALL) is not None
+
+
 def _has_target_as_true_assumption(source: str, declaration_name: str) -> bool:
     if not source or not declaration_name:
         return False
@@ -341,6 +368,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "",
         f"- Rows: {payload.get('n_ok')}/{payload.get('n_integration_rows')}",
         f"- Exact declarations: {payload.get('n_exact_declaration_present')}",
+        f"- Vacuous True targets blocked: {payload.get('n_blocked_vacuous_true_target')}",
         f"- Route probes blocked: {payload.get('n_blocked_route_probe')}",
         f"- Source theorem kernel verified: {payload.get('n_source_theorem_kernel_verified')}",
         f"- Lean command: `{payload.get('lean_command')}`",
