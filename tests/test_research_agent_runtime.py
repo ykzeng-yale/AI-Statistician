@@ -1253,6 +1253,18 @@ def test_source_semantic_learning_memory_advances_beyond_repeat_queue() -> None:
                             "split_conformal_bad_rank_budget_from_uniform_rank_bound",
                             "split_conformal_good_rank_set_inclusion_bridge",
                         ],
+                    },
+                    {
+                        "learning_task": "source_theorem_promotion_bridge_feedback",
+                        "input_summary": {
+                            "trigger": "SOURCE_THEOREM_PROMOTION_READY_BUT_UNPROVED",
+                            "target_theorem_name": "split_conformal_finite_sample_coverage",
+                            "artifact_kernel_verified": True,
+                            "source_theorem_kernel_verified": False,
+                        },
+                        "target_behavior": (
+                            "consume the READY_FOR_SOURCE_THEOREM_INTEGRATION row"
+                        ),
                     }
                 ],
             }
@@ -1322,6 +1334,13 @@ def test_source_semantic_learning_memory_advances_beyond_repeat_queue() -> None:
     assert summary[
         "source_theorem_semantic_primitive_support_already_kernel_verified"
     ] is True
+    assert summary["source_theorem_promotion_ready_but_unproved"] is True
+    assert summary[
+        "source_theorem_promotion_ready_but_unproved_target_names"
+    ] == ["split_conformal_finite_sample_coverage"]
+    assert summary["recommended_source_theorem_integration_action"] == (
+        "consume_ready_source_theorem_promotion_queue"
+    )
     assert work_orders == []
     assert len(promotion_work_orders) == 1
     assert promotion_work_orders[0]["artifact_kind"] == "SourceTheoremPromotionWorkOrder"
@@ -1506,8 +1525,15 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         "artifact_kernel_verified": True,
         "source_theorem_kernel_verified": False,
     }
+    duplicate_ready_row = {
+        **ready_row,
+        "source_theorem_promotion_id": "source_theorem_promotion:duplicate",
+    }
     (ready_queue_dir / "formal_verifier_agentic_proof_source_theorem_promotion_queue.jsonl").write_text(
-        json.dumps(ready_row, sort_keys=True) + "\n",
+        json.dumps(ready_row, sort_keys=True)
+        + "\n"
+        + json.dumps(duplicate_ready_row, sort_keys=True)
+        + "\n",
         encoding="utf-8",
     )
     ready_bridge_payload = {

@@ -3298,7 +3298,10 @@ def _runtime_learning_memory_kernel_verified_theorem_reduction_closure(
         if isinstance(architect_context, Mapping)
         else {}
     )
-    if not isinstance(memory, Mapping) or memory.get("artifact_kind") != "RuntimeLearningMemoryContext":
+    if (
+        not isinstance(memory, Mapping)
+        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
+    ):
         return {"work_order_ids": (), "target_ids": (), "goal_ids": ()}
     rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
     work_order_ids: list[str] = []
@@ -3365,6 +3368,51 @@ def _runtime_learning_memory_kernel_verified_source_theorem_semantic_primitives(
     return tuple(dict.fromkeys(primitive_ids))
 
 
+def _runtime_learning_memory_source_theorem_promotion_ready_unproved_targets(
+    architect_context: Mapping[str, Any],
+) -> tuple[str, ...]:
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if not isinstance(memory, Mapping) or memory.get("artifact_kind") != "RuntimeLearningMemoryContext":
+        return ()
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    targets: list[str] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = row.get("input_summary", {})
+        trigger = (
+            str(input_summary.get("trigger", "") or "")
+            if isinstance(input_summary, Mapping)
+            else ""
+        )
+        if (
+            str(row.get("learning_task", "") or "")
+            != "source_theorem_promotion_bridge_feedback"
+            and trigger != "SOURCE_THEOREM_PROMOTION_READY_BUT_UNPROVED"
+        ):
+            continue
+        source_theorem_kernel_verified = bool(
+            row.get("source_theorem_kernel_verified", False)
+        )
+        if isinstance(input_summary, Mapping):
+            source_theorem_kernel_verified = bool(
+                source_theorem_kernel_verified
+                or input_summary.get("source_theorem_kernel_verified", False)
+            )
+        if source_theorem_kernel_verified:
+            continue
+        target = str(row.get("target_theorem_name", "") or "").strip()
+        if not target and isinstance(input_summary, Mapping):
+            target = str(input_summary.get("target_theorem_name", "") or "").strip()
+        if target:
+            targets.append(target)
+    return tuple(dict.fromkeys(targets))
+
+
 def _formalizer_proof_bank_runtime_memory_summary(
     *,
     context: Mapping[str, Any],
@@ -3410,6 +3458,11 @@ def _formalizer_proof_bank_runtime_memory_summary(
             context
         )
     )
+    promotion_ready_unproved_targets = (
+        _runtime_learning_memory_source_theorem_promotion_ready_unproved_targets(
+            context
+        )
+    )
     closure_goal_ids = tuple(
         row for row in theorem_closure_memory["goal_ids"] if row in set(theorem_goal_ids)
     )
@@ -3446,6 +3499,17 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "source_theorem_semantic_primitive_support_already_kernel_verified": (
             source_theorem_semantic_primitive_support_already_kernel_verified
         ),
+        "source_theorem_promotion_ready_but_unproved": bool(
+            promotion_ready_unproved_targets
+        ),
+        "source_theorem_promotion_ready_but_unproved_target_names": list(
+            promotion_ready_unproved_targets
+        ),
+        "recommended_source_theorem_integration_action": (
+            "consume_ready_source_theorem_promotion_queue"
+            if promotion_ready_unproved_targets
+            else ""
+        ),
         "theorem_reduction_closure_required": theorem_reduction_closure_required,
         "remaining_theorem_goal_ids": list(theorem_goal_ids),
         "recommended_formalizer_target_mode": (
@@ -3466,7 +3530,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
             "source-theorem semantic primitives instead of repeating the same closure work order. If "
             "source-semantic bridge support is also kernel verified, subsequent iterations should target "
             "exact upstream semantic definitions or source-theorem promotion while keeping those stronger "
-            "claims separate from the registered bridge evidence."
+            "claims separate from the registered bridge evidence. If memory records a source-theorem "
+            "promotion row that is ready but unproved, consume that exact source-theorem integration "
+            "queue next instead of repeating route-probe materialization."
         ),
     }
 
@@ -4995,6 +5061,7 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
     if not queue_jsonl.exists():
         return []
     rows: list[dict[str, Any]] = []
+    seen_targets: set[str] = set()
     for raw_line in queue_jsonl.read_text(encoding="utf-8").splitlines():
         if not raw_line.strip():
             continue
@@ -5014,6 +5081,13 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
         ):
             continue
         target_theorem_name = str(row.get("target_theorem_name", "") or "")
+        dedupe_key = target_theorem_name or str(
+            row.get("source_theorem_promotion_id", "") or ""
+        )
+        if dedupe_key in seen_targets:
+            continue
+        if dedupe_key:
+            seen_targets.add(dedupe_key)
         rows.append(
             {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
