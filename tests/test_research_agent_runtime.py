@@ -1901,6 +1901,89 @@ def test_source_theorem_exact_candidate_environment_failure_guides_formalizer(
     assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
+def test_source_theorem_promotion_infers_mathlib_import_for_statistical_statement(
+    tmp_path: Path,
+) -> None:
+    formalization_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:source_promotion_infer_import",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal prediction interval coverage",
+        },
+        "llm_formalizer_proof_engineer_proposal_id": (
+            "formalizer_proposal:source_promotion_infer_import"
+        ),
+        "deterministic_theorem_goals": [
+            {"id": "split_conformal_finite_sample_coverage"}
+        ],
+        "proof_bank_runtime_memory_summary": {
+            "recommended_formalizer_target_mode": (
+                "source_theorem_exact_semantics_or_theorem_promotion"
+            ),
+            "source_theorem_semantic_primitive_support_already_kernel_verified": True,
+            "remaining_theorem_goal_ids": [
+                "split_conformal_finite_sample_coverage"
+            ],
+            "memory_kernel_verified_theorem_reduction_closure_work_order_ids": [
+                "theorem_reduction_closure_work_order:good_rank"
+            ],
+            "memory_kernel_verified_theorem_reduction_closure_target_ids": [
+                "split_conformal_finite_sample_coverage_reduction_closure"
+            ],
+            "memory_kernel_verified_source_theorem_semantic_primitive_ids": [
+                "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+                "split_conformal_good_rank_set_inclusion_bridge",
+            ],
+        },
+    }
+    proposal = {
+        "artifact_kind": "FormalizerProofEngineerProposalPacket",
+        "packet_id": "formalizer_proposal:source_promotion_infer_import",
+        "formal_targets": [
+            {
+                "id": "split_conformal_finite_sample_coverage_lean",
+                "informal_source": "split conformal finite-sample coverage",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_coverage {Ω : Type _} "
+                    "[MeasurableSpace Ω] (P : MeasureTheory.Measure Ω) "
+                    "[MeasureTheory.IsProbabilityMeasure P] "
+                    "(m : ℕ) (hm : 0 < m) : True := by exact True.intro"
+                ),
+                "lean_imports": [],
+                "semantic_alignment_constraints": ["marginal coverage only"],
+            }
+        ],
+    }
+    rows = _runtime_source_theorem_promotion_work_order_rows(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        "formalization_manifest:source_promotion_infer_import": (
+                            formalization_manifest
+                        ),
+                        "formalizer_proposal:source_promotion_infer_import": proposal,
+                    }
+                }
+            }
+        ]
+    )
+    handoff_rows = _runtime_source_theorem_promotion_handoff_rows(rows)
+    materialization_seed_rows = (
+        _runtime_source_theorem_promotion_materialization_seed_rows(
+            handoff_rows,
+            runtime_out_dir=tmp_path,
+        )
+    )
+
+    assert rows[0]["lean_imports"] == ["Mathlib"]
+    assert handoff_rows[0]["lean_imports"] == ["Mathlib"]
+    assert materialization_seed_rows[0]["kernel_overlay_context"]["target_location"][
+        "target_imports"
+    ] == ["Mathlib"]
+
+
 def test_source_theorem_promotion_bridge_exports_formal_environment_work_order(
     tmp_path: Path,
 ) -> None:

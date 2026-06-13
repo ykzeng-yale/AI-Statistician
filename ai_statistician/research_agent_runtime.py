@@ -4716,9 +4716,32 @@ def _theorem_goal_id(row: Any) -> str:
 
 def _formal_target_imports(target: Mapping[str, Any]) -> list[str]:
     imports = target.get("lean_imports", target.get("target_imports", []))
-    if not isinstance(imports, list):
-        return []
-    return [str(row).strip() for row in imports if str(row).strip()]
+    if isinstance(imports, list):
+        explicit_imports = [str(row).strip() for row in imports if str(row).strip()]
+        if explicit_imports:
+            return explicit_imports
+    return _infer_formal_target_imports(target)
+
+
+def _infer_formal_target_imports(target: Mapping[str, Any]) -> list[str]:
+    statement = str(target.get("lean_statement_sketch", "") or "")
+    source = str(target.get("informal_source", "") or "")
+    text = f"{statement}\n{source}"
+    mathlib_markers = (
+        "MeasureTheory.",
+        "MeasurableSpace",
+        "IsProbabilityMeasure",
+        "Nat.ceil",
+        "Fin ",
+        "Fin.",
+        "ENNReal",
+        "Set ",
+        "{ω |",
+        "{omega |",
+    )
+    if any(marker in text for marker in mathlib_markers):
+        return ["Mathlib"]
+    return []
 
 
 def _critic_learning_rows(
