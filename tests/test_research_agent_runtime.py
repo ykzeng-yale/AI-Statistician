@@ -83,7 +83,12 @@ from ai_statistician.research_agent_runtime_audit import (
     audit_research_agent_runtime,
 )
 from ai_statistician.research_system_audit import _research_agent_runtime_audit_overlay
-from ai_statistician.agent_runtime import AgentTask, BlackboardState
+from ai_statistician.agent_runtime import (
+    AgentRuntime,
+    AgentStepResult,
+    AgentTask,
+    BlackboardState,
+)
 from ai_statistician.research_architect import (
     LLMTheoryDeveloperAgent,
     ResearchArchitectConfig,
@@ -3896,6 +3901,43 @@ def test_simulation_engineer_canonicalizes_registered_simulator_field() -> None:
     assert execution_plan["n_runs"] == 80
     assert execution_plan["seed"] == 20260528
     assert "AgentRuntime owns simulator selection" in execution_plan["canonicalization_boundary"]
+
+
+def test_agent_runtime_does_not_retry_timeout_subsystem_exception() -> None:
+    class TimeoutSubsystem:
+        name = "TheoryDeveloper"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def run(self, task: AgentTask, blackboard: BlackboardState) -> AgentStepResult:
+            self.calls += 1
+            raise TimeoutError("simulated live generator timeout")
+
+    subsystem = TimeoutSubsystem()
+    progress_rows: list[dict[str, object]] = []
+    runtime = AgentRuntime(
+        subsystems={"TheoryDeveloper": subsystem},
+        blackboard=BlackboardState(project_id="timeout-test"),
+    )
+
+    result = runtime.run(
+        AgentTask(
+            task_id="theory:timeout",
+            owner_subsystem="TheoryDeveloper",
+            objective="prove timeout exceptions fail fast",
+        ),
+        max_iterations=1,
+        max_transient_subsystem_retries=2,
+        progress_callback=progress_rows.append,
+    )
+
+    assert subsystem.calls == 1
+    assert result.status == "FAILED"
+    assert result.traces[0].failure_classification == "subsystem_exception"
+    assert not any(
+        row.get("event_type") == "subsystem_retry" for row in progress_rows
+    )
 
 
 def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:

@@ -628,7 +628,7 @@ def _build_theory_generator_backend(
     if provider_name == "anthropic":
         return AnthropicArchitectLLMProvider(timeout_s=llm_timeout_seconds), "anthropic"
     if provider_name == "openai":
-        return OpenAIResponsesGeneratorBackend(), "openai"
+        return OpenAIResponsesGeneratorBackend(timeout_s=llm_timeout_seconds), "openai"
     raise ValueError(f"unknown theory provider: {provider_name}")
 
 

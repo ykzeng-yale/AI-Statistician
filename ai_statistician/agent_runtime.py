@@ -394,12 +394,13 @@ def _is_transient_subsystem_exception(exc: Exception) -> bool:
     module = type(exc).__module__.lower()
     text = str(exc).lower()
     haystack = f"{module}.{name} {text}"
+    if "timeout" in haystack or "timed out" in haystack:
+        return False
     retry_markers = (
         "apiconnectionerror",
         "api_connection_error",
         "ratelimiterror",
         "rate_limit_error",
-        "timeout",
         "connection",
         "temporarily unavailable",
         "server error",

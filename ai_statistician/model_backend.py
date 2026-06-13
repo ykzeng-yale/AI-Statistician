@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import signal
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Protocol
@@ -416,6 +418,10 @@ class GeneratorBackend(Protocol):
         ...
 
 
+class LiveGeneratorTimeoutError(TimeoutError):
+    """Raised when a live generator exceeds the runtime wall-clock budget."""
+
+
 class StaticJSONGeneratorBackend:
     """Offline generator for deterministic tests and reviewed replay."""
 
@@ -469,12 +475,17 @@ class AnthropicGeneratorBackend:
             )
         messages = [{"role": "user", "content": user_prompt}]
         response, retry_count = _call_with_generator_retries(
-            lambda: client.messages.create(
+            lambda: _call_with_wall_clock_timeout(
+                lambda: client.messages.create(
+                    model=request.model,
+                    max_tokens=request.max_tokens,
+                    temperature=request.temperature,
+                    system=request.system_prompt,
+                    messages=messages,
+                ),
+                timeout_s=timeout_s,
+                provider_name=self.provider_name,
                 model=request.model,
-                max_tokens=request.max_tokens,
-                temperature=request.temperature,
-                system=request.system_prompt,
-                messages=messages,
             )
         )
         text = _anthropic_text(response)
@@ -507,8 +518,9 @@ class OpenAIResponsesGeneratorBackend:
 
     provider_name = "openai"
 
-    def __init__(self, *, api_key: str | None = None) -> None:
+    def __init__(self, *, api_key: str | None = None, timeout_s: float | None = None) -> None:
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
+        self.timeout_s = timeout_s
 
     def generate(self, request: GeneratorRequest) -> GeneratorResponse:
         if not self.api_key:
@@ -517,7 +529,11 @@ class OpenAIResponsesGeneratorBackend:
             from openai import OpenAI
         except Exception as exc:  # pragma: no cover - import depends on local env
             raise ValueError(f"failed to import openai package: {exc!r}") from exc
-        client = OpenAI(api_key=self.api_key)
+        timeout_s = _live_generator_timeout_seconds(self.timeout_s)
+        try:
+            client = OpenAI(api_key=self.api_key, timeout=timeout_s)
+        except TypeError:  # pragma: no cover - compatibility with older/fake clients
+            client = OpenAI(api_key=self.api_key)
         kwargs: dict[str, Any] = {
             "model": request.model,
             "input": [
@@ -536,7 +552,14 @@ class OpenAIResponsesGeneratorBackend:
                     "strict": False,
                 }
             }
-        response, retry_count = _call_with_generator_retries(lambda: client.responses.create(**kwargs))
+        response, retry_count = _call_with_generator_retries(
+            lambda: _call_with_wall_clock_timeout(
+                lambda: client.responses.create(**kwargs),
+                timeout_s=timeout_s,
+                provider_name=self.provider_name,
+                model=request.model,
+            )
+        )
         response_model = _response_model(response, fallback=request.model)
         return GeneratorResponse(
             text=_openai_response_text(response),
@@ -548,6 +571,7 @@ class OpenAIResponsesGeneratorBackend:
                 "tools_available": False,
                 "schema_supplied": request.schema is not None,
                 "retry_count": retry_count,
+                "timeout_seconds": timeout_s,
                 "requested_model": request.model,
                 "provider_reported_model": response_model,
             },
@@ -597,6 +621,52 @@ def _is_timeout_generator_exception(exc: Exception) -> bool:
     name = type(exc).__name__.lower()
     text = str(exc).lower()
     return "timeout" in name or "timed out" in text or "timeout" in text
+
+
+def _call_with_wall_clock_timeout(
+    call: Callable[[], Any],
+    *,
+    timeout_s: float,
+    provider_name: str,
+    model: str,
+) -> Any:
+    """Bound a synchronous provider call by wall-clock time when possible.
+
+    SDK request timeouts can behave as socket/read timeouts rather than a hard
+    total runtime cap. The AgentRuntime needs a stronger guard so one LLM
+    subsystem cannot block the whole research loop for many minutes.
+    """
+
+    timeout = _live_generator_timeout_seconds(timeout_s)
+    if (
+        threading.current_thread() is not threading.main_thread()
+        or not hasattr(signal, "setitimer")
+        or not hasattr(signal, "SIGALRM")
+    ):
+        return call()
+
+    old_handler = signal.getsignal(signal.SIGALRM)
+    old_timer = signal.getitimer(signal.ITIMER_REAL)
+    started = time.monotonic()
+
+    def _handle_timeout(_signum: int, _frame: Any) -> None:
+        raise LiveGeneratorTimeoutError(
+            f"{provider_name} generator request for {model} exceeded "
+            f"wall-clock timeout {timeout:g}s"
+        )
+
+    signal.signal(signal.SIGALRM, _handle_timeout)
+    signal.setitimer(signal.ITIMER_REAL, timeout)
+    try:
+        return call()
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, old_handler)
+        previous_delay, previous_interval = old_timer
+        if previous_delay > 0:
+            remaining = max(0.0, previous_delay - (time.monotonic() - started))
+            if remaining > 0:
+                signal.setitimer(signal.ITIMER_REAL, remaining, previous_interval)
 
 
 def _live_generator_timeout_seconds(value: float | None = None) -> float:

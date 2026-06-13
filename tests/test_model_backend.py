@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -18,6 +19,7 @@ from ai_statistician.model_backend import (
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     AnthropicGeneratorBackend,
     GeneratorRequest,
+    LiveGeneratorTimeoutError,
     OpenAIResponsesGeneratorBackend,
     StaticJSONGeneratorBackend,
     claude_outside_cost_tier_family_for_model,
@@ -307,6 +309,36 @@ def test_anthropic_generator_backend_does_not_retry_timeout_by_default(
         AnthropicGeneratorBackend(api_key="test-anthropic-key").generate(_request())
 
     assert calls["count"] == 1
+
+
+def test_anthropic_generator_backend_enforces_outer_wall_clock_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_MAX_RETRIES", "2")
+    monkeypatch.setenv("AI_STATISTICIAN_LLM_RETRY_BACKOFF_SECONDS", "0")
+    calls = {"count": 0}
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            calls["count"] += 1
+            time.sleep(2.0)
+            return SimpleNamespace(content=[SimpleNamespace(text='{"ok": true}')])
+
+    class FakeAnthropicClient:
+        def __init__(self, *, api_key: str, timeout: float, max_retries: int) -> None:
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(sys.modules, "anthropic", SimpleNamespace(Anthropic=FakeAnthropicClient))
+
+    started = time.monotonic()
+    with pytest.raises(LiveGeneratorTimeoutError, match="wall-clock timeout 1s"):
+        AnthropicGeneratorBackend(
+            api_key="test-anthropic-key",
+            timeout_s=1.0,
+        ).generate(_request())
+
+    assert calls["count"] == 1
+    assert time.monotonic() - started < 1.8
 
 
 def test_anthropic_generator_backend_does_not_retry_non_transport_error(
