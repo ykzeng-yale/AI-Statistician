@@ -1064,6 +1064,9 @@ def _source_theorem_formal_environment_proofengineer_bridge(
         runtime_dir=Path(args.runtime_dir) if args.runtime_dir else None,
         queue_jsonl=Path(args.queue_jsonl) if args.queue_jsonl else None,
         question_id=str(args.question_id or ""),
+        run_signature_probes=bool(getattr(args, "run_signature_probes", False)),
+        lean_project=Path(args.lean_project) if getattr(args, "lean_project", "") else None,
+        lean_timeout=int(getattr(args, "lean_timeout", 90)),
     )
     bridge_manifest_path = (
         out_dir / "source_theorem_formal_environment_proofengineer_bridge_manifest.json"
@@ -1082,6 +1085,11 @@ def _source_theorem_formal_environment_proofengineer_bridge(
         f"{Path(str(bridge_manifest['runtime_learning_rows_jsonl'])).resolve()}"
     )
     print(f"bridge manifest written to {bridge_manifest_path.resolve()}")
+    if bridge_manifest.get("signature_probe_manifest"):
+        print(
+            "signature probe manifest written to "
+            f"{Path(str(bridge_manifest['signature_probe_manifest'])).resolve()}"
+        )
     print(f"proof_evidence_status={bridge_manifest['proof_evidence_status']}")
     return 0
 
@@ -6400,6 +6408,28 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                     False,
                 )
             ),
+            source_theorem_formal_environment_proofengineer_signature_probes=bool(
+                getattr(
+                    args,
+                    "source_theorem_formal_environment_proofengineer_signature_probes",
+                    False,
+                )
+            ),
+            source_theorem_formal_environment_proofengineer_lean_project=str(
+                getattr(
+                    args,
+                    "source_theorem_formal_environment_proofengineer_lean_project",
+                    "",
+                )
+                or ""
+            ),
+            source_theorem_formal_environment_proofengineer_lean_timeout=int(
+                getattr(
+                    args,
+                    "source_theorem_formal_environment_proofengineer_lean_timeout",
+                    90,
+                )
+            ),
             source_theorem_promotion_proofengineer_bridge=bool(
                 getattr(
                     args,
@@ -6730,6 +6760,25 @@ def build_parser() -> argparse.ArgumentParser:
         "--question-id",
         default="",
         help="optional question id to attach to exported runtime learning memory",
+    )
+    source_theorem_formal_environment_proofengineer_bridge.add_argument(
+        "--run-signature-probes",
+        action="store_true",
+        help=(
+            "materialize typecheck-only Lean signature probes from repair packets; "
+            "these probes are diagnostics and not proof evidence"
+        ),
+    )
+    source_theorem_formal_environment_proofengineer_bridge.add_argument(
+        "--lean-project",
+        default="",
+        help="optional local Lake project used by --run-signature-probes",
+    )
+    source_theorem_formal_environment_proofengineer_bridge.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each signature-probe local Lean check",
     )
     source_theorem_formal_environment_proofengineer_bridge.add_argument(
         "--out",
@@ -11427,6 +11476,27 @@ def build_parser() -> argparse.ArgumentParser:
             "after exact source-theorem environment work orders are emitted, "
             "export ProofEngineer repair packets and runtime learning rows"
         ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-formal-environment-proofengineer-signature-probes",
+        action="store_true",
+        help=(
+            "when the formal-environment bridge is enabled, materialize and run "
+            "typecheck-only Lean signature probes; these are diagnostics, not proof evidence"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-formal-environment-proofengineer-lean-project",
+        default="",
+        help=(
+            "optional local Lake project used by formal-environment signature probes"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-formal-environment-proofengineer-lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each formal-environment signature-probe local Lean check",
     )
     research_agent_runtime.add_argument(
         "--source-theorem-promotion-proofengineer-bridge",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 from ai_statistician.cli import main
@@ -12,6 +13,20 @@ from ai_statistician.source_theorem_formal_environment_proofengineer_bridge impo
 def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     tmp_path: Path,
 ) -> None:
+    candidate_artifact = tmp_path / "split_conformal_coverage.lean"
+    candidate_artifact.write_text(
+        "import Mathlib\n\n"
+        "theorem split_conformal_coverage {Ω : Type _} [MeasurableSpace Ω] "
+        "(P : MeasureTheory.Measure Ω) [MeasureTheory.IsProbabilityMeasure P] "
+        "(m : ℕ) (hm : 0 < m) (alpha : ℝ) "
+        "(halpha : 0 < alpha ∧ alpha < 1) "
+        "(s : Fin (m + 1) → Ω → ℝ) (hexch : Exchangeable P s) "
+        "(k : ℕ) (hk : k = Nat.ceil ((m + 1 : ℝ) * (1 - alpha))) "
+        "(q_hat : Ω → ℝ) (hq : ∀ ω, q_hat ω = orderStat s k ω) : "
+        "P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ 1 - alpha := by\n"
+        "  fail_if_success trivial\n",
+        encoding="utf-8",
+    )
     queue_jsonl = tmp_path / "runtime_source_theorem_formal_environment_work_orders.jsonl"
     queue_jsonl.write_text(
         json.dumps(
@@ -21,7 +36,7 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
                 "work_order_id": "source_theorem_formal_environment_work_order:env",
                 "question_id": "split_conformal",
                 "target_theorem_name": "split_conformal_coverage",
-                "candidate_artifact_path": "/tmp/split_conformal_coverage.lean",
+                "candidate_artifact_path": str(candidate_artifact),
                 "failure_classification": "formal_environment_symbol_missing",
                 "diagnostics": [
                     "failed to synthesize instance of type class",
@@ -52,12 +67,24 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         out_dir=tmp_path / "bridge",
         queue_jsonl=queue_jsonl,
         question_id="split_conformal",
+        run_signature_probes=True,
+        lean_command=(
+            sys.executable,
+            "-c",
+            "import sys; print('unsolved goals'); sys.exit(1)",
+        ),
     )
 
     assert manifest["n_work_orders"] == 1
     assert manifest["n_repair_packets"] == 1
     assert manifest["n_missing_formal_symbols"] == 2
     assert manifest["n_typeclass_blockers"] == 1
+    assert manifest["signature_probes_requested"] is True
+    assert manifest["n_signature_probe_rows"] == 1
+    assert manifest["n_signature_probes_reached_proof_body"] == 1
+    assert manifest["signature_probe_proof_evidence_status"] == (
+        "SIGNATURE_PROBE_NOT_PROOF_EVIDENCE"
+    )
     assert manifest["proof_evidence_status"] == (
         "FORMAL_ENVIRONMENT_REPAIR_PACKETS_NOT_PROOF_EVIDENCE"
     )
@@ -83,6 +110,21 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         "SIGNATURE_PROBE_PLAN_NOT_PROOF_EVIDENCE"
     )
     assert repair_packet["proof_evidence_status"] == "REPAIR_PACKET_NOT_PROOF_EVIDENCE"
+    probe_manifest = json.loads(
+        Path(str(manifest["signature_probe_manifest"])).read_text(encoding="utf-8")
+    )
+    probe_row = probe_manifest["rows"][0]
+    assert probe_row["signature_typecheck_reached_proof_body"] is True
+    assert probe_row["signature_probe_status"] == (
+        "SIGNATURE_PROBE_REACHED_PROOF_BODY_NOT_PROOF"
+    )
+    probe_source = Path(probe_row["signature_probe_artifact_path"]).read_text(
+        encoding="utf-8"
+    )
+    assert "def Exchangeable" in probe_source
+    assert "def orderStat" in probe_source
+    assert "ENNReal.ofReal (1 - alpha)" in probe_source
+    assert probe_manifest["proof_evidence_status"] == "SIGNATURE_PROBE_NOT_PROOF_EVIDENCE"
 
     learning_rows_path = Path(str(manifest["runtime_learning_rows_jsonl"]))
     learning_row = json.loads(learning_rows_path.read_text(encoding="utf-8"))
@@ -99,6 +141,9 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert learning_row["input_summary"]["lean_signature_probe_plan"]["probe_kind"] == (
         "statement_typecheck_not_proof"
     )
+    assert learning_row["input_summary"]["signature_probe_rows"][0][
+        "signature_typecheck_reached_proof_body"
+    ] is True
     assert "statement_repair_hints" in learning_row["input_summary"]
     assert learning_row["proof_evidence_status"] == (
         "FORMAL_ENVIRONMENT_REPAIR_LEARNING_NOT_PROOF_EVIDENCE"

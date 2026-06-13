@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import json
+import re
+import shutil
+import subprocess
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -10,6 +15,8 @@ from .research_architect import KERNEL_PROOF_BOUNDARY
 
 ARTIFACT_KIND = "SourceTheoremFormalEnvironmentProofEngineerBridgeManifest"
 REPAIR_PACKET_ARTIFACT_KIND = "SourceTheoremFormalEnvironmentRepairPacket"
+SIGNATURE_PROBE_ARTIFACT_KIND = "SourceTheoremFormalEnvironmentSignatureProbeManifest"
+SIGNATURE_PROBE_ROW_ARTIFACT_KIND = "SourceTheoremFormalEnvironmentSignatureProbeRow"
 BOUNDARY = (
     "Source-theorem formal-environment ProofEngineer bridge rows are repair "
     "routing artifacts. They identify missing Lean declarations, imports, and "
@@ -18,6 +25,40 @@ BOUNDARY = (
     "a subsequent local Lean/AXLE verifier manifest with kernel_verified=true "
     "can promote any repaired artifact to proof evidence."
 )
+SIGNATURE_PROBE_PROOF_EVIDENCE_STATUS = "SIGNATURE_PROBE_NOT_PROOF_EVIDENCE"
+SIGNATURE_PROBE_BOUNDARY = (
+    "Source-theorem formal-environment signature probes are local Lean typecheck "
+    "diagnostics for repaired candidate environments. They may show that missing "
+    "symbols or typeclass blockers were cleared far enough to reach the proof body, "
+    "but they are not artifact proof, source-theorem proof, or semantic promotion "
+    "evidence."
+)
+
+
+@dataclass(frozen=True)
+class SourceTheoremFormalEnvironmentSignatureProbeRow:
+    schema_version: int
+    artifact_kind: str
+    signature_probe_id: str
+    repair_packet_id: str
+    source_work_order_id: str
+    target_theorem_name: str
+    source_candidate_artifact_path: str
+    signature_probe_artifact_path: str
+    local_lean_checked: bool
+    local_lean_compiled: bool
+    signature_typecheck_reached_proof_body: bool
+    lean_command: tuple[str, ...]
+    lean_project: str
+    lean_timeout: int
+    returncode: int
+    diagnostics: tuple[str, ...]
+    failure_classification: str
+    signature_probe_status: str
+    proof_evidence_status: str
+    boundary: str
+    ok: bool
+    errors: tuple[str, ...] = ()
 
 
 def resolve_source_theorem_formal_environment_queue_path(
@@ -71,6 +112,10 @@ def run_source_theorem_formal_environment_proofengineer_bridge(
     runtime_dir: Path | None = None,
     queue_jsonl: Path | None = None,
     question_id: str = "",
+    run_signature_probes: bool = False,
+    lean_project: str | Path | None = None,
+    lean_timeout: int = 90,
+    lean_command: tuple[str, ...] | None = None,
 ) -> dict[str, object]:
     out_dir.mkdir(parents=True, exist_ok=True)
     queue_path = resolve_source_theorem_formal_environment_queue_path(
@@ -81,11 +126,21 @@ def run_source_theorem_formal_environment_proofengineer_bridge(
     repair_packets = [_repair_packet(row) for row in work_orders]
     repair_packets_path = out_dir / "source_theorem_formal_environment_repair_packets.jsonl"
     _write_jsonl(repair_packets_path, repair_packets)
+    signature_probe_result: dict[str, object] | None = None
+    if run_signature_probes:
+        signature_probe_result = _export_signature_probes(
+            repair_packets=repair_packets,
+            out_dir=out_dir / "signature_probes",
+            lean_project=Path(lean_project) if lean_project else None,
+            lean_timeout=lean_timeout,
+            lean_command=lean_command,
+        )
     learning_result = _export_runtime_learning_rows(
         repair_packets=repair_packets,
         out_dir=out_dir / "runtime_learning_export",
         question_id=question_id,
         queue_path=queue_path,
+        signature_probe_result=signature_probe_result,
     )
     manifest = {
         "schema_version": 1,
@@ -95,6 +150,32 @@ def run_source_theorem_formal_environment_proofengineer_bridge(
         "repair_packets_jsonl": str(repair_packets_path),
         "runtime_learning_rows_jsonl": str(learning_result["runtime_learning_rows_jsonl"]),
         "runtime_learning_export_manifest": str(learning_result["export_manifest_path"]),
+        "signature_probes_requested": bool(run_signature_probes),
+        "signature_probe_manifest": str(
+            signature_probe_result.get("signature_probe_manifest_path", "")
+            if signature_probe_result
+            else ""
+        ),
+        "signature_probe_rows_jsonl": str(
+            signature_probe_result.get("signature_probe_rows_jsonl", "")
+            if signature_probe_result
+            else ""
+        ),
+        "n_signature_probe_rows": int(
+            signature_probe_result.get("n_signature_probe_rows", 0)
+            if signature_probe_result
+            else 0
+        ),
+        "n_signature_probes_reached_proof_body": int(
+            signature_probe_result.get("n_signature_probes_reached_proof_body", 0)
+            if signature_probe_result
+            else 0
+        ),
+        "signature_probe_proof_evidence_status": str(
+            signature_probe_result.get("proof_evidence_status", "")
+            if signature_probe_result
+            else ""
+        ),
         "n_work_orders": len(work_orders),
         "n_repair_packets": len(repair_packets),
         "n_missing_formal_symbols": len(
@@ -385,6 +466,317 @@ def _lean_signature_probe_plan(
     }
 
 
+def _export_signature_probes(
+    *,
+    repair_packets: list[Mapping[str, Any]],
+    out_dir: Path,
+    lean_project: Path | None,
+    lean_timeout: int,
+    lean_command: tuple[str, ...] | None,
+) -> dict[str, object]:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_dir = out_dir / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    command = lean_command or _lean_command(lean_project)
+    rows = [
+        _signature_probe_row(
+            packet,
+            artifacts_dir=artifacts_dir,
+            lean_project=lean_project,
+            lean_timeout=lean_timeout,
+            lean_command=command,
+        )
+        for packet in repair_packets
+    ]
+    rows_path = out_dir / "source_theorem_formal_environment_signature_probe_rows.jsonl"
+    _write_jsonl(rows_path, [asdict(row) for row in rows])
+    manifest_path = out_dir / "source_theorem_formal_environment_signature_probe_manifest.json"
+    manifest = {
+        "schema_version": 1,
+        "artifact_kind": SIGNATURE_PROBE_ARTIFACT_KIND,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "signature_probe_rows_jsonl": str(rows_path),
+        "artifacts_dir": str(artifacts_dir),
+        "lean_project": str(lean_project or ""),
+        "lean_timeout": int(lean_timeout),
+        "lean_command": list(command),
+        "n_signature_probe_rows": len(rows),
+        "n_local_lean_checked": sum(1 for row in rows if row.local_lean_checked),
+        "n_local_lean_compiled": sum(1 for row in rows if row.local_lean_compiled),
+        "n_signature_probes_reached_proof_body": sum(
+            1 for row in rows if row.signature_typecheck_reached_proof_body
+        ),
+        "n_ok": sum(1 for row in rows if row.ok),
+        "all_signature_probes_reached_proof_body": bool(rows)
+        and all(row.signature_typecheck_reached_proof_body for row in rows),
+        "rows": [asdict(row) for row in rows],
+        "proof_evidence_status": SIGNATURE_PROBE_PROOF_EVIDENCE_STATUS,
+        "boundary": SIGNATURE_PROBE_BOUNDARY,
+    }
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, default=str, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return {
+        "signature_probe_manifest_path": manifest_path,
+        "signature_probe_rows_jsonl": rows_path,
+        "n_signature_probe_rows": len(rows),
+        "n_signature_probes_reached_proof_body": sum(
+            1 for row in rows if row.signature_typecheck_reached_proof_body
+        ),
+        "rows": [asdict(row) for row in rows],
+        "proof_evidence_status": SIGNATURE_PROBE_PROOF_EVIDENCE_STATUS,
+        "boundary": SIGNATURE_PROBE_BOUNDARY,
+    }
+
+
+def _signature_probe_row(
+    packet: Mapping[str, Any],
+    *,
+    artifacts_dir: Path,
+    lean_project: Path | None,
+    lean_timeout: int,
+    lean_command: tuple[str, ...],
+) -> SourceTheoremFormalEnvironmentSignatureProbeRow:
+    errors: list[str] = []
+    repair_packet_id = str(packet.get("repair_packet_id", "") or "")
+    source_work_order_id = str(packet.get("source_work_order_id", "") or "")
+    target_theorem_name = str(packet.get("target_theorem_name", "") or "")
+    candidate_raw = str(packet.get("candidate_artifact_path", "") or "")
+    candidate_path = Path(candidate_raw) if candidate_raw else Path()
+    probe_id = "source_theorem_formal_environment_signature_probe:" + stable_hash(
+        [repair_packet_id, candidate_raw, target_theorem_name]
+    )[:20]
+    probe_artifact_path = artifacts_dir / f"{_safe_file_stem(target_theorem_name or probe_id)}_signature_probe.lean"
+    source = ""
+    if not repair_packet_id:
+        errors.append("repair_packet_id missing")
+    if not candidate_raw:
+        errors.append("candidate_artifact_path missing")
+    elif not candidate_path.exists():
+        errors.append(f"candidate artifact missing: {candidate_path}")
+    else:
+        try:
+            source = candidate_path.read_text(encoding="utf-8")
+        except Exception as exc:
+            errors.append(f"failed to read candidate artifact: {type(exc).__name__}: {exc}")
+    if not errors:
+        probe_source = _signature_probe_source(source, packet)
+        probe_artifact_path.write_text(probe_source, encoding="utf-8")
+    checked = False
+    compiled = False
+    returncode = -1
+    diagnostics: tuple[str, ...] = ()
+    if not lean_command:
+        errors.append("lean executable not found")
+        diagnostics = ("lean executable not found",)
+        failure = "local_lean_unavailable"
+    elif errors:
+        diagnostics = tuple(errors)
+        failure = "static_signature_probe_materialization_failed"
+    else:
+        checked = True
+        compiled, returncode, diagnostics = _run_local_lean(
+            probe_artifact_path,
+            lean_command=lean_command,
+            lean_project=lean_project,
+            timeout_s=lean_timeout,
+        )
+        failure = _classify_signature_probe_failure(diagnostics)
+    reached_proof_body = compiled or _signature_probe_reached_proof_body(
+        diagnostics,
+        packet=packet,
+    )
+    status = (
+        "SIGNATURE_PROBE_COMPILED_NOT_PROOF"
+        if compiled
+        else (
+            "SIGNATURE_PROBE_REACHED_PROOF_BODY_NOT_PROOF"
+            if reached_proof_body
+            else "SIGNATURE_PROBE_LOCAL_LEAN_FAILED"
+        )
+    )
+    ok = not errors and checked and reached_proof_body
+    return SourceTheoremFormalEnvironmentSignatureProbeRow(
+        schema_version=1,
+        artifact_kind=SIGNATURE_PROBE_ROW_ARTIFACT_KIND,
+        signature_probe_id=probe_id,
+        repair_packet_id=repair_packet_id,
+        source_work_order_id=source_work_order_id,
+        target_theorem_name=target_theorem_name,
+        source_candidate_artifact_path=candidate_raw,
+        signature_probe_artifact_path=str(probe_artifact_path),
+        local_lean_checked=checked,
+        local_lean_compiled=compiled,
+        signature_typecheck_reached_proof_body=reached_proof_body,
+        lean_command=lean_command,
+        lean_project=str(lean_project or ""),
+        lean_timeout=int(lean_timeout),
+        returncode=int(returncode),
+        diagnostics=diagnostics[:40],
+        failure_classification=failure,
+        signature_probe_status=status,
+        proof_evidence_status=SIGNATURE_PROBE_PROOF_EVIDENCE_STATUS,
+        boundary=SIGNATURE_PROBE_BOUNDARY,
+        ok=ok,
+        errors=tuple(errors),
+    )
+
+
+def _signature_probe_source(source: str, packet: Mapping[str, Any]) -> str:
+    import_lines, body_lines = _split_import_lines(source)
+    if not import_lines:
+        import_lines = ["import Mathlib"]
+    body = "\n".join(body_lines).strip()
+    body = _apply_statement_repair_hints(body, packet)
+    declaration_prelude = _signature_probe_declaration_prelude(
+        _str_list(packet.get("missing_formal_symbols", []) or [])
+    )
+    metadata = {
+        "repair_packet_id": packet.get("repair_packet_id", ""),
+        "target_theorem_name": packet.get("target_theorem_name", ""),
+        "proof_evidence_status": SIGNATURE_PROBE_PROOF_EVIDENCE_STATUS,
+    }
+    metadata_lines = "\n".join(
+        f"-- {key}: {value}" for key, value in metadata.items() if value
+    )
+    return (
+        "\n".join(import_lines)
+        + "\n\n"
+        + "/-!\n"
+        + "Source-theorem formal-environment signature probe.\n"
+        + "This file is a typecheck diagnostic artifact, not proof evidence.\n"
+        + "Local placeholder declarations below are semantic repair drafts only.\n"
+        + "-/\n\n"
+        + "namespace AIStatisticianSourceTheoremSignatureProbe\n\n"
+        + "noncomputable section\n\n"
+        + f"{metadata_lines}\n\n"
+        + declaration_prelude
+        + ("\n\n" if declaration_prelude else "")
+        + body
+        + "\n\nend\n\n"
+        + "end AIStatisticianSourceTheoremSignatureProbe\n"
+    )
+
+
+def _split_import_lines(source: str) -> tuple[list[str], list[str]]:
+    imports: list[str] = []
+    body: list[str] = []
+    for line in source.splitlines():
+        if line.strip().startswith("import "):
+            if line.strip() not in imports:
+                imports.append(line.strip())
+        else:
+            body.append(line)
+    if imports and "import Mathlib" not in imports:
+        imports.insert(0, "import Mathlib")
+    return imports, body
+
+
+def _signature_probe_declaration_prelude(missing_symbols: list[str]) -> str:
+    declarations: list[str] = []
+    if "Exchangeable" in missing_symbols:
+        declarations.append(
+            "def Exchangeable {Ω : Type _} [MeasurableSpace Ω] {m : ℕ}\n"
+            "    (P : MeasureTheory.Measure Ω) (s : Fin (m + 1) → Ω → ℝ) : Prop := True"
+        )
+    if "orderStat" in missing_symbols:
+        declarations.append(
+            "def orderStat {Ω : Type _} {m : ℕ}\n"
+            "    (s : Fin (m + 1) → Ω → ℝ) (k : ℕ) (ω : Ω) : ℝ := 0"
+        )
+    return "\n\n".join(declarations)
+
+
+def _apply_statement_repair_hints(source: str, packet: Mapping[str, Any]) -> str:
+    blockers = _str_list(packet.get("typeclass_blockers", []) or [])
+    if any("HSub ℕ ℝ ENNReal" in blocker for blocker in blockers):
+        source = re.sub(r"≥\s*1\s*-\s*alpha\b", "≥ ENNReal.ofReal (1 - alpha)", source)
+    return source
+
+
+def _signature_probe_reached_proof_body(
+    diagnostics: tuple[str, ...],
+    *,
+    packet: Mapping[str, Any],
+) -> bool:
+    text = "\n".join(diagnostics)
+    lowered = text.lower()
+    missing_symbols = _str_list(packet.get("missing_formal_symbols", []) or [])
+    typeclass_blockers = _str_list(packet.get("typeclass_blockers", []) or [])
+    for symbol in missing_symbols:
+        if symbol and re.search(rf"\b{re.escape(symbol)}\b", text) and (
+            "unknown" in lowered or "function expected" in lowered
+        ):
+            return False
+    for blocker in typeclass_blockers:
+        if blocker and blocker in text and "failed to synthesize" in lowered:
+            return False
+    if "unsolved goals" in lowered:
+        return True
+    if "fail_if_success" in lowered and "error" in lowered:
+        return True
+    return False
+
+
+def _classify_signature_probe_failure(diagnostics: tuple[str, ...]) -> str:
+    text = "\n".join(diagnostics).lower()
+    if not diagnostics:
+        return ""
+    if "timed out" in text or "timeout" in text:
+        return "local_lean_timeout"
+    if "unknown identifier" in text or "unknown constant" in text or "function expected" in text:
+        return "formal_environment_symbol_missing"
+    if "failed to synthesize" in text:
+        return "formal_environment_instance_missing"
+    if "unsolved goals" in text:
+        return "proof_body_incomplete"
+    if "invalid 'import' command" in text or "unknown module prefix" in text:
+        return "lean_import_environment_missing"
+    return "signature_probe_local_lean_failed_unclassified"
+
+
+def _run_local_lean(
+    lean_file: Path,
+    *,
+    lean_command: tuple[str, ...],
+    lean_project: Path | None,
+    timeout_s: int,
+) -> tuple[bool, int, tuple[str, ...]]:
+    try:
+        proc = subprocess.run(
+            [*lean_command, str(lean_file.resolve())],
+            cwd=str(lean_project) if lean_project is not None else None,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return False, -1, (f"local Lean timed out after {timeout_s}s: {exc}",)
+    except Exception as exc:
+        return False, -1, (f"{type(exc).__name__}: {exc}",)
+    diagnostics = tuple(
+        line
+        for line in (proc.stdout + "\n" + proc.stderr).splitlines()
+        if line.strip()
+    )
+    return proc.returncode == 0, int(proc.returncode), diagnostics
+
+
+def _lean_command(lean_project: Path | None) -> tuple[str, ...]:
+    if lean_project is not None and shutil.which("lake") is not None:
+        return ("lake", "env", "lean")
+    if shutil.which("lean") is not None:
+        return ("lean",)
+    return ()
+
+
+def _safe_file_stem(value: str) -> str:
+    stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("._")
+    return stem or "source_theorem_signature_probe"
+
+
 def _default_repair_tasks(
     *,
     missing_symbols: list[str],
@@ -408,10 +800,15 @@ def _export_runtime_learning_rows(
     out_dir: Path,
     question_id: str,
     queue_path: Path,
+    signature_probe_result: Mapping[str, Any] | None = None,
 ) -> dict[str, object]:
     out_dir.mkdir(parents=True, exist_ok=True)
     rows: list[dict[str, Any]] = []
     for packet in repair_packets:
+        signature_probe_rows = _matching_signature_probe_rows(
+            signature_probe_result,
+            repair_packet_id=str(packet.get("repair_packet_id", "") or ""),
+        )
         rows.append(
             {
                 "schema_version": 1,
@@ -434,6 +831,12 @@ def _export_runtime_learning_rows(
                     ),
                     "lean_signature_probe_plan": dict(
                         packet.get("lean_signature_probe_plan", {}) or {}
+                    ),
+                    "signature_probe_rows": signature_probe_rows,
+                    "signature_probe_manifest": str(
+                        signature_probe_result.get("signature_probe_manifest_path", "")
+                        if signature_probe_result
+                        else ""
                     ),
                     "recommended_repair_tasks": list(
                         packet.get("recommended_repair_tasks", []) or []
@@ -509,6 +912,24 @@ def _export_runtime_learning_rows(
         "export_manifest_path": manifest_out,
         "export_manifest": export_manifest,
     }
+
+
+def _matching_signature_probe_rows(
+    signature_probe_result: Mapping[str, Any] | None,
+    *,
+    repair_packet_id: str,
+) -> list[dict[str, Any]]:
+    if not signature_probe_result:
+        return []
+    rows = signature_probe_result.get("rows", [])
+    if not isinstance(rows, list):
+        return []
+    return [
+        dict(row)
+        for row in rows
+        if isinstance(row, Mapping)
+        and str(row.get("repair_packet_id", "") or "") == repair_packet_id
+    ]
 
 
 def _str_list(values: object) -> list[str]:

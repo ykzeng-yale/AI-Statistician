@@ -149,6 +149,9 @@ class ResearchAgentRuntimeConfig:
     source_semantic_proofengineer_lean_project: str = ""
     source_semantic_proofengineer_lean_timeout: int = 90
     source_theorem_formal_environment_proofengineer_bridge: bool = False
+    source_theorem_formal_environment_proofengineer_signature_probes: bool = False
+    source_theorem_formal_environment_proofengineer_lean_project: str = ""
+    source_theorem_formal_environment_proofengineer_lean_timeout: int = 90
     source_theorem_promotion_proofengineer_bridge: bool = False
     source_theorem_promotion_proofengineer_local_lean: bool = False
     source_theorem_promotion_proofengineer_overwrite_artifacts: bool = False
@@ -2197,6 +2200,17 @@ def run_research_agent_runtime(
                 / "runtime_source_theorem_formal_environment_proofengineer_bridge",
                 queue_jsonl=source_theorem_formal_environment_bridge_queue,
                 question_id=questions[0].id if len(questions) == 1 else "",
+                run_signature_probes=(
+                    config.source_theorem_formal_environment_proofengineer_signature_probes
+                ),
+                lean_project=(
+                    Path(config.source_theorem_formal_environment_proofengineer_lean_project)
+                    if config.source_theorem_formal_environment_proofengineer_lean_project
+                    else None
+                ),
+                lean_timeout=(
+                    config.source_theorem_formal_environment_proofengineer_lean_timeout
+                ),
             )
         )
     source_theorem_formal_environment_bridge_learning_rows = (
@@ -2305,6 +2319,23 @@ def run_research_agent_runtime(
                 "runtime_learning_export_manifest"
             ]
         )
+        if source_theorem_formal_environment_bridge_manifest.get(
+            "signature_probe_manifest"
+        ):
+            manifest["artifacts"][
+                "runtime_source_theorem_formal_environment_proofengineer_signature_probe_manifest"
+            ] = str(
+                source_theorem_formal_environment_bridge_manifest[
+                    "signature_probe_manifest"
+                ]
+            )
+            manifest["artifacts"][
+                "runtime_source_theorem_formal_environment_proofengineer_signature_probe_rows_jsonl"
+            ] = str(
+                source_theorem_formal_environment_bridge_manifest[
+                    "signature_probe_rows_jsonl"
+                ]
+            )
     if source_theorem_promotion_bridge_manifest is not None:
         manifest["artifacts"][
             "runtime_source_theorem_promotion_proofengineer_bridge_manifest"
@@ -2532,6 +2563,39 @@ def run_research_agent_runtime(
     manifest[
         "source_theorem_formal_environment_proofengineer_bridge_n_learning_rows"
     ] = len(source_theorem_formal_environment_bridge_learning_rows)
+    manifest[
+        "source_theorem_formal_environment_proofengineer_signature_probes_requested"
+    ] = bool(config.source_theorem_formal_environment_proofengineer_signature_probes)
+    manifest[
+        "source_theorem_formal_environment_proofengineer_n_signature_probe_rows"
+    ] = int(
+        source_theorem_formal_environment_bridge_manifest.get(
+            "n_signature_probe_rows",
+            0,
+        )
+        if source_theorem_formal_environment_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body"
+    ] = int(
+        source_theorem_formal_environment_bridge_manifest.get(
+            "n_signature_probes_reached_proof_body",
+            0,
+        )
+        if source_theorem_formal_environment_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_signature_probe_proof_evidence_status"
+    ] = str(
+        source_theorem_formal_environment_bridge_manifest.get(
+            "signature_probe_proof_evidence_status",
+            "",
+        )
+        if source_theorem_formal_environment_bridge_manifest
+        else ""
+    )
     manifest[
         "source_theorem_formal_environment_proofengineer_bridge_proof_evidence_status"
     ] = str(
