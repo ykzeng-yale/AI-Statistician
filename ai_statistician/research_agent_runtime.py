@@ -2280,6 +2280,31 @@ def run_research_agent_runtime(
     if source_theorem_formal_environment_proof_body_executor_learning_rows:
         learning_rows.extend(source_theorem_formal_environment_proof_body_executor_learning_rows)
         _write_jsonl(learning_path, learning_rows)
+    source_theorem_semantic_primitive_executor_work_order_rows = (
+        _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_rows(
+            source_theorem_formal_environment_proof_body_executor_learning_rows
+        )
+    )
+    if source_theorem_semantic_primitive_executor_work_order_rows:
+        seen_semantic_work_order_ids = {
+            str(row.get("work_order_id", "") or "")
+            for row in source_theorem_semantic_primitive_work_order_rows
+            if isinstance(row, Mapping)
+        }
+        new_semantic_work_order_rows = [
+            row
+            for row in source_theorem_semantic_primitive_executor_work_order_rows
+            if str(row.get("work_order_id", "") or "")
+            not in seen_semantic_work_order_ids
+        ]
+        if new_semantic_work_order_rows:
+            source_theorem_semantic_primitive_work_order_rows.extend(
+                new_semantic_work_order_rows
+            )
+            _write_jsonl(
+                source_theorem_semantic_primitive_work_orders_path,
+                source_theorem_semantic_primitive_work_order_rows,
+            )
     source_theorem_formal_environment_executor_work_order_rows = (
         _runtime_source_theorem_formal_environment_work_order_rows_from_learning_rows(
             source_theorem_formal_environment_proof_body_executor_learning_rows
@@ -2568,6 +2593,9 @@ def run_research_agent_runtime(
     manifest["n_runtime_source_theorem_semantic_primitive_work_orders"] = len(
         source_theorem_semantic_primitive_work_order_rows
     )
+    manifest[
+        "n_runtime_source_theorem_semantic_primitive_work_orders_from_proof_body_executor"
+    ] = len(source_theorem_semantic_primitive_executor_work_order_rows)
     manifest["n_runtime_source_theorem_formal_environment_work_orders"] = len(
         source_theorem_formal_environment_work_order_rows
     )
@@ -6061,6 +6089,171 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows(
                     by_work_order_id[work_order_id] = len(rows)
                 rows.append(row)
     return rows
+
+
+def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_rows(
+    learning_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Queue semantic primitive closure when exact candidates only typecheck via placeholders."""
+
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in learning_rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = row.get("input_summary", {})
+        trigger = _runtime_learning_row_trigger(row, input_summary)
+        if (
+            str(row.get("learning_task", "") or "")
+            != "exact_source_theorem_proof_body_execution_feedback"
+            and trigger not in _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS
+        ):
+            continue
+        if not isinstance(input_summary, Mapping):
+            continue
+        source_theorem_kernel_verified = bool(
+            row.get("source_theorem_kernel_verified", False)
+            or input_summary.get("source_theorem_kernel_verified", False)
+        )
+        if source_theorem_kernel_verified:
+            continue
+        failure_classification = str(
+            input_summary.get("failure_classification", "") or ""
+        ).strip()
+        if failure_classification != "formal_environment_placeholder_primitives":
+            continue
+        target_theorem_name = str(
+            row.get("target_theorem_name", "")
+            or input_summary.get("target_theorem_name", "")
+            or ""
+        ).strip()
+        candidate_artifact_path = str(
+            input_summary.get("candidate_artifact_path", "")
+            or row.get("candidate_artifact_path", "")
+            or ""
+        ).strip()
+        placeholder_symbols = [
+            str(value).strip()
+            for value in (
+                input_summary.get("formal_environment_placeholder_symbols", [])
+                or input_summary.get("missing_formal_symbols", [])
+                or []
+            )
+            if str(value).strip()
+        ]
+        diagnostics = [
+            str(value)
+            for value in input_summary.get("diagnostics", []) or []
+            if str(value).strip()
+        ][:8]
+        source_learning_row_id = str(
+            row.get("runtime_learning_row_id", "")
+            or row.get("learning_row_id", "")
+            or row.get("execution_result_id", "")
+            or ""
+        ).strip()
+        for symbol in placeholder_symbols:
+            gap = _semantic_primitive_gap_for_placeholder_symbol(
+                symbol,
+                target_theorem_name=target_theorem_name,
+            )
+            kind = "source_theorem_semantic_primitives"
+            primitive_id = _source_semantic_primitive_id(gap, kind)
+            work_order_id = "source_theorem_semantic_primitive_work_order:" + stable_hash(
+                [
+                    source_learning_row_id,
+                    row.get("execution_result_id", ""),
+                    row.get("execution_queue_id", ""),
+                    target_theorem_name,
+                    symbol,
+                    primitive_id,
+                    candidate_artifact_path,
+                ]
+            )[:20]
+            if work_order_id in seen:
+                continue
+            seen.add(work_order_id)
+            rows.append(
+                {
+                    "schema_version": RUNTIME_SCHEMA_VERSION,
+                    "artifact_kind": "SourceTheoremSemanticPrimitiveWorkOrder",
+                    "work_order_id": work_order_id,
+                    "semantic_primitive_id": primitive_id,
+                    "semantic_primitive_gap": gap,
+                    "semantic_primitive_gap_kind": kind,
+                    "next_owner": "FormalizerProofEngineer",
+                    "source_learning_task": str(row.get("learning_task", "") or ""),
+                    "source_learning_row_id": source_learning_row_id,
+                    "source_execution_result_id": str(
+                        row.get("execution_result_id", "") or ""
+                    ),
+                    "source_execution_queue_id": str(
+                        row.get("execution_queue_id", "") or ""
+                    ),
+                    "source_formal_environment_work_order_id": str(
+                        row.get("source_work_order_id", "") or ""
+                    ),
+                    "target_theorem_name": target_theorem_name,
+                    "candidate_artifact_path": candidate_artifact_path,
+                    "placeholder_symbol": symbol,
+                    "failure_classification": failure_classification,
+                    "diagnostics": diagnostics,
+                    "target_theorem_goal_ids": (
+                        [target_theorem_name] if target_theorem_name else []
+                    ),
+                    "candidate_registered_obligation_ids": (
+                        list(_registered_support_for_placeholder_symbol(symbol))
+                    ),
+                    "proof_mode": "source_theorem_semantic_primitive_closure",
+                    "runtime_queue_status": "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT",
+                    "runtime_queue_boundary": (
+                        "This queue row was exported from exact source proof-body executor "
+                        "feedback after placeholder formal primitives blocked source-theorem "
+                        "promotion. It is not proof evidence until AXLE/local Lean kernel "
+                        "verification accepts the intended semantic primitive."
+                    ),
+                    "acceptance_gate": (
+                        "AXLE/local Lean kernel verifies the upstream semantic primitive "
+                        "with no sorry, and the manifest keeps this primitive evidence "
+                        "separate from signature scaffolds and full source theorem proof."
+                    ),
+                    "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+                    "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+                }
+            )
+    return rows
+
+
+def _semantic_primitive_gap_for_placeholder_symbol(
+    symbol: str,
+    *,
+    target_theorem_name: str,
+) -> str:
+    normalized = symbol.strip()
+    target = f" for `{target_theorem_name}`" if target_theorem_name else ""
+    if normalized == "Exchangeable":
+        return (
+            "Replace placeholder `Exchangeable := True` with reviewed exchangeability "
+            f"semantics and its finite-rank/uniformity bridge{target}."
+        )
+    if normalized == "orderStat":
+        return (
+            "Replace placeholder `orderStat := 0` with reviewed finite-sample "
+            f"order-statistic/quantile semantics{target}."
+        )
+    return (
+        f"Replace placeholder formal primitive `{normalized}` with a reviewed "
+        f"source-theorem semantic primitive{target}."
+    )
+
+
+def _registered_support_for_placeholder_symbol(symbol: str) -> tuple[str, ...]:
+    normalized = symbol.strip()
+    if normalized == "Exchangeable":
+        return ("split_conformal_bad_rank_budget_from_uniform_rank_bound",)
+    if normalized == "orderStat":
+        return ("split_conformal_good_rank_set_inclusion_bridge",)
+    return ()
 
 
 def _runtime_source_theorem_promotion_work_order_rows(

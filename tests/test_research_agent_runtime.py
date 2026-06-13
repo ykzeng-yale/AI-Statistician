@@ -56,6 +56,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_formalization_gap_planner_bridge,
     _runtime_formalization_gap_planner_target_intake_payload,
     _runtime_source_theorem_semantic_primitive_work_order_rows,
+    _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_rows,
     _runtime_source_theorem_formal_environment_work_order_rows,
     _runtime_source_theorem_formal_environment_work_order_rows_from_learning_rows,
     _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_payload,
@@ -2237,6 +2238,63 @@ def test_proof_body_executor_feedback_exports_formal_environment_work_order() ->
         "repair_exact_source_theorem_formal_environment"
     )
     assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+
+
+def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders() -> None:
+    learning_row = {
+        "schema_version": 1,
+        "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+        "target_theorem_name": "split_conformal_coverage",
+        "source_work_order_id": "source_theorem_formal_environment_work_order:seed",
+        "execution_queue_id": "exact_source_queue:1",
+        "execution_result_id": "exact_source_result:1",
+        "trigger": "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED",
+        "input_summary": {
+            "target_theorem_name": "split_conformal_coverage",
+            "candidate_artifact_path": "runs/split_conformal_coverage_attempt.lean",
+            "source_theorem_kernel_verified": False,
+            "failure_classification": "formal_environment_placeholder_primitives",
+            "formal_environment_placeholder_symbols": ["Exchangeable", "orderStat"],
+            "diagnostics": [
+                "candidate artifact still contains placeholder primitive: Exchangeable",
+                "candidate artifact still contains placeholder primitive: orderStat",
+            ],
+        },
+        "kernel_verified_source_theorem_ids": [],
+        "proof_evidence_status": (
+            "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    work_orders = (
+        _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_rows(
+            [learning_row]
+        )
+    )
+
+    assert len(work_orders) == 2
+    by_symbol = {row["placeholder_symbol"]: row for row in work_orders}
+    assert by_symbol["Exchangeable"]["semantic_primitive_id"] == (
+        "exchangeability_to_uniform_rank_semantics"
+    )
+    assert by_symbol["Exchangeable"]["candidate_registered_obligation_ids"] == [
+        "split_conformal_bad_rank_budget_from_uniform_rank_bound"
+    ]
+    assert by_symbol["orderStat"]["semantic_primitive_id"] == (
+        "order_statistic_quantile_semantics"
+    )
+    assert by_symbol["orderStat"]["candidate_registered_obligation_ids"] == [
+        "split_conformal_good_rank_set_inclusion_bridge"
+    ]
+    assert all(
+        row["runtime_queue_status"]
+        == "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT"
+        for row in work_orders
+    )
+    assert all(
+        row["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+        for row in work_orders
+    )
 
 
 def test_source_theorem_promotion_infers_mathlib_import_for_statistical_statement(
