@@ -10632,14 +10632,18 @@ def _formal_node_requires_library_search(node: Mapping[str, Any]) -> bool:
         node.get("formal_search_status", ""),
         node.get("library_search_status", ""),
     )
+    if any(_formal_library_search_marker(marker) for marker in markers):
+        return True
     if any(_delta_formalization_marker(marker) for marker in markers):
         return False
-    return any(_formal_library_search_marker(marker) for marker in markers)
+    return False
 
 
 def _formal_library_search_marker(value: object) -> bool:
     key = _primitive_key(value)
-    return key in {
+    if not key:
+        return False
+    return key in (UNRESOLVED_ROUTE_ALIGNMENT_STATUS_KEYS - {""}) or key in {
         "unknown",
         "coverage_unknown",
         "declaration_unknown",
@@ -14517,7 +14521,6 @@ def _delta_formalization_marker(value: object) -> bool:
         "new_theory_needed",
         "first_principles",
         "design_from_first_principles",
-        "missing",
         "theory_missing",
     }
 
