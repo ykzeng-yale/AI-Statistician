@@ -1657,6 +1657,28 @@ end AIStatisticianExactSource
     assert integrator_payload["proof_evidence_status"] == (
         "SOURCE_THEOREM_INTEGRATOR_NOT_PROOF_EVIDENCE"
     )
+    bridge_with_integrator = {
+        **ready_bridge_payload,
+        "source_theorem_integrator_manifest": str(
+            tmp_path
+            / "source_theorem_integrator"
+            / "formal_verifier_agentic_proof_source_theorem_integrator_manifest.json"
+        ),
+    }
+    integrator_learning_rows = _runtime_source_theorem_promotion_bridge_learning_rows(
+        bridge_with_integrator
+    )
+    assert len(integrator_learning_rows) == 2
+    learning_by_target = {
+        row["target_theorem_name"]: row for row in integrator_learning_rows
+    }
+    assert learning_by_target["split_conformal_finite_sample_coverage"][
+        "learning_task"
+    ] == "source_theorem_integrator_blocker_feedback"
+    assert learning_by_target["split_conformal_finite_sample_coverage"][
+        "input_summary"
+    ]["trigger"] == "SOURCE_THEOREM_INTEGRATION_BLOCKED_ROUTE_PROBE"
+    assert "split_conformal_coverage" in learning_by_target
 
 
 def test_runtime_exports_source_theorem_semantic_primitive_queue_rows() -> None:

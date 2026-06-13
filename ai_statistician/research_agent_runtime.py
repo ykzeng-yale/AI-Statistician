@@ -5134,19 +5134,26 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
     bridge_manifest: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
     """Feed post-runtime source-theorem promotion status back into memory."""
+    integrator_rows = _runtime_source_theorem_integrator_bridge_learning_rows(
+        bridge_manifest
+    )
     queue_dir_value = str(
         bridge_manifest.get("source_theorem_promotion_queue_dir", "") or ""
     )
     if not queue_dir_value:
-        return []
+        return integrator_rows
     queue_dir = Path(queue_dir_value)
     queue_jsonl = (
         queue_dir / "formal_verifier_agentic_proof_source_theorem_promotion_queue.jsonl"
     )
     if not queue_jsonl.exists():
-        return []
-    rows: list[dict[str, Any]] = []
+        return integrator_rows
+    rows: list[dict[str, Any]] = list(integrator_rows)
     seen_targets: set[str] = set()
+    for row in integrator_rows:
+        target = str(row.get("target_theorem_name", "") or "")
+        if target:
+            seen_targets.add(target)
     for raw_line in queue_jsonl.read_text(encoding="utf-8").splitlines():
         if not raw_line.strip():
             continue
@@ -5207,6 +5214,97 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
                 ),
                 "target_theorem_name": target_theorem_name,
                 "proof_evidence_status": "SOURCE_THEOREM_PROMOTION_BRIDGE_LEARNING_NOT_PROOF_EVIDENCE",
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+        )
+    return rows
+
+
+def _runtime_source_theorem_integrator_bridge_learning_rows(
+    bridge_manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    integrator_manifest_value = str(
+        bridge_manifest.get("source_theorem_integrator_manifest", "") or ""
+    )
+    if not integrator_manifest_value:
+        return []
+    integrator_manifest_path = Path(integrator_manifest_value)
+    if not integrator_manifest_path.exists():
+        return []
+    try:
+        integrator_payload = json.loads(integrator_manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if not isinstance(integrator_payload, Mapping):
+        return []
+    rows: list[dict[str, Any]] = []
+    seen_targets: set[str] = set()
+    for row in integrator_payload.get("rows", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        source_theorem_kernel_verified = bool(
+            row.get("source_theorem_kernel_verified", False)
+        )
+        if source_theorem_kernel_verified:
+            continue
+        integration_status = str(row.get("integration_status", "") or "")
+        if integration_status not in {
+            "BLOCKED_ROUTE_PROBE_ARTIFACT",
+            "BLOCKED_VACUOUS_TRUE_SOURCE_THEOREM",
+            "BLOCKED_TARGET_ASSUMED_AS_HYPOTHESIS",
+        }:
+            continue
+        target_theorem_name = str(row.get("target_theorem_name", "") or "")
+        dedupe_key = target_theorem_name or str(
+            row.get("source_theorem_promotion_id", "") or ""
+        )
+        if dedupe_key in seen_targets:
+            continue
+        if dedupe_key:
+            seen_targets.add(dedupe_key)
+        trigger = (
+            "SOURCE_THEOREM_INTEGRATION_BLOCKED_ROUTE_PROBE"
+            if integration_status == "BLOCKED_ROUTE_PROBE_ARTIFACT"
+            else "SOURCE_THEOREM_INTEGRATION_BLOCKED_VACUOUS_TRUE"
+            if integration_status == "BLOCKED_VACUOUS_TRUE_SOURCE_THEOREM"
+            else "SOURCE_THEOREM_INTEGRATION_BLOCKED_TARGET_ASSUMED"
+        )
+        rows.append(
+            {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "question_id": str(row.get("question_id", "") or ""),
+                "question_title": str(row.get("question_title", "") or ""),
+                "learning_task": "source_theorem_integrator_blocker_feedback",
+                "input_summary": {
+                    "trigger": trigger,
+                    "owner_subsystem": "Formalizer/ProofEngineer",
+                    "integration_status": integration_status,
+                    "target_theorem_name": target_theorem_name,
+                    "route_probe_detected": bool(row.get("route_probe_detected", False)),
+                    "vacuous_true_target_detected": bool(
+                        row.get("vacuous_true_target_detected", False)
+                    ),
+                    "target_assumption_detected": bool(
+                        row.get("target_assumption_detected", False)
+                    ),
+                    "source_theorem_kernel_verified": source_theorem_kernel_verified,
+                },
+                "target_behavior": (
+                    "generate or repair a genuine non-vacuous exact source theorem "
+                    "artifact for the target declaration; do not submit route probes, "
+                    "vacuous True targets, or artifacts that assume the target theorem"
+                ),
+                "acceptance_gate": (
+                    "exact source theorem artifact passes source-theorem integrator "
+                    "with source_theorem_kernel_verified=true for "
+                    + (target_theorem_name or "the target declaration")
+                ),
+                "source_theorem_integrator_manifest": integrator_manifest_value,
+                "source_theorem_promotion_id": str(
+                    row.get("source_theorem_promotion_id", "") or ""
+                ),
+                "target_theorem_name": target_theorem_name,
+                "proof_evidence_status": "SOURCE_THEOREM_INTEGRATOR_BLOCKER_LEARNING_NOT_PROOF_EVIDENCE",
                 "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
             }
         )
