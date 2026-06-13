@@ -73,6 +73,9 @@ from ai_statistician.research_agent_runtime import (
 from ai_statistician.formal_verifier_agentic_proof_execution_materializer import (
     export_formal_verifier_agentic_proof_execution_materializer,
 )
+from ai_statistician.formal_verifier_agentic_proof_execution_artifact_verifier import (
+    export_formal_verifier_agentic_proof_execution_artifact_verifier,
+)
 from ai_statistician.formal_verifier_agentic_proof_source_theorem_integrator import (
     export_formal_verifier_agentic_proof_source_theorem_integrator,
 )
@@ -1631,6 +1634,7 @@ theorem exact_source_claim (claim : Prop) : claim := by
                         "local_lean_compiled": False,
                         "artifact_kernel_verified": False,
                         "source_theorem_kernel_verified": False,
+                        "failure_classification": "proof_body_incomplete",
                         "diagnostics": [
                             "exact_source_candidate.lean:2:2: error: unsolved goals"
                         ],
@@ -1700,12 +1704,133 @@ theorem exact_source_claim (claim : Prop) : claim := by
     assert summary["source_theorem_exact_candidate_repair_triggers"] == [
         "SOURCE_THEOREM_EXACT_CANDIDATE_LOCAL_LEAN_FAILED"
     ]
+    assert summary["source_theorem_exact_candidate_failure_classifications"] == [
+        "proof_body_incomplete"
+    ]
+    assert summary["source_theorem_exact_candidate_environment_gap"] is False
     assert summary["recommended_source_theorem_integration_action"] == (
         "repair_exact_source_theorem_candidate_proof_body"
     )
     assert "unsolved goals" in summary[
         "source_theorem_exact_candidate_repair_diagnostics"
     ][0]["diagnostics"][0]
+
+
+def test_source_theorem_exact_candidate_environment_failure_guides_formalizer(
+    tmp_path: Path,
+) -> None:
+    verifier_dir = tmp_path / "artifact_verifier"
+    verifier_dir.mkdir()
+    candidate_path = tmp_path / "exact_source_candidate.lean"
+    candidate_path.write_text(
+        "import Missing.StatEnvironment\n\n"
+        "theorem exact_source_claim : True := by\n"
+        "  exact True.intro\n",
+        encoding="utf-8",
+    )
+    transcript_path = tmp_path / "exact_source_candidate.jsonl"
+    materializer_dir = tmp_path / "materializer"
+    materializer_dir.mkdir()
+    (
+        materializer_dir / "formal_verifier_agentic_proof_execution_materializer_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "rows": [
+                    {
+                        "materialization_id": "materializer:missing_env",
+                        "execution_queue_id": "runtime_source_theorem:missing_env",
+                        "display_name": "Missing env exact source theorem",
+                        "target_theorem_name": "exact_source_claim",
+                        "candidate_artifact_path": str(candidate_path),
+                        "execution_transcript_path": str(transcript_path),
+                        "target_lean_declaration": "exact_source_claim",
+                        "target_lean_line": 3,
+                        "source_theorem_target_known": True,
+                        "live_proof_state_request": {
+                            "request_id": "live_goal:missing_env",
+                            "provider_preferences": ["lean_lsp_mcp"],
+                            "target_lean_file": str(candidate_path),
+                            "candidate_artifact_path": str(candidate_path),
+                            "target_lean_line": 3,
+                            "target_lean_declaration": "exact_source_claim",
+                            "mcp_tool_calls": [
+                                {"tool": "lean_goal"},
+                                {"tool": "lean_diagnostic_messages"},
+                            ],
+                        },
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    verifier_payload = export_formal_verifier_agentic_proof_execution_artifact_verifier(
+        materializer_dir,
+        verifier_dir,
+        lean_timeout=30,
+    )
+    row = verifier_payload["rows"][0]
+    assert row["verification_status"] == "ARTIFACT_LOCAL_LEAN_FAILED"
+    assert row["failure_classification"] == "lean_import_environment_missing"
+    assert verifier_payload["by_failure_classification"] == {
+        "lean_import_environment_missing": 1
+    }
+
+    learning_rows = _runtime_source_theorem_promotion_bridge_learning_rows(
+        {
+            "artifact_verifier_manifest": str(
+                verifier_dir
+                / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json"
+            )
+        }
+    )
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {
+                        "kernel_verified_proof_obligation_ids": verified_ids,
+                        "kernel_verified_theorem_reduction_closure_work_order_ids": [
+                            "theorem_reduction_closure_work_order:good_rank"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_target_ids": [
+                            "split_conformal_finite_sample_coverage_reduction_closure"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_goal_ids": [
+                            "split_conformal_finite_sample_coverage"
+                        ],
+                        "kernel_verified_source_theorem_semantic_primitive_ids": [
+                            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+                            "split_conformal_good_rank_set_inclusion_bridge",
+                        ],
+                    },
+                    *learning_rows,
+                ],
+            }
+        },
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["source_theorem_exact_candidate_environment_gap"] is True
+    assert summary["source_theorem_exact_candidate_failure_classifications"] == [
+        "lean_import_environment_missing"
+    ]
+    assert summary["recommended_source_theorem_integration_action"] == (
+        "repair_exact_source_theorem_candidate_formal_environment"
+    )
 
 
 def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> None:

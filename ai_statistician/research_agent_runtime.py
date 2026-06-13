@@ -3585,12 +3585,16 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
         if not target and isinstance(input_summary, Mapping):
             target = str(input_summary.get("target_theorem_name", "") or "").strip()
         diagnostics: list[str] = []
+        failure_classification = ""
         if isinstance(input_summary, Mapping):
             diagnostics = [
                 str(value)
                 for value in input_summary.get("diagnostics", []) or []
                 if str(value).strip()
             ][:3]
+            failure_classification = str(
+                input_summary.get("failure_classification", "") or ""
+            )
         key = (target, trigger)
         if key in seen:
             continue
@@ -3607,6 +3611,7 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 "candidate_artifact_path": str(
                     row.get("candidate_artifact_path", "") or ""
                 ),
+                "failure_classification": failure_classification,
                 "diagnostics": diagnostics,
             }
         )
@@ -3682,6 +3687,24 @@ def _formalizer_proof_bank_runtime_memory_summary(
             for row in source_theorem_exact_candidate_repairs
             if str(row.get("target_theorem_name", "") or "").strip()
         )
+    )
+    exact_candidate_failure_classifications = tuple(
+        dict.fromkeys(
+            str(row.get("failure_classification", "") or "").strip()
+            for row in source_theorem_exact_candidate_repairs
+            if str(row.get("failure_classification", "") or "").strip()
+        )
+    )
+    exact_candidate_environment_gap = any(
+        value
+        in {
+            "lean_import_environment_missing",
+            "formal_environment_symbol_missing",
+            "formal_environment_instance_missing",
+            "lean_project_or_import_environment_missing",
+            "lean_syntax_or_import_environment_gap",
+        }
+        for value in exact_candidate_failure_classifications
     )
     unresolved_source_theorem_promotion_targets = tuple(
         dict.fromkeys(
@@ -3760,6 +3783,12 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 if str(row.get("trigger", "") or "")
             )
         ),
+        "source_theorem_exact_candidate_failure_classifications": list(
+            exact_candidate_failure_classifications
+        ),
+        "source_theorem_exact_candidate_environment_gap": (
+            exact_candidate_environment_gap
+        ),
         "source_theorem_exact_candidate_repair_diagnostics": [
             {
                 "target_theorem_name": str(
@@ -3771,11 +3800,17 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 "candidate_artifact_path": str(
                     row.get("candidate_artifact_path", "") or ""
                 ),
+                "failure_classification": str(
+                    row.get("failure_classification", "") or ""
+                ),
                 "diagnostics": list(row.get("diagnostics", []) or []),
             }
             for row in source_theorem_exact_candidate_repairs[:3]
         ],
         "recommended_source_theorem_integration_action": (
+            "repair_exact_source_theorem_candidate_formal_environment"
+            if exact_candidate_environment_gap
+            else
             "repair_exact_source_theorem_candidate_proof_body"
             if source_theorem_exact_candidate_repairs
             else
@@ -5578,6 +5613,9 @@ def _runtime_source_theorem_artifact_verifier_bridge_learning_rows(
                         row.get("source_theorem_kernel_verified", False)
                     ),
                     "diagnostics": diagnostics,
+                    "failure_classification": str(
+                        row.get("failure_classification", "") or ""
+                    ),
                 },
                 "target_behavior": (
                     "repair the exact source-theorem candidate proof body, imports, "

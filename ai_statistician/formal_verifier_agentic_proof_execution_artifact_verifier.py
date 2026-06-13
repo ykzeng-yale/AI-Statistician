@@ -54,6 +54,7 @@ class FormalVerifierAgenticProofExecutionArtifactVerifierRow:
     lean_timeout: int
     returncode: int
     diagnostics: tuple[str, ...]
+    failure_classification: str
     forbidden_tokens_found: tuple[str, ...]
     verification_status: str
     proof_evidence_status: str
@@ -118,6 +119,15 @@ def export_formal_verifier_agentic_proof_execution_artifact_verifier(
         ),
         "n_forbidden_token_failures": sum(
             1 for row in rows if row.forbidden_tokens_found
+        ),
+        "by_failure_classification": dict(
+            sorted(
+                Counter(
+                    row.failure_classification
+                    for row in rows
+                    if row.failure_classification
+                ).items()
+            )
         ),
         "n_execution_transcript_paths": sum(
             1 for row in rows if row.execution_transcript_path
@@ -263,6 +273,15 @@ def _verifier_row(
         )
         if not compiled:
             errors.append("local Lean artifact check failed")
+    failure_classification = (
+        ""
+        if compiled
+        else _classify_local_lean_failure(
+            diagnostics,
+            source=source,
+            lean_project=lean_project,
+        )
+    )
     artifact_verification_id = (
         "formal_verifier_agentic_proof_execution_artifact_verifier:"
         + stable_hash([materialization_id, artifact_path, lean_command])[:16]
@@ -293,6 +312,7 @@ def _verifier_row(
         verification_strength=verification_strength,
         returncode=returncode,
         diagnostics=diagnostics,
+        failure_classification=failure_classification,
     )
     return FormalVerifierAgenticProofExecutionArtifactVerifierRow(
         schema_version=FORMAL_VERIFIER_AGENTIC_PROOF_EXECUTION_ARTIFACT_VERIFIER_SCHEMA_VERSION,
@@ -326,6 +346,7 @@ def _verifier_row(
         lean_timeout=lean_timeout,
         returncode=returncode,
         diagnostics=diagnostics,
+        failure_classification=failure_classification,
         forbidden_tokens_found=forbidden_tokens_found,
         verification_status=status,
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
@@ -358,6 +379,7 @@ def _append_verifier_transcript_event(
     verification_strength: str,
     returncode: int,
     diagnostics: tuple[str, ...],
+    failure_classification: str,
 ) -> bool:
     if path is None:
         return False
@@ -394,6 +416,7 @@ def _append_verifier_transcript_event(
             "verification_strength": verification_strength,
             "returncode": returncode,
             "diagnostics": diagnostics,
+            "failure_classification": failure_classification,
             "proof_evidence_status": PROOF_EVIDENCE_STATUS,
             "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         }
@@ -490,6 +513,36 @@ def _run_local_lean(
         if line.strip()
     )
     return proc.returncode == 0, int(proc.returncode), diagnostics
+
+
+def _classify_local_lean_failure(
+    diagnostics: tuple[str, ...],
+    *,
+    source: str,
+    lean_project: Path | None,
+) -> str:
+    text = "\n".join(diagnostics).lower()
+    if "timed out" in text or "timeout" in text:
+        return "local_lean_timeout"
+    if "lean executable not found" in text:
+        return "local_lean_unavailable"
+    if "unknown module prefix" in text or "no directory" in text or ".olean" in text:
+        return "lean_import_environment_missing"
+    if "unknown identifier" in text or "unknown constant" in text:
+        return "formal_environment_symbol_missing"
+    if "failed to synthesize" in text:
+        return "formal_environment_instance_missing"
+    if "unexpected token" in text and ("expected '=>'" in text or "expected term" in text):
+        if "import " in source and lean_project is None:
+            return "lean_project_or_import_environment_missing"
+        return "lean_syntax_or_import_environment_gap"
+    if "unsolved goals" in text:
+        return "proof_body_incomplete"
+    if "candidate artifact contains forbidden tokens" in text:
+        return "static_artifact_policy_failure"
+    if diagnostics:
+        return "local_lean_failed_unclassified"
+    return "local_lean_not_run"
 
 
 def _lean_command(lean_project: Path | None) -> tuple[str, ...]:
