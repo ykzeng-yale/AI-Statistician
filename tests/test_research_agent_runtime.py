@@ -1503,6 +1503,117 @@ def test_exact_source_theorem_materializer_sanitizes_sorry_for_live_goal(
     )
 
 
+def test_source_theorem_exact_candidate_lean_failure_enters_runtime_memory(
+    tmp_path: Path,
+) -> None:
+    verifier_dir = tmp_path / "artifact_verifier"
+    verifier_dir.mkdir()
+    candidate_path = tmp_path / "exact_source_candidate.lean"
+    candidate_path.write_text(
+        """
+theorem exact_source_claim (claim : Prop) : claim := by
+  -- missing proof body
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    verifier_manifest = (
+        verifier_dir
+        / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json"
+    )
+    verifier_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "rows": [
+                    {
+                        "artifact_verification_id": "artifact_verifier:failed_exact",
+                        "verification_status": "ARTIFACT_LOCAL_LEAN_FAILED",
+                        "target_theorem_name": "exact_source_claim",
+                        "target_lean_declaration": "exact_source_claim",
+                        "candidate_artifact_path": str(candidate_path),
+                        "source_theorem_target_known": True,
+                        "local_lean_checked": True,
+                        "local_lean_compiled": False,
+                        "artifact_kernel_verified": False,
+                        "source_theorem_kernel_verified": False,
+                        "diagnostics": [
+                            "exact_source_candidate.lean:2:2: error: unsolved goals"
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    learning_rows = _runtime_source_theorem_promotion_bridge_learning_rows(
+        {"artifact_verifier_manifest": str(verifier_manifest)}
+    )
+
+    assert len(learning_rows) == 1
+    assert learning_rows[0]["learning_task"] == (
+        "source_theorem_exact_candidate_lean_feedback"
+    )
+    assert learning_rows[0]["input_summary"]["trigger"] == (
+        "SOURCE_THEOREM_EXACT_CANDIDATE_LOCAL_LEAN_FAILED"
+    )
+    assert learning_rows[0]["target_theorem_name"] == "exact_source_claim"
+    assert learning_rows[0]["proof_evidence_status"] == (
+        "SOURCE_THEOREM_EXACT_CANDIDATE_LEAN_FEEDBACK_NOT_PROOF_EVIDENCE"
+    )
+
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {
+                        "kernel_verified_proof_obligation_ids": verified_ids,
+                        "kernel_verified_theorem_reduction_closure_work_order_ids": [
+                            "theorem_reduction_closure_work_order:good_rank"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_target_ids": [
+                            "split_conformal_finite_sample_coverage_reduction_closure"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_goal_ids": [
+                            "split_conformal_finite_sample_coverage"
+                        ],
+                        "kernel_verified_source_theorem_semantic_primitive_ids": [
+                            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+                            "split_conformal_good_rank_set_inclusion_bridge",
+                        ],
+                    },
+                    *learning_rows,
+                ],
+            }
+        },
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["source_theorem_exact_candidate_requires_repair"] is True
+    assert summary["source_theorem_exact_candidate_repair_target_names"] == [
+        "exact_source_claim"
+    ]
+    assert summary["source_theorem_exact_candidate_repair_triggers"] == [
+        "SOURCE_THEOREM_EXACT_CANDIDATE_LOCAL_LEAN_FAILED"
+    ]
+    assert summary["recommended_source_theorem_integration_action"] == (
+        "repair_exact_source_theorem_candidate_proof_body"
+    )
+    assert "unsolved goals" in summary[
+        "source_theorem_exact_candidate_repair_diagnostics"
+    ][0]["diagnostics"][0]
+
+
 def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> None:
     formalization_manifest = {
         "artifact_kind": "RuntimeFormalizationManifest",

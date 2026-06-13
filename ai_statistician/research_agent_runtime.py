@@ -3462,6 +3462,14 @@ _SOURCE_THEOREM_INTEGRATOR_BLOCKER_TRIGGERS = frozenset(
 )
 
 
+_SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS = frozenset(
+    {
+        "SOURCE_THEOREM_EXACT_CANDIDATE_LOCAL_LEAN_FAILED",
+        "SOURCE_THEOREM_EXACT_CANDIDATE_STATIC_CHECK_FAILED",
+    }
+)
+
+
 def _runtime_learning_memory_source_theorem_integrator_blockers(
     architect_context: Mapping[str, Any],
 ) -> tuple[dict[str, Any], ...]:
@@ -3535,6 +3543,76 @@ def _runtime_learning_memory_source_theorem_integrator_blockers(
     return tuple(blockers)
 
 
+def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
+    architect_context: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if not isinstance(memory, Mapping) or memory.get("artifact_kind") != "RuntimeLearningMemoryContext":
+        return ()
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    repairs: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = row.get("input_summary", {})
+        trigger = (
+            str(input_summary.get("trigger", "") or "")
+            if isinstance(input_summary, Mapping)
+            else ""
+        )
+        if (
+            str(row.get("learning_task", "") or "")
+            != "source_theorem_exact_candidate_lean_feedback"
+            and trigger not in _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS
+        ):
+            continue
+        source_theorem_kernel_verified = bool(
+            row.get("source_theorem_kernel_verified", False)
+        )
+        if isinstance(input_summary, Mapping):
+            source_theorem_kernel_verified = bool(
+                source_theorem_kernel_verified
+                or input_summary.get("source_theorem_kernel_verified", False)
+            )
+        if source_theorem_kernel_verified:
+            continue
+        target = str(row.get("target_theorem_name", "") or "").strip()
+        if not target and isinstance(input_summary, Mapping):
+            target = str(input_summary.get("target_theorem_name", "") or "").strip()
+        diagnostics: list[str] = []
+        if isinstance(input_summary, Mapping):
+            diagnostics = [
+                str(value)
+                for value in input_summary.get("diagnostics", []) or []
+                if str(value).strip()
+            ][:3]
+        key = (target, trigger)
+        if key in seen:
+            continue
+        seen.add(key)
+        repairs.append(
+            {
+                "target_theorem_name": target,
+                "trigger": trigger,
+                "verification_status": (
+                    str(input_summary.get("verification_status", "") or "")
+                    if isinstance(input_summary, Mapping)
+                    else ""
+                ),
+                "candidate_artifact_path": str(
+                    row.get("candidate_artifact_path", "") or ""
+                ),
+                "diagnostics": diagnostics,
+            }
+        )
+    return tuple(repairs)
+
+
 def _formalizer_proof_bank_runtime_memory_summary(
     *,
     context: Mapping[str, Any],
@@ -3588,10 +3666,20 @@ def _formalizer_proof_bank_runtime_memory_summary(
     source_theorem_integrator_blockers = (
         _runtime_learning_memory_source_theorem_integrator_blockers(context)
     )
+    source_theorem_exact_candidate_repairs = (
+        _runtime_learning_memory_source_theorem_exact_candidate_repairs(context)
+    )
     source_theorem_integrator_blocked_targets = tuple(
         dict.fromkeys(
             str(row.get("target_theorem_name", "") or "").strip()
             for row in source_theorem_integrator_blockers
+            if str(row.get("target_theorem_name", "") or "").strip()
+        )
+    )
+    source_theorem_exact_candidate_repair_targets = tuple(
+        dict.fromkeys(
+            str(row.get("target_theorem_name", "") or "").strip()
+            for row in source_theorem_exact_candidate_repairs
             if str(row.get("target_theorem_name", "") or "").strip()
         )
     )
@@ -3600,6 +3688,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
             [
                 *promotion_ready_unproved_targets,
                 *source_theorem_integrator_blocked_targets,
+                *source_theorem_exact_candidate_repair_targets,
             ]
         )
     )
@@ -3658,7 +3747,38 @@ def _formalizer_proof_bank_runtime_memory_summary(
                 if str(row.get("trigger", "") or "")
             )
         ),
+        "source_theorem_exact_candidate_requires_repair": bool(
+            source_theorem_exact_candidate_repairs
+        ),
+        "source_theorem_exact_candidate_repair_target_names": list(
+            source_theorem_exact_candidate_repair_targets
+        ),
+        "source_theorem_exact_candidate_repair_triggers": list(
+            dict.fromkeys(
+                str(row.get("trigger", "") or "")
+                for row in source_theorem_exact_candidate_repairs
+                if str(row.get("trigger", "") or "")
+            )
+        ),
+        "source_theorem_exact_candidate_repair_diagnostics": [
+            {
+                "target_theorem_name": str(
+                    row.get("target_theorem_name", "") or ""
+                ),
+                "verification_status": str(
+                    row.get("verification_status", "") or ""
+                ),
+                "candidate_artifact_path": str(
+                    row.get("candidate_artifact_path", "") or ""
+                ),
+                "diagnostics": list(row.get("diagnostics", []) or []),
+            }
+            for row in source_theorem_exact_candidate_repairs[:3]
+        ],
         "recommended_source_theorem_integration_action": (
+            "repair_exact_source_theorem_candidate_proof_body"
+            if source_theorem_exact_candidate_repairs
+            else
             "repair_blocked_source_theorem_integration_artifacts"
             if source_theorem_integrator_blockers
             else
@@ -3691,7 +3811,10 @@ def _formalizer_proof_bank_runtime_memory_summary(
             "queue next instead of repeating route-probe materialization. If memory records an "
             "integrator blocker, repair the source-theorem artifact into a non-vacuous exact theorem "
             "proof target; route probes, vacuous True targets, and artifacts that assume the target "
-            "remain blocked and are not proof evidence."
+            "remain blocked and are not proof evidence. If memory records an exact source-theorem "
+            "candidate that reached local Lean but failed, keep the exact declaration and repair the "
+            "proof body/import/theory gaps from the verifier diagnostics instead of regenerating a "
+            "route probe."
         ),
     }
 
@@ -5263,20 +5386,23 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
     integrator_rows = _runtime_source_theorem_integrator_bridge_learning_rows(
         bridge_manifest
     )
+    exact_candidate_rows = _runtime_source_theorem_artifact_verifier_bridge_learning_rows(
+        bridge_manifest
+    )
     queue_dir_value = str(
         bridge_manifest.get("source_theorem_promotion_queue_dir", "") or ""
     )
     if not queue_dir_value:
-        return integrator_rows
+        return [*integrator_rows, *exact_candidate_rows]
     queue_dir = Path(queue_dir_value)
     queue_jsonl = (
         queue_dir / "formal_verifier_agentic_proof_source_theorem_promotion_queue.jsonl"
     )
     if not queue_jsonl.exists():
-        return integrator_rows
-    rows: list[dict[str, Any]] = list(integrator_rows)
+        return [*integrator_rows, *exact_candidate_rows]
+    rows: list[dict[str, Any]] = [*integrator_rows, *exact_candidate_rows]
     seen_targets: set[str] = set()
-    for row in integrator_rows:
+    for row in rows:
         target = str(row.get("target_theorem_name", "") or "")
         if target:
             seen_targets.add(target)
@@ -5340,6 +5466,109 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
                 ),
                 "target_theorem_name": target_theorem_name,
                 "proof_evidence_status": "SOURCE_THEOREM_PROMOTION_BRIDGE_LEARNING_NOT_PROOF_EVIDENCE",
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+        )
+    return rows
+
+
+def _runtime_source_theorem_artifact_verifier_bridge_learning_rows(
+    bridge_manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    verifier_manifest_value = str(
+        bridge_manifest.get("artifact_verifier_manifest", "") or ""
+    )
+    if not verifier_manifest_value:
+        return []
+    verifier_manifest_path = Path(verifier_manifest_value)
+    if not verifier_manifest_path.exists():
+        return []
+    try:
+        verifier_payload = json.loads(verifier_manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if not isinstance(verifier_payload, Mapping):
+        return []
+    rows: list[dict[str, Any]] = []
+    seen_targets: set[str] = set()
+    for row in verifier_payload.get("rows", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        if bool(row.get("source_theorem_kernel_verified", False)):
+            continue
+        if not bool(row.get("source_theorem_target_known", False)):
+            continue
+        status = str(row.get("verification_status", "") or "")
+        if status not in {
+            "ARTIFACT_LOCAL_LEAN_FAILED",
+            "STATIC_ARTIFACT_CHECK_FAILED",
+        }:
+            continue
+        target_theorem_name = str(
+            row.get("target_theorem_name", "")
+            or row.get("target_lean_declaration", "")
+            or ""
+        )
+        dedupe_key = target_theorem_name or str(row.get("materialization_id", "") or "")
+        if dedupe_key in seen_targets:
+            continue
+        if dedupe_key:
+            seen_targets.add(dedupe_key)
+        trigger = (
+            "SOURCE_THEOREM_EXACT_CANDIDATE_LOCAL_LEAN_FAILED"
+            if status == "ARTIFACT_LOCAL_LEAN_FAILED"
+            else "SOURCE_THEOREM_EXACT_CANDIDATE_STATIC_CHECK_FAILED"
+        )
+        diagnostics = [
+            str(value)
+            for value in row.get("diagnostics", []) or []
+            if str(value).strip()
+        ][:5]
+        rows.append(
+            {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "question_id": str(row.get("question_id", "") or ""),
+                "question_title": str(row.get("question_title", "") or ""),
+                "learning_task": "source_theorem_exact_candidate_lean_feedback",
+                "input_summary": {
+                    "trigger": trigger,
+                    "owner_subsystem": "Formalizer/ProofEngineer",
+                    "verification_status": status,
+                    "target_theorem_name": target_theorem_name,
+                    "target_lean_declaration": str(
+                        row.get("target_lean_declaration", "") or ""
+                    ),
+                    "candidate_artifact_path": str(
+                        row.get("candidate_artifact_path", "") or ""
+                    ),
+                    "local_lean_checked": bool(row.get("local_lean_checked", False)),
+                    "local_lean_compiled": bool(row.get("local_lean_compiled", False)),
+                    "artifact_kernel_verified": bool(
+                        row.get("artifact_kernel_verified", False)
+                    ),
+                    "source_theorem_kernel_verified": bool(
+                        row.get("source_theorem_kernel_verified", False)
+                    ),
+                    "diagnostics": diagnostics,
+                },
+                "target_behavior": (
+                    "repair the exact source-theorem candidate proof body, imports, "
+                    "or formal primitives using the local Lean diagnostics; preserve "
+                    "the exact declaration and do not fall back to a route probe"
+                ),
+                "acceptance_gate": (
+                    "artifact_kernel_verified=true and then source_theorem_kernel_verified=true "
+                    "for " + (target_theorem_name or "the exact source theorem target")
+                ),
+                "artifact_verifier_manifest": verifier_manifest_value,
+                "artifact_verification_id": str(
+                    row.get("artifact_verification_id", "") or ""
+                ),
+                "candidate_artifact_path": str(
+                    row.get("candidate_artifact_path", "") or ""
+                ),
+                "target_theorem_name": target_theorem_name,
+                "proof_evidence_status": "SOURCE_THEOREM_EXACT_CANDIDATE_LEAN_FEEDBACK_NOT_PROOF_EVIDENCE",
                 "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
             }
         )
