@@ -721,6 +721,12 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
                     "selected_primitives": ["primitive ids"],
                     "route_cost": "nonnegative number",
                     "cost_rationale": "why this route option costs this much",
+                    "wrapper_lemmas": ["route-option wrapper work items"],
+                    "bridge_lemmas": ["route-option bridge work items"],
+                    "source_port_lemmas": ["route-option source-port work items"],
+                    "new_definitions": ["route-option definition work items"],
+                    "new_theory_primitives": ["route-option theory work items"],
+                    "first_principles_primitives": ["route-option first-principles work items"],
                     "primitive_costs": [
                         {
                             "primitive": "route option primitive id",
@@ -2191,6 +2197,54 @@ def export_formalization_gap_planner_llm_route_planner(
                 )
             )
         ),
+        "n_route_option_action_witness_required_primitives": sum(
+            len(
+                _str_tuple(
+                    row.realization_coverage_witness.get(
+                        "route_option_action_witness_required_primitives",
+                        [],
+                    )
+                )
+            )
+            for row in rows
+        ),
+        "n_route_option_action_witness_missing_primitives": sum(
+            len(
+                _str_tuple(
+                    row.realization_coverage_witness.get(
+                        "route_option_action_witness_missing_primitives",
+                        [],
+                    )
+                )
+            )
+            for row in rows
+        ),
+        "n_rows_with_route_option_action_witness_obligations": sum(
+            1
+            for row in rows
+            if _str_tuple(
+                row.realization_coverage_witness.get(
+                    "route_option_action_witness_required_primitives",
+                    [],
+                )
+            )
+        ),
+        "n_rows_with_complete_route_option_action_witness": sum(
+            1
+            for row in rows
+            if _str_tuple(
+                row.realization_coverage_witness.get(
+                    "route_option_action_witness_required_primitives",
+                    [],
+                )
+            )
+            and bool(
+                row.realization_coverage_witness.get(
+                    "route_option_action_witness_complete",
+                    False,
+                )
+            )
+        ),
         "n_search_requests": sum(len(row.search_requests) for row in rows),
         "n_planner_next_actions": sum(len(row.planner_next_actions) for row in rows),
         "n_rows_with_planner_next_actions": sum(
@@ -2881,6 +2935,10 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_delta_action_witness_missing_primitives",
             "n_rows_with_delta_action_witness_obligations",
             "n_rows_with_complete_delta_action_witness",
+            "n_route_option_action_witness_required_primitives",
+            "n_route_option_action_witness_missing_primitives",
+            "n_rows_with_route_option_action_witness_obligations",
+            "n_rows_with_complete_route_option_action_witness",
             "n_rows_with_context_packet_inventory",
             "n_row_schema_valid",
             "n_row_schema_invalid",
@@ -3091,6 +3149,10 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_delta_action_witness_missing_primitives": nonnegative_integer,
             "n_rows_with_delta_action_witness_obligations": nonnegative_integer,
             "n_rows_with_complete_delta_action_witness": nonnegative_integer,
+            "n_route_option_action_witness_required_primitives": nonnegative_integer,
+            "n_route_option_action_witness_missing_primitives": nonnegative_integer,
+            "n_rows_with_route_option_action_witness_obligations": nonnegative_integer,
+            "n_rows_with_complete_route_option_action_witness": nonnegative_integer,
             "n_rows_with_context_packet_inventory": nonnegative_integer,
             "n_row_schema_valid": nonnegative_integer,
             "n_row_schema_invalid": nonnegative_integer,
@@ -3353,6 +3415,10 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                     "delta_action_witnessed_primitives",
                     "delta_action_witness_missing_primitives",
                     "delta_action_witness_complete",
+                    "route_option_action_witness_required_primitives",
+                    "route_option_action_witnessed_primitives",
+                    "route_option_action_witness_missing_primitives",
+                    "route_option_action_witness_complete",
                     "cost_hint_baseline_coverage_complete",
                     "selected_route_coverage_complete",
                     "selected_formal_coverage_complete",
@@ -3388,6 +3454,12 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                     "delta_action_witness_complete": {"type": "boolean"},
                     "delta_action_witness_rows": object_array,
                     "missing_delta_action_witnesses": object_array,
+                    "route_option_action_witness_required_primitives": witness_array,
+                    "route_option_action_witnessed_primitives": witness_array,
+                    "route_option_action_witness_missing_primitives": witness_array,
+                    "route_option_action_witness_complete": {"type": "boolean"},
+                    "route_option_action_witness_rows": object_array,
+                    "missing_route_option_action_witnesses": object_array,
                     "cost_hint_baseline_coverage_complete": {"type": "boolean"},
                     "selected_route_coverage_complete": {"type": "boolean"},
                     "selected_formal_coverage_complete": {"type": "boolean"},
@@ -6173,7 +6245,8 @@ def _user_prompt(
             "and_or_cost_graph must enumerate route_options with unique route_option_id values and duplicate-free selected_primitives, a selected_route_option_id that names one route_options row, non-empty or_nodes with duplicate-free choices, and non-empty and_edges; every route option must be reachable from an OR choice and have exactly one AND edge listing exactly its selected_primitives.",
             "Every selected primitive and every route option primitive must appear in standalone_route.primitives and formal_realization_dag_nodes.",
             "Every selected primitive, route option primitive, and wrapper/bridge/source-port/new-definition/first-principles delta primitive must have a resolved route_alignment_edge.",
-            "Every wrapper_lemmas, bridge_lemmas, source_port_lemmas, new_definitions, new_theory_primitives, or first_principles_primitives item used as a selected-delta action witness must be an actionable work item, not only the primitive name; include the primitive plus a theorem statement, definition goal, porting target, proof obligation, or construction description.",
+            "Every wrapper_lemmas, bridge_lemmas, source_port_lemmas, new_definitions, new_theory_primitives, or first_principles_primitives item used as a selected-delta or route-option action witness must be an actionable work item, not only the primitive name; include the primitive plus a theorem statement, definition goal, porting target, proof obligation, or construction description.",
+            "When a route_options[].primitive_costs row uses a wrapper, bridge, source_port, new_definition, or new_theory bucket, that same route option must include a matching actionable wrapper_lemmas, bridge_lemmas, source_port_lemmas, new_definitions, new_theory_primitives, or first_principles_primitives work item; selected route options may also use the top-level minimal_delta_plan action lists.",
             "New selected, route option, or delta primitives not already present in the target route or context packet must be justified by an aligned informal node with grounded source_refs, a matching literature search_request, or a formal_gap_boundary.",
             "When context_packet.resource_request_queue_rows is present, evidence-gathering search_requests and planner_next_actions should reference queued resource_request_id or resource_id entries instead of inventing new tool dispatches.",
             "When context_packet.resource_request_playbooks is present, use each playbook's operator_prompt, expected_response_fields, and acceptance_checklist as the bounded ask for search_requests and planner_next_actions.",
@@ -6801,6 +6874,12 @@ def llm_route_planner_response_payload_schema(
             "selected_primitives": string_array,
             "route_cost": {"type": "number"},
             "cost_rationale": {"type": "string", "minLength": 1},
+            "new_definitions": string_array,
+            "new_theory_primitives": string_array,
+            "first_principles_primitives": string_array,
+            "wrapper_lemmas": string_array,
+            "bridge_lemmas": string_array,
+            "source_port_lemmas": string_array,
             "primitive_costs": {
                 "type": "array",
                 "items": {"$ref": "#/$defs/primitive_cost"},
@@ -13749,6 +13828,23 @@ def _minimal_delta_actionability_witness_errors(
                 f"{', '.join(acceptable_fields)} because "
                 + "; ".join(sources)
             )
+    route_option_witness = _route_option_action_witness_status(minimal_delta)
+    for item in _dict_tuple(
+        route_option_witness.get("missing_route_option_action_witnesses", [])
+    ):
+        primitive = str(item.get("primitive", "")).strip()
+        action_field = str(item.get("required_action_field", "")).strip()
+        acceptable_fields = _str_tuple(item.get("acceptable_action_fields", []))
+        sources = _str_tuple(item.get("requirement_sources", []))
+        option_index = item.get("route_option_index", "")
+        if primitive and action_field:
+            errors.append(
+                "minimal_delta_plan.and_or_cost_graph.route_options"
+                f"[{option_index}] primitive {primitive} requires actionable "
+                "route option action witness in "
+                f"{', '.join(acceptable_fields)} because "
+                + "; ".join(sources)
+            )
     return errors
 
 
@@ -13819,6 +13915,121 @@ def _minimal_delta_action_witness_status(
         "delta_action_witness_rows": witness_rows,
         "missing_delta_action_witnesses": missing_rows,
     }
+
+
+def _route_option_action_witness_status(
+    minimal_delta: Mapping[str, Any],
+) -> dict[str, object]:
+    graph = _dict_value(minimal_delta, "and_or_cost_graph")
+    required: list[str] = []
+    witnessed: list[str] = []
+    missing: list[str] = []
+    witness_rows: list[dict[str, object]] = []
+    missing_rows: list[dict[str, object]] = []
+    for option_index, option in enumerate(_dict_tuple(graph.get("route_options", []))):
+        option_id = str(option.get("route_option_id", "")).strip()
+        selected_option = bool(option.get("selected", False))
+        for row_index, cost_row in enumerate(_dict_tuple(option.get("primitive_costs", []))):
+            primitive = _primitive_key(cost_row.get("primitive", ""))
+            if not primitive:
+                continue
+            marker = _primitive_key(cost_row.get("coverage_bucket", ""))
+            for action_field in _minimal_delta_action_fields_for_marker(marker):
+                acceptable_fields = _minimal_delta_action_witness_fields(action_field)
+                matched_fields: list[str] = []
+                placeholder_fields: list[str] = []
+                matched_items_by_field: dict[str, list[str]] = {}
+                placeholder_items_by_field: dict[str, list[str]] = {}
+                for field_name in acceptable_fields:
+                    for source_label, values in _route_option_action_witness_sources(
+                        minimal_delta,
+                        option,
+                        option_index=option_index,
+                        field_name=field_name,
+                        allow_top_level=selected_option,
+                    ):
+                        match = _minimal_delta_action_list_match_status(
+                            values,
+                            primitive,
+                        )
+                        if match["matched_items"]:
+                            matched_items_by_field[source_label] = list(
+                                match["matched_items"]
+                            )
+                        if match["placeholder_items"]:
+                            placeholder_fields.append(source_label)
+                            placeholder_items_by_field[source_label] = list(
+                                match["placeholder_items"]
+                            )
+                        if match["actionable_items"]:
+                            matched_fields.append(source_label)
+                row = {
+                    "route_option_id": option_id,
+                    "route_option_index": option_index,
+                    "primitive_cost_index": row_index,
+                    "selected_route_option": selected_option,
+                    "primitive": primitive,
+                    "required_action_field": action_field,
+                    "acceptable_action_fields": list(acceptable_fields),
+                    "requirement_sources": [
+                        "minimal_delta_plan.and_or_cost_graph.route_options"
+                        f"[{option_index}].primitive_costs"
+                        f"[{row_index}].coverage_bucket={marker}"
+                    ],
+                    "matched_action_fields": matched_fields,
+                    "placeholder_action_fields": placeholder_fields,
+                    "matched_action_items_by_field": matched_items_by_field,
+                    "placeholder_action_items_by_field": placeholder_items_by_field,
+                }
+                required.append(primitive)
+                if matched_fields:
+                    witnessed.append(primitive)
+                    witness_rows.append(row)
+                else:
+                    missing.append(primitive)
+                    missing_rows.append(row)
+    return {
+        "route_option_action_witness_required_primitives": sorted(set(required)),
+        "route_option_action_witnessed_primitives": sorted(set(witnessed)),
+        "route_option_action_witness_missing_primitives": sorted(set(missing)),
+        "route_option_action_witness_complete": not missing_rows,
+        "route_option_action_witness_rows": witness_rows,
+        "missing_route_option_action_witnesses": missing_rows,
+    }
+
+
+def _route_option_action_witness_sources(
+    minimal_delta: Mapping[str, Any],
+    option: Mapping[str, Any],
+    *,
+    option_index: int,
+    field_name: str,
+    allow_top_level: bool,
+) -> tuple[tuple[str, object], ...]:
+    sources: list[tuple[str, object]] = [
+        (
+            "minimal_delta_plan.and_or_cost_graph.route_options"
+            f"[{option_index}].{field_name}",
+            option.get(field_name, []),
+        )
+    ]
+    action_witnesses = _dict_value(option, "action_witnesses")
+    if action_witnesses:
+        sources.append(
+            (
+                "minimal_delta_plan.and_or_cost_graph.route_options"
+                f"[{option_index}].action_witnesses.{field_name}",
+                action_witnesses.get(field_name, []),
+            )
+        )
+    if allow_top_level:
+        sources.append(
+            (
+                f"minimal_delta_plan.{field_name}",
+                minimal_delta.get(field_name, []),
+            )
+        )
+    return tuple(sources)
 
 
 def _minimal_delta_action_requirements(
@@ -14571,6 +14782,13 @@ def _realization_coverage_witness(
     action_witness_complete = bool(
         action_witness.get("delta_action_witness_complete", False)
     )
+    route_option_action_witness = _route_option_action_witness_status(minimal_delta)
+    route_option_action_witness_complete = bool(
+        route_option_action_witness.get(
+            "route_option_action_witness_complete",
+            False,
+        )
+    )
     return {
         "selected_primitives": list(selected_order),
         "delta_primitives": sorted(delta_primitives),
@@ -14616,6 +14834,7 @@ def _realization_coverage_witness(
             introduced_missing_alignment
         ),
         **action_witness,
+        **route_option_action_witness,
         "cost_hint_baseline_coverage_complete": not omitted_cost_hint,
         "selected_route_coverage_complete": bool(selected_order)
         and not selected_missing_route,
@@ -14632,7 +14851,8 @@ def _realization_coverage_witness(
         and not route_option_missing_formal
         and not delta_missing_alignment
         and not introduced_missing_alignment
-        and action_witness_complete,
+        and action_witness_complete
+        and route_option_action_witness_complete,
     }
 
 
@@ -16034,6 +16254,9 @@ def _compact_realization_witness(value: object) -> dict[str, object]:
         "delta_action_witness_required_primitives",
         "delta_action_witnessed_primitives",
         "delta_action_witness_missing_primitives",
+        "route_option_action_witness_required_primitives",
+        "route_option_action_witnessed_primitives",
+        "route_option_action_witness_missing_primitives",
     )
     compact: dict[str, object] = {
         field_name: list(_str_tuple(witness.get(field_name, [])))
@@ -16054,6 +16277,24 @@ def _compact_realization_witness(value: object) -> dict[str, object]:
         compact["missing_delta_action_witnesses"] = [
             dict(row)
             for row in _dict_tuple(witness.get("missing_delta_action_witnesses", []))[:8]
+        ]
+    if (
+        "route_option_action_witness_complete" in witness
+        or _str_tuple(
+            witness.get("route_option_action_witness_required_primitives", [])
+        )
+        or _str_tuple(
+            witness.get("route_option_action_witness_missing_primitives", [])
+        )
+    ):
+        compact["route_option_action_witness_complete"] = bool(
+            witness.get("route_option_action_witness_complete", False)
+        )
+        compact["missing_route_option_action_witnesses"] = [
+            dict(row)
+            for row in _dict_tuple(
+                witness.get("missing_route_option_action_witnesses", [])
+            )[:8]
         ]
     if (
         "cost_hint_baseline_coverage_complete" in witness
@@ -16110,6 +16351,26 @@ def _realization_feedback_next_actions(
                     "selected positive-delta primitives must be listed in "
                     "wrapper_lemmas, bridge_lemmas, source_port_lemmas, "
                     "new_definitions, or new_theory_primitives"
+                ),
+            }
+        )
+    missing_route_option_action_witness = _str_tuple(
+        realization_coverage.get(
+            "missing_route_option_action_witness_primitives",
+            [],
+        )
+    )
+    if missing_route_option_action_witness:
+        actions.append(
+            {
+                "source": "realization_coverage_witness",
+                "owner": "formalization_gap_planner",
+                "action": "add_route_option_action_witnesses",
+                "target_primitives": list(missing_route_option_action_witness[:12]),
+                "reason": (
+                    "route options with route-specific primitive costs must "
+                    "carry actionable wrapper, bridge, source-port, definition, "
+                    "or theory work items"
                 ),
             }
         )
@@ -19122,11 +19383,24 @@ def _realization_coverage_summary_for_witness(
         "missing_delta_action_witness_primitives": list(
             _str_tuple(witness.get("delta_action_witness_missing_primitives", []))
         ),
+        "missing_route_option_action_witness_primitives": list(
+            _str_tuple(
+                witness.get("route_option_action_witness_missing_primitives", [])
+            )
+        ),
         "delta_action_witness_required_primitives": list(
             _str_tuple(witness.get("delta_action_witness_required_primitives", []))
         ),
+        "route_option_action_witness_required_primitives": list(
+            _str_tuple(
+                witness.get("route_option_action_witness_required_primitives", [])
+            )
+        ),
         "delta_action_witness_complete": bool(
             witness.get("delta_action_witness_complete", True)
+        ),
+        "route_option_action_witness_complete": bool(
+            witness.get("route_option_action_witness_complete", True)
         ),
         "cost_hint_baseline_primitives": list(
             _str_tuple(witness.get("cost_hint_baseline_primitives", []))
@@ -19161,6 +19435,8 @@ def _trigger_kind_for_realization_coverage_action(
         return "omitted_cost_hint_primitives_review_required"
     if action_name == "add_minimal_delta_action_witnesses":
         return "minimal_delta_action_witness_repair_required"
+    if action_name == "add_route_option_action_witnesses":
+        return "route_option_action_witness_repair_required"
     return "realization_coverage_repair_required"
 
 
@@ -20552,6 +20828,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Formal realization nodes: {payload.get('n_formal_realization_dag_nodes')}",
         f"- Alignment edges: {payload.get('n_route_alignment_edges')}",
         f"- Delta action witness required/missing: {payload.get('n_delta_action_witness_required_primitives')}/{payload.get('n_delta_action_witness_missing_primitives')}",
+        f"- Route-option action witness required/missing: {payload.get('n_route_option_action_witness_required_primitives')}/{payload.get('n_route_option_action_witness_missing_primitives')}",
         f"- Search requests: {payload.get('n_search_requests')}",
         f"- Planner next actions: {payload.get('n_planner_next_actions')}",
         f"- All OK: {payload.get('all_ok')}",

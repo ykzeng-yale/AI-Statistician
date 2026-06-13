@@ -439,7 +439,15 @@ route-specific primitive cost rows must obey the same coverage-bucket evidence
 floor as top-level primitive costs: a route option cannot label a primitive as
 `exact_exists` while the corresponding standalone or formal-realization node
 still says `bridge_needed`, `source_port_needed`, or another more expensive
-coverage marker. The same route-option primitives must appear in
+coverage marker. A route option with route-specific `primitive_costs` must also
+carry route-option action witnesses for every wrapper, bridge, source-port,
+new-definition, or new-theory bucket it prices. For example, an unselected
+source-port alternative must put the concrete theorem-porting work item in that
+option's `source_port_lemmas`, and an alternative bridge primitive must have a
+route-option `bridge_lemmas` item. The selected route may use the top-level
+minimal-delta action lists, but unselected alternatives cannot borrow the
+selected route's action witness for a different kind of work. The same
+route-option primitives must appear in
 `standalone_route.primitives` and the formal-realization DAG, so rejected
 alternatives are still library-aware routes rather than numeric placeholders.
 They must also have resolved

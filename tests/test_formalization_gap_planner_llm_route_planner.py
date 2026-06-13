@@ -308,6 +308,13 @@ def _llm_response_payload() -> dict[str, object]:
                         "selected_primitives": ["exchangeability", "rank_uniformity"],
                         "route_cost": 7,
                         "cost_rationale": "Porting a source theorem costs more than the focused bridge.",
+                        "source_port_lemmas": [
+                            (
+                                "rank_uniformity: port the textbook finite-rank "
+                                "uniformity theorem, including the target-prover "
+                                "tie convention assumptions"
+                            )
+                        ],
                         "primitive_costs": [
                             {
                                 "primitive": "exchangeability",
@@ -423,6 +430,10 @@ def _append_bridge_cost(
     minimal_delta["route_cost"] = int(minimal_delta["route_cost"]) + total_cost
     primitive_costs = minimal_delta["primitive_costs"]
     assert isinstance(primitive_costs, list)
+    bridge_witness = (
+        f"{primitive}: prove the focused bridge lemma required by the "
+        "augmented route option"
+    )
     primitive_costs.append(
         {
             "primitive": primitive,
@@ -437,6 +448,7 @@ def _append_bridge_cost(
             "cost_rationale": "The added primitive is modeled as one focused bridge lemma.",
         }
     )
+    minimal_delta.setdefault("bridge_lemmas", []).append(bridge_witness)
     graph = minimal_delta["and_or_cost_graph"]
     assert isinstance(graph, dict)
     route_options = graph["route_options"]
@@ -462,6 +474,7 @@ def _append_bridge_cost(
         option_costs = option.get("primitive_costs")
         if isinstance(option_costs, list):
             option_costs.append(dict(added_cost_row))
+            option.setdefault("bridge_lemmas", []).append(bridge_witness)
     edge_primitives_by_option = {
         str(option.get("route_option_id", "")): list(option["selected_primitives"])
         for option in route_options
@@ -811,6 +824,16 @@ def _promote_response_to_source_port_costs(response: dict[str, object]) -> None:
         "The selected replan route carries two source-port obligations."
     )
     route_options[1]["route_cost"] = 16
+    route_options[1]["source_port_lemmas"] = [
+        (
+            "exchangeability: port the alternative source-backed exchangeability "
+            "premise before replaying the rank route"
+        ),
+        (
+            "rank_uniformity: port the alternative source-backed finite-rank "
+            "uniformity theorem with the extra side-condition allowance"
+        ),
+    ]
     route_options[1]["primitive_costs"] = [
         {
             "primitive": "exchangeability",
@@ -5103,6 +5126,8 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert route_option_schema["properties"]["primitive_costs"]["items"] == {
         "$ref": "#/$defs/primitive_cost"
     }
+    assert "source_port_lemmas" in route_option_schema["properties"]
+    assert "bridge_lemmas" in route_option_schema["properties"]
     residual_schema = response_payload_schema["properties"]["residual_interpretations"][
         "items"
     ]
@@ -5162,6 +5187,15 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     )
     assert payload["n_requests_with_route_planning_brief"] == 1
     assert payload["n_request_route_planning_focus_rows"] >= 4
+    assert payload["n_route_option_action_witness_required_primitives"] == 1
+    assert payload["n_route_option_action_witness_missing_primitives"] == 0
+    assert payload["n_rows_with_route_option_action_witness_obligations"] == 1
+    assert payload["n_rows_with_complete_route_option_action_witness"] == 1
+    route_option_witness = payload["rows"][0]["realization_coverage_witness"]
+    assert route_option_witness["route_option_action_witness_complete"] is True
+    assert route_option_witness[
+        "route_option_action_witness_required_primitives"
+    ] == ["rank_uniformity"]
     assert "repair_attempt_ledger" in manifest_schema["required"]
     assert "n_repair_attempt_ledger_rows" in manifest_schema["required"]
     assert "standalone_replay_gate" in manifest_schema["required"]
@@ -11270,6 +11304,43 @@ def test_llm_route_planner_rejects_route_option_cost_bucket_underpricing_evidenc
     )
 
 
+def test_llm_route_planner_rejects_route_option_cost_without_action_witness() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_route_option_cost_without_action_witness"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    graph = bad_response["minimal_delta_plan"]["and_or_cost_graph"]
+    graph["route_options"][1].pop("source_port_lemmas", None)
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "and_or_cost_graph.route_options[1] primitive rank_uniformity requires actionable route option action witness"
+        in error
+        and "source_port_lemmas" in error
+        and "coverage_bucket=source_port" in error
+        for error in row["errors"]
+    )
+    witness = row["realization_coverage_witness"]
+    assert witness["route_option_action_witness_complete"] is False
+    assert witness["route_option_action_witness_missing_primitives"] == [
+        "rank_uniformity"
+    ]
+
+
 def test_llm_route_planner_rejects_route_option_primitive_without_cost_row() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_route_option_primitive_without_cost_row"
@@ -11485,6 +11556,12 @@ def test_llm_route_planner_accepts_aligned_route_option_primitive() -> None:
     graph = response["minimal_delta_plan"]["and_or_cost_graph"]
     alternative = graph["route_options"][1]
     alternative["selected_primitives"].append(primitive)
+    alternative.setdefault("bridge_lemmas", []).append(
+        (
+            "rank_order_statistic: prove the alternative rank-order bridge "
+            "from the source-backed rank uniformity step"
+        )
+    )
     alternative["primitive_costs"].append(dict(cost_row))
     alternative["route_cost"] = 11
     graph["and_edges"][1]["requires"].append(primitive)
