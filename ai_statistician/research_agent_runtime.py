@@ -2061,6 +2061,10 @@ def run_research_agent_runtime(
     source_theorem_semantic_primitive_work_orders_path = (
         out_dir / "runtime_source_theorem_semantic_primitive_work_orders.jsonl"
     )
+    source_theorem_semantic_primitive_executor_work_orders_path = (
+        out_dir
+        / "runtime_source_theorem_semantic_primitive_work_orders_from_proof_body_executor.jsonl"
+    )
     source_theorem_formal_environment_work_orders_path = (
         out_dir / "runtime_source_theorem_formal_environment_work_orders.jsonl"
     )
@@ -2176,6 +2180,16 @@ def run_research_agent_runtime(
         if source_theorem_promotion_bridge_manifest is not None
         else []
     )
+    theorem_closure_bridge_learning_rows = (
+        _runtime_bridge_learning_rows(theorem_closure_bridge_manifest)
+        if theorem_closure_bridge_manifest is not None
+        else []
+    )
+    source_semantic_bridge_learning_rows = (
+        _runtime_bridge_learning_rows(source_semantic_bridge_manifest)
+        if source_semantic_bridge_manifest is not None
+        else []
+    )
     source_theorem_formal_environment_bridge_manifest: dict[str, Any] | None = None
     source_theorem_formal_environment_bridge_queue = (
         source_theorem_formal_environment_work_orders_path
@@ -2271,6 +2285,12 @@ def run_research_agent_runtime(
         if source_theorem_formal_environment_proof_body_executor_manifest is not None
         else []
     )
+    if theorem_closure_bridge_learning_rows:
+        learning_rows.extend(theorem_closure_bridge_learning_rows)
+        _write_jsonl(learning_path, learning_rows)
+    if source_semantic_bridge_learning_rows:
+        learning_rows.extend(source_semantic_bridge_learning_rows)
+        _write_jsonl(learning_path, learning_rows)
     if source_theorem_promotion_bridge_learning_rows:
         learning_rows.extend(source_theorem_promotion_bridge_learning_rows)
         _write_jsonl(learning_path, learning_rows)
@@ -2285,6 +2305,9 @@ def run_research_agent_runtime(
             source_theorem_formal_environment_proof_body_executor_learning_rows
         )
     )
+    source_semantic_post_executor_bridge_manifest: dict[str, Any] | None = None
+    source_semantic_post_executor_bridge_learning_rows: list[dict[str, Any]] = []
+    new_semantic_work_order_rows: list[dict[str, Any]] = []
     if source_theorem_semantic_primitive_executor_work_order_rows:
         seen_semantic_work_order_ids = {
             str(row.get("work_order_id", "") or "")
@@ -2298,6 +2321,10 @@ def run_research_agent_runtime(
             not in seen_semantic_work_order_ids
         ]
         if new_semantic_work_order_rows:
+            _write_jsonl(
+                source_theorem_semantic_primitive_executor_work_orders_path,
+                new_semantic_work_order_rows,
+            )
             source_theorem_semantic_primitive_work_order_rows.extend(
                 new_semantic_work_order_rows
             )
@@ -2305,6 +2332,30 @@ def run_research_agent_runtime(
                 source_theorem_semantic_primitive_work_orders_path,
                 source_theorem_semantic_primitive_work_order_rows,
             )
+            if config.source_semantic_proofengineer_bridge:
+                source_semantic_post_executor_bridge_manifest = (
+                    run_source_theorem_semantic_primitive_proofengineer_bridge(
+                        out_dir=out_dir
+                        / "runtime_source_theorem_semantic_primitive_proofengineer_bridge_from_proof_body_executor",
+                        queue_jsonl=source_theorem_semantic_primitive_executor_work_orders_path,
+                        question_id=questions[0].id if len(questions) == 1 else "",
+                        local_lean=config.source_semantic_proofengineer_local_lean,
+                        lean_project=(
+                            Path(config.source_semantic_proofengineer_lean_project)
+                            if config.source_semantic_proofengineer_lean_project
+                            else None
+                        ),
+                        lean_timeout=config.source_semantic_proofengineer_lean_timeout,
+                    )
+                )
+                source_semantic_post_executor_bridge_learning_rows = (
+                    _runtime_bridge_learning_rows(
+                        source_semantic_post_executor_bridge_manifest
+                    )
+                )
+                if source_semantic_post_executor_bridge_learning_rows:
+                    learning_rows.extend(source_semantic_post_executor_bridge_learning_rows)
+                    _write_jsonl(learning_path, learning_rows)
     source_theorem_formal_environment_executor_work_order_rows = (
         _runtime_source_theorem_formal_environment_work_order_rows_from_learning_rows(
             source_theorem_formal_environment_proof_body_executor_learning_rows
@@ -2351,6 +2402,10 @@ def run_research_agent_runtime(
     manifest["artifacts"][
         "runtime_source_theorem_semantic_primitive_work_orders_jsonl"
     ] = str(source_theorem_semantic_primitive_work_orders_path)
+    if new_semantic_work_order_rows:
+        manifest["artifacts"][
+            "runtime_source_theorem_semantic_primitive_work_orders_from_proof_body_executor_jsonl"
+        ] = str(source_theorem_semantic_primitive_executor_work_orders_path)
     manifest["artifacts"][
         "runtime_source_theorem_formal_environment_work_orders_jsonl"
     ] = str(source_theorem_formal_environment_work_orders_path)
@@ -2397,6 +2452,27 @@ def run_research_agent_runtime(
         manifest["artifacts"][
             "runtime_source_theorem_semantic_primitive_proofengineer_checks_jsonl"
         ] = str(source_semantic_bridge_manifest["checks_jsonl"])
+    if source_semantic_post_executor_bridge_manifest is not None:
+        manifest["artifacts"][
+            "runtime_source_theorem_semantic_primitive_proofengineer_bridge_from_proof_body_executor_manifest"
+        ] = str(
+            out_dir
+            / "runtime_source_theorem_semantic_primitive_proofengineer_bridge_from_proof_body_executor"
+            / "source_theorem_semantic_primitive_proofengineer_bridge_manifest.json"
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_semantic_primitive_proofengineer_from_proof_body_executor_learning_rows_jsonl"
+        ] = str(source_semantic_post_executor_bridge_manifest["runtime_learning_rows_jsonl"])
+        manifest["artifacts"][
+            "runtime_source_theorem_semantic_primitive_proofengineer_from_proof_body_executor_learning_export_manifest"
+        ] = str(
+            source_semantic_post_executor_bridge_manifest[
+                "runtime_learning_export_manifest"
+            ]
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_semantic_primitive_proofengineer_from_proof_body_executor_checks_jsonl"
+        ] = str(source_semantic_post_executor_bridge_manifest["checks_jsonl"])
     if source_theorem_formal_environment_bridge_manifest is not None:
         manifest["artifacts"][
             "runtime_source_theorem_formal_environment_proofengineer_bridge_manifest"
@@ -2596,6 +2672,12 @@ def run_research_agent_runtime(
     manifest[
         "n_runtime_source_theorem_semantic_primitive_work_orders_from_proof_body_executor"
     ] = len(source_theorem_semantic_primitive_executor_work_order_rows)
+    manifest[
+        "n_runtime_new_source_theorem_semantic_primitive_work_orders_from_proof_body_executor"
+    ] = len(new_semantic_work_order_rows)
+    manifest[
+        "n_runtime_source_theorem_semantic_primitive_learning_rows_from_proof_body_executor_bridge"
+    ] = len(source_semantic_post_executor_bridge_learning_rows)
     manifest["n_runtime_source_theorem_formal_environment_work_orders"] = len(
         source_theorem_formal_environment_work_order_rows
     )
@@ -2686,6 +2768,59 @@ def run_research_agent_runtime(
         "retroactively prove the current run, and verified registered semantic "
         "bridges do not by themselves prove the full source theorem or any "
         "unformalized upstream statistical definition."
+    )
+    manifest["source_semantic_post_executor_proofengineer_bridge_requested"] = bool(
+        config.source_semantic_proofengineer_bridge
+        and source_theorem_semantic_primitive_executor_work_order_rows
+    )
+    manifest["source_semantic_post_executor_proofengineer_bridge_ran"] = (
+        source_semantic_post_executor_bridge_manifest is not None
+    )
+    manifest[
+        "source_semantic_post_executor_proofengineer_bridge_skipped_reason"
+    ] = (
+        ""
+        if source_semantic_post_executor_bridge_manifest is not None
+        else (
+            "bridge_disabled"
+            if not config.source_semantic_proofengineer_bridge
+            else "no_new_executor_derived_source_theorem_semantic_primitive_work_orders"
+            if source_theorem_semantic_primitive_executor_work_order_rows
+            else "no_executor_derived_source_theorem_semantic_primitive_work_orders"
+        )
+    )
+    manifest[
+        "source_semantic_post_executor_proofengineer_bridge_runtime_learning_ready"
+    ] = bool(
+        source_semantic_post_executor_bridge_manifest
+        and source_semantic_post_executor_bridge_manifest.get(
+            "runtime_learning_ready"
+        )
+        is True
+    )
+    manifest[
+        "source_semantic_post_executor_proofengineer_bridge_n_kernel_verified_registered_candidates"
+    ] = int(
+        source_semantic_post_executor_bridge_manifest.get(
+            "n_kernel_verified_registered_candidate_obligations",
+            0,
+        )
+        if source_semantic_post_executor_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_semantic_post_executor_proofengineer_bridge_proof_evidence_status"
+    ] = str(
+        source_semantic_post_executor_bridge_manifest.get("proof_evidence_status", "")
+        if source_semantic_post_executor_bridge_manifest
+        else ""
+    )
+    manifest["source_semantic_post_executor_proofengineer_bridge_boundary"] = (
+        "This second source-semantic bridge pass only consumes semantic primitive "
+        "work orders derived from exact proof-body executor feedback. It may export "
+        "kernel-verified registered support rows into runtime learning memory, but "
+        "does not prove the full source theorem or the placeholder primitive's full "
+        "statistical semantics."
     )
     manifest["source_theorem_formal_environment_proofengineer_bridge_requested"] = bool(
         config.source_theorem_formal_environment_proofengineer_bridge
@@ -7073,7 +7208,7 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
     return rows
 
 
-def _runtime_source_theorem_formal_environment_bridge_learning_rows(
+def _runtime_bridge_learning_rows(
     bridge_manifest: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
     learning_rows_path_value = str(
@@ -7095,6 +7230,12 @@ def _runtime_source_theorem_formal_environment_bridge_learning_rows(
         if isinstance(row, dict):
             rows.append(row)
     return rows
+
+
+def _runtime_source_theorem_formal_environment_bridge_learning_rows(
+    bridge_manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    return _runtime_bridge_learning_rows(bridge_manifest)
 
 
 def _runtime_source_theorem_formal_environment_proof_body_executor_learning_rows(

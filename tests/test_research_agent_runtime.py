@@ -47,7 +47,9 @@ from ai_statistician.research_agent_runtime import (
     _critic_next_action_agenda,
     _proof_bank_obligation_request_ids,
     _registered_algorithm_template_hint,
+    _runtime_bridge_learning_rows,
     _runtime_learning_memory_kernel_verified_proof_obligation_ids,
+    _runtime_learning_memory_kernel_verified_source_theorem_semantic_primitives,
     _runtime_learning_memory_proof_obligation_ids,
     _runtime_completion_summary,
     _formalizer_proof_bank_runtime_memory_summary,
@@ -2294,6 +2296,69 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders() -
     assert all(
         row["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
         for row in work_orders
+    )
+
+
+def test_source_semantic_bridge_learning_rows_enter_runtime_memory(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    learning_row = {
+        "schema_version": 1,
+        "question_id": "split_conformal",
+        "learning_task": "source_theorem_semantic_primitive_kernel_overlay",
+        "input_summary": {
+            "source_theorem_semantic_primitive_work_order_ids": [
+                "source_theorem_semantic_primitive_work_order:exchangeability",
+                "source_theorem_semantic_primitive_work_order:orderstat",
+            ],
+            "semantic_primitive_ids": [
+                "exchangeability_to_uniform_rank_semantics",
+                "order_statistic_quantile_semantics",
+            ],
+            "kernel_verified_source_theorem_semantic_primitive_ids": [
+                "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+                "split_conformal_good_rank_set_inclusion_bridge",
+            ],
+            "kernel_verified_proof_obligation_ids": [
+                "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+                "split_conformal_good_rank_set_inclusion_bridge",
+            ],
+            "proof_audit_manifest": str(tmp_path / "proof_audit_manifest.json"),
+            "support_level": "registered_partial_semantic_bridge",
+        },
+        "source_theorem_semantic_primitive_work_order_ids": [
+            "source_theorem_semantic_primitive_work_order:exchangeability",
+            "source_theorem_semantic_primitive_work_order:orderstat",
+        ],
+        "semantic_primitive_ids": [
+            "exchangeability_to_uniform_rank_semantics",
+            "order_statistic_quantile_semantics",
+        ],
+        "kernel_verified_source_theorem_semantic_primitive_ids": [
+            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+            "split_conformal_good_rank_set_inclusion_bridge",
+        ],
+        "kernel_verified_proof_obligation_ids": [
+            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+            "split_conformal_good_rank_set_inclusion_bridge",
+        ],
+    }
+    learning_path.write_text(json.dumps(learning_row) + "\n", encoding="utf-8")
+
+    bridge_rows = _runtime_bridge_learning_rows(
+        {"runtime_learning_rows_jsonl": str(learning_path)}
+    )
+    memory = _load_runtime_learning_memory([learning_path])
+    semantic_ids = _runtime_learning_memory_kernel_verified_source_theorem_semantic_primitives(
+        {"runtime_learning_memory": memory}
+    )
+
+    assert bridge_rows == [learning_row]
+    assert memory["counts"]["rows_loaded"] == 1
+    assert semantic_ids == (
+        "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+        "split_conformal_good_rank_set_inclusion_bridge",
     )
 
 
