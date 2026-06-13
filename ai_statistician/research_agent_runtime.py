@@ -50,6 +50,9 @@ from .formal_verifier_agentic_proof_source_theorem_promotion_queue import (
 from .formal_verifier_agentic_proof_source_theorem_integrator import (
     export_formal_verifier_agentic_proof_source_theorem_integrator,
 )
+from .exact_source_theorem_proof_body_executor import (
+    export_exact_source_theorem_proof_body_execution_results,
+)
 from .formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
@@ -150,6 +153,9 @@ class ResearchAgentRuntimeConfig:
     source_semantic_proofengineer_lean_timeout: int = 90
     source_theorem_formal_environment_proofengineer_bridge: bool = False
     source_theorem_formal_environment_proofengineer_signature_probes: bool = False
+    source_theorem_formal_environment_proofengineer_execute_proof_body: bool = False
+    source_theorem_formal_environment_proofengineer_proof_body_local_lean: bool = False
+    source_theorem_formal_environment_proofengineer_proof_body_overwrite_artifacts: bool = False
     source_theorem_formal_environment_proofengineer_lean_project: str = ""
     source_theorem_formal_environment_proofengineer_lean_timeout: int = 90
     source_theorem_promotion_proofengineer_bridge: bool = False
@@ -2213,6 +2219,44 @@ def run_research_agent_runtime(
                 ),
             )
         )
+    source_theorem_formal_environment_proof_body_executor_manifest: (
+        dict[str, Any] | None
+    ) = None
+    if (
+        config.source_theorem_formal_environment_proofengineer_execute_proof_body
+        and source_theorem_formal_environment_bridge_manifest is not None
+        and source_theorem_formal_environment_bridge_manifest.get(
+            "proof_body_execution_queue_manifest"
+        )
+    ):
+        proof_body_execution_queue_dir = Path(
+            str(
+                source_theorem_formal_environment_bridge_manifest[
+                    "proof_body_execution_queue_manifest"
+                ]
+            )
+        ).parent
+        source_theorem_formal_environment_proof_body_executor_manifest = (
+            export_exact_source_theorem_proof_body_execution_results(
+                proof_body_execution_queue_dir,
+                out_dir=out_dir
+                / "runtime_source_theorem_formal_environment_proof_body_executor",
+                overwrite=(
+                    config.source_theorem_formal_environment_proofengineer_proof_body_overwrite_artifacts
+                ),
+                local_lean=(
+                    config.source_theorem_formal_environment_proofengineer_proof_body_local_lean
+                ),
+                lean_project=(
+                    Path(config.source_theorem_formal_environment_proofengineer_lean_project)
+                    if config.source_theorem_formal_environment_proofengineer_lean_project
+                    else None
+                ),
+                lean_timeout=(
+                    config.source_theorem_formal_environment_proofengineer_lean_timeout
+                ),
+            )
+        )
     source_theorem_formal_environment_bridge_learning_rows = (
         _runtime_source_theorem_formal_environment_bridge_learning_rows(
             source_theorem_formal_environment_bridge_manifest
@@ -2220,11 +2264,21 @@ def run_research_agent_runtime(
         if source_theorem_formal_environment_bridge_manifest is not None
         else []
     )
+    source_theorem_formal_environment_proof_body_executor_learning_rows = (
+        _runtime_source_theorem_formal_environment_proof_body_executor_learning_rows(
+            source_theorem_formal_environment_proof_body_executor_manifest
+        )
+        if source_theorem_formal_environment_proof_body_executor_manifest is not None
+        else []
+    )
     if source_theorem_promotion_bridge_learning_rows:
         learning_rows.extend(source_theorem_promotion_bridge_learning_rows)
         _write_jsonl(learning_path, learning_rows)
     if source_theorem_formal_environment_bridge_learning_rows:
         learning_rows.extend(source_theorem_formal_environment_bridge_learning_rows)
+        _write_jsonl(learning_path, learning_rows)
+    if source_theorem_formal_environment_proof_body_executor_learning_rows:
+        learning_rows.extend(source_theorem_formal_environment_proof_body_executor_learning_rows)
         _write_jsonl(learning_path, learning_rows)
     _write_runtime_formalization_gap_planner_seed_files(
         gap_planner_bridge_rows,
@@ -2370,6 +2424,34 @@ def run_research_agent_runtime(
                     "proof_body_execution_queue_manifest"
                 ]
             )
+    if source_theorem_formal_environment_proof_body_executor_manifest is not None:
+        manifest["artifacts"][
+            "runtime_source_theorem_formal_environment_proof_body_executor_manifest"
+        ] = str(
+            source_theorem_formal_environment_proof_body_executor_manifest[
+                "execution_result_manifest"
+            ]
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_formal_environment_proof_body_executor_results_jsonl"
+        ] = str(
+            source_theorem_formal_environment_proof_body_executor_manifest[
+                "execution_results_jsonl"
+            ]
+        )
+        executor_learning_export = (
+            source_theorem_formal_environment_proof_body_executor_manifest.get(
+                "runtime_learning_export",
+                {},
+            )
+        )
+        if isinstance(executor_learning_export, Mapping):
+            manifest["artifacts"][
+                "runtime_source_theorem_formal_environment_proof_body_executor_learning_rows_jsonl"
+            ] = str(executor_learning_export.get("runtime_learning_rows_jsonl", "") or "")
+            manifest["artifacts"][
+                "runtime_source_theorem_formal_environment_proof_body_executor_learning_manifest"
+            ] = str(executor_learning_export.get("runtime_learning_manifest", "") or "")
     if source_theorem_promotion_bridge_manifest is not None:
         manifest["artifacts"][
             "runtime_source_theorem_promotion_proofengineer_bridge_manifest"
@@ -2688,6 +2770,89 @@ def run_research_agent_runtime(
             "",
         )
         if source_theorem_formal_environment_bridge_manifest
+        else ""
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_requested"
+    ] = bool(config.source_theorem_formal_environment_proofengineer_execute_proof_body)
+    manifest["source_theorem_formal_environment_proof_body_executor_ran"] = (
+        source_theorem_formal_environment_proof_body_executor_manifest is not None
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_local_lean_requested"
+    ] = bool(config.source_theorem_formal_environment_proofengineer_proof_body_local_lean)
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_skipped_reason"
+    ] = (
+        ""
+        if source_theorem_formal_environment_proof_body_executor_manifest is not None
+        else (
+            "executor_disabled"
+            if not config.source_theorem_formal_environment_proofengineer_execute_proof_body
+            else "no_proof_body_execution_queue"
+        )
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_n_result_rows"
+    ] = int(
+        source_theorem_formal_environment_proof_body_executor_manifest.get(
+            "n_execution_result_rows",
+            0,
+        )
+        if source_theorem_formal_environment_proof_body_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_n_local_lean_checked"
+    ] = int(
+        source_theorem_formal_environment_proof_body_executor_manifest.get(
+            "n_local_lean_checked",
+            0,
+        )
+        if source_theorem_formal_environment_proof_body_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_n_artifact_kernel_verified"
+    ] = int(
+        source_theorem_formal_environment_proof_body_executor_manifest.get(
+            "n_artifact_kernel_verified",
+            0,
+        )
+        if source_theorem_formal_environment_proof_body_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified"
+    ] = int(
+        source_theorem_formal_environment_proof_body_executor_manifest.get(
+            "n_source_theorem_kernel_verified",
+            0,
+        )
+        if source_theorem_formal_environment_proof_body_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_n_placeholder_environment_blockers"
+    ] = int(
+        source_theorem_formal_environment_proof_body_executor_manifest.get(
+            "n_placeholder_environment_blockers",
+            0,
+        )
+        if source_theorem_formal_environment_proof_body_executor_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_n_learning_rows"
+    ] = len(source_theorem_formal_environment_proof_body_executor_learning_rows)
+    manifest[
+        "source_theorem_formal_environment_proof_body_executor_proof_evidence_status"
+    ] = str(
+        source_theorem_formal_environment_proof_body_executor_manifest.get(
+            "proof_evidence_status",
+            "",
+        )
+        if source_theorem_formal_environment_proof_body_executor_manifest
         else ""
     )
     manifest["source_theorem_formal_environment_proofengineer_bridge_boundary"] = (
@@ -6395,6 +6560,31 @@ def _runtime_source_theorem_formal_environment_bridge_learning_rows(
     learning_rows_path_value = str(
         bridge_manifest.get("runtime_learning_rows_jsonl", "") or ""
     )
+    if not learning_rows_path_value:
+        return []
+    learning_rows_path = Path(learning_rows_path_value)
+    if not learning_rows_path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for raw_line in learning_rows_path.read_text(encoding="utf-8").splitlines():
+        if not raw_line.strip():
+            continue
+        try:
+            row = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def _runtime_source_theorem_formal_environment_proof_body_executor_learning_rows(
+    executor_manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    export_payload = executor_manifest.get("runtime_learning_export", {})
+    if not isinstance(export_payload, Mapping):
+        return []
+    learning_rows_path_value = str(export_payload.get("runtime_learning_rows_jsonl", "") or "")
     if not learning_rows_path_value:
         return []
     learning_rows_path = Path(learning_rows_path_value)

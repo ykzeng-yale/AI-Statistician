@@ -58,6 +58,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_source_theorem_semantic_primitive_work_order_rows,
     _runtime_source_theorem_formal_environment_work_order_rows,
     _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_payload,
+    _runtime_source_theorem_formal_environment_proof_body_executor_learning_rows,
     _runtime_source_theorem_promotion_work_order_rows,
     _runtime_source_theorem_promotion_handoff_rows,
     _runtime_source_theorem_promotion_materialization_seed_rows,
@@ -2009,6 +2010,43 @@ def test_formal_environment_work_order_names_missing_symbols_and_typeclass_block
         for task in work_order["recommended_repair_tasks"]
     )
     assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+
+
+def test_formal_environment_proof_body_executor_learning_rows_enter_runtime_memory(
+    tmp_path: Path,
+) -> None:
+    rows_path = tmp_path / "runtime_learning_rows.jsonl"
+    learning_row = {
+        "schema_version": 1,
+        "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+        "target_theorem_name": "split_conformal_source_theorem",
+        "execution_queue_id": "exact_source_queue:1",
+        "trigger": "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED",
+        "input_summary": {
+            "failure_classification": "formal_environment_placeholder_primitives",
+            "source_theorem_kernel_verified": False,
+        },
+        "kernel_verified_source_theorem_ids": [],
+        "proof_evidence_status": (
+            "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    rows_path.write_text(json.dumps(learning_row) + "\n", encoding="utf-8")
+    executor_manifest = {
+        "runtime_learning_export": {
+            "runtime_learning_rows_jsonl": str(rows_path),
+        }
+    }
+
+    rows = _runtime_source_theorem_formal_environment_proof_body_executor_learning_rows(
+        executor_manifest
+    )
+
+    assert rows == [learning_row]
+    assert rows[0]["kernel_verified_source_theorem_ids"] == []
+    assert rows[0]["proof_evidence_status"] == (
+        "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+    )
 
 
 def test_source_theorem_promotion_infers_mathlib_import_for_statistical_statement(

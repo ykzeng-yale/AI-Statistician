@@ -268,6 +268,9 @@ from .formal_verifier_agentic_proof_source_theorem_promotion_queue import (
 from .formal_verifier_agentic_proof_source_theorem_integrator import (
     export_formal_verifier_agentic_proof_source_theorem_integrator,
 )
+from .exact_source_theorem_proof_body_executor import (
+    export_exact_source_theorem_proof_body_execution_results,
+)
 from .formal_verifier_agentic_proof_source_theorem_target_resolution import (
     export_formal_verifier_agentic_proof_source_theorem_target_resolution,
 )
@@ -4818,6 +4821,34 @@ def _formal_verifier_agentic_proof_execution_artifact_verifier(
     return 0 if payload["all_ok"] else 1
 
 
+def _exact_source_theorem_proof_body_executor(args: argparse.Namespace) -> int:
+    payload = export_exact_source_theorem_proof_body_execution_results(
+        Path(args.exact_source_theorem_proof_body_execution_queue_dir),
+        Path(args.out),
+        overwrite=bool(args.overwrite),
+        local_lean=bool(args.local_lean),
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout=int(args.lean_timeout),
+    )
+    print("\nAI Statistical Theory Lab Exact Source Theorem Proof-Body Executor")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_execution_result_rows']} "
+        f"materialized={payload['n_materialized_candidate_artifacts']} "
+        f"checked={payload['n_local_lean_checked']} "
+        f"artifact_kernel={payload['n_artifact_kernel_verified']} "
+        f"source_theorem_kernel={payload['n_source_theorem_kernel_verified']} "
+        f"placeholder_env_blockers={payload['n_placeholder_environment_blockers']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        "exact source proof-body executor manifest written to "
+        f"{(Path(args.out) / 'exact_source_theorem_proof_body_execution_result_manifest.json').resolve()}"
+    )
+    print(f"proof_evidence_status={payload['proof_evidence_status']}")
+    return 0 if payload["all_ok"] else 1
+
+
 def _runtime_source_theorem_promotion_proofengineer_bridge(
     args: argparse.Namespace,
 ) -> int:
@@ -6422,6 +6453,27 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 getattr(
                     args,
                     "source_theorem_formal_environment_proofengineer_signature_probes",
+                    False,
+                )
+            ),
+            source_theorem_formal_environment_proofengineer_execute_proof_body=bool(
+                getattr(
+                    args,
+                    "source_theorem_formal_environment_proofengineer_execute_proof_body",
+                    False,
+                )
+            ),
+            source_theorem_formal_environment_proofengineer_proof_body_local_lean=bool(
+                getattr(
+                    args,
+                    "source_theorem_formal_environment_proofengineer_proof_body_local_lean",
+                    False,
+                )
+            ),
+            source_theorem_formal_environment_proofengineer_proof_body_overwrite_artifacts=bool(
+                getattr(
+                    args,
+                    "source_theorem_formal_environment_proofengineer_proof_body_overwrite_artifacts",
                     False,
                 )
             ),
@@ -10078,6 +10130,51 @@ def build_parser() -> argparse.ArgumentParser:
         func=_formal_verifier_agentic_proof_execution_artifact_verifier
     )
 
+    exact_source_theorem_proof_body_executor = sub.add_parser(
+        "exact-source-theorem-proof-body-executor",
+        help=(
+            "consume exact source-theorem proof-body execution queue rows, "
+            "materialize candidate artifacts, and optionally run local Lean"
+        ),
+    )
+    exact_source_theorem_proof_body_executor.add_argument(
+        "--exact-source-theorem-proof-body-execution-queue-dir",
+        required=True,
+        help=(
+            "directory containing "
+            "exact_source_theorem_proof_body_execution_queue_manifest.json"
+        ),
+    )
+    exact_source_theorem_proof_body_executor.add_argument(
+        "--out",
+        default="runs/exact_source_theorem_proof_body_executor",
+        help="exact source theorem proof-body executor output directory",
+    )
+    exact_source_theorem_proof_body_executor.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="rewrite existing candidate artifacts instead of reusing them",
+    )
+    exact_source_theorem_proof_body_executor.add_argument(
+        "--local-lean",
+        action="store_true",
+        help="run local lake env lean/lean on materialized candidate artifacts",
+    )
+    exact_source_theorem_proof_body_executor.add_argument(
+        "--lean-project",
+        default="",
+        help="optional local Lake project; when set runs lake env lean",
+    )
+    exact_source_theorem_proof_body_executor.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="seconds before local Lean proof-body execution check times out",
+    )
+    exact_source_theorem_proof_body_executor.set_defaults(
+        func=_exact_source_theorem_proof_body_executor
+    )
+
     runtime_source_theorem_promotion_proofengineer_bridge = sub.add_parser(
         "runtime-source-theorem-promotion-proofengineer-bridge",
         help=(
@@ -11493,6 +11590,30 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "when the formal-environment bridge is enabled, materialize and run "
             "typecheck-only Lean signature probes; these are diagnostics, not proof evidence"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-formal-environment-proofengineer-execute-proof-body",
+        action="store_true",
+        help=(
+            "after signature probes reach a proof body, consume the generated "
+            "proof-body execution queue and export ProofEngineer feedback rows"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-formal-environment-proofengineer-proof-body-local-lean",
+        action="store_true",
+        help=(
+            "when proof-body execution is enabled, run local Lean on materialized "
+            "candidate artifacts"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-formal-environment-proofengineer-proof-body-overwrite-artifacts",
+        action="store_true",
+        help=(
+            "when proof-body execution is enabled, rewrite existing candidate "
+            "artifacts before optional local Lean checks"
         ),
     )
     research_agent_runtime.add_argument(

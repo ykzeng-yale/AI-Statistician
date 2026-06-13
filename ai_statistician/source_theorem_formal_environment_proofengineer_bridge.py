@@ -1095,6 +1095,9 @@ def _proof_body_execution_queue_row(
         "target_lean_declaration": str(location["target_lean_declaration"]),
         "live_goal_location_ready": live_ready,
         "live_proof_state_request": live_request,
+        "already_repaired_environment": dict(
+            work_order.get("already_repaired_environment", {}) or {}
+        ),
         "proof_body_goal_excerpt": list(work_order.get("proof_body_goal_excerpt", []) or []),
         "proofengineer_next_actions": list(
             work_order.get("proofengineer_next_actions", []) or []

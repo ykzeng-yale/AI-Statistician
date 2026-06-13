@@ -5,6 +5,9 @@ import sys
 from pathlib import Path
 
 from ai_statistician.cli import main
+from ai_statistician.exact_source_theorem_proof_body_executor import (
+    export_exact_source_theorem_proof_body_execution_results,
+)
 from ai_statistician.source_theorem_formal_environment_proofengineer_bridge import (
     run_source_theorem_formal_environment_proofengineer_bridge,
 )
@@ -164,6 +167,10 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert execution_row["target_theorem_name"] == "split_conformal_coverage"
     assert execution_row["live_goal_location_ready"] is True
     assert execution_row["target_lean_declaration"] == "split_conformal_coverage"
+    assert execution_row["already_repaired_environment"]["missing_formal_symbols"] == [
+        "Exchangeable",
+        "orderStat",
+    ]
     assert execution_row["live_proof_state_request"]["provider_preferences"][0] == (
         "lean_lsp_mcp"
     )
@@ -217,6 +224,65 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert learning_row["proof_evidence_status"] == (
         "FORMAL_ENVIRONMENT_REPAIR_LEARNING_NOT_PROOF_EVIDENCE"
     )
+
+    execution_payload = export_exact_source_theorem_proof_body_execution_results(
+        Path(str(manifest["proof_body_execution_queue_manifest"])).parent,
+        tmp_path / "proof_body_executor",
+        overwrite=True,
+        local_lean=True,
+        lean_command=(
+            sys.executable,
+            "-c",
+            "import sys; print('unsolved goals'); sys.exit(1)",
+        ),
+    )
+    assert execution_payload["n_execution_result_rows"] == 1
+    assert execution_payload["n_materialized_candidate_artifacts"] == 1
+    assert execution_payload["n_local_lean_checked"] == 1
+    assert execution_payload["n_local_lean_compiled"] == 0
+    assert execution_payload["n_artifact_kernel_verified"] == 0
+    assert execution_payload["n_source_theorem_kernel_verified"] == 0
+    assert execution_payload["n_placeholder_environment_blockers"] == 1
+    execution_result = execution_payload["rows"][0]
+    assert execution_result["execution_status"] == (
+        "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED"
+    )
+    assert execution_result["failure_classification"] == (
+        "formal_environment_placeholder_primitives"
+    )
+    assert execution_result["source_theorem_kernel_verified"] is False
+    assert execution_result["candidate_live_proof_state_request"][
+        "target_lean_file"
+    ] == execution_result["candidate_artifact_path"]
+    assert execution_result["candidate_live_proof_state_request"]["mcp_tool_calls"][0][
+        "arguments"
+    ]["file"] == execution_result["candidate_artifact_path"]
+    candidate_source = Path(execution_result["candidate_artifact_path"]).read_text(
+        encoding="utf-8"
+    )
+    assert "def Exchangeable" in candidate_source
+    transcript_event = json.loads(
+        Path(execution_result["execution_transcript_path"]).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert transcript_event["event"] == (
+        "exact_source_theorem_proof_body_execution_result"
+    )
+    assert transcript_event["source_theorem_kernel_verified"] is False
+    learning_export = execution_payload["runtime_learning_export"]
+    executor_learning_row = json.loads(
+        Path(str(learning_export["runtime_learning_rows_jsonl"])).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert executor_learning_row["learning_task"] == (
+        "exact_source_theorem_proof_body_execution_feedback"
+    )
+    assert executor_learning_row["trigger"] == (
+        "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED"
+    )
+    assert executor_learning_row["kernel_verified_source_theorem_ids"] == []
 
     cli_out = tmp_path / "bridge_cli"
     code = main(
