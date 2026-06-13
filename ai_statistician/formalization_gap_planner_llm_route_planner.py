@@ -6172,9 +6172,9 @@ def _user_prompt(
             "Every primitive_costs row must satisfy total_cost = base_cost + proof_difficulty_cost + import_cone_cost + definition_or_typeclass_cost + semantic_risk_cost - reuse_credit; route_cost must equal the sum of selected primitive total_cost values, and every route_options row must either include route-specific primitive_costs summing to route_cost or have a route_cost equal to the global primitive_costs for its selected_primitives.",
             "and_or_cost_graph must enumerate route_options with unique route_option_id values and duplicate-free selected_primitives, a selected_route_option_id that names one route_options row, non-empty or_nodes with duplicate-free choices, and non-empty and_edges; every route option must be reachable from an OR choice and have exactly one AND edge listing exactly its selected_primitives.",
             "Every selected primitive and every route option primitive must appear in standalone_route.primitives and formal_realization_dag_nodes.",
-            "Every wrapper, bridge, source-port, new-definition, or first-principles delta primitive must have a route_alignment_edge.",
+            "Every selected primitive, route option primitive, and wrapper/bridge/source-port/new-definition/first-principles delta primitive must have a resolved route_alignment_edge.",
             "Every wrapper_lemmas, bridge_lemmas, source_port_lemmas, new_definitions, new_theory_primitives, or first_principles_primitives item used as a selected-delta action witness must be an actionable work item, not only the primitive name; include the primitive plus a theorem statement, definition goal, porting target, proof obligation, or construction description.",
-            "New selected or delta primitives not already present in the target route or context packet must be justified by an aligned informal node with grounded source_refs, a matching literature search_request, or a formal_gap_boundary.",
+            "New selected, route option, or delta primitives not already present in the target route or context packet must be justified by an aligned informal node with grounded source_refs, a matching literature search_request, or a formal_gap_boundary.",
             "When context_packet.resource_request_queue_rows is present, evidence-gathering search_requests and planner_next_actions should reference queued resource_request_id or resource_id entries instead of inventing new tool dispatches.",
             "When context_packet.resource_request_playbooks is present, use each playbook's operator_prompt, expected_response_fields, and acceptance_checklist as the bounded ask for search_requests and planner_next_actions.",
             "Do not claim kernel verification or theorem proof evidence.",
@@ -13481,6 +13481,28 @@ def _response_primitive_coherence_errors(
             + ", ".join(route_option_missing_formal[:8])
         )
     delta_primitives = _minimal_delta_primitives(minimal_delta, selected)
+    omitted_cost_hint_primitives = set(
+        _omitted_cost_hint_primitives(minimal_delta, request)
+    )
+    route_option_alignment_required = (
+        route_option_primitives - omitted_cost_hint_primitives
+    )
+    route_option_missing_alignment = sorted(route_option_alignment_required - alignment)
+    if route_option_missing_alignment:
+        errors.append(
+            "minimal_delta_plan.and_or_cost_graph route option primitives missing route_alignment_edges: "
+            + ", ".join(route_option_missing_alignment[:8])
+        )
+    route_option_unresolved_alignment = sorted(
+        primitive
+        for primitive in route_option_alignment_required
+        if primitive in alignment and primitive not in resolved_alignment
+    )
+    if route_option_unresolved_alignment:
+        errors.append(
+            "minimal_delta_plan.and_or_cost_graph route option primitives have unresolved route_alignment_edges: "
+            + ", ".join(route_option_unresolved_alignment[:8])
+        )
     selected_missing_alignment = sorted(selected - alignment)
     if selected_missing_alignment:
         errors.append(
@@ -13513,7 +13535,10 @@ def _response_primitive_coherence_errors(
             "minimal_delta_plan delta primitives have unresolved route_alignment_edges: "
             + ", ".join(delta_unresolved_alignment)
         )
-    introduced = sorted((selected | delta_primitives) - _available_primitive_keys_for_request(request))
+    introduced = sorted(
+        (selected | delta_primitives | route_option_primitives)
+        - _available_primitive_keys_for_request(request)
+    )
     introduced_selected_missing_alignment = sorted(
         primitive for primitive in introduced if primitive in selected and primitive not in alignment
     )
@@ -14693,7 +14718,8 @@ def _introduced_primitive_evidence_errors(
         edges = alignment_edges_by_primitive.get(primitive, [])
         if not edges:
             errors.append(
-                "introduced selected/delta primitives require route_alignment_edges: "
+                "introduced selected/route-option/delta primitives require "
+                "route_alignment_edges: "
                 + primitive
             )
             continue

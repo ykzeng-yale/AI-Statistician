@@ -11307,6 +11307,152 @@ def test_llm_route_planner_rejects_route_option_primitive_without_realization_co
     assert "rank_order_statistic" in error_text
 
 
+def test_llm_route_planner_rejects_route_option_primitive_without_alignment() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_route_option_primitive_without_alignment"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    primitive = "rank_order_statistic"
+    bad_response["lean_realization_dag_nodes"].append(
+        {
+            "node_id": "formal:rank_order_statistic_bridge",
+            "primitive": primitive,
+            "coverage_bucket": "bridge",
+            "candidate_declarations": [],
+            "formalization_action": "prove_bridge",
+        }
+    )
+    bad_response["standalone_route"]["primitives"].append(
+        {
+            "primitive": primitive,
+            "coverage_status": "bridge_needed",
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    )
+    cost_row = {
+        "primitive": primitive,
+        "coverage_bucket": "bridge_needed",
+        "base_cost": 4,
+        "proof_difficulty_cost": 0,
+        "import_cone_cost": 0,
+        "definition_or_typeclass_cost": 0,
+        "semantic_risk_cost": 0,
+        "reuse_credit": 0,
+        "total_cost": 4,
+        "cost_rationale": "The alternative route adds an unaligned bridge primitive.",
+    }
+    bad_response["minimal_delta_plan"]["primitive_costs"].append(cost_row)
+    graph = bad_response["minimal_delta_plan"]["and_or_cost_graph"]
+    alternative = graph["route_options"][1]
+    alternative["selected_primitives"].append(primitive)
+    alternative["primitive_costs"].append(dict(cost_row))
+    alternative["route_cost"] = 11
+    graph["and_edges"][1]["requires"].append(primitive)
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "and_or_cost_graph route option primitives missing route_alignment_edges"
+        in error
+        and primitive in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_accepts_aligned_route_option_primitive() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_aligned_route_option_primitive"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    primitive = "rank_order_statistic"
+    response["informal_knowledge_dag_nodes"].append(
+        {
+            "node_id": "informal:rank_order_statistic",
+            "claim": (
+                "An alternative rank route may introduce a rank order statistic "
+                "bridge before proving the final bound."
+            ),
+            "depends_on": ["informal:rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "source_search_status": "SOURCE_BACKED",
+            "semantic_role": "lemma",
+        }
+    )
+    response["lean_realization_dag_nodes"].append(
+        {
+            "node_id": "formal:rank_order_statistic_bridge",
+            "primitive": primitive,
+            "coverage_bucket": "bridge",
+            "candidate_declarations": [],
+            "formalization_action": "prove_bridge",
+        }
+    )
+    response["route_alignment_edges"].append(
+        {
+            "informal_node_id": "informal:rank_order_statistic",
+            "formal_node_id": "formal:rank_order_statistic_bridge",
+            "alignment_status": "bridge_needed",
+            "alignment_rationale": (
+                "The alternative AND/OR branch realizes the source-backed rank "
+                "order statistic step as one bridge lemma."
+            ),
+        }
+    )
+    response["standalone_route"]["primitives"].append(
+        {
+            "primitive": primitive,
+            "coverage_status": "bridge_needed",
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    )
+    cost_row = {
+        "primitive": primitive,
+        "coverage_bucket": "bridge_needed",
+        "base_cost": 4,
+        "proof_difficulty_cost": 0,
+        "import_cone_cost": 0,
+        "definition_or_typeclass_cost": 0,
+        "semantic_risk_cost": 0,
+        "reuse_credit": 0,
+        "total_cost": 4,
+        "cost_rationale": "The alternative route adds one aligned bridge primitive.",
+    }
+    response["minimal_delta_plan"]["primitive_costs"].append(cost_row)
+    graph = response["minimal_delta_plan"]["and_or_cost_graph"]
+    alternative = graph["route_options"][1]
+    alternative["selected_primitives"].append(primitive)
+    alternative["primitive_costs"].append(dict(cost_row))
+    alternative["route_cost"] = 11
+    graph["and_edges"][1]["requires"].append(primitive)
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+
+
 def test_llm_route_planner_rejects_flat_and_or_cost_graph() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_flat_cost_graph"

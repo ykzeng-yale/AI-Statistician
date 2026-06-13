@@ -437,8 +437,13 @@ also be auditable: it either equals the sum of those global cost rows for its
 rows for route-specific actions such as source ports versus bridge lemmas. The
 same route-option primitives must appear in `standalone_route.primitives` and
 the formal-realization DAG, so rejected alternatives are still library-aware
-routes rather than numeric placeholders. The top-level `selected_primitives`
-list must be duplicate-free. The plan must also
+routes rather than numeric placeholders. They must also have resolved
+`route_alignment_edges`, so an unselected alternative cannot smuggle in a
+costed primitive without the same informal-to-formal DAG alignment evidence as
+the chosen route. A newly introduced route-option primitive must be justified
+by aligned informal evidence and formal-realization evidence before it can be
+used in the AND/OR graph. The top-level `selected_primitives` list must be
+duplicate-free. The plan must also
 include an `and_or_cost_graph` with enumerated route options with unique
 `route_option_id` values and duplicate-free `selected_primitives`, a
 `selected_route_option_id` naming one enumerated route option, exactly one
