@@ -17,6 +17,10 @@ ARTIFACT_KIND = "SourceTheoremFormalEnvironmentProofEngineerBridgeManifest"
 REPAIR_PACKET_ARTIFACT_KIND = "SourceTheoremFormalEnvironmentRepairPacket"
 SIGNATURE_PROBE_ARTIFACT_KIND = "SourceTheoremFormalEnvironmentSignatureProbeManifest"
 SIGNATURE_PROBE_ROW_ARTIFACT_KIND = "SourceTheoremFormalEnvironmentSignatureProbeRow"
+PROOF_BODY_WORK_ORDER_ARTIFACT_KIND = "ExactSourceTheoremProofBodyWorkOrder"
+PROOF_BODY_WORK_ORDER_PROOF_EVIDENCE_STATUS = (
+    "EXACT_SOURCE_THEOREM_PROOF_BODY_WORK_ORDER_NOT_PROOF_EVIDENCE"
+)
 BOUNDARY = (
     "Source-theorem formal-environment ProofEngineer bridge rows are repair "
     "routing artifacts. They identify missing Lean declarations, imports, and "
@@ -32,6 +36,13 @@ SIGNATURE_PROBE_BOUNDARY = (
     "symbols or typeclass blockers were cleared far enough to reach the proof body, "
     "but they are not artifact proof, source-theorem proof, or semantic promotion "
     "evidence."
+)
+PROOF_BODY_WORK_ORDER_BOUNDARY = (
+    "Exact source-theorem proof-body work orders are ProofEngineer tasks emitted "
+    "after a signature probe reaches the theorem proof body. They are not proof "
+    "evidence, do not prove the source theorem, and do not authorize changing the "
+    "theorem statement. Promotion requires a subsequent local Lean/AXLE verifier "
+    "manifest with source_theorem_kernel_verified=true."
 )
 
 
@@ -135,12 +146,18 @@ def run_source_theorem_formal_environment_proofengineer_bridge(
             lean_timeout=lean_timeout,
             lean_command=lean_command,
         )
+    proof_body_work_order_result = _export_proof_body_work_orders(
+        repair_packets=repair_packets,
+        signature_probe_result=signature_probe_result,
+        out_dir=out_dir / "exact_source_theorem_proof_body_work_orders",
+    )
     learning_result = _export_runtime_learning_rows(
         repair_packets=repair_packets,
         out_dir=out_dir / "runtime_learning_export",
         question_id=question_id,
         queue_path=queue_path,
         signature_probe_result=signature_probe_result,
+        proof_body_work_order_result=proof_body_work_order_result,
     )
     manifest = {
         "schema_version": 1,
@@ -175,6 +192,18 @@ def run_source_theorem_formal_environment_proofengineer_bridge(
             signature_probe_result.get("proof_evidence_status", "")
             if signature_probe_result
             else ""
+        ),
+        "proof_body_work_orders_jsonl": str(
+            proof_body_work_order_result.get("proof_body_work_orders_jsonl", "")
+        ),
+        "proof_body_work_order_manifest": str(
+            proof_body_work_order_result.get("proof_body_work_order_manifest", "")
+        ),
+        "n_proof_body_work_orders": int(
+            proof_body_work_order_result.get("n_proof_body_work_orders", 0)
+        ),
+        "proof_body_work_order_proof_evidence_status": str(
+            proof_body_work_order_result.get("proof_evidence_status", "")
         ),
         "n_work_orders": len(work_orders),
         "n_repair_packets": len(repair_packets),
@@ -777,6 +806,150 @@ def _safe_file_stem(value: str) -> str:
     return stem or "source_theorem_signature_probe"
 
 
+def _export_proof_body_work_orders(
+    *,
+    repair_packets: list[Mapping[str, Any]],
+    signature_probe_result: Mapping[str, Any] | None,
+    out_dir: Path,
+) -> dict[str, object]:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    packets_by_id = {
+        str(packet.get("repair_packet_id", "") or ""): packet
+        for packet in repair_packets
+        if str(packet.get("repair_packet_id", "") or "")
+    }
+    rows: list[dict[str, Any]] = []
+    if signature_probe_result:
+        probe_rows = signature_probe_result.get("rows", [])
+        if isinstance(probe_rows, list):
+            for probe_row in probe_rows:
+                if not isinstance(probe_row, Mapping):
+                    continue
+                if not bool(probe_row.get("signature_typecheck_reached_proof_body")):
+                    continue
+                repair_packet_id = str(probe_row.get("repair_packet_id", "") or "")
+                packet = packets_by_id.get(repair_packet_id, {})
+                rows.append(_proof_body_work_order(probe_row, packet))
+    rows_path = out_dir / "exact_source_theorem_proof_body_work_orders.jsonl"
+    _write_jsonl(rows_path, rows)
+    manifest_path = out_dir / "exact_source_theorem_proof_body_work_order_manifest.json"
+    manifest = {
+        "schema_version": 1,
+        "artifact_kind": "ExactSourceTheoremProofBodyWorkOrderManifest",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "proof_body_work_orders_jsonl": str(rows_path),
+        "n_proof_body_work_orders": len(rows),
+        "target_theorem_names": list(
+            dict.fromkeys(
+                str(row.get("target_theorem_name", "") or "")
+                for row in rows
+                if str(row.get("target_theorem_name", "") or "")
+            )
+        ),
+        "n_signature_probes_reached_proof_body": sum(
+            1
+            for row in rows
+            if row.get("source_signature_probe_status")
+            == "SIGNATURE_PROBE_REACHED_PROOF_BODY_NOT_PROOF"
+        ),
+        "proof_evidence_status": PROOF_BODY_WORK_ORDER_PROOF_EVIDENCE_STATUS,
+        "boundary": PROOF_BODY_WORK_ORDER_BOUNDARY,
+    }
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, default=str, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return {
+        "proof_body_work_order_manifest": manifest_path,
+        "proof_body_work_orders_jsonl": rows_path,
+        "n_proof_body_work_orders": len(rows),
+        "rows": rows,
+        "proof_evidence_status": PROOF_BODY_WORK_ORDER_PROOF_EVIDENCE_STATUS,
+        "boundary": PROOF_BODY_WORK_ORDER_BOUNDARY,
+    }
+
+
+def _proof_body_work_order(
+    probe_row: Mapping[str, Any],
+    repair_packet: Mapping[str, Any],
+) -> dict[str, Any]:
+    target_theorem_name = str(
+        probe_row.get("target_theorem_name")
+        or repair_packet.get("target_theorem_name", "")
+        or ""
+    )
+    diagnostics = _str_list(probe_row.get("diagnostics", []) or [])
+    work_order_id = "exact_source_theorem_proof_body_work_order:" + stable_hash(
+        [
+            probe_row.get("signature_probe_id", ""),
+            repair_packet.get("source_work_order_id", ""),
+            target_theorem_name,
+            probe_row.get("signature_probe_artifact_path", ""),
+        ]
+    )[:20]
+    return {
+        "schema_version": 1,
+        "artifact_kind": PROOF_BODY_WORK_ORDER_ARTIFACT_KIND,
+        "work_order_id": work_order_id,
+        "source_repair_packet_id": str(repair_packet.get("repair_packet_id", "") or ""),
+        "source_work_order_id": str(repair_packet.get("source_work_order_id", "") or ""),
+        "source_signature_probe_id": str(probe_row.get("signature_probe_id", "") or ""),
+        "source_signature_probe_status": str(
+            probe_row.get("signature_probe_status", "") or ""
+        ),
+        "target_theorem_name": target_theorem_name,
+        "source_candidate_artifact_path": str(
+            probe_row.get("source_candidate_artifact_path", "")
+            or repair_packet.get("candidate_artifact_path", "")
+            or ""
+        ),
+        "signature_probe_artifact_path": str(
+            probe_row.get("signature_probe_artifact_path", "") or ""
+        ),
+        "proof_body_failure_classification": str(
+            probe_row.get("failure_classification", "") or ""
+        ),
+        "proof_body_goal_diagnostics": diagnostics[:24],
+        "proof_body_goal_excerpt": _goal_excerpt(diagnostics),
+        "already_repaired_environment": {
+            "missing_formal_symbols": list(
+                repair_packet.get("missing_formal_symbols", []) or []
+            ),
+            "typeclass_blockers": list(repair_packet.get("typeclass_blockers", []) or []),
+            "signature_typecheck_reached_proof_body": bool(
+                probe_row.get("signature_typecheck_reached_proof_body")
+            ),
+        },
+        "proofengineer_next_actions": [
+            "inspect the signature_probe_artifact_path proof goal",
+            "replace only the AI_STAT_EVOLVE_BLOCK proof body with a non-placeholder proof",
+            "reuse existing kernel-verified conformal bridge lemmas when available",
+            "search Mathlib/StatInference/local Lean sources before inventing helper lemmas",
+            "rerun local Lean/AXLE on the repaired exact source theorem artifact",
+        ],
+        "forbidden_actions": [
+            "do not change the theorem statement without a separate semantic review work order",
+            "do not add axioms, sorry, admit, unsafe, or a helper lemma restating the target",
+            "do not count the signature probe or this work order as proof evidence",
+        ],
+        "acceptance_gate": (
+            "local Lean/AXLE verifier manifest records source_theorem_kernel_verified=true "
+            "for the exact source theorem candidate"
+        ),
+        "proof_evidence_status": PROOF_BODY_WORK_ORDER_PROOF_EVIDENCE_STATUS,
+        "boundary": PROOF_BODY_WORK_ORDER_BOUNDARY,
+    }
+
+
+def _goal_excerpt(diagnostics: list[str]) -> list[str]:
+    if not diagnostics:
+        return []
+    for index, line in enumerate(diagnostics):
+        if "unsolved goals" in line.lower():
+            return diagnostics[index : index + 18]
+    return diagnostics[:18]
+
+
 def _default_repair_tasks(
     *,
     missing_symbols: list[str],
@@ -801,12 +974,17 @@ def _export_runtime_learning_rows(
     question_id: str,
     queue_path: Path,
     signature_probe_result: Mapping[str, Any] | None = None,
+    proof_body_work_order_result: Mapping[str, Any] | None = None,
 ) -> dict[str, object]:
     out_dir.mkdir(parents=True, exist_ok=True)
     rows: list[dict[str, Any]] = []
     for packet in repair_packets:
         signature_probe_rows = _matching_signature_probe_rows(
             signature_probe_result,
+            repair_packet_id=str(packet.get("repair_packet_id", "") or ""),
+        )
+        proof_body_work_orders = _matching_proof_body_work_orders(
+            proof_body_work_order_result,
             repair_packet_id=str(packet.get("repair_packet_id", "") or ""),
         )
         rows.append(
@@ -836,6 +1014,15 @@ def _export_runtime_learning_rows(
                     "signature_probe_manifest": str(
                         signature_probe_result.get("signature_probe_manifest_path", "")
                         if signature_probe_result
+                        else ""
+                    ),
+                    "proof_body_work_orders": proof_body_work_orders,
+                    "proof_body_work_order_manifest": str(
+                        proof_body_work_order_result.get(
+                            "proof_body_work_order_manifest",
+                            "",
+                        )
+                        if proof_body_work_order_result
                         else ""
                     ),
                     "recommended_repair_tasks": list(
@@ -899,6 +1086,16 @@ def _export_runtime_learning_rows(
         ),
         "proof_evidence_status": "FORMAL_ENVIRONMENT_REPAIR_LEARNING_NOT_PROOF_EVIDENCE",
         "boundary": BOUNDARY,
+        "n_proof_body_work_orders": int(
+            proof_body_work_order_result.get("n_proof_body_work_orders", 0)
+            if proof_body_work_order_result
+            else 0
+        ),
+        "proof_body_work_order_proof_evidence_status": str(
+            proof_body_work_order_result.get("proof_evidence_status", "")
+            if proof_body_work_order_result
+            else ""
+        ),
     }
     manifest_out = out_dir / "source_theorem_formal_environment_runtime_learning_export_manifest.json"
     manifest_out.write_text(
@@ -932,8 +1129,26 @@ def _matching_signature_probe_rows(
     ]
 
 
+def _matching_proof_body_work_orders(
+    proof_body_work_order_result: Mapping[str, Any] | None,
+    *,
+    repair_packet_id: str,
+) -> list[dict[str, Any]]:
+    if not proof_body_work_order_result:
+        return []
+    rows = proof_body_work_order_result.get("rows", [])
+    if not isinstance(rows, list):
+        return []
+    return [
+        dict(row)
+        for row in rows
+        if isinstance(row, Mapping)
+        and str(row.get("source_repair_packet_id", "") or "") == repair_packet_id
+    ]
+
+
 def _str_list(values: object) -> list[str]:
-    if not isinstance(values, list):
+    if not isinstance(values, (list, tuple)):
         return []
     return [str(value) for value in values if str(value).strip()]
 

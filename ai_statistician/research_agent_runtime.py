@@ -2336,6 +2336,23 @@ def run_research_agent_runtime(
                     "signature_probe_rows_jsonl"
                 ]
             )
+        if source_theorem_formal_environment_bridge_manifest.get(
+            "proof_body_work_orders_jsonl"
+        ):
+            manifest["artifacts"][
+                "runtime_source_theorem_formal_environment_proofengineer_proof_body_work_orders_jsonl"
+            ] = str(
+                source_theorem_formal_environment_bridge_manifest[
+                    "proof_body_work_orders_jsonl"
+                ]
+            )
+            manifest["artifacts"][
+                "runtime_source_theorem_formal_environment_proofengineer_proof_body_work_order_manifest"
+            ] = str(
+                source_theorem_formal_environment_bridge_manifest[
+                    "proof_body_work_order_manifest"
+                ]
+            )
     if source_theorem_promotion_bridge_manifest is not None:
         manifest["artifacts"][
             "runtime_source_theorem_promotion_proofengineer_bridge_manifest"
@@ -2591,6 +2608,26 @@ def run_research_agent_runtime(
     ] = str(
         source_theorem_formal_environment_bridge_manifest.get(
             "signature_probe_proof_evidence_status",
+            "",
+        )
+        if source_theorem_formal_environment_bridge_manifest
+        else ""
+    )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_n_proof_body_work_orders"
+    ] = int(
+        source_theorem_formal_environment_bridge_manifest.get(
+            "n_proof_body_work_orders",
+            0,
+        )
+        if source_theorem_formal_environment_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_proof_body_work_order_proof_evidence_status"
+    ] = str(
+        source_theorem_formal_environment_bridge_manifest.get(
+            "proof_body_work_order_proof_evidence_status",
             "",
         )
         if source_theorem_formal_environment_bridge_manifest

@@ -85,6 +85,10 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert manifest["signature_probe_proof_evidence_status"] == (
         "SIGNATURE_PROBE_NOT_PROOF_EVIDENCE"
     )
+    assert manifest["n_proof_body_work_orders"] == 1
+    assert manifest["proof_body_work_order_proof_evidence_status"] == (
+        "EXACT_SOURCE_THEOREM_PROOF_BODY_WORK_ORDER_NOT_PROOF_EVIDENCE"
+    )
     assert manifest["proof_evidence_status"] == (
         "FORMAL_ENVIRONMENT_REPAIR_PACKETS_NOT_PROOF_EVIDENCE"
     )
@@ -125,6 +129,24 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert "def orderStat" in probe_source
     assert "ENNReal.ofReal (1 - alpha)" in probe_source
     assert probe_manifest["proof_evidence_status"] == "SIGNATURE_PROBE_NOT_PROOF_EVIDENCE"
+    proof_body_rows_path = Path(str(manifest["proof_body_work_orders_jsonl"]))
+    proof_body_work_order = json.loads(proof_body_rows_path.read_text(encoding="utf-8"))
+    assert proof_body_work_order["artifact_kind"] == "ExactSourceTheoremProofBodyWorkOrder"
+    assert proof_body_work_order["target_theorem_name"] == "split_conformal_coverage"
+    assert proof_body_work_order["proof_body_failure_classification"] == (
+        "proof_body_incomplete"
+    )
+    assert proof_body_work_order["proof_body_goal_excerpt"] == ["unsolved goals"]
+    assert proof_body_work_order["already_repaired_environment"][
+        "signature_typecheck_reached_proof_body"
+    ] is True
+    assert any(
+        "do not change the theorem statement" in row
+        for row in proof_body_work_order["forbidden_actions"]
+    )
+    assert proof_body_work_order["proof_evidence_status"] == (
+        "EXACT_SOURCE_THEOREM_PROOF_BODY_WORK_ORDER_NOT_PROOF_EVIDENCE"
+    )
 
     learning_rows_path = Path(str(manifest["runtime_learning_rows_jsonl"]))
     learning_row = json.loads(learning_rows_path.read_text(encoding="utf-8"))
@@ -144,6 +166,18 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert learning_row["input_summary"]["signature_probe_rows"][0][
         "signature_typecheck_reached_proof_body"
     ] is True
+    assert learning_row["input_summary"]["proof_body_work_orders"][0][
+        "target_theorem_name"
+    ] == "split_conformal_coverage"
+    export_manifest = json.loads(
+        Path(str(manifest["runtime_learning_export_manifest"])).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert export_manifest["n_proof_body_work_orders"] == 1
+    assert export_manifest["proof_body_work_order_proof_evidence_status"] == (
+        "EXACT_SOURCE_THEOREM_PROOF_BODY_WORK_ORDER_NOT_PROOF_EVIDENCE"
+    )
     assert "statement_repair_hints" in learning_row["input_summary"]
     assert learning_row["proof_evidence_status"] == (
         "FORMAL_ENVIRONMENT_REPAIR_LEARNING_NOT_PROOF_EVIDENCE"
