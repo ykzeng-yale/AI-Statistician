@@ -21,6 +21,10 @@ PROOF_EVIDENCE_BOUNDARY = (
     "validation."
 )
 FORBIDDEN_ARTIFACT_TOKENS = ("sorry", "admit", "axiom", "unsafe")
+INTENTIONAL_UNPROVED_PLACEHOLDER_BODY = (
+    "  -- ProofEngineer must fill the exact source-theorem proof body here.\n"
+    "  fail_if_success trivial"
+)
 
 
 @dataclass(frozen=True)
@@ -429,7 +433,8 @@ def _lean_statement_with_evolve_block(statement: str) -> str:
             statement.rstrip()
             + " := by\n"
             + "  -- AI_STAT_EVOLVE_BLOCK_START\n"
-            + "  -- ProofEngineer must fill the exact source-theorem proof body here.\n"
+            + INTENTIONAL_UNPROVED_PLACEHOLDER_BODY
+            + "\n"
             + "  -- AI_STAT_EVOLVE_BLOCK_END\n"
         )
     prefix = statement[: match.end()].rstrip()
@@ -448,9 +453,9 @@ def _lean_statement_with_evolve_block(statement: str) -> str:
 def _indent_lean_proof_body(proof_body: str) -> str:
     stripped = proof_body.strip()
     if not stripped:
-        return "  -- ProofEngineer must fill the exact source-theorem proof body here."
+        return INTENTIONAL_UNPROVED_PLACEHOLDER_BODY
     if any(token in stripped for token in FORBIDDEN_ARTIFACT_TOKENS):
-        return "  -- ProofEngineer must fill the exact source-theorem proof body here."
+        return INTENTIONAL_UNPROVED_PLACEHOLDER_BODY
     lines = stripped.splitlines()
     return "\n".join(
         line if line.startswith((" ", "\t")) else "  " + line

@@ -1597,6 +1597,7 @@ def test_exact_source_theorem_materializer_sanitizes_sorry_for_live_goal(
     assert "_route_probe" not in source
     assert "route probe" not in source.lower()
     assert "ProofEngineer must fill the exact source-theorem proof body" in source
+    assert "fail_if_success trivial" in source
     assert row["live_proof_state_request"]["target_lean_declaration"] == (
         "exact_source_claim"
     )
