@@ -57,6 +57,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_formalization_gap_planner_target_intake_payload,
     _runtime_source_theorem_semantic_primitive_work_order_rows,
     _runtime_source_theorem_formal_environment_work_order_rows,
+    _runtime_source_theorem_formal_environment_work_order_rows_from_learning_rows,
     _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_payload,
     _runtime_source_theorem_formal_environment_proof_body_executor_learning_rows,
     _runtime_source_theorem_promotion_work_order_rows,
@@ -2158,6 +2159,60 @@ def test_formal_environment_proof_body_executor_learning_rows_enter_runtime_memo
     assert rows[0]["proof_evidence_status"] == (
         "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
     )
+
+
+def test_proof_body_executor_feedback_exports_formal_environment_work_order() -> None:
+    learning_row = {
+        "schema_version": 1,
+        "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+        "target_theorem_name": "split_conformal_source_theorem",
+        "source_work_order_id": "source_theorem_formal_environment_work_order:seed",
+        "execution_queue_id": "exact_source_queue:1",
+        "execution_result_id": "exact_source_result:1",
+        "trigger": "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED",
+        "input_summary": {
+            "target_theorem_name": "split_conformal_source_theorem",
+            "candidate_artifact_path": "runs/proof_body_attempt.lean",
+            "source_theorem_kernel_verified": False,
+            "failure_classification": "formal_environment_placeholder_primitives",
+            "formal_environment_placeholder_symbols": ["Exchangeable", "orderStat"],
+            "formal_environment_typeclass_blockers": ["HSub ℕ ℝ ENNReal"],
+            "diagnostics": [
+                "placeholder primitive still present: Exchangeable",
+                "failed to synthesize instance of type class\n  HSub ℕ ℝ ENNReal",
+            ],
+        },
+        "kernel_verified_source_theorem_ids": [],
+        "proof_evidence_status": (
+            "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+    work_orders = (
+        _runtime_source_theorem_formal_environment_work_order_rows_from_learning_rows(
+            [learning_row]
+        )
+    )
+
+    assert len(work_orders) == 1
+    work_order = work_orders[0]
+    assert work_order["artifact_kind"] == "SourceTheoremFormalEnvironmentWorkOrder"
+    assert work_order["target_theorem_name"] == "split_conformal_source_theorem"
+    assert work_order["candidate_artifact_path"] == "runs/proof_body_attempt.lean"
+    assert work_order["failure_classification"] == (
+        "formal_environment_placeholder_primitives"
+    )
+    assert work_order["source_execution_result_id"] == "exact_source_result:1"
+    assert work_order["source_execution_queue_id"] == "exact_source_queue:1"
+    assert work_order["missing_formal_symbols"] == ["Exchangeable", "orderStat"]
+    assert work_order["typeclass_blockers"] == ["HSub ℕ ℝ ENNReal"]
+    assert any(
+        "`Exchangeable`" in task for task in work_order["recommended_repair_tasks"]
+    )
+    assert work_order["action_type"] == (
+        "repair_exact_source_theorem_formal_environment"
+    )
+    assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
 def test_source_theorem_promotion_infers_mathlib_import_for_statistical_statement(

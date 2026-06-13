@@ -2280,6 +2280,30 @@ def run_research_agent_runtime(
     if source_theorem_formal_environment_proof_body_executor_learning_rows:
         learning_rows.extend(source_theorem_formal_environment_proof_body_executor_learning_rows)
         _write_jsonl(learning_path, learning_rows)
+    source_theorem_formal_environment_executor_work_order_rows = (
+        _runtime_source_theorem_formal_environment_work_order_rows_from_learning_rows(
+            source_theorem_formal_environment_proof_body_executor_learning_rows
+        )
+    )
+    if source_theorem_formal_environment_executor_work_order_rows:
+        seen_work_order_ids = {
+            str(row.get("work_order_id", "") or "")
+            for row in source_theorem_formal_environment_work_order_rows
+            if isinstance(row, Mapping)
+        }
+        new_work_order_rows = [
+            row
+            for row in source_theorem_formal_environment_executor_work_order_rows
+            if str(row.get("work_order_id", "") or "") not in seen_work_order_ids
+        ]
+        if new_work_order_rows:
+            source_theorem_formal_environment_work_order_rows.extend(
+                new_work_order_rows
+            )
+            _write_jsonl(
+                source_theorem_formal_environment_work_orders_path,
+                source_theorem_formal_environment_work_order_rows,
+            )
     _write_runtime_formalization_gap_planner_seed_files(
         gap_planner_bridge_rows,
         seed_dir=gap_planner_seed_dir,
@@ -2547,6 +2571,9 @@ def run_research_agent_runtime(
     manifest["n_runtime_source_theorem_formal_environment_work_orders"] = len(
         source_theorem_formal_environment_work_order_rows
     )
+    manifest[
+        "n_runtime_source_theorem_formal_environment_work_orders_from_proof_body_executor"
+    ] = len(source_theorem_formal_environment_executor_work_order_rows)
     manifest["n_runtime_source_theorem_promotion_work_orders"] = len(
         source_theorem_promotion_work_order_rows
     )
@@ -5152,6 +5179,169 @@ def _runtime_source_theorem_formal_environment_work_order_rows(
                         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
                     }
                 )
+    return rows
+
+
+def _runtime_source_theorem_formal_environment_work_order_rows_from_learning_rows(
+    learning_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Queue formal-environment repairs from exact proof-body executor feedback."""
+
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in learning_rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = row.get("input_summary", {})
+        trigger = _runtime_learning_row_trigger(row, input_summary)
+        if (
+            str(row.get("learning_task", "") or "")
+            != "exact_source_theorem_proof_body_execution_feedback"
+            and trigger not in _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS
+        ):
+            continue
+        source_theorem_kernel_verified = bool(
+            row.get("source_theorem_kernel_verified", False)
+        )
+        if isinstance(input_summary, Mapping):
+            source_theorem_kernel_verified = bool(
+                source_theorem_kernel_verified
+                or input_summary.get("source_theorem_kernel_verified", False)
+            )
+        if source_theorem_kernel_verified:
+            continue
+        failure_classification = ""
+        target_theorem_name = str(row.get("target_theorem_name", "") or "").strip()
+        candidate_artifact_path = ""
+        diagnostics: list[str] = []
+        missing_symbols: list[str] = []
+        typeclass_blockers: list[str] = []
+        recommended_repair_tasks: list[str] = []
+        if isinstance(input_summary, Mapping):
+            failure_classification = str(
+                input_summary.get("failure_classification", "") or ""
+            ).strip()
+            if not target_theorem_name:
+                target_theorem_name = str(
+                    input_summary.get("target_theorem_name", "") or ""
+                ).strip()
+            candidate_artifact_path = str(
+                input_summary.get("candidate_artifact_path", "") or ""
+            ).strip()
+            diagnostics = [
+                str(value)
+                for value in input_summary.get("diagnostics", []) or []
+                if str(value).strip()
+            ][:8]
+            missing_symbols = [
+                str(value)
+                for value in (
+                    input_summary.get("missing_formal_symbols", [])
+                    or input_summary.get("formal_environment_placeholder_symbols", [])
+                    or []
+                )
+                if str(value).strip()
+            ]
+            typeclass_blockers = [
+                str(value)
+                for value in (
+                    input_summary.get("typeclass_blockers", [])
+                    or input_summary.get("formal_environment_typeclass_blockers", [])
+                    or []
+                )
+                if str(value).strip()
+            ]
+            recommended_repair_tasks = [
+                str(value)
+                for value in input_summary.get("recommended_repair_tasks", []) or []
+                if str(value).strip()
+            ]
+        if not candidate_artifact_path:
+            candidate_artifact_path = str(
+                row.get("candidate_artifact_path", "") or ""
+            ).strip()
+        if not failure_classification:
+            failure_classification = str(
+                row.get("failure_classification", "") or ""
+            ).strip()
+        if (
+            failure_classification
+            not in _SOURCE_THEOREM_EXACT_CANDIDATE_ENVIRONMENT_FAILURES
+        ):
+            continue
+        context = _source_theorem_formal_environment_context(
+            diagnostics=diagnostics,
+            failure_classification=failure_classification,
+        )
+        if not missing_symbols:
+            missing_symbols = context["missing_formal_symbols"]
+        if not typeclass_blockers:
+            typeclass_blockers = context["typeclass_blockers"]
+        if not recommended_repair_tasks:
+            recommended_repair_tasks = (
+                _source_theorem_formal_environment_repair_tasks(
+                    missing_symbols=missing_symbols,
+                    typeclass_blockers=typeclass_blockers,
+                    failure_classification=failure_classification,
+                )
+                or context["recommended_repair_tasks"]
+            )
+        source_learning_row_id = str(
+            row.get("runtime_learning_row_id", "")
+            or row.get("learning_row_id", "")
+            or row.get("execution_result_id", "")
+            or ""
+        ).strip()
+        execution_result_id = str(row.get("execution_result_id", "") or "").strip()
+        execution_queue_id = str(row.get("execution_queue_id", "") or "").strip()
+        work_order_id = "source_theorem_formal_environment_work_order:" + stable_hash(
+            [
+                source_learning_row_id,
+                execution_result_id,
+                execution_queue_id,
+                target_theorem_name,
+                candidate_artifact_path,
+                failure_classification,
+                diagnostics,
+            ]
+        )[:20]
+        if work_order_id in seen:
+            continue
+        seen.add(work_order_id)
+        rows.append(
+            {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "SourceTheoremFormalEnvironmentWorkOrder",
+                "work_order_id": work_order_id,
+                "source_learning_task": str(row.get("learning_task", "") or ""),
+                "source_learning_row_id": source_learning_row_id,
+                "source_execution_result_id": execution_result_id,
+                "source_execution_queue_id": execution_queue_id,
+                "source_work_order_id": str(row.get("source_work_order_id", "") or ""),
+                "target_theorem_name": target_theorem_name,
+                "candidate_artifact_path": candidate_artifact_path,
+                "failure_classification": failure_classification,
+                "diagnostics": diagnostics,
+                "missing_formal_symbols": missing_symbols,
+                "typeclass_blockers": typeclass_blockers,
+                "recommended_repair_tasks": recommended_repair_tasks,
+                "owner_agent": "Formalizer/ProofEngineer/LeanProver",
+                "action_type": "repair_exact_source_theorem_formal_environment",
+                "required_outputs": [
+                    "local Lean project or AXLE environment for the exact source theorem",
+                    "Lean import list for the theorem and upstream statistical primitives",
+                    "missing formal symbols or instances that must be defined before proof search",
+                    "rerunnable exact-source artifact verifier manifest",
+                ],
+                "acceptance_gate": (
+                    "local Lean/AXLE resolves imports and reaches the exact source theorem "
+                    "declaration; artifact/source theorem proof evidence still requires "
+                    "kernel verification and no sorry/admit/axiom placeholders"
+                ),
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+        )
     return rows
 
 
