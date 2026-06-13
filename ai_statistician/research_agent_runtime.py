@@ -3453,6 +3453,88 @@ def _runtime_learning_memory_source_theorem_promotion_ready_unproved_targets(
     return tuple(dict.fromkeys(targets))
 
 
+_SOURCE_THEOREM_INTEGRATOR_BLOCKER_TRIGGERS = frozenset(
+    {
+        "SOURCE_THEOREM_INTEGRATION_BLOCKED_ROUTE_PROBE",
+        "SOURCE_THEOREM_INTEGRATION_BLOCKED_VACUOUS_TRUE",
+        "SOURCE_THEOREM_INTEGRATION_BLOCKED_TARGET_ASSUMED",
+    }
+)
+
+
+def _runtime_learning_memory_source_theorem_integrator_blockers(
+    architect_context: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if not isinstance(memory, Mapping) or memory.get("artifact_kind") != "RuntimeLearningMemoryContext":
+        return ()
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    blockers: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = row.get("input_summary", {})
+        trigger = (
+            str(input_summary.get("trigger", "") or "")
+            if isinstance(input_summary, Mapping)
+            else ""
+        )
+        if (
+            str(row.get("learning_task", "") or "")
+            != "source_theorem_integrator_blocker_feedback"
+            and trigger not in _SOURCE_THEOREM_INTEGRATOR_BLOCKER_TRIGGERS
+        ):
+            continue
+        source_theorem_kernel_verified = bool(
+            row.get("source_theorem_kernel_verified", False)
+        )
+        if isinstance(input_summary, Mapping):
+            source_theorem_kernel_verified = bool(
+                source_theorem_kernel_verified
+                or input_summary.get("source_theorem_kernel_verified", False)
+            )
+        if source_theorem_kernel_verified:
+            continue
+        target = str(row.get("target_theorem_name", "") or "").strip()
+        if not target and isinstance(input_summary, Mapping):
+            target = str(input_summary.get("target_theorem_name", "") or "").strip()
+        integration_status = ""
+        if isinstance(input_summary, Mapping):
+            integration_status = str(input_summary.get("integration_status", "") or "")
+        key = (target, trigger or integration_status)
+        if key in seen:
+            continue
+        seen.add(key)
+        blockers.append(
+            {
+                "target_theorem_name": target,
+                "trigger": trigger,
+                "integration_status": integration_status,
+                "route_probe_detected": bool(
+                    input_summary.get("route_probe_detected", False)
+                )
+                if isinstance(input_summary, Mapping)
+                else False,
+                "vacuous_true_target_detected": bool(
+                    input_summary.get("vacuous_true_target_detected", False)
+                )
+                if isinstance(input_summary, Mapping)
+                else False,
+                "target_assumption_detected": bool(
+                    input_summary.get("target_assumption_detected", False)
+                )
+                if isinstance(input_summary, Mapping)
+                else False,
+            }
+        )
+    return tuple(blockers)
+
+
 def _formalizer_proof_bank_runtime_memory_summary(
     *,
     context: Mapping[str, Any],
@@ -3503,6 +3585,24 @@ def _formalizer_proof_bank_runtime_memory_summary(
             context
         )
     )
+    source_theorem_integrator_blockers = (
+        _runtime_learning_memory_source_theorem_integrator_blockers(context)
+    )
+    source_theorem_integrator_blocked_targets = tuple(
+        dict.fromkeys(
+            str(row.get("target_theorem_name", "") or "").strip()
+            for row in source_theorem_integrator_blockers
+            if str(row.get("target_theorem_name", "") or "").strip()
+        )
+    )
+    unresolved_source_theorem_promotion_targets = tuple(
+        dict.fromkeys(
+            [
+                *promotion_ready_unproved_targets,
+                *source_theorem_integrator_blocked_targets,
+            ]
+        )
+    )
     closure_goal_ids = tuple(
         row for row in theorem_closure_memory["goal_ids"] if row in set(theorem_goal_ids)
     )
@@ -3540,14 +3640,30 @@ def _formalizer_proof_bank_runtime_memory_summary(
             source_theorem_semantic_primitive_support_already_kernel_verified
         ),
         "source_theorem_promotion_ready_but_unproved": bool(
-            promotion_ready_unproved_targets
+            unresolved_source_theorem_promotion_targets
         ),
         "source_theorem_promotion_ready_but_unproved_target_names": list(
-            promotion_ready_unproved_targets
+            unresolved_source_theorem_promotion_targets
+        ),
+        "source_theorem_integrator_blocked": bool(
+            source_theorem_integrator_blockers
+        ),
+        "source_theorem_integrator_blocked_target_names": list(
+            source_theorem_integrator_blocked_targets
+        ),
+        "source_theorem_integrator_blocker_triggers": list(
+            dict.fromkeys(
+                str(row.get("trigger", "") or "")
+                for row in source_theorem_integrator_blockers
+                if str(row.get("trigger", "") or "")
+            )
         ),
         "recommended_source_theorem_integration_action": (
+            "repair_blocked_source_theorem_integration_artifacts"
+            if source_theorem_integrator_blockers
+            else
             "consume_ready_source_theorem_promotion_queue"
-            if promotion_ready_unproved_targets
+            if unresolved_source_theorem_promotion_targets
             else ""
         ),
         "theorem_reduction_closure_required": theorem_reduction_closure_required,
@@ -3572,7 +3688,10 @@ def _formalizer_proof_bank_runtime_memory_summary(
             "exact upstream semantic definitions or source-theorem promotion while keeping those stronger "
             "claims separate from the registered bridge evidence. If memory records a source-theorem "
             "promotion row that is ready but unproved, consume that exact source-theorem integration "
-            "queue next instead of repeating route-probe materialization."
+            "queue next instead of repeating route-probe materialization. If memory records an "
+            "integrator blocker, repair the source-theorem artifact into a non-vacuous exact theorem "
+            "proof target; route probes, vacuous True targets, and artifacts that assume the target "
+            "remain blocked and are not proof evidence."
         ),
     }
 

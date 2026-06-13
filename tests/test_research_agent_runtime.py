@@ -1360,6 +1360,75 @@ def test_source_semantic_learning_memory_advances_beyond_repeat_queue() -> None:
     assert "formal_gap:source_theorem_semantic_primitives" not in agenda_ids
 
 
+def test_source_theorem_integrator_blocker_memory_repairs_exact_target() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {
+                        "kernel_verified_proof_obligation_ids": verified_ids,
+                        "kernel_verified_theorem_reduction_closure_work_order_ids": [
+                            "theorem_reduction_closure_work_order:good_rank"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_target_ids": [
+                            "split_conformal_finite_sample_coverage_reduction_closure"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_goal_ids": [
+                            "split_conformal_finite_sample_coverage"
+                        ],
+                        "kernel_verified_source_theorem_semantic_primitive_ids": [
+                            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+                            "split_conformal_good_rank_set_inclusion_bridge",
+                        ],
+                    },
+                    {
+                        "learning_task": "source_theorem_integrator_blocker_feedback",
+                        "input_summary": {
+                            "trigger": "SOURCE_THEOREM_INTEGRATION_BLOCKED_ROUTE_PROBE",
+                            "integration_status": "BLOCKED_ROUTE_PROBE_ARTIFACT",
+                            "target_theorem_name": "split_conformal_finite_sample_coverage",
+                            "route_probe_detected": True,
+                            "source_theorem_kernel_verified": False,
+                        },
+                        "target_behavior": (
+                            "generate or repair a genuine non-vacuous exact source theorem artifact"
+                        ),
+                    },
+                ],
+            }
+        },
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_exact_semantics_or_theorem_promotion"
+    )
+    assert summary["source_theorem_promotion_ready_but_unproved"] is True
+    assert summary[
+        "source_theorem_promotion_ready_but_unproved_target_names"
+    ] == ["split_conformal_finite_sample_coverage"]
+    assert summary["source_theorem_integrator_blocked"] is True
+    assert summary["source_theorem_integrator_blocked_target_names"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert summary["source_theorem_integrator_blocker_triggers"] == [
+        "SOURCE_THEOREM_INTEGRATION_BLOCKED_ROUTE_PROBE"
+    ]
+    assert summary["recommended_source_theorem_integration_action"] == (
+        "repair_blocked_source_theorem_integration_artifacts"
+    )
+
+
 def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> None:
     formalization_manifest = {
         "artifact_kind": "RuntimeFormalizationManifest",
