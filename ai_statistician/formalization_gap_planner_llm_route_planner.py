@@ -521,7 +521,7 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
         "Use sonnet when resource-request queue rows, resource-request playbooks, or interactive-session resource dispatch bindings are present.",
         "Use sonnet when target-intake rows expose missing proof sources, library-search requirements, proof-state probes, complex theorem shape, or large normalized theorem context.",
         "Use sonnet when the seed route itself carries uncertainty flags, semantic alignment risks, source-search-pending markers, or substantive formal-gap boundaries.",
-        "Use sonnet when any primitive needs a bridge, source port, new definition, new theory, or has unknown/missing coverage.",
+        "Use sonnet when any primitive needs a bridge, source port, new definition, new theory, or has unknown/missing/unresolved coverage or alignment status.",
         "Use sonnet for routes with more than four primitives, many source refs, or long theorem statements.",
         "Use opus only when explicitly requested by the operator; auto mode never selects opus.",
     ],
@@ -7720,6 +7720,11 @@ def _complex_route_markers() -> set[str]:
         "first_principles_needed",
         "missing",
         "unknown",
+        *(
+            marker
+            for marker in UNRESOLVED_ROUTE_ALIGNMENT_STATUS_KEYS
+            if marker
+        ),
     }
 
 

@@ -8638,6 +8638,61 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     assert request.metadata["model_tier"] == "haiku"
 
 
+def test_llm_route_planner_auto_uses_sonnet_for_unresolved_light_route_alignment() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_unresolved_light_route_alignment"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["primitives"][1]["alignment_status"] = "uncertain"
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    class FakeAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            captured["request"] = request
+            return GeneratorResponse(
+                text=json.dumps(_llm_response_payload()),
+                provider="anthropic",
+                model=request.model,
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "schema_supplied": request.schema is not None,
+                },
+            )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=FakeAnthropicBackend(),
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 0
+    packet = payload["request_packets"][0]
+    assert packet["model_tier"] == "sonnet"
+    assert packet["model"] == "claude-sonnet-4-6"
+    evidence = packet["model_tier_decision_evidence"]
+    assert evidence["decision_basis"] == "auto_sonnet_triggers"
+    assert "uncertain" in evidence["coverage_action_markers"]
+    assert "uncertain" in evidence["complex_coverage_action_markers"]
+    assert any("uncertain" in trigger for trigger in evidence["sonnet_triggers"])
+    assert "uncertain" in packet["model_selection_rationale"]
+    request = captured["request"]
+    assert request.model == "claude-sonnet-4-6"
+    assert request.metadata["model_tier"] == "sonnet"
+
+
 def test_llm_route_planner_auto_uses_sonnet_for_light_route_resource_dispatch() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_light_route_resource_dispatch"
