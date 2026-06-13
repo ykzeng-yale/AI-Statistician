@@ -11376,6 +11376,100 @@ def test_llm_route_planner_rejects_off_scope_residual_target_primitives() -> Non
     )
 
 
+def test_llm_route_planner_rejects_residual_formal_search_without_formal_library_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_residual_formal_without_search"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    bad_response = _llm_response_payload()
+    bad_response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": (
+                "The proof-state residual shows the rank route still has an "
+                "unresolved formal side condition."
+            ),
+            "route_repair": (
+                "Search the target-prover library for the side-condition "
+                "declarations before revising the bridge lemma."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "formal_search_status": "needs_search",
+        }
+    ]
+    bad_response["search_requests"] = []
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "residual_interpretations[0] unknown/formal-library-search-pending repair requires "
+        "a matching formal_library/library search_request" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_accepts_residual_formal_search_with_structured_target_primitive_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_residual_formal_search"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    response = _llm_response_payload()
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": (
+                "The proof-state residual shows the rank route still has an "
+                "unresolved formal side condition."
+            ),
+            "route_repair": (
+                "Search the target-prover library for the side-condition "
+                "declarations before revising the bridge lemma."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "formal_search_status": "needs_search",
+        }
+    ]
+    response["search_requests"].append(
+        {
+            "request_kind": "formal_library",
+            "query": "search target-prover declarations for the residual side condition",
+            "reason": "resolve the proof-state residual before route repair",
+            "target_primitives": ["rank_uniformity"],
+        }
+    )
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+
+
 def test_llm_route_planner_rejects_ungrounded_candidate_declarations() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_rejects_declarations")
     response_json = root / "bad_response.json"

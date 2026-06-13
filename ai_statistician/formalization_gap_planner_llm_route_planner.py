@@ -8872,6 +8872,7 @@ def _response_contract_errors(
         )
     )
     errors.extend(_response_residual_source_grounding_errors(payload))
+    errors.extend(_response_residual_formal_search_obligation_errors(payload))
     return errors
 
 
@@ -9865,6 +9866,68 @@ def _response_residual_source_grounding_errors(
             "a matching literature/source search_request, or formal_gap_boundary"
         )
     return errors
+
+
+def _response_residual_formal_search_obligation_errors(
+    payload: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    search_requests = _dict_tuple(payload.get("search_requests", []))
+    for index, interpretation in enumerate(
+        _dict_tuple(payload.get("residual_interpretations", []))
+    ):
+        for field_name in (
+            "coverage_bucket",
+            "coverage_status",
+            "formalization_action",
+            "alignment_status",
+            "formal_search_status",
+            "library_search_status",
+        ):
+            value = interpretation.get(field_name, "")
+            if not str(value or "").strip():
+                continue
+            if _formal_coverage_action_marker_is_known(value):
+                continue
+            errors.append(
+                f"residual_interpretations[{index}].{field_name} unsupported: "
+                + _primitive_key(value)
+            )
+        if not _residual_interpretation_requires_formal_library_search(
+            interpretation
+        ):
+            continue
+        if _has_formal_library_search_request_for_obligation(
+            search_requests,
+            primitives=_residual_interpretation_search_primitives(interpretation),
+        ):
+            continue
+        errors.append(
+            "residual_interpretations"
+            f"[{index}] unknown/formal-library-search-pending repair requires "
+            "a matching formal_library/library search_request"
+        )
+    return errors
+
+
+def _residual_interpretation_requires_formal_library_search(
+    interpretation: Mapping[str, Any],
+) -> bool:
+    if _node_candidate_declarations(interpretation):
+        return False
+    if _formal_gap_boundary_is_substantive(
+        str(interpretation.get("formal_gap_boundary", "") or "")
+    ):
+        return False
+    markers = (
+        interpretation.get("coverage_bucket", ""),
+        interpretation.get("coverage_status", ""),
+        interpretation.get("formalization_action", ""),
+        interpretation.get("alignment_status", ""),
+        interpretation.get("formal_search_status", ""),
+        interpretation.get("library_search_status", ""),
+    )
+    return any(_formal_library_search_marker(marker) for marker in markers)
 
 
 def _residual_interpretation_has_source_refs(
@@ -14540,8 +14603,27 @@ def _has_search_request_for_primitive(
             continue
         text_key = _primitive_key(
             " ".join(
-                str(request.get(field_name, ""))
-                for field_name in ("query", "reason", "action", "description")
+                [
+                    *(
+                        str(request.get(field_name, ""))
+                        for field_name in (
+                            "query",
+                            "reason",
+                            "action",
+                            "description",
+                        )
+                    ),
+                    *(
+                        str(value)
+                        for field_name in (
+                            "target_primitive",
+                            "target_primitives",
+                            "primitive",
+                            "primitives",
+                        )
+                        for value in _primitive_values(request.get(field_name))
+                    ),
+                ]
             )
         )
         if primitive_key in text_key:
