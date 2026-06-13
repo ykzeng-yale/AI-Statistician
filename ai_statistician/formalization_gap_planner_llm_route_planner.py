@@ -131,6 +131,31 @@ ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES = (
 )
 ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING = "source_grounding_obligations_pending"
 ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
+UNRESOLVED_ROUTE_ALIGNMENT_STATUS_KEYS = frozenset(
+    {
+        "",
+        "alignment_unknown",
+        "coverage_unknown",
+        "declaration_unknown",
+        "formal_library_search_pending",
+        "formal_search_pending",
+        "library_search_pending",
+        "missing",
+        "needs_search",
+        "no_match",
+        "not_found",
+        "pending",
+        "search_pending",
+        "search_requested",
+        "source_search_requested",
+        "source_search_pending",
+        "tbd",
+        "todo",
+        "uncertain",
+        "unknown",
+        "unresolved",
+    }
+)
 ROUTE_ADOPTION_BLOCKER_VALUES = (
     ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED,
     ROUTE_ADOPTION_BLOCKER_RESPONSE_MISSING,
@@ -600,7 +625,11 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
         {
             "informal_node_id": "informal DAG node id",
             "formal_node_id": "formal realization DAG node id",
-            "alignment_status": "exact|near|bridge_needed|missing|uncertain",
+            "alignment_status": (
+                "exact|near|wrapper_needed|bridge_needed|source_port_needed|"
+                "new_definition_needed|new_theory_needed; use missing, unknown, "
+                "or uncertain only for non-selected refinement evidence"
+            ),
             "alignment_rationale": "why this formal node realizes the informal claim",
         }
     ],
@@ -8770,7 +8799,12 @@ def _response_contract_errors(
     errors.extend(_response_formal_search_obligation_errors(payload))
     errors.extend(_response_wrapper_anchor_errors(payload, request))
     for index, edge in enumerate(alignment_edges):
-        for field_name in ("informal_node_id", "formal_node_id", "alignment_rationale"):
+        for field_name in (
+            "informal_node_id",
+            "formal_node_id",
+            "alignment_status",
+            "alignment_rationale",
+        ):
             if not str(edge.get(field_name, "")).strip():
                 errors.append(f"route_alignment_edges[{index}].{field_name} missing")
     minimal_delta = _dict_value(payload, "minimal_delta_plan")
@@ -12976,6 +13010,7 @@ def _response_primitive_coherence_errors(
     formal = {_primitive_key(node.get("primitive", "")) for node in formal_nodes}
     formal.discard("")
     alignment = set()
+    resolved_alignment = set()
     informal_by_node_id = {
         str(node.get("node_id", "")): node
         for node in informal_nodes
@@ -12997,7 +13032,7 @@ def _response_primitive_coherence_errors(
         | formal
         | _available_primitive_keys_for_request(request)
     )
-    alignment_edges_by_primitive: dict[str, list[dict[str, object]]] = {}
+    resolved_alignment_edges_by_primitive: dict[str, list[dict[str, object]]] = {}
     for edge in alignment_edges:
         informal_node_id = str(
             edge.get("informal_node_id") or edge.get("source") or ""
@@ -13041,7 +13076,11 @@ def _response_primitive_coherence_errors(
             primitive = formal_primitive_by_node_id.get(str(edge.get("target", "")), "")
         if primitive:
             alignment.add(primitive)
-            alignment_edges_by_primitive.setdefault(primitive, []).append(edge)
+            if _route_alignment_edge_is_resolved(edge):
+                resolved_alignment.add(primitive)
+                resolved_alignment_edges_by_primitive.setdefault(primitive, []).append(
+                    edge
+                )
     selected_missing_route = sorted(selected - standalone)
     if selected_missing_route:
         errors.append(
@@ -13074,11 +13113,31 @@ def _response_primitive_coherence_errors(
             "minimal_delta_plan.selected_primitives missing route_alignment_edges: "
             + ", ".join(selected_missing_alignment)
         )
+    selected_unresolved_alignment = sorted(
+        primitive
+        for primitive in selected
+        if primitive in alignment and primitive not in resolved_alignment
+    )
+    if selected_unresolved_alignment:
+        errors.append(
+            "minimal_delta_plan.selected_primitives have unresolved route_alignment_edges: "
+            + ", ".join(selected_unresolved_alignment)
+        )
     delta_missing_alignment = sorted(delta_primitives - alignment)
     if delta_missing_alignment:
         errors.append(
             "minimal_delta_plan delta primitives missing route_alignment_edges: "
             + ", ".join(delta_missing_alignment)
+        )
+    delta_unresolved_alignment = sorted(
+        primitive
+        for primitive in delta_primitives
+        if primitive in alignment and primitive not in resolved_alignment
+    )
+    if delta_unresolved_alignment:
+        errors.append(
+            "minimal_delta_plan delta primitives have unresolved route_alignment_edges: "
+            + ", ".join(delta_unresolved_alignment)
         )
     introduced = sorted((selected | delta_primitives) - _available_primitive_keys_for_request(request))
     introduced_selected_missing_alignment = sorted(
@@ -13092,7 +13151,7 @@ def _response_primitive_coherence_errors(
     errors.extend(
         _introduced_primitive_evidence_errors(
             introduced_primitives=tuple(introduced),
-            alignment_edges_by_primitive=alignment_edges_by_primitive,
+            alignment_edges_by_primitive=resolved_alignment_edges_by_primitive,
             informal_by_node_id=informal_by_node_id,
             formal_by_node_id=formal_by_node_id,
             search_requests=search_requests,
@@ -14158,6 +14217,8 @@ def _alignment_primitive_keys(
     }
     aligned: set[str] = set()
     for edge in alignment_edges:
+        if not _route_alignment_edge_is_resolved(edge):
+            continue
         formal_node_id = str(
             edge.get("formal_node_id") or edge.get("target") or ""
         ).strip()
@@ -14167,6 +14228,15 @@ def _alignment_primitive_keys(
             aligned.add(primitive)
     aligned.discard("")
     return aligned
+
+
+def _route_alignment_edge_is_resolved(edge: Mapping[str, Any]) -> bool:
+    status = _primitive_key(edge.get("alignment_status", ""))
+    if status in UNRESOLVED_ROUTE_ALIGNMENT_STATUS_KEYS:
+        return False
+    if status.endswith("_pending") or status.endswith("_unknown"):
+        return False
+    return True
 
 
 def _minimal_delta_primitives(
