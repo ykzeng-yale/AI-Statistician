@@ -2021,6 +2021,9 @@ def run_research_agent_runtime(
     source_theorem_semantic_primitive_work_order_rows = (
         _runtime_source_theorem_semantic_primitive_work_order_rows(results)
     )
+    source_theorem_formal_environment_work_order_rows = (
+        _runtime_source_theorem_formal_environment_work_order_rows(results)
+    )
     source_theorem_promotion_work_order_rows = (
         _runtime_source_theorem_promotion_work_order_rows(results)
     )
@@ -2043,6 +2046,9 @@ def run_research_agent_runtime(
     )
     source_theorem_semantic_primitive_work_orders_path = (
         out_dir / "runtime_source_theorem_semantic_primitive_work_orders.jsonl"
+    )
+    source_theorem_formal_environment_work_orders_path = (
+        out_dir / "runtime_source_theorem_formal_environment_work_orders.jsonl"
     )
     source_theorem_promotion_work_orders_path = (
         out_dir / "runtime_source_theorem_promotion_work_orders.jsonl"
@@ -2069,6 +2075,10 @@ def run_research_agent_runtime(
     _write_jsonl(
         source_theorem_semantic_primitive_work_orders_path,
         source_theorem_semantic_primitive_work_order_rows,
+    )
+    _write_jsonl(
+        source_theorem_formal_environment_work_orders_path,
+        source_theorem_formal_environment_work_order_rows,
     )
     _write_jsonl(
         source_theorem_promotion_work_orders_path,
@@ -2174,6 +2184,9 @@ def run_research_agent_runtime(
     manifest["artifacts"][
         "runtime_source_theorem_semantic_primitive_work_orders_jsonl"
     ] = str(source_theorem_semantic_primitive_work_orders_path)
+    manifest["artifacts"][
+        "runtime_source_theorem_formal_environment_work_orders_jsonl"
+    ] = str(source_theorem_formal_environment_work_orders_path)
     manifest["artifacts"]["runtime_source_theorem_promotion_work_orders_jsonl"] = str(
         source_theorem_promotion_work_orders_path
     )
@@ -2291,6 +2304,9 @@ def run_research_agent_runtime(
     )
     manifest["n_runtime_source_theorem_semantic_primitive_work_orders"] = len(
         source_theorem_semantic_primitive_work_order_rows
+    )
+    manifest["n_runtime_source_theorem_formal_environment_work_orders"] = len(
+        source_theorem_formal_environment_work_order_rows
     )
     manifest["n_runtime_source_theorem_promotion_work_orders"] = len(
         source_theorem_promotion_work_order_rows
@@ -3028,13 +3044,59 @@ def _critic_next_action_agenda(
 ) -> list[dict[str, Any]]:
     agenda: list[dict[str, Any]] = []
     formal_counts = formalization_manifest.get("counts", {}) if isinstance(formalization_manifest, Mapping) else {}
+    proof_bank_memory_summary = (
+        formalization_manifest.get("proof_bank_runtime_memory_summary", {})
+        if isinstance(
+            formalization_manifest.get("proof_bank_runtime_memory_summary", {}),
+            Mapping,
+        )
+        else {}
+    )
     if int(formal_counts.get("formal_gap", 0) or 0) > 0:
         gap_goals = [
             row.get("id", "")
             for row in formalization_manifest.get("deterministic_theorem_goals", []) or []
             if isinstance(row, Mapping)
         ]
-        if _formalization_manifest_has_remaining_proof_bank_work(formalization_manifest):
+        if proof_bank_memory_summary.get(
+            "source_theorem_exact_candidate_environment_gap", False
+        ):
+            agenda.append(
+                {
+                    "id": "formal_gap:source_theorem_formal_environment_repair",
+                    "owner_subsystem": "Formalizer/ProofEngineer/LeanProver",
+                    "trigger": "SOURCE_THEOREM_EXACT_CANDIDATE_FORMAL_ENVIRONMENT_GAP",
+                    "action": (
+                        "repair the exact source-theorem candidate formal environment: "
+                        "identify the required Lean project, imports, source theorem "
+                        "module, and missing statistical primitives before attempting "
+                        "proof-body tactics"
+                    ),
+                    "acceptance_gate": (
+                        "local Lean/AXLE reaches the exact source theorem declaration "
+                        "with imports and symbols resolved; proof evidence still requires "
+                        "artifact_kernel_verified/source_theorem_kernel_verified"
+                    ),
+                    "target_ids": list(
+                        proof_bank_memory_summary.get(
+                            "source_theorem_exact_candidate_repair_target_names",
+                            [],
+                        )
+                        or []
+                    )
+                    or [row for row in gap_goals if row],
+                    "failure_classifications": list(
+                        proof_bank_memory_summary.get(
+                            "source_theorem_exact_candidate_failure_classifications",
+                            [],
+                        )
+                        or []
+                    ),
+                    "priority": "high",
+                    "proof_boundary": KERNEL_PROOF_BOUNDARY,
+                }
+            )
+        elif _formalization_manifest_has_remaining_proof_bank_work(formalization_manifest):
             agenda.append(
                 {
                     "id": "formal_gap:proof_bank_expansion",
@@ -3469,6 +3531,16 @@ _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS = frozenset(
     }
 )
 
+_SOURCE_THEOREM_EXACT_CANDIDATE_ENVIRONMENT_FAILURES = frozenset(
+    {
+        "lean_import_environment_missing",
+        "formal_environment_symbol_missing",
+        "formal_environment_instance_missing",
+        "lean_project_or_import_environment_missing",
+        "lean_syntax_or_import_environment_gap",
+    }
+)
+
 
 def _runtime_learning_memory_source_theorem_integrator_blockers(
     architect_context: Mapping[str, Any],
@@ -3696,14 +3768,7 @@ def _formalizer_proof_bank_runtime_memory_summary(
         )
     )
     exact_candidate_environment_gap = any(
-        value
-        in {
-            "lean_import_environment_missing",
-            "formal_environment_symbol_missing",
-            "formal_environment_instance_missing",
-            "lean_project_or_import_environment_missing",
-            "lean_syntax_or_import_environment_gap",
-        }
+        value in _SOURCE_THEOREM_EXACT_CANDIDATE_ENVIRONMENT_FAILURES
         for value in exact_candidate_failure_classifications
     )
     unresolved_source_theorem_promotion_targets = tuple(
@@ -4286,6 +4351,127 @@ def _formalizer_source_theorem_semantic_primitive_work_orders(
             }
         )
     return work_orders
+
+
+def _runtime_source_theorem_formal_environment_work_order_rows(
+    results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for result in results:
+        artifacts = result.get("blackboard", {}).get("artifacts", {})
+        if not isinstance(artifacts, Mapping):
+            continue
+        for artifact in artifacts.values():
+            if not (
+                isinstance(artifact, Mapping)
+                and artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
+            ):
+                continue
+            proof_memory = artifact.get("proof_bank_runtime_memory_summary", {})
+            if not isinstance(proof_memory, Mapping) or not proof_memory.get(
+                "source_theorem_exact_candidate_environment_gap",
+                False,
+            ):
+                continue
+            question = (
+                artifact.get("question", {})
+                if isinstance(artifact.get("question"), Mapping)
+                else {}
+            )
+            repair_rows = [
+                row
+                for row in proof_memory.get(
+                    "source_theorem_exact_candidate_repair_diagnostics",
+                    [],
+                )
+                or []
+                if isinstance(row, Mapping)
+            ]
+            if not repair_rows:
+                repair_rows = [
+                    {
+                        "target_theorem_name": target,
+                        "failure_classification": failure,
+                        "diagnostics": [],
+                        "candidate_artifact_path": "",
+                    }
+                    for target in proof_memory.get(
+                        "source_theorem_exact_candidate_repair_target_names",
+                        [],
+                    )
+                    or []
+                    for failure in proof_memory.get(
+                        "source_theorem_exact_candidate_failure_classifications",
+                        [],
+                    )
+                    or [""]
+                ]
+            for repair in repair_rows[:8]:
+                failure_classification = str(
+                    repair.get("failure_classification", "") or ""
+                ).strip()
+                if (
+                    failure_classification
+                    and failure_classification
+                    not in _SOURCE_THEOREM_EXACT_CANDIDATE_ENVIRONMENT_FAILURES
+                ):
+                    continue
+                target_theorem_name = str(
+                    repair.get("target_theorem_name", "") or ""
+                ).strip()
+                candidate_artifact_path = str(
+                    repair.get("candidate_artifact_path", "") or ""
+                ).strip()
+                diagnostics = [
+                    str(value)
+                    for value in repair.get("diagnostics", []) or []
+                    if str(value).strip()
+                ][:5]
+                work_order_id = "source_theorem_formal_environment_work_order:" + stable_hash(
+                    [
+                        artifact.get("manifest_id", ""),
+                        target_theorem_name,
+                        candidate_artifact_path,
+                        failure_classification,
+                        diagnostics,
+                    ]
+                )[:20]
+                if work_order_id in seen:
+                    continue
+                seen.add(work_order_id)
+                rows.append(
+                    {
+                        "schema_version": RUNTIME_SCHEMA_VERSION,
+                        "artifact_kind": "SourceTheoremFormalEnvironmentWorkOrder",
+                        "work_order_id": work_order_id,
+                        "source_formalization_manifest_id": str(
+                            artifact.get("manifest_id", "") or ""
+                        ),
+                        "question_id": str(question.get("id", "") or ""),
+                        "question_title": str(question.get("title", "") or ""),
+                        "target_theorem_name": target_theorem_name,
+                        "candidate_artifact_path": candidate_artifact_path,
+                        "failure_classification": failure_classification,
+                        "diagnostics": diagnostics,
+                        "owner_agent": "Formalizer/ProofEngineer/LeanProver",
+                        "action_type": "repair_exact_source_theorem_formal_environment",
+                        "required_outputs": [
+                            "local Lean project or AXLE environment for the exact source theorem",
+                            "Lean import list for the theorem and upstream statistical primitives",
+                            "missing formal symbols or instances that must be defined before proof search",
+                            "rerunnable exact-source artifact verifier manifest",
+                        ],
+                        "acceptance_gate": (
+                            "local Lean/AXLE resolves imports and reaches the exact source theorem "
+                            "declaration; artifact/source theorem proof evidence still requires "
+                            "kernel verification and no sorry/admit/axiom placeholders"
+                        ),
+                        "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+                        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+                    }
+                )
+    return rows
 
 
 def _formalizer_source_theorem_promotion_work_orders(

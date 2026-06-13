@@ -56,6 +56,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_formalization_gap_planner_bridge,
     _runtime_formalization_gap_planner_target_intake_payload,
     _runtime_source_theorem_semantic_primitive_work_order_rows,
+    _runtime_source_theorem_formal_environment_work_order_rows,
     _runtime_source_theorem_promotion_work_order_rows,
     _runtime_source_theorem_promotion_handoff_rows,
     _runtime_source_theorem_promotion_materialization_seed_rows,
@@ -1831,6 +1832,48 @@ def test_source_theorem_exact_candidate_environment_failure_guides_formalizer(
     assert summary["recommended_source_theorem_integration_action"] == (
         "repair_exact_source_theorem_candidate_formal_environment"
     )
+
+    formalization_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:environment_gap",
+        "question": {
+            "id": question.id,
+            "title": question.title,
+        },
+        "counts": {"formal_gap": 1, "kernel_verified": 0, "proved": 0},
+        "deterministic_theorem_goals": [
+            {"id": "split_conformal_finite_sample_coverage"}
+        ],
+        "proof_bank_runtime_memory_summary": summary,
+    }
+    agenda = _critic_next_action_agenda(
+        question=question,
+        retrieval_manifest={},
+        theory_packet={},
+        simulation_manifest={"simulation_passed": True},
+        algorithm_manifest={},
+        formalization_manifest=formalization_manifest,
+    )
+    assert agenda[0]["id"] == "formal_gap:source_theorem_formal_environment_repair"
+    assert agenda[0]["trigger"] == (
+        "SOURCE_THEOREM_EXACT_CANDIDATE_FORMAL_ENVIRONMENT_GAP"
+    )
+
+    work_orders = _runtime_source_theorem_formal_environment_work_order_rows(
+        [{"blackboard": {"artifacts": {"formalization": formalization_manifest}}}]
+    )
+    assert len(work_orders) == 1
+    assert work_orders[0]["artifact_kind"] == (
+        "SourceTheoremFormalEnvironmentWorkOrder"
+    )
+    assert work_orders[0]["action_type"] == (
+        "repair_exact_source_theorem_formal_environment"
+    )
+    assert work_orders[0]["target_theorem_name"] == "exact_source_claim"
+    assert work_orders[0]["failure_classification"] == (
+        "lean_import_environment_missing"
+    )
+    assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
 def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> None:
@@ -4175,6 +4218,13 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     )
     assert theorem_closure_queue_path.exists()
     assert manifest["n_runtime_theorem_reduction_closure_work_orders"] == 0
+    source_theorem_environment_queue_path = Path(
+        manifest["artifacts"][
+            "runtime_source_theorem_formal_environment_work_orders_jsonl"
+        ]
+    )
+    assert source_theorem_environment_queue_path.exists()
+    assert manifest["n_runtime_source_theorem_formal_environment_work_orders"] == 0
     bridges_path = Path(
         manifest["artifacts"]["runtime_formalization_gap_planner_bridges_jsonl"]
     )
