@@ -1964,6 +1964,52 @@ def test_source_theorem_exact_candidate_environment_failure_guides_formalizer(
     assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
+def test_formal_environment_work_order_names_missing_symbols_and_typeclass_blockers() -> None:
+    verifier_payload = {
+        "rows": [
+            {
+                "artifact_verification_id": "artifact_verifier:source_env_gap",
+                "target_theorem_name": "split_conformal_source_theorem",
+                "target_lean_declaration": "split_conformal_source_theorem",
+                "candidate_artifact_path": "/tmp/split_conformal_source_theorem.lean",
+                "source_theorem_target_known": True,
+                "source_theorem_kernel_verified": False,
+                "failure_classification": "formal_environment_symbol_missing",
+                "diagnostics": [
+                    "failed to synthesize instance of type class\n  HSub ℕ ℝ ENNReal",
+                    "Function expected at\n  Exchangeable\nbut this term has type\n  ?m.1\nHint: The identifier `Exchangeable` is unknown in the current environment.",
+                    "Function expected at",
+                    "  orderStat",
+                    "Hint: The identifier `orderStat` is unknown in the current environment.",
+                ],
+            }
+        ]
+    }
+
+    work_orders = _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_payload(
+        verifier_payload,
+        artifact_verifier_manifest="/tmp/artifact_verifier_manifest.json",
+    )
+
+    assert len(work_orders) == 1
+    work_order = work_orders[0]
+    assert work_order["missing_formal_symbols"] == ["Exchangeable", "orderStat"]
+    assert work_order["typeclass_blockers"] == ["HSub ℕ ℝ ENNReal"]
+    assert any(
+        "`Exchangeable`" in task for task in work_order["recommended_repair_tasks"]
+    )
+    assert any("`orderStat`" in task for task in work_order["recommended_repair_tasks"])
+    assert any(
+        "`HSub ℕ ℝ ENNReal`" in task
+        for task in work_order["recommended_repair_tasks"]
+    )
+    assert any(
+        "runtime-source-theorem-promotion-proofengineer-bridge" in task
+        for task in work_order["recommended_repair_tasks"]
+    )
+    assert work_order["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+
+
 def test_source_theorem_promotion_infers_mathlib_import_for_statistical_statement(
     tmp_path: Path,
 ) -> None:

@@ -3576,6 +3576,112 @@ _SOURCE_THEOREM_EXACT_CANDIDATE_ENVIRONMENT_FAILURES = frozenset(
 )
 
 
+def _source_theorem_missing_formal_symbols_from_diagnostics(
+    diagnostics: list[str],
+) -> list[str]:
+    symbols: list[str] = []
+    for index, message in enumerate(diagnostics):
+        text = str(message)
+        for match in re.finditer(r"identifier `([^`]+)` is unknown", text):
+            symbol = match.group(1).strip()
+            if symbol and symbol not in symbols:
+                symbols.append(symbol)
+        lines = text.splitlines()
+        for line_index, line in enumerate(lines):
+            if "Function expected at" not in line:
+                continue
+            followup_lines = lines[line_index + 1 :]
+            for followup in diagnostics[index + 1 : index + 4]:
+                followup_lines.extend(str(followup).splitlines())
+            for followup in followup_lines:
+                candidate = str(followup).strip()
+                if not candidate or candidate.startswith(("but ", "Note:", "Hint:")):
+                    continue
+                if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_'.]*", candidate):
+                    if candidate not in symbols:
+                        symbols.append(candidate)
+                    break
+    return symbols
+
+
+def _source_theorem_typeclass_blockers_from_diagnostics(
+    diagnostics: list[str],
+) -> list[str]:
+    blockers: list[str] = []
+    for index, message in enumerate(diagnostics):
+        text = str(message)
+        if "failed to synthesize instance of type class" not in text:
+            continue
+        lines = text.splitlines()
+        followup_lines: list[str] = []
+        for line_index, line in enumerate(lines):
+            if "failed to synthesize instance of type class" in line:
+                followup_lines.extend(lines[line_index + 1 :])
+                break
+        for followup in diagnostics[index + 1 : index + 5]:
+            followup_lines.extend(str(followup).splitlines())
+        for followup in followup_lines:
+            candidate = str(followup).strip()
+            if not candidate or candidate.startswith(("Hint:", "Note:")):
+                continue
+            if candidate not in blockers:
+                blockers.append(candidate)
+            break
+    return blockers
+
+
+def _source_theorem_formal_environment_repair_tasks(
+    *,
+    missing_symbols: list[str],
+    typeclass_blockers: list[str],
+    failure_classification: str,
+) -> list[str]:
+    tasks: list[str] = []
+    for symbol in missing_symbols:
+        tasks.append(
+            "resolve Lean declaration/import or explicitly formalize source-theorem "
+            f"primitive `{symbol}`"
+        )
+    for blocker in typeclass_blockers:
+        tasks.append(
+            "repair exact source-theorem statement so Lean can synthesize typeclass "
+            f"instance `{blocker}` without coercion ambiguity"
+        )
+    if not tasks and failure_classification:
+        tasks.append(
+            "repair exact source-theorem formal environment for "
+            + failure_classification
+        )
+    if tasks:
+        tasks.append(
+            "rerun runtime-source-theorem-promotion-proofengineer-bridge with "
+            "--overwrite and local Lean/AXLE before claiming proof evidence"
+        )
+    return tasks[:8]
+
+
+def _source_theorem_formal_environment_context(
+    *,
+    diagnostics: list[str],
+    failure_classification: str,
+) -> dict[str, Any]:
+    missing_symbols = _source_theorem_missing_formal_symbols_from_diagnostics(
+        diagnostics
+    )
+    typeclass_blockers = _source_theorem_typeclass_blockers_from_diagnostics(
+        diagnostics
+    )
+    return {
+        "missing_formal_symbols": missing_symbols,
+        "typeclass_blockers": typeclass_blockers,
+        "recommended_repair_tasks": _source_theorem_formal_environment_repair_tasks(
+            missing_symbols=missing_symbols,
+            typeclass_blockers=typeclass_blockers,
+            failure_classification=failure_classification,
+        ),
+    }
+
+
 def _runtime_learning_memory_source_theorem_integrator_blockers(
     architect_context: Mapping[str, Any],
 ) -> tuple[dict[str, Any], ...]:
@@ -3697,10 +3803,29 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 str(value)
                 for value in input_summary.get("diagnostics", []) or []
                 if str(value).strip()
-            ][:3]
+            ][:8]
             failure_classification = str(
                 input_summary.get("failure_classification", "") or ""
             )
+            missing_symbols = [
+                str(value)
+                for value in input_summary.get("missing_formal_symbols", []) or []
+                if str(value).strip()
+            ]
+            typeclass_blockers = [
+                str(value)
+                for value in input_summary.get("typeclass_blockers", []) or []
+                if str(value).strip()
+            ]
+            recommended_repair_tasks = [
+                str(value)
+                for value in input_summary.get("recommended_repair_tasks", []) or []
+                if str(value).strip()
+            ]
+        else:
+            missing_symbols = []
+            typeclass_blockers = []
+            recommended_repair_tasks = []
         key = (target, trigger)
         if key in seen:
             continue
@@ -3719,6 +3844,9 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
                 ),
                 "failure_classification": failure_classification,
                 "diagnostics": diagnostics,
+                "missing_formal_symbols": missing_symbols,
+                "typeclass_blockers": typeclass_blockers,
+                "recommended_repair_tasks": recommended_repair_tasks,
             }
         )
     return tuple(repairs)
@@ -3903,6 +4031,13 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     row.get("failure_classification", "") or ""
                 ),
                 "diagnostics": list(row.get("diagnostics", []) or []),
+                "missing_formal_symbols": list(
+                    row.get("missing_formal_symbols", []) or []
+                ),
+                "typeclass_blockers": list(row.get("typeclass_blockers", []) or []),
+                "recommended_repair_tasks": list(
+                    row.get("recommended_repair_tasks", []) or []
+                ),
             }
             for row in source_theorem_exact_candidate_repairs[:3]
         ],
@@ -4461,7 +4596,35 @@ def _runtime_source_theorem_formal_environment_work_order_rows(
                     str(value)
                     for value in repair.get("diagnostics", []) or []
                     if str(value).strip()
-                ][:5]
+                ][:8]
+                context = _source_theorem_formal_environment_context(
+                    diagnostics=diagnostics,
+                    failure_classification=failure_classification,
+                )
+                missing_symbols = [
+                    str(value)
+                    for value in (
+                        repair.get("missing_formal_symbols", [])
+                        or context["missing_formal_symbols"]
+                    )
+                    if str(value).strip()
+                ]
+                typeclass_blockers = [
+                    str(value)
+                    for value in (
+                        repair.get("typeclass_blockers", [])
+                        or context["typeclass_blockers"]
+                    )
+                    if str(value).strip()
+                ]
+                recommended_repair_tasks = [
+                    str(value)
+                    for value in (
+                        repair.get("recommended_repair_tasks", [])
+                        or context["recommended_repair_tasks"]
+                    )
+                    if str(value).strip()
+                ]
                 work_order_id = "source_theorem_formal_environment_work_order:" + stable_hash(
                     [
                         artifact.get("manifest_id", ""),
@@ -4488,6 +4651,9 @@ def _runtime_source_theorem_formal_environment_work_order_rows(
                         "candidate_artifact_path": candidate_artifact_path,
                         "failure_classification": failure_classification,
                         "diagnostics": diagnostics,
+                        "missing_formal_symbols": missing_symbols,
+                        "typeclass_blockers": typeclass_blockers,
+                        "recommended_repair_tasks": recommended_repair_tasks,
                         "owner_agent": "Formalizer/ProofEngineer/LeanProver",
                         "action_type": "repair_exact_source_theorem_formal_environment",
                         "required_outputs": [
@@ -4544,7 +4710,11 @@ def _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_pa
             str(value)
             for value in row.get("diagnostics", []) or []
             if str(value).strip()
-        ][:5]
+        ]
+        context = _source_theorem_formal_environment_context(
+            diagnostics=diagnostics,
+            failure_classification=failure_classification,
+        )
         artifact_verification_id = str(
             row.get("artifact_verification_id", "") or ""
         ).strip()
@@ -4554,7 +4724,7 @@ def _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_pa
                 target_theorem_name,
                 candidate_artifact_path,
                 failure_classification,
-                diagnostics,
+                diagnostics[:8],
             ]
         )[:20]
         if work_order_id in seen:
@@ -4571,7 +4741,10 @@ def _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_pa
                 "target_theorem_name": target_theorem_name,
                 "candidate_artifact_path": candidate_artifact_path,
                 "failure_classification": failure_classification,
-                "diagnostics": diagnostics,
+                "diagnostics": diagnostics[:8],
+                "missing_formal_symbols": context["missing_formal_symbols"],
+                "typeclass_blockers": context["typeclass_blockers"],
+                "recommended_repair_tasks": context["recommended_repair_tasks"],
                 "owner_agent": "Formalizer/ProofEngineer/LeanProver",
                 "action_type": "repair_exact_source_theorem_formal_environment",
                 "required_outputs": [
@@ -5984,7 +6157,12 @@ def _runtime_source_theorem_artifact_verifier_bridge_learning_rows(
             str(value)
             for value in row.get("diagnostics", []) or []
             if str(value).strip()
-        ][:5]
+        ]
+        failure_classification = str(row.get("failure_classification", "") or "")
+        environment_context = _source_theorem_formal_environment_context(
+            diagnostics=diagnostics,
+            failure_classification=failure_classification,
+        )
         rows.append(
             {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -6010,10 +6188,15 @@ def _runtime_source_theorem_artifact_verifier_bridge_learning_rows(
                     "source_theorem_kernel_verified": bool(
                         row.get("source_theorem_kernel_verified", False)
                     ),
-                    "diagnostics": diagnostics,
-                    "failure_classification": str(
-                        row.get("failure_classification", "") or ""
-                    ),
+                    "diagnostics": diagnostics[:8],
+                    "failure_classification": failure_classification,
+                    "missing_formal_symbols": environment_context[
+                        "missing_formal_symbols"
+                    ],
+                    "typeclass_blockers": environment_context["typeclass_blockers"],
+                    "recommended_repair_tasks": environment_context[
+                        "recommended_repair_tasks"
+                    ],
                 },
                 "target_behavior": (
                     "repair the exact source-theorem candidate proof body, imports, "
