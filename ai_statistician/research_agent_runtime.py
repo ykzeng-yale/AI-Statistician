@@ -4811,6 +4811,18 @@ def _runtime_source_theorem_promotion_work_order_rows(
                         source_ids.append(source_manifest_id)
                     existing["source_formalization_manifest_ids"] = source_ids
                     existing["n_source_formalization_manifests"] = len(source_ids)
+                    existing["source_theorem_promotion_revision_count"] = len(source_ids)
+                    for key in (
+                        "source_formalization_manifest_id",
+                        "source_formalizer_packet_id",
+                        "source_formal_target_id",
+                        "lean_statement_sketch",
+                        "informal_source",
+                        "semantic_alignment_constraints",
+                    ):
+                        value = row.get(key)
+                        if value:
+                            existing[key] = value
                     continue
                 row["source_formalization_manifest_ids"] = (
                     [source_manifest_id] if source_manifest_id else []

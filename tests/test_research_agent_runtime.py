@@ -2148,6 +2148,106 @@ def test_runtime_exports_source_theorem_semantic_primitive_queue_rows() -> None:
     ]
 
 
+def test_source_theorem_promotion_work_order_prefers_latest_repair_sketch(
+    tmp_path: Path,
+) -> None:
+    base_summary = {
+        "recommended_formalizer_target_mode": (
+            "source_theorem_exact_semantics_or_theorem_promotion"
+        ),
+        "source_theorem_semantic_primitive_support_already_kernel_verified": True,
+        "remaining_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
+        "memory_kernel_verified_theorem_reduction_closure_work_order_ids": [
+            "theorem_reduction_closure_work_order:good_rank"
+        ],
+        "memory_kernel_verified_theorem_reduction_closure_target_ids": [
+            "split_conformal_finite_sample_coverage_reduction_closure"
+        ],
+        "memory_kernel_verified_source_theorem_semantic_primitive_ids": [
+            "split_conformal_good_rank_set_inclusion_bridge"
+        ],
+    }
+    old_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:old",
+        "question": {"id": "conformal_prediction_coverage"},
+        "llm_formalizer_proof_engineer_proposal_id": "formalizer_proposal:old",
+        "deterministic_theorem_goals": [
+            {"id": "split_conformal_finite_sample_coverage"}
+        ],
+        "proof_bank_runtime_memory_summary": base_summary,
+    }
+    new_manifest = {
+        **old_manifest,
+        "manifest_id": "formalization_manifest:new",
+        "llm_formalizer_proof_engineer_proposal_id": "formalizer_proposal:new",
+    }
+    old_proposal = {
+        "artifact_kind": "FormalizerProofEngineerProposalPacket",
+        "packet_id": "formalizer_proposal:old",
+        "formal_targets": [
+            {
+                "id": "split_conformal_coverage_repair",
+                "lean_statement_sketch": "theorem split_conformal_coverage : True := by",
+                "informal_source": "old malformed repair sketch",
+            }
+        ],
+    }
+    new_sketch = "theorem split_conformal_coverage : True := by\n  trivial"
+    new_proposal = {
+        "artifact_kind": "FormalizerProofEngineerProposalPacket",
+        "packet_id": "formalizer_proposal:new",
+        "formal_targets": [
+            {
+                "id": "split_conformal_coverage_repair",
+                "lean_statement_sketch": new_sketch,
+                "informal_source": "new repaired sketch",
+                "semantic_alignment_constraints": ["preserve exact source target"],
+            }
+        ],
+    }
+
+    rows = _runtime_source_theorem_promotion_work_order_rows(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        "formalization_manifest:old": old_manifest,
+                        "formalizer_proposal:old": old_proposal,
+                        "formalization_manifest:new": new_manifest,
+                        "formalizer_proposal:new": new_proposal,
+                    }
+                }
+            }
+        ]
+    )
+    handoff_rows = _runtime_source_theorem_promotion_handoff_rows(rows)
+    materialization_seed_rows = (
+        _runtime_source_theorem_promotion_materialization_seed_rows(
+            handoff_rows,
+            runtime_out_dir=tmp_path,
+        )
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["source_formalizer_packet_id"] == "formalizer_proposal:new"
+    assert rows[0]["source_formalization_manifest_id"] == "formalization_manifest:new"
+    assert rows[0]["source_formalization_manifest_ids"] == [
+        "formalization_manifest:old",
+        "formalization_manifest:new",
+    ]
+    assert rows[0]["source_theorem_promotion_revision_count"] == 2
+    assert rows[0]["lean_statement_sketch"] == new_sketch
+    assert rows[0]["informal_source"] == "new repaired sketch"
+    assert rows[0]["semantic_alignment_constraints"] == [
+        "preserve exact source target"
+    ]
+    assert materialization_seed_rows[0]["source_formalizer_packet_id"] == (
+        "formalizer_proposal:new"
+    )
+    assert materialization_seed_rows[0]["lean_statement_sketch"] == new_sketch
+
+
 def test_runtime_evidence_summary_preserves_theorem_closure_memory_fields() -> None:
     summary = _runtime_evidence_summary(
         [
