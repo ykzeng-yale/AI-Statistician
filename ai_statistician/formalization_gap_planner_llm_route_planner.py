@@ -8801,6 +8801,7 @@ def _response_contract_errors(
             errors.append(f"formal_realization_dag_nodes[{index}].node_id missing")
         if not str(node.get("primitive", "")).strip():
             errors.append(f"formal_realization_dag_nodes[{index}].primitive missing")
+    errors.extend(_response_formal_marker_contract_errors(payload, request))
     errors.extend(_response_formal_declaration_grounding_errors(payload, request))
     errors.extend(_response_formal_search_obligation_errors(payload))
     errors.extend(_response_wrapper_anchor_errors(payload, request))
@@ -10524,6 +10525,63 @@ def _response_wrapper_anchor_errors(
             "or a substantive formal_gap_boundary naming the missing wrapper target"
         )
     return errors
+
+
+def _response_formal_marker_contract_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    target_prover_family = str(request.get("target_prover_family", ""))
+    for collection_name, rows in (
+        (
+            "formal_realization_dag_nodes",
+            _formal_realization_nodes_from_payload(
+                payload,
+                target_prover_family=target_prover_family,
+            ),
+        ),
+        (
+            "standalone_route.primitives",
+            _dict_tuple(
+                _standalone_route_from_payload(
+                    payload,
+                    target_prover_family=target_prover_family,
+                ).get("primitives", [])
+            ),
+        ),
+    ):
+        for index, row in enumerate(rows):
+            for field_name in (
+                "coverage_bucket",
+                "coverage_status",
+                "formalization_action",
+                "alignment_status",
+                "formal_search_status",
+                "library_search_status",
+            ):
+                value = row.get(field_name, "")
+                if not str(value or "").strip():
+                    continue
+                if _formal_coverage_action_marker_is_known(value):
+                    continue
+                errors.append(
+                    f"{collection_name}[{index}].{field_name} unsupported: "
+                    + _primitive_key(value)
+                )
+    return errors
+
+
+def _formal_coverage_action_marker_is_known(value: object) -> bool:
+    key = _primitive_key(value)
+    if not key:
+        return False
+    return (
+        bool(_coverage_marker_policy_bucket(key))
+        or key in UNRESOLVED_ROUTE_ALIGNMENT_STATUS_KEYS
+        or _formal_library_search_marker(key)
+        or _delta_formalization_marker(key)
+    )
 
 
 def _formal_node_requires_wrapper_anchor(node: Mapping[str, Any]) -> bool:

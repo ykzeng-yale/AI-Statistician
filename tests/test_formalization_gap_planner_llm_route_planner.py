@@ -11838,6 +11838,46 @@ def test_llm_route_planner_rejects_unknown_formal_coverage_without_search_reques
     )
 
 
+def test_llm_route_planner_rejects_free_text_formal_coverage_markers() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_free_text_formal_coverage"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["lean_realization_dag_nodes"][1][
+        "coverage_bucket"
+    ] = "probably_reuse"
+    bad_response["standalone_route"]["primitives"][1][
+        "coverage_status"
+    ] = "library_maybe_has_it"
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    assert any(
+        "formal_realization_dag_nodes[1].coverage_bucket unsupported: "
+        "probably_reuse" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "standalone_route.primitives[1].coverage_status unsupported: "
+        "library_maybe_has_it" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_accepts_introduced_source_backed_bridge_primitive() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_accepts_new_bridge")
     response_json = root / "response.json"
