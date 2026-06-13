@@ -12917,7 +12917,11 @@ def _response_primitive_coherence_errors(
         informal_node_id = str(
             edge.get("informal_node_id") or edge.get("source") or ""
         ).strip()
-        formal_node_id = str(edge.get("formal_node_id") or edge.get("target") or "").strip()
+        formal_node_id = str(
+            edge.get("formal_node_id") or edge.get("target") or ""
+        ).strip()
+        edge_primitive = _primitive_key(edge.get("primitive", ""))
+        formal_node_primitive = formal_primitive_by_node_id.get(formal_node_id, "")
         if informal_node_id and informal_node_id not in informal_by_node_id:
             errors.append(
                 "route_alignment_edges references unknown informal_node_id: "
@@ -12928,9 +12932,17 @@ def _response_primitive_coherence_errors(
                 "route_alignment_edges references unknown formal_node_id: "
                 + formal_node_id
             )
-        primitive = _primitive_key(edge.get("primitive", ""))
-        if not primitive:
-            primitive = formal_primitive_by_node_id.get(formal_node_id, "")
+        if (
+            edge_primitive
+            and formal_node_primitive
+            and edge_primitive != formal_node_primitive
+        ):
+            errors.append(
+                "route_alignment_edges primitive/formal_node_id mismatch: "
+                f"edge primitive {edge_primitive} does not match formal_node_id "
+                f"{formal_node_id} primitive {formal_node_primitive}"
+            )
+        primitive = formal_node_primitive or edge_primitive
         if not primitive:
             primitive = formal_primitive_by_node_id.get(str(edge.get("target", "")), "")
         if primitive:
@@ -13864,12 +13876,11 @@ def _alignment_primitive_keys(
     }
     aligned: set[str] = set()
     for edge in alignment_edges:
-        primitive = _primitive_key(edge.get("primitive", ""))
-        if not primitive:
-            formal_node_id = str(
-                edge.get("formal_node_id") or edge.get("target") or ""
-            ).strip()
-            primitive = formal_primitive_by_node_id.get(formal_node_id, "")
+        formal_node_id = str(
+            edge.get("formal_node_id") or edge.get("target") or ""
+        ).strip()
+        formal_node_primitive = formal_primitive_by_node_id.get(formal_node_id, "")
+        primitive = formal_node_primitive or _primitive_key(edge.get("primitive", ""))
         if primitive:
             aligned.add(primitive)
     aligned.discard("")

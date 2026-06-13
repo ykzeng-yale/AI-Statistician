@@ -11772,3 +11772,40 @@ def test_llm_route_planner_rejects_dangling_alignment_edge_endpoint() -> None:
         "route_alignment_edges references unknown formal_node_id" in error
         for error in row["errors"]
     )
+
+
+def test_llm_route_planner_rejects_alignment_edge_primitive_formal_node_mismatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_alignment_primitive_mismatch"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["route_alignment_edges"][0][
+        "formal_node_id"
+    ] = "formal:exchangeability"
+    bad_response["route_alignment_edges"][0]["primitive"] = "rank_uniformity"
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "route_alignment_edges primitive/formal_node_id mismatch" in error
+        and "rank_uniformity" in error
+        and "formal:exchangeability" in error
+        and "exchangeability" in error
+        for error in row["errors"]
+    )
+    assert "rank_uniformity" in row["realization_coverage_witness"][
+        "delta_primitives_missing_route_alignment_edge"
+    ]
