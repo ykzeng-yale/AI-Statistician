@@ -463,6 +463,36 @@ LLM_ROUTE_PLANNER_SEARCH_REQUEST_KIND_ALIASES = (
     "route_repair",
     "route_refinement",
 )
+LLM_ROUTE_PLANNER_LITERATURE_SEARCH_REQUEST_KINDS = frozenset(
+    {
+        "literature",
+        "literature_search",
+        "source",
+        "source_search",
+        "paper",
+        "paper_search",
+        "textbook",
+        "textbook_search",
+    }
+)
+LLM_ROUTE_PLANNER_FORMAL_SEARCH_REQUEST_KINDS = frozenset(
+    {
+        "formal_library",
+        "formal_library_search",
+        "formal_source",
+        "formal_source_search",
+        "library",
+        "library_search",
+        "library_coverage",
+        "lean_search",
+        "leansearch",
+        "leanfinder",
+        "loogle",
+        "declaration",
+        "declaration_search",
+        "premise_search",
+    }
+)
 LLM_ROUTE_PLANNER_PLANNER_NEXT_ACTION_HOOK_ALIASES = (
     "literature",
     "literature_search",
@@ -9970,10 +10000,12 @@ def _has_literature_search_request_for_residual_interpretation(
     residual_tokens = _residual_interpretation_search_tokens(interpretation)
     if not residual_tokens:
         return False
-    literature_kind_keys = ("literature", "source", "paper", "textbook")
+    literature_kind_keys = tuple(LLM_ROUTE_PLANNER_LITERATURE_SEARCH_REQUEST_KINDS)
     for request in search_requests:
-        kind_key = _primitive_key(request.get("request_kind", ""))
-        if not any(key in kind_key for key in literature_kind_keys):
+        if not _search_request_kind_matches(
+            request.get("request_kind", ""),
+            literature_kind_keys,
+        ):
             continue
         request_tokens = _search_text_tokens(
             " ".join(
@@ -10758,14 +10790,7 @@ def _has_formal_library_search_request_for_obligation(
     *,
     primitives: tuple[str, ...],
 ) -> bool:
-    formal_kind_keys = (
-        "formal_library",
-        "formal_source",
-        "library",
-        "lean_search",
-        "loogle",
-        "declaration",
-    )
+    formal_kind_keys = tuple(LLM_ROUTE_PLANNER_FORMAL_SEARCH_REQUEST_KINDS)
     if primitives:
         return any(
             _has_search_request_for_primitive(
@@ -10776,9 +10801,9 @@ def _has_formal_library_search_request_for_obligation(
             for primitive in primitives
         )
     return any(
-        any(
-            key in _primitive_key(request.get("request_kind", ""))
-            for key in formal_kind_keys
+        _search_request_kind_matches(
+            request.get("request_kind", ""),
+            formal_kind_keys,
         )
         and bool(
             str(
@@ -12188,7 +12213,7 @@ def _has_literature_search_request_for_obligation(
     *,
     primitives: tuple[str, ...],
 ) -> bool:
-    literature_kind_keys = ("literature", "source", "paper", "textbook")
+    literature_kind_keys = tuple(LLM_ROUTE_PLANNER_LITERATURE_SEARCH_REQUEST_KINDS)
     if primitives:
         return any(
             _has_search_request_for_primitive(
@@ -12199,9 +12224,9 @@ def _has_literature_search_request_for_obligation(
             for primitive in primitives
         )
     return any(
-        any(
-            key in _primitive_key(request.get("request_kind", ""))
-            for key in literature_kind_keys
+        _search_request_kind_matches(
+            request.get("request_kind", ""),
+            literature_kind_keys,
         )
         and bool(
             str(
@@ -14665,7 +14690,9 @@ def _informal_node_supports_introduced_primitive(
         return _has_search_request_for_primitive(
             search_requests,
             primitive=primitive,
-            request_kind_keys=("literature", "source", "paper", "textbook"),
+            request_kind_keys=tuple(
+                LLM_ROUTE_PLANNER_LITERATURE_SEARCH_REQUEST_KINDS
+            ),
         )
     return False
 
@@ -14695,7 +14722,9 @@ def _formal_node_supports_introduced_primitive(
     return _has_search_request_for_primitive(
         search_requests,
         primitive=primitive,
-        request_kind_keys=("formal_library", "library", "prover_feedback"),
+        request_kind_keys=tuple(
+            LLM_ROUTE_PLANNER_FORMAL_SEARCH_REQUEST_KINDS | {"prover_feedback"}
+        ),
     )
 
 
@@ -14734,8 +14763,10 @@ def _has_search_request_for_primitive(
     if not primitive_key:
         return False
     for request in search_requests:
-        kind_key = _primitive_key(request.get("request_kind", ""))
-        if request_kind_keys and not any(key in kind_key for key in request_kind_keys):
+        if request_kind_keys and not _search_request_kind_matches(
+            request.get("request_kind", ""),
+            request_kind_keys,
+        ):
             continue
         text_key = _primitive_key(
             " ".join(
@@ -14765,6 +14796,20 @@ def _has_search_request_for_primitive(
         if primitive_key in text_key:
             return True
     return False
+
+
+def _search_request_kind_matches(
+    request_kind: object,
+    allowed_kinds: Iterable[str],
+) -> bool:
+    kind_key = _primitive_key(request_kind)
+    if not kind_key:
+        return False
+    return kind_key in {
+        allowed_kind
+        for allowed_kind in (_primitive_key(value) for value in allowed_kinds)
+        if allowed_kind
+    }
 
 
 def _available_primitive_keys_for_request(request: Mapping[str, Any]) -> set[str]:

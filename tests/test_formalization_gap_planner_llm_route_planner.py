@@ -10392,6 +10392,46 @@ def test_llm_route_planner_rejects_search_requested_without_search_request() -> 
     )
 
 
+def test_llm_route_planner_rejects_formal_source_search_as_literature_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_formal_source_as_literature"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    rank_node = bad_response["informal_knowledge_dag_nodes"][1]
+    rank_node["source_refs"] = []
+    rank_node["source_snippets"] = []
+    rank_node["source_search_status"] = "SEARCH_REQUESTED"
+    bad_response["search_requests"] = [
+        {
+            "request_kind": "formal_source",
+            "query": "rank_uniformity formal source declaration search",
+            "reason": "formal-source search is not literature evidence",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "informal_knowledge_dag_nodes[1] SEARCH_REQUESTED requires a matching "
+        "literature/source search_request" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_residual_search_requested_without_search_request() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_residual_search_without_request"
@@ -12210,6 +12250,41 @@ def test_llm_route_planner_rejects_unknown_formal_coverage_without_search_reques
         in error
         for error in row["errors"]
     )
+
+
+def test_llm_route_planner_accepts_formal_source_search_for_formal_coverage() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_formal_source_for_formal_coverage"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["lean_realization_dag_nodes"][1][
+        "formal_search_status"
+    ] = "formal_library_search_pending"
+    response["standalone_route"]["primitives"][1][
+        "formal_search_status"
+    ] = "formal_library_search_pending"
+    response["search_requests"] = [
+        {
+            "request_kind": "formal_source",
+            "query": "rank_uniformity Lean declaration formal source search",
+            "reason": "search the formal source/library before deciding the bridge",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
 
 
 def test_llm_route_planner_rejects_unresolved_formal_coverage_masked_by_delta_action_without_search_request() -> None:
