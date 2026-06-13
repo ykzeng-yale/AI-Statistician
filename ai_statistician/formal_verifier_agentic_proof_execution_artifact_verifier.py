@@ -532,6 +532,8 @@ def _classify_local_lean_failure(
         return "formal_environment_symbol_missing"
     if "failed to synthesize" in text:
         return "formal_environment_instance_missing"
+    if "invalid 'import' command" in text:
+        return "lean_syntax_or_import_environment_gap"
     if "unexpected token" in text and ("expected '=>'" in text or "expected term" in text):
         if "import " in source and lean_project is None:
             return "lean_project_or_import_environment_missing"

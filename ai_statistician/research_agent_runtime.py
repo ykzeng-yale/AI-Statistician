@@ -4474,6 +4474,90 @@ def _runtime_source_theorem_formal_environment_work_order_rows(
     return rows
 
 
+def _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_payload(
+    artifact_verifier_payload: Mapping[str, Any],
+    *,
+    artifact_verifier_manifest: str,
+) -> list[dict[str, Any]]:
+    """Queue formal-environment repair directly from exact-source verifier failures."""
+
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in artifact_verifier_payload.get("rows", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        if not bool(row.get("source_theorem_target_known", False)):
+            continue
+        if bool(row.get("source_theorem_kernel_verified", False)):
+            continue
+        failure_classification = str(
+            row.get("failure_classification", "") or ""
+        ).strip()
+        if (
+            failure_classification
+            not in _SOURCE_THEOREM_EXACT_CANDIDATE_ENVIRONMENT_FAILURES
+        ):
+            continue
+        target_theorem_name = str(
+            row.get("target_theorem_name", "")
+            or row.get("target_lean_declaration", "")
+            or ""
+        ).strip()
+        candidate_artifact_path = str(
+            row.get("candidate_artifact_path", "") or ""
+        ).strip()
+        diagnostics = [
+            str(value)
+            for value in row.get("diagnostics", []) or []
+            if str(value).strip()
+        ][:5]
+        artifact_verification_id = str(
+            row.get("artifact_verification_id", "") or ""
+        ).strip()
+        work_order_id = "source_theorem_formal_environment_work_order:" + stable_hash(
+            [
+                artifact_verification_id,
+                target_theorem_name,
+                candidate_artifact_path,
+                failure_classification,
+                diagnostics,
+            ]
+        )[:20]
+        if work_order_id in seen:
+            continue
+        seen.add(work_order_id)
+        rows.append(
+            {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "artifact_kind": "SourceTheoremFormalEnvironmentWorkOrder",
+                "work_order_id": work_order_id,
+                "source_formalization_manifest_id": "",
+                "artifact_verification_id": artifact_verification_id,
+                "artifact_verifier_manifest": artifact_verifier_manifest,
+                "target_theorem_name": target_theorem_name,
+                "candidate_artifact_path": candidate_artifact_path,
+                "failure_classification": failure_classification,
+                "diagnostics": diagnostics,
+                "owner_agent": "Formalizer/ProofEngineer/LeanProver",
+                "action_type": "repair_exact_source_theorem_formal_environment",
+                "required_outputs": [
+                    "local Lean project or AXLE environment for the exact source theorem",
+                    "Lean import list for the theorem and upstream statistical primitives",
+                    "missing formal symbols or instances that must be defined before proof search",
+                    "rerunnable exact-source artifact verifier manifest",
+                ],
+                "acceptance_gate": (
+                    "local Lean/AXLE resolves imports and reaches the exact source theorem "
+                    "declaration; artifact/source theorem proof evidence still requires "
+                    "kernel verification and no sorry/admit/axiom placeholders"
+                ),
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+        )
+    return rows
+
+
 def _formalizer_source_theorem_promotion_work_orders(
     *,
     proposal_packet: Mapping[str, Any],
@@ -5486,6 +5570,64 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
                 local_lean=local_lean,
             )
         )
+    artifact_verifier_manifest_path = (
+        artifact_verifier_dir
+        / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json"
+    )
+    source_theorem_formal_environment_work_order_rows: list[dict[str, Any]] = []
+    source_theorem_formal_environment_work_order_jsonl = Path()
+    source_theorem_formal_environment_work_order_manifest = Path()
+    if artifact_verifier_payload is not None:
+        source_theorem_formal_environment_work_order_rows = (
+            _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_payload(
+                artifact_verifier_payload,
+                artifact_verifier_manifest=str(artifact_verifier_manifest_path),
+            )
+        )
+        source_theorem_formal_environment_work_order_dir = (
+            out_dir
+            / "formal_verifier_agentic_proof_source_theorem_formal_environment_work_orders"
+        )
+        source_theorem_formal_environment_work_order_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+        source_theorem_formal_environment_work_order_jsonl = (
+            source_theorem_formal_environment_work_order_dir
+            / "formal_verifier_agentic_proof_source_theorem_formal_environment_work_orders.jsonl"
+        )
+        source_theorem_formal_environment_work_order_manifest = (
+            source_theorem_formal_environment_work_order_dir
+            / "formal_verifier_agentic_proof_source_theorem_formal_environment_work_order_manifest.json"
+        )
+        _write_jsonl(
+            source_theorem_formal_environment_work_order_jsonl,
+            source_theorem_formal_environment_work_order_rows,
+        )
+        source_theorem_formal_environment_work_order_manifest.write_text(
+            json.dumps(
+                {
+                    "schema_version": RUNTIME_SCHEMA_VERSION,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "artifact_kind": (
+                        "SourceTheoremFormalEnvironmentWorkOrderManifest"
+                    ),
+                    "artifact_verifier_manifest": str(artifact_verifier_manifest_path),
+                    "source_theorem_formal_environment_work_orders_jsonl": str(
+                        source_theorem_formal_environment_work_order_jsonl
+                    ),
+                    "n_source_theorem_formal_environment_work_orders": len(
+                        source_theorem_formal_environment_work_order_rows
+                    ),
+                    "rows": source_theorem_formal_environment_work_order_rows,
+                    "proof_evidence_status": "WORK_ORDER_MANIFEST_NOT_PROOF_EVIDENCE",
+                    "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+                },
+                indent=2,
+                default=str,
+            ),
+            encoding="utf-8",
+        )
     local_lean_skipped_reason = (
         ""
         if artifact_verifier_payload is not None
@@ -5512,10 +5654,17 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
             str(artifact_verifier_dir) if artifact_verifier_payload is not None else ""
         ),
         "artifact_verifier_manifest": (
-            str(
-                artifact_verifier_dir
-                / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json"
-            )
+            str(artifact_verifier_manifest_path)
+            if artifact_verifier_payload is not None
+            else ""
+        ),
+        "source_theorem_formal_environment_work_orders_jsonl": (
+            str(source_theorem_formal_environment_work_order_jsonl)
+            if artifact_verifier_payload is not None
+            else ""
+        ),
+        "source_theorem_formal_environment_work_order_manifest": (
+            str(source_theorem_formal_environment_work_order_manifest)
             if artifact_verifier_payload is not None
             else ""
         ),
@@ -5567,6 +5716,9 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
             artifact_verifier_payload.get("n_artifact_kernel_verified", 0)
             if artifact_verifier_payload
             else 0
+        ),
+        "n_source_theorem_formal_environment_work_orders": len(
+            source_theorem_formal_environment_work_order_rows
         ),
         "n_source_theorem_kernel_verified": int(
             source_theorem_integrator_payload.get(

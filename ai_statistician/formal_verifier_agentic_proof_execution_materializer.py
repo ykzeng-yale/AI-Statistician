@@ -408,11 +408,11 @@ def _exact_source_theorem_candidate_source(
     import_block = f"{import_lines}\n\n" if import_lines else ""
     body = _lean_statement_with_evolve_block(sketch)
     return (
+        f"{import_block}"
         "/-!\n"
         "Bounded Lean exact-source-theorem candidate artifact.\n"
         "Downstream local Lean/AXLE verification decides whether this exact declaration is proof evidence.\n"
         "-/\n\n"
-        f"{import_block}"
         f"{metadata_lines}\n"
         f"{support_lines}\n"
         f"{body}\n"

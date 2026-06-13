@@ -57,6 +57,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_formalization_gap_planner_target_intake_payload,
     _runtime_source_theorem_semantic_primitive_work_order_rows,
     _runtime_source_theorem_formal_environment_work_order_rows,
+    _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_payload,
     _runtime_source_theorem_promotion_work_order_rows,
     _runtime_source_theorem_promotion_handoff_rows,
     _runtime_source_theorem_promotion_materialization_seed_rows,
@@ -1780,6 +1781,30 @@ def test_source_theorem_exact_candidate_environment_failure_guides_formalizer(
     assert verifier_payload["by_failure_classification"] == {
         "lean_import_environment_missing": 1
     }
+    immediate_work_orders = (
+        _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_payload(
+            verifier_payload,
+            artifact_verifier_manifest=str(
+                verifier_dir
+                / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json"
+            ),
+        )
+    )
+    assert len(immediate_work_orders) == 1
+    assert immediate_work_orders[0]["artifact_kind"] == (
+        "SourceTheoremFormalEnvironmentWorkOrder"
+    )
+    assert immediate_work_orders[0]["artifact_verification_id"] == row[
+        "artifact_verification_id"
+    ]
+    assert immediate_work_orders[0]["target_theorem_name"] == "exact_source_claim"
+    assert immediate_work_orders[0]["candidate_artifact_path"] == str(candidate_path)
+    assert immediate_work_orders[0]["failure_classification"] == (
+        "lean_import_environment_missing"
+    )
+    assert immediate_work_orders[0]["proof_evidence_status"] == (
+        "WORK_ORDER_NOT_PROOF_EVIDENCE"
+    )
 
     learning_rows = _runtime_source_theorem_promotion_bridge_learning_rows(
         {
@@ -1873,6 +1898,100 @@ def test_source_theorem_exact_candidate_environment_failure_guides_formalizer(
     assert work_orders[0]["failure_classification"] == (
         "lean_import_environment_missing"
     )
+    assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+
+
+def test_source_theorem_promotion_bridge_exports_formal_environment_work_order(
+    tmp_path: Path,
+) -> None:
+    seed_queue_dir = tmp_path / "source_theorem_seed_queue"
+    seed_queue_dir.mkdir()
+    candidate_path = tmp_path / "exact_source_candidate.lean"
+    transcript_path = tmp_path / "exact_source_candidate.jsonl"
+    (
+        seed_queue_dir / "formal_verifier_agentic_proof_execution_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "rows": [
+                    {
+                        "schema_version": 1,
+                        "execution_queue_id": "runtime_source_theorem:missing_env",
+                        "population_entry_id": "population:missing_env",
+                        "display_name": "Missing env exact source theorem",
+                        "target_theorem_name": "exact_source_claim",
+                        "candidate_bridge_lemma_name": "exact_source_claim",
+                        "residual_gap": "source theorem formal environment missing",
+                        "population_bucket": "source_theorem_promotion_attempt",
+                        "candidate_artifact_path": str(candidate_path),
+                        "execution_transcript_path": str(transcript_path),
+                        "lean_statement_sketch": (
+                            "theorem exact_source_claim : True := by\n"
+                            "  exact True.intro"
+                        ),
+                        "source_theorem_materialization_mode": (
+                            "exact_source_theorem_candidate"
+                        ),
+                        "strategy_id": (
+                            "runtime_source_theorem_promotion_exact_target_attempt"
+                        ),
+                        "kernel_overlay_context": {
+                            "source_theorem_target_known": True,
+                            "target_location": {
+                                "target_imports": ["Missing.StatEnvironment"],
+                            },
+                        },
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    bridge_payload = _run_runtime_source_theorem_promotion_proofengineer_bridge(
+        seed_queue_dir=seed_queue_dir,
+        out_dir=tmp_path / "runtime_source_theorem_promotion_proofengineer_bridge",
+        local_lean=True,
+        lean_project=None,
+        lean_timeout=30,
+    )
+
+    assert bridge_payload["n_materialized_artifacts"] == 1
+    assert bridge_payload["n_artifact_kernel_verified"] == 0
+    assert bridge_payload["n_source_theorem_kernel_verified"] == 0
+    assert bridge_payload["n_source_theorem_formal_environment_work_orders"] == 1
+    assert bridge_payload["proof_evidence_status"] == (
+        "SOURCE_THEOREM_PROMOTION_PROOFENGINEER_BRIDGE_NOT_SOURCE_THEOREM_PROOF"
+    )
+    work_orders_path = Path(
+        bridge_payload["source_theorem_formal_environment_work_orders_jsonl"]
+    )
+    work_order_manifest_path = Path(
+        bridge_payload["source_theorem_formal_environment_work_order_manifest"]
+    )
+    assert work_orders_path.exists()
+    assert work_order_manifest_path.exists()
+    work_orders = [
+        json.loads(line)
+        for line in work_orders_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(work_orders) == 1
+    assert work_orders[0]["artifact_kind"] == (
+        "SourceTheoremFormalEnvironmentWorkOrder"
+    )
+    assert work_orders[0]["action_type"] == (
+        "repair_exact_source_theorem_formal_environment"
+    )
+    assert work_orders[0]["target_theorem_name"] == "exact_source_claim"
+    assert work_orders[0]["candidate_artifact_path"] == str(candidate_path)
+    assert work_orders[0]["failure_classification"] in {
+        "lean_import_environment_missing",
+        "lean_project_or_import_environment_missing",
+        "lean_syntax_or_import_environment_gap",
+    }
     assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
