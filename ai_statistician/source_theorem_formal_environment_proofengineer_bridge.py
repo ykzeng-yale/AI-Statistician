@@ -130,6 +130,13 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
     typeclass_blockers = _str_list(row.get("typeclass_blockers", []) or [])
     recommended_tasks = _str_list(row.get("recommended_repair_tasks", []) or [])
     candidate_artifact_path = str(row.get("candidate_artifact_path", "") or "").strip()
+    declaration_hints = _formal_environment_declaration_hints(missing_symbols)
+    statement_hints = _statement_repair_hints(typeclass_blockers)
+    signature_probe_plan = _lean_signature_probe_plan(
+        missing_symbols=missing_symbols,
+        typeclass_blockers=typeclass_blockers,
+        candidate_artifact_path=candidate_artifact_path,
+    )
     repair_packet_id = "source_theorem_formal_environment_repair_packet:" + stable_hash(
         [
             work_order_id,
@@ -154,6 +161,9 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
         "diagnostics": _str_list(row.get("diagnostics", []) or [])[:8],
         "missing_formal_symbols": missing_symbols,
         "typeclass_blockers": typeclass_blockers,
+        "formal_environment_declaration_hints": declaration_hints,
+        "statement_repair_hints": statement_hints,
+        "lean_signature_probe_plan": signature_probe_plan,
         "recommended_repair_tasks": recommended_tasks or _default_repair_tasks(
             missing_symbols=missing_symbols,
             typeclass_blockers=typeclass_blockers,
@@ -213,6 +223,168 @@ def _proofengineer_action_plan(
     return list(dict.fromkeys(actions))[:10]
 
 
+def _formal_environment_declaration_hints(missing_symbols: list[str]) -> list[dict[str, Any]]:
+    hints: list[dict[str, Any]] = []
+    for symbol in missing_symbols:
+        normalized = symbol.strip()
+        if normalized == "Exchangeable":
+            hints.append(
+                {
+                    "symbol": normalized,
+                    "search_queries": [
+                        "Exchangeable probability measure indexed random variables",
+                        "exchangeable Fin family MeasureTheory probability",
+                        "List.Perm distribution invariant MeasureTheory",
+                    ],
+                    "preferred_resolution": (
+                        "reuse an existing Mathlib/StatInference exchangeability declaration "
+                        "if one exists"
+                    ),
+                    "signature_probe_fallback": (
+                        "for a typecheck-only repair artifact, introduce a local predicate "
+                        "`Exchangeable (P : Measure Ω) (s : Fin (m + 1) → Ω → ℝ) : Prop` "
+                        "only as an unproved semantic primitive; do not count it as proof "
+                        "or source-theorem evidence"
+                    ),
+                    "promotion_blocker": (
+                        "the source theorem is not semantically promoted until this predicate "
+                        "is mapped to a reviewed library definition or kernel-proved primitive"
+                    ),
+                }
+            )
+        elif normalized == "orderStat":
+            hints.append(
+                {
+                    "symbol": normalized,
+                    "search_queries": [
+                        "order statistic finite family real Lean",
+                        "Finset sort nth order statistic",
+                        "quantile order statistic conformal Lean",
+                    ],
+                    "preferred_resolution": (
+                        "reuse or formalize a finite-sample order statistic over "
+                        "`Fin (m + 1)` before proving coverage"
+                    ),
+                    "signature_probe_fallback": (
+                        "for a typecheck-only repair artifact, introduce a local function "
+                        "`orderStat (s : Fin (m + 1) → Ω → ℝ) (k : ℕ) (ω : Ω) : ℝ` "
+                        "as a semantic placeholder; it must remain outside proof evidence"
+                    ),
+                    "promotion_blocker": (
+                        "theorem closure still requires the rank/order-statistic semantics "
+                        "bridge, not just the symbol declaration"
+                    ),
+                }
+            )
+        else:
+            hints.append(
+                {
+                    "symbol": normalized,
+                    "search_queries": [
+                        f"{normalized} Mathlib",
+                        f"{normalized} StatInference",
+                        f"{normalized} local Lean source",
+                    ],
+                    "preferred_resolution": (
+                        "search existing Lean sources before drafting a new primitive"
+                    ),
+                    "signature_probe_fallback": (
+                        "if no declaration exists, draft the narrowest local declaration "
+                        "needed to typecheck the source theorem and mark it as unproved"
+                    ),
+                    "promotion_blocker": (
+                        "local declaration drafts are routing evidence only until reviewed "
+                        "and kernel verified in the target library"
+                    ),
+                }
+            )
+    return hints
+
+
+def _statement_repair_hints(typeclass_blockers: list[str]) -> list[dict[str, str]]:
+    hints: list[dict[str, str]] = []
+    for blocker in typeclass_blockers:
+        if "HSub ℕ ℝ ENNReal" in blocker:
+            hints.append(
+                {
+                    "blocker": blocker,
+                    "diagnosis": (
+                        "the exact candidate compares a `Measure` value in `ENNReal` with "
+                        "`1 - alpha : ℝ`; Lean is trying to subtract a real from a natural "
+                        "or coerce the wrong side of the inequality"
+                    ),
+                    "repair_hint": (
+                        "probe a typed statement whose probability lower bound is "
+                        "`ENNReal.ofReal (1 - alpha)` while keeping the source theorem "
+                        "marked as a semantic repair draft, not a proved exact theorem"
+                    ),
+                    "example_target_shape": (
+                        "P {ω | s (Fin.last m) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - alpha)"
+                    ),
+                    "honesty_boundary": (
+                        "changing the codomain/coercion shape can make the Lean statement "
+                        "typecheck, but it is not source-theorem evidence until semantic "
+                        "review and local Lean/AXLE verification succeed"
+                    ),
+                }
+            )
+        else:
+            hints.append(
+                {
+                    "blocker": blocker,
+                    "diagnosis": "Lean could not synthesize a typeclass needed by the candidate",
+                    "repair_hint": (
+                        "inspect the exact diagnostic and repair the smallest statement "
+                        "coercion/import/class context needed for typechecking"
+                    ),
+                    "example_target_shape": "",
+                    "honesty_boundary": (
+                        "typeclass repair is environment routing evidence, not theorem proof"
+                    ),
+                }
+            )
+    return hints
+
+
+def _lean_signature_probe_plan(
+    *,
+    missing_symbols: list[str],
+    typeclass_blockers: list[str],
+    candidate_artifact_path: str,
+) -> dict[str, Any]:
+    return {
+        "probe_kind": "statement_typecheck_not_proof",
+        "candidate_artifact_path": candidate_artifact_path,
+        "objective": (
+            "produce a repaired Lean candidate whose imports, primitive declarations, "
+            "and theorem statement typecheck far enough to reach the intentionally "
+            "unproved proof body"
+        ),
+        "allowed_edits": [
+            "add faithful imports found by search",
+            "draft narrow local primitive signatures for missing symbols when search fails",
+            "repair explicit coercions/codomain mismatches in the theorem statement",
+        ],
+        "forbidden_edits": [
+            "do not add axioms",
+            "do not replace the source theorem with `True` or a vacuous route probe",
+            "do not assume the target theorem or add a helper lemma restating it",
+            "do not mark signature-only primitives as proof evidence",
+        ],
+        "known_blockers": {
+            "missing_formal_symbols": list(missing_symbols),
+            "typeclass_blockers": list(typeclass_blockers),
+        },
+        "success_criterion": (
+            "the artifact verifier no longer reports missing-symbol/typeclass diagnostics; "
+            "remaining failure should be the intentional unproved proof body or genuine "
+            "proof obligations"
+        ),
+        "proof_evidence_status": "SIGNATURE_PROBE_PLAN_NOT_PROOF_EVIDENCE",
+        "boundary": BOUNDARY,
+    }
+
+
 def _default_repair_tasks(
     *,
     missing_symbols: list[str],
@@ -254,6 +426,15 @@ def _export_runtime_learning_rows(
                     "failure_classification": str(packet.get("failure_classification", "") or ""),
                     "missing_formal_symbols": list(packet.get("missing_formal_symbols", []) or []),
                     "typeclass_blockers": list(packet.get("typeclass_blockers", []) or []),
+                    "formal_environment_declaration_hints": list(
+                        packet.get("formal_environment_declaration_hints", []) or []
+                    ),
+                    "statement_repair_hints": list(
+                        packet.get("statement_repair_hints", []) or []
+                    ),
+                    "lean_signature_probe_plan": dict(
+                        packet.get("lean_signature_probe_plan", {}) or {}
+                    ),
                     "recommended_repair_tasks": list(
                         packet.get("recommended_repair_tasks", []) or []
                     ),

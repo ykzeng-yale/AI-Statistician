@@ -68,6 +68,20 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert repair_packet["typeclass_blockers"] == ["HSub ℕ ℝ ENNReal"]
     assert repair_packet["repair_status"] == "FORMAL_ENVIRONMENT_REPAIR_REQUIRED"
     assert any("search Mathlib/StatInference" in row for row in repair_packet["proofengineer_action_plan"])
+    declaration_hints = repair_packet["formal_environment_declaration_hints"]
+    assert {hint["symbol"] for hint in declaration_hints} == {"Exchangeable", "orderStat"}
+    assert any(
+        "semantic primitive" in hint["signature_probe_fallback"]
+        for hint in declaration_hints
+    )
+    statement_hints = repair_packet["statement_repair_hints"]
+    assert statement_hints[0]["blocker"] == "HSub ℕ ℝ ENNReal"
+    assert "ENNReal.ofReal (1 - alpha)" in statement_hints[0]["repair_hint"]
+    signature_probe_plan = repair_packet["lean_signature_probe_plan"]
+    assert signature_probe_plan["probe_kind"] == "statement_typecheck_not_proof"
+    assert signature_probe_plan["proof_evidence_status"] == (
+        "SIGNATURE_PROBE_PLAN_NOT_PROOF_EVIDENCE"
+    )
     assert repair_packet["proof_evidence_status"] == "REPAIR_PACKET_NOT_PROOF_EVIDENCE"
 
     learning_rows_path = Path(str(manifest["runtime_learning_rows_jsonl"]))
@@ -82,6 +96,10 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         "Exchangeable",
         "orderStat",
     ]
+    assert learning_row["input_summary"]["lean_signature_probe_plan"]["probe_kind"] == (
+        "statement_typecheck_not_proof"
+    )
+    assert "statement_repair_hints" in learning_row["input_summary"]
     assert learning_row["proof_evidence_status"] == (
         "FORMAL_ENVIRONMENT_REPAIR_LEARNING_NOT_PROOF_EVIDENCE"
     )
