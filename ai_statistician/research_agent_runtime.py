@@ -2353,6 +2353,23 @@ def run_research_agent_runtime(
                     "proof_body_work_order_manifest"
                 ]
             )
+        if source_theorem_formal_environment_bridge_manifest.get(
+            "proof_body_execution_queue_jsonl"
+        ):
+            manifest["artifacts"][
+                "runtime_source_theorem_formal_environment_proofengineer_proof_body_execution_queue_jsonl"
+            ] = str(
+                source_theorem_formal_environment_bridge_manifest[
+                    "proof_body_execution_queue_jsonl"
+                ]
+            )
+            manifest["artifacts"][
+                "runtime_source_theorem_formal_environment_proofengineer_proof_body_execution_queue_manifest"
+            ] = str(
+                source_theorem_formal_environment_bridge_manifest[
+                    "proof_body_execution_queue_manifest"
+                ]
+            )
     if source_theorem_promotion_bridge_manifest is not None:
         manifest["artifacts"][
             "runtime_source_theorem_promotion_proofengineer_bridge_manifest"
@@ -2628,6 +2645,36 @@ def run_research_agent_runtime(
     ] = str(
         source_theorem_formal_environment_bridge_manifest.get(
             "proof_body_work_order_proof_evidence_status",
+            "",
+        )
+        if source_theorem_formal_environment_bridge_manifest
+        else ""
+    )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_n_proof_body_execution_queue_rows"
+    ] = int(
+        source_theorem_formal_environment_bridge_manifest.get(
+            "n_proof_body_execution_queue_rows",
+            0,
+        )
+        if source_theorem_formal_environment_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_n_proof_body_execution_live_goal_requests"
+    ] = int(
+        source_theorem_formal_environment_bridge_manifest.get(
+            "n_proof_body_execution_live_goal_requests",
+            0,
+        )
+        if source_theorem_formal_environment_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_formal_environment_proofengineer_proof_body_execution_queue_proof_evidence_status"
+    ] = str(
+        source_theorem_formal_environment_bridge_manifest.get(
+            "proof_body_execution_queue_proof_evidence_status",
             "",
         )
         if source_theorem_formal_environment_bridge_manifest

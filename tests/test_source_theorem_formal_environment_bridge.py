@@ -89,6 +89,11 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert manifest["proof_body_work_order_proof_evidence_status"] == (
         "EXACT_SOURCE_THEOREM_PROOF_BODY_WORK_ORDER_NOT_PROOF_EVIDENCE"
     )
+    assert manifest["n_proof_body_execution_queue_rows"] == 1
+    assert manifest["n_proof_body_execution_live_goal_requests"] == 1
+    assert manifest["proof_body_execution_queue_proof_evidence_status"] == (
+        "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTION_QUEUE_NOT_PROOF_EVIDENCE"
+    )
     assert manifest["proof_evidence_status"] == (
         "FORMAL_ENVIRONMENT_REPAIR_PACKETS_NOT_PROOF_EVIDENCE"
     )
@@ -147,6 +152,29 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert proof_body_work_order["proof_evidence_status"] == (
         "EXACT_SOURCE_THEOREM_PROOF_BODY_WORK_ORDER_NOT_PROOF_EVIDENCE"
     )
+    execution_queue_manifest = json.loads(
+        Path(str(manifest["proof_body_execution_queue_manifest"])).read_text(
+            encoding="utf-8"
+        )
+    )
+    execution_row = execution_queue_manifest["rows"][0]
+    assert execution_row["artifact_kind"] == "ExactSourceTheoremProofBodyExecutionQueueRow"
+    assert execution_row["execution_status"] == "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
+    assert execution_row["owner_agent"] == "FormalizerProofEngineer"
+    assert execution_row["target_theorem_name"] == "split_conformal_coverage"
+    assert execution_row["live_goal_location_ready"] is True
+    assert execution_row["target_lean_declaration"] == "split_conformal_coverage"
+    assert execution_row["live_proof_state_request"]["provider_preferences"][0] == (
+        "lean_lsp_mcp"
+    )
+    assert {
+        call["tool"] for call in execution_row["live_proof_state_request"]["mcp_tool_calls"]
+    } >= {"lean_goal", "lean_diagnostic_messages", "lean_local_search", "lean_multi_attempt"}
+    assert "copy signature_probe_artifact_path" in " ".join(execution_row["command_plan"])
+    assert "no sorry/admit/axiom/unsafe tokens" in execution_row["required_static_checks"]
+    assert execution_row["proof_evidence_status"] == (
+        "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTION_QUEUE_NOT_PROOF_EVIDENCE"
+    )
 
     learning_rows_path = Path(str(manifest["runtime_learning_rows_jsonl"]))
     learning_row = json.loads(learning_rows_path.read_text(encoding="utf-8"))
@@ -169,6 +197,9 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert learning_row["input_summary"]["proof_body_work_orders"][0][
         "target_theorem_name"
     ] == "split_conformal_coverage"
+    assert learning_row["input_summary"]["proof_body_execution_queue_rows"][0][
+        "execution_status"
+    ] == "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
     export_manifest = json.loads(
         Path(str(manifest["runtime_learning_export_manifest"])).read_text(
             encoding="utf-8"
@@ -177,6 +208,10 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert export_manifest["n_proof_body_work_orders"] == 1
     assert export_manifest["proof_body_work_order_proof_evidence_status"] == (
         "EXACT_SOURCE_THEOREM_PROOF_BODY_WORK_ORDER_NOT_PROOF_EVIDENCE"
+    )
+    assert export_manifest["n_proof_body_execution_queue_rows"] == 1
+    assert export_manifest["proof_body_execution_queue_proof_evidence_status"] == (
+        "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTION_QUEUE_NOT_PROOF_EVIDENCE"
     )
     assert "statement_repair_hints" in learning_row["input_summary"]
     assert learning_row["proof_evidence_status"] == (

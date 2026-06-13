@@ -21,6 +21,9 @@ PROOF_BODY_WORK_ORDER_ARTIFACT_KIND = "ExactSourceTheoremProofBodyWorkOrder"
 PROOF_BODY_WORK_ORDER_PROOF_EVIDENCE_STATUS = (
     "EXACT_SOURCE_THEOREM_PROOF_BODY_WORK_ORDER_NOT_PROOF_EVIDENCE"
 )
+PROOF_BODY_EXECUTION_QUEUE_PROOF_EVIDENCE_STATUS = (
+    "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTION_QUEUE_NOT_PROOF_EVIDENCE"
+)
 BOUNDARY = (
     "Source-theorem formal-environment ProofEngineer bridge rows are repair "
     "routing artifacts. They identify missing Lean declarations, imports, and "
@@ -43,6 +46,13 @@ PROOF_BODY_WORK_ORDER_BOUNDARY = (
     "evidence, do not prove the source theorem, and do not authorize changing the "
     "theorem statement. Promotion requires a subsequent local Lean/AXLE verifier "
     "manifest with source_theorem_kernel_verified=true."
+)
+PROOF_BODY_EXECUTION_QUEUE_BOUNDARY = (
+    "Exact source-theorem proof-body execution queue rows are operational "
+    "ProofEngineer work contracts. They identify a live Lean proof-body goal, "
+    "an output candidate artifact path, transcript path, and verifier gate. They "
+    "are not theorem proof evidence; only a later local Lean/AXLE verifier row "
+    "can promote a completed candidate."
 )
 
 
@@ -151,6 +161,10 @@ def run_source_theorem_formal_environment_proofengineer_bridge(
         signature_probe_result=signature_probe_result,
         out_dir=out_dir / "exact_source_theorem_proof_body_work_orders",
     )
+    proof_body_execution_queue_result = _export_proof_body_execution_queue(
+        proof_body_work_order_result=proof_body_work_order_result,
+        out_dir=out_dir / "exact_source_theorem_proof_body_execution_queue",
+    )
     learning_result = _export_runtime_learning_rows(
         repair_packets=repair_packets,
         out_dir=out_dir / "runtime_learning_export",
@@ -158,6 +172,7 @@ def run_source_theorem_formal_environment_proofengineer_bridge(
         queue_path=queue_path,
         signature_probe_result=signature_probe_result,
         proof_body_work_order_result=proof_body_work_order_result,
+        proof_body_execution_queue_result=proof_body_execution_queue_result,
     )
     manifest = {
         "schema_version": 1,
@@ -204,6 +219,21 @@ def run_source_theorem_formal_environment_proofengineer_bridge(
         ),
         "proof_body_work_order_proof_evidence_status": str(
             proof_body_work_order_result.get("proof_evidence_status", "")
+        ),
+        "proof_body_execution_queue_jsonl": str(
+            proof_body_execution_queue_result.get("proof_body_execution_queue_jsonl", "")
+        ),
+        "proof_body_execution_queue_manifest": str(
+            proof_body_execution_queue_result.get("proof_body_execution_queue_manifest", "")
+        ),
+        "n_proof_body_execution_queue_rows": int(
+            proof_body_execution_queue_result.get("n_execution_queue_rows", 0)
+        ),
+        "n_proof_body_execution_live_goal_requests": int(
+            proof_body_execution_queue_result.get("n_live_goal_requests", 0)
+        ),
+        "proof_body_execution_queue_proof_evidence_status": str(
+            proof_body_execution_queue_result.get("proof_evidence_status", "")
         ),
         "n_work_orders": len(work_orders),
         "n_repair_packets": len(repair_packets),
@@ -950,6 +980,251 @@ def _goal_excerpt(diagnostics: list[str]) -> list[str]:
     return diagnostics[:18]
 
 
+def _export_proof_body_execution_queue(
+    *,
+    proof_body_work_order_result: Mapping[str, Any],
+    out_dir: Path,
+) -> dict[str, object]:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    candidate_dir = out_dir / "candidate_artifacts"
+    transcript_dir = out_dir / "execution_transcripts"
+    candidate_dir.mkdir(parents=True, exist_ok=True)
+    transcript_dir.mkdir(parents=True, exist_ok=True)
+    work_orders = proof_body_work_order_result.get("rows", [])
+    rows: list[dict[str, Any]] = []
+    if isinstance(work_orders, list):
+        for work_order in work_orders:
+            if isinstance(work_order, Mapping):
+                rows.append(
+                    _proof_body_execution_queue_row(
+                        work_order,
+                        candidate_dir=candidate_dir,
+                        transcript_dir=transcript_dir,
+                    )
+                )
+    rows_path = out_dir / "exact_source_theorem_proof_body_execution_queue.jsonl"
+    _write_jsonl(rows_path, rows)
+    manifest_path = out_dir / "exact_source_theorem_proof_body_execution_queue_manifest.json"
+    manifest = {
+        "schema_version": 1,
+        "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueManifest",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "proof_body_execution_queue_jsonl": str(rows_path),
+        "candidate_artifacts_dir": str(candidate_dir),
+        "execution_transcripts_dir": str(transcript_dir),
+        "n_execution_queue_rows": len(rows),
+        "n_ready": sum(
+            1
+            for row in rows
+            if row.get("execution_status")
+            == "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
+        ),
+        "n_live_goal_requests": sum(1 for row in rows if row.get("live_proof_state_request")),
+        "n_live_goal_location_ready": sum(
+            1 for row in rows if row.get("live_goal_location_ready")
+        ),
+        "proof_evidence_status": PROOF_BODY_EXECUTION_QUEUE_PROOF_EVIDENCE_STATUS,
+        "boundary": PROOF_BODY_EXECUTION_QUEUE_BOUNDARY,
+        "rows": rows,
+    }
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, default=str, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return {
+        "proof_body_execution_queue_manifest": manifest_path,
+        "proof_body_execution_queue_jsonl": rows_path,
+        "n_execution_queue_rows": len(rows),
+        "n_live_goal_requests": manifest["n_live_goal_requests"],
+        "rows": rows,
+        "proof_evidence_status": PROOF_BODY_EXECUTION_QUEUE_PROOF_EVIDENCE_STATUS,
+        "boundary": PROOF_BODY_EXECUTION_QUEUE_BOUNDARY,
+    }
+
+
+def _proof_body_execution_queue_row(
+    work_order: Mapping[str, Any],
+    *,
+    candidate_dir: Path,
+    transcript_dir: Path,
+) -> dict[str, Any]:
+    work_order_id = str(work_order.get("work_order_id", "") or "")
+    target = str(work_order.get("target_theorem_name", "") or "")
+    signature_artifact_path = str(work_order.get("signature_probe_artifact_path", "") or "")
+    source_artifact_path = str(work_order.get("source_candidate_artifact_path", "") or "")
+    safe = _safe_file_stem(target or work_order_id)
+    queue_id = "exact_source_theorem_proof_body_execution_queue:" + stable_hash(
+        [work_order_id, target, signature_artifact_path]
+    )[:20]
+    candidate_artifact_path = candidate_dir / f"{safe}_proof_body_attempt.lean"
+    transcript_path = transcript_dir / f"{safe}_proof_body_attempt.jsonl"
+    location = _lean_goal_location(Path(signature_artifact_path))
+    live_ready = bool(location["target_lean_file"] and location["target_lean_line"])
+    status = (
+        "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
+        if live_ready
+        else "BLOCKED_EXACT_SOURCE_PROOF_BODY_TARGET_LOCATION"
+    )
+    live_request = (
+        _proof_body_live_proof_state_request(
+            queue_id=queue_id,
+            work_order=work_order,
+            location=location,
+        )
+        if live_ready
+        else {}
+    )
+    return {
+        "schema_version": 1,
+        "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueRow",
+        "execution_queue_id": queue_id,
+        "source_work_order_id": work_order_id,
+        "source_signature_probe_id": str(
+            work_order.get("source_signature_probe_id", "") or ""
+        ),
+        "target_theorem_name": target,
+        "owner_agent": "FormalizerProofEngineer",
+        "action_class": "fill_exact_source_theorem_proof_body",
+        "source_candidate_artifact_path": source_artifact_path,
+        "signature_probe_artifact_path": signature_artifact_path,
+        "candidate_artifact_path": str(candidate_artifact_path),
+        "execution_transcript_path": str(transcript_path),
+        "target_lean_file": str(location["target_lean_file"]),
+        "target_lean_line": int(location["target_lean_line"]),
+        "target_lean_column": int(location["target_lean_column"]),
+        "target_lean_declaration": str(location["target_lean_declaration"]),
+        "live_goal_location_ready": live_ready,
+        "live_proof_state_request": live_request,
+        "proof_body_goal_excerpt": list(work_order.get("proof_body_goal_excerpt", []) or []),
+        "proofengineer_next_actions": list(
+            work_order.get("proofengineer_next_actions", []) or []
+        ),
+        "command_plan": [
+            "inspect live_proof_state_request before editing",
+            "copy signature_probe_artifact_path to candidate_artifact_path",
+            "replace only the AI_STAT_EVOLVE_BLOCK proof body",
+            "run local Lean/AXLE on candidate_artifact_path",
+            "write execution transcript with tactics, diagnostics, and verifier result",
+        ],
+        "required_static_checks": [
+            "no sorry/admit/axiom/unsafe tokens",
+            "theorem statement and declaration header unchanged",
+            "helper lemmas do not restate the target theorem",
+        ],
+        "required_dynamic_checks": [
+            "lean_goal",
+            "lean_diagnostic_messages",
+            "lean_local_search",
+            "lean_multi_attempt",
+            "local Lean or AXLE kernel verification",
+        ],
+        "output_contract": [
+            "candidate artifact at candidate_artifact_path",
+            "JSONL transcript at execution_transcript_path",
+            "verifier manifest proving whether source_theorem_kernel_verified=true",
+            "no proof claim unless local Lean/AXLE accepts the exact theorem",
+        ],
+        "forbidden_actions": list(work_order.get("forbidden_actions", []) or []),
+        "promotion_gate": str(work_order.get("acceptance_gate", "") or ""),
+        "execution_status": status,
+        "proof_evidence_status": PROOF_BODY_EXECUTION_QUEUE_PROOF_EVIDENCE_STATUS,
+        "boundary": PROOF_BODY_EXECUTION_QUEUE_BOUNDARY,
+    }
+
+
+def _lean_goal_location(path: Path) -> dict[str, object]:
+    if not path.exists():
+        return {
+            "target_lean_file": "",
+            "target_lean_line": 0,
+            "target_lean_column": 0,
+            "target_lean_declaration": "",
+        }
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except Exception:
+        return {
+            "target_lean_file": "",
+            "target_lean_line": 0,
+            "target_lean_column": 0,
+            "target_lean_declaration": "",
+        }
+    target_line = 0
+    target_declaration = ""
+    for index, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        if stripped == "-- AI_STAT_EVOLVE_BLOCK_START" and index < len(lines):
+            target_line = index + 1
+        if not target_declaration and stripped.startswith(("theorem ", "lemma ")):
+            parts = stripped.split()
+            if len(parts) >= 2:
+                target_declaration = parts[1]
+    if target_line <= 0:
+        for index, line in enumerate(lines, start=1):
+            if ":= by" in line:
+                target_line = min(index + 1, len(lines))
+                break
+    return {
+        "target_lean_file": str(path),
+        "target_lean_line": target_line,
+        "target_lean_column": 3 if target_line > 0 else 0,
+        "target_lean_declaration": target_declaration,
+    }
+
+
+def _proof_body_live_proof_state_request(
+    *,
+    queue_id: str,
+    work_order: Mapping[str, Any],
+    location: Mapping[str, object],
+) -> dict[str, object]:
+    request_id = "exact_source_theorem_proof_body_live_goal:" + stable_hash(
+        [
+            queue_id,
+            location.get("target_lean_file", ""),
+            location.get("target_lean_line", 0),
+            location.get("target_lean_declaration", ""),
+        ]
+    )[:20]
+    return {
+        "schema_version": 1,
+        "request_id": request_id,
+        "source_work_order_id": str(work_order.get("work_order_id", "") or ""),
+        "provider_preferences": (
+            "lean_lsp_mcp",
+            "local_lean_proof_state_adapter",
+            "local.lake_env_lean",
+        ),
+        "mcp_tool_calls": [
+            {
+                "tool": tool,
+                "arguments": {
+                    "file": str(location.get("target_lean_file", "")),
+                    "line": int(location.get("target_lean_line", 0) or 0),
+                    "column": int(location.get("target_lean_column", 0) or 0),
+                    "declaration": str(location.get("target_lean_declaration", "")),
+                },
+            }
+            for tool in (
+                "lean_goal",
+                "lean_diagnostic_messages",
+                "lean_local_search",
+                "lean_multi_attempt",
+            )
+        ],
+        "target_lean_file": str(location.get("target_lean_file", "")),
+        "target_lean_line": int(location.get("target_lean_line", 0) or 0),
+        "target_lean_column": int(location.get("target_lean_column", 0) or 0),
+        "target_lean_declaration": str(location.get("target_lean_declaration", "")),
+        "proof_body_goal_excerpt": list(work_order.get("proof_body_goal_excerpt", []) or []),
+        "proof_evidence_status": "LIVE_PROOF_STATE_REQUEST_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": (
+            "Live proof-state requests provide diagnostic/search evidence only. "
+            "They are not theorem proof evidence."
+        ),
+    }
+
+
 def _default_repair_tasks(
     *,
     missing_symbols: list[str],
@@ -975,6 +1250,7 @@ def _export_runtime_learning_rows(
     queue_path: Path,
     signature_probe_result: Mapping[str, Any] | None = None,
     proof_body_work_order_result: Mapping[str, Any] | None = None,
+    proof_body_execution_queue_result: Mapping[str, Any] | None = None,
 ) -> dict[str, object]:
     out_dir.mkdir(parents=True, exist_ok=True)
     rows: list[dict[str, Any]] = []
@@ -986,6 +1262,14 @@ def _export_runtime_learning_rows(
         proof_body_work_orders = _matching_proof_body_work_orders(
             proof_body_work_order_result,
             repair_packet_id=str(packet.get("repair_packet_id", "") or ""),
+        )
+        proof_body_execution_queue_rows = _matching_proof_body_execution_queue_rows(
+            proof_body_execution_queue_result,
+            work_order_ids=[
+                str(row.get("work_order_id", "") or "")
+                for row in proof_body_work_orders
+                if isinstance(row, Mapping)
+            ],
         )
         rows.append(
             {
@@ -1023,6 +1307,15 @@ def _export_runtime_learning_rows(
                             "",
                         )
                         if proof_body_work_order_result
+                        else ""
+                    ),
+                    "proof_body_execution_queue_rows": proof_body_execution_queue_rows,
+                    "proof_body_execution_queue_manifest": str(
+                        proof_body_execution_queue_result.get(
+                            "proof_body_execution_queue_manifest",
+                            "",
+                        )
+                        if proof_body_execution_queue_result
                         else ""
                     ),
                     "recommended_repair_tasks": list(
@@ -1096,6 +1389,16 @@ def _export_runtime_learning_rows(
             if proof_body_work_order_result
             else ""
         ),
+        "n_proof_body_execution_queue_rows": int(
+            proof_body_execution_queue_result.get("n_execution_queue_rows", 0)
+            if proof_body_execution_queue_result
+            else 0
+        ),
+        "proof_body_execution_queue_proof_evidence_status": str(
+            proof_body_execution_queue_result.get("proof_evidence_status", "")
+            if proof_body_execution_queue_result
+            else ""
+        ),
     }
     manifest_out = out_dir / "source_theorem_formal_environment_runtime_learning_export_manifest.json"
     manifest_out.write_text(
@@ -1144,6 +1447,25 @@ def _matching_proof_body_work_orders(
         for row in rows
         if isinstance(row, Mapping)
         and str(row.get("source_repair_packet_id", "") or "") == repair_packet_id
+    ]
+
+
+def _matching_proof_body_execution_queue_rows(
+    proof_body_execution_queue_result: Mapping[str, Any] | None,
+    *,
+    work_order_ids: list[str],
+) -> list[dict[str, Any]]:
+    if not proof_body_execution_queue_result or not work_order_ids:
+        return []
+    rows = proof_body_execution_queue_result.get("rows", [])
+    if not isinstance(rows, list):
+        return []
+    allowed = set(work_order_ids)
+    return [
+        dict(row)
+        for row in rows
+        if isinstance(row, Mapping)
+        and str(row.get("source_work_order_id", "") or "") in allowed
     ]
 
 

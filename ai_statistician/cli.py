@@ -1095,6 +1095,11 @@ def _source_theorem_formal_environment_proofengineer_bridge(
             "proof-body work orders written to "
             f"{Path(str(bridge_manifest['proof_body_work_orders_jsonl'])).resolve()}"
         )
+    if bridge_manifest.get("proof_body_execution_queue_jsonl"):
+        print(
+            "proof-body execution queue written to "
+            f"{Path(str(bridge_manifest['proof_body_execution_queue_jsonl'])).resolve()}"
+        )
     print(f"proof_evidence_status={bridge_manifest['proof_evidence_status']}")
     return 0
 
