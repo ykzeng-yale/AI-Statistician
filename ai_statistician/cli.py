@@ -265,6 +265,9 @@ from .formal_verifier_agentic_proof_trace_memory import (
 from .formal_verifier_agentic_proof_source_theorem_promotion_queue import (
     export_formal_verifier_agentic_proof_source_theorem_promotion_queue,
 )
+from .formal_verifier_agentic_proof_source_theorem_integrator import (
+    export_formal_verifier_agentic_proof_source_theorem_integrator,
+)
 from .formal_verifier_agentic_proof_source_theorem_target_resolution import (
     export_formal_verifier_agentic_proof_source_theorem_target_resolution,
 )
@@ -4788,6 +4791,40 @@ def _formal_verifier_agentic_proof_source_theorem_promotion_queue(
     print(
         f"markdown report written to "
         f"{(Path(args.out) / 'formal_verifier_agentic_proof_source_theorem_promotion_queue.md').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formal_verifier_agentic_proof_source_theorem_integrator(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_formal_verifier_agentic_proof_source_theorem_integrator(
+        Path(args.formal_verifier_agentic_proof_source_theorem_promotion_queue_dir),
+        Path(args.out),
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout=int(args.lean_timeout),
+        local_lean=not bool(args.no_local_lean),
+    )
+    print("\nAI Statistical Theory Lab Formal Verifier Source-Theorem Integrator")
+    print("=" * 72)
+    print(
+        f"rows={payload['n_ok']}/{payload['n_integration_rows']} "
+        f"source_kernel={payload['n_source_theorem_kernel_verified']} "
+        f"route_probe_blocked={payload['n_blocked_route_probe']} "
+        f"ready_local_lean={payload['n_ready_for_local_lean']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nsource theorem integrator manifest written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_source_theorem_integrator_manifest.json').resolve()}"
+    )
+    print(
+        f"source theorem integrator jsonl written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_source_theorem_integrator.jsonl').resolve()}"
+    )
+    print(
+        f"markdown report written to "
+        f"{(Path(args.out) / 'formal_verifier_agentic_proof_source_theorem_integrator.md').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -9892,6 +9929,42 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formal_verifier_agentic_proof_source_theorem_promotion_queue.set_defaults(
         func=_formal_verifier_agentic_proof_source_theorem_promotion_queue
+    )
+
+    formal_verifier_agentic_proof_source_theorem_integrator = sub.add_parser(
+        "formal-verifier-agentic-proof-source-theorem-integrator",
+        help=(
+            "attempt exact source-theorem Lean integration from ready promotion rows"
+        ),
+    )
+    formal_verifier_agentic_proof_source_theorem_integrator.add_argument(
+        "--formal-verifier-agentic-proof-source-theorem-promotion-queue-dir",
+        required=True,
+        help="directory containing formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json",
+    )
+    formal_verifier_agentic_proof_source_theorem_integrator.add_argument(
+        "--out",
+        default="runs/formal_verifier_agentic_proof_source_theorem_integrator",
+        help="formal-verifier agentic source-theorem integrator output directory",
+    )
+    formal_verifier_agentic_proof_source_theorem_integrator.add_argument(
+        "--lean-project",
+        default="",
+        help="optional local Lake project; when set runs lake env lean",
+    )
+    formal_verifier_agentic_proof_source_theorem_integrator.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="seconds before local Lean source-theorem verification times out",
+    )
+    formal_verifier_agentic_proof_source_theorem_integrator.add_argument(
+        "--no-local-lean",
+        action="store_true",
+        help="only run exact-source static guards without local Lean",
+    )
+    formal_verifier_agentic_proof_source_theorem_integrator.set_defaults(
+        func=_formal_verifier_agentic_proof_source_theorem_integrator
     )
 
     formal_verifier_agentic_proof_source_theorem_target_resolution = sub.add_parser(

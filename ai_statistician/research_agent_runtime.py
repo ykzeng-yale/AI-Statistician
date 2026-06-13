@@ -47,6 +47,9 @@ from .formal_verifier_agentic_proof_execution_materializer import (
 from .formal_verifier_agentic_proof_source_theorem_promotion_queue import (
     export_formal_verifier_agentic_proof_source_theorem_promotion_queue,
 )
+from .formal_verifier_agentic_proof_source_theorem_integrator import (
+    export_formal_verifier_agentic_proof_source_theorem_integrator,
+)
 from .formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
@@ -2252,6 +2255,23 @@ def run_research_agent_runtime(
                     "source_theorem_promotion_queue_dir"
                 ]
             )
+        if source_theorem_promotion_bridge_manifest.get(
+            "source_theorem_integrator_manifest"
+        ):
+            manifest["artifacts"][
+                "runtime_source_theorem_promotion_proofengineer_source_theorem_integrator_manifest"
+            ] = str(
+                source_theorem_promotion_bridge_manifest[
+                    "source_theorem_integrator_manifest"
+                ]
+            )
+            manifest["artifacts"][
+                "runtime_source_theorem_promotion_proofengineer_source_theorem_integrator_dir"
+            ] = str(
+                source_theorem_promotion_bridge_manifest[
+                    "source_theorem_integrator_dir"
+                ]
+            )
     manifest["artifacts"]["runtime_formalization_gap_planner_bridges_jsonl"] = str(
         gap_planner_bridges_path
     )
@@ -2404,6 +2424,26 @@ def run_research_agent_runtime(
     ] = int(
         source_theorem_promotion_bridge_manifest.get(
             "n_source_theorem_kernel_verified",
+            0,
+        )
+        if source_theorem_promotion_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_promotion_proofengineer_bridge_n_source_theorem_integration_rows"
+    ] = int(
+        source_theorem_promotion_bridge_manifest.get(
+            "n_source_theorem_integration_rows",
+            0,
+        )
+        if source_theorem_promotion_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_promotion_proofengineer_bridge_n_source_theorem_integration_blocked_route_probe"
+    ] = int(
+        source_theorem_promotion_bridge_manifest.get(
+            "n_source_theorem_integration_blocked_route_probe",
             0,
         )
         if source_theorem_promotion_bridge_manifest
@@ -4920,6 +4960,10 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
     source_theorem_promotion_queue_dir = (
         out_dir / "formal_verifier_agentic_proof_source_theorem_promotion_queue"
     )
+    source_theorem_integrator_payload: dict[str, Any] | None = None
+    source_theorem_integrator_dir = (
+        out_dir / "formal_verifier_agentic_proof_source_theorem_integrator"
+    )
     if local_lean and int(materializer_payload.get("n_materializer_rows", 0) or 0) > 0:
         artifact_verifier_payload = (
             export_formal_verifier_agentic_proof_execution_artifact_verifier(
@@ -4933,6 +4977,15 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
             export_formal_verifier_agentic_proof_source_theorem_promotion_queue(
                 artifact_verifier_dir,
                 source_theorem_promotion_queue_dir,
+            )
+        )
+        source_theorem_integrator_payload = (
+            export_formal_verifier_agentic_proof_source_theorem_integrator(
+                source_theorem_promotion_queue_dir,
+                source_theorem_integrator_dir,
+                lean_project=lean_project,
+                lean_timeout=lean_timeout,
+                local_lean=local_lean,
             )
         )
     local_lean_skipped_reason = (
@@ -4981,6 +5034,19 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
             if source_theorem_promotion_queue_payload is not None
             else ""
         ),
+        "source_theorem_integrator_dir": (
+            str(source_theorem_integrator_dir)
+            if source_theorem_integrator_payload is not None
+            else ""
+        ),
+        "source_theorem_integrator_manifest": (
+            str(
+                source_theorem_integrator_dir
+                / "formal_verifier_agentic_proof_source_theorem_integrator_manifest.json"
+            )
+            if source_theorem_integrator_payload is not None
+            else ""
+        ),
         "local_lean_requested": local_lean,
         "local_lean_skipped_reason": local_lean_skipped_reason,
         "lean_project": str(lean_project or ""),
@@ -5005,8 +5071,26 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
             else 0
         ),
         "n_source_theorem_kernel_verified": int(
-            artifact_verifier_payload.get("n_source_theorem_kernel_verified", 0)
-            if artifact_verifier_payload
+            source_theorem_integrator_payload.get(
+                "n_source_theorem_kernel_verified",
+                0,
+            )
+            if source_theorem_integrator_payload
+            else 0
+        ),
+        "n_source_theorem_integration_rows": int(
+            source_theorem_integrator_payload.get("n_integration_rows", 0)
+            if source_theorem_integrator_payload
+            else 0
+        ),
+        "n_source_theorem_integration_blocked_route_probe": int(
+            source_theorem_integrator_payload.get("n_blocked_route_probe", 0)
+            if source_theorem_integrator_payload
+            else 0
+        ),
+        "n_source_theorem_integration_ready_for_local_lean": int(
+            source_theorem_integrator_payload.get("n_ready_for_local_lean", 0)
+            if source_theorem_integrator_payload
             else 0
         ),
         "n_source_theorem_promotion_rows": int(
@@ -5035,6 +5119,7 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
             "materializer output is a route probe, not the source theorem",
             "artifact_kernel_verified is evidence for the generated artifact only",
             "source-theorem promotion remains a separate exact-target integration gate",
+            "the source-theorem integrator blocks route probes and only records proof when the exact target passes Lean/AXLE",
         ],
     }
     bridge_manifest_path.write_text(

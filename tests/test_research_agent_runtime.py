@@ -73,6 +73,9 @@ from ai_statistician.research_agent_runtime import (
 from ai_statistician.formal_verifier_agentic_proof_execution_materializer import (
     export_formal_verifier_agentic_proof_execution_materializer,
 )
+from ai_statistician.formal_verifier_agentic_proof_source_theorem_integrator import (
+    export_formal_verifier_agentic_proof_source_theorem_integrator,
+)
 from ai_statistician.research_agent_runtime_audit import (
     _audit_topology,
     _runtime_capability_ladder,
@@ -1507,6 +1510,8 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     )
     assert Path(bridge_payload["materializer_manifest"]).exists()
     assert Path(bridge_payload["bridge_manifest"]).exists()
+    assert bridge_payload["n_source_theorem_integration_rows"] == 0
+    assert bridge_payload["n_source_theorem_integration_blocked_route_probe"] == 0
     assert _runtime_source_theorem_promotion_bridge_learning_rows(bridge_payload) == []
 
     ready_queue_dir = (
@@ -1557,6 +1562,76 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     assert learning_rows[0]["target_theorem_name"] == "split_conformal_coverage"
     assert learning_rows[0]["proof_evidence_status"] == (
         "SOURCE_THEOREM_PROMOTION_BRIDGE_LEARNING_NOT_PROOF_EVIDENCE"
+    )
+
+    integrator_queue_dir = tmp_path / "source_theorem_integrator_queue"
+    integrator_queue_dir.mkdir()
+    route_probe_artifact = tmp_path / "route_probe.lean"
+    route_probe_artifact.write_text(
+        """
+/- This route probe is not theorem proof evidence. -/
+theorem split_conformal_finite_sample_coverage_route_probe
+    (split_conformal_finite_sample_coverage : True) : True := by
+  exact True.intro
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    exact_artifact = tmp_path / "exact_source.lean"
+    exact_artifact.write_text(
+        """
+namespace AIStatisticianExactSource
+
+theorem split_conformal_finite_sample_coverage : True := by
+  exact True.intro
+
+end AIStatisticianExactSource
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    integrator_rows = [
+        {
+            **ready_row,
+            "source_theorem_promotion_id": "source_theorem_promotion:route_probe",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "candidate_artifact_path": str(route_probe_artifact),
+        },
+        {
+            **ready_row,
+            "source_theorem_promotion_id": "source_theorem_promotion:exact",
+            "target_theorem_name": "split_conformal_finite_sample_coverage",
+            "candidate_artifact_path": str(exact_artifact),
+        },
+    ]
+    (
+        integrator_queue_dir
+        / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json"
+    ).write_text(
+        json.dumps({"schema_version": 1, "rows": integrator_rows}, indent=2),
+        encoding="utf-8",
+    )
+    integrator_payload = export_formal_verifier_agentic_proof_source_theorem_integrator(
+        integrator_queue_dir,
+        tmp_path / "source_theorem_integrator",
+        local_lean=False,
+    )
+    assert integrator_payload["n_integration_rows"] == 2
+    assert integrator_payload["n_blocked_route_probe"] == 1
+    assert integrator_payload["n_ready_for_local_lean"] == 1
+    assert integrator_payload["n_source_theorem_kernel_verified"] == 0
+    statuses = {
+        row["source_theorem_promotion_id"]: row["integration_status"]
+        for row in integrator_payload["rows"]
+    }
+    assert statuses["source_theorem_promotion:route_probe"] == (
+        "BLOCKED_ROUTE_PROBE_ARTIFACT"
+    )
+    assert statuses["source_theorem_promotion:exact"] == (
+        "EXACT_SOURCE_THEOREM_READY_FOR_LOCAL_LEAN"
+    )
+    assert integrator_payload["proof_evidence_status"] == (
+        "SOURCE_THEOREM_INTEGRATOR_NOT_PROOF_EVIDENCE"
     )
 
 
