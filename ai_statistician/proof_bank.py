@@ -1422,7 +1422,8 @@ theorem orderStatisticQuantileRule_coverage {Ω ρ : Type*}
         ),
         formal_statement=_stmt(
             """
-import Mathlib
+import Mathlib.Data.Set.Basic
+import Mathlib.Data.Finset.Basic
 
 theorem splitConformal_goodRank_subset_covered {Ω ρ : Type*}
     (covered : Set Ω) (BadRanks : Finset ρ) (rank : Ω → ρ)
@@ -1465,7 +1466,9 @@ theorem splitConformal_goodRank_subset_covered {Ω ρ : Type*}
         ),
         formal_statement=_stmt(
             """
-import Mathlib
+import Mathlib.MeasureTheory.Measure.MeasureSpaceDef
+import Mathlib.Data.ENNReal.Basic
+import Mathlib.Data.Finset.Basic
 open MeasureTheory
 
 theorem splitConformal_badRank_budget_of_uniformRankBound {Ω ρ : Type*}
