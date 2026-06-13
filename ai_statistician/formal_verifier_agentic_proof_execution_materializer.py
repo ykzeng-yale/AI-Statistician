@@ -471,14 +471,35 @@ def _target_imports(row: dict[str, Any]) -> tuple[str, ...]:
     if not isinstance(target_location, dict):
         target_location = {}
     raw_imports = target_location.get("target_imports", row.get("lean_imports", []))
-    if not isinstance(raw_imports, list):
-        return ()
     imports: list[str] = []
-    for value in raw_imports:
-        module = str(value).strip()
-        if module and _safe_lean_import(module) and module not in imports:
-            imports.append(module)
+    if isinstance(raw_imports, list):
+        for value in raw_imports:
+            module = str(value).strip()
+            if module and _safe_lean_import(module) and module not in imports:
+                imports.append(module)
+    if not imports:
+        imports.extend(_inferred_target_imports(row))
     return tuple(imports)
+
+
+def _inferred_target_imports(row: dict[str, Any]) -> tuple[str, ...]:
+    statement = str(row.get("lean_statement_sketch", "") or "")
+    text = f"{statement}\n{row.get('informal_source', '') or ''}"
+    mathlib_markers = (
+        "MeasureTheory.",
+        "MeasurableSpace",
+        "IsProbabilityMeasure",
+        "Nat.ceil",
+        "Fin ",
+        "Fin.",
+        "ENNReal",
+        "Set ",
+        "{ω |",
+        "{omega |",
+    )
+    if any(marker in text for marker in mathlib_markers):
+        return ("Mathlib",)
+    return ()
 
 
 def _safe_lean_import(module: str) -> bool:
