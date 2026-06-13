@@ -5455,6 +5455,11 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_learning_row
             continue
         failure_classification = ""
         target_theorem_name = str(row.get("target_theorem_name", "") or "").strip()
+        target_lean_declaration = str(
+            row.get("target_lean_declaration", "")
+            or row.get("expected_target_lean_declaration", "")
+            or ""
+        ).strip()
         candidate_artifact_path = ""
         diagnostics: list[str] = []
         missing_symbols: list[str] = []
@@ -5467,6 +5472,12 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_learning_row
             if not target_theorem_name:
                 target_theorem_name = str(
                     input_summary.get("target_theorem_name", "") or ""
+                ).strip()
+            if not target_lean_declaration:
+                target_lean_declaration = str(
+                    input_summary.get("target_lean_declaration", "")
+                    or input_summary.get("expected_target_lean_declaration", "")
+                    or ""
                 ).strip()
             candidate_artifact_path = str(
                 input_summary.get("candidate_artifact_path", "") or ""
@@ -5499,6 +5510,27 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_learning_row
                 for value in input_summary.get("recommended_repair_tasks", []) or []
                 if str(value).strip()
             ]
+        if not target_theorem_name:
+            target_theorem_name = target_lean_declaration
+        source_target_provenance = _source_theorem_target_provenance_from_row(row)
+        if isinstance(input_summary, Mapping):
+            input_summary_provenance = _source_theorem_target_provenance_from_row(
+                input_summary
+            )
+            for key, value in input_summary_provenance.items():
+                if key not in source_target_provenance:
+                    source_target_provenance[key] = value
+        if target_lean_declaration and not source_target_provenance.get(
+            "target_lean_declaration"
+        ):
+            source_target_provenance["target_lean_declaration"] = target_lean_declaration
+        if bool(row.get("source_theorem_target_known", False)) or bool(
+            source_target_provenance.get("source_theorem_target_known", False)
+        ):
+            source_target_provenance["source_theorem_target_known"] = True
+        semantic_alignment_constraints = list(
+            source_target_provenance.get("semantic_alignment_constraints", []) or []
+        )
         if not candidate_artifact_path:
             candidate_artifact_path = str(
                 row.get("candidate_artifact_path", "") or ""
@@ -5546,6 +5578,7 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_learning_row
                 candidate_artifact_path,
                 failure_classification,
                 diagnostics,
+                source_target_provenance,
             ]
         )[:20]
         if work_order_id in seen:
@@ -5562,7 +5595,14 @@ def _runtime_source_theorem_formal_environment_work_order_rows_from_learning_row
                 "source_execution_queue_id": execution_queue_id,
                 "source_work_order_id": str(row.get("source_work_order_id", "") or ""),
                 "target_theorem_name": target_theorem_name,
+                "target_lean_declaration": target_lean_declaration
+                or target_theorem_name,
                 "candidate_artifact_path": candidate_artifact_path,
+                "source_theorem_target_known": bool(
+                    source_target_provenance.get("source_theorem_target_known", False)
+                ),
+                "source_theorem_target_provenance": source_target_provenance,
+                "semantic_alignment_constraints": semantic_alignment_constraints,
                 "failure_classification": failure_classification,
                 "diagnostics": diagnostics,
                 "missing_formal_symbols": missing_symbols,

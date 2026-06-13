@@ -304,6 +304,11 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert execution_payload["n_artifact_kernel_verified"] == 0
     assert execution_payload["n_source_theorem_kernel_verified"] == 0
     assert execution_payload["n_placeholder_environment_blockers"] == 1
+    assert execution_payload["n_source_theorem_target_known"] == 1
+    assert execution_payload["n_semantic_alignment_constraint_rows"] == 1
+    assert execution_payload["source_theorem_route_ids"] == [
+        "route:split_conformal_source"
+    ]
     execution_result = execution_payload["rows"][0]
     assert execution_result["execution_status"] == (
         "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED"
@@ -312,6 +317,18 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         "formal_environment_placeholder_primitives"
     )
     assert execution_result["source_theorem_kernel_verified"] is False
+    assert execution_result["source_theorem_target_known"] is True
+    assert execution_result["expected_target_lean_declaration"] == (
+        "split_conformal_coverage"
+    )
+    assert execution_result["source_theorem_target_provenance"][
+        "source_theorem_route_id"
+    ] == "route:split_conformal_source"
+    assert list(execution_result["semantic_alignment_constraints"]) == [
+        "preserve marginal coverage target",
+        "do not strengthen exchangeability assumptions",
+    ]
+    assert execution_result["target_identity_status"] == "TARGET_DECLARATION_MATCHED"
     assert execution_result["candidate_live_proof_state_request"][
         "target_lean_file"
     ] == execution_result["candidate_artifact_path"]
@@ -331,7 +348,19 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         "exact_source_theorem_proof_body_execution_result"
     )
     assert transcript_event["source_theorem_kernel_verified"] is False
+    assert transcript_event["source_theorem_target_provenance"][
+        "source_theorem_goal_id"
+    ] == "split_conformal_finite_sample_coverage"
+    assert transcript_event["semantic_alignment_constraints"] == [
+        "preserve marginal coverage target",
+        "do not strengthen exchangeability assumptions",
+    ]
     learning_export = execution_payload["runtime_learning_export"]
+    assert learning_export["n_source_theorem_target_known"] == 1
+    assert learning_export["n_semantic_alignment_constraint_rows"] == 1
+    assert learning_export["source_theorem_route_ids"] == [
+        "route:split_conformal_source"
+    ]
     executor_learning_row = json.loads(
         Path(str(learning_export["runtime_learning_rows_jsonl"])).read_text(
             encoding="utf-8"
@@ -343,6 +372,13 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert executor_learning_row["trigger"] == (
         "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED"
     )
+    assert executor_learning_row["source_theorem_target_provenance"][
+        "source_theorem_route_id"
+    ] == "route:split_conformal_source"
+    assert executor_learning_row["semantic_alignment_constraints"] == [
+        "preserve marginal coverage target",
+        "do not strengthen exchangeability assumptions",
+    ]
     assert executor_learning_row["kernel_verified_source_theorem_ids"] == []
 
     cli_out = tmp_path / "bridge_cli"

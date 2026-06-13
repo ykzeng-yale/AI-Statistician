@@ -2193,6 +2193,19 @@ def test_proof_body_executor_feedback_exports_formal_environment_work_order() ->
         "schema_version": 1,
         "learning_task": "exact_source_theorem_proof_body_execution_feedback",
         "target_theorem_name": "split_conformal_source_theorem",
+        "target_lean_declaration": "split_conformal_source_theorem",
+        "expected_target_lean_declaration": "split_conformal_source_theorem",
+        "source_theorem_target_known": True,
+        "source_theorem_target_provenance": {
+            "source_theorem_route_id": "route:split_conformal_source",
+            "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
+            "source_theorem_statement": "split conformal source coverage theorem",
+            "source_theorem_target_known": True,
+            "target_lean_declaration": "split_conformal_source_theorem",
+        },
+        "semantic_alignment_constraints": [
+            "preserve exact source theorem target"
+        ],
         "source_work_order_id": "source_theorem_formal_environment_work_order:seed",
         "execution_queue_id": "exact_source_queue:1",
         "execution_result_id": "exact_source_result:1",
@@ -2225,6 +2238,17 @@ def test_proof_body_executor_feedback_exports_formal_environment_work_order() ->
     work_order = work_orders[0]
     assert work_order["artifact_kind"] == "SourceTheoremFormalEnvironmentWorkOrder"
     assert work_order["target_theorem_name"] == "split_conformal_source_theorem"
+    assert work_order["target_lean_declaration"] == "split_conformal_source_theorem"
+    assert work_order["source_theorem_target_known"] is True
+    assert work_order["source_theorem_target_provenance"][
+        "source_theorem_route_id"
+    ] == "route:split_conformal_source"
+    assert work_order["source_theorem_target_provenance"][
+        "source_theorem_statement"
+    ] == "split conformal source coverage theorem"
+    assert work_order["semantic_alignment_constraints"] == [
+        "preserve exact source theorem target"
+    ]
     assert work_order["candidate_artifact_path"] == "runs/proof_body_attempt.lean"
     assert work_order["failure_classification"] == (
         "formal_environment_placeholder_primitives"

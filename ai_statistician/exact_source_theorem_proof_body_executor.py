@@ -41,6 +41,13 @@ class ExactSourceTheoremProofBodyExecutionResultRow:
     source_work_order_id: str
     target_theorem_name: str
     target_lean_declaration: str
+    expected_target_lean_declaration: str
+    source_theorem_target_known: bool
+    source_theorem_target_provenance: dict[str, object]
+    semantic_alignment_constraints: tuple[str, ...]
+    target_identity_status: str
+    target_identity_errors: tuple[str, ...]
+    source_candidate_artifact_path: str
     signature_probe_artifact_path: str
     candidate_artifact_path: str
     execution_transcript_path: str
@@ -151,6 +158,19 @@ def export_exact_source_theorem_proof_body_execution_results(
             if row.formal_environment_placeholder_symbols
             or row.formal_environment_typeclass_blockers
         ),
+        "n_source_theorem_target_known": sum(
+            1 for row in rows if row.source_theorem_target_known
+        ),
+        "n_semantic_alignment_constraint_rows": sum(
+            1 for row in rows if row.semantic_alignment_constraints
+        ),
+        "source_theorem_route_ids": list(
+            dict.fromkeys(
+                str(row.source_theorem_target_provenance.get("source_theorem_route_id", ""))
+                for row in rows
+                if str(row.source_theorem_target_provenance.get("source_theorem_route_id", ""))
+            )
+        ),
         "n_live_goal_location_ready": sum(1 for row in rows if row.live_goal_location_ready),
         "n_candidate_live_proof_state_requests": sum(
             1 for row in rows if row.candidate_live_proof_state_request
@@ -211,6 +231,24 @@ def _execution_result_row(
     source_work_order_id = str(row.get("source_work_order_id", "") or "")
     target_theorem_name = str(row.get("target_theorem_name", "") or "")
     target_lean_declaration = str(row.get("target_lean_declaration", "") or "")
+    expected_target_lean_declaration = str(
+        row.get("expected_target_lean_declaration", "") or target_lean_declaration
+    )
+    source_theorem_target_known = bool(row.get("source_theorem_target_known", False))
+    source_target_provenance_raw = row.get("source_theorem_target_provenance", {})
+    source_theorem_target_provenance = (
+        dict(source_target_provenance_raw)
+        if isinstance(source_target_provenance_raw, Mapping)
+        else {}
+    )
+    semantic_alignment_constraints = _str_tuple(
+        row.get("semantic_alignment_constraints", [])
+    )
+    target_identity_status = str(row.get("target_identity_status", "") or "")
+    target_identity_errors = _str_tuple(row.get("target_identity_errors", []))
+    source_candidate_artifact_path = str(
+        row.get("source_candidate_artifact_path", "") or ""
+    )
     signature_probe_artifact_path = str(row.get("signature_probe_artifact_path", "") or "")
     candidate_artifact_path = Path(str(row.get("candidate_artifact_path", "") or ""))
     execution_transcript_path = Path(str(row.get("execution_transcript_path", "") or ""))
@@ -230,6 +268,8 @@ def _execution_result_row(
         errors.append("execution_queue_id missing")
     if row.get("execution_status") != "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER":
         errors.append("execution queue row is not ready for exact source proof-body work")
+    if target_identity_errors:
+        errors.append("execution queue row has target identity errors")
     if not source_path.exists():
         errors.append(f"signature probe artifact missing: {source_path}")
     if not str(candidate_artifact_path):
@@ -331,6 +371,13 @@ def _execution_result_row(
         execution_queue_id=execution_queue_id,
         target_theorem_name=target_theorem_name,
         target_lean_declaration=target_lean_declaration,
+        expected_target_lean_declaration=expected_target_lean_declaration,
+        source_theorem_target_known=source_theorem_target_known,
+        source_theorem_target_provenance=source_theorem_target_provenance,
+        semantic_alignment_constraints=semantic_alignment_constraints,
+        target_identity_status=target_identity_status,
+        target_identity_errors=target_identity_errors,
+        source_candidate_artifact_path=source_candidate_artifact_path,
         candidate_artifact_path=candidate_artifact_path,
         status=status,
         local_lean_checked=checked,
@@ -351,6 +398,13 @@ def _execution_result_row(
         source_work_order_id=source_work_order_id,
         target_theorem_name=target_theorem_name,
         target_lean_declaration=target_lean_declaration,
+        expected_target_lean_declaration=expected_target_lean_declaration,
+        source_theorem_target_known=source_theorem_target_known,
+        source_theorem_target_provenance=source_theorem_target_provenance,
+        semantic_alignment_constraints=semantic_alignment_constraints,
+        target_identity_status=target_identity_status,
+        target_identity_errors=target_identity_errors,
+        source_candidate_artifact_path=source_candidate_artifact_path,
         signature_probe_artifact_path=signature_probe_artifact_path,
         candidate_artifact_path=str(candidate_artifact_path),
         execution_transcript_path=str(execution_transcript_path),
@@ -421,6 +475,13 @@ def _append_transcript_event(
     execution_queue_id: str,
     target_theorem_name: str,
     target_lean_declaration: str,
+    expected_target_lean_declaration: str,
+    source_theorem_target_known: bool,
+    source_theorem_target_provenance: dict[str, object],
+    semantic_alignment_constraints: tuple[str, ...],
+    target_identity_status: str,
+    target_identity_errors: tuple[str, ...],
+    source_candidate_artifact_path: str,
     candidate_artifact_path: Path,
     status: str,
     local_lean_checked: bool,
@@ -451,6 +512,13 @@ def _append_transcript_event(
             "execution_queue_id": execution_queue_id,
             "target_theorem_name": target_theorem_name,
             "target_lean_declaration": target_lean_declaration,
+            "expected_target_lean_declaration": expected_target_lean_declaration,
+            "source_theorem_target_known": source_theorem_target_known,
+            "source_theorem_target_provenance": source_theorem_target_provenance,
+            "semantic_alignment_constraints": semantic_alignment_constraints,
+            "target_identity_status": target_identity_status,
+            "target_identity_errors": target_identity_errors,
+            "source_candidate_artifact_path": source_candidate_artifact_path,
             "candidate_artifact_path": str(candidate_artifact_path),
             "execution_status": status,
             "local_lean_checked": local_lean_checked,
@@ -494,6 +562,15 @@ def _export_runtime_learning_rows(
                 "schema_version": SCHEMA_VERSION,
                 "learning_task": "exact_source_theorem_proof_body_execution_feedback",
                 "target_theorem_name": row.target_theorem_name,
+                "target_lean_declaration": row.target_lean_declaration,
+                "expected_target_lean_declaration": row.expected_target_lean_declaration,
+                "source_theorem_target_known": row.source_theorem_target_known,
+                "source_theorem_target_provenance": row.source_theorem_target_provenance,
+                "semantic_alignment_constraints": list(
+                    row.semantic_alignment_constraints
+                ),
+                "target_identity_status": row.target_identity_status,
+                "target_identity_errors": list(row.target_identity_errors),
                 "source_work_order_id": row.source_work_order_id,
                 "execution_queue_id": row.execution_queue_id,
                 "execution_result_id": row.execution_result_id,
@@ -521,6 +598,19 @@ def _export_runtime_learning_rows(
             1 for row in rows if row.source_theorem_kernel_verified
         ),
         "n_artifact_kernel_verified": sum(1 for row in rows if row.artifact_kernel_verified),
+        "n_source_theorem_target_known": sum(
+            1 for row in rows if row.source_theorem_target_known
+        ),
+        "n_semantic_alignment_constraint_rows": sum(
+            1 for row in rows if row.semantic_alignment_constraints
+        ),
+        "source_theorem_route_ids": list(
+            dict.fromkeys(
+                str(row.source_theorem_target_provenance.get("source_theorem_route_id", ""))
+                for row in rows
+                if str(row.source_theorem_target_provenance.get("source_theorem_route_id", ""))
+            )
+        ),
         "proof_evidence_status": (
             SOURCE_KERNEL_STATUS
             if any(row.source_theorem_kernel_verified for row in rows)
@@ -537,6 +627,11 @@ def _export_runtime_learning_rows(
         "runtime_learning_rows_jsonl": str(rows_path),
         "runtime_learning_manifest": str(manifest_path),
         "n_runtime_learning_rows": len(learning_rows),
+        "n_source_theorem_target_known": manifest["n_source_theorem_target_known"],
+        "n_semantic_alignment_constraint_rows": manifest[
+            "n_semantic_alignment_constraint_rows"
+        ],
+        "source_theorem_route_ids": manifest["source_theorem_route_ids"],
         "proof_evidence_status": manifest["proof_evidence_status"],
     }
 
@@ -624,6 +719,19 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
             f"{row.get('execution_status')} "
             f"source_kernel={row.get('source_theorem_kernel_verified')}"
         )
+        provenance = row.get("source_theorem_target_provenance", {})
+        route_id = (
+            provenance.get("source_theorem_route_id", "")
+            if isinstance(provenance, Mapping)
+            else ""
+        )
+        if route_id:
+            lines.append(f"  source route: `{route_id}`")
+        if row.get("semantic_alignment_constraints"):
+            lines.append(
+                "  semantic constraints: "
+                + ", ".join(str(value) for value in row.get("semantic_alignment_constraints", []))
+            )
         lines.append(f"  candidate: `{row.get('candidate_artifact_path')}`")
         lines.append(f"  failure: `{row.get('failure_classification')}`")
     return "\n".join(lines) + "\n"
