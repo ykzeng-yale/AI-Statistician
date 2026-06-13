@@ -969,6 +969,80 @@ def test_formalizer_prompt_targets_theorem_closure_when_proof_bank_memory_exhaus
     assert "do not spend the packet on more bridge-obligation requests" in prompt
 
 
+def test_formalizer_prompt_includes_exact_source_candidate_repair_memory() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": [
+                    {
+                        "kernel_verified_theorem_reduction_closure_work_order_ids": [
+                            "theorem_reduction_closure_work_order:good_rank"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_target_ids": [
+                            "split_conformal_finite_sample_coverage_reduction_closure"
+                        ],
+                        "kernel_verified_theorem_reduction_closure_goal_ids": [
+                            "split_conformal_finite_sample_coverage"
+                        ],
+                        "kernel_verified_source_theorem_semantic_primitive_ids": [
+                            "split_conformal_good_rank_set_inclusion_bridge"
+                        ],
+                    },
+                    {
+                        "learning_task": "source_theorem_exact_candidate_lean_feedback",
+                        "input_summary": {
+                            "trigger": "SOURCE_THEOREM_EXACT_CANDIDATE_LOCAL_LEAN_FAILED",
+                            "target_theorem_name": "split_conformal_coverage",
+                            "verification_status": "ARTIFACT_LOCAL_LEAN_FAILED",
+                            "candidate_artifact_path": "runs/exact_source_candidate.lean",
+                            "source_theorem_kernel_verified": False,
+                            "diagnostics": [
+                                "exact_source_candidate.lean:15:14: error: unexpected token '}'"
+                            ],
+                        },
+                    },
+                ],
+            }
+        },
+        proof_bank_obligation_catalog=catalog,
+        theorem_goals=theorem_goals,
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet={"packet_id": "theory:test", "formalization_requests": []},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": problem.problem_class},
+        theorem_goals=[
+            {
+                "id": row.id,
+                "title": row.title,
+                "proof_obligations": list(row.proof_obligations),
+            }
+            for row in theorem_goals
+        ],
+        proof_bank_obligation_catalog=catalog,
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert summary["source_theorem_exact_candidate_requires_repair"] is True
+    assert summary["recommended_source_theorem_integration_action"] == (
+        "repair_exact_source_theorem_candidate_proof_body"
+    )
+    assert "source_theorem_exact_candidate_requires_repair" in prompt
+    assert "repair_exact_source_theorem_candidate_proof_body" in prompt
+    assert "SOURCE_THEOREM_EXACT_CANDIDATE_LOCAL_LEAN_FAILED" in prompt
+    assert "unexpected token" in prompt
+    assert "split_conformal_coverage" in prompt
+
+
 def test_formalizer_prompt_compacts_large_theory_context() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[0]
     prompt = build_formalizer_prompt(
