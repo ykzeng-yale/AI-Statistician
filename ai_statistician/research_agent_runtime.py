@@ -2080,6 +2080,22 @@ def run_research_agent_runtime(
     source_theorem_promotion_materialization_seed_queue_dir = (
         out_dir / "runtime_source_theorem_promotion_materialization_seed_queue"
     )
+    source_theorem_promotion_post_executor_work_orders_path = (
+        out_dir
+        / "runtime_source_theorem_promotion_work_orders_from_post_executor_semantic_support.jsonl"
+    )
+    source_theorem_promotion_post_executor_handoffs_path = (
+        out_dir
+        / "runtime_source_theorem_promotion_handoffs_from_post_executor_semantic_support.jsonl"
+    )
+    source_theorem_promotion_post_executor_materialization_seeds_path = (
+        out_dir
+        / "runtime_source_theorem_promotion_materialization_seeds_from_post_executor_semantic_support.jsonl"
+    )
+    source_theorem_promotion_post_executor_materialization_seed_queue_dir = (
+        out_dir
+        / "runtime_source_theorem_promotion_materialization_seed_queue_from_post_executor_semantic_support"
+    )
     gap_planner_bridges_path = out_dir / "runtime_formalization_gap_planner_bridges.jsonl"
     gap_planner_seed_dir = out_dir / "runtime_formalization_gap_planner_seeds"
     gap_planner_target_intake_dir = out_dir / "runtime_formalization_gap_planner_target_intake"
@@ -2308,6 +2324,14 @@ def run_research_agent_runtime(
     source_semantic_post_executor_bridge_manifest: dict[str, Any] | None = None
     source_semantic_post_executor_bridge_learning_rows: list[dict[str, Any]] = []
     new_semantic_work_order_rows: list[dict[str, Any]] = []
+    source_theorem_promotion_post_executor_work_order_rows: list[dict[str, Any]] = []
+    new_source_theorem_promotion_post_executor_work_order_rows: list[dict[str, Any]] = []
+    source_theorem_promotion_post_executor_handoff_rows: list[dict[str, Any]] = []
+    source_theorem_promotion_post_executor_materialization_seed_rows: list[
+        dict[str, Any]
+    ] = []
+    source_theorem_promotion_post_executor_bridge_manifest: dict[str, Any] | None = None
+    source_theorem_promotion_post_executor_bridge_learning_rows: list[dict[str, Any]] = []
     if source_theorem_semantic_primitive_executor_work_order_rows:
         seen_semantic_work_order_ids = {
             str(row.get("work_order_id", "") or "")
@@ -2356,6 +2380,124 @@ def run_research_agent_runtime(
                 if source_semantic_post_executor_bridge_learning_rows:
                     learning_rows.extend(source_semantic_post_executor_bridge_learning_rows)
                     _write_jsonl(learning_path, learning_rows)
+                    source_theorem_promotion_post_executor_work_order_rows = (
+                        _runtime_source_theorem_promotion_work_order_rows_from_learning_rows(
+                            results,
+                            learning_rows,
+                            source_runtime_learning_task=(
+                                "source_theorem_semantic_primitive_kernel_overlay"
+                            ),
+                        )
+                    )
+                    existing_promotion_work_order_ids = {
+                        str(row.get("work_order_id", "") or "")
+                        for row in source_theorem_promotion_work_order_rows
+                        if isinstance(row, Mapping)
+                    }
+                    new_source_theorem_promotion_post_executor_work_order_rows = [
+                        row
+                        for row in source_theorem_promotion_post_executor_work_order_rows
+                        if str(row.get("work_order_id", "") or "")
+                        not in existing_promotion_work_order_ids
+                    ]
+                    if new_source_theorem_promotion_post_executor_work_order_rows:
+                        _write_jsonl(
+                            source_theorem_promotion_post_executor_work_orders_path,
+                            new_source_theorem_promotion_post_executor_work_order_rows,
+                        )
+                        source_theorem_promotion_work_order_rows.extend(
+                            new_source_theorem_promotion_post_executor_work_order_rows
+                        )
+                        _write_jsonl(
+                            source_theorem_promotion_work_orders_path,
+                            source_theorem_promotion_work_order_rows,
+                        )
+                        source_theorem_promotion_handoff_rows = (
+                            _runtime_source_theorem_promotion_handoff_rows(
+                                source_theorem_promotion_work_order_rows
+                            )
+                        )
+                        source_theorem_promotion_materialization_seed_rows = (
+                            _runtime_source_theorem_promotion_materialization_seed_rows(
+                                source_theorem_promotion_handoff_rows,
+                                runtime_out_dir=out_dir,
+                            )
+                        )
+                        _write_jsonl(
+                            source_theorem_promotion_handoffs_path,
+                            source_theorem_promotion_handoff_rows,
+                        )
+                        _write_jsonl(
+                            source_theorem_promotion_materialization_seeds_path,
+                            source_theorem_promotion_materialization_seed_rows,
+                        )
+                        _write_runtime_source_theorem_promotion_materialization_seed_queue(
+                            source_theorem_promotion_materialization_seed_rows,
+                            queue_dir=source_theorem_promotion_materialization_seed_queue_dir,
+                        )
+                        source_theorem_promotion_post_executor_handoff_rows = (
+                            _runtime_source_theorem_promotion_handoff_rows(
+                                new_source_theorem_promotion_post_executor_work_order_rows
+                            )
+                        )
+                        source_theorem_promotion_post_executor_materialization_seed_rows = (
+                            _runtime_source_theorem_promotion_materialization_seed_rows(
+                                source_theorem_promotion_post_executor_handoff_rows,
+                                runtime_out_dir=out_dir,
+                            )
+                        )
+                        _write_jsonl(
+                            source_theorem_promotion_post_executor_handoffs_path,
+                            source_theorem_promotion_post_executor_handoff_rows,
+                        )
+                        _write_jsonl(
+                            source_theorem_promotion_post_executor_materialization_seeds_path,
+                            source_theorem_promotion_post_executor_materialization_seed_rows,
+                        )
+                        _write_runtime_source_theorem_promotion_materialization_seed_queue(
+                            source_theorem_promotion_post_executor_materialization_seed_rows,
+                            queue_dir=(
+                                source_theorem_promotion_post_executor_materialization_seed_queue_dir
+                            ),
+                        )
+                        if config.source_theorem_promotion_proofengineer_bridge:
+                            source_theorem_promotion_post_executor_bridge_manifest = (
+                                _run_runtime_source_theorem_promotion_proofengineer_bridge(
+                                    seed_queue_dir=(
+                                        source_theorem_promotion_post_executor_materialization_seed_queue_dir
+                                    ),
+                                    out_dir=out_dir
+                                    / "runtime_source_theorem_promotion_proofengineer_bridge_from_post_executor_semantic_support",
+                                    local_lean=(
+                                        config.source_theorem_promotion_proofengineer_local_lean
+                                    ),
+                                    overwrite_artifacts=(
+                                        config.source_theorem_promotion_proofengineer_overwrite_artifacts
+                                    ),
+                                    lean_project=(
+                                        Path(
+                                            config.source_theorem_promotion_proofengineer_lean_project
+                                        )
+                                        if config.source_theorem_promotion_proofengineer_lean_project
+                                        else None
+                                    ),
+                                    lean_timeout=(
+                                        config.source_theorem_promotion_proofengineer_lean_timeout
+                                    ),
+                                )
+                            )
+                            source_theorem_promotion_post_executor_bridge_learning_rows = (
+                                _runtime_source_theorem_promotion_bridge_learning_rows(
+                                    source_theorem_promotion_post_executor_bridge_manifest
+                                )
+                            )
+                            if (
+                                source_theorem_promotion_post_executor_bridge_learning_rows
+                            ):
+                                learning_rows.extend(
+                                    source_theorem_promotion_post_executor_bridge_learning_rows
+                                )
+                                _write_jsonl(learning_path, learning_rows)
     source_theorem_formal_environment_executor_work_order_rows = (
         _runtime_source_theorem_formal_environment_work_order_rows_from_learning_rows(
             source_theorem_formal_environment_proof_body_executor_learning_rows
@@ -2421,6 +2563,19 @@ def run_research_agent_runtime(
     manifest["artifacts"][
         "runtime_source_theorem_promotion_materialization_seed_queue_dir"
     ] = str(source_theorem_promotion_materialization_seed_queue_dir)
+    if new_source_theorem_promotion_post_executor_work_order_rows:
+        manifest["artifacts"][
+            "runtime_source_theorem_promotion_work_orders_from_post_executor_semantic_support_jsonl"
+        ] = str(source_theorem_promotion_post_executor_work_orders_path)
+        manifest["artifacts"][
+            "runtime_source_theorem_promotion_handoffs_from_post_executor_semantic_support_jsonl"
+        ] = str(source_theorem_promotion_post_executor_handoffs_path)
+        manifest["artifacts"][
+            "runtime_source_theorem_promotion_materialization_seeds_from_post_executor_semantic_support_jsonl"
+        ] = str(source_theorem_promotion_post_executor_materialization_seeds_path)
+        manifest["artifacts"][
+            "runtime_source_theorem_promotion_materialization_seed_queue_from_post_executor_semantic_support_dir"
+        ] = str(source_theorem_promotion_post_executor_materialization_seed_queue_dir)
     if theorem_closure_bridge_manifest is not None:
         manifest["artifacts"][
             "runtime_theorem_reduction_closure_proofengineer_bridge_manifest"
@@ -2649,6 +2804,56 @@ def run_research_agent_runtime(
                     "source_theorem_integrator_dir"
                 ]
             )
+    if source_theorem_promotion_post_executor_bridge_manifest is not None:
+        manifest["artifacts"][
+            "runtime_source_theorem_promotion_proofengineer_bridge_from_post_executor_semantic_support_manifest"
+        ] = str(source_theorem_promotion_post_executor_bridge_manifest["bridge_manifest"])
+        manifest["artifacts"][
+            "runtime_source_theorem_promotion_proofengineer_from_post_executor_semantic_support_materializer_manifest"
+        ] = str(
+            source_theorem_promotion_post_executor_bridge_manifest[
+                "materializer_manifest"
+            ]
+        )
+        manifest["artifacts"][
+            "runtime_source_theorem_promotion_proofengineer_from_post_executor_semantic_support_materializer_dir"
+        ] = str(
+            source_theorem_promotion_post_executor_bridge_manifest["materializer_dir"]
+        )
+        if source_theorem_promotion_post_executor_bridge_manifest.get(
+            "artifact_verifier_manifest"
+        ):
+            manifest["artifacts"][
+                "runtime_source_theorem_promotion_proofengineer_from_post_executor_semantic_support_artifact_verifier_manifest"
+            ] = str(
+                source_theorem_promotion_post_executor_bridge_manifest[
+                    "artifact_verifier_manifest"
+                ]
+            )
+            manifest["artifacts"][
+                "runtime_source_theorem_promotion_proofengineer_from_post_executor_semantic_support_artifact_verifier_dir"
+            ] = str(
+                source_theorem_promotion_post_executor_bridge_manifest[
+                    "artifact_verifier_dir"
+                ]
+            )
+        if source_theorem_promotion_post_executor_bridge_manifest.get(
+            "source_theorem_formal_environment_work_order_manifest"
+        ):
+            manifest["artifacts"][
+                "runtime_source_theorem_promotion_proofengineer_from_post_executor_semantic_support_formal_environment_work_order_manifest"
+            ] = str(
+                source_theorem_promotion_post_executor_bridge_manifest[
+                    "source_theorem_formal_environment_work_order_manifest"
+                ]
+            )
+            manifest["artifacts"][
+                "runtime_source_theorem_promotion_proofengineer_from_post_executor_semantic_support_formal_environment_work_orders_jsonl"
+            ] = str(
+                source_theorem_promotion_post_executor_bridge_manifest[
+                    "source_theorem_formal_environment_work_orders_jsonl"
+                ]
+            )
     manifest["artifacts"]["runtime_formalization_gap_planner_bridges_jsonl"] = str(
         gap_planner_bridges_path
     )
@@ -2687,12 +2892,24 @@ def run_research_agent_runtime(
     manifest["n_runtime_source_theorem_promotion_work_orders"] = len(
         source_theorem_promotion_work_order_rows
     )
+    manifest[
+        "n_runtime_source_theorem_promotion_work_orders_from_post_executor_semantic_support"
+    ] = len(source_theorem_promotion_post_executor_work_order_rows)
+    manifest[
+        "n_runtime_new_source_theorem_promotion_work_orders_from_post_executor_semantic_support"
+    ] = len(new_source_theorem_promotion_post_executor_work_order_rows)
     manifest["n_runtime_source_theorem_promotion_handoffs"] = len(
         source_theorem_promotion_handoff_rows
     )
+    manifest[
+        "n_runtime_source_theorem_promotion_handoffs_from_post_executor_semantic_support"
+    ] = len(source_theorem_promotion_post_executor_handoff_rows)
     manifest["n_runtime_source_theorem_promotion_materialization_seeds"] = len(
         source_theorem_promotion_materialization_seed_rows
     )
+    manifest[
+        "n_runtime_source_theorem_promotion_materialization_seeds_from_post_executor_semantic_support"
+    ] = len(source_theorem_promotion_post_executor_materialization_seed_rows)
     manifest["theorem_closure_proofengineer_bridge_requested"] = bool(
         config.theorem_closure_proofengineer_bridge
     )
@@ -3151,6 +3368,89 @@ def run_research_agent_runtime(
     )
     manifest["source_theorem_promotion_proofengineer_bridge_n_learning_rows"] = len(
         source_theorem_promotion_bridge_learning_rows
+    )
+    manifest[
+        "source_theorem_promotion_post_executor_proofengineer_bridge_requested"
+    ] = bool(
+        config.source_theorem_promotion_proofengineer_bridge
+        and source_theorem_promotion_post_executor_materialization_seed_rows
+    )
+    manifest[
+        "source_theorem_promotion_post_executor_proofengineer_bridge_ran"
+    ] = source_theorem_promotion_post_executor_bridge_manifest is not None
+    manifest[
+        "source_theorem_promotion_post_executor_proofengineer_bridge_skipped_reason"
+    ] = (
+        ""
+        if source_theorem_promotion_post_executor_bridge_manifest is not None
+        else (
+            "bridge_disabled"
+            if not config.source_theorem_promotion_proofengineer_bridge
+            else "no_new_post_executor_source_theorem_promotion_materialization_seeds"
+            if source_theorem_promotion_post_executor_work_order_rows
+            else "no_post_executor_source_theorem_promotion_work_orders"
+        )
+    )
+    manifest[
+        "source_theorem_promotion_post_executor_proofengineer_bridge_n_materialized_artifacts"
+    ] = int(
+        source_theorem_promotion_post_executor_bridge_manifest.get(
+            "n_materialized_artifacts",
+            0,
+        )
+        if source_theorem_promotion_post_executor_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_promotion_post_executor_proofengineer_bridge_n_artifact_kernel_verified"
+    ] = int(
+        source_theorem_promotion_post_executor_bridge_manifest.get(
+            "n_artifact_kernel_verified",
+            0,
+        )
+        if source_theorem_promotion_post_executor_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_promotion_post_executor_proofengineer_bridge_n_source_theorem_kernel_verified"
+    ] = int(
+        source_theorem_promotion_post_executor_bridge_manifest.get(
+            "n_source_theorem_kernel_verified",
+            0,
+        )
+        if source_theorem_promotion_post_executor_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_promotion_post_executor_proofengineer_bridge_n_formal_environment_work_orders"
+    ] = int(
+        source_theorem_promotion_post_executor_bridge_manifest.get(
+            "n_source_theorem_formal_environment_work_orders",
+            0,
+        )
+        if source_theorem_promotion_post_executor_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_promotion_post_executor_proofengineer_bridge_proof_evidence_status"
+    ] = str(
+        source_theorem_promotion_post_executor_bridge_manifest.get(
+            "proof_evidence_status",
+            "",
+        )
+        if source_theorem_promotion_post_executor_bridge_manifest
+        else ""
+    )
+    manifest[
+        "source_theorem_promotion_post_executor_proofengineer_bridge_n_learning_rows"
+    ] = len(source_theorem_promotion_post_executor_bridge_learning_rows)
+    manifest["source_theorem_promotion_post_executor_proofengineer_bridge_boundary"] = (
+        "This bridge pass is triggered only after same-run exact proof-body "
+        "executor feedback has produced source-semantic primitive work orders "
+        "and the source-semantic ProofEngineer bridge has exported kernel-verified "
+        "registered support rows. It materializes or checks promotion candidates, "
+        "but it is not full source theorem proof unless a downstream verifier row "
+        "reports source_theorem_kernel_verified=true for the exact source target."
     )
     manifest["n_runtime_formalization_gap_planner_bridges"] = len(
         gap_planner_bridge_rows
@@ -6510,6 +6810,157 @@ def _runtime_source_theorem_promotion_work_order_rows(
                         value = row.get(key)
                         if value:
                             existing[key] = value
+                    continue
+                row["source_formalization_manifest_ids"] = (
+                    [source_manifest_id] if source_manifest_id else []
+                )
+                row["n_source_formalization_manifests"] = len(
+                    row["source_formalization_manifest_ids"]
+                )
+                if work_order_id:
+                    by_work_order_id[work_order_id] = len(rows)
+                rows.append(row)
+    return rows
+
+
+def _runtime_learning_memory_context_from_rows(
+    learning_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    rows = [dict(row) for row in learning_rows if isinstance(row, Mapping)]
+    return {
+        "schema_version": RUNTIME_SCHEMA_VERSION,
+        "artifact_kind": "RuntimeLearningMemoryContext",
+        "source_paths": [],
+        "rows": rows,
+        "counts": {
+            "rows_loaded": len(rows),
+            "source_paths": 0,
+            "errors": 0,
+            "max_rows": len(rows),
+        },
+        "errors": [],
+        "boundary": (
+            "Same-run runtime learning rows are orchestration memory only. "
+            "They may route later proof work when they cite kernel verifier "
+            "manifests, but they are not themselves theorem proof evidence."
+        ),
+    }
+
+
+def _runtime_source_theorem_promotion_work_order_rows_from_learning_rows(
+    results: list[dict[str, Any]],
+    learning_rows: list[dict[str, Any]],
+    *,
+    source_runtime_learning_task: str,
+) -> list[dict[str, Any]]:
+    """Recompute source-theorem promotion readiness after same-run bridge feedback."""
+
+    memory_context = {
+        "runtime_learning_memory": _runtime_learning_memory_context_from_rows(
+            learning_rows
+        )
+    }
+    rows: list[dict[str, Any]] = []
+    by_work_order_id: dict[str, int] = {}
+    for result in results:
+        artifacts = result.get("blackboard", {}).get("artifacts", {})
+        if not isinstance(artifacts, Mapping):
+            continue
+        for artifact in artifacts.values():
+            if not (
+                isinstance(artifact, Mapping)
+                and artifact.get("artifact_kind") == "RuntimeFormalizationManifest"
+            ):
+                continue
+            question = (
+                artifact.get("question", {})
+                if isinstance(artifact.get("question"), Mapping)
+                else {}
+            )
+            proposal_id = str(
+                artifact.get("llm_formalizer_proof_engineer_proposal_id", "") or ""
+            )
+            proposal_packet = artifacts.get(proposal_id, {})
+            if not isinstance(proposal_packet, Mapping):
+                continue
+            theorem_goals = [
+                row
+                for row in artifact.get("deterministic_theorem_goals", []) or []
+                if isinstance(row, Mapping)
+            ]
+            proof_bank_obligation_catalog = [
+                row
+                for row in artifact.get("registered_proof_bank_obligation_catalog", [])
+                or []
+                if isinstance(row, Mapping)
+            ]
+            catalog_ids = tuple(
+                str(row.get("obligation_id", "") or "").strip()
+                for row in proof_bank_obligation_catalog
+                if str(row.get("obligation_id", "") or "").strip()
+            )
+            memory_kernel_verified_ids = (
+                _runtime_learning_memory_kernel_verified_proof_obligation_ids(
+                    memory_context,
+                    catalog_ids=catalog_ids,
+                )
+            )
+            memory_prioritized_ids, _memory_off_catalog, _memory_rejected = (
+                _runtime_learning_memory_proof_obligation_ids(
+                    memory_context,
+                    catalog_ids=catalog_ids,
+                )
+            )
+            proof_bank_summary = _formalizer_proof_bank_runtime_memory_summary(
+                context=memory_context,
+                proof_bank_obligation_catalog=proof_bank_obligation_catalog,
+                theorem_goals=theorem_goals,  # type: ignore[arg-type]
+                memory_kernel_verified_proof_obligation_ids=memory_kernel_verified_ids,
+                memory_prioritized_proof_obligation_ids=memory_prioritized_ids,
+            )
+            work_order_items = _formalizer_source_theorem_promotion_work_orders(
+                proposal_packet=proposal_packet,
+                proof_bank_runtime_memory_summary=proof_bank_summary,
+                theorem_goals=theorem_goals,
+            )
+            for item in work_order_items:
+                if not isinstance(item, Mapping):
+                    continue
+                row = dict(item)
+                row["source_formalization_manifest_id"] = str(
+                    artifact.get("manifest_id", "")
+                )
+                row["question_id"] = str(question.get("id", "") or "")
+                row["question_title"] = str(question.get("title", "") or "")
+                row["source_runtime_learning_task"] = source_runtime_learning_task
+                row["same_run_post_executor_promotion"] = True
+                row["runtime_queue_status"] = (
+                    "PENDING_SOURCE_THEOREM_TARGET_RESOLUTION_OR_PROMOTION"
+                )
+                row["runtime_queue_boundary"] = (
+                    "This same-run queue row was derived after ProofEngineer bridge "
+                    "learning memory reported kernel-verified source-semantic support. "
+                    "It is not proof evidence until AXLE/local Lean verifies the exact "
+                    "source theorem or exact upstream semantic target."
+                )
+                work_order_id = str(row.get("work_order_id", "") or "").strip()
+                source_manifest_id = str(
+                    row.get("source_formalization_manifest_id", "") or ""
+                )
+                if work_order_id in by_work_order_id:
+                    existing = rows[by_work_order_id[work_order_id]]
+                    source_ids = [
+                        str(value)
+                        for value in existing.get(
+                            "source_formalization_manifest_ids", []
+                        )
+                        or []
+                        if str(value).strip()
+                    ]
+                    if source_manifest_id and source_manifest_id not in source_ids:
+                        source_ids.append(source_manifest_id)
+                    existing["source_formalization_manifest_ids"] = source_ids
+                    existing["n_source_formalization_manifests"] = len(source_ids)
                     continue
                 row["source_formalization_manifest_ids"] = (
                     [source_manifest_id] if source_manifest_id else []
