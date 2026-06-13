@@ -8467,6 +8467,10 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         "source_ref_count_at_most_six": True,
         "theorem_statement_at_most_600_chars": True,
         "no_complex_coverage_or_action_markers": True,
+        "no_pending_resource_request_queue": True,
+        "no_resource_request_playbooks": True,
+        "no_interactive_resource_requests": True,
+        "no_interactive_dispatch_summaries": True,
     }
     row = payload["rows"][0]
     assert row["model_tier"] == "haiku"
@@ -8477,6 +8481,143 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     request = captured["request"]
     assert request.model == "claude-haiku-4-5-20251001"
     assert request.metadata["model_tier"] == "haiku"
+
+
+def test_llm_route_planner_auto_uses_sonnet_for_light_route_resource_dispatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_light_route_resource_dispatch"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    resource_request_queue_dir = _write_resource_request_queue(root)
+    manifest_path = (
+        resource_request_queue_dir
+        / "formalization_gap_planner_resource_request_queue_manifest.json"
+    )
+    queue_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for row in queue_manifest["rows"]:
+        row["route_id"] = "rank_route_light"
+        row["display_name"] = "distribution_free_rank_bound_light"
+        row["goal_plan_id"] = "goal:rank_route_light"
+        row["request_playbook"]["input_summary"]["route_id"] = "rank_route_light"
+        row["request_playbook"]["input_summary"][
+            "display_name"
+        ] = "distribution_free_rank_bound_light"
+        row["request_payload"]["route_id"] = "rank_route_light"
+        row["request_payload"]["request_playbook"][
+            "route_id"
+        ] = "rank_route_light"
+    manifest_path.write_text(json.dumps(queue_manifest, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        formalization_gap_planner_resource_request_queue_dir=(
+            resource_request_queue_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 0
+    assert any(
+        "resource-request queue rows" in rule
+        for rule in payload["llm_route_planner_model_tier_policy"][
+            "auto_tier_rules"
+        ]
+    )
+    packet = payload["request_packets"][0]
+    assert packet["model"] == "claude-sonnet-4-6"
+    evidence = packet["model_tier_decision_evidence"]
+    assert evidence["decision_basis"] == "auto_sonnet_triggers"
+    assert evidence["route_signal_counts"]["residual_goal_count"] == 0
+    assert evidence["route_signal_counts"]["resource_request_queue_count"] == 1
+    assert evidence["route_signal_counts"]["resource_request_playbook_count"] == 1
+    assert evidence["context_resource_dispatch_counts"][
+        "resource_request_queue_count"
+    ] == 1
+    assert evidence["context_resource_dispatch_counts"][
+        "resource_request_playbook_count"
+    ] == 1
+    assert any(
+        "pending resource-request queue row" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
+    assert any(
+        "resource-request playbook" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
+
+
+def test_llm_route_planner_auto_uses_sonnet_for_light_route_interactive_dispatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_light_route_interactive_dispatch"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    manifest_path = (
+        interactive_session_dir
+        / "formalization_gap_planner_interactive_session_manifest.json"
+    )
+    session_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for row in session_manifest["rows"]:
+        row["route_id"] = "rank_route_light"
+        row["display_name"] = "distribution_free_rank_bound_light"
+        row["goal_plan_id"] = "goal:rank_route_light"
+        row["needs_more_proof_state_feedback"] = False
+        row["residual_goals"] = []
+    for row in session_manifest["decision_policy_rows"]:
+        row["route_id"] = "rank_route_light"
+        row["display_name"] = "distribution_free_rank_bound_light"
+        row["goal_plan_id"] = "goal:rank_route_light"
+        row["trigger_signals"] = ["resource_request_dispatch_pending"]
+    manifest_path.write_text(json.dumps(session_manifest, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 0
+    packet = payload["request_packets"][0]
+    evidence = packet["model_tier_decision_evidence"]
+    assert evidence["decision_basis"] == "auto_sonnet_triggers"
+    assert evidence["route_signal_counts"]["residual_goal_count"] == 0
+    assert (
+        evidence["route_signal_counts"][
+            "interactive_session_resource_request_count"
+        ]
+        == 1
+    )
+    assert (
+        evidence["route_signal_counts"][
+            "interactive_session_resource_request_dispatch_summary_count"
+        ]
+        == 1
+    )
+    assert evidence["context_resource_dispatch_counts"][
+        "interactive_session_resource_request_count"
+    ] == 1
+    assert any(
+        "interactive-session linked resource request" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
+    assert any(
+        "interactive dispatch summary" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
 
 
 def test_llm_route_planner_escalates_failed_haiku_repair_to_sonnet() -> None:

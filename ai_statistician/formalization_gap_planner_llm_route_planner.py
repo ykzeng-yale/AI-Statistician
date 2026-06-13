@@ -491,8 +491,9 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
         "bridge/source-port/new-theory decisions, or larger proof DAGs."
     ),
     "auto_tier_rules": [
-        "Use haiku for small routes whose primitives are already-exists, exact, near, wrapper, or different-formulation coverage and have no residual goals.",
+        "Use haiku for small routes whose primitives are already-exists, exact, near, wrapper, or different-formulation coverage and have no residual goals or pending resource dispatch.",
         "Use sonnet when prover residual goals, feedback-loop replan signals, or incomplete realization-coverage witnesses are present.",
+        "Use sonnet when resource-request queue rows, resource-request playbooks, or interactive-session resource dispatch bindings are present.",
         "Use sonnet when target-intake rows expose missing proof sources, library-search requirements, proof-state probes, complex theorem shape, or large normalized theorem context.",
         "Use sonnet when the seed route itself carries uncertainty flags, semantic alignment risks, source-search-pending markers, or substantive formal-gap boundaries.",
         "Use sonnet when any primitive needs a bridge, source port, new definition, new theory, or has unknown/missing coverage.",
@@ -7535,6 +7536,7 @@ def _llm_route_planner_model_tier_decision(
     theorem_statement = str(route.get("theorem_statement", ""))
     route_markers = _route_coverage_action_markers(primitives)
     hard_markers = sorted(route_markers & _complex_route_markers())
+    resource_dispatch_counts = _context_resource_dispatch_counts(context_packet)
     base_evidence = _model_tier_decision_evidence_base(
         route=route,
         requested_model_tier=requested,
@@ -7544,6 +7546,7 @@ def _llm_route_planner_model_tier_decision(
         theorem_statement=theorem_statement,
         route_markers=route_markers,
         hard_markers=hard_markers,
+        resource_dispatch_counts=resource_dispatch_counts,
     )
     if requested in {"haiku", "sonnet", "opus"}:
         evidence = dict(base_evidence)
@@ -7578,6 +7581,28 @@ def _llm_route_planner_model_tier_decision(
     sonnet_reasons.extend(_seed_route_risk_sonnet_reasons(route, primitives))
     cost_hint_reasons = _minimal_delta_cost_hint_sonnet_reasons(context_packet)
     sonnet_reasons.extend(cost_hint_reasons)
+    if resource_dispatch_counts["resource_request_queue_count"]:
+        sonnet_reasons.append(
+            f"{resource_dispatch_counts['resource_request_queue_count']} "
+            "pending resource-request queue row(s)"
+        )
+    if resource_dispatch_counts["resource_request_playbook_count"]:
+        sonnet_reasons.append(
+            f"{resource_dispatch_counts['resource_request_playbook_count']} "
+            "resource-request playbook(s)"
+        )
+    if resource_dispatch_counts["interactive_session_resource_request_count"]:
+        sonnet_reasons.append(
+            f"{resource_dispatch_counts['interactive_session_resource_request_count']} "
+            "interactive-session linked resource request(s)"
+        )
+    if resource_dispatch_counts[
+        "interactive_session_resource_request_dispatch_summary_count"
+    ]:
+        sonnet_reasons.append(
+            f"{resource_dispatch_counts['interactive_session_resource_request_dispatch_summary_count']} "
+            "interactive dispatch summary row(s)"
+        )
     if hard_markers:
         sonnet_reasons.append(
             "complex coverage/action marker(s): " + ", ".join(hard_markers[:6])
@@ -7611,6 +7636,22 @@ def _llm_route_planner_model_tier_decision(
         "source_ref_count_at_most_six": len(source_refs) <= 6,
         "theorem_statement_at_most_600_chars": len(theorem_statement) <= 600,
         "no_complex_coverage_or_action_markers": not hard_markers,
+        "no_pending_resource_request_queue": (
+            resource_dispatch_counts["resource_request_queue_count"] == 0
+        ),
+        "no_resource_request_playbooks": (
+            resource_dispatch_counts["resource_request_playbook_count"] == 0
+        ),
+        "no_interactive_resource_requests": (
+            resource_dispatch_counts["interactive_session_resource_request_count"]
+            == 0
+        ),
+        "no_interactive_dispatch_summaries": (
+            resource_dispatch_counts[
+                "interactive_session_resource_request_dispatch_summary_count"
+            ]
+            == 0
+        ),
     }
     evidence = dict(base_evidence)
     evidence.update(
@@ -7651,6 +7692,37 @@ def _complex_route_markers() -> set[str]:
     }
 
 
+def _context_resource_dispatch_counts(
+    context_packet: Mapping[str, Any],
+) -> dict[str, int]:
+    feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    interactive_resource_requests = _dict_value(
+        feedback_summary,
+        "interactive_session_resource_requests",
+    )
+    if not interactive_resource_requests:
+        interactive_resource_requests = _interactive_session_resource_request_summary(
+            _dict_tuple(context_packet.get("interactive_session_rows", []))
+        )
+    return {
+        "resource_request_queue_count": len(
+            _dict_tuple(context_packet.get("resource_request_queue_rows", []))
+        ),
+        "resource_request_playbook_count": len(
+            _dict_tuple(context_packet.get("resource_request_playbooks", []))
+        ),
+        "interactive_session_resource_request_count": int(
+            interactive_resource_requests.get("resource_request_count", 0) or 0
+        ),
+        "interactive_session_resource_request_dispatch_summary_count": int(
+            interactive_resource_requests.get("dispatch_summary_count", 0) or 0
+        ),
+        "interactive_session_resource_request_execution_command_count": int(
+            interactive_resource_requests.get("execution_command_count", 0) or 0
+        ),
+    }
+
+
 def _route_coverage_action_markers(
     primitives: tuple[Mapping[str, Any], ...],
 ) -> set[str]:
@@ -7677,6 +7749,7 @@ def _model_tier_decision_evidence_base(
     theorem_statement: str,
     route_markers: set[str],
     hard_markers: list[str],
+    resource_dispatch_counts: Mapping[str, int],
 ) -> dict[str, object]:
     return {
         "evidence_kind": "formalization_gap_planner_llm_route_planner_model_tier_decision",
@@ -7692,7 +7765,37 @@ def _model_tier_decision_evidence_base(
             "theorem_statement_chars": len(theorem_statement),
             "coverage_action_marker_count": len(route_markers),
             "complex_coverage_action_marker_count": len(hard_markers),
+            "resource_request_queue_count": int(
+                resource_dispatch_counts.get("resource_request_queue_count", 0)
+                or 0
+            ),
+            "resource_request_playbook_count": int(
+                resource_dispatch_counts.get("resource_request_playbook_count", 0)
+                or 0
+            ),
+            "interactive_session_resource_request_count": int(
+                resource_dispatch_counts.get(
+                    "interactive_session_resource_request_count",
+                    0,
+                )
+                or 0
+            ),
+            "interactive_session_resource_request_dispatch_summary_count": int(
+                resource_dispatch_counts.get(
+                    "interactive_session_resource_request_dispatch_summary_count",
+                    0,
+                )
+                or 0
+            ),
+            "interactive_session_resource_request_execution_command_count": int(
+                resource_dispatch_counts.get(
+                    "interactive_session_resource_request_execution_command_count",
+                    0,
+                )
+                or 0
+            ),
         },
+        "context_resource_dispatch_counts": dict(resource_dispatch_counts),
         "coverage_action_markers": sorted(route_markers),
         "complex_coverage_action_markers": list(hard_markers),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
