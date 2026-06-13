@@ -1535,11 +1535,20 @@ def test_exact_source_theorem_materializer_sanitizes_sorry_for_live_goal(
                             "exact_source_theorem_candidate"
                         ),
                         "lean_statement_sketch": (
-                            "theorem exact_source_claim (claim : Prop) "
+                            "theorem exact_source_claim\n"
+                            "    {Omega : Type*} {claim : Prop} "
                             "(h_claim : claim) : claim := by sorry"
                         ),
                         "kernel_overlay_context": {
                             "source_theorem_target_known": True,
+                            "target_location": {
+                                "target_lean_declaration": "exact_source_claim",
+                                "target_imports": [
+                                    "Mathlib",
+                                    "StatInference.Conformal",
+                                    "Bad;import Unsafe",
+                                ],
+                            },
                             "already_kernel_verified_subclaims": [
                                 "source_semantic_bridge"
                             ],
@@ -1572,7 +1581,13 @@ def test_exact_source_theorem_materializer_sanitizes_sorry_for_live_goal(
     assert row["materialization_mode"] == "exact_source_theorem_candidate"
     assert row["target_lean_declaration"] == "exact_source_claim"
     source = artifact_path.read_text(encoding="utf-8")
+    assert "import Mathlib" in source
+    assert "import StatInference.Conformal" in source
+    assert "Bad;import Unsafe" not in source
     assert "theorem exact_source_claim" in source
+    assert "theorem exact_source_claim {Omega : Type _} {claim : Prop}" in source
+    assert "theorem exact_source_claim\n    {Omega : Type*} {claim : Prop}" not in source
+    assert "Type*" not in source
     assert "sorry" not in source
     assert "_route_probe" not in source
     assert "route probe" not in source.lower()
@@ -1737,6 +1752,7 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
                     "(h_coverage : coverage_claim) : coverage_claim := by "
                     "exact h_coverage"
                 ),
+                "lean_imports": ["Mathlib", "StatInference.Conformal"],
                 "semantic_alignment_constraints": ["marginal coverage only"],
             }
         ],
@@ -1794,6 +1810,7 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     assert rows[0]["kernel_verified_theorem_reduction_closure_work_order_ids"] == [
         "theorem_reduction_closure_work_order:good_rank"
     ]
+    assert rows[0]["lean_imports"] == ["Mathlib", "StatInference.Conformal"]
     assert len(handoff_rows) == 1
     assert handoff_rows[0]["artifact_kind"] == "RuntimeSourceTheoremPromotionHandoff"
     assert handoff_rows[0]["source_theorem_promotion_work_order_id"] == rows[0][
@@ -1810,6 +1827,7 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         "ready_for_existing_source_theorem_promotion_queue"
     ] is False
     assert handoff_rows[0]["proof_evidence_status"] == "HANDOFF_NOT_PROOF_EVIDENCE"
+    assert handoff_rows[0]["lean_imports"] == ["Mathlib", "StatInference.Conformal"]
     assert len(materialization_seed_rows) == 1
     assert materialization_seed_rows[0]["artifact_kind"] == (
         "RuntimeSourceTheoremPromotionMaterializationSeed"
@@ -1834,6 +1852,9 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     assert materialization_seed_rows[0]["candidate_bridge_lemma_name"] == (
         "split_conformal_coverage"
     )
+    assert materialization_seed_rows[0]["kernel_overlay_context"]["target_location"][
+        "target_imports"
+    ] == ["Mathlib", "StatInference.Conformal"]
     assert materialization_seed_rows[0]["proof_evidence_status"] == (
         "MATERIALIZATION_SEED_NOT_PROOF_EVIDENCE"
     )
@@ -1859,6 +1880,8 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     exact_source_text = Path(
         materializer_payload["rows"][0]["candidate_artifact_path"]
     ).read_text(encoding="utf-8")
+    assert "import Mathlib" in exact_source_text
+    assert "import StatInference.Conformal" in exact_source_text
     assert "theorem split_conformal_coverage" in exact_source_text
     assert "_route_probe" not in exact_source_text
     assert "route probe" not in exact_source_text.lower()

@@ -4313,6 +4313,7 @@ def _formalizer_source_theorem_promotion_work_orders(
                 "id": goal_id,
                 "informal_source": "",
                 "lean_statement_sketch": "",
+                "lean_imports": [],
                 "semantic_alignment_constraints": [],
             }
             for goal_id in target_goal_ids
@@ -4342,6 +4343,7 @@ def _formalizer_source_theorem_promotion_work_orders(
                 "kernel_verified_theorem_reduction_closure_target_ids": closure_target_ids,
                 "kernel_verified_source_theorem_semantic_primitive_ids": semantic_primitive_ids,
                 "lean_statement_sketch": str(target.get("lean_statement_sketch", "") or ""),
+                "lean_imports": _formal_target_imports(target),
                 "informal_source": str(target.get("informal_source", "") or ""),
                 "semantic_alignment_constraints": [
                     str(row)
@@ -4371,6 +4373,13 @@ def _theorem_goal_id(row: Any) -> str:
     if isinstance(row, Mapping):
         return str(row.get("id", "") or "").strip()
     return str(getattr(row, "id", "") or "").strip()
+
+
+def _formal_target_imports(target: Mapping[str, Any]) -> list[str]:
+    imports = target.get("lean_imports", target.get("target_imports", []))
+    if not isinstance(imports, list):
+        return []
+    return [str(row).strip() for row in imports if str(row).strip()]
 
 
 def _critic_learning_rows(
@@ -4817,6 +4826,7 @@ def _runtime_source_theorem_promotion_work_order_rows(
                         "source_formalizer_packet_id",
                         "source_formal_target_id",
                         "lean_statement_sketch",
+                        "lean_imports",
                         "informal_source",
                         "semantic_alignment_constraints",
                     ):
@@ -4891,6 +4901,7 @@ def _runtime_source_theorem_promotion_handoff_rows(
                 or []
             ),
             "lean_statement_sketch": lean_statement_sketch,
+            "lean_imports": list(item.get("lean_imports", []) or []),
             "semantic_alignment_constraints": list(
                 item.get("semantic_alignment_constraints", []) or []
             ),
@@ -4992,6 +5003,11 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
         lean_statement_sketch = str(
             item.get("lean_statement_sketch", "") or ""
         ).strip()
+        lean_imports = [
+            str(value).strip()
+            for value in item.get("lean_imports", []) or []
+            if str(value).strip()
+        ]
         semantic_constraints = [
             str(value)
             for value in item.get("semantic_alignment_constraints", []) or []
@@ -5058,7 +5074,7 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
                 "source_theorem_target_known": target_known,
                 "target_location": {
                     "target_lean_declaration": target_lean_declaration,
-                    "target_imports": [],
+                    "target_imports": lean_imports,
                 },
                 "already_kernel_verified_subclaims": [
                     *verified_closure_ids,

@@ -246,6 +246,7 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
             "id": "string",
             "informal_source": "string",
             "lean_statement_sketch": "string",
+            "lean_imports": ["Mathlib"],
             "semantic_alignment_constraints": ["string"],
             "expected_status": "OPEN",
         }

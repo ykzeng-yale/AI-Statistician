@@ -404,12 +404,15 @@ def _exact_source_theorem_candidate_source(
     support_lines = "\n".join(
         f"-- kernel_verified_support: {item}" for item in reused_subclaims
     )
+    import_lines = "\n".join(f"import {item}" for item in _target_imports(row))
+    import_block = f"{import_lines}\n\n" if import_lines else ""
     body = _lean_statement_with_evolve_block(sketch)
     return (
         "/-!\n"
         "Bounded Lean exact-source-theorem candidate artifact.\n"
         "Downstream local Lean/AXLE verification decides whether this exact declaration is proof evidence.\n"
         "-/\n\n"
+        f"{import_block}"
         f"{metadata_lines}\n"
         f"{support_lines}\n"
         f"{body}\n"
@@ -417,6 +420,7 @@ def _exact_source_theorem_candidate_source(
 
 
 def _lean_statement_with_evolve_block(statement: str) -> str:
+    statement = _normalize_lean_statement_syntax(statement)
     if "AI_STAT_EVOLVE_BLOCK_START" in statement:
         return statement.rstrip() + "\n"
     match = re.search(r":=\s*by\b", statement)
@@ -452,6 +456,55 @@ def _indent_lean_proof_body(proof_body: str) -> str:
         line if line.startswith((" ", "\t")) else "  " + line
         for line in lines
     )
+
+
+def _normalize_lean_statement_syntax(statement: str) -> str:
+    statement = _normalize_lean_declaration_header(statement)
+    return statement.replace("Type*", "Type _")
+
+
+def _target_imports(row: dict[str, Any]) -> tuple[str, ...]:
+    context = row.get("kernel_overlay_context", {})
+    if not isinstance(context, dict):
+        context = {}
+    target_location = context.get("target_location", {})
+    if not isinstance(target_location, dict):
+        target_location = {}
+    raw_imports = target_location.get("target_imports", row.get("lean_imports", []))
+    if not isinstance(raw_imports, list):
+        return ()
+    imports: list[str] = []
+    for value in raw_imports:
+        module = str(value).strip()
+        if module and _safe_lean_import(module) and module not in imports:
+            imports.append(module)
+    return tuple(imports)
+
+
+def _safe_lean_import(module: str) -> bool:
+    part = r"[A-Za-z_][A-Za-z0-9_']*"
+    return re.fullmatch(rf"{part}(?:\.{part})*", module) is not None
+
+
+def _normalize_lean_declaration_header(statement: str) -> str:
+    lines = statement.splitlines()
+    normalized: list[str] = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        stripped = line.strip()
+        next_line = lines[index + 1] if index + 1 < len(lines) else ""
+        next_stripped = next_line.lstrip()
+        if (
+            re.match(r"^(theorem|lemma)\s+[A-Za-z0-9_'.]+$", stripped)
+            and next_stripped.startswith(("{", "(", "[", ":"))
+        ):
+            normalized.append(line.rstrip() + " " + next_stripped)
+            index += 2
+            continue
+        normalized.append(line)
+        index += 1
+    return "\n".join(normalized)
 
 
 def _artifact_location(source: str, declaration_name: str) -> dict[str, object]:
