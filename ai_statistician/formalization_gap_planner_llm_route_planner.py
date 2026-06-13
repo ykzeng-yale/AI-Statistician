@@ -6070,6 +6070,7 @@ def _user_prompt(
             "Every residual_interpretations row that proposes route repair must have source_refs/source_snippets, a matching literature/source search_request, or a formal_gap_boundary; prover residuals alone are not source evidence for new mathematical side conditions.",
             "Every alignment edge must include an alignment_rationale.",
             "Every alignment edge informal_node_id/formal_node_id must reference nodes present in the returned informal and formal DAGs.",
+            "Every alignment edge must connect a formal node primitive to an informal node whose explicit primitive scope supports that same primitive; scoped informal nodes cannot justify unrelated formal primitives.",
             formal_realization_requirement,
             "Minimal delta must include duplicate-free selected_primitives, cost_model_version, route_cost, primitive_costs, and_or_cost_graph, and minimality_rationale.",
             "Use minimal_delta_cost_policy as the AND/OR graph cost surface; pick the route with the lowest current formalization delta cost.",
@@ -12912,6 +12913,12 @@ def _response_primitive_coherence_errors(
         for node in formal_nodes
         if str(node.get("node_id", "")).strip()
     }
+    primitive_scope_universe = (
+        selected
+        | standalone
+        | formal
+        | _available_primitive_keys_for_request(request)
+    )
     alignment_edges_by_primitive: dict[str, list[dict[str, object]]] = {}
     for edge in alignment_edges:
         informal_node_id = str(
@@ -12941,6 +12948,15 @@ def _response_primitive_coherence_errors(
                 "route_alignment_edges primitive/formal_node_id mismatch: "
                 f"edge primitive {edge_primitive} does not match formal_node_id "
                 f"{formal_node_id} primitive {formal_node_primitive}"
+            )
+        if formal_node_primitive and informal_node_id in informal_by_node_id:
+            errors.extend(
+                _alignment_informal_node_primitive_scope_errors(
+                    edge=edge,
+                    informal_node=informal_by_node_id[informal_node_id],
+                    formal_node_primitive=formal_node_primitive,
+                    primitive_scope_universe=primitive_scope_universe,
+                )
             )
         primitive = formal_node_primitive or edge_primitive
         if not primitive:
@@ -13014,6 +13030,79 @@ def _response_primitive_coherence_errors(
         )
     )
     return errors
+
+
+def _alignment_informal_node_primitive_scope_errors(
+    *,
+    edge: Mapping[str, Any],
+    informal_node: Mapping[str, Any],
+    formal_node_primitive: str,
+    primitive_scope_universe: set[str],
+) -> list[str]:
+    if not formal_node_primitive:
+        return []
+    unsupported = _informal_node_alignment_unsupported_primitives(informal_node)
+    if formal_node_primitive in unsupported:
+        return [
+            "route_alignment_edges informal_node_id/formal_node_id primitive "
+            "scope mismatch: informal_node_id "
+            f"{edge.get('informal_node_id') or edge.get('source') or ''} "
+            f"marks primitive {formal_node_primitive} unsupported"
+        ]
+    supported = _informal_node_alignment_supported_primitives(
+        informal_node,
+        primitive_scope_universe=primitive_scope_universe,
+    )
+    if supported and formal_node_primitive not in supported:
+        return [
+            "route_alignment_edges informal_node_id/formal_node_id primitive "
+            "scope mismatch: informal_node_id "
+            f"{edge.get('informal_node_id') or edge.get('source') or ''} "
+            f"supports {', '.join(sorted(supported)[:8])}, not "
+            f"{formal_node_primitive}"
+        ]
+    return []
+
+
+def _informal_node_alignment_supported_primitives(
+    node: Mapping[str, Any],
+    *,
+    primitive_scope_universe: set[str],
+) -> set[str]:
+    primitives: list[str] = []
+    primitives.extend(_source_snippet_declared_context_primitives(node))
+    primitives.extend(_primitive_values(node.get("supported_target_primitives", [])))
+    for snippet in _dict_tuple(node.get("source_snippets", [])):
+        primitives.extend(_source_snippet_declared_context_primitives(snippet))
+        primitives.extend(
+            _primitive_values(snippet.get("supported_target_primitives", []))
+        )
+    node_id = str(node.get("node_id", "")).strip()
+    if ":" in node_id:
+        suffix = _primitive_key(node_id.rsplit(":", 1)[-1])
+        if suffix in primitive_scope_universe:
+            primitives.append(suffix)
+    return {
+        primitive
+        for primitive in (_primitive_key(item) for item in primitives)
+        if primitive
+    }
+
+
+def _informal_node_alignment_unsupported_primitives(
+    node: Mapping[str, Any],
+) -> set[str]:
+    primitives: list[str] = []
+    primitives.extend(_primitive_values(node.get("unsupported_target_primitives", [])))
+    for snippet in _dict_tuple(node.get("source_snippets", [])):
+        primitives.extend(
+            _primitive_values(snippet.get("unsupported_target_primitives", []))
+        )
+    return {
+        primitive
+        for primitive in (_primitive_key(item) for item in primitives)
+        if primitive
+    }
 
 
 def _primitive_cost_coverage_evidence_errors(
