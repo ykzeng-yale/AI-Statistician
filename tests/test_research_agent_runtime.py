@@ -1994,6 +1994,34 @@ def test_source_theorem_promotion_bridge_exports_formal_environment_work_order(
     }
     assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
+    cli_out = tmp_path / "runtime_source_theorem_promotion_proofengineer_bridge_cli"
+    code = main(
+        [
+            "runtime-source-theorem-promotion-proofengineer-bridge",
+            "--seed-queue-dir",
+            str(seed_queue_dir),
+            "--out",
+            str(cli_out),
+            "--lean-timeout",
+            "30",
+            "--overwrite",
+        ]
+    )
+    assert code == 0
+    cli_manifest_path = (
+        cli_out / "runtime_source_theorem_promotion_proofengineer_bridge_manifest.json"
+    )
+    assert cli_manifest_path.exists()
+    cli_manifest = json.loads(cli_manifest_path.read_text(encoding="utf-8"))
+    assert cli_manifest["overwrite_artifacts"] is True
+    assert cli_manifest["n_source_theorem_formal_environment_work_orders"] == 1
+    assert Path(
+        cli_manifest["source_theorem_formal_environment_work_orders_jsonl"]
+    ).exists()
+    assert cli_manifest["proof_evidence_status"] == (
+        "SOURCE_THEOREM_PROMOTION_PROOFENGINEER_BRIDGE_NOT_SOURCE_THEOREM_PROOF"
+    )
+
 
 def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> None:
     formalization_manifest = {
@@ -4344,6 +4372,18 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     )
     assert source_theorem_environment_queue_path.exists()
     assert manifest["n_runtime_source_theorem_formal_environment_work_orders"] == 0
+    assert (
+        manifest[
+            "source_theorem_promotion_proofengineer_bridge_n_formal_environment_work_orders"
+        ]
+        == 0
+    )
+    assert (
+        manifest[
+            "source_theorem_promotion_proofengineer_bridge_overwrite_artifacts_requested"
+        ]
+        is False
+    )
     bridges_path = Path(
         manifest["artifacts"]["runtime_formalization_gap_planner_bridges_jsonl"]
     )

@@ -147,6 +147,7 @@ class ResearchAgentRuntimeConfig:
     source_semantic_proofengineer_lean_timeout: int = 90
     source_theorem_promotion_proofengineer_bridge: bool = False
     source_theorem_promotion_proofengineer_local_lean: bool = False
+    source_theorem_promotion_proofengineer_overwrite_artifacts: bool = False
     source_theorem_promotion_proofengineer_lean_project: str = ""
     source_theorem_promotion_proofengineer_lean_timeout: int = 90
 
@@ -2144,6 +2145,9 @@ def run_research_agent_runtime(
                 out_dir=out_dir
                 / "runtime_source_theorem_promotion_proofengineer_bridge",
                 local_lean=config.source_theorem_promotion_proofengineer_local_lean,
+                overwrite_artifacts=(
+                    config.source_theorem_promotion_proofengineer_overwrite_artifacts
+                ),
                 lean_project=(
                     Path(config.source_theorem_promotion_proofengineer_lean_project)
                     if config.source_theorem_promotion_proofengineer_lean_project
@@ -2251,6 +2255,23 @@ def run_research_agent_runtime(
             manifest["artifacts"][
                 "runtime_source_theorem_promotion_proofengineer_artifact_verifier_dir"
             ] = str(source_theorem_promotion_bridge_manifest["artifact_verifier_dir"])
+        if source_theorem_promotion_bridge_manifest.get(
+            "source_theorem_formal_environment_work_order_manifest"
+        ):
+            manifest["artifacts"][
+                "runtime_source_theorem_promotion_proofengineer_formal_environment_work_order_manifest"
+            ] = str(
+                source_theorem_promotion_bridge_manifest[
+                    "source_theorem_formal_environment_work_order_manifest"
+                ]
+            )
+            manifest["artifacts"][
+                "runtime_source_theorem_promotion_proofengineer_formal_environment_work_orders_jsonl"
+            ] = str(
+                source_theorem_promotion_bridge_manifest[
+                    "source_theorem_formal_environment_work_orders_jsonl"
+                ]
+            )
         if source_theorem_promotion_bridge_manifest.get(
             "source_theorem_promotion_queue_manifest"
         ):
@@ -2412,6 +2433,9 @@ def run_research_agent_runtime(
         "source_theorem_promotion_proofengineer_bridge_local_lean_requested"
     ] = bool(config.source_theorem_promotion_proofengineer_local_lean)
     manifest[
+        "source_theorem_promotion_proofengineer_bridge_overwrite_artifacts_requested"
+    ] = bool(config.source_theorem_promotion_proofengineer_overwrite_artifacts)
+    manifest[
         "source_theorem_promotion_proofengineer_bridge_n_materialized_artifacts"
     ] = int(
         source_theorem_promotion_bridge_manifest.get("n_materialized_artifacts", 0)
@@ -2422,6 +2446,16 @@ def run_research_agent_runtime(
         "source_theorem_promotion_proofengineer_bridge_n_artifact_kernel_verified"
     ] = int(
         source_theorem_promotion_bridge_manifest.get("n_artifact_kernel_verified", 0)
+        if source_theorem_promotion_bridge_manifest
+        else 0
+    )
+    manifest[
+        "source_theorem_promotion_proofengineer_bridge_n_formal_environment_work_orders"
+    ] = int(
+        source_theorem_promotion_bridge_manifest.get(
+            "n_source_theorem_formal_environment_work_orders",
+            0,
+        )
         if source_theorem_promotion_bridge_manifest
         else 0
     )
@@ -5529,12 +5563,14 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
     local_lean: bool,
     lean_project: Path | None,
     lean_timeout: int,
+    overwrite_artifacts: bool = False,
 ) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     materializer_dir = out_dir / "formal_verifier_agentic_proof_execution_materializer"
     materializer_payload = export_formal_verifier_agentic_proof_execution_materializer(
         seed_queue_dir,
         materializer_dir,
+        overwrite=overwrite_artifacts,
     )
     artifact_verifier_payload: dict[str, Any] | None = None
     artifact_verifier_dir = out_dir / "formal_verifier_agentic_proof_execution_artifact_verifier"
@@ -5696,6 +5732,7 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
         ),
         "local_lean_requested": local_lean,
         "local_lean_skipped_reason": local_lean_skipped_reason,
+        "overwrite_artifacts": overwrite_artifacts,
         "lean_project": str(lean_project or ""),
         "lean_timeout": lean_timeout,
         "n_materializer_rows": int(

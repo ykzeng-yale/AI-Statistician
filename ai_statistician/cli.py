@@ -367,7 +367,11 @@ from .model_backend import (
 )
 from .proof_state_feedback import LocalLeanProofStateFeedbackProvider
 from .simulation_engineer_llm import LLMSimulationEngineerAgent, SimulationEngineerConfig
-from .research_agent_runtime import ResearchAgentRuntimeConfig, run_research_agent_runtime
+from .research_agent_runtime import (
+    ResearchAgentRuntimeConfig,
+    _run_runtime_source_theorem_promotion_proofengineer_bridge,
+    run_research_agent_runtime,
+)
 from .research_agent_runtime_audit import audit_research_agent_runtime
 from .research_system_audit import ResearchSystemAuditConfig, run_research_system_audit
 from .research_trace_audit import audit_research_traces
@@ -4762,6 +4766,40 @@ def _formal_verifier_agentic_proof_execution_artifact_verifier(
     return 0 if payload["all_ok"] else 1
 
 
+def _runtime_source_theorem_promotion_proofengineer_bridge(
+    args: argparse.Namespace,
+) -> int:
+    payload = _run_runtime_source_theorem_promotion_proofengineer_bridge(
+        seed_queue_dir=Path(args.seed_queue_dir),
+        out_dir=Path(args.out),
+        local_lean=not bool(args.no_local_lean),
+        overwrite_artifacts=bool(args.overwrite),
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout=int(args.lean_timeout),
+    )
+    print("\nAI Statistical Theory Lab Runtime Source-Theorem ProofEngineer Bridge")
+    print("=" * 72)
+    print(
+        f"materialized={payload['n_materialized_artifacts']} "
+        f"artifact_kernel={payload['n_artifact_kernel_verified']} "
+        f"formal_env_work_orders={payload['n_source_theorem_formal_environment_work_orders']} "
+        f"ready_source_integration={payload['n_ready_for_source_theorem_integration']} "
+        f"source_kernel={payload['n_source_theorem_kernel_verified']} "
+        f"local_lean_skipped={payload['local_lean_skipped_reason'] or 'no'}"
+    )
+    print(
+        f"\nbridge manifest written to "
+        f"{(Path(args.out) / 'runtime_source_theorem_promotion_proofengineer_bridge_manifest.json').resolve()}"
+    )
+    if payload.get("source_theorem_formal_environment_work_order_manifest"):
+        print(
+            f"formal-environment work-order manifest written to "
+            f"{Path(str(payload['source_theorem_formal_environment_work_order_manifest'])).resolve()}"
+        )
+    print(f"proof evidence status: {payload['proof_evidence_status']}")
+    return 0
+
+
 def _formal_verifier_agentic_proof_source_theorem_promotion_queue(
     args: argparse.Namespace,
 ) -> int:
@@ -6332,6 +6370,13 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
                 getattr(
                     args,
                     "source_theorem_promotion_proofengineer_local_lean",
+                    False,
+                )
+            ),
+            source_theorem_promotion_proofengineer_overwrite_artifacts=bool(
+                getattr(
+                    args,
+                    "source_theorem_promotion_proofengineer_overwrite_artifacts",
                     False,
                 )
             ),
@@ -9893,6 +9938,48 @@ def build_parser() -> argparse.ArgumentParser:
         func=_formal_verifier_agentic_proof_execution_artifact_verifier
     )
 
+    runtime_source_theorem_promotion_proofengineer_bridge = sub.add_parser(
+        "runtime-source-theorem-promotion-proofengineer-bridge",
+        help=(
+            "materialize source-theorem promotion seeds, run optional local Lean, "
+            "and emit ProofEngineer bridge work orders"
+        ),
+    )
+    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
+        "--seed-queue-dir",
+        required=True,
+        help="directory containing formal_verifier_agentic_proof_execution_queue_manifest.json",
+    )
+    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
+        "--out",
+        default="runs/runtime_source_theorem_promotion_proofengineer_bridge",
+        help="runtime source-theorem promotion ProofEngineer bridge output directory",
+    )
+    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
+        "--lean-project",
+        default="",
+        help="optional local Lake project; when set runs lake env lean",
+    )
+    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="seconds before each local Lean artifact/source-theorem check times out",
+    )
+    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
+        "--no-local-lean",
+        action="store_true",
+        help="materialize only; skip local Lean artifact and source-theorem checks",
+    )
+    runtime_source_theorem_promotion_proofengineer_bridge.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="rewrite existing exact-source candidate artifacts before verification",
+    )
+    runtime_source_theorem_promotion_proofengineer_bridge.set_defaults(
+        func=_runtime_source_theorem_promotion_proofengineer_bridge
+    )
+
     formal_verifier_agentic_proof_trace_memory = sub.add_parser(
         "formal-verifier-agentic-proof-trace-memory",
         help="summarize agentic proof execution transcripts into reusable search memory",
@@ -11267,6 +11354,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "when the source-theorem promotion ProofEngineer bridge is enabled, "
             "run local Lean on materialized route-probe artifacts"
+        ),
+    )
+    research_agent_runtime.add_argument(
+        "--source-theorem-promotion-proofengineer-overwrite-artifacts",
+        action="store_true",
+        help=(
+            "when the source-theorem promotion ProofEngineer bridge is enabled, "
+            "rewrite existing exact-source candidate artifacts before verification"
         ),
     )
     research_agent_runtime.add_argument(
