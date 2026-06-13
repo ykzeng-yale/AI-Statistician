@@ -59,6 +59,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_source_theorem_promotion_work_order_rows,
     _runtime_source_theorem_promotion_handoff_rows,
     _runtime_source_theorem_promotion_materialization_seed_rows,
+    _runtime_source_theorem_promotion_bridge_learning_rows,
     _run_runtime_source_theorem_promotion_proofengineer_bridge,
     _write_runtime_source_theorem_promotion_materialization_seed_queue,
     _runtime_theorem_reduction_closure_work_order_rows,
@@ -1487,6 +1488,50 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     )
     assert Path(bridge_payload["materializer_manifest"]).exists()
     assert Path(bridge_payload["bridge_manifest"]).exists()
+    assert _runtime_source_theorem_promotion_bridge_learning_rows(bridge_payload) == []
+
+    ready_queue_dir = (
+        tmp_path
+        / "runtime_source_theorem_promotion_proofengineer_bridge"
+        / "formal_verifier_agentic_proof_source_theorem_promotion_queue"
+    )
+    ready_queue_dir.mkdir(parents=True)
+    ready_row = {
+        "schema_version": 1,
+        "source_theorem_promotion_id": "source_theorem_promotion:test",
+        "question_id": "conformal_prediction_coverage",
+        "question_title": "Split conformal prediction interval coverage",
+        "promotion_status": "READY_FOR_SOURCE_THEOREM_INTEGRATION",
+        "target_theorem_name": "split_conformal_coverage",
+        "artifact_kernel_verified": True,
+        "source_theorem_kernel_verified": False,
+    }
+    (ready_queue_dir / "formal_verifier_agentic_proof_source_theorem_promotion_queue.jsonl").write_text(
+        json.dumps(ready_row, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    ready_bridge_payload = {
+        **bridge_payload,
+        "source_theorem_promotion_queue_dir": str(ready_queue_dir),
+        "source_theorem_promotion_queue_manifest": str(
+            ready_queue_dir
+            / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json"
+        ),
+    }
+    learning_rows = _runtime_source_theorem_promotion_bridge_learning_rows(
+        ready_bridge_payload
+    )
+    assert len(learning_rows) == 1
+    assert learning_rows[0]["learning_task"] == (
+        "source_theorem_promotion_bridge_feedback"
+    )
+    assert learning_rows[0]["input_summary"]["trigger"] == (
+        "SOURCE_THEOREM_PROMOTION_READY_BUT_UNPROVED"
+    )
+    assert learning_rows[0]["target_theorem_name"] == "split_conformal_coverage"
+    assert learning_rows[0]["proof_evidence_status"] == (
+        "SOURCE_THEOREM_PROMOTION_BRIDGE_LEARNING_NOT_PROOF_EVIDENCE"
+    )
 
 
 def test_runtime_exports_source_theorem_semantic_primitive_queue_rows() -> None:

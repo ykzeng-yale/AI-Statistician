@@ -2139,6 +2139,16 @@ def run_research_agent_runtime(
                 lean_timeout=config.source_theorem_promotion_proofengineer_lean_timeout,
             )
         )
+    source_theorem_promotion_bridge_learning_rows = (
+        _runtime_source_theorem_promotion_bridge_learning_rows(
+            source_theorem_promotion_bridge_manifest
+        )
+        if source_theorem_promotion_bridge_manifest is not None
+        else []
+    )
+    if source_theorem_promotion_bridge_learning_rows:
+        learning_rows.extend(source_theorem_promotion_bridge_learning_rows)
+        _write_jsonl(learning_path, learning_rows)
     _write_runtime_formalization_gap_planner_seed_files(
         gap_planner_bridge_rows,
         seed_dir=gap_planner_seed_dir,
@@ -2410,6 +2420,9 @@ def run_research_agent_runtime(
         "route probes and artifact-kernel checks are not source theorem proof; "
         "source theorem proof requires source_theorem_kernel_verified=true for "
         "the exact source target."
+    )
+    manifest["source_theorem_promotion_proofengineer_bridge_n_learning_rows"] = len(
+        source_theorem_promotion_bridge_learning_rows
     )
     manifest["n_runtime_formalization_gap_planner_bridges"] = len(
         gap_planner_bridge_rows
@@ -4964,6 +4977,81 @@ def _run_runtime_source_theorem_promotion_proofengineer_bridge(
     )
     payload["bridge_manifest"] = str(bridge_manifest_path)
     return payload
+
+
+def _runtime_source_theorem_promotion_bridge_learning_rows(
+    bridge_manifest: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Feed post-runtime source-theorem promotion status back into memory."""
+    queue_dir_value = str(
+        bridge_manifest.get("source_theorem_promotion_queue_dir", "") or ""
+    )
+    if not queue_dir_value:
+        return []
+    queue_dir = Path(queue_dir_value)
+    queue_jsonl = (
+        queue_dir / "formal_verifier_agentic_proof_source_theorem_promotion_queue.jsonl"
+    )
+    if not queue_jsonl.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for raw_line in queue_jsonl.read_text(encoding="utf-8").splitlines():
+        if not raw_line.strip():
+            continue
+        try:
+            row = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(row, Mapping):
+            continue
+        promotion_status = str(row.get("promotion_status", "") or "")
+        source_theorem_kernel_verified = bool(
+            row.get("source_theorem_kernel_verified", False)
+        )
+        if (
+            promotion_status != "READY_FOR_SOURCE_THEOREM_INTEGRATION"
+            or source_theorem_kernel_verified
+        ):
+            continue
+        target_theorem_name = str(row.get("target_theorem_name", "") or "")
+        rows.append(
+            {
+                "schema_version": RUNTIME_SCHEMA_VERSION,
+                "question_id": str(row.get("question_id", "") or ""),
+                "question_title": str(row.get("question_title", "") or ""),
+                "learning_task": "source_theorem_promotion_bridge_feedback",
+                "input_summary": {
+                    "trigger": "SOURCE_THEOREM_PROMOTION_READY_BUT_UNPROVED",
+                    "owner_subsystem": "Formalizer/ProofEngineer",
+                    "promotion_status": promotion_status,
+                    "target_theorem_name": target_theorem_name,
+                    "artifact_kernel_verified": bool(
+                        row.get("artifact_kernel_verified", False)
+                    ),
+                    "source_theorem_kernel_verified": source_theorem_kernel_verified,
+                },
+                "target_behavior": (
+                    "consume the READY_FOR_SOURCE_THEOREM_INTEGRATION row with an "
+                    "exact source-theorem integration prover; do not repeat route-probe "
+                    "materialization or claim theorem proof from artifact_kernel_verified"
+                ),
+                "acceptance_gate": (
+                    "source_theorem_kernel_verified=true for "
+                    + (target_theorem_name or "the exact source theorem target")
+                ),
+                "source_theorem_promotion_queue_manifest": str(
+                    bridge_manifest.get("source_theorem_promotion_queue_manifest", "")
+                    or ""
+                ),
+                "source_theorem_promotion_id": str(
+                    row.get("source_theorem_promotion_id", "") or ""
+                ),
+                "target_theorem_name": target_theorem_name,
+                "proof_evidence_status": "SOURCE_THEOREM_PROMOTION_BRIDGE_LEARNING_NOT_PROOF_EVIDENCE",
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+        )
+    return rows
 
 
 def _lean_declaration_name(lean_statement: str) -> str:
