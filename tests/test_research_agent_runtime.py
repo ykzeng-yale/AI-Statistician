@@ -1429,6 +1429,80 @@ def test_source_theorem_integrator_blocker_memory_repairs_exact_target() -> None
     )
 
 
+def test_exact_source_theorem_materializer_sanitizes_sorry_for_live_goal(
+    tmp_path: Path,
+) -> None:
+    queue_dir = tmp_path / "exact_source_queue"
+    queue_dir.mkdir()
+    artifact_path = tmp_path / "exact_source_candidate.lean"
+    transcript_path = tmp_path / "exact_source_candidate.jsonl"
+    (
+        queue_dir / "formal_verifier_agentic_proof_execution_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "rows": [
+                    {
+                        "execution_queue_id": "runtime_source_theorem:test",
+                        "population_entry_id": "runtime_source_theorem_population:test",
+                        "strategy_id": "runtime_source_theorem_promotion_exact_target_attempt",
+                        "display_name": "Materialize exact source theorem",
+                        "target_theorem_name": "exact_source_claim",
+                        "candidate_bridge_lemma_name": "exact_source_claim",
+                        "residual_gap": "replace forbidden placeholder with live goal",
+                        "population_bucket": "source_theorem_promotion_attempt",
+                        "source_theorem_materialization_mode": (
+                            "exact_source_theorem_candidate"
+                        ),
+                        "lean_statement_sketch": (
+                            "theorem exact_source_claim (claim : Prop) "
+                            "(h_claim : claim) : claim := by sorry"
+                        ),
+                        "kernel_overlay_context": {
+                            "source_theorem_target_known": True,
+                            "already_kernel_verified_subclaims": [
+                                "source_semantic_bridge"
+                            ],
+                            "target_blockers": ["exact source theorem proof body"],
+                        },
+                        "candidate_artifact_path": str(artifact_path),
+                        "execution_transcript_path": str(transcript_path),
+                        "proof_state_provider_plan": [
+                            "lean_goal",
+                            "lean_diagnostic_messages",
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formal_verifier_agentic_proof_execution_materializer(
+        queue_dir,
+        tmp_path / "exact_source_materializer",
+    )
+
+    assert payload["n_exact_source_theorem_candidate_artifacts"] == 1
+    assert payload["n_route_probe_artifacts"] == 0
+    assert payload["n_live_goal_location_ready"] == 1
+    row = payload["rows"][0]
+    assert row["ok"] is True
+    assert row["materialization_mode"] == "exact_source_theorem_candidate"
+    assert row["target_lean_declaration"] == "exact_source_claim"
+    source = artifact_path.read_text(encoding="utf-8")
+    assert "theorem exact_source_claim" in source
+    assert "sorry" not in source
+    assert "_route_probe" not in source
+    assert "route probe" not in source.lower()
+    assert "ProofEngineer must fill the exact source-theorem proof body" in source
+    assert row["live_proof_state_request"]["target_lean_declaration"] == (
+        "exact_source_claim"
+    )
+
+
 def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> None:
     formalization_manifest = {
         "artifact_kind": "RuntimeFormalizationManifest",

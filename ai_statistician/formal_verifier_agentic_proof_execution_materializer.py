@@ -445,6 +445,8 @@ def _indent_lean_proof_body(proof_body: str) -> str:
     stripped = proof_body.strip()
     if not stripped:
         return "  -- ProofEngineer must fill the exact source-theorem proof body here."
+    if any(token in stripped for token in FORBIDDEN_ARTIFACT_TOKENS):
+        return "  -- ProofEngineer must fill the exact source-theorem proof body here."
     lines = stripped.splitlines()
     return "\n".join(
         line if line.startswith((" ", "\t")) else "  " + line
