@@ -39,6 +39,21 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
                 "work_order_id": "source_theorem_formal_environment_work_order:env",
                 "question_id": "split_conformal",
                 "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "source_theorem_target_known": True,
+                "source_theorem_route_id": "route:split_conformal_source",
+                "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
+                "source_theorem_statement": (
+                    "split conformal finite-sample marginal coverage under exchangeability"
+                ),
+                "source_theorem_skeleton": (
+                    "exchangeability -> uniform rank -> conformal coverage"
+                ),
+                "source_theorem_lean_file": "StatInference/Conformal/SplitCoverage.lean",
+                "semantic_alignment_constraints": [
+                    "preserve marginal coverage target",
+                    "do not strengthen exchangeability assumptions",
+                ],
                 "candidate_artifact_path": str(candidate_artifact),
                 "failure_classification": "formal_environment_symbol_missing",
                 "diagnostics": [
@@ -105,6 +120,18 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert repair_packet["artifact_kind"] == "SourceTheoremFormalEnvironmentRepairPacket"
     assert repair_packet["missing_formal_symbols"] == ["Exchangeable", "orderStat"]
     assert repair_packet["typeclass_blockers"] == ["HSub ℕ ℝ ENNReal"]
+    assert repair_packet["source_theorem_target_known"] is True
+    assert repair_packet["target_lean_declaration"] == "split_conformal_coverage"
+    assert repair_packet["source_theorem_target_provenance"][
+        "source_theorem_route_id"
+    ] == "route:split_conformal_source"
+    assert repair_packet["source_theorem_target_provenance"][
+        "source_theorem_statement"
+    ] == "split conformal finite-sample marginal coverage under exchangeability"
+    assert repair_packet["semantic_alignment_constraints"] == [
+        "preserve marginal coverage target",
+        "do not strengthen exchangeability assumptions",
+    ]
     assert repair_packet["repair_status"] == "FORMAL_ENVIRONMENT_REPAIR_REQUIRED"
     assert any("search Mathlib/StatInference" in row for row in repair_packet["proofengineer_action_plan"])
     declaration_hints = repair_packet["formal_environment_declaration_hints"]
@@ -141,6 +168,15 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     proof_body_work_order = json.loads(proof_body_rows_path.read_text(encoding="utf-8"))
     assert proof_body_work_order["artifact_kind"] == "ExactSourceTheoremProofBodyWorkOrder"
     assert proof_body_work_order["target_theorem_name"] == "split_conformal_coverage"
+    assert proof_body_work_order["target_lean_declaration"] == "split_conformal_coverage"
+    assert proof_body_work_order["source_theorem_target_known"] is True
+    assert proof_body_work_order["source_theorem_target_provenance"][
+        "source_theorem_goal_id"
+    ] == "split_conformal_finite_sample_coverage"
+    assert proof_body_work_order["semantic_alignment_constraints"] == [
+        "preserve marginal coverage target",
+        "do not strengthen exchangeability assumptions",
+    ]
     assert proof_body_work_order["proof_body_failure_classification"] == (
         "proof_body_incomplete"
     )
@@ -165,15 +201,33 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert execution_row["execution_status"] == "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
     assert execution_row["owner_agent"] == "FormalizerProofEngineer"
     assert execution_row["target_theorem_name"] == "split_conformal_coverage"
+    assert execution_row["expected_target_lean_declaration"] == (
+        "split_conformal_coverage"
+    )
+    assert execution_row["source_theorem_target_known"] is True
+    assert execution_row["source_theorem_target_provenance"][
+        "source_theorem_lean_file"
+    ] == "StatInference/Conformal/SplitCoverage.lean"
+    assert execution_row["semantic_alignment_constraints"] == [
+        "preserve marginal coverage target",
+        "do not strengthen exchangeability assumptions",
+    ]
     assert execution_row["live_goal_location_ready"] is True
     assert execution_row["target_lean_declaration"] == "split_conformal_coverage"
     assert execution_row["already_repaired_environment"]["missing_formal_symbols"] == [
         "Exchangeable",
         "orderStat",
     ]
+    assert execution_row["target_identity_status"] == "TARGET_DECLARATION_MATCHED"
     assert execution_row["live_proof_state_request"]["provider_preferences"][0] == (
         "lean_lsp_mcp"
     )
+    assert execution_row["live_proof_state_request"][
+        "expected_target_lean_declaration"
+    ] == "split_conformal_coverage"
+    assert execution_row["live_proof_state_request"][
+        "source_theorem_target_provenance"
+    ]["source_theorem_route_id"] == "route:split_conformal_source"
     assert {
         call["tool"] for call in execution_row["live_proof_state_request"]["mcp_tool_calls"]
     } >= {"lean_goal", "lean_diagnostic_messages", "lean_local_search", "lean_multi_attempt"}
@@ -207,6 +261,13 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert learning_row["input_summary"]["proof_body_execution_queue_rows"][0][
         "execution_status"
     ] == "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
+    assert learning_row["input_summary"]["source_theorem_target_provenance"][
+        "source_theorem_route_id"
+    ] == "route:split_conformal_source"
+    assert learning_row["semantic_alignment_constraints"] == [
+        "preserve marginal coverage target",
+        "do not strengthen exchangeability assumptions",
+    ]
     export_manifest = json.loads(
         Path(str(manifest["runtime_learning_export_manifest"])).read_text(
             encoding="utf-8"
@@ -305,3 +366,65 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     )
     assert cli_manifest["n_repair_packets"] == 1
     assert cli_manifest["runtime_learning_ready"] is True
+
+
+def test_proof_body_execution_queue_blocks_target_declaration_mismatch(
+    tmp_path: Path,
+) -> None:
+    candidate_artifact = tmp_path / "nearby_claim.lean"
+    candidate_artifact.write_text(
+        "import Mathlib\n\n"
+        "theorem nearby_claim : True := by\n"
+        "  fail_if_success trivial\n",
+        encoding="utf-8",
+    )
+    queue_jsonl = tmp_path / "runtime_source_theorem_formal_environment_work_orders.jsonl"
+    queue_jsonl.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "SourceTheoremFormalEnvironmentWorkOrder",
+                "work_order_id": "source_theorem_formal_environment_work_order:mismatch",
+                "target_theorem_name": "exact_source_claim",
+                "target_lean_declaration": "exact_source_claim",
+                "source_theorem_target_known": True,
+                "source_theorem_route_id": "route:exact_source_claim",
+                "candidate_artifact_path": str(candidate_artifact),
+                "failure_classification": "formal_environment_symbol_missing",
+                "diagnostics": ["Hint: The identifier `MissingPrimitive` is unknown."],
+                "missing_formal_symbols": ["MissingPrimitive"],
+                "typeclass_blockers": [],
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_formal_environment_proofengineer_bridge(
+        out_dir=tmp_path / "bridge",
+        queue_jsonl=queue_jsonl,
+        run_signature_probes=True,
+        lean_command=(
+            sys.executable,
+            "-c",
+            "import sys; print('unsolved goals'); sys.exit(1)",
+        ),
+    )
+
+    execution_queue_manifest = json.loads(
+        Path(str(manifest["proof_body_execution_queue_manifest"])).read_text(
+            encoding="utf-8"
+        )
+    )
+    execution_row = execution_queue_manifest["rows"][0]
+    assert execution_row["execution_status"] == (
+        "BLOCKED_EXACT_SOURCE_PROOF_BODY_TARGET_IDENTITY"
+    )
+    assert execution_row["live_goal_location_ready"] is False
+    assert execution_row["target_lean_declaration"] == "nearby_claim"
+    assert execution_row["expected_target_lean_declaration"] == "exact_source_claim"
+    assert execution_row["target_identity_status"] == "TARGET_DECLARATION_MISMATCH"
+    assert "nearby_claim" in execution_row["target_identity_errors"][0]
+    assert execution_row["live_proof_state_request"] == {}

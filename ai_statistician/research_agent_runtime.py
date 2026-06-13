@@ -4051,6 +4051,60 @@ _SOURCE_THEOREM_EXACT_CANDIDATE_ENVIRONMENT_FAILURES = frozenset(
     }
 )
 
+_SOURCE_THEOREM_TARGET_PROVENANCE_STRING_KEYS = (
+    "source_theorem_target_resolution_id",
+    "source_theorem_promotion_id",
+    "source_theorem_route_id",
+    "source_theorem_queue_item_id",
+    "source_theorem_replay_id",
+    "source_theorem_task_id",
+    "source_theorem_question_id",
+    "source_theorem_goal_id",
+    "source_theorem_statement",
+    "source_theorem_skeleton",
+    "source_theorem_lean_file",
+    "target_lean_declaration",
+    "artifact_verification_id",
+    "artifact_verifier_manifest",
+    "materialization_id",
+    "execution_queue_id",
+)
+
+
+def _source_theorem_target_provenance_from_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    sources: list[Mapping[str, Any]] = [row]
+    for nested_key in (
+        "source_theorem_target_provenance",
+        "source_theorem_target_context",
+        "kernel_overlay_context",
+        "overlay_row",
+    ):
+        nested = row.get(nested_key, {})
+        if isinstance(nested, Mapping):
+            sources.append(nested)
+    provenance: dict[str, Any] = {}
+    if any("source_theorem_target_known" in source for source in sources):
+        provenance["source_theorem_target_known"] = any(
+            bool(source.get("source_theorem_target_known", False))
+            for source in sources
+        )
+    constraints: list[str] = []
+    for source in sources:
+        for key in _SOURCE_THEOREM_TARGET_PROVENANCE_STRING_KEYS:
+            if key in provenance:
+                continue
+            value = str(source.get(key, "") or "").strip()
+            if value:
+                provenance[key] = value
+        constraints.extend(
+            str(value).strip()
+            for value in source.get("semantic_alignment_constraints", []) or []
+            if str(value).strip()
+        )
+    if constraints:
+        provenance["semantic_alignment_constraints"] = list(dict.fromkeys(constraints))
+    return provenance
+
 
 def _runtime_learning_row_trigger(
     row: Mapping[str, Any],
@@ -5133,6 +5187,19 @@ def _runtime_source_theorem_formal_environment_work_order_rows(
                     )
                     if str(value).strip()
                 ]
+                source_target_provenance = _source_theorem_target_provenance_from_row(
+                    repair
+                )
+                if question.get("id") and not source_target_provenance.get(
+                    "source_theorem_question_id"
+                ):
+                    source_target_provenance["source_theorem_question_id"] = str(
+                        question.get("id", "")
+                    )
+                semantic_alignment_constraints = list(
+                    source_target_provenance.get("semantic_alignment_constraints", [])
+                    or []
+                )
                 work_order_id = "source_theorem_formal_environment_work_order:" + stable_hash(
                     [
                         artifact.get("manifest_id", ""),
@@ -5140,6 +5207,7 @@ def _runtime_source_theorem_formal_environment_work_order_rows(
                         candidate_artifact_path,
                         failure_classification,
                         diagnostics,
+                        source_target_provenance,
                     ]
                 )[:20]
                 if work_order_id in seen:
@@ -5156,7 +5224,19 @@ def _runtime_source_theorem_formal_environment_work_order_rows(
                         "question_id": str(question.get("id", "") or ""),
                         "question_title": str(question.get("title", "") or ""),
                         "target_theorem_name": target_theorem_name,
+                        "target_lean_declaration": str(
+                            source_target_provenance.get("target_lean_declaration", "")
+                            or target_theorem_name
+                        ),
                         "candidate_artifact_path": candidate_artifact_path,
+                        "source_theorem_target_known": bool(
+                            source_target_provenance.get(
+                                "source_theorem_target_known",
+                                False,
+                            )
+                        ),
+                        "source_theorem_target_provenance": source_target_provenance,
+                        "semantic_alignment_constraints": semantic_alignment_constraints,
                         "failure_classification": failure_classification,
                         "diagnostics": diagnostics,
                         "missing_formal_symbols": missing_symbols,
@@ -5389,6 +5469,21 @@ def _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_pa
         artifact_verification_id = str(
             row.get("artifact_verification_id", "") or ""
         ).strip()
+        source_target_provenance = _source_theorem_target_provenance_from_row(row)
+        source_target_provenance["source_theorem_target_known"] = True
+        if artifact_verification_id and not source_target_provenance.get(
+            "artifact_verification_id"
+        ):
+            source_target_provenance["artifact_verification_id"] = artifact_verification_id
+        if artifact_verifier_manifest and not source_target_provenance.get(
+            "artifact_verifier_manifest"
+        ):
+            source_target_provenance["artifact_verifier_manifest"] = (
+                artifact_verifier_manifest
+            )
+        semantic_alignment_constraints = list(
+            source_target_provenance.get("semantic_alignment_constraints", []) or []
+        )
         work_order_id = "source_theorem_formal_environment_work_order:" + stable_hash(
             [
                 artifact_verification_id,
@@ -5396,6 +5491,7 @@ def _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_pa
                 candidate_artifact_path,
                 failure_classification,
                 diagnostics[:8],
+                source_target_provenance,
             ]
         )[:20]
         if work_order_id in seen:
@@ -5410,7 +5506,14 @@ def _source_theorem_formal_environment_work_order_rows_from_artifact_verifier_pa
                 "artifact_verification_id": artifact_verification_id,
                 "artifact_verifier_manifest": artifact_verifier_manifest,
                 "target_theorem_name": target_theorem_name,
+                "target_lean_declaration": str(
+                    source_target_provenance.get("target_lean_declaration", "")
+                    or target_theorem_name
+                ),
                 "candidate_artifact_path": candidate_artifact_path,
+                "source_theorem_target_known": True,
+                "source_theorem_target_provenance": source_target_provenance,
+                "semantic_alignment_constraints": semantic_alignment_constraints,
                 "failure_classification": failure_classification,
                 "diagnostics": diagnostics[:8],
                 "missing_formal_symbols": context["missing_formal_symbols"],

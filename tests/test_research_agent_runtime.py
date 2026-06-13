@@ -2085,8 +2085,18 @@ def test_formal_environment_work_order_names_missing_symbols_and_typeclass_block
                 "artifact_verification_id": "artifact_verifier:source_env_gap",
                 "target_theorem_name": "split_conformal_source_theorem",
                 "target_lean_declaration": "split_conformal_source_theorem",
-                "candidate_artifact_path": "/tmp/split_conformal_source_theorem.lean",
                 "source_theorem_target_known": True,
+                "source_theorem_target_resolution_id": "target_resolution:split",
+                "source_theorem_route_id": "route:split_conformal_source",
+                "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
+                "source_theorem_statement": (
+                    "split conformal source coverage theorem"
+                ),
+                "source_theorem_lean_file": "StatInference/Conformal/SplitCoverage.lean",
+                "semantic_alignment_constraints": [
+                    "preserve exact source theorem target"
+                ],
+                "candidate_artifact_path": "/tmp/split_conformal_source_theorem.lean",
                 "source_theorem_kernel_verified": False,
                 "failure_classification": "formal_environment_symbol_missing",
                 "diagnostics": [
@@ -2107,6 +2117,20 @@ def test_formal_environment_work_order_names_missing_symbols_and_typeclass_block
 
     assert len(work_orders) == 1
     work_order = work_orders[0]
+    assert work_order["target_lean_declaration"] == "split_conformal_source_theorem"
+    assert work_order["source_theorem_target_known"] is True
+    assert work_order["source_theorem_target_provenance"][
+        "source_theorem_target_resolution_id"
+    ] == "target_resolution:split"
+    assert work_order["source_theorem_target_provenance"][
+        "source_theorem_route_id"
+    ] == "route:split_conformal_source"
+    assert work_order["source_theorem_target_provenance"][
+        "source_theorem_statement"
+    ] == "split conformal source coverage theorem"
+    assert work_order["semantic_alignment_constraints"] == [
+        "preserve exact source theorem target"
+    ]
     assert work_order["missing_formal_symbols"] == ["Exchangeable", "orderStat"]
     assert work_order["typeclass_blockers"] == ["HSub ℕ ℝ ENNReal"]
     assert any(

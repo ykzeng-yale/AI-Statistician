@@ -54,6 +54,24 @@ PROOF_BODY_EXECUTION_QUEUE_BOUNDARY = (
     "are not theorem proof evidence; only a later local Lean/AXLE verifier row "
     "can promote a completed candidate."
 )
+SOURCE_THEOREM_TARGET_PROVENANCE_STRING_KEYS = (
+    "source_theorem_target_resolution_id",
+    "source_theorem_promotion_id",
+    "source_theorem_route_id",
+    "source_theorem_queue_item_id",
+    "source_theorem_replay_id",
+    "source_theorem_task_id",
+    "source_theorem_question_id",
+    "source_theorem_goal_id",
+    "source_theorem_statement",
+    "source_theorem_skeleton",
+    "source_theorem_lean_file",
+    "target_lean_declaration",
+    "artifact_verification_id",
+    "artifact_verifier_manifest",
+    "materialization_id",
+    "execution_queue_id",
+)
 
 
 @dataclass(frozen=True)
@@ -270,6 +288,14 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
     typeclass_blockers = _str_list(row.get("typeclass_blockers", []) or [])
     recommended_tasks = _str_list(row.get("recommended_repair_tasks", []) or [])
     candidate_artifact_path = str(row.get("candidate_artifact_path", "") or "").strip()
+    source_target_provenance = _source_theorem_target_provenance(row)
+    target_lean_declaration = str(
+        source_target_provenance.get("target_lean_declaration", "")
+        or target_theorem_name
+    ).strip()
+    semantic_alignment_constraints = _str_list(
+        source_target_provenance.get("semantic_alignment_constraints", []) or []
+    )
     declaration_hints = _formal_environment_declaration_hints(missing_symbols)
     statement_hints = _statement_repair_hints(typeclass_blockers)
     signature_probe_plan = _lean_signature_probe_plan(
@@ -294,7 +320,13 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
         "question_id": str(row.get("question_id", "") or ""),
         "question_title": str(row.get("question_title", "") or ""),
         "target_theorem_name": target_theorem_name,
+        "target_lean_declaration": target_lean_declaration,
         "candidate_artifact_path": candidate_artifact_path,
+        "source_theorem_target_known": bool(
+            source_target_provenance.get("source_theorem_target_known", False)
+        ),
+        "source_theorem_target_provenance": source_target_provenance,
+        "semantic_alignment_constraints": semantic_alignment_constraints,
         "artifact_verification_id": str(row.get("artifact_verification_id", "") or ""),
         "artifact_verifier_manifest": str(row.get("artifact_verifier_manifest", "") or ""),
         "failure_classification": str(row.get("failure_classification", "") or ""),
@@ -328,6 +360,37 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
         "boundary": BOUNDARY,
     }
+
+
+def _source_theorem_target_provenance(row: Mapping[str, Any]) -> dict[str, Any]:
+    sources: list[Mapping[str, Any]] = [row]
+    for nested_key in (
+        "source_theorem_target_provenance",
+        "source_theorem_target_context",
+        "kernel_overlay_context",
+        "overlay_row",
+    ):
+        nested = row.get(nested_key, {})
+        if isinstance(nested, Mapping):
+            sources.append(nested)
+    provenance: dict[str, Any] = {}
+    if any("source_theorem_target_known" in source for source in sources):
+        provenance["source_theorem_target_known"] = any(
+            bool(source.get("source_theorem_target_known", False))
+            for source in sources
+        )
+    constraints: list[str] = []
+    for source in sources:
+        for key in SOURCE_THEOREM_TARGET_PROVENANCE_STRING_KEYS:
+            if key in provenance:
+                continue
+            value = str(source.get(key, "") or "").strip()
+            if value:
+                provenance[key] = value
+        constraints.extend(_str_list(source.get("semantic_alignment_constraints", []) or []))
+    if constraints:
+        provenance["semantic_alignment_constraints"] = list(dict.fromkeys(constraints))
+    return provenance
 
 
 def _proofengineer_action_plan(
@@ -908,6 +971,19 @@ def _proof_body_work_order(
         or repair_packet.get("target_theorem_name", "")
         or ""
     )
+    source_target_provenance = dict(
+        repair_packet.get("source_theorem_target_provenance", {}) or {}
+    )
+    semantic_alignment_constraints = _str_list(
+        repair_packet.get("semantic_alignment_constraints", [])
+        or source_target_provenance.get("semantic_alignment_constraints", [])
+        or []
+    )
+    target_lean_declaration = str(
+        repair_packet.get("target_lean_declaration", "")
+        or source_target_provenance.get("target_lean_declaration", "")
+        or target_theorem_name
+    )
     diagnostics = _str_list(probe_row.get("diagnostics", []) or [])
     work_order_id = "exact_source_theorem_proof_body_work_order:" + stable_hash(
         [
@@ -928,6 +1004,13 @@ def _proof_body_work_order(
             probe_row.get("signature_probe_status", "") or ""
         ),
         "target_theorem_name": target_theorem_name,
+        "target_lean_declaration": target_lean_declaration,
+        "source_theorem_target_known": bool(
+            repair_packet.get("source_theorem_target_known", False)
+            or source_target_provenance.get("source_theorem_target_known", False)
+        ),
+        "source_theorem_target_provenance": source_target_provenance,
+        "semantic_alignment_constraints": semantic_alignment_constraints,
         "source_candidate_artifact_path": str(
             probe_row.get("source_candidate_artifact_path", "")
             or repair_packet.get("candidate_artifact_path", "")
@@ -955,6 +1038,7 @@ def _proof_body_work_order(
             "replace only the AI_STAT_EVOLVE_BLOCK proof body with a non-placeholder proof",
             "reuse existing kernel-verified conformal bridge lemmas when available",
             "search Mathlib/StatInference/local Lean sources before inventing helper lemmas",
+            "preserve source theorem target provenance and semantic alignment constraints",
             "rerun local Lean/AXLE on the repaired exact source theorem artifact",
         ],
         "forbidden_actions": [
@@ -1050,8 +1134,19 @@ def _proof_body_execution_queue_row(
 ) -> dict[str, Any]:
     work_order_id = str(work_order.get("work_order_id", "") or "")
     target = str(work_order.get("target_theorem_name", "") or "")
+    expected_target_declaration = str(
+        work_order.get("target_lean_declaration", "") or target
+    )
     signature_artifact_path = str(work_order.get("signature_probe_artifact_path", "") or "")
     source_artifact_path = str(work_order.get("source_candidate_artifact_path", "") or "")
+    source_target_provenance = dict(
+        work_order.get("source_theorem_target_provenance", {}) or {}
+    )
+    semantic_alignment_constraints = _str_list(
+        work_order.get("semantic_alignment_constraints", [])
+        or source_target_provenance.get("semantic_alignment_constraints", [])
+        or []
+    )
     safe = _safe_file_stem(target or work_order_id)
     queue_id = "exact_source_theorem_proof_body_execution_queue:" + stable_hash(
         [work_order_id, target, signature_artifact_path]
@@ -1059,11 +1154,22 @@ def _proof_body_execution_queue_row(
     candidate_artifact_path = candidate_dir / f"{safe}_proof_body_attempt.lean"
     transcript_path = transcript_dir / f"{safe}_proof_body_attempt.jsonl"
     location = _lean_goal_location(Path(signature_artifact_path))
-    live_ready = bool(location["target_lean_file"] and location["target_lean_line"])
+    target_identity_errors = _target_identity_errors(
+        expected_target_declaration=expected_target_declaration,
+        location=location,
+    )
+    live_ready = (
+        bool(location["target_lean_file"] and location["target_lean_line"])
+        and not target_identity_errors
+    )
     status = (
         "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER"
         if live_ready
-        else "BLOCKED_EXACT_SOURCE_PROOF_BODY_TARGET_LOCATION"
+        else (
+            "BLOCKED_EXACT_SOURCE_PROOF_BODY_TARGET_IDENTITY"
+            if target_identity_errors
+            else "BLOCKED_EXACT_SOURCE_PROOF_BODY_TARGET_LOCATION"
+        )
     )
     live_request = (
         _proof_body_live_proof_state_request(
@@ -1083,6 +1189,13 @@ def _proof_body_execution_queue_row(
             work_order.get("source_signature_probe_id", "") or ""
         ),
         "target_theorem_name": target,
+        "expected_target_lean_declaration": expected_target_declaration,
+        "source_theorem_target_known": bool(
+            work_order.get("source_theorem_target_known", False)
+            or source_target_provenance.get("source_theorem_target_known", False)
+        ),
+        "source_theorem_target_provenance": source_target_provenance,
+        "semantic_alignment_constraints": semantic_alignment_constraints,
         "owner_agent": "FormalizerProofEngineer",
         "action_class": "fill_exact_source_theorem_proof_body",
         "source_candidate_artifact_path": source_artifact_path,
@@ -1093,6 +1206,12 @@ def _proof_body_execution_queue_row(
         "target_lean_line": int(location["target_lean_line"]),
         "target_lean_column": int(location["target_lean_column"]),
         "target_lean_declaration": str(location["target_lean_declaration"]),
+        "target_identity_status": (
+            "TARGET_DECLARATION_MATCHED"
+            if not target_identity_errors
+            else "TARGET_DECLARATION_MISMATCH"
+        ),
+        "target_identity_errors": target_identity_errors,
         "live_goal_location_ready": live_ready,
         "live_proof_state_request": live_request,
         "already_repaired_environment": dict(
@@ -1133,6 +1252,21 @@ def _proof_body_execution_queue_row(
         "proof_evidence_status": PROOF_BODY_EXECUTION_QUEUE_PROOF_EVIDENCE_STATUS,
         "boundary": PROOF_BODY_EXECUTION_QUEUE_BOUNDARY,
     }
+
+
+def _target_identity_errors(
+    *,
+    expected_target_declaration: str,
+    location: Mapping[str, object],
+) -> list[str]:
+    expected = str(expected_target_declaration or "").strip()
+    observed = str(location.get("target_lean_declaration", "") or "").strip()
+    if expected and observed and expected != observed:
+        return [
+            "signature probe declaration "
+            f"`{observed}` does not match expected exact source target `{expected}`"
+        ]
+    return []
 
 
 def _lean_goal_location(path: Path) -> dict[str, object]:
@@ -1181,6 +1315,14 @@ def _proof_body_live_proof_state_request(
     work_order: Mapping[str, Any],
     location: Mapping[str, object],
 ) -> dict[str, object]:
+    source_target_provenance = dict(
+        work_order.get("source_theorem_target_provenance", {}) or {}
+    )
+    semantic_alignment_constraints = _str_list(
+        work_order.get("semantic_alignment_constraints", [])
+        or source_target_provenance.get("semantic_alignment_constraints", [])
+        or []
+    )
     request_id = "exact_source_theorem_proof_body_live_goal:" + stable_hash(
         [
             queue_id,
@@ -1219,6 +1361,17 @@ def _proof_body_live_proof_state_request(
         "target_lean_line": int(location.get("target_lean_line", 0) or 0),
         "target_lean_column": int(location.get("target_lean_column", 0) or 0),
         "target_lean_declaration": str(location.get("target_lean_declaration", "")),
+        "expected_target_lean_declaration": str(
+            work_order.get("target_lean_declaration", "")
+            or work_order.get("target_theorem_name", "")
+            or ""
+        ),
+        "source_theorem_target_known": bool(
+            work_order.get("source_theorem_target_known", False)
+            or source_target_provenance.get("source_theorem_target_known", False)
+        ),
+        "source_theorem_target_provenance": source_target_provenance,
+        "semantic_alignment_constraints": semantic_alignment_constraints,
         "proof_body_goal_excerpt": list(work_order.get("proof_body_goal_excerpt", []) or []),
         "proof_evidence_status": "LIVE_PROOF_STATE_REQUEST_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": (
@@ -1284,6 +1437,18 @@ def _export_runtime_learning_rows(
                     "source_work_order_id": str(packet.get("source_work_order_id", "") or ""),
                     "repair_packet_id": str(packet.get("repair_packet_id", "") or ""),
                     "target_theorem_name": str(packet.get("target_theorem_name", "") or ""),
+                    "target_lean_declaration": str(
+                        packet.get("target_lean_declaration", "") or ""
+                    ),
+                    "source_theorem_target_known": bool(
+                        packet.get("source_theorem_target_known", False)
+                    ),
+                    "source_theorem_target_provenance": dict(
+                        packet.get("source_theorem_target_provenance", {}) or {}
+                    ),
+                    "semantic_alignment_constraints": list(
+                        packet.get("semantic_alignment_constraints", []) or []
+                    ),
                     "candidate_artifact_path": str(packet.get("candidate_artifact_path", "") or ""),
                     "failure_classification": str(packet.get("failure_classification", "") or ""),
                     "missing_formal_symbols": list(packet.get("missing_formal_symbols", []) or []),
@@ -1329,6 +1494,16 @@ def _export_runtime_learning_rows(
                     "source_theorem_kernel_verified": False,
                 },
                 "target_theorem_name": str(packet.get("target_theorem_name", "") or ""),
+                "target_lean_declaration": str(packet.get("target_lean_declaration", "") or ""),
+                "source_theorem_target_known": bool(
+                    packet.get("source_theorem_target_known", False)
+                ),
+                "source_theorem_target_provenance": dict(
+                    packet.get("source_theorem_target_provenance", {}) or {}
+                ),
+                "semantic_alignment_constraints": list(
+                    packet.get("semantic_alignment_constraints", []) or []
+                ),
                 "source_work_order_id": str(packet.get("source_work_order_id", "") or ""),
                 "repair_packet_id": str(packet.get("repair_packet_id", "") or ""),
                 "missing_formal_symbols": list(packet.get("missing_formal_symbols", []) or []),
