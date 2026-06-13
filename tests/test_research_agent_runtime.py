@@ -1468,7 +1468,11 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
             {
                 "id": "split_conformal_finite_sample_coverage_lean",
                 "informal_source": "split conformal finite-sample coverage",
-                "lean_statement_sketch": "theorem split_conformal_coverage : True := by trivial",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_coverage (coverage_claim : Prop) "
+                    "(h_coverage : coverage_claim) : coverage_claim := by "
+                    "exact h_coverage"
+                ),
                 "semantic_alignment_constraints": ["marginal coverage only"],
             }
         ],
@@ -1503,7 +1507,7 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     )
     materializer_payload = export_formal_verifier_agentic_proof_execution_materializer(
         materialization_seed_queue_dir,
-        tmp_path / "materialized_source_theorem_promotion_route_probe",
+        tmp_path / "materialized_source_theorem_promotion_exact_target",
     )
     bridge_payload = _run_runtime_source_theorem_promotion_proofengineer_bridge(
         seed_queue_dir=materialization_seed_queue_dir,
@@ -1553,6 +1557,16 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     assert materialization_seed_rows[0]["population_bucket"] == (
         "source_theorem_promotion_attempt"
     )
+    assert materialization_seed_rows[0]["strategy_id"] == (
+        "runtime_source_theorem_promotion_exact_target_attempt"
+    )
+    assert materialization_seed_rows[0]["source_theorem_materialization_mode"] == (
+        "exact_source_theorem_candidate"
+    )
+    assert materialization_seed_rows[0]["lean_statement_sketch"] == (
+        "theorem split_conformal_coverage (coverage_claim : Prop) "
+        "(h_coverage : coverage_claim) : coverage_claim := by exact h_coverage"
+    )
     assert materialization_seed_rows[0]["candidate_bridge_lemma_name"] == (
         "split_conformal_coverage"
     )
@@ -1564,12 +1578,26 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         "MATERIALIZATION_SEED_QUEUE_NOT_PROOF_EVIDENCE"
     )
     assert materializer_payload["n_materialized_artifacts"] == 1
+    assert materializer_payload["n_exact_source_theorem_candidate_artifacts"] == 1
+    assert materializer_payload["n_route_probe_artifacts"] == 0
     assert materializer_payload["n_live_goal_location_ready"] == 1
     assert materializer_payload["n_kernel_verified"] == 0
     assert materializer_payload["proof_evidence_status"] == (
         "AGENTIC_PROOF_EXECUTION_MATERIALIZER_NOT_PROOF_EVIDENCE"
     )
     assert materializer_payload["rows"][0]["kernel_verified"] is False
+    assert materializer_payload["rows"][0]["materialization_mode"] == (
+        "exact_source_theorem_candidate"
+    )
+    assert materializer_payload["rows"][0]["target_lean_declaration"] == (
+        "split_conformal_coverage"
+    )
+    exact_source_text = Path(
+        materializer_payload["rows"][0]["candidate_artifact_path"]
+    ).read_text(encoding="utf-8")
+    assert "theorem split_conformal_coverage" in exact_source_text
+    assert "_route_probe" not in exact_source_text
+    assert "route probe" not in exact_source_text.lower()
     assert bridge_payload["n_materialized_artifacts"] == 1
     assert bridge_payload["n_artifact_kernel_verified"] == 0
     assert bridge_payload["n_source_theorem_kernel_verified"] == 0
@@ -1582,6 +1610,49 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     assert bridge_payload["n_source_theorem_integration_rows"] == 0
     assert bridge_payload["n_source_theorem_integration_blocked_route_probe"] == 0
     assert _runtime_source_theorem_promotion_bridge_learning_rows(bridge_payload) == []
+
+    materialized_integrator_queue_dir = tmp_path / "materialized_exact_integrator_queue"
+    materialized_integrator_queue_dir.mkdir()
+    (
+        materialized_integrator_queue_dir
+        / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "rows": [
+                    {
+                        "schema_version": 1,
+                        "source_theorem_promotion_id": (
+                            "source_theorem_promotion:materialized_exact"
+                        ),
+                        "promotion_status": "READY_FOR_SOURCE_THEOREM_INTEGRATION",
+                        "target_theorem_name": "split_conformal_coverage",
+                        "candidate_artifact_path": str(
+                            materializer_payload["rows"][0]["candidate_artifact_path"]
+                        ),
+                        "artifact_kernel_verified": True,
+                        "source_theorem_target_known": True,
+                        "source_theorem_kernel_verified": False,
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    materialized_integrator_payload = (
+        export_formal_verifier_agentic_proof_source_theorem_integrator(
+            materialized_integrator_queue_dir,
+            tmp_path / "materialized_exact_source_theorem_integrator",
+            local_lean=False,
+        )
+    )
+    assert materialized_integrator_payload["n_ready_for_local_lean"] == 1
+    assert materialized_integrator_payload["n_blocked_route_probe"] == 0
+    assert materialized_integrator_payload["rows"][0]["integration_status"] == (
+        "EXACT_SOURCE_THEOREM_READY_FOR_LOCAL_LEAN"
+    )
 
     ready_queue_dir = (
         tmp_path

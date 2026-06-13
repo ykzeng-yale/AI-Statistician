@@ -4854,6 +4854,9 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             for value in item.get("target_theorem_goal_ids", []) or []
             if str(value).strip()
         ]
+        lean_statement_sketch = str(
+            item.get("lean_statement_sketch", "") or ""
+        ).strip()
         semantic_constraints = [
             str(value)
             for value in item.get("semantic_alignment_constraints", []) or []
@@ -4872,7 +4875,7 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             "population_entry_id": "runtime_source_theorem_promotion:" + seed_hash,
             "safety_policy_id": "runtime_source_theorem_promotion_materialization_seed",
             "candidate_evaluation_id": "runtime_source_theorem_promotion:" + seed_hash,
-            "strategy_id": "runtime_source_theorem_promotion_route_probe",
+            "strategy_id": "runtime_source_theorem_promotion_exact_target_attempt",
             "followup_id": handoff_id,
             "residual_obligation_id": work_order_id or source_target_id,
             "source_theorem_promotion_handoff_id": handoff_id,
@@ -4887,17 +4890,19 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             "question_title": str(item.get("question_title", "") or ""),
             "source_formal_target_id": source_target_id,
             "display_name": (
-                "Materialize source-theorem promotion route probe for "
+                "Materialize exact source-theorem candidate for "
                 + (target_lean_declaration or source_target_id or "source theorem")
             ),
             "target_theorem_name": target_lean_declaration or source_target_id,
             "candidate_bridge_lemma_name": target_lean_declaration,
+            "lean_statement_sketch": lean_statement_sketch,
             "residual_gap": (
                 "exact source-theorem proof artifact must be materialized and "
                 "kernel verified before source-theorem promotion"
             ),
             "action_class": "materialize_source_theorem_promotion_candidate_artifact",
             "generation_mode": "runtime_source_theorem_promotion_materialization_seed",
+            "source_theorem_materialization_mode": "exact_source_theorem_candidate",
             "population_bucket": "source_theorem_promotion_attempt",
             "goal_cache_key": "runtime_source_theorem_promotion:" + (
                 target_lean_declaration or source_target_id or seed_hash
@@ -4931,8 +4936,9 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
                     "artifact_kernel_verified_before_source_theorem_promotion",
                 ],
                 "source_theorem_boundary": (
-                    "The materialized route probe is proof-worker input only; "
-                    "it is not the source theorem proof."
+                    "The materialized artifact must use the exact source-theorem "
+                    "declaration from the Formalizer sketch. It is only proof "
+                    "evidence after downstream local Lean/AXLE verification."
                 ),
             },
             "candidate_artifact_path": str(candidate_artifact_path),
@@ -4966,13 +4972,14 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
                 "lean_multi_attempt",
             ],
             "proof_route_dag_plan": [
-                "materialize route probe with existing kernel-verified closure and semantic bridge memory",
+                "materialize the exact source-theorem declaration from the Formalizer sketch",
                 "inspect live Lean goal before changing proof body",
                 "do not promote until exact source theorem artifact is kernel verified",
             ],
             "verified_sketch_gate_plan": [
-                "candidate artifact is only a route probe",
+                "candidate artifact declaration matches the source theorem target",
                 "artifact verifier must report artifact_kernel_verified=true before source theorem promotion",
+                "source theorem integrator must reject route probes or target-as-assumption shortcuts",
             ],
             "blueprint_export_plan": [
                 "label this row as proof-worker input, not proof evidence",
@@ -4985,7 +4992,7 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             ],
             "required_static_checks": [
                 "candidate artifact has no sorry/admit/axiom/unsafe tokens",
-                "candidate route probe does not restate an unverified source theorem as proven",
+                "candidate exact theorem does not restate the target as a True assumption",
                 "source theorem promotion remains blocked until artifact verifier accepts",
             ],
             "required_dynamic_checks": [
@@ -4995,7 +5002,7 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
                 "source-theorem promotion queue exact-target review",
             ],
             "output_contract": [
-                "write a bounded Lean route-probe artifact at candidate_artifact_path",
+                "write an exact-source-theorem Lean candidate artifact at candidate_artifact_path",
                 "write execution transcript and live proof-state request",
                 "mark proof evidence only after artifact verifier and source-theorem promotion succeed",
             ],

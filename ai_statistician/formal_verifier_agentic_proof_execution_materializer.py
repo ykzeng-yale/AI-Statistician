@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -41,6 +42,7 @@ class FormalVerifierAgenticProofExecutionMaterializerRow:
     target_lean_column: int
     target_lean_declaration: str
     source_theorem_target_known: bool
+    materialization_mode: str
     evolve_block_start_line: int
     evolve_block_end_line: int
     target_blockers: tuple[str, ...]
@@ -112,6 +114,14 @@ def export_formal_verifier_agentic_proof_execution_materializer(
             in row.live_proof_state_request.get("provider_preferences", ())
         ),
         "n_kernel_verified": sum(1 for row in rows if row.kernel_verified),
+        "n_exact_source_theorem_candidate_artifacts": sum(
+            1
+            for row in rows
+            if row.materialization_mode == "exact_source_theorem_candidate"
+        ),
+        "n_route_probe_artifacts": sum(
+            1 for row in rows if row.materialization_mode == "route_probe"
+        ),
         "n_ok": sum(1 for row in rows if row.ok),
         "all_ok": not errors and all(row.ok for row in rows),
         "errors": errors,
@@ -122,7 +132,8 @@ def export_formal_verifier_agentic_proof_execution_materializer(
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
         "limitations": [
             "materialized artifacts are proof-worker inputs, not verified theorem outputs",
-            "the generated route probe states a bounded work contract, not the source theorem",
+            "ordinary proof-worker rows still materialize route probes as operational work contracts",
+            "source-theorem promotion rows materialize exact theorem candidates only when a statement sketch is present",
             "kernel_verified is false until a separate Lean/AXLE verifier accepts the artifact",
         ],
     }
@@ -172,6 +183,7 @@ def _materializer_row(
     source_theorem_target_known = bool(
         kernel_overlay_context.get("source_theorem_target_known", False)
     )
+    materialization_mode = _materialization_mode(row)
     materialization_id = (
         "formal_verifier_agentic_proof_execution_materializer:"
         + stable_hash([execution_queue_id, candidate_artifact_path])[:16]
@@ -187,9 +199,18 @@ def _materializer_row(
     target_lean_column = 0
     evolve_start = 0
     evolve_end = 0
-    target_lean_declaration = _safe_identifier(
-        candidate_bridge_lemma_name or display_name or "agentic_proof_candidate",
-        suffix="_route_probe",
+    target_lean_declaration = (
+        _safe_identifier(
+            target_theorem_name
+            or candidate_bridge_lemma_name
+            or display_name
+            or "source_theorem_candidate",
+        )
+        if materialization_mode == "exact_source_theorem_candidate"
+        else _safe_identifier(
+            candidate_bridge_lemma_name or display_name or "agentic_proof_candidate",
+            suffix="_route_probe",
+        )
     )
     status = "MATERIALIZATION_BLOCKED"
     forbidden_tokens_found: tuple[str, ...] = ()
@@ -197,6 +218,17 @@ def _materializer_row(
     if population_bucket == "source_discovery_attempt":
         status = "SOURCE_DISCOVERY_ROW_NOT_MATERIALIZED"
     elif not errors:
+        if (
+            materialization_mode == "exact_source_theorem_candidate"
+            and not str(row.get("lean_statement_sketch", "") or "").strip()
+        ):
+            errors.append("lean_statement_sketch missing for exact source theorem candidate")
+        if (
+            materialization_mode == "exact_source_theorem_candidate"
+            and not source_theorem_target_known
+        ):
+            errors.append("source theorem target is not resolved")
+    if not errors and population_bucket != "source_discovery_attempt":
         candidate_artifact_path.parent.mkdir(parents=True, exist_ok=True)
         execution_transcript_path.parent.mkdir(parents=True, exist_ok=True)
         if candidate_artifact_path.exists() and not overwrite:
@@ -208,6 +240,7 @@ def _materializer_row(
                 row=row,
                 target_blockers=target_blockers,
                 reused_subclaims=reused_subclaims,
+                materialization_mode=materialization_mode,
             )
             candidate_artifact_path.write_text(source, encoding="utf-8")
             status = "MATERIALIZED_LEAN_ARTIFACT"
@@ -270,6 +303,7 @@ def _materializer_row(
         target_lean_column=target_lean_column,
         target_lean_declaration=target_lean_declaration,
         source_theorem_target_known=source_theorem_target_known,
+        materialization_mode=materialization_mode,
         evolve_block_start_line=evolve_start,
         evolve_block_end_line=evolve_end,
         target_blockers=target_blockers,
@@ -296,7 +330,14 @@ def _candidate_source(
     row: dict[str, Any],
     target_blockers: tuple[str, ...],
     reused_subclaims: tuple[str, ...],
+    materialization_mode: str,
 ) -> str:
+    if materialization_mode == "exact_source_theorem_candidate":
+        return _exact_source_theorem_candidate_source(
+            declaration_name=declaration_name,
+            row=row,
+            reused_subclaims=reused_subclaims,
+        )
     props = tuple(dict.fromkeys(reused_subclaims + target_blockers)) or (
         "open_residual_goal",
     )
@@ -325,6 +366,89 @@ def _candidate_source(
         "  exact True.intro\n"
         "  -- AI_STAT_EVOLVE_BLOCK_END\n\n"
         "end AIStatisticianAgenticProofExecution\n"
+    )
+
+
+def _materialization_mode(row: dict[str, Any]) -> str:
+    explicit = str(
+        row.get("source_theorem_materialization_mode")
+        or row.get("materialization_mode")
+        or ""
+    )
+    if explicit == "exact_source_theorem_candidate":
+        return "exact_source_theorem_candidate"
+    if str(row.get("strategy_id", "") or "") == (
+        "runtime_source_theorem_promotion_exact_target_attempt"
+    ):
+        return "exact_source_theorem_candidate"
+    return "route_probe"
+
+
+def _exact_source_theorem_candidate_source(
+    *,
+    declaration_name: str,
+    row: dict[str, Any],
+    reused_subclaims: tuple[str, ...],
+) -> str:
+    sketch = str(row.get("lean_statement_sketch", "") or "").strip()
+    metadata = {
+        "execution_queue_id": row.get("execution_queue_id", ""),
+        "target_theorem_name": row.get("target_theorem_name", ""),
+        "residual_gap": row.get("residual_gap", ""),
+        "materialization_mode": "exact_source_theorem_candidate",
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+    }
+    metadata_lines = "\n".join(
+        f"-- {key}: {value}" for key, value in metadata.items() if value
+    )
+    support_lines = "\n".join(
+        f"-- kernel_verified_support: {item}" for item in reused_subclaims
+    )
+    body = _lean_statement_with_evolve_block(sketch)
+    return (
+        "/-!\n"
+        "Bounded Lean exact-source-theorem candidate artifact.\n"
+        "Downstream local Lean/AXLE verification decides whether this exact declaration is proof evidence.\n"
+        "-/\n\n"
+        f"{metadata_lines}\n"
+        f"{support_lines}\n"
+        f"{body}\n"
+    )
+
+
+def _lean_statement_with_evolve_block(statement: str) -> str:
+    if "AI_STAT_EVOLVE_BLOCK_START" in statement:
+        return statement.rstrip() + "\n"
+    match = re.search(r":=\s*by\b", statement)
+    if match is None:
+        return (
+            statement.rstrip()
+            + " := by\n"
+            + "  -- AI_STAT_EVOLVE_BLOCK_START\n"
+            + "  -- ProofEngineer must fill the exact source-theorem proof body here.\n"
+            + "  -- AI_STAT_EVOLVE_BLOCK_END\n"
+        )
+    prefix = statement[: match.end()].rstrip()
+    proof_body = statement[match.end() :].strip("\n")
+    proof_lines = _indent_lean_proof_body(proof_body)
+    return (
+        prefix
+        + "\n"
+        + "  -- AI_STAT_EVOLVE_BLOCK_START\n"
+        + proof_lines
+        + "\n"
+        + "  -- AI_STAT_EVOLVE_BLOCK_END\n"
+    )
+
+
+def _indent_lean_proof_body(proof_body: str) -> str:
+    stripped = proof_body.strip()
+    if not stripped:
+        return "  -- ProofEngineer must fill the exact source-theorem proof body here."
+    lines = stripped.splitlines()
+    return "\n".join(
+        line if line.startswith((" ", "\t")) else "  " + line
+        for line in lines
     )
 
 
