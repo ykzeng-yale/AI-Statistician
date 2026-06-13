@@ -434,10 +434,15 @@ standalone-route primitives. Every primitive used by either the top-level
 top-level `primitive_costs` witness row. Each route option's `route_cost` must
 also be auditable: it either equals the sum of those global cost rows for its
 `selected_primitives`, or the route option carries its own `primitive_costs`
-rows for route-specific actions such as source ports versus bridge lemmas. The
-same route-option primitives must appear in `standalone_route.primitives` and
-the formal-realization DAG, so rejected alternatives are still library-aware
-routes rather than numeric placeholders. They must also have resolved
+rows for route-specific actions such as source ports versus bridge lemmas. Those
+route-specific primitive cost rows must obey the same coverage-bucket evidence
+floor as top-level primitive costs: a route option cannot label a primitive as
+`exact_exists` while the corresponding standalone or formal-realization node
+still says `bridge_needed`, `source_port_needed`, or another more expensive
+coverage marker. The same route-option primitives must appear in
+`standalone_route.primitives` and the formal-realization DAG, so rejected
+alternatives are still library-aware routes rather than numeric placeholders.
+They must also have resolved
 `route_alignment_edges`, so an unselected alternative cannot smuggle in a
 costed primitive without the same informal-to-formal DAG alignment evidence as
 the chosen route. A newly introduced route-option primitive must be justified

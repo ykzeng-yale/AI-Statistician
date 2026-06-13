@@ -6168,7 +6168,7 @@ def _user_prompt(
             "If the selected route omits any primitive from context_packet.minimal_delta_cost_hints.route_option_hints, and_or_cost_graph.route_options must still enumerate that baseline primitive set with route_cost at least minimum_route_base_cost.",
             "Every primitive used by selected_primitives or any and_or_cost_graph route option must have exactly one primitive_costs row with base_cost, proof_difficulty_cost, import_cone_cost, definition_or_typeclass_cost, semantic_risk_cost, reuse_credit, total_cost, and cost_rationale.",
             "Every primitive_costs coverage_bucket must be listed in minimal_delta_cost_policy.coverage_bucket_base_cost, and base_cost must equal that bucket base cost.",
-            "A primitive_costs coverage_bucket/base_cost must not be cheaper than the explicit coverage_bucket, coverage_status, or formalization_action markers on the corresponding formal_realization_dag_nodes or standalone_route.primitives.",
+            "A primitive_costs coverage_bucket/base_cost, including route_options[].primitive_costs rows, must not be cheaper than the explicit coverage_bucket, coverage_status, or formalization_action markers on the corresponding formal_realization_dag_nodes or standalone_route.primitives.",
             "Every primitive_costs row must satisfy total_cost = base_cost + proof_difficulty_cost + import_cone_cost + definition_or_typeclass_cost + semantic_risk_cost - reuse_credit; route_cost must equal the sum of selected primitive total_cost values, and every route_options row must either include route-specific primitive_costs summing to route_cost or have a route_cost equal to the global primitive_costs for its selected_primitives.",
             "and_or_cost_graph must enumerate route_options with unique route_option_id values and duplicate-free selected_primitives, a selected_route_option_id that names one route_options row, non-empty or_nodes with duplicate-free choices, and non-empty and_edges; every route option must be reachable from an OR choice and have exactly one AND edge listing exactly its selected_primitives.",
             "Every selected primitive and every route option primitive must appear in standalone_route.primitives and formal_realization_dag_nodes.",
@@ -13665,31 +13665,62 @@ def _primitive_cost_coverage_evidence_errors(
         if primitive:
             standalone_by_primitive.setdefault(primitive, []).append(row)
     for index, row in enumerate(_dict_tuple(minimal_delta.get("primitive_costs", []))):
-        primitive = _primitive_key(row.get("primitive", ""))
-        if not primitive:
-            continue
-        bucket = _primitive_key(row.get("coverage_bucket", ""))
-        bucket_cost = _coverage_bucket_base_cost(bucket)
-        if bucket_cost is None:
-            continue
-        evidence_rows = [
-            *formal_by_primitive.get(primitive, []),
-            *standalone_by_primitive.get(primitive, []),
-        ]
-        evidence = _coverage_evidence_base_cost(evidence_rows)
-        if evidence is None:
-            continue
-        evidence_cost, evidence_marker = evidence
-        if bucket_cost + 1e-9 < evidence_cost:
-            errors.append(
-                "minimal_delta_plan.primitive_costs"
-                f"[{index}].coverage_bucket/base_cost underprices "
-                "formal/standalone coverage evidence for primitive "
-                f"{primitive}: coverage_bucket={bucket} base_cost={bucket_cost:g} "
-                f"but evidence marker {evidence_marker} requires at least "
-                f"{evidence_cost:g}"
+        errors.extend(
+            _primitive_cost_row_coverage_evidence_errors(
+                row,
+                location=f"minimal_delta_plan.primitive_costs[{index}]",
+                formal_by_primitive=formal_by_primitive,
+                standalone_by_primitive=standalone_by_primitive,
+            )
+        )
+    graph = _dict_value(minimal_delta, "and_or_cost_graph")
+    for option_index, option in enumerate(_dict_tuple(graph.get("route_options", []))):
+        for row_index, row in enumerate(_dict_tuple(option.get("primitive_costs", []))):
+            errors.extend(
+                _primitive_cost_row_coverage_evidence_errors(
+                    row,
+                    location=(
+                        "minimal_delta_plan.and_or_cost_graph.route_options"
+                        f"[{option_index}].primitive_costs[{row_index}]"
+                    ),
+                    formal_by_primitive=formal_by_primitive,
+                    standalone_by_primitive=standalone_by_primitive,
+                )
             )
     return errors
+
+
+def _primitive_cost_row_coverage_evidence_errors(
+    row: Mapping[str, object],
+    *,
+    location: str,
+    formal_by_primitive: Mapping[str, list[dict[str, object]]],
+    standalone_by_primitive: Mapping[str, list[dict[str, object]]],
+) -> list[str]:
+    primitive = _primitive_key(row.get("primitive", ""))
+    if not primitive:
+        return []
+    bucket = _primitive_key(row.get("coverage_bucket", ""))
+    bucket_cost = _coverage_bucket_base_cost(bucket)
+    if bucket_cost is None:
+        return []
+    evidence_rows = [
+        *formal_by_primitive.get(primitive, []),
+        *standalone_by_primitive.get(primitive, []),
+    ]
+    evidence = _coverage_evidence_base_cost(evidence_rows)
+    if evidence is None:
+        return []
+    evidence_cost, evidence_marker = evidence
+    if bucket_cost + 1e-9 >= evidence_cost:
+        return []
+    return [
+        f"{location}.coverage_bucket/base_cost underprices "
+        "formal/standalone coverage evidence for primitive "
+        f"{primitive}: coverage_bucket={bucket} base_cost={bucket_cost:g} "
+        f"but evidence marker {evidence_marker} requires at least "
+        f"{evidence_cost:g}"
+    ]
 
 
 def _minimal_delta_actionability_witness_errors(

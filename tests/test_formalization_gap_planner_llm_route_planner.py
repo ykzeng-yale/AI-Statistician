@@ -11223,6 +11223,53 @@ def test_llm_route_planner_rejects_route_option_cost_without_witness() -> None:
     )
 
 
+def test_llm_route_planner_rejects_route_option_cost_bucket_underpricing_evidence() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_route_option_bucket_underpricing"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    graph = bad_response["minimal_delta_plan"]["and_or_cost_graph"]
+    alternative = graph["route_options"][1]
+    alternative["primitive_costs"][1] = {
+        "primitive": "rank_uniformity",
+        "coverage_bucket": "exact_exists",
+        "base_cost": 0,
+        "proof_difficulty_cost": 7,
+        "import_cone_cost": 0,
+        "definition_or_typeclass_cost": 0,
+        "semantic_risk_cost": 0,
+        "reuse_credit": 0,
+        "total_cost": 7,
+        "cost_rationale": (
+            "This corrupted option hides bridge evidence behind proof difficulty."
+        ),
+    }
+    alternative["route_cost"] = 7
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "and_or_cost_graph.route_options[1].primitive_costs[1].coverage_bucket/base_cost underprices"
+        in error
+        and "coverage_bucket=exact_exists" in error
+        and "requires at least 4" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_route_option_primitive_without_cost_row() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_route_option_primitive_without_cost_row"
