@@ -6938,6 +6938,7 @@ def llm_route_planner_response_payload_schema(
                         "route_repair": {"type": "string"},
                         "repair_action": {"type": "string"},
                         "target_primitives": string_array,
+                        "target_prover_family": {"type": "string"},
                         "source_refs": string_array,
                         "source_snippets": {
                             "type": "array",
@@ -6959,6 +6960,7 @@ def llm_route_planner_response_payload_schema(
                         "query": {"type": "string", "minLength": 1},
                         "reason": {"type": "string", "minLength": 1},
                         "target_primitives": string_array,
+                        "target_prover_family": {"type": "string"},
                         "resource_request_id": {"type": "string"},
                         "resource_id": {"type": "string"},
                         "resource_contract_ids": string_array,
@@ -6981,6 +6983,7 @@ def llm_route_planner_response_payload_schema(
                         "owner": {"type": "string", "minLength": 1},
                         "action": {"type": "string", "minLength": 1},
                         "target_primitives": string_array,
+                        "target_prover_family": {"type": "string"},
                         "resource_request_id": {"type": "string"},
                         "resource_id": {"type": "string"},
                         "resource_contract_ids": string_array,
@@ -10482,6 +10485,18 @@ def _response_target_prover_consistency_errors(
                 row.get("target_prover_family", ""),
             )
         )
+    for collection_name in (
+        "search_requests",
+        "planner_next_actions",
+        "residual_interpretations",
+    ):
+        for index, row in enumerate(_dict_tuple(payload.get(collection_name, []))):
+            checks.append(
+                (
+                    f"{collection_name}[{index}].target_prover_family",
+                    row.get("target_prover_family", ""),
+                )
+            )
     errors: list[str] = []
     for location, raw_value in checks:
         value = str(raw_value or "").strip()
