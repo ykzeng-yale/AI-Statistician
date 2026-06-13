@@ -6055,6 +6055,7 @@ def _user_prompt(
             "Prefer candidate_declaration_rows over bare candidate_declarations so target_prover_family provenance is preserved.",
             "If a needed declaration is not listed, emit a formal_library search_request instead of inventing a candidate_declaration.",
             "Any formal-realization node or standalone primitive with unknown/formal-library-search-pending coverage must have a matching formal_library/library search_request unless it declares a formal gap boundary or concrete delta action.",
+            "Any wrapper or wrapper_needed formal-realization node or standalone primitive must name the existing formal declaration it wraps via candidate_declarations/candidate_declaration_rows, or emit a matching formal_library search_request/formal_gap_boundary.",
             "Every search_requests row must use a supported request_kind, include a nonempty query, and include a nonempty reason.",
             "search_requests.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
             "Every planner_next_actions row must include owner and action, and the row must resolve to a supported literature/formal-library/proof-state/route-revision hook family.",
@@ -8767,6 +8768,7 @@ def _response_contract_errors(
             errors.append(f"formal_realization_dag_nodes[{index}].primitive missing")
     errors.extend(_response_formal_declaration_grounding_errors(payload, request))
     errors.extend(_response_formal_search_obligation_errors(payload))
+    errors.extend(_response_wrapper_anchor_errors(payload, request))
     for index, edge in enumerate(alignment_edges):
         for field_name in ("informal_node_id", "formal_node_id", "alignment_rationale"):
             if not str(edge.get(field_name, "")).strip():
@@ -10433,6 +10435,81 @@ def _response_formal_search_obligation_errors(
                 f"[{index}] unknown/formal-library-search-pending coverage requires a matching formal_library/library search_request"
             )
     return errors
+
+
+def _response_wrapper_anchor_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    search_requests = _dict_tuple(payload.get("search_requests", []))
+    target_prover_family = str(request.get("target_prover_family", ""))
+    for index, node in enumerate(
+        _formal_realization_nodes_from_payload(
+            payload,
+            target_prover_family=target_prover_family,
+        )
+    ):
+        if not _formal_node_requires_wrapper_anchor(node):
+            continue
+        if _formal_node_has_wrapper_anchor(node, search_requests):
+            continue
+        errors.append(
+            "formal_realization_dag_nodes"
+            f"[{index}] wrapper coverage requires candidate_declarations/"
+            "candidate_declaration_rows, a matching formal_library search_request, "
+            "or a substantive formal_gap_boundary naming the missing wrapper target"
+        )
+
+    route = _standalone_route_from_payload(
+        payload,
+        target_prover_family=target_prover_family,
+    )
+    for index, primitive_row in enumerate(_dict_tuple(route.get("primitives", []))):
+        if not _formal_node_requires_wrapper_anchor(primitive_row):
+            continue
+        if _formal_node_has_wrapper_anchor(primitive_row, search_requests):
+            continue
+        errors.append(
+            "standalone_route.primitives"
+            f"[{index}] wrapper coverage requires candidate_declarations/"
+            "candidate_declaration_rows, a matching formal_library search_request, "
+            "or a substantive formal_gap_boundary naming the missing wrapper target"
+        )
+    return errors
+
+
+def _formal_node_requires_wrapper_anchor(node: Mapping[str, Any]) -> bool:
+    markers = (
+        node.get("coverage_bucket", ""),
+        node.get("coverage_status", ""),
+        node.get("formalization_action", ""),
+        node.get("alignment_status", ""),
+    )
+    return any(_wrapper_anchor_marker(marker) for marker in markers)
+
+
+def _formal_node_has_wrapper_anchor(
+    node: Mapping[str, Any],
+    search_requests: tuple[dict[str, object], ...],
+) -> bool:
+    if _node_candidate_declarations(node):
+        return True
+    if _formal_gap_boundary_is_substantive(
+        str(node.get("formal_gap_boundary", "") or "")
+    ):
+        return True
+    return _has_formal_library_search_request_for_obligation(
+        search_requests,
+        primitives=_formal_node_search_primitives(node),
+    )
+
+
+def _wrapper_anchor_marker(value: object) -> bool:
+    return _coverage_marker_policy_bucket(_primitive_key(value)) in {
+        "wrapper",
+        "wrapper_needed",
+    }
 
 
 def _formal_node_requires_library_search(node: Mapping[str, Any]) -> bool:

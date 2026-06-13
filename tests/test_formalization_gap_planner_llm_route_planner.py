@@ -504,6 +504,52 @@ def _make_rank_uniformity_near_exists_response() -> dict[str, object]:
     return response
 
 
+def _make_rank_uniformity_unanchored_wrapper_response() -> dict[str, object]:
+    response = _llm_response_payload()
+    rank_node = response["lean_realization_dag_nodes"][1]
+    assert isinstance(rank_node, dict)
+    rank_node["coverage_bucket"] = "wrapper"
+    rank_node["formalization_action"] = "write_wrapper"
+    rank_node.pop("candidate_declarations", None)
+    rank_node.pop("candidate_declaration_rows", None)
+    response["route_alignment_edges"][0]["alignment_status"] = "wrapper_needed"
+    minimal_delta = response["minimal_delta_plan"]
+    assert isinstance(minimal_delta, dict)
+    minimal_delta["route_cost"] = 4
+    minimal_delta["bridge_lemmas"] = []
+    minimal_delta["wrapper_lemmas"] = [
+        (
+            "rank_uniformity wrapper theorem: prove the requested finite-rank "
+            "statement from an existing declaration once the wrapped target is "
+            "identified"
+        )
+    ]
+    rank_cost = minimal_delta["primitive_costs"][1]
+    assert isinstance(rank_cost, dict)
+    rank_cost["coverage_bucket"] = "wrapper"
+    rank_cost["base_cost"] = 2
+    rank_cost["proof_difficulty_cost"] = 2
+    rank_cost["total_cost"] = 4
+    rank_cost["cost_rationale"] = (
+        "The route writes a wrapper around an existing declaration."
+    )
+    graph = minimal_delta["and_or_cost_graph"]
+    assert isinstance(graph, dict)
+    route_options = graph["route_options"]
+    assert isinstance(route_options, list)
+    route_options[0]["route_cost"] = 4
+    route_options[0]["cost_rationale"] = (
+        "The selected route pays wrapper effort for rank uniformity."
+    )
+    route_options[1]["route_cost"] = 7
+    standalone_rank = response["standalone_route"]["primitives"][1]
+    assert isinstance(standalone_rank, dict)
+    standalone_rank["coverage_status"] = "wrapper_needed"
+    standalone_rank.pop("candidate_declarations", None)
+    standalone_rank.pop("candidate_declaration_rows", None)
+    return response
+
+
 def _make_rank_uniformity_reuse_response(
     declaration_row: dict[str, object],
 ) -> dict[str, object]:
@@ -10129,6 +10175,42 @@ def test_llm_route_planner_rejects_underpriced_coverage_evidence() -> None:
     assert any(
         "coverage_bucket/base_cost underprices formal/standalone coverage evidence"
         in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_wrapper_without_formal_anchor() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_unanchored_wrapper"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response_json.write_text(
+        json.dumps(_make_rank_uniformity_unanchored_wrapper_response()),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    assert any(
+        "formal_realization_dag_nodes[1] wrapper coverage requires "
+        "candidate_declarations" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "standalone_route.primitives[1] wrapper coverage requires "
+        "candidate_declarations" in error
         for error in row["errors"]
     )
 
