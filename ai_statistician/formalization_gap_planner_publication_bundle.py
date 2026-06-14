@@ -2433,6 +2433,30 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt": (
                 nonnegative_integer
             ),
+            "n_requests_with_source_theorem_semantic_primitive_rows": (
+                nonnegative_integer
+            ),
+            "n_request_source_theorem_semantic_primitive_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_proof_body_semantic_primitive_work_order_rows": (
+                nonnegative_integer
+            ),
+            "n_request_proof_body_semantic_primitive_work_order_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_source_theorem_formal_environment_rows": (
+                nonnegative_integer
+            ),
+            "n_request_source_theorem_formal_environment_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_source_theorem_proof_body_execution_result_rows": (
+                nonnegative_integer
+            ),
+            "n_request_source_theorem_proof_body_execution_result_rows": (
+                nonnegative_integer
+            ),
             "n_rows": nonnegative_integer,
             "n_response_present": nonnegative_integer,
             "n_response_contract_ok": nonnegative_integer,
@@ -4619,6 +4643,14 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_requests_with_exact_source_theorem_proof_body_executor_context": 0,
         "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt": 0,
         "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt": 0,
+        "n_requests_with_source_theorem_semantic_primitive_rows": 0,
+        "n_request_source_theorem_semantic_primitive_rows": 0,
+        "n_requests_with_proof_body_semantic_primitive_work_order_rows": 0,
+        "n_request_proof_body_semantic_primitive_work_order_rows": 0,
+        "n_requests_with_source_theorem_formal_environment_rows": 0,
+        "n_request_source_theorem_formal_environment_rows": 0,
+        "n_requests_with_source_theorem_proof_body_execution_result_rows": 0,
+        "n_request_source_theorem_proof_body_execution_result_rows": 0,
         "n_rows": 0,
         "n_response_present": 0,
         "n_response_contract_ok": 0,
@@ -4892,6 +4924,56 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt": int(
             payload.get(
                 "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_source_theorem_semantic_primitive_rows": int(
+            payload.get(
+                "n_requests_with_source_theorem_semantic_primitive_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_theorem_semantic_primitive_rows": int(
+            payload.get("n_request_source_theorem_semantic_primitive_rows", 0)
+            or 0
+        ),
+        "n_requests_with_proof_body_semantic_primitive_work_order_rows": int(
+            payload.get(
+                "n_requests_with_proof_body_semantic_primitive_work_order_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_proof_body_semantic_primitive_work_order_rows": int(
+            payload.get(
+                "n_request_proof_body_semantic_primitive_work_order_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_source_theorem_formal_environment_rows": int(
+            payload.get(
+                "n_requests_with_source_theorem_formal_environment_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_theorem_formal_environment_rows": int(
+            payload.get("n_request_source_theorem_formal_environment_rows", 0)
+            or 0
+        ),
+        "n_requests_with_source_theorem_proof_body_execution_result_rows": int(
+            payload.get(
+                "n_requests_with_source_theorem_proof_body_execution_result_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_theorem_proof_body_execution_result_rows": int(
+            payload.get(
+                "n_request_source_theorem_proof_body_execution_result_rows",
                 0,
             )
             or 0

@@ -1083,6 +1083,177 @@ def _write_resource_response_ledger(root: Path) -> Path:
     return ledger_dir
 
 
+def _write_source_theorem_planner_feedback(root: Path) -> dict[str, Path]:
+    provenance = {"source_theorem_route_id": "rank_route"}
+    semantic_bridge_dir = root / "source_theorem_semantic_primitive_bridge"
+    semantic_bridge_dir.mkdir(parents=True, exist_ok=True)
+    (
+        semantic_bridge_dir
+        / "source_theorem_semantic_primitive_proofengineer_bridge_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": (
+                    "SourceTheoremSemanticPrimitiveProofEngineerBridgeManifest"
+                ),
+                "checks": [
+                    {
+                        "artifact_kind": "SourceTheoremSemanticPrimitiveBridgeCheck",
+                        "work_order_id": "semantic-work:rank_route",
+                        "target_theorem_name": "distribution_free_rank_bound",
+                        "source_theorem_target_provenance": provenance,
+                        "semantic_primitive_id": (
+                            "exchangeability_to_uniform_rank_semantics"
+                        ),
+                        "semantic_primitive_gap": (
+                            "formalize exchangeability-to-uniform-rank semantics"
+                        ),
+                        "candidate_registered_obligation_ids": [
+                            "obligation:rank_uniformity_semantics"
+                        ],
+                        "proof_evidence_status": (
+                            "NO_KERNEL_VERIFIED_SOURCE_SEMANTIC_PRIMITIVE_SUPPORT"
+                        ),
+                        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    semantic_from_executor_dir = (
+        root
+        / "source_theorem_semantic_primitive_from_proof_body_executor_work_orders"
+    )
+    semantic_from_executor_dir.mkdir(parents=True, exist_ok=True)
+    (
+        semantic_from_executor_dir
+        / "runtime_source_theorem_semantic_primitive_work_orders_from_proof_body_executor.jsonl"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "SourceTheoremSemanticPrimitiveWorkOrder",
+                "work_order_id": "semantic-from-proof-body:rank_route",
+                "target_theorem_name": "distribution_free_rank_bound",
+                "source_theorem_target_provenance": provenance,
+                "semantic_primitive_id": "order_statistic_quantile_semantics",
+                "semantic_primitive_gap": (
+                    "formalize order-statistic quantile semantics"
+                ),
+                "placeholder_symbol": "OrderStatisticQuantileSemantics",
+                "failure_classification": (
+                    "formal_environment_placeholder_primitives"
+                ),
+                "proof_body_goal_excerpt": [
+                    "|- rank statistic is uniformly distributed"
+                ],
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    formal_environment_dir = root / "source_theorem_formal_environment_bridge"
+    formal_environment_dir.mkdir(parents=True, exist_ok=True)
+    repair_packets_path = formal_environment_dir / "repair_packets.jsonl"
+    repair_packets_path.write_text(
+        json.dumps(
+            {
+                "artifact_kind": "SourceTheoremFormalEnvironmentRepairPacket",
+                "work_order_id": "formal-env:rank_route",
+                "target_theorem_name": "distribution_free_rank_bound",
+                "source_theorem_target_provenance": provenance,
+                "missing_formal_symbols": ["OrderStatisticQuantileSemantics"],
+                "typeclass_blockers": ["DecidableEq score"],
+                "formal_environment_typeclass_blockers": ["DecidableEq score"],
+                "proof_evidence_status": (
+                    "FORMAL_ENVIRONMENT_REPAIR_PACKETS_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (
+        formal_environment_dir
+        / "source_theorem_formal_environment_proofengineer_bridge_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": (
+                    "SourceTheoremFormalEnvironmentProofEngineerBridgeManifest"
+                ),
+                "repair_packets_jsonl": str(repair_packets_path),
+                "n_repair_packets": 1,
+                "proof_evidence_status": (
+                    "FORMAL_ENVIRONMENT_REPAIR_PACKETS_NOT_PROOF_EVIDENCE"
+                ),
+                "boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    proof_body_executor_dir = root / "exact_source_theorem_proof_body_executor"
+    proof_body_executor_dir.mkdir(parents=True, exist_ok=True)
+    (
+        proof_body_executor_dir
+        / "exact_source_theorem_proof_body_execution_result_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "ExactSourceTheoremProofBodyExecutionResult",
+                "rows": [
+                    {
+                        "artifact_kind": (
+                            "ExactSourceTheoremProofBodyExecutionResultRow"
+                        ),
+                        "execution_result_id": "proof-body-result:rank_route",
+                        "execution_queue_id": "proof-body-queue:rank_route",
+                        "target_theorem_name": "distribution_free_rank_bound",
+                        "source_theorem_target_provenance": provenance,
+                        "failure_classification": (
+                            "formal_environment_placeholder_primitives"
+                        ),
+                        "formal_environment_placeholder_symbols": [
+                            "OrderStatisticQuantileSemantics"
+                        ],
+                        "candidate_live_proof_state_request": {
+                            "proof_body_goal_excerpt": [
+                                "|- rank statistic is uniformly distributed"
+                            ]
+                        },
+                        "source_theorem_kernel_verified": False,
+                        "proof_evidence_status": (
+                            "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTION_NOT_PROOF_EVIDENCE"
+                        ),
+                        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    return {
+        "semantic_bridge": semantic_bridge_dir,
+        "semantic_from_executor": semantic_from_executor_dir,
+        "formal_environment": formal_environment_dir,
+        "proof_body_executor": proof_body_executor_dir,
+    }
+
+
 def _write_refinement_evidence(
     root: Path,
     *,
@@ -3239,6 +3410,129 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     assert "status-only; do not use them as residual-goal" in request[
         "prompt_messages"
     ]["user"]
+
+
+def test_llm_route_planner_stages_source_theorem_feedback_rows() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_source_theorem_feedback"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    feedback_dirs = _write_source_theorem_planner_feedback(root)
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        source_theorem_semantic_primitive_bridge_dir=feedback_dirs[
+            "semantic_bridge"
+        ],
+        source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir=(
+            feedback_dirs["semantic_from_executor"]
+        ),
+        source_theorem_formal_environment_bridge_dir=feedback_dirs[
+            "formal_environment"
+        ],
+        exact_source_theorem_proof_body_executor_dir=feedback_dirs[
+            "proof_body_executor"
+        ],
+    )
+
+    assert payload["all_ok"]
+    assert payload[
+        "n_requests_with_source_theorem_semantic_primitive_rows"
+    ] == 1
+    assert payload["n_request_source_theorem_semantic_primitive_rows"] == 1
+    assert payload[
+        "n_requests_with_proof_body_semantic_primitive_work_order_rows"
+    ] == 1
+    assert payload[
+        "n_request_proof_body_semantic_primitive_work_order_rows"
+    ] == 1
+    assert payload[
+        "n_requests_with_source_theorem_formal_environment_rows"
+    ] == 1
+    assert payload["n_request_source_theorem_formal_environment_rows"] == 1
+    assert payload[
+        "n_requests_with_source_theorem_proof_body_execution_result_rows"
+    ] == 1
+    assert payload[
+        "n_request_source_theorem_proof_body_execution_result_rows"
+    ] == 1
+
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    inventory = context["context_packet_inventory"]
+    assert inventory["row_counts"][
+        "source_theorem_semantic_primitive_rows"
+    ] == 1
+    assert inventory["row_counts"][
+        "proof_body_semantic_primitive_work_order_rows"
+    ] == 1
+    assert inventory["row_counts"][
+        "source_theorem_formal_environment_rows"
+    ] == 1
+    assert inventory["row_counts"][
+        "source_theorem_proof_body_execution_result_rows"
+    ] == 1
+    assert payload["n_request_context_inventory_total_rows"] == inventory[
+        "total_context_rows"
+    ]
+
+    semantic_work_order = context[
+        "proof_body_semantic_primitive_work_order_rows"
+    ][0]
+    assert semantic_work_order["target_theorem_name"] == (
+        "distribution_free_rank_bound"
+    )
+    assert semantic_work_order["source_theorem_target_provenance"][
+        "source_theorem_route_id"
+    ] == "rank_route"
+    assert semantic_work_order["proof_body_goal_excerpt"] == [
+        "|- rank statistic is uniformly distributed"
+    ]
+    formal_environment_row = context[
+        "source_theorem_formal_environment_rows"
+    ][0]
+    assert formal_environment_row["missing_formal_symbols"] == [
+        "OrderStatisticQuantileSemantics"
+    ]
+    proof_body_row = context[
+        "source_theorem_proof_body_execution_result_rows"
+    ][0]
+    assert proof_body_row["failure_classification"] == (
+        "formal_environment_placeholder_primitives"
+    )
+    assert proof_body_row["source_theorem_kernel_verified"] is False
+    prompt = request["prompt_messages"]["user"]
+    assert "source_theorem_semantic_primitive_rows" in prompt
+    assert "source_theorem_formal_environment_rows" in prompt
+    assert "proof-body feedback for route repair" in prompt
+    assert "not theorem proof evidence" in prompt
+    assert validate_llm_route_planner_request(request) == []
+
+    drifted_request = deepcopy(request)
+    drifted_request["context_packet"]["context_packet_inventory"]["row_counts"][
+        "proof_body_semantic_primitive_work_order_rows"
+    ] = 0
+    assert (
+        "context_packet.context_packet_inventory.row_counts."
+        "proof_body_semantic_primitive_work_order_rows "
+        "must match context_packet."
+        "proof_body_semantic_primitive_work_order_rows"
+        in validate_llm_route_planner_request(drifted_request)
+    )
+
+    drifted_manifest = deepcopy(payload)
+    drifted_manifest[
+        "n_request_source_theorem_proof_body_execution_result_rows"
+    ] = 0
+    assert (
+        "n_request_source_theorem_proof_body_execution_result_rows "
+        "must match request_packets"
+        in validate_llm_route_planner_manifest(drifted_manifest)
+    )
 
 
 def test_llm_route_planner_materializes_bare_feedback_replan_required() -> None:
@@ -6007,6 +6301,22 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "delta_primitives_missing_route_alignment_edge" in witness_schema["required"]
     manifest_schema = llm_route_planner_manifest_json_schema()
     assert "legacy_response_field_aliases" in manifest_schema["required"]
+    assert (
+        "n_request_source_theorem_semantic_primitive_rows"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_request_proof_body_semantic_primitive_work_order_rows"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_request_source_theorem_formal_environment_rows"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_request_source_theorem_proof_body_execution_result_rows"
+        in manifest_schema["required"]
+    )
     assert (
         manifest_schema["properties"]["legacy_response_field_aliases"][
             "properties"

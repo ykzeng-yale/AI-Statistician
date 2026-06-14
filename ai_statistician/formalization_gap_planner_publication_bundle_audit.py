@@ -2808,6 +2808,56 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_requests_with_source_theorem_semantic_primitive_rows": int(
+            payload.get(
+                "n_requests_with_source_theorem_semantic_primitive_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_theorem_semantic_primitive_rows": int(
+            payload.get("n_request_source_theorem_semantic_primitive_rows", 0)
+            or 0
+        ),
+        "n_requests_with_proof_body_semantic_primitive_work_order_rows": int(
+            payload.get(
+                "n_requests_with_proof_body_semantic_primitive_work_order_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_proof_body_semantic_primitive_work_order_rows": int(
+            payload.get(
+                "n_request_proof_body_semantic_primitive_work_order_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_source_theorem_formal_environment_rows": int(
+            payload.get(
+                "n_requests_with_source_theorem_formal_environment_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_theorem_formal_environment_rows": int(
+            payload.get("n_request_source_theorem_formal_environment_rows", 0)
+            or 0
+        ),
+        "n_requests_with_source_theorem_proof_body_execution_result_rows": int(
+            payload.get(
+                "n_requests_with_source_theorem_proof_body_execution_result_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_theorem_proof_body_execution_result_rows": int(
+            payload.get(
+                "n_request_source_theorem_proof_body_execution_result_rows",
+                0,
+            )
+            or 0
+        ),
         "n_rows": int(payload.get("n_rows", len(rows)) or 0),
         "n_response_present": int(
             payload.get(

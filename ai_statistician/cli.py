@@ -2701,6 +2701,28 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
             if args.formalization_gap_planner_resource_response_ledger_dir
             else None
         ),
+        source_theorem_semantic_primitive_bridge_dir=(
+            Path(args.source_theorem_semantic_primitive_bridge_dir)
+            if args.source_theorem_semantic_primitive_bridge_dir
+            else None
+        ),
+        source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir=(
+            Path(
+                args.source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir
+            )
+            if args.source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir
+            else None
+        ),
+        source_theorem_formal_environment_bridge_dir=(
+            Path(args.source_theorem_formal_environment_bridge_dir)
+            if args.source_theorem_formal_environment_bridge_dir
+            else None
+        ),
+        exact_source_theorem_proof_body_executor_dir=(
+            Path(args.exact_source_theorem_proof_body_executor_dir)
+            if args.exact_source_theorem_proof_body_executor_dir
+            else None
+        ),
         formalization_gap_planner_refinement_evidence_dir=(
             Path(args.formalization_gap_planner_refinement_evidence_dir)
             if args.formalization_gap_planner_refinement_evidence_dir
@@ -8530,6 +8552,34 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_llm_route_planner.add_argument(
         "--formalization-gap-planner-resource-response-ledger-dir",
         help="optional resource-response ledger directory carrying prover residuals",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--source-theorem-semantic-primitive-bridge-dir",
+        help=(
+            "optional source-theorem semantic primitive bridge output directory "
+            "carrying source semantic support checks"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--source-theorem-semantic-primitive-from-proof-body-executor-work-orders-dir",
+        help=(
+            "optional directory or JSONL carrying semantic primitive work orders "
+            "materialized from exact proof-body executor feedback"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--source-theorem-formal-environment-bridge-dir",
+        help=(
+            "optional source-theorem formal-environment bridge output directory "
+            "carrying repair packets for missing symbols/typeclasses"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--exact-source-theorem-proof-body-executor-dir",
+        help=(
+            "optional exact source-theorem proof-body executor output directory "
+            "carrying local Lean execution results"
+        ),
     )
     formalization_gap_planner_llm_route_planner.add_argument(
         "--formalization-gap-planner-refinement-evidence-dir",

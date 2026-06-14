@@ -211,6 +211,10 @@ CONTEXT_PACKET_ROW_FIELDS = (
     "source_grounding_rows",
     "resource_request_queue_rows",
     "resource_response_ledger_rows",
+    "source_theorem_semantic_primitive_rows",
+    "proof_body_semantic_primitive_work_order_rows",
+    "source_theorem_formal_environment_rows",
+    "source_theorem_proof_body_execution_result_rows",
     "refinement_evidence_rows",
     "route_revision_overlay_rows",
     "route_replan_handoff_rows",
@@ -228,7 +232,11 @@ ROUTE_MATCH_SCALAR_FIELDS = (
     "standalone_route_id",
     "target_id",
     "target_theorem_id",
+    "target_theorem_name",
+    "target_lean_declaration",
+    "source_theorem_route_id",
     "display_name",
+    "theorem_statement",
     "goal_plan_id",
     "source_goal_plan_id",
     "target_goal_plan_id",
@@ -243,6 +251,8 @@ ROUTE_MATCH_COLLECTION_FIELDS = (
 ROUTE_MATCH_NESTED_FIELDS = (
     "replan_metadata",
     "standalone_input_trace",
+    "source_theorem_target_provenance",
+    "input_summary",
 )
 ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID = (
     "formalization_gap_planner_route_adoption_blocker_taxonomy:1"
@@ -971,6 +981,12 @@ def export_formalization_gap_planner_llm_route_planner(
     formalization_gap_planner_source_grounding_audit_dir: Path | None = None,
     formalization_gap_planner_resource_request_queue_dir: Path | None = None,
     formalization_gap_planner_resource_response_ledger_dir: Path | None = None,
+    source_theorem_semantic_primitive_bridge_dir: Path | None = None,
+    source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir: (
+        Path | None
+    ) = None,
+    source_theorem_formal_environment_bridge_dir: Path | None = None,
+    exact_source_theorem_proof_body_executor_dir: Path | None = None,
     formalization_gap_planner_refinement_evidence_dir: Path | None = None,
     formalization_gap_planner_route_revision_overlay_dir: Path | None = None,
     formalization_gap_planner_route_replan_handoff_dir: Path | None = None,
@@ -1001,6 +1017,18 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
         formalization_gap_planner_resource_response_ledger_dir=(
             formalization_gap_planner_resource_response_ledger_dir
+        ),
+        source_theorem_semantic_primitive_bridge_dir=(
+            source_theorem_semantic_primitive_bridge_dir
+        ),
+        source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir=(
+            source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir
+        ),
+        source_theorem_formal_environment_bridge_dir=(
+            source_theorem_formal_environment_bridge_dir
+        ),
+        exact_source_theorem_proof_body_executor_dir=(
+            exact_source_theorem_proof_body_executor_dir
         ),
         formalization_gap_planner_refinement_evidence_dir=(
             formalization_gap_planner_refinement_evidence_dir
@@ -1484,6 +1512,90 @@ def export_formalization_gap_planner_llm_route_planner(
                 _dict_tuple(
                     _dict_value(packet, "context_packet").get(
                         "resource_request_queue_rows",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_source_theorem_semantic_primitive_rows": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "source_theorem_semantic_primitive_rows",
+                    [],
+                )
+            )
+        ),
+        "n_request_source_theorem_semantic_primitive_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "source_theorem_semantic_primitive_rows",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_proof_body_semantic_primitive_work_order_rows": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "proof_body_semantic_primitive_work_order_rows",
+                    [],
+                )
+            )
+        ),
+        "n_request_proof_body_semantic_primitive_work_order_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "proof_body_semantic_primitive_work_order_rows",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_source_theorem_formal_environment_rows": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "source_theorem_formal_environment_rows",
+                    [],
+                )
+            )
+        ),
+        "n_request_source_theorem_formal_environment_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "source_theorem_formal_environment_rows",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_source_theorem_proof_body_execution_result_rows": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "source_theorem_proof_body_execution_result_rows",
+                    [],
+                )
+            )
+        ),
+        "n_request_source_theorem_proof_body_execution_result_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "source_theorem_proof_body_execution_result_rows",
                         [],
                     )
                 )
@@ -3031,6 +3143,14 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_exact_source_theorem_proof_body_executor_context",
             "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt",
             "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt",
+            "n_requests_with_source_theorem_semantic_primitive_rows",
+            "n_request_source_theorem_semantic_primitive_rows",
+            "n_requests_with_proof_body_semantic_primitive_work_order_rows",
+            "n_request_proof_body_semantic_primitive_work_order_rows",
+            "n_requests_with_source_theorem_formal_environment_rows",
+            "n_request_source_theorem_formal_environment_rows",
+            "n_requests_with_source_theorem_proof_body_execution_result_rows",
+            "n_request_source_theorem_proof_body_execution_result_rows",
             "n_request_source_grounding_rows",
             "n_requests_with_source_grounding_obligation_inventory",
             "n_requests_with_pending_source_grounding_obligation_inventory",
@@ -3251,6 +3371,30 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_requests_with_source_theorem_semantic_primitive_rows": (
+                nonnegative_integer
+            ),
+            "n_request_source_theorem_semantic_primitive_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_proof_body_semantic_primitive_work_order_rows": (
+                nonnegative_integer
+            ),
+            "n_request_proof_body_semantic_primitive_work_order_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_source_theorem_formal_environment_rows": (
+                nonnegative_integer
+            ),
+            "n_request_source_theorem_formal_environment_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_source_theorem_proof_body_execution_result_rows": (
+                nonnegative_integer
+            ),
+            "n_request_source_theorem_proof_body_execution_result_rows": (
                 nonnegative_integer
             ),
             "n_feedback_loop_summary_interactive_resource_requests": (
@@ -4178,6 +4322,64 @@ def validate_llm_route_planner_manifest(
     for field_name, expected_value in component_resource_count_checks:
         if int(manifest.get(field_name, 0) or 0) != int(expected_value):
             errors.append(f"{field_name} must match request_packets")
+    source_theorem_context_row_checks = (
+        (
+            "n_requests_with_source_theorem_semantic_primitive_rows",
+            "source_theorem_semantic_primitive_rows",
+            True,
+        ),
+        (
+            "n_request_source_theorem_semantic_primitive_rows",
+            "source_theorem_semantic_primitive_rows",
+            False,
+        ),
+        (
+            "n_requests_with_proof_body_semantic_primitive_work_order_rows",
+            "proof_body_semantic_primitive_work_order_rows",
+            True,
+        ),
+        (
+            "n_request_proof_body_semantic_primitive_work_order_rows",
+            "proof_body_semantic_primitive_work_order_rows",
+            False,
+        ),
+        (
+            "n_requests_with_source_theorem_formal_environment_rows",
+            "source_theorem_formal_environment_rows",
+            True,
+        ),
+        (
+            "n_request_source_theorem_formal_environment_rows",
+            "source_theorem_formal_environment_rows",
+            False,
+        ),
+        (
+            "n_requests_with_source_theorem_proof_body_execution_result_rows",
+            "source_theorem_proof_body_execution_result_rows",
+            True,
+        ),
+        (
+            "n_request_source_theorem_proof_body_execution_result_rows",
+            "source_theorem_proof_body_execution_result_rows",
+            False,
+        ),
+    )
+    for manifest_field, context_field, count_requests in source_theorem_context_row_checks:
+        context_row_counts = [
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(context_field, [])
+                )
+            )
+            for packet in request_packets
+        ]
+        expected_value = (
+            sum(1 for count in context_row_counts if count)
+            if count_requests
+            else sum(context_row_counts)
+        )
+        if int(manifest.get(manifest_field, 0) or 0) != int(expected_value):
+            errors.append(f"{manifest_field} must match request_packets")
     library_alignment_summaries = tuple(
         _request_library_alignment_summary(packet) for packet in request_packets
     )
@@ -5043,6 +5245,27 @@ def _request_packet(
         ),
         "resource_response_ledger_rows": _rows_for_route(
             context_payloads.get("resource_response_ledger", {}),
+            route_match_ids,
+        ),
+        "source_theorem_semantic_primitive_rows": _rows_for_route(
+            context_payloads.get("source_theorem_semantic_primitive_bridge", {}),
+            route_match_ids,
+        ),
+        "proof_body_semantic_primitive_work_order_rows": (
+            _rows_for_route(
+                context_payloads.get(
+                    "source_theorem_semantic_primitive_from_proof_body_executor_work_orders",
+                    {},
+                ),
+                route_match_ids,
+            )
+        ),
+        "source_theorem_formal_environment_rows": _rows_for_route(
+            context_payloads.get("source_theorem_formal_environment_bridge", {}),
+            route_match_ids,
+        ),
+        "source_theorem_proof_body_execution_result_rows": _rows_for_route(
+            context_payloads.get("exact_source_theorem_proof_body_executor", {}),
             route_match_ids,
         ),
         "refinement_evidence_rows": _rows_for_route(
@@ -7049,6 +7272,7 @@ def _user_prompt(
             "Use context_packet.context_packet_inventory as the compact inventory of available evidence and feedback rows; raw context_packet rows remain the source of truth if a count is surprising.",
             "Use context_packet.legacy_context_field_aliases only as a compatibility map; prefer portable fields such as formal_library_grounding_queries and formal_declaration_hits in new route output.",
             "Use context_packet.component_resource_registry_context only to choose bounded search/prover next actions; registry rows are not evidence that a tool was called.",
+            "Use context_packet.source_theorem_semantic_primitive_rows, context_packet.proof_body_semantic_primitive_work_order_rows, context_packet.source_theorem_formal_environment_rows, and context_packet.source_theorem_proof_body_execution_result_rows as ProofEngineer/proof-body feedback for route repair and minimal-delta planning; these rows are not theorem proof evidence and do not by themselves source-ground new mathematical side conditions.",
             "When context_packet.feedback_loop_summary is present, treat it as the route-repair brief derived from raw residual/resource/interactive rows; it is planning context, not proof evidence.",
             "When context_packet.route_replan_handoff_rows is present, preserve its applied evidence ids, quality controls, and next_commands as prior handoff context; route-replan handoff rows are planning input, not proof evidence.",
             "Resource-response ledger rows with awaiting, rejected, absent-response, failed-contract, or unmet-contract-minimum status are status-only; do not use them as residual-goal or route-repair evidence.",
@@ -16556,6 +16780,12 @@ def _context_payloads(
     formalization_gap_planner_source_grounding_audit_dir: Path | None,
     formalization_gap_planner_resource_request_queue_dir: Path | None,
     formalization_gap_planner_resource_response_ledger_dir: Path | None,
+    source_theorem_semantic_primitive_bridge_dir: Path | None,
+    source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir: (
+        Path | None
+    ),
+    source_theorem_formal_environment_bridge_dir: Path | None,
+    exact_source_theorem_proof_body_executor_dir: Path | None,
     formalization_gap_planner_refinement_evidence_dir: Path | None,
     formalization_gap_planner_route_revision_overlay_dir: Path | None,
     formalization_gap_planner_route_replan_handoff_dir: Path | None,
@@ -16593,6 +16823,38 @@ def _context_payloads(
             "formalization_gap_planner_resource_response_ledger_manifest.json",
             errors,
         ),
+        "source_theorem_semantic_primitive_bridge": _optional_rows_payload(
+            source_theorem_semantic_primitive_bridge_dir,
+            "source_theorem_semantic_primitive_proofengineer_bridge_manifest.json",
+            errors,
+            embedded_row_keys=("checks",),
+            jsonl_fields=("checks_jsonl", "runtime_learning_rows_jsonl"),
+        ),
+        "source_theorem_semantic_primitive_from_proof_body_executor_work_orders": (
+            _optional_rows_payload(
+                source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir,
+                "",
+                errors,
+                fallback_jsonl_filenames=(
+                    "runtime_source_theorem_semantic_primitive_work_orders_from_proof_body_executor.jsonl",
+                    "proof_body_executor.jsonl",
+                ),
+            )
+        ),
+        "source_theorem_formal_environment_bridge": _optional_rows_payload(
+            source_theorem_formal_environment_bridge_dir,
+            "source_theorem_formal_environment_proofengineer_bridge_manifest.json",
+            errors,
+            embedded_row_keys=("repair_packets",),
+            jsonl_fields=("repair_packets_jsonl", "runtime_learning_rows_jsonl"),
+        ),
+        "exact_source_theorem_proof_body_executor": _optional_rows_payload(
+            exact_source_theorem_proof_body_executor_dir,
+            "exact_source_theorem_proof_body_execution_result_manifest.json",
+            errors,
+            embedded_row_keys=("rows",),
+            jsonl_fields=("execution_results_jsonl", "runtime_learning_rows_jsonl"),
+        ),
         "refinement_evidence": _optional_manifest(
             formalization_gap_planner_refinement_evidence_dir,
             "formalization_gap_planner_refinement_evidence_manifest.json",
@@ -16629,6 +16891,122 @@ def _optional_manifest(
     if directory is None:
         return {}
     return _read_json(directory / filename, errors)
+
+
+def _optional_rows_payload(
+    path: Path | None,
+    manifest_filename: str,
+    errors: list[str],
+    *,
+    embedded_row_keys: tuple[str, ...] = ("rows",),
+    jsonl_fields: tuple[str, ...] = tuple(),
+    fallback_jsonl_filenames: tuple[str, ...] = tuple(),
+) -> dict[str, Any]:
+    if path is None:
+        return {}
+    source_path = Path(path)
+    if source_path.is_file() and source_path.suffix.lower() == ".jsonl":
+        rows = _read_jsonl_rows(source_path, errors)
+        return {
+            "rows": rows,
+            "source_rows_jsonl": str(source_path),
+            "source_artifact_path": str(source_path),
+        }
+    payload: dict[str, Any] = {}
+    manifest_path: Path | None = None
+    if source_path.is_file():
+        manifest_path = source_path
+    elif manifest_filename:
+        candidate = source_path / manifest_filename
+        if candidate.exists():
+            manifest_path = candidate
+    if manifest_path is not None:
+        payload = _read_json(manifest_path, errors)
+    rows = _rows_from_payload_fields(
+        payload,
+        embedded_row_keys=embedded_row_keys,
+    )
+    if not rows and manifest_path is not None:
+        for field_name in jsonl_fields:
+            rows.extend(
+                _read_payload_jsonl_field_rows(
+                    payload,
+                    field_name,
+                    base_dir=manifest_path.parent,
+                    errors=errors,
+                )
+            )
+    if not rows and source_path.is_dir():
+        for filename in fallback_jsonl_filenames:
+            candidate = source_path / filename
+            if candidate.exists():
+                rows.extend(_read_jsonl_rows(candidate, errors))
+                payload.setdefault("source_rows_jsonl", str(candidate))
+                break
+    if not rows and manifest_path is None and fallback_jsonl_filenames:
+        errors.append(
+            "missing source-theorem context rows: expected one of "
+            + ", ".join(fallback_jsonl_filenames)
+            + f" under {source_path}"
+        )
+    payload["rows"] = [_compact_row(row) for row in rows if isinstance(row, dict)]
+    return payload
+
+
+def _rows_from_payload_fields(
+    payload: Mapping[str, Any],
+    *,
+    embedded_row_keys: tuple[str, ...],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    if not isinstance(payload, Mapping):
+        return rows
+    for key in embedded_row_keys:
+        value = payload.get(key, [])
+        if isinstance(value, list):
+            rows.extend(dict(row) for row in value if isinstance(row, dict))
+    return rows
+
+
+def _read_payload_jsonl_field_rows(
+    payload: Mapping[str, Any],
+    field_name: str,
+    *,
+    base_dir: Path,
+    errors: list[str],
+) -> list[dict[str, Any]]:
+    raw_path = str(payload.get(field_name, "") or "").strip()
+    if not raw_path:
+        return []
+    path = Path(raw_path)
+    candidates = [path]
+    if not path.is_absolute():
+        candidates = [path, base_dir / path, base_dir.parent / path]
+        if path.parts and path.parts[0] == base_dir.name:
+            candidates.append(base_dir.parent / path)
+    for candidate in candidates:
+        if candidate.exists():
+            return _read_jsonl_rows(candidate, errors)
+    errors.append(f"{field_name} references missing JSONL path: {raw_path}")
+    return []
+
+
+def _read_jsonl_rows(path: Path, errors: list[str]) -> list[dict[str, Any]]:
+    try:
+        rows: list[dict[str, Any]] = []
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            value = json.loads(stripped)
+            if isinstance(value, dict):
+                rows.append(value)
+            else:
+                errors.append(f"{path}:{line_number} JSONL row is not an object")
+        return rows
+    except Exception as exc:  # pragma: no cover - exercised by integration callers
+        errors.append(f"failed to read JSONL rows {path}: {exc}")
+        return []
 
 
 def _rows_for_route(
@@ -17993,7 +18371,14 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "target_intake_id",
         "target_id",
         "target_theorem_id",
+        "target_theorem_name",
+        "target_lean_declaration",
+        "source_theorem_route_id",
         "standalone_route_id",
+        "artifact_kind",
+        "work_order_id",
+        "execution_queue_id",
+        "execution_result_id",
         "route_replan_handoff_id",
         "route_revision_overlay_id",
         "refinement_evidence_id",
@@ -18153,6 +18538,40 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "fallback_actions",
         "bounded_evidence_claim",
         "resource_selection_rationale",
+        "source_theorem_target_known",
+        "source_theorem_target_provenance",
+        "semantic_primitive_id",
+        "semantic_primitive_gap",
+        "semantic_primitive_gap_kind",
+        "source_learning_task",
+        "source_learning_row_id",
+        "source_execution_result_id",
+        "source_execution_queue_id",
+        "source_formal_environment_work_order_id",
+        "semantic_alignment_constraints",
+        "candidate_artifact_path",
+        "placeholder_symbol",
+        "failure_classification",
+        "diagnostics",
+        "formal_environment_placeholder_symbols",
+        "formal_environment_typeclass_blockers",
+        "missing_formal_symbols",
+        "typeclass_blockers",
+        "proof_body_attempted",
+        "proof_body_attempt_success",
+        "proof_body_attempt_summaries",
+        "proof_body_goal_excerpt",
+        "target_theorem_goal_ids",
+        "candidate_registered_obligation_ids",
+        "runtime_queue_status",
+        "runtime_queue_boundary",
+        "source_theorem_kernel_verified",
+        "source_theorem_kernel_status",
+        "candidate_live_proof_state_request",
+        "live_goal_location_ready",
+        "proof_body_execution_status",
+        "execution_status",
+        "proof_body_error",
         "request_phase",
         "request_rank",
         "queue_action_kind",
