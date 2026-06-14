@@ -51,6 +51,101 @@ def test_source_semantic_bridge_records_registered_support_without_proof_claim(
     assert "not proof evidence unless" in manifest["boundary"]
 
 
+def test_source_semantic_bridge_resolves_probability_measure_support(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "runtime_source_theorem_semantic_primitive_work_orders.jsonl"
+    _write_jsonl(
+        queue,
+        [
+            {
+                "artifact_kind": "SourceTheoremSemanticPrimitiveWorkOrder",
+                "work_order_id": "source_theorem_semantic_primitive_work_order:prob",
+                "question_id": "conformal_prediction_coverage",
+                "semantic_primitive_id": "probability_measure_semantics",
+                "semantic_primitive_gap": (
+                    "replace MeasureProbability placeholder with probability measure semantics"
+                ),
+                "target_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
+            }
+        ],
+    )
+
+    manifest = run_source_theorem_semantic_primitive_proofengineer_bridge(
+        out_dir=tmp_path / "bridge",
+        queue_jsonl=queue,
+        local_lean=False,
+    )
+
+    assert manifest["n_work_orders"] == 1
+    assert manifest["registered_candidate_obligation_ids"] == ["prob_measure_univ"]
+    check = manifest["checks"][0]
+    assert check["semantic_primitive_id"] == "probability_measure_semantics"
+    assert check["registered_candidate_obligation_ids"] == ["prob_measure_univ"]
+    assert check["proof_evidence_status"] == (
+        "NO_KERNEL_VERIFIED_SOURCE_SEMANTIC_PRIMITIVE_SUPPORT"
+    )
+
+
+def test_source_semantic_bridge_reports_only_relevant_verified_support(
+    tmp_path: Path,
+) -> None:
+    queue = tmp_path / "runtime_source_theorem_semantic_primitive_work_orders.jsonl"
+    _write_jsonl(
+        queue,
+        [
+            {
+                "artifact_kind": "SourceTheoremSemanticPrimitiveWorkOrder",
+                "work_order_id": "source_theorem_semantic_primitive_work_order:prob",
+                "question_id": "conformal_prediction_coverage",
+                "semantic_primitive_id": "probability_measure_semantics",
+                "semantic_primitive_gap": (
+                    "replace MeasureProbability placeholder with probability measure semantics"
+                ),
+                "target_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
+            }
+        ],
+    )
+    proof_manifest = tmp_path / "proof_audit_manifest.json"
+    proof_manifest.write_text(
+        json.dumps(
+            {
+                "checks": [
+                    {
+                        "obligation_id": "prob_measure_univ",
+                        "kernel_verified": True,
+                    },
+                    {
+                        "obligation_id": (
+                            "split_conformal_good_rank_set_inclusion_bridge"
+                        ),
+                        "kernel_verified": True,
+                    },
+                ],
+                "verification_strength": "local_lean_kernel_batch",
+                "verifier": "local.lake_env_lean",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_semantic_primitive_proofengineer_bridge(
+        out_dir=tmp_path / "bridge",
+        queue_jsonl=queue,
+        question_id="conformal_prediction_coverage",
+        proof_audit_manifest=proof_manifest,
+    )
+
+    assert manifest["registered_candidate_obligation_ids"] == ["prob_measure_univ"]
+    assert manifest["n_kernel_verified_registered_candidate_obligations"] == 1
+    assert manifest["kernel_verified_registered_candidate_obligation_ids"] == [
+        "prob_measure_univ"
+    ]
+    assert manifest["checks"][0]["kernel_verified_registered_obligation_ids"] == [
+        "prob_measure_univ"
+    ]
+
+
 def test_source_semantic_bridge_exports_learning_from_kernel_proof_audit(
     tmp_path: Path,
 ) -> None:

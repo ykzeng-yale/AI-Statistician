@@ -4293,7 +4293,13 @@ theorem prob_measure_univ {α : Type*} [MeasurableSpace α]
 """
         ),
         proof_body="by\n  exact measure_univ",
-        tags=("probability", "measure", "normalization"),
+        tags=(
+            "probability",
+            "measure",
+            "normalization",
+            "probability_measure_semantics",
+            "source_theorem_semantic_primitive",
+        ),
         expected_lemmas=("measure_univ",),
     ),
     "integral_of_constant": FormalObligation(

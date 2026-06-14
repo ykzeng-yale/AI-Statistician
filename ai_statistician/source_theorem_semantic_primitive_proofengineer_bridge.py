@@ -20,6 +20,9 @@ BOUNDARY = (
 )
 
 _PRIMITIVE_TO_REGISTERED_SUPPORT = {
+    "probability_measure_semantics": (
+        "prob_measure_univ",
+    ),
     "exchangeability_semantics": (
         "split_conformal_bad_rank_budget_from_uniform_rank_bound",
     ),
@@ -133,6 +136,14 @@ def run_source_theorem_semantic_primitive_proofengineer_bridge(
         )
         for row in rows
     ]
+    kernel_verified_candidate_ids = list(
+        dict.fromkeys(
+            str(value).strip()
+            for row in checks
+            for value in row.get("kernel_verified_registered_obligation_ids", []) or []
+            if str(value).strip()
+        )
+    )
     n_kernel_verified_support = sum(
         len(row.get("kernel_verified_registered_obligation_ids", []) or [])
         for row in checks
@@ -160,13 +171,17 @@ def run_source_theorem_semantic_primitive_proofengineer_bridge(
         "n_work_orders": len(rows),
         "n_registered_candidate_obligations": len(candidate_ids),
         "registered_candidate_obligation_ids": candidate_ids,
-        "n_kernel_verified_registered_candidate_obligations": len(verified_ids),
-        "kernel_verified_registered_candidate_obligation_ids": verified_ids,
+        "n_kernel_verified_registered_candidate_obligations": len(
+            kernel_verified_candidate_ids
+        ),
+        "kernel_verified_registered_candidate_obligation_ids": (
+            kernel_verified_candidate_ids
+        ),
         "n_kernel_verified_work_order_support_links": n_kernel_verified_support,
         "runtime_learning_ready": bool(learning_result["n_learning_rows"]),
         "proof_evidence_status": (
             "KERNEL_VERIFIED_SOURCE_SEMANTIC_PRIMITIVE_SUPPORT_PRESENT"
-            if verified_ids
+            if kernel_verified_candidate_ids
             else "NO_KERNEL_VERIFIED_SOURCE_SEMANTIC_PRIMITIVE_SUPPORT"
         ),
         "checks": checks,
@@ -250,7 +265,12 @@ def _candidate_registered_obligation_ids(row: Mapping[str, Any]) -> tuple[str, .
         if "source_theorem_semantic_primitive" not in obligation.tags:
             continue
         tag_text = " ".join(obligation.tags).lower()
-        if "order" in text and "order_statistic_quantile_rule" in tag_text:
+        if ("probability" in text or "measure" in text) and (
+            "probability_measure_semantics" in tag_text
+            or ("probability" in tag_text and "measure" in tag_text)
+        ):
+            inferred.append(obligation_id)
+        elif "order" in text and "order_statistic_quantile_rule" in tag_text:
             inferred.append(obligation_id)
         elif ("exchange" in text or "uniform" in text or "rank" in text) and (
             "rank_uniformity" in tag_text or "uniform_rank" in tag_text
