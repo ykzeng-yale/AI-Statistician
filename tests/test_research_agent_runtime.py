@@ -69,6 +69,7 @@ from ai_statistician.research_agent_runtime import (
     _runtime_source_theorem_promotion_materialization_seed_rows,
     _runtime_source_theorem_promotion_bridge_learning_rows,
     _run_runtime_source_theorem_promotion_proofengineer_bridge,
+    _run_runtime_source_theorem_formal_environment_bridge_stack,
     _write_runtime_source_theorem_promotion_materialization_seed_queue,
     _runtime_theorem_reduction_closure_work_order_rows,
     _runtime_evidence_summary,
@@ -2672,6 +2673,32 @@ def test_source_theorem_promotion_bridge_exports_formal_environment_work_order(
         "lean_syntax_or_import_environment_gap",
     }
     assert work_orders[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+    (
+        formal_env_bridge_manifest,
+        proof_body_executor_manifest,
+        formal_env_learning_rows,
+        proof_body_learning_rows,
+    ) = _run_runtime_source_theorem_formal_environment_bridge_stack(
+        out_dir=tmp_path
+        / "runtime_source_theorem_formal_environment_proofengineer_bridge_from_source_semantic_promotion",
+        queue_jsonl=work_orders_path,
+        question_id="conformal_prediction_coverage",
+        config=ResearchAgentRuntimeConfig(
+            source_theorem_formal_environment_proofengineer_bridge=True,
+            source_theorem_formal_environment_proofengineer_execute_proof_body=False,
+        ),
+    )
+    assert formal_env_bridge_manifest is not None
+    assert proof_body_executor_manifest is None
+    assert formal_env_bridge_manifest["n_repair_packets"] == 1
+    assert formal_env_bridge_manifest["signature_probes_requested"] is False
+    assert formal_env_bridge_manifest["n_proof_body_work_orders"] == 0
+    assert formal_env_bridge_manifest["n_proof_body_execution_queue_rows"] == 0
+    assert formal_env_bridge_manifest["proof_evidence_status"] == (
+        "FORMAL_ENVIRONMENT_REPAIR_PACKETS_NOT_PROOF_EVIDENCE"
+    )
+    assert formal_env_learning_rows
+    assert proof_body_learning_rows == []
 
     cli_out = tmp_path / "runtime_source_theorem_promotion_proofengineer_bridge_cli"
     code = main(
