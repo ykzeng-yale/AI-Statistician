@@ -258,7 +258,10 @@ that evidence class. The resource-response ledger carries that same
 `residual_goal_context` into accepted/rejected response rows and the
 route-revision overlay propagates it through applied resource-response and LLM
 hook traces, so later replans can distinguish residual-driven route repair from
-generic search or handoff activity.
+generic search or handoff activity. Route-replan handoff rows aggregate those
+contexts as `residual_goal_contexts`, copy them into the replayable standalone
+seed metadata, and the standalone planner exposes them in the roundtrip input
+trace used by the next LLM route-planner prompt.
 The prover-adapter contract exports those portable work packets as target-prover
 mapping tasks for Lean, Rocq/Coq, Isabelle, Agda, or another prover family and
 validates adapter responses without accepting kernel-proof claims.

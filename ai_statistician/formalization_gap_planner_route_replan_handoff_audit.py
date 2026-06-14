@@ -179,6 +179,20 @@ def audit_formalization_gap_planner_route_replan_handoff(
             )
             or 0
         ),
+        "n_roundtrip_standalone_input_traces_with_residual_goal_contexts": int(
+            roundtrip_payload.get(
+                "n_standalone_input_traces_with_residual_goal_contexts",
+                0,
+            )
+            or 0
+        ),
+        "n_roundtrip_standalone_input_trace_residual_goal_contexts": int(
+            roundtrip_payload.get(
+                "n_standalone_input_trace_residual_goal_contexts",
+                0,
+            )
+            or 0
+        ),
         "roundtrip_all_ok": bool(roundtrip_payload.get("all_ok", False)) if run_roundtrip else False,
         "n_row_schema_valid": n_row_schema_valid,
         "n_row_schema_invalid": len(row_schema_errors) - n_row_schema_valid,
@@ -1245,8 +1259,16 @@ def _trace_metadata_fields_ok(
         trace.get("applied_llm_route_planner_hook_traces", [])
     ) != _object_hashes(metadata.get("applied_llm_route_planner_hook_traces", [])):
         return False
+    if _object_hashes(trace.get("residual_goal_contexts", [])) != _object_hashes(
+        metadata.get("residual_goal_contexts", [])
+    ):
+        return False
     trace_metadata = trace.get("replan_metadata", {})
     if not isinstance(trace_metadata, dict):
+        return False
+    if _object_hashes(
+        trace_metadata.get("residual_goal_contexts", [])
+    ) != _object_hashes(metadata.get("residual_goal_contexts", [])):
         return False
     if _object_hashes(
         trace_metadata.get("applied_llm_route_planner_hook_traces", [])

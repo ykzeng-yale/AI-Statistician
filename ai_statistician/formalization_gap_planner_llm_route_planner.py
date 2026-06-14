@@ -18996,6 +18996,10 @@ def _feedback_next_actions(
                 "residual_goals": list(
                     _str_tuple(row.get("residual_goals", []))[:12]
                 ),
+                "residual_goal_contexts": [
+                    dict(context)
+                    for context in _residual_goal_contexts_for_route(row)[:6]
+                ],
                 "quality_controls": _dict_value(row, "quality_controls"),
                 "commands": list(_str_tuple(row.get("next_commands", []))[:8]),
             }
@@ -19592,11 +19596,18 @@ def _residual_goals_for_route(
     residuals.extend(
         _str_tuple(_dict_value(route, "replan_metadata").get("residual_goals", []))
     )
+    residuals.extend(
+        _str_tuple(
+            context.get("residual_goal", "")
+            for context in _residual_goal_contexts_for_route(route)
+        )
+    )
     for source_name in (
         "resource_response_ledger",
         "source_grounding_audit",
         "refinement_evidence",
         "route_revision_overlay",
+        "route_replan_handoff",
         "interactive_session",
     ):
         for row in _rows_for_route(context_payloads.get(source_name, {}), route_ids):
@@ -19611,7 +19622,73 @@ def _residual_goals_for_route(
             ):
                 continue
             residuals.extend(_str_tuple(row.get("residual_goals", [])))
-    return _str_tuple(residuals)
+            residuals.extend(
+                _str_tuple(
+                    context.get("residual_goal", "")
+                    for context in _residual_goal_contexts_for_route(row)
+                )
+            )
+    return _unique_strings(residuals)
+
+
+def _residual_goal_contexts_for_route(route: Mapping[str, Any]) -> tuple[dict[str, object], ...]:
+    contexts: list[dict[str, object]] = []
+    metadata = _dict_value(route, "replan_metadata")
+    for source in (
+        route.get("residual_goal_context", {}),
+        *_dict_tuple(route.get("residual_goal_contexts", [])),
+        *_dict_tuple(metadata.get("residual_goal_contexts", [])),
+        *_dict_tuple(metadata.get("llm_route_planner_residual_goal_contexts", [])),
+    ):
+        context = _residual_goal_context_value(source)
+        if context:
+            contexts.append(context)
+    for trace_field in (
+        "applied_resource_response_traces",
+        "applied_llm_route_planner_hook_traces",
+    ):
+        for trace in _dict_tuple(route.get(trace_field, [])):
+            context = _residual_goal_context_value(
+                _dict_value(trace, "residual_goal_context")
+            )
+            if context:
+                contexts.append(context)
+        for trace in _dict_tuple(metadata.get(trace_field, [])):
+            context = _residual_goal_context_value(
+                _dict_value(trace, "residual_goal_context")
+            )
+            if context:
+                contexts.append(context)
+    return _merge_dict_rows(
+        (),
+        tuple(contexts),
+        key_fields=("residual_goal", "route_repair"),
+    )
+
+
+def _residual_goal_context_value(value: Any) -> dict[str, object]:
+    if not isinstance(value, Mapping):
+        return {}
+    context: dict[str, object] = dict(value)
+    for field_name in (
+        "residual_goals",
+        "residual_primitives",
+        "target_primitives",
+        "source_refs",
+        "queries",
+    ):
+        if field_name in context:
+            context[field_name] = _str_tuple(context.get(field_name, []))
+    for field_name in (
+        "source_kind",
+        "residual_goal",
+        "interpretation",
+        "route_repair",
+        "repair_action",
+    ):
+        if field_name in context:
+            context[field_name] = str(context.get(field_name, "") or "")
+    return context
 
 
 def _resource_response_row_is_admissible_feedback(row: Mapping[str, object]) -> bool:

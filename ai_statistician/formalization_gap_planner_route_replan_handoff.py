@@ -66,6 +66,7 @@ class FormalizationGapPlannerRouteReplanHandoffRow:
     added_primitives: tuple[str, ...]
     added_delta_primitives: tuple[str, ...]
     residual_goals: tuple[str, ...]
+    residual_goal_contexts: tuple[dict[str, object], ...]
     applied_proposal_ids: tuple[str, ...]
     applied_refinement_evidence_ids: tuple[str, ...]
     applied_hook_kinds: tuple[str, ...]
@@ -204,6 +205,12 @@ def export_formalization_gap_planner_route_replan_handoff(
         "n_source_snippets": sum(len(row.source_snippets) for row in rows),
         "n_routes_with_source_snippets": sum(1 for row in rows if row.source_snippets),
         "n_routes_with_residual_goals": sum(1 for row in rows if row.residual_goals),
+        "n_residual_goal_contexts": sum(
+            len(row.residual_goal_contexts) for row in rows
+        ),
+        "n_routes_with_residual_goal_contexts": sum(
+            1 for row in rows if row.residual_goal_contexts
+        ),
         "n_routes_with_target_theorem_context_packet": sum(
             1 for row in rows if row.target_theorem_context_packet
         ),
@@ -227,6 +234,29 @@ def export_formalization_gap_planner_route_replan_handoff(
                         "llm_route_planner_route_planning_brief",
                         {},
                     )
+                )
+            )
+        ),
+        "n_standalone_seed_residual_goal_contexts": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(route.get("replan_metadata", {})).get(
+                        "residual_goal_contexts",
+                        [],
+                    )
+                )
+            )
+            for route in standalone_seed.get("routes", [])
+            if isinstance(route, dict)
+        ),
+        "n_standalone_seed_routes_with_residual_goal_contexts": sum(
+            1
+            for route in standalone_seed.get("routes", [])
+            if isinstance(route, dict)
+            and _dict_tuple(
+                _dict_value(route.get("replan_metadata", {})).get(
+                    "residual_goal_contexts",
+                    [],
                 )
             )
         ),
@@ -410,6 +440,7 @@ def route_replan_handoff_row_json_schema() -> dict[str, object]:
             "added_primitives": string_array,
             "added_delta_primitives": string_array,
             "residual_goals": string_array,
+            "residual_goal_contexts": object_array,
             "applied_proposal_ids": string_array,
             "applied_refinement_evidence_ids": string_array,
             "applied_hook_kinds": string_array,
@@ -675,6 +706,7 @@ def _handoff_row(
     added = _str_tuple(overlay_row.get("added_primitives", []))
     added_delta = _str_tuple(overlay_row.get("added_delta_primitives", []))
     residual_goals = _str_tuple(overlay_row.get("residual_goals", []))
+    residual_goal_contexts = _residual_goal_contexts_for_overlay(overlay_row)
     applied_proposal_ids = _str_tuple(overlay_row.get("applied_proposal_ids", []))
     applied_refinement_evidence_ids = _str_tuple(
         overlay_row.get("applied_refinement_evidence_ids", [])
@@ -794,6 +826,7 @@ def _handoff_row(
         revised_formal_realization_dag_nodes=formal_nodes,
         revised_lean_realization_dag_nodes=lean_nodes,
         revised_route_alignment_edges=alignment_edges,
+        residual_goal_contexts=residual_goal_contexts,
         requires_replan=requires_replan,
         target_prover_family=target_prover_family,
         quality_controls=quality_controls,
@@ -820,6 +853,7 @@ def _handoff_row(
         added_primitives=added,
         added_delta_primitives=added_delta,
         residual_goals=residual_goals,
+        residual_goal_contexts=residual_goal_contexts,
         applied_proposal_ids=applied_proposal_ids,
         applied_refinement_evidence_ids=applied_refinement_evidence_ids,
         applied_hook_kinds=applied_hook_kinds,
@@ -959,6 +993,7 @@ def _standalone_route(
     revised_formal_realization_dag_nodes: tuple[dict[str, object], ...],
     revised_lean_realization_dag_nodes: tuple[dict[str, object], ...],
     revised_route_alignment_edges: tuple[dict[str, object], ...],
+    residual_goal_contexts: tuple[dict[str, object], ...],
     requires_replan: bool,
     target_prover_family: str,
     quality_controls: dict[str, tuple[str, ...]],
@@ -999,12 +1034,18 @@ def _standalone_route(
                 *overlay_row.get("route_revision_summaries", []),
                 *overlay_row.get("route_revision_reasons", []),
                 *stability_row.get("stopping_rule_evidence", []),
+                *[
+                    context.get("route_repair", "")
+                    for context in residual_goal_contexts
+                    if isinstance(context, dict)
+                ],
             ]
         ),
         "import_cone_size": int(plan_row.get("import_cone_size", 0) or 0),
         "dependency_graph_depth": int(plan_row.get("dependency_graph_depth", 0) or 0),
         "blocker_count": len(_str_tuple(overlay_row.get("residual_goals", []))),
         "source_trust_level": "route_revision_overlay_handoff",
+        "residual_goal_contexts": residual_goal_contexts,
         "primitives": primitive_rows,
         "replan_metadata": {
             "source_route_id": str(overlay_row.get("route_id", "")),
@@ -1064,6 +1105,10 @@ def _standalone_route(
                 overlay_row.get("route_revision_summaries", [])
             ),
             "residual_goals": _str_tuple(overlay_row.get("residual_goals", [])),
+            "residual_goal_contexts": list(residual_goal_contexts),
+            "llm_route_planner_residual_goal_contexts": list(
+                residual_goal_contexts
+            ),
             "source_refs": source_refs,
             "source_snippets": source_snippets,
             "formal_declaration_hits": _formal_declaration_hits_for_target(
@@ -1117,9 +1162,18 @@ def _primitive_row(
         ]
     )
     residual_goals = _str_tuple(
-        residual
-        for residual in overlay_row.get("residual_goals", [])
-        if primitive in str(residual)
+        [
+            *(
+                residual
+                for residual in overlay_row.get("residual_goals", [])
+                if primitive in str(residual)
+            ),
+            *(
+                str(context.get("residual_goal", "")).strip()
+                for context in _residual_goal_contexts_for_overlay(overlay_row)
+                if _residual_context_targets_primitive(context, primitive)
+            ),
+        ]
     )
     row: dict[str, object] = {
         "primitive": primitive,
@@ -1237,6 +1291,87 @@ def _stability_or_overlay(
     if field_name in stability_row:
         return stability_row.get(field_name, [])
     return overlay_row.get(field_name, [])
+
+
+def _residual_goal_contexts_for_overlay(
+    overlay_row: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    contexts: list[dict[str, object]] = []
+    metadata = _dict_value(overlay_row.get("replan_metadata", {}))
+    for source in (
+        overlay_row.get("residual_goal_context", {}),
+        *_dict_tuple(overlay_row.get("residual_goal_contexts", [])),
+        *_dict_tuple(metadata.get("residual_goal_contexts", [])),
+        *_dict_tuple(metadata.get("llm_route_planner_residual_goal_contexts", [])),
+    ):
+        context = _residual_goal_context_value(source)
+        if context:
+            contexts.append(context)
+    for trace_field in (
+        "applied_resource_response_traces",
+        "applied_llm_route_planner_hook_traces",
+    ):
+        for trace in _dict_tuple(overlay_row.get(trace_field, [])):
+            context = _residual_goal_context_value(
+                _dict_value(trace.get("residual_goal_context", {}))
+            )
+            if context:
+                contexts.append(context)
+    return _merge_dicts(tuple(contexts))
+
+
+def _residual_goal_context_value(value: Any) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    context: dict[str, object] = dict(value)
+    for field_name in (
+        "residual_goals",
+        "residual_primitives",
+        "target_primitives",
+        "source_refs",
+        "queries",
+    ):
+        if field_name in context:
+            context[field_name] = _str_tuple(context.get(field_name, []))
+    for field_name in (
+        "source_kind",
+        "residual_goal",
+        "interpretation",
+        "route_repair",
+        "repair_action",
+    ):
+        if field_name in context:
+            context[field_name] = str(context.get(field_name, "") or "")
+    return context
+
+
+def _residual_context_targets_primitive(
+    context: dict[str, object],
+    primitive: str,
+) -> bool:
+    primitive = str(primitive or "").strip()
+    if not primitive:
+        return False
+    context_primitives = set(
+        _str_tuple(
+            [
+                *context.get("target_primitives", ()),
+                *context.get("residual_primitives", ()),
+            ]
+        )
+    )
+    if context_primitives:
+        return primitive in context_primitives
+    return primitive in " ".join(
+        _str_tuple(
+            [
+                context.get("residual_goal", ""),
+                context.get("interpretation", ""),
+                context.get("route_repair", ""),
+                context.get("repair_action", ""),
+            ]
+        )
+    )
 
 
 def _quality_controls_for_handoff(
@@ -1723,6 +1858,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- LLM route-planning briefs: {payload.get('n_routes_with_llm_route_planning_brief')}/{payload.get('n_handoff_rows')}",
         f"- Seed routes with LLM route-planning briefs: {payload.get('n_standalone_seed_routes_with_llm_route_planning_brief')}/{payload.get('n_standalone_seed_routes')}",
         f"- Residual-goal routes: {payload.get('n_routes_with_residual_goals')}",
+        f"- Residual-goal contexts: {payload.get('n_residual_goal_contexts')} seed={payload.get('n_standalone_seed_residual_goal_contexts')}",
         f"- Source snippets: {payload.get('n_source_snippets')}",
         f"- Resource-ledger feedback routes: {payload.get('n_routes_with_resource_response_ledger_feedback')}",
         f"- Applied resource-response traces: {payload.get('n_applied_resource_response_traces')}",

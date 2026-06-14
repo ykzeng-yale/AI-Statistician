@@ -5882,6 +5882,22 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_route_replan_handoff_residual_goal_contexts": route_replan_handoff_payload.get(
+            "n_residual_goal_contexts",
+            0,
+        ),
+        "n_route_replan_handoff_routes_with_residual_goal_contexts": route_replan_handoff_payload.get(
+            "n_routes_with_residual_goal_contexts",
+            0,
+        ),
+        "n_route_replan_handoff_seed_residual_goal_contexts": route_replan_handoff_payload.get(
+            "n_standalone_seed_residual_goal_contexts",
+            0,
+        ),
+        "n_route_replan_handoff_seed_routes_with_residual_goal_contexts": route_replan_handoff_payload.get(
+            "n_standalone_seed_routes_with_residual_goal_contexts",
+            0,
+        ),
         "n_route_replan_distinct_prover_diagnostic_signatures": (
             route_replan_handoff_payload.get(
                 "n_distinct_prover_diagnostic_signatures",
@@ -5942,6 +5958,14 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_route_replan_roundtrip_standalone_input_traces_with_llm_route_planner_hook_traces": route_replan_handoff_audit_payload.get(
             "n_roundtrip_standalone_input_traces_with_llm_route_planner_hook_traces",
+            0,
+        ),
+        "n_route_replan_roundtrip_standalone_input_traces_with_residual_goal_contexts": route_replan_handoff_audit_payload.get(
+            "n_roundtrip_standalone_input_traces_with_residual_goal_contexts",
+            0,
+        ),
+        "n_route_replan_roundtrip_standalone_input_trace_residual_goal_contexts": route_replan_handoff_audit_payload.get(
+            "n_roundtrip_standalone_input_trace_residual_goal_contexts",
             0,
         ),
         "n_proof_state_triage_items": proof_state_triage_payload.get(
@@ -7906,7 +7930,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_route_replan_roundtrip_standalone_input_traces')}/"
             f"{payload.get('n_replan_seed_routes')} routes, "
             f"{payload.get('n_route_replan_roundtrip_standalone_input_traces_with_replan_metadata')} with metadata, "
-            f"{payload.get('n_route_replan_roundtrip_standalone_input_traces_with_target_theorem_context_packet')} with target context"
+            f"{payload.get('n_route_replan_roundtrip_standalone_input_traces_with_target_theorem_context_packet')} with target context, "
+            f"{payload.get('n_route_replan_roundtrip_standalone_input_trace_residual_goal_contexts')} residual contexts"
         ),
         f"- Replan handoff audit failures: {payload.get('n_route_replan_handoff_audit_failed')}",
         f"- Replan handoff-audit row schema valid: {payload.get('n_route_replan_handoff_audit_row_schema_valid')}/{payload.get('n_route_replan_handoff_audit_checks')}",

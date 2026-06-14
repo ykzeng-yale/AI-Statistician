@@ -149,6 +149,29 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
             "resource_id": "lean_lsp_mcp",
             "target_primitives": ["conditional_rank_argument"],
         },
+        "residual_goal_context": {
+            "source_kind": "planner_next_action",
+            "residual_goal": (
+                "conditional_rank_argument: missing source-backed statement"
+            ),
+            "residual_goals": [
+                "conditional_rank_argument: missing source-backed statement"
+            ],
+            "residual_primitives": ["conditional_rank_argument"],
+            "target_primitives": ["conditional_rank_argument"],
+            "interpretation": (
+                "Lean feedback requires a source-backed conditional rank "
+                "argument before replay"
+            ),
+            "route_repair": (
+                "add conditional_rank_argument to the informal and formal DAGs"
+            ),
+            "repair_action": "rerun route planning with conditional_rank_argument",
+            "source_refs": ["Lei-Wasserman theorem proof route"],
+            "queries": [
+                "ask Lean LSP for conditional_rank_argument residual goals"
+            ],
+        },
         "llm_route_planner_response_trace_grounded": True,
         "llm_route_planner_response_trace_mismatches": [],
         "proof_evidence_boundary": "not theorem proof evidence",
@@ -280,6 +303,10 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert payload["n_resource_response_rejected_request_ids"] == 1
     assert payload["n_applied_llm_route_planner_hook_traces"] == 1
     assert payload["n_routes_with_llm_route_planner_hook_trace"] == 1
+    assert payload["n_residual_goal_contexts"] == 1
+    assert payload["n_routes_with_residual_goal_contexts"] == 1
+    assert payload["n_standalone_seed_residual_goal_contexts"] == 1
+    assert payload["n_standalone_seed_routes_with_residual_goal_contexts"] == 1
     assert payload["n_source_snippets"] == 1
     assert payload["n_routes_with_source_snippets"] == 1
     assert payload["n_routes_with_llm_route_planning_brief"] == 1
@@ -336,6 +363,12 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert row["applied_llm_route_planner_hook_traces"][0][
         "llm_route_planner_source_index"
     ] == 0
+    assert row["residual_goal_contexts"][0]["residual_goal"].startswith(
+        "conditional_rank_argument"
+    )
+    assert row["residual_goal_contexts"][0]["residual_primitives"] == (
+        "conditional_rank_argument",
+    )
     assert row["resource_response_awaiting_request_ids"] == (
         "request:awaiting-literature",
     )
@@ -455,6 +488,15 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert seed["routes"][0]["replan_metadata"][
         "applied_llm_route_planner_hook_traces"
     ][0]["llm_route_planner_source_item"]["resource_id"] == "lean_lsp_mcp"
+    assert seed["routes"][0]["replan_metadata"]["residual_goal_contexts"][0][
+        "route_repair"
+    ] == "add conditional_rank_argument to the informal and formal DAGs"
+    assert seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_residual_goal_contexts"
+    ] == seed["routes"][0]["replan_metadata"]["residual_goal_contexts"]
+    assert seed["routes"][0]["residual_goal_contexts"][0][
+        "residual_goal"
+    ].startswith("conditional_rank_argument")
     assert seed["routes"][0]["replan_metadata"][
         "resource_response_awaiting_request_ids"
     ] == ["request:awaiting-literature"]
@@ -477,6 +519,10 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert (
         primitive_by_name["conditional_rank_argument"]["coverage_status"]
         == "source_port_needed"
+    )
+    assert (
+        "conditional_rank_argument: missing source-backed statement"
+        in primitive_by_name["conditional_rank_argument"]["side_conditions"]
     )
     assert primitive_by_name["conditional_rank_argument"]["source_snippets"][0][
         "source_ref"
@@ -550,6 +596,8 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         == 1
     )
     assert next_plan["n_standalone_input_trace_llm_route_planner_hook_traces"] == 1
+    assert next_plan["n_standalone_input_traces_with_residual_goal_contexts"] == 1
+    assert next_plan["n_standalone_input_trace_residual_goal_contexts"] == 1
     assert next_plan["n_primitive_source_snippets"] == 1
     next_row = next_plan["rows"][0]
     trace = next_row["standalone_input_trace"]
@@ -583,6 +631,13 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert trace["applied_llm_route_planner_hook_traces"][0][
         "llm_route_planner_queries"
     ] == ["ask Lean LSP for conditional_rank_argument residual goals"]
+    assert trace["has_residual_goal_contexts"]
+    assert trace["residual_goal_contexts"][0]["repair_action"] == (
+        "rerun route planning with conditional_rank_argument"
+    )
+    assert trace["replan_metadata"]["residual_goal_contexts"] == trace[
+        "residual_goal_contexts"
+    ]
     assert trace["resource_response_awaiting_request_ids"] == [
         "request:awaiting-literature"
     ]

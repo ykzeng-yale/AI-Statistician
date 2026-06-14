@@ -354,6 +354,15 @@ def export_formalization_gap_planner_standalone_plan(
             )
             for row in rows
         ),
+        "n_standalone_input_traces_with_residual_goal_contexts": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get("residual_goal_contexts")
+        ),
+        "n_standalone_input_trace_residual_goal_contexts": sum(
+            len(row.standalone_input_trace.get("residual_goal_contexts", []))
+            for row in rows
+        ),
         "standalone_input_trace_by_llm_route_adoption_status": dict(
             sorted(by_llm_route_adoption_status.items())
         ),
@@ -2108,6 +2117,20 @@ def _standalone_input_trace(
         ),
         "applied_llm_route_planner_hook_traces": _dict_list(
             metadata.get("applied_llm_route_planner_hook_traces", [])
+        ),
+        "residual_goal_contexts": _dict_list(
+            metadata.get(
+                "residual_goal_contexts",
+                raw_route.get("residual_goal_contexts", []),
+            )
+        ),
+        "has_residual_goal_contexts": bool(
+            _dict_list(
+                metadata.get(
+                    "residual_goal_contexts",
+                    raw_route.get("residual_goal_contexts", []),
+                )
+            )
         ),
         "resource_response_awaiting_request_ids": _str_list(
             metadata.get("resource_response_awaiting_request_ids", [])

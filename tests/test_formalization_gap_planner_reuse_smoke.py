@@ -2428,6 +2428,14 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "n_route_replan_revised_lean_realization_dag_nodes"
     ]
     assert payload["n_route_replan_unaligned_primitives"] == 0
+    assert (
+        payload["n_route_replan_handoff_seed_residual_goal_contexts"]
+        == payload["n_route_replan_handoff_residual_goal_contexts"]
+    )
+    assert (
+        payload["n_route_replan_handoff_seed_routes_with_residual_goal_contexts"]
+        == payload["n_route_replan_handoff_routes_with_residual_goal_contexts"]
+    )
     assert payload["n_route_replan_roundtrip_alignment_edges"] >= payload["n_replan_seed_routes"]
     assert (
         payload["n_route_replan_roundtrip_standalone_input_traces"]
@@ -2466,6 +2474,18 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_route_replan_roundtrip_standalone_input_trace_llm_route_planner_hook_traces"
         ]
         >= 0
+    )
+    assert (
+        payload[
+            "n_route_replan_roundtrip_standalone_input_trace_residual_goal_contexts"
+        ]
+        == payload["n_route_replan_handoff_seed_residual_goal_contexts"]
+    )
+    assert (
+        payload[
+            "n_route_replan_roundtrip_standalone_input_traces_with_residual_goal_contexts"
+        ]
+        == payload["n_route_replan_handoff_seed_routes_with_residual_goal_contexts"]
     )
     assert (
         payload[
