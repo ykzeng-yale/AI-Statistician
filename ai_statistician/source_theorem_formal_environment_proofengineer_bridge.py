@@ -1100,6 +1100,8 @@ def _proof_body_work_order(
         or target_theorem_name
     )
     diagnostics = _str_list(probe_row.get("diagnostics", []) or [])
+    proof_body_goal_excerpt = _goal_excerpt(diagnostics)
+    proof_body_attempts = _bounded_proof_body_attempts(proof_body_goal_excerpt)
     work_order_id = "exact_source_theorem_proof_body_work_order:" + stable_hash(
         [
             probe_row.get("signature_probe_id", ""),
@@ -1138,7 +1140,16 @@ def _proof_body_work_order(
             probe_row.get("failure_classification", "") or ""
         ),
         "proof_body_goal_diagnostics": diagnostics[:24],
-        "proof_body_goal_excerpt": _goal_excerpt(diagnostics),
+        "proof_body_goal_excerpt": proof_body_goal_excerpt,
+        "proof_body_attempts": proof_body_attempts,
+        "proof_body_attempt_source": (
+            "signature_probe_goal_excerpt_static_heuristics"
+        ),
+        "proof_body_attempt_boundary": (
+            "Proof-body attempts are bounded executor suggestions only. They are "
+            "not proof evidence unless the exact source theorem artifact passes "
+            "local Lean/AXLE."
+        ),
         "already_repaired_environment": {
             "missing_formal_symbols": list(
                 repair_packet.get("missing_formal_symbols", []) or []
@@ -1177,6 +1188,14 @@ def _goal_excerpt(diagnostics: list[str]) -> list[str]:
         if "unsolved goals" in line.lower():
             return diagnostics[index : index + 18]
     return diagnostics[:18]
+
+
+def _bounded_proof_body_attempts(goal_excerpt: list[str]) -> list[str]:
+    text = "\n".join(goal_excerpt).lower()
+    attempts: list[str] = []
+    if "unsolved goals" in text:
+        attempts.extend(["assumption", "simpa", "simp"])
+    return list(dict.fromkeys(attempts))
 
 
 def _export_proof_body_execution_queue(
@@ -1333,6 +1352,13 @@ def _proof_body_execution_queue_row(
             work_order.get("already_repaired_environment", {}) or {}
         ),
         "proof_body_goal_excerpt": list(work_order.get("proof_body_goal_excerpt", []) or []),
+        "proof_body_attempts": _str_list(work_order.get("proof_body_attempts", []) or []),
+        "proof_body_attempt_source": str(
+            work_order.get("proof_body_attempt_source", "") or ""
+        ),
+        "proof_body_attempt_boundary": str(
+            work_order.get("proof_body_attempt_boundary", "") or ""
+        ),
         "proofengineer_next_actions": list(
             work_order.get("proofengineer_next_actions", []) or []
         ),
@@ -1438,6 +1464,7 @@ def _proof_body_live_proof_state_request(
         or source_target_provenance.get("semantic_alignment_constraints", [])
         or []
     )
+    proof_body_attempts = _str_list(work_order.get("proof_body_attempts", []) or [])
     request_id = "exact_source_theorem_proof_body_live_goal:" + stable_hash(
         [
             queue_id,
@@ -1458,12 +1485,11 @@ def _proof_body_live_proof_state_request(
         "mcp_tool_calls": [
             {
                 "tool": tool,
-                "arguments": {
-                    "file": str(location.get("target_lean_file", "")),
-                    "line": int(location.get("target_lean_line", 0) or 0),
-                    "column": int(location.get("target_lean_column", 0) or 0),
-                    "declaration": str(location.get("target_lean_declaration", "")),
-                },
+                "arguments": _live_proof_state_tool_arguments(
+                    tool=tool,
+                    location=location,
+                    proof_body_attempts=proof_body_attempts,
+                ),
             }
             for tool in (
                 "lean_goal",
@@ -1488,12 +1514,33 @@ def _proof_body_live_proof_state_request(
         "source_theorem_target_provenance": source_target_provenance,
         "semantic_alignment_constraints": semantic_alignment_constraints,
         "proof_body_goal_excerpt": list(work_order.get("proof_body_goal_excerpt", []) or []),
+        "proof_body_attempts": proof_body_attempts,
+        "proof_body_attempt_source": str(
+            work_order.get("proof_body_attempt_source", "") or ""
+        ),
         "proof_evidence_status": "LIVE_PROOF_STATE_REQUEST_NOT_PROOF_EVIDENCE",
         "proof_evidence_boundary": (
             "Live proof-state requests provide diagnostic/search evidence only. "
             "They are not theorem proof evidence."
         ),
     }
+
+
+def _live_proof_state_tool_arguments(
+    *,
+    tool: str,
+    location: Mapping[str, object],
+    proof_body_attempts: list[str],
+) -> dict[str, object]:
+    arguments: dict[str, object] = {
+        "file": str(location.get("target_lean_file", "")),
+        "line": int(location.get("target_lean_line", 0) or 0),
+        "column": int(location.get("target_lean_column", 0) or 0),
+        "declaration": str(location.get("target_lean_declaration", "")),
+    }
+    if tool == "lean_multi_attempt":
+        arguments["snippets"] = proof_body_attempts
+    return arguments
 
 
 def _default_repair_tasks(

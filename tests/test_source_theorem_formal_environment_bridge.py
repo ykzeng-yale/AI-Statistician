@@ -189,6 +189,17 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
         "proof_body_incomplete"
     )
     assert proof_body_work_order["proof_body_goal_excerpt"] == ["unsolved goals"]
+    assert proof_body_work_order["proof_body_attempts"] == [
+        "assumption",
+        "simpa",
+        "simp",
+    ]
+    assert proof_body_work_order["proof_body_attempt_source"] == (
+        "signature_probe_goal_excerpt_static_heuristics"
+    )
+    assert "not proof evidence" in proof_body_work_order[
+        "proof_body_attempt_boundary"
+    ].lower()
     assert proof_body_work_order["already_repaired_environment"][
         "signature_typecheck_reached_proof_body"
     ] is True
@@ -222,6 +233,16 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     ]
     assert execution_row["live_goal_location_ready"] is True
     assert execution_row["target_lean_declaration"] == "split_conformal_coverage"
+    assert execution_row["proof_body_goal_excerpt"] == ["unsolved goals"]
+    assert execution_row["proof_body_attempts"] == [
+        "assumption",
+        "simpa",
+        "simp",
+    ]
+    assert execution_row["proof_body_attempt_source"] == (
+        "signature_probe_goal_excerpt_static_heuristics"
+    )
+    assert "local lean/axle" in execution_row["proof_body_attempt_boundary"].lower()
     assert execution_row["already_repaired_environment"]["missing_formal_symbols"] == [
         "Exchangeable",
         "orderStat",
@@ -239,6 +260,21 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert {
         call["tool"] for call in execution_row["live_proof_state_request"]["mcp_tool_calls"]
     } >= {"lean_goal", "lean_diagnostic_messages", "lean_local_search", "lean_multi_attempt"}
+    multi_attempt_call = next(
+        call
+        for call in execution_row["live_proof_state_request"]["mcp_tool_calls"]
+        if call["tool"] == "lean_multi_attempt"
+    )
+    assert multi_attempt_call["arguments"]["snippets"] == [
+        "assumption",
+        "simpa",
+        "simp",
+    ]
+    assert execution_row["live_proof_state_request"]["proof_body_attempts"] == [
+        "assumption",
+        "simpa",
+        "simp",
+    ]
     assert "copy signature_probe_artifact_path" in " ".join(execution_row["command_plan"])
     assert "no sorry/admit/axiom/unsafe tokens" in execution_row["required_static_checks"]
     assert execution_row["proof_evidence_status"] == (
