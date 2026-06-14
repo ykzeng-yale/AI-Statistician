@@ -2695,6 +2695,145 @@ def test_post_executor_semantic_learning_exports_source_promotion_work_order() -
     assert rows[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
+def test_post_executor_promotion_waits_for_executor_placeholder_support() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+    input_learning_rows = [
+        {
+            "learning_task": "theorem_reduction_closure_kernel_overlay",
+            "kernel_verified_proof_obligation_ids": verified_ids,
+            "kernel_verified_theorem_reduction_closure_work_order_ids": [
+                "theorem_reduction_closure_work_order:good_rank"
+            ],
+            "kernel_verified_theorem_reduction_closure_target_ids": [
+                "split_conformal_finite_sample_coverage_reduction_closure"
+            ],
+            "kernel_verified_theorem_reduction_closure_goal_ids": [
+                "split_conformal_finite_sample_coverage"
+            ],
+        },
+    ]
+    executor_feedback = {
+        "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+        "target_theorem_name": "split_conformal_coverage",
+        "source_theorem_kernel_verified": False,
+        "input_summary": {
+            "trigger": "EXACT_SOURCE_PROOF_BODY_ARTIFACT_KERNEL_ENVIRONMENT_OPEN",
+            "target_theorem_name": "split_conformal_coverage",
+            "source_theorem_kernel_verified": False,
+            "failure_classification": "formal_environment_placeholder_primitives",
+            "formal_environment_placeholder_symbols": [
+                "MeasureProbability",
+                "Exchangeable",
+                "orderStatistic",
+            ],
+        },
+    }
+    partial_semantic_learning = {
+        "learning_task": "source_theorem_semantic_primitive_kernel_overlay",
+        "kernel_verified_source_theorem_semantic_primitive_ids": [
+            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+            "split_conformal_good_rank_set_inclusion_bridge",
+        ],
+        "kernel_verified_proof_obligation_ids": [
+            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+            "split_conformal_good_rank_set_inclusion_bridge",
+        ],
+    }
+    complete_semantic_learning = {
+        "learning_task": "source_theorem_semantic_primitive_kernel_overlay",
+        "kernel_verified_source_theorem_semantic_primitive_ids": [
+            "prob_measure_univ",
+            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+            "split_conformal_good_rank_set_inclusion_bridge",
+        ],
+        "kernel_verified_proof_obligation_ids": [
+            "prob_measure_univ",
+            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+            "split_conformal_good_rank_set_inclusion_bridge",
+        ],
+    }
+    formalization_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:post_executor_placeholder_gate",
+        "question": {
+            "id": "conformal_prediction_coverage",
+            "title": "Split conformal prediction interval coverage",
+        },
+        "llm_formalizer_proof_engineer_proposal_id": (
+            "formalizer_proposal:post_executor_placeholder_gate"
+        ),
+        "deterministic_theorem_goals": [
+            {"id": "split_conformal_finite_sample_coverage"}
+        ],
+        "registered_proof_bank_obligation_catalog": catalog,
+        "proof_bank_runtime_memory_summary": {
+            "recommended_formalizer_target_mode": "source_theorem_semantic_primitive_closure",
+        },
+    }
+    proposal = {
+        "artifact_kind": "FormalizerProofEngineerProposalPacket",
+        "packet_id": "formalizer_proposal:post_executor_placeholder_gate",
+        "formal_targets": [
+            {
+                "id": "split_conformal_coverage",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_coverage "
+                    "(coverage_claim : Prop) (h_coverage : coverage_claim) : "
+                    "coverage_claim := by exact h_coverage"
+                ),
+                "semantic_alignment_constraints": [
+                    "exact source theorem must not assume the target"
+                ],
+            }
+        ],
+    }
+    results = [
+        {
+            "blackboard": {
+                "artifacts": {
+                    formalization_manifest["manifest_id"]: formalization_manifest,
+                    proposal["packet_id"]: proposal,
+                }
+            }
+        }
+    ]
+    architect_context = {
+        "runtime_learning_memory": {
+            "artifact_kind": "RuntimeLearningMemoryContext",
+            "rows": input_learning_rows,
+            "counts": {"rows_loaded": len(input_learning_rows)},
+        }
+    }
+
+    partial_rows = _runtime_source_theorem_promotion_work_order_rows_from_learning_rows(
+        results,
+        [executor_feedback, partial_semantic_learning],
+        architect_context=architect_context,
+        source_runtime_learning_task="source_theorem_semantic_primitive_kernel_overlay",
+    )
+    complete_rows = _runtime_source_theorem_promotion_work_order_rows_from_learning_rows(
+        results,
+        [executor_feedback, complete_semantic_learning],
+        architect_context=architect_context,
+        source_runtime_learning_task="source_theorem_semantic_primitive_kernel_overlay",
+    )
+
+    assert partial_rows == []
+    assert len(complete_rows) == 1
+    assert complete_rows[0]["artifact_kind"] == "SourceTheoremPromotionWorkOrder"
+    assert complete_rows[0]["same_run_post_executor_promotion"] is True
+    assert complete_rows[0]["kernel_verified_source_theorem_semantic_primitive_ids"] == [
+        "prob_measure_univ",
+        "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+        "split_conformal_good_rank_set_inclusion_bridge",
+    ]
+    assert complete_rows[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+
+
 def test_source_theorem_promotion_infers_mathlib_import_for_statistical_statement(
     tmp_path: Path,
 ) -> None:

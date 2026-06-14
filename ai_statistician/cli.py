@@ -339,6 +339,9 @@ from .theorem_reduction_closure_proofengineer_bridge import (
     resolve_theorem_reduction_queue_path,
     run_theorem_reduction_closure_proofengineer_bridge,
 )
+from .source_theorem_semantic_primitive_proofengineer_bridge import (
+    run_source_theorem_semantic_primitive_proofengineer_bridge,
+)
 from .source_theorem_formal_environment_proofengineer_bridge import (
     run_source_theorem_formal_environment_proofengineer_bridge,
 )
@@ -1050,6 +1053,47 @@ def _theorem_reduction_closure_proofengineer_bridge(args: argparse.Namespace) ->
         f"runtime_learning_ready={bridge_manifest['runtime_learning_ready']}"
     )
     print(f"audit manifest written to {audit_manifest_path.resolve()}")
+    print(
+        "runtime learning rows written to "
+        f"{Path(str(bridge_manifest['runtime_learning_rows_jsonl'])).resolve()}"
+    )
+    print(f"bridge manifest written to {bridge_manifest_path.resolve()}")
+    return 0
+
+
+def _source_theorem_semantic_primitive_proofengineer_bridge(
+    args: argparse.Namespace,
+) -> int:
+    out_dir = Path(args.out)
+    bridge_manifest = run_source_theorem_semantic_primitive_proofengineer_bridge(
+        out_dir=out_dir,
+        runtime_dir=Path(args.runtime_dir) if args.runtime_dir else None,
+        queue_jsonl=Path(args.queue_jsonl) if args.queue_jsonl else None,
+        question_id=str(args.question_id or ""),
+        local_lean=bool(args.local_lean),
+        lean_project=Path(args.lean_project) if args.lean_project else None,
+        lean_timeout=int(args.lean_timeout),
+        proof_audit_manifest=(
+            Path(args.proof_audit_manifest) if args.proof_audit_manifest else None
+        ),
+    )
+    bridge_manifest_path = (
+        out_dir / "source_theorem_semantic_primitive_proofengineer_bridge_manifest.json"
+    )
+    print("\nAI Statistician Source-Theorem Semantic-Primitive ProofEngineer Bridge")
+    print("=" * 72)
+    print(
+        f"work_orders={bridge_manifest['n_work_orders']} "
+        f"registered_candidates={bridge_manifest['n_registered_candidate_obligations']} "
+        f"kernel_verified_candidates="
+        f"{bridge_manifest['n_kernel_verified_registered_candidate_obligations']} "
+        f"runtime_learning_ready={bridge_manifest['runtime_learning_ready']}"
+    )
+    if bridge_manifest.get("source_proof_audit_manifest"):
+        print(
+            "proof audit manifest used: "
+            f"{Path(str(bridge_manifest['source_proof_audit_manifest'])).resolve()}"
+        )
     print(
         "runtime learning rows written to "
         f"{Path(str(bridge_manifest['runtime_learning_rows_jsonl'])).resolve()}"
@@ -6790,6 +6834,72 @@ def build_parser() -> argparse.ArgumentParser:
     )
     theorem_reduction_closure_proofengineer_bridge.set_defaults(
         func=_theorem_reduction_closure_proofengineer_bridge
+    )
+
+    source_theorem_semantic_primitive_proofengineer_bridge = sub.add_parser(
+        "source-theorem-semantic-primitive-proofengineer-bridge",
+        help=(
+            "run the ProofEngineer bridge from AgentRuntime source-theorem "
+            "semantic primitive work orders to runtime learning memory"
+        ),
+    )
+    semantic_bridge_source = (
+        source_theorem_semantic_primitive_proofengineer_bridge.add_mutually_exclusive_group(
+            required=True
+        )
+    )
+    semantic_bridge_source.add_argument(
+        "--runtime-dir",
+        help=(
+            "research-agent-runtime output directory containing "
+            "research_agent_runtime_manifest.json"
+        ),
+    )
+    semantic_bridge_source.add_argument(
+        "--queue-jsonl",
+        help=(
+            "runtime_source_theorem_semantic_primitive_work_orders.jsonl from "
+            "research-agent-runtime"
+        ),
+    )
+    source_theorem_semantic_primitive_proofengineer_bridge.add_argument(
+        "--question-id",
+        default="",
+        help="optional question id to attach to exported runtime learning memory",
+    )
+    source_theorem_semantic_primitive_proofengineer_bridge.add_argument(
+        "--out",
+        default="runs/source_theorem_semantic_primitive_proofengineer_bridge",
+        help="bridge output directory",
+    )
+    source_theorem_semantic_primitive_proofengineer_bridge.add_argument(
+        "--local-lean",
+        action="store_true",
+        help=(
+            "run local lake env lean for registered semantic-bridge obligations; "
+            "only successful rows become support evidence"
+        ),
+    )
+    source_theorem_semantic_primitive_proofengineer_bridge.add_argument(
+        "--lean-project",
+        help="local Lake project used by --local-lean",
+    )
+    source_theorem_semantic_primitive_proofengineer_bridge.add_argument(
+        "--lean-timeout",
+        type=int,
+        default=90,
+        help="timeout seconds for each source-semantic local Lean check",
+    )
+    source_theorem_semantic_primitive_proofengineer_bridge.add_argument(
+        "--proof-audit-manifest",
+        default="",
+        help=(
+            "optional existing proof_audit_manifest.json to reuse instead of "
+            "running a new local Lean audit"
+        ),
+    )
+    source_theorem_semantic_primitive_proofengineer_bridge.set_defaults(
+        func=_source_theorem_semantic_primitive_proofengineer_bridge
     )
 
     source_theorem_formal_environment_proofengineer_bridge = sub.add_parser(
