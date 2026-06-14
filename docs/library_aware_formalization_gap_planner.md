@@ -227,7 +227,10 @@ Each request and row also carries `model_tier_decision_evidence`: structured
 counts, coverage/action markers, Sonnet trigger reasons, Haiku bounded-route
 safety checks, and any Haiku-to-Sonnet repair escalation. This keeps the
 cost-aware Claude routing decision auditable as data rather than only as a
-free-text rationale. In
+free-text rationale. Source-theorem and proof-body feedback rows are included
+in those counts; semantic-primitive gaps, exact proof-body execution failures,
+and formal-environment blockers are explicit Sonnet auto-tier triggers because
+they require route repair rather than cheap bounded triage. In
 the same request packet, `context_packet.legacy_context_field_aliases` is
 target-aware: Lean requests map legacy context fields such as
 `lean_grounding_queries` and `lean_declaration_hits` back to portable
@@ -846,7 +849,11 @@ reuse-smoke manifest records `staged_live_provider_prompt_no_api_call` versus
 the Haiku/Sonnet/Opus request-tier distribution. Auto tiering keeps small,
 source-backed reuse/wrapper routes on Haiku, but upgrades target-intake rows
 with missing proof sources, library search requirements, proof-state probes, or
-larger theorem context to Sonnet. If a live Anthropic Haiku route-plan response
+larger theorem context to Sonnet. It also upgrades source-theorem/proof-body
+feedback rows with semantic-primitive gaps, exact proof-body execution
+failures, or formal-environment blockers to Sonnet and records those row counts
+and trigger reasons in `model_tier_decision_evidence`. If a live Anthropic
+Haiku route-plan response
 fails local JSON/contract validation and a repair attempt remains, the repair
 attempt escalates to Sonnet and records `requested_model_tier`,
 `effective_model_tier`, and `model_tier_escalated` in generator metadata,

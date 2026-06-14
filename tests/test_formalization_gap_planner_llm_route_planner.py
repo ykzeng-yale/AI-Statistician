@@ -3557,6 +3557,28 @@ def test_llm_route_planner_stages_source_theorem_feedback_rows() -> None:
     assert "source_theorem_feedback_requires_repair" in {
         gap["gap_id"] for gap in brief["evidence_gaps"]
     }
+    decision_evidence = request["model_tier_decision_evidence"]
+    assert decision_evidence["decision_basis"] == "auto_sonnet_triggers"
+    assert decision_evidence["route_signal_counts"][
+        "source_theorem_feedback_row_count"
+    ] == 4
+    assert decision_evidence["route_signal_counts"][
+        "source_theorem_proof_body_execution_failure_count"
+    ] == 1
+    assert decision_evidence["route_signal_counts"][
+        "source_theorem_formal_environment_blocker_count"
+    ] == 3
+    assert decision_evidence["source_theorem_feedback_counts"][
+        "proof_body_execution_failure_count"
+    ] == 1
+    assert any(
+        "source-theorem proof-body execution failure" in trigger
+        for trigger in decision_evidence["sonnet_triggers"]
+    )
+    assert any(
+        "source-theorem formal-environment blocker" in trigger
+        for trigger in decision_evidence["sonnet_triggers"]
+    )
     prompt = request["prompt_messages"]["user"]
     assert "source_theorem_semantic_primitive_rows" in prompt
     assert "source_theorem_formal_environment_rows" in prompt
@@ -9940,6 +9962,7 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         "no_resource_request_playbooks": True,
         "no_interactive_resource_requests": True,
         "no_interactive_dispatch_summaries": True,
+        "no_source_theorem_feedback": True,
     }
     row = payload["rows"][0]
     assert row["model_tier"] == "haiku"

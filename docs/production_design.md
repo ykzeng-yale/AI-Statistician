@@ -47,6 +47,11 @@ on Anthropic and `ai_statistician doctor` emits a provider-override warning
 instead of silently treating the agent as a pure generator; generic global model
 overrides such as `AI_STATISTICIAN_LLM_MODEL=gpt-*` are ignored for that
 fallback so they cannot be sent to the Anthropic API by accident.
+Formalization gap planner auto-tiering records source-theorem/proof-body
+feedback counts in each request's model-tier decision evidence; semantic
+primitive gaps, exact proof-body execution failures, and formal-environment
+blockers are Sonnet triggers, while small source-backed reuse/wrapper routes
+without residuals or feedback can remain on Haiku.
 `ai_statistician doctor` and runtime topology
 manifests separately report same-tier freshness warnings when a resolved Claude
 tier does not match the current source-checked API ID, so stale Sonnet/Haiku

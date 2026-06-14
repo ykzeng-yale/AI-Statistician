@@ -8866,6 +8866,11 @@ def _llm_route_planner_model_tier_decision(
     route_markers = _route_coverage_action_markers(primitives)
     hard_markers = sorted(route_markers & _complex_route_markers())
     resource_dispatch_counts = _context_resource_dispatch_counts(context_packet)
+    feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    source_theorem_feedback_counts = _context_source_theorem_feedback_counts(
+        context_packet,
+        feedback_summary=feedback_summary,
+    )
     base_evidence = _model_tier_decision_evidence_base(
         route=route,
         requested_model_tier=requested,
@@ -8876,6 +8881,7 @@ def _llm_route_planner_model_tier_decision(
         route_markers=route_markers,
         hard_markers=hard_markers,
         resource_dispatch_counts=resource_dispatch_counts,
+        source_theorem_feedback_counts=source_theorem_feedback_counts,
     )
     if requested in {"haiku", "sonnet", "opus"}:
         evidence = dict(base_evidence)
@@ -8895,7 +8901,6 @@ def _llm_route_planner_model_tier_decision(
             evidence,
         )
 
-    feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
     sonnet_reasons: list[str] = []
     if residual_goals:
         sonnet_reasons.append(f"{len(residual_goals)} prover residual goal(s)")
@@ -8906,6 +8911,9 @@ def _llm_route_planner_model_tier_decision(
         sonnet_reasons.append("omitted cost-hint primitive(s) require route review")
     if bool(feedback_summary.get("replan_required", False)):
         sonnet_reasons.append("feedback-loop summary requires route repair")
+    sonnet_reasons.extend(
+        _source_theorem_feedback_sonnet_reasons(source_theorem_feedback_counts)
+    )
     sonnet_reasons.extend(_target_intake_sonnet_reasons(context_packet))
     sonnet_reasons.extend(_seed_route_risk_sonnet_reasons(route, primitives))
     cost_hint_reasons = _minimal_delta_cost_hint_sonnet_reasons(context_packet)
@@ -8980,6 +8988,9 @@ def _llm_route_planner_model_tier_decision(
                 "interactive_session_resource_request_dispatch_summary_count"
             ]
             == 0
+        ),
+        "no_source_theorem_feedback": (
+            source_theorem_feedback_counts["total_count"] == 0
         ),
     }
     evidence = dict(base_evidence)
@@ -9057,6 +9068,99 @@ def _context_resource_dispatch_counts(
     }
 
 
+def _context_source_theorem_feedback_counts(
+    context_packet: Mapping[str, Any],
+    *,
+    feedback_summary: Mapping[str, Any],
+) -> dict[str, int | bool]:
+    source_theorem_feedback = _dict_value(feedback_summary, "source_theorem_feedback")
+    semantic_row_count = len(
+        _dict_tuple(context_packet.get("source_theorem_semantic_primitive_rows", []))
+    )
+    proof_body_work_order_row_count = len(
+        _dict_tuple(
+            context_packet.get("proof_body_semantic_primitive_work_order_rows", [])
+        )
+    )
+    formal_environment_row_count = len(
+        _dict_tuple(context_packet.get("source_theorem_formal_environment_rows", []))
+    )
+    proof_body_execution_result_row_count = len(
+        _dict_tuple(
+            context_packet.get("source_theorem_proof_body_execution_result_rows", [])
+        )
+    )
+    raw_total_count = (
+        semantic_row_count
+        + proof_body_work_order_row_count
+        + formal_environment_row_count
+        + proof_body_execution_result_row_count
+    )
+    summary_total_count = int(
+        source_theorem_feedback.get("total_count", 0) or 0
+    )
+    return {
+        "semantic_primitive_row_count": semantic_row_count,
+        "proof_body_semantic_primitive_work_order_row_count": (
+            proof_body_work_order_row_count
+        ),
+        "formal_environment_row_count": formal_environment_row_count,
+        "proof_body_execution_result_row_count": (
+            proof_body_execution_result_row_count
+        ),
+        "total_count": max(raw_total_count, summary_total_count),
+        "unverified_semantic_primitive_row_count": int(
+            source_theorem_feedback.get(
+                "unverified_semantic_primitive_row_count",
+                0,
+            )
+            or 0
+        ),
+        "proof_body_execution_failure_count": int(
+            source_theorem_feedback.get("proof_body_execution_failure_count", 0)
+            or 0
+        ),
+        "formal_environment_blocker_count": int(
+            source_theorem_feedback.get("formal_environment_blocker_count", 0)
+            or 0
+        ),
+        "replan_required": bool(
+            source_theorem_feedback.get("replan_required", False)
+        ),
+    }
+
+
+def _source_theorem_feedback_sonnet_reasons(
+    counts: Mapping[str, int | bool],
+) -> list[str]:
+    reasons: list[str] = []
+    unverified_semantic = int(
+        counts.get("unverified_semantic_primitive_row_count", 0) or 0
+    )
+    proof_body_failures = int(
+        counts.get("proof_body_execution_failure_count", 0) or 0
+    )
+    formal_environment_blockers = int(
+        counts.get("formal_environment_blocker_count", 0) or 0
+    )
+    total_count = int(counts.get("total_count", 0) or 0)
+    if unverified_semantic:
+        reasons.append(
+            f"{unverified_semantic} source-theorem semantic primitive gap row(s)"
+        )
+    if proof_body_failures:
+        reasons.append(
+            f"{proof_body_failures} source-theorem proof-body execution failure(s)"
+        )
+    if formal_environment_blockers:
+        reasons.append(
+            f"{formal_environment_blockers} source-theorem formal-environment blocker(s)"
+        )
+    if total_count and not reasons:
+        reasons.append(f"{total_count} source-theorem/proof-body feedback row(s)")
+    return reasons
+
+
 def _route_coverage_action_markers(
     primitives: tuple[Mapping[str, Any], ...],
 ) -> set[str]:
@@ -9084,6 +9188,7 @@ def _model_tier_decision_evidence_base(
     route_markers: set[str],
     hard_markers: list[str],
     resource_dispatch_counts: Mapping[str, int],
+    source_theorem_feedback_counts: Mapping[str, int | bool],
 ) -> dict[str, object]:
     return {
         "evidence_kind": "formalization_gap_planner_llm_route_planner_model_tier_decision",
@@ -9128,8 +9233,61 @@ def _model_tier_decision_evidence_base(
                 )
                 or 0
             ),
+            "source_theorem_feedback_row_count": int(
+                source_theorem_feedback_counts.get("total_count", 0) or 0
+            ),
+            "source_theorem_semantic_primitive_row_count": int(
+                source_theorem_feedback_counts.get(
+                    "semantic_primitive_row_count",
+                    0,
+                )
+                or 0
+            ),
+            "proof_body_semantic_primitive_work_order_row_count": int(
+                source_theorem_feedback_counts.get(
+                    "proof_body_semantic_primitive_work_order_row_count",
+                    0,
+                )
+                or 0
+            ),
+            "source_theorem_formal_environment_row_count": int(
+                source_theorem_feedback_counts.get(
+                    "formal_environment_row_count",
+                    0,
+                )
+                or 0
+            ),
+            "source_theorem_proof_body_execution_result_row_count": int(
+                source_theorem_feedback_counts.get(
+                    "proof_body_execution_result_row_count",
+                    0,
+                )
+                or 0
+            ),
+            "source_theorem_unverified_semantic_primitive_row_count": int(
+                source_theorem_feedback_counts.get(
+                    "unverified_semantic_primitive_row_count",
+                    0,
+                )
+                or 0
+            ),
+            "source_theorem_proof_body_execution_failure_count": int(
+                source_theorem_feedback_counts.get(
+                    "proof_body_execution_failure_count",
+                    0,
+                )
+                or 0
+            ),
+            "source_theorem_formal_environment_blocker_count": int(
+                source_theorem_feedback_counts.get(
+                    "formal_environment_blocker_count",
+                    0,
+                )
+                or 0
+            ),
         },
         "context_resource_dispatch_counts": dict(resource_dispatch_counts),
+        "source_theorem_feedback_counts": dict(source_theorem_feedback_counts),
         "coverage_action_markers": sorted(route_markers),
         "complex_coverage_action_markers": list(hard_markers),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
