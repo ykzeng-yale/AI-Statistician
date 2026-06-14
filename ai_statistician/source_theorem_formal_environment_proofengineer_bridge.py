@@ -294,6 +294,10 @@ def _repair_packet(row: Mapping[str, Any]) -> dict[str, Any]:
     typeclass_blockers = _str_list(row.get("typeclass_blockers", []) or [])
     recommended_tasks = _str_list(row.get("recommended_repair_tasks", []) or [])
     candidate_artifact_path = str(row.get("candidate_artifact_path", "") or "").strip()
+    candidate_source = _read_candidate_source(candidate_artifact_path)
+    candidate_source_symbols = _source_candidate_environment_symbols(candidate_source)
+    if candidate_source_symbols:
+        missing_symbols = list(dict.fromkeys([*missing_symbols, *candidate_source_symbols]))
     source_target_provenance = _source_theorem_target_provenance(row)
     target_lean_declaration = str(
         source_target_provenance.get("target_lean_declaration", "")
@@ -432,11 +436,61 @@ def _proofengineer_action_plan(
     return list(dict.fromkeys(actions))[:10]
 
 
+def _read_candidate_source(candidate_artifact_path: str) -> str:
+    if not candidate_artifact_path:
+        return ""
+    try:
+        return Path(candidate_artifact_path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+
+
+def _source_candidate_environment_symbols(source: str) -> list[str]:
+    if not source:
+        return []
+    symbols: list[str] = []
+    for symbol in (
+        "MeasureProbability",
+        "Exchangeable",
+        "orderStatistic",
+        "orderStat",
+    ):
+        if re.search(rf"\b{re.escape(symbol)}\b", source):
+            symbols.append(symbol)
+    return symbols
+
+
 def _formal_environment_declaration_hints(missing_symbols: list[str]) -> list[dict[str, Any]]:
     hints: list[dict[str, Any]] = []
     for symbol in missing_symbols:
         normalized = symbol.strip()
-        if normalized == "Exchangeable":
+        if normalized == "MeasureProbability":
+            hints.append(
+                {
+                    "symbol": normalized,
+                    "search_queries": [
+                        "Mathlib ProbabilityMeasure MeasureTheory IsProbabilityMeasure",
+                        "MeasureTheory.Measure IsProbabilityMeasure probability measure",
+                        "StatInference probability measure wrapper",
+                    ],
+                    "preferred_resolution": (
+                        "prefer `MeasureTheory.Measure Ω` with "
+                        "`[MeasureTheory.IsProbabilityMeasure P]` over a custom wrapper"
+                    ),
+                    "signature_probe_fallback": (
+                        "for a typecheck-only repair artifact, introduce a local wrapper "
+                        "with `toMeasure : MeasureTheory.Measure Ω` and "
+                        "`MeasureTheory.IsProbabilityMeasure toMeasure`; this remains a "
+                        "semantic placeholder and must block source-theorem promotion"
+                    ),
+                    "promotion_blocker": (
+                        "`MeasureProbability` is not a reviewed source theorem primitive; "
+                        "map it to Mathlib probability-measure semantics before source theorem "
+                        "promotion"
+                    ),
+                }
+            )
+        elif normalized == "Exchangeable":
             hints.append(
                 {
                     "symbol": normalized,
@@ -461,7 +515,7 @@ def _formal_environment_declaration_hints(missing_symbols: list[str]) -> list[di
                     ),
                 }
             )
-        elif normalized == "orderStat":
+        elif normalized in {"orderStat", "orderStatistic"}:
             hints.append(
                 {
                     "symbol": normalized,
@@ -817,23 +871,51 @@ def _split_import_lines(source: str) -> tuple[list[str], list[str]]:
 
 def _signature_probe_declaration_prelude(missing_symbols: list[str]) -> str:
     declarations: list[str] = []
+    if "MeasureProbability" in missing_symbols:
+        declarations.append(
+            "structure MeasureProbability (Ω : Type _) [MeasurableSpace Ω] where\n"
+            "  toMeasure : MeasureTheory.Measure Ω\n"
+            "  isProbabilityMeasure : MeasureTheory.IsProbabilityMeasure toMeasure"
+        )
     if "Exchangeable" in missing_symbols:
         declarations.append(
-            "def Exchangeable {Ω : Type _} [MeasurableSpace Ω] {m : ℕ}\n"
-            "    (P : MeasureTheory.Measure Ω) (s : Fin (m + 1) → Ω → ℝ) : Prop := True"
+            "def Exchangeable {Ω : Type _} [MeasurableSpace Ω] {ι : Type _} "
+            "{PType : Sort _}\n"
+            "    (P : PType) (s : ι → Ω → ℝ) : Prop := True"
         )
     if "orderStat" in missing_symbols:
         declarations.append(
             "def orderStat {Ω : Type _} {m : ℕ}\n"
             "    (s : Fin (m + 1) → Ω → ℝ) (k : ℕ) (ω : Ω) : ℝ := 0"
         )
+    if "orderStatistic" in missing_symbols:
+        declarations.append(
+            "noncomputable def orderStatistic {ι : Type _} "
+            "(scores : ι → ℝ) (k : ℕ) : ℝ := 0"
+        )
     return "\n\n".join(declarations)
 
 
 def _apply_statement_repair_hints(source: str, packet: Mapping[str, Any]) -> str:
     blockers = _str_list(packet.get("typeclass_blockers", []) or [])
+    missing_symbols = _str_list(packet.get("missing_formal_symbols", []) or [])
     if any("HSub ℕ ℝ ENNReal" in blocker for blocker in blockers):
         source = re.sub(r"≥\s*1\s*-\s*alpha\b", "≥ ENNReal.ofReal (1 - alpha)", source)
+    if "MeasureProbability" in missing_symbols:
+        source = source.replace(
+            "1 - α ≤ P.toMeasure",
+            "ENNReal.ofReal (1 - α) ≤ P.toMeasure",
+        )
+        source = source.replace(
+            "1 - alpha ≤ P.toMeasure",
+            "ENNReal.ofReal (1 - alpha) ≤ P.toMeasure",
+        )
+    if "orderStatistic" in missing_symbols:
+        source = re.sub(
+            r"fun\s+i\s*:\s*Fin\s*\(\s*n\s*\+\s*1\s*\)\s*=>\s*s\s+i\s+ω",
+            "fun i : Fin (n+1) => s i.castSucc ω",
+            source,
+        )
     return source
 
 

@@ -479,6 +479,105 @@ def test_signature_probe_does_not_queue_proof_body_with_environment_errors(
     assert probe_row["signature_typecheck_reached_proof_body"] is False
 
 
+def test_signature_probe_tracks_generated_source_primitives_as_open_environment(
+    tmp_path: Path,
+) -> None:
+    candidate_artifact = tmp_path / "split_conformal_coverage_lower.lean"
+    candidate_artifact.write_text(
+        "import Mathlib.Probability.ProbabilityMeasure\n"
+        "import Mathlib.Order.LocallyFiniteOrder\n\n"
+        "variable {Ω : Type _} [MeasurableSpace Ω] (P : MeasureProbability Ω)\n"
+        "  (n : ℕ) (α : ℝ) (s : Fin (n+2) → Ω → ℝ)\n"
+        "  (hexch : Exchangeable P s)\n\n"
+        "def qHat (ω : Ω) : ℝ :=\n"
+        "  orderStatistic (fun i : Fin (n+1) => s i ω) 1\n\n"
+        "def covered (ω : Ω) : Prop := s (Fin.last (n+1)) ω ≤ qHat n α s ω\n\n"
+        "theorem split_conformal_coverage_lower :\n"
+        "    1 - α ≤ P.toMeasure {ω | covered n α s ω} := by\n"
+        "  fail_if_success trivial\n",
+        encoding="utf-8",
+    )
+    queue_jsonl = tmp_path / "runtime_source_theorem_formal_environment_work_orders.jsonl"
+    queue_jsonl.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "SourceTheoremFormalEnvironmentWorkOrder",
+                "work_order_id": "source_theorem_formal_environment_work_order:generated",
+                "question_id": "split_conformal",
+                "target_theorem_name": "split_conformal_coverage_lower",
+                "target_lean_declaration": "split_conformal_coverage_lower",
+                "source_theorem_target_known": True,
+                "candidate_artifact_path": str(candidate_artifact),
+                "failure_classification": "lean_import_environment_missing",
+                "diagnostics": [
+                    "object file 'Mathlib/Probability/ProbabilityMeasure.olean' does not exist"
+                ],
+                "missing_formal_symbols": [],
+                "typeclass_blockers": [],
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_formal_environment_proofengineer_bridge(
+        out_dir=tmp_path / "bridge",
+        queue_jsonl=queue_jsonl,
+        question_id="split_conformal",
+        run_signature_probes=True,
+        lean_command=(
+            sys.executable,
+            "-c",
+            "import sys; print('unsolved goals'); sys.exit(1)",
+        ),
+    )
+
+    assert manifest["n_missing_formal_symbols"] == 3
+    assert manifest["n_signature_probe_rows"] == 1
+    assert manifest["n_signature_probes_reached_proof_body"] == 1
+    assert manifest["n_proof_body_execution_queue_rows"] == 1
+    repair_packet = json.loads(
+        Path(str(manifest["repair_packets_jsonl"])).read_text(encoding="utf-8")
+    )
+    assert repair_packet["missing_formal_symbols"] == [
+        "MeasureProbability",
+        "Exchangeable",
+        "orderStatistic",
+    ]
+    probe_manifest = json.loads(
+        Path(str(manifest["signature_probe_manifest"])).read_text(encoding="utf-8")
+    )
+    probe_source = Path(
+        str(probe_manifest["rows"][0]["signature_probe_artifact_path"])
+    ).read_text(encoding="utf-8")
+    assert "structure MeasureProbability" in probe_source
+    assert "def Exchangeable" in probe_source
+    assert "noncomputable def orderStatistic" in probe_source
+    assert "import Mathlib\n" not in probe_source
+    assert "s i.castSucc ω" in probe_source
+    assert "qHat n α s ω" in probe_source
+    assert "ENNReal.ofReal (1 - α) ≤ P.toMeasure" in probe_source
+    execution_queue_manifest = json.loads(
+        Path(str(manifest["proof_body_execution_queue_manifest"])).read_text(
+            encoding="utf-8"
+        )
+    )
+    execution_row = execution_queue_manifest["rows"][0]
+    assert execution_row["already_repaired_environment"][
+        "missing_formal_symbols"
+    ] == [
+        "MeasureProbability",
+        "Exchangeable",
+        "orderStatistic",
+    ]
+    assert execution_row["proof_evidence_status"] == (
+        "EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTION_QUEUE_NOT_PROOF_EVIDENCE"
+    )
+
+
 def test_proof_body_execution_queue_blocks_target_declaration_mismatch(
     tmp_path: Path,
 ) -> None:
