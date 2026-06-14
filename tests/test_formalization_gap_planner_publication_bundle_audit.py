@@ -2898,6 +2898,32 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "residual_goals": ["rank_uniformity"],
         "source_refs": ["fixture source"],
     }
+    handoff_route_planning_brief = {
+        "brief_kind": "formalization_gap_planner_llm_route_planner_route_planning_brief",
+        "route_id": "route:fixture",
+        "display_name": "fixture route",
+        "target_prover_family": "lean4",
+        "planner_focus": [
+            {
+                "focus_id": "preserve_rank_uniformity_replan",
+                "priority": 1,
+                "action": "keep the rank-uniformity bridge as the replan target",
+                "reason": "handoff residuals name the same primitive",
+                "target_primitives": ["rank_uniformity"],
+            }
+        ],
+        "evidence_gaps": [
+            {
+                "gap_id": "rank_uniformity_source_grounding",
+                "gap_kind": "source_grounding",
+                "recommended_action": "preserve source-backed rank-uniformity route evidence",
+                "target_primitives": ["rank_uniformity"],
+            }
+        ],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+    }
     handoff_row = {
         "schema_version": 1,
         "route_replan_handoff_id": "handoff:rank_uniformity",
@@ -2928,6 +2954,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "route_revision_reasons": ["proof-state feedback exposed missing bridge"],
         "route_revision_summaries": ["add rank uniformity bridge"],
         "target_theorem_context_packet": handoff_target_theorem_context_packet,
+        "route_planning_brief": handoff_route_planning_brief,
         "source_refs": ["fixture source"],
         "formal_declaration_hits": [
             {"primitive": "rank_uniformity", "declaration": "Fixture.rank_uniformity"}
@@ -2945,10 +2972,16 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "route_id": "replan_route:rank_uniformity",
             "target_prover_family": "lean4",
             "target_theorem_context_packet": handoff_target_theorem_context_packet,
+            "llm_route_planner_route_planning_brief": (
+                handoff_route_planning_brief
+            ),
             "replan_metadata": {
                 "target_theorem_context_packet": handoff_target_theorem_context_packet,
                 "llm_route_planner_target_theorem_context_packet": (
                     handoff_target_theorem_context_packet
+                ),
+                "llm_route_planner_route_planning_brief": (
+                    handoff_route_planning_brief
                 ),
             },
         },
@@ -3003,6 +3036,8 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_distinct_prover_diagnostic_signatures": 1,
                 "n_routes_with_target_theorem_context_packet": 1,
                 "n_standalone_seed_routes_with_target_theorem_context_packet": 1,
+                "n_routes_with_llm_route_planning_brief": 1,
+                "n_standalone_seed_routes_with_llm_route_planning_brief": 1,
                 "all_ok": True,
                 "rows": [handoff_row],
             },
@@ -3031,6 +3066,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                         "target_theorem_context_packet": (
                             handoff_target_theorem_context_packet
                         ),
+                        "llm_route_planner_route_planning_brief": (
+                            handoff_route_planning_brief
+                        ),
                         "revised_informal_knowledge_dag_nodes": handoff_informal_nodes,
                         "revised_formal_realization_dag_nodes": handoff_lean_nodes,
                         "revised_lean_realization_dag_nodes": handoff_lean_nodes,
@@ -3041,6 +3079,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                             ),
                             "llm_route_planner_target_theorem_context_packet": (
                                 handoff_target_theorem_context_packet
+                            ),
+                            "llm_route_planner_route_planning_brief": (
+                                handoff_route_planning_brief
                             ),
                             "applied_proposal_ids": ["proposal:rank_uniformity"],
                             "applied_refinement_evidence_ids": [
@@ -3175,6 +3216,23 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         },
         {
             "schema_version": 1,
+            "check_id": "check:roundtrip_llm_route_planning_brief_trace",
+            "check_name": "roundtrip_llm_route_planning_brief_trace",
+            "category": "roundtrip",
+            "expected": (
+                "roundtrip standalone-input traces preserve LLM "
+                "route-planning briefs"
+            ),
+            "observed": (
+                "seed_routes_with_brief=1; roundtrip_traces_with_brief=1; "
+                "trace_matches=1; metadata_matches=1"
+            ),
+            "ok": True,
+            "severity": "error",
+            "errors": [],
+        },
+        {
+            "schema_version": 1,
             "check_id": "check:row_0_seed_route_provenance_metadata",
             "check_name": "row_0_seed_route_provenance_metadata",
             "category": "provenance",
@@ -3184,18 +3242,33 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "severity": "error",
             "errors": [],
         },
+        {
+            "schema_version": 1,
+            "check_id": "check:row_0_seed_route_llm_route_planning_brief",
+            "check_name": "row_0_seed_route_llm_route_planning_brief",
+            "category": "provenance",
+            "expected": (
+                "seed route and replan metadata preserve the LLM "
+                "route-planning brief"
+            ),
+            "observed": "row=True route=True metadata=True focus=1 evidence_gaps=1",
+            "ok": True,
+            "severity": "error",
+            "errors": [],
+        },
     ]
     (replan_handoff_audit_dir / "formalization_gap_planner_route_replan_handoff_audit_manifest.json").write_text(
         json.dumps(
             {
                 "component_name": "formalization_gap_planner_route_replan_handoff_audit",
-                "n_checks": 7,
+                "n_checks": 9,
                 "n_failed": 0,
-                "n_row_schema_valid": 7,
+                "n_row_schema_valid": 9,
                 "n_row_schema_invalid": 0,
                 "n_seed_routes": 1,
                 "n_roundtrip_goal_plans": 1,
                 "n_roundtrip_route_alignment_edges": 1,
+                "n_roundtrip_standalone_input_traces_with_llm_route_planning_brief": 1,
                 "roundtrip_all_ok": True,
                 "all_ok": True,
                 "checks": audit_checks,
@@ -4475,6 +4548,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"]
+        == "optional_route_replan_handoff_row_0_seed_route_planning_brief_preservation"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "optional_route_replan_handoff_seed_schema_id"
         and row["ok"]
         for row in audit_payload["checks"]
@@ -4528,6 +4607,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         and row["ok"]
         for row in audit_payload["checks"]
     )
+    assert any(
+        row["check_name"]
+        == "optional_route_replan_handoff_audit_roundtrip_route_planning_brief_trace"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
     assert audit_payload["n_optional_route_revision_overlay_row_schema_checked"] == 1
     assert audit_payload["n_optional_route_revision_overlay_row_schema_valid"] == 1
     assert audit_payload["n_optional_route_replan_handoff_row_schema_checked"] == 1
@@ -4536,12 +4621,36 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert audit_payload["n_optional_route_replan_handoff_seed_alignment_valid"] == 1
     assert audit_payload["n_optional_route_replan_handoff_seed_dag_checked"] == 1
     assert audit_payload["n_optional_route_replan_handoff_seed_dag_valid"] == 1
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_seed_route_planning_brief_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_seed_route_planning_brief_valid"
+        ]
+        == 1
+    )
     assert audit_payload["n_optional_route_revision_generic_formal_dag_checked"] == 1
     assert audit_payload["n_optional_route_revision_generic_formal_dag_valid"] == 1
     assert audit_payload["n_optional_route_replan_handoff_generic_formal_dag_checked"] == 1
     assert audit_payload["n_optional_route_replan_handoff_generic_formal_dag_valid"] == 1
-    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_checked"] == 7
-    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_valid"] == 7
+    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_checked"] == 9
+    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_valid"] == 9
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_valid"
+        ]
+        == 1
+    )
     assert any(
         row["check_name"]
         == "optional_route_replan_handoff_audit_row_0_schema_valid"

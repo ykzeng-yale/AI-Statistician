@@ -896,7 +896,10 @@ edges in each route and in its `replan_metadata`. It also carries the
 sidecar standalone-input schema publishes those optional route and metadata
 fields for external validators. The publication-bundle audit reports
 seed-alignment, seed-DAG, and route-planning-brief preservation counters. It
-also names the cross-prover
+also checks the packaged route-replan handoff audit for the
+`roundtrip_llm_route_planning_brief_trace` signal, so public bundles expose
+whether the compact route-focus/evidence-gap checklist survived standalone
+replay. It also names the cross-prover
 target summary and `formalization_gap_planner_cross_prover_target_summary.schema.json`,
 which tell non-Lean prover teams how to filter aggregate packet and response
 JSONL files for their prover family. Each target-prover adapter packet also
