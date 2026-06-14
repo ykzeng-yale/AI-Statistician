@@ -561,6 +561,19 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
                                 "residual_primitives": ["rank_uniformity"],
                                 "target_primitives": ["rank_uniformity"],
                                 "source_refs": ["conformal_prediction_textbook"],
+                                "source_snippets": [
+                                    {
+                                        "source_ref": (
+                                            "conformal_prediction_textbook"
+                                        ),
+                                        "text": (
+                                            "Rank uniformity follows under the "
+                                            "conditional exchangeability side "
+                                            "condition."
+                                        ),
+                                    }
+                                ],
+                                "source_search_status": "source_backed",
                             }
                         ],
                     }
@@ -684,6 +697,11 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
     residual_context = route_revision_row["request_payload"]["residual_goal_context"]
     assert residual_context["residual_goal"].startswith("rank_uniformity")
     assert residual_context["residual_primitives"] == ("rank_uniformity",)
+    assert residual_context["source_refs"] == ("conformal_prediction_textbook",)
+    assert residual_context["source_snippets"][0]["source_ref"] == (
+        "conformal_prediction_textbook"
+    )
+    assert residual_context["source_search_status"] == "source_backed"
     assert residual_context == route_revision_row["request_playbook"][
         "residual_goal_context"
     ]

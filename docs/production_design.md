@@ -269,7 +269,10 @@ inventory counts. If proof-state feedback supplies residual goals but omits
 `residual_goal_context`, refinement evidence derives a conservative
 `proof_state_feedback` context from the residuals, diagnostics, target
 primitives, and route-revision reasons while preserving the not-proof-evidence
-boundary.
+boundary. The source-grounding audit reads residual contexts as well as
+top-level residual rows: context source refs/snippets can source-back a residual,
+context queries create bounded source-search obligations, and substantive
+formal-gap boundaries remain explicit blockers rather than proof evidence.
 The prover-adapter contract exports those portable work packets as target-prover
 mapping tasks for Lean, Rocq/Coq, Isabelle, Agda, or another prover family and
 validates adapter responses without accepting kernel-proof claims.

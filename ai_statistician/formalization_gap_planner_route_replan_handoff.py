@@ -1330,15 +1330,21 @@ def _residual_goal_context_value(value: Any) -> dict[str, object]:
         "target_primitives",
         "source_refs",
         "queries",
+        "source_search_queries",
+        "literature_queries",
     ):
         if field_name in context:
             context[field_name] = _str_tuple(context.get(field_name, []))
+    if "source_snippets" in context:
+        context["source_snippets"] = _dict_tuple(context.get("source_snippets", []))
     for field_name in (
         "source_kind",
         "residual_goal",
         "interpretation",
         "route_repair",
         "repair_action",
+        "source_search_status",
+        "formal_gap_boundary",
     ):
         if field_name in context:
             context[field_name] = str(context.get(field_name, "") or "")

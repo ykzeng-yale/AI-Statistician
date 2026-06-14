@@ -272,3 +272,149 @@ def test_source_grounding_audit_rejects_unsourced_residual_without_literature_ho
     assert residual_rows[0]["errors"] == (
         "no source refs, formal boundary, or literature hook",
     )
+
+
+def test_source_grounding_audit_accounts_for_context_source_backed_residual() -> None:
+    root = Path("runs/test_formalization_gap_planner_source_grounding_context_source")
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    evidence_dir = root / "evidence"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "library_snapshot_ref": "mathlib4:source-grounding-context-source",
+                "routes": [
+                    {
+                        "route_id": "route:rank",
+                        "display_name": "demo_context_sourced_residual",
+                        "source_refs": ["paper:demo#theorem1"],
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                                "source_refs": ["paper:demo#rank"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    evidence_row = {
+        "refinement_evidence_id": "evidence:rank-residual",
+        "refinement_item_id": "refinement:rank-residual",
+        "route_id": "route:rank",
+        "display_name": "demo_context_sourced_residual",
+        "hook_kind": "proof_state_feedback",
+        "residual_goals": ["rank_uniformity: missing side condition"],
+        "prover_attempt_status": "local_lean_failed",
+        "prover_diagnostic_signature": "prover_diagnostic_signature:fixture",
+        "residual_goal_context": {
+            "source_kind": "proof_state_feedback",
+            "residual_goal": "rank_uniformity: missing side condition",
+            "source_refs": ["paper:demo#context-side-condition"],
+            "source_snippets": [
+                {
+                    "source_ref": "paper:demo#context-side-condition",
+                    "text": "The rank lemma requires the side condition.",
+                }
+            ],
+        },
+    }
+    (
+        evidence_dir
+        / "formalization_gap_planner_refinement_evidence_manifest.json"
+    ).write_text(json.dumps({"rows": [evidence_row]}, indent=2), encoding="utf-8")
+
+    payload = audit_formalization_gap_planner_source_grounding(
+        plan_dir,
+        formalization_gap_planner_refinement_evidence_dir=evidence_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_residual_source_backed"] == 1
+    assert payload["n_residual_unaccounted"] == 0
+    residual_rows = [
+        row
+        for row in payload["rows"]
+        if row["node_source"] == "refinement_evidence_prover_feedback"
+    ]
+    assert residual_rows[0]["grounding_status"] == "source_backed"
+    assert "paper:demo#context-side-condition" in residual_rows[0]["source_refs"]
+
+
+def test_source_grounding_audit_accounts_for_context_formal_boundary() -> None:
+    root = Path("runs/test_formalization_gap_planner_source_grounding_context_boundary")
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    evidence_dir = root / "evidence"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "library_snapshot_ref": "mathlib4:source-grounding-context-boundary",
+                "routes": [
+                    {
+                        "route_id": "route:rank",
+                        "display_name": "demo_context_boundary_residual",
+                        "source_refs": ["paper:demo#theorem1"],
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                                "source_refs": ["paper:demo#rank"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    evidence_row = {
+        "refinement_evidence_id": "evidence:rank-residual",
+        "refinement_item_id": "refinement:rank-residual",
+        "route_id": "route:rank",
+        "display_name": "demo_context_boundary_residual",
+        "hook_kind": "proof_state_feedback",
+        "residual_goals": ["rank_uniformity: missing unavailable prover lemma"],
+        "prover_attempt_status": "local_lean_failed",
+        "prover_diagnostic_signature": "prover_diagnostic_signature:fixture",
+        "residual_goal_context": {
+            "source_kind": "proof_state_feedback",
+            "residual_goal": "rank_uniformity: missing unavailable prover lemma",
+            "formal_gap_boundary": (
+                "Formal boundary: the residual records a prover-library gap for "
+                "rank_uniformity until a source-backed bridge lemma is added."
+            ),
+        },
+    }
+    (
+        evidence_dir
+        / "formalization_gap_planner_refinement_evidence_manifest.json"
+    ).write_text(json.dumps({"rows": [evidence_row]}, indent=2), encoding="utf-8")
+
+    payload = audit_formalization_gap_planner_source_grounding(
+        plan_dir,
+        formalization_gap_planner_refinement_evidence_dir=evidence_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_residual_formal_boundary_declared"] == 1
+    assert payload["n_residual_unaccounted"] == 0
+    residual_rows = [
+        row
+        for row in payload["rows"]
+        if row["node_source"] == "refinement_evidence_prover_feedback"
+    ]
+    assert residual_rows[0]["grounding_status"] == "formal_boundary_declared"

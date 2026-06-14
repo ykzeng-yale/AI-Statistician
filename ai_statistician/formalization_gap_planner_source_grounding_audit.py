@@ -330,6 +330,8 @@ def _source_grounding_row(
             [
                 *_literature_queries(plan_row),
                 *_str_tuple(node.get("literature_queries", [])),
+                *_str_tuple(node.get("source_search_queries", [])),
+                *_str_tuple(node.get("queries", [])),
             ]
         )
     )
@@ -389,6 +391,10 @@ def _grounding_status(
     label = str(node.get("label", "")).lower()
     kind = str(node.get("node_type", node.get("kind", ""))).lower()
     attempt_status = str(node.get("residual_attempt_status", "")).lower()
+    if _formal_gap_boundary_is_substantive(
+        str(node.get("formal_gap_boundary", "") or "")
+    ):
+        return FORMAL_BOUNDARY_DECLARED
     if (
         kind in {"hidden_assumption_or_gap", "route_blocker", "prover_residual_goal"}
         or attempt_status
@@ -463,8 +469,10 @@ def _plan_trace_residual_node_pairs(
             )
         )
         evidence_ids = _str_tuple(trace.get("applied_refinement_evidence_ids", []))
+        trace_contexts = _residual_goal_contexts(trace)
         source_refs = _str_tuple(trace.get("source_refs", []))
         for index, residual_goal in enumerate(residual_goals):
+            contexts = _contexts_for_residual_goal(trace_contexts, residual_goal)
             pairs.append(
                 (
                     plan_row,
@@ -482,7 +490,21 @@ def _plan_trace_residual_node_pairs(
                         "kind": "prover_residual_goal",
                         "node_type": "prover_residual_goal",
                         "label": residual_goal,
-                        "source_refs": source_refs,
+                        "source_refs": tuple(
+                            dict.fromkeys(
+                                [
+                                    *source_refs,
+                                    *_residual_context_source_refs(contexts),
+                                ]
+                            )
+                        ),
+                        "literature_queries": _residual_context_queries(contexts),
+                        "source_search_status": _residual_context_source_search_status(
+                            contexts
+                        ),
+                        "formal_gap_boundary": _residual_context_formal_gap_boundary(
+                            contexts
+                        ),
                         "informal_proof_steps": _str_tuple(
                             trace.get("route_revision_reasons", [])
                         ),
@@ -524,6 +546,7 @@ def _refinement_residual_node_pairs(
             errors.append(f"refinement evidence residual references unknown route_id: {route_id}")
             continue
         source_refs = _evidence_source_refs(evidence_row)
+        evidence_contexts = _residual_goal_contexts(evidence_row)
         seed_primitives = tuple(
             dict.fromkeys(
                 [
@@ -544,6 +567,7 @@ def _refinement_residual_node_pairs(
             if item
         )
         for index, residual_goal in enumerate(residual_goals):
+            contexts = _contexts_for_residual_goal(evidence_contexts, residual_goal)
             pairs.append(
                 (
                     plan_row,
@@ -561,7 +585,21 @@ def _refinement_residual_node_pairs(
                         "kind": "prover_residual_goal",
                         "node_type": "prover_residual_goal",
                         "label": residual_goal,
-                        "source_refs": source_refs,
+                        "source_refs": tuple(
+                            dict.fromkeys(
+                                [
+                                    *source_refs,
+                                    *_residual_context_source_refs(contexts),
+                                ]
+                            )
+                        ),
+                        "literature_queries": _residual_context_queries(contexts),
+                        "source_search_status": _residual_context_source_search_status(
+                            contexts
+                        ),
+                        "formal_gap_boundary": _residual_context_formal_gap_boundary(
+                            contexts
+                        ),
                         "informal_proof_steps": _str_tuple(
                             evidence_row.get("route_revision_reasons", [])
                         ),
@@ -636,6 +674,145 @@ def _evidence_source_refs(evidence_row: dict[str, Any]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(refs))
 
 
+def _residual_goal_contexts(container: dict[str, Any]) -> tuple[dict[str, object], ...]:
+    contexts: list[dict[str, object]] = []
+    metadata = _dict_value(container.get("replan_metadata", {}))
+    for source in (
+        container.get("residual_goal_context", {}),
+        *_dict_tuple(container.get("residual_goal_contexts", [])),
+        *_dict_tuple(metadata.get("residual_goal_contexts", [])),
+        *_dict_tuple(metadata.get("llm_route_planner_residual_goal_contexts", [])),
+    ):
+        context = _residual_goal_context_value(source)
+        if context:
+            contexts.append(context)
+    for trace_field in (
+        "applied_resource_response_traces",
+        "applied_llm_route_planner_hook_traces",
+    ):
+        for trace in _dict_tuple(container.get(trace_field, [])):
+            context = _residual_goal_context_value(
+                _dict_value(trace.get("residual_goal_context", {}))
+            )
+            if context:
+                contexts.append(context)
+    return tuple(contexts)
+
+
+def _residual_goal_context_value(value: Any) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    context: dict[str, object] = dict(value)
+    for field_name in (
+        "residual_goals",
+        "residual_primitives",
+        "target_primitives",
+        "source_refs",
+        "queries",
+        "source_search_queries",
+        "literature_queries",
+    ):
+        if field_name in context:
+            context[field_name] = _str_tuple(context.get(field_name, []))
+    if "source_snippets" in context:
+        context["source_snippets"] = _dict_tuple(context.get("source_snippets", []))
+    for field_name in (
+        "source_kind",
+        "residual_goal",
+        "interpretation",
+        "route_repair",
+        "repair_action",
+        "source_search_status",
+        "formal_gap_boundary",
+    ):
+        if field_name in context:
+            context[field_name] = str(context.get(field_name, "") or "")
+    return context
+
+
+def _contexts_for_residual_goal(
+    contexts: tuple[dict[str, object], ...],
+    residual_goal: str,
+) -> tuple[dict[str, object], ...]:
+    residual_key = _residual_goal_key(residual_goal)
+    matched = [
+        context
+        for context in contexts
+        if residual_key
+        and (
+            _residual_goal_key(context.get("residual_goal", "")) == residual_key
+            or residual_key
+            in {
+                _residual_goal_key(goal)
+                for goal in _str_tuple(context.get("residual_goals", []))
+            }
+        )
+    ]
+    if matched:
+        return tuple(matched)
+    return contexts if len(contexts) == 1 else ()
+
+
+def _residual_goal_key(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip().lower())
+
+
+def _residual_context_source_refs(
+    contexts: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    refs: list[str] = []
+    for context in contexts:
+        refs.extend(_source_refs(context))
+        refs.extend(_source_refs_from_snippets(context.get("source_snippets", [])))
+    return tuple(dict.fromkeys(refs))
+
+
+def _source_refs_from_snippets(value: Any) -> tuple[str, ...]:
+    refs: list[str] = []
+    for snippet in _dict_tuple(value):
+        refs.extend(_source_refs(snippet))
+    return tuple(dict.fromkeys(refs))
+
+
+def _residual_context_queries(
+    contexts: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    queries: list[str] = []
+    for context in contexts:
+        queries.extend(_str_tuple(context.get("queries", [])))
+        queries.extend(_str_tuple(context.get("literature_queries", [])))
+        queries.extend(_str_tuple(context.get("source_search_queries", [])))
+    return tuple(dict.fromkeys(queries))
+
+
+def _residual_context_source_search_status(
+    contexts: tuple[dict[str, object], ...],
+) -> str:
+    for context in contexts:
+        status = str(context.get("source_search_status", "") or "").strip()
+        if status:
+            return status
+    return ""
+
+
+def _residual_context_formal_gap_boundary(
+    contexts: tuple[dict[str, object], ...],
+) -> str:
+    for context in contexts:
+        boundary = str(context.get("formal_gap_boundary", "") or "").strip()
+        if boundary:
+            return boundary
+    return ""
+
+
+def _formal_gap_boundary_is_substantive(value: str) -> bool:
+    text = str(value or "").strip().lower()
+    if len(text) < 12:
+        return False
+    placeholders = {"todo", "tbd", "later", "unknown", "n/a", "none"}
+    return text not in placeholders and not text.startswith("todo")
+
+
 def _residual_primitives_from_goal(
     residual_goal: str,
     plan_row: dict[str, Any],
@@ -695,6 +872,18 @@ def _str_tuple(value: Any) -> tuple[str, ...]:
     if isinstance(value, (list, tuple, set)):
         return tuple(str(item) for item in value if str(item))
     return (str(value),) if str(value) else ()
+
+
+def _dict_tuple(value: Any) -> tuple[dict[str, object], ...]:
+    if isinstance(value, dict):
+        return (value,)
+    if isinstance(value, (list, tuple)):
+        return tuple(item for item in value if isinstance(item, dict))
+    return ()
+
+
+def _dict_value(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
 
 
 def _schema_property_errors(

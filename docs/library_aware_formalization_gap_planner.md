@@ -1038,9 +1038,13 @@ LLM-originated residual repairs. When proof-state feedback reports residual
 goals but omits that field, refinement evidence derives a conservative
 `proof_state_feedback` context from the residuals, diagnostics, target
 primitives, and route-revision reasons while retaining the not-proof-evidence
-boundary. Route-replan handoff rows now aggregate those residual contexts into
-`residual_goal_contexts`, copy them into the replayable standalone seed's
-`replan_metadata`, and the standalone planner exposes them in
+boundary. The source-grounding audit also consumes residual contexts: context
+`source_refs`/`source_snippets` count as source backing, context
+`queries`/`source_search_queries` count as bounded search hooks, and a
+substantive `formal_gap_boundary` is classified as an explicit formal boundary
+rather than a completed proof. Route-replan handoff rows now aggregate those
+residual contexts into `residual_goal_contexts`, copy them into the replayable
+standalone seed's `replan_metadata`, and the standalone planner exposes them in
 `standalone_input_trace`. The next LLM route-planning request then promotes the
 same contexts into top-level and `context_packet.residual_goal_contexts`,
 target-theorem context counts, route-planning brief focus rows, and inventory

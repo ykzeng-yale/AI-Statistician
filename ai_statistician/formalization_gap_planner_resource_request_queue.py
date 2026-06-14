@@ -1264,6 +1264,9 @@ def _llm_residual_goal_context(
         "route_repair": str(source_item.get("route_repair", "") or ""),
         "repair_action": str(source_item.get("repair_action", "") or ""),
         "source_refs": _str_tuple(source_item.get("source_refs", [])),
+        "source_snippets": _dict_tuple(source_item.get("source_snippets", [])),
+        "source_search_status": str(source_item.get("source_search_status", "") or ""),
+        "formal_gap_boundary": str(source_item.get("formal_gap_boundary", "") or ""),
         "queries": _llm_query_tuple(source_item),
     }
 
