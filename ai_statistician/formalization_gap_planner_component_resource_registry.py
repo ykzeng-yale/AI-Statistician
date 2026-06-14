@@ -36,7 +36,16 @@ PROOF_EVIDENCE_BOUNDARY = (
     "which local fallbacks, frontier tools, MCP surfaces, and prover resources "
     "should feed each planner component. They are not theorem proof evidence."
 )
-PORTABLE_REUSE_TARGETS = ("lean4", "rocq", "isabelle", "agda")
+PORTABLE_REUSE_TARGETS = (
+    "lean4",
+    "rocq",
+    "isabelle",
+    "agda",
+    "hol4",
+    "hol_light",
+    "mizar",
+    "metamath",
+)
 
 
 @dataclass(frozen=True)
@@ -1434,6 +1443,76 @@ def _resource_specs() -> tuple[dict[str, Any], ...]:
             "target_prover_families": ("agda",),
         },
         {
+            "resource_id": "hol4_tactic_kernel_tools",
+            "resource_name": "HOL4 tactic and kernel interfaces",
+            "resource_kind": "frontier_tool",
+            "surface": "hol4_cli_or_kernel",
+            "role": "HOL4 theorem search, tactic feedback, and kernel replay for portable routes",
+            "resource_urls": ("https://hol-theorem-prover.org/",),
+            "local_dependency": True,
+            "evidence_contract": (
+                "formal_declaration_hits",
+                "premise_candidates",
+                "prover_diagnostics",
+                "residual_goals",
+            ),
+            "target_prover_families": ("hol4",),
+        },
+        {
+            "resource_id": "hol_light_tactic_search",
+            "resource_name": "HOL Light theorem search and tactic interfaces",
+            "resource_kind": "frontier_tool",
+            "surface": "hol_light_ocaml_or_cli",
+            "role": "HOL Light library lookup, tactic feedback, and proof-state normalization",
+            "resource_urls": ("https://github.com/jrh13/hol-light",),
+            "local_dependency": True,
+            "evidence_contract": (
+                "formal_declaration_hits",
+                "premise_candidates",
+                "prover_diagnostics",
+                "residual_goals",
+            ),
+            "target_prover_families": ("hol_light",),
+        },
+        {
+            "resource_id": "mizar_mml_search",
+            "resource_name": "Mizar MML search and verifier interface",
+            "resource_kind": "frontier_tool",
+            "surface": "mizar_cli_or_mml_index",
+            "role": "Mizar Mathematical Library lookup, environment diagnostics, and verifier feedback",
+            "resource_urls": (
+                "https://mizar.org/",
+                "https://mizar.uwb.edu.pl/version/current/html/",
+            ),
+            "local_dependency": True,
+            "evidence_contract": (
+                "formal_declaration_hits",
+                "premise_candidates",
+                "prover_diagnostics",
+                "residual_goals",
+            ),
+            "target_prover_families": ("mizar",),
+        },
+        {
+            "resource_id": "metamath_set_mm",
+            "resource_name": "Metamath set.mm search and verifier interface",
+            "resource_kind": "frontier_tool",
+            "surface": "metamath_cli_or_set_mm_index",
+            "role": "Metamath set.mm theorem lookup, proof dependency checks, and verifier feedback",
+            "resource_urls": (
+                "https://us.metamath.org/",
+                "https://github.com/metamath/set.mm",
+            ),
+            "local_dependency": True,
+            "evidence_contract": (
+                "formal_declaration_hits",
+                "premise_candidates",
+                "prover_diagnostics",
+                "residual_goals",
+            ),
+            "target_prover_families": ("metamath",),
+        },
+        {
             "resource_id": "local_lake_lean",
             "resource_name": "Local Lake/Lean compiler feedback",
             "resource_kind": "local_fallback",
@@ -1505,7 +1584,10 @@ def _resource_specs() -> tuple[dict[str, Any], ...]:
             "resource_name": "Cross-prover matrix audit",
             "resource_kind": "local_fallback",
             "surface": "python_module",
-            "role": "exercise portable work packets across Lean, Rocq, Isabelle, and Agda adapters",
+            "role": (
+                "exercise portable work packets across Lean, Rocq, Isabelle, "
+                "Agda, HOL4, HOL Light, Mizar, and Metamath adapters"
+            ),
             "local_dependency": True,
             "evidence_contract": ("portable_work_packets", "target_prover_family", "adapter_response_contract"),
         },
@@ -1596,6 +1678,10 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
                 "rocq_lsp_serapi",
                 "isabelle_sledgehammer_afp",
                 "agda_search_auto",
+                "hol4_tactic_kernel_tools",
+                "hol_light_tactic_search",
+                "mizar_mml_search",
+                "metamath_set_mm",
             ),
             "adapter_ids": (
                 "local_formal_source_index",
@@ -1646,6 +1732,10 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
                 "rocq_lsp_serapi",
                 "isabelle_sledgehammer_afp",
                 "agda_search_auto",
+                "hol4_tactic_kernel_tools",
+                "hol_light_tactic_search",
+                "mizar_mml_search",
+                "metamath_set_mm",
             ),
             "adapter_ids": (
                 "local_lake_lean",
@@ -1690,6 +1780,10 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
                 "isabelle_sledgehammer_afp",
                 "agda_search_auto",
                 "lean_lsp_mcp",
+                "hol4_tactic_kernel_tools",
+                "hol_light_tactic_search",
+                "mizar_mml_search",
+                "metamath_set_mm",
             ),
             "adapter_ids": (),
             "integration_contract_fields": ("portable_work_packets", "adapter_response_schema", "reproduction_commands"),

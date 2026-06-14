@@ -57,6 +57,10 @@ REQUIRED_RESOURCE_IDS = (
     "rocq_lsp_serapi",
     "isabelle_sledgehammer_afp",
     "agda_search_auto",
+    "hol4_tactic_kernel_tools",
+    "hol_light_tactic_search",
+    "mizar_mml_search",
+    "metamath_set_mm",
     "publication_bundle_audit",
 )
 

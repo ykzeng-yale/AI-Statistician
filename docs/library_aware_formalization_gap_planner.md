@@ -234,10 +234,11 @@ target-aware: Lean requests map legacy context fields such as
 `formal_library_grounding_queries` and `formal_declaration_hits`, while non-Lean
 requests keep that map empty and the prompt requires new route output to prefer
 the portable fields. Response validation also checks target-specific tool and
-resource scope: a Rocq, Isabelle, or Agda route cannot silently dispatch
-Lean-specific hooks such as LeanSearch, Loogle, Lake, or `lean_lsp_mcp` merely
-by omitting `target_prover_family` on the action row; the tool owner, resource
-id, and adapter id must either be portable or match the request target prover
+resource scope: a Rocq, Isabelle, Agda, HOL4, HOL Light, Mizar, or Metamath
+route cannot silently dispatch Lean-specific hooks such as LeanSearch, Loogle,
+Lake, or `lean_lsp_mcp`, nor another prover family's resource, merely by
+omitting `target_prover_family` on the action row; the tool owner, resource id,
+and adapter id must either be portable or match the request target prover
 family.
 `--model-tier auto`, the route planner also reads target-intake rows: missing
 proof sources, library-search-required review flags, proof-state probes, complex
@@ -593,8 +594,9 @@ LLM route-planner request packets can also carry compact component-resource
 registry context through
 `--formalization-gap-planner-component-resource-registry-dir`. That context
 lists planner stages, local-first resources, frontier tools such as Paperclip,
-PaperQA2, LeanSearch/Loogle, Lean LSP, Rocq, Isabelle, and Agda adapters, plus
-their request/response contracts and quality gates. The model may use those
+PaperQA2, LeanSearch/Loogle, Lean LSP, Rocq, Isabelle, Agda, HOL4/HOL Light,
+Mizar, and Metamath adapters, plus their request/response contracts and quality
+gates. The model may use those
 rows only to choose bounded `search_requests` and `planner_next_actions`.
 If the response cites explicit `resource_contract_id` or
 `resource_contract_ids` values, the validator now requires those ids to appear
@@ -910,7 +912,8 @@ validator rejects rows whose trace target does not match the packet's adapter
 target. Adapter manifests also count quality-control-bearing packet traces and
 the resource contracts, response-validation signals, and stop conditions they
 preserve, so target-prover handoff does not hide bounded-tool policy. This
-keeps a Lean-origin route and a Rocq/Isabelle/Agda target replay
+keeps a Lean-origin route and
+Rocq/Isabelle/Agda/HOL4/HOL Light/Mizar/Metamath target replays
 distinguishable inside the same publication bundle. Finally, it names
 `contract/formalization_gap_planner_schema_catalog.json` and its schema from
 the publication bundle, plus the publication-bundle manifest schema, so
@@ -1223,7 +1226,8 @@ declare `revised_formal_realization_dag_nodes` in addition to any legacy
 `revised_lean_realization_dag_nodes` alias, so non-Lean prover clients can
 consume the generic DAG contract directly. Standalone input validation rejects
 `revised_lean_realization_dag_nodes` for non-Lean targets, including route and
-replan-metadata locations, so Rocq/Isabelle/Agda-style seeds cannot rely on a
+replan-metadata locations, so
+Rocq/Isabelle/Agda/HOL4/HOL Light/Mizar/Metamath seeds cannot rely on a
 Lean-only alias to carry their formal realization DAG.
 The adapter-registry audit validates that the registry covers the required
 literature, formal-library, proof-state, route-revision, offline-regression,
@@ -1489,20 +1493,22 @@ Literature, Lean-search, prover-diagnostic responses, revision overlays,
 proof-state triage rows, interactive-session rows, and decision-policy rows are
 route evidence only.
 The prover-adapter contract command turns portable work packets into
-target-prover mapping packets for Lean, Rocq/Coq, Isabelle, Agda, or another
-ecosystem, and validates adapter responses without accepting kernel-proof
+target-prover mapping packets for Lean, Rocq/Coq, Isabelle, Agda, HOL4,
+HOL Light, Mizar, Metamath, or another ecosystem, and validates adapter
+responses without accepting kernel-proof
 claims in the mapping layer. It publishes both
 `formalization_gap_planner_prover_adapter_packet.schema.json` and
 `formalization_gap_planner_prover_adapter_response_validation_row.schema.json`
 with schema-valid counts, so downstream prover adapters can validate requested
 work packets and replay-response validation rows without importing this repo.
 The cross-prover matrix audit reruns that packet export for the declared public
-reuse targets, currently Lean4, Rocq, Isabelle, and Agda, checks packet-count
-consistency, verifies that every target packet still carries both route
-alignment and `standalone_input_trace` provenance, aggregates target-specific
-packet JSONL, rolls up quality-control-bearing packet counts and field/value
-summaries across every target, and preserves the same proof-boundary discipline. It also
-publishes and validates the matrix-row schema, the aggregated prover-adapter
+reuse targets, currently Lean4, Rocq, Isabelle, Agda, HOL4, HOL Light, Mizar,
+and Metamath, checks packet-count consistency, verifies that every target packet
+still carries both route alignment and `standalone_input_trace` provenance,
+aggregates target-specific packet JSONL, rolls up quality-control-bearing
+packet counts and field/value summaries across every target, and preserves the
+same proof-boundary discipline. It also publishes and validates the matrix-row
+schema, the aggregated prover-adapter
 packet schema, and the aggregated response-validation row schema beside the
 cross-prover JSONL files.
 The publication bundle command packages the portable schema, contract,
@@ -1633,8 +1639,9 @@ route primitives are already covered by the current library and which require a
 wrapper, bridge lemma, source port, or new theory before prover replay.
 Rows keep the legacy flat `candidate_declarations` list for simple consumers,
 and also publish `candidate_declaration_rows` with `declaration`,
-`target_prover_family`, and `source_field` so external Lean/Rocq/Isabelle/Agda
-adapters do not have to infer declaration provenance from strings.
+`target_prover_family`, and `source_field` so external
+Lean/Rocq/Isabelle/Agda/HOL4/HOL Light/Mizar/Metamath adapters do not have to
+infer declaration provenance from strings.
 The primitive-action queue carries the same structured declaration rows into
 target-prover work orders, so replay workers can validate prover-family
 compatibility without reopening the full coverage-map manifest.
@@ -1675,17 +1682,19 @@ A prover adapter should provide:
   risk events that should revise the route.
 - `next_work_packets`: bounded prover work items with source and kernel gates.
 
-The same shape can be adapted to Lean, Rocq/Coq, Isabelle, Agda, or a mixed
-symbolic/statistical verifier, as long as the adapter can assign costs to
-existing reuse and missing formalization work. Prover-adapter packets preserve
-the relevant `route_alignment_edge` for each primitive, so a target-prover
-adapter can see which informal semantic atom and Lean realization candidate it
-is translating.
+The same shape can be adapted to Lean, Rocq/Coq, Isabelle, Agda, HOL4,
+HOL Light, Mizar, Metamath, or a mixed symbolic/statistical verifier, as long as
+the adapter can assign costs to existing reuse and missing formalization work.
+Prover-adapter packets preserve the relevant `route_alignment_edge` for each
+primitive, so a target-prover adapter can see which informal semantic atom and
+formal realization candidate it is translating.
 Adapter responses must also name a verifier command compatible with the target
 family before a packet can be marked ready for kernel attempt: Lean4 responses
 use `lake`, `lean`, or `elan`; Rocq/Coq responses use `coqc`, `coqtop`, `rocq`,
-`rocqtop`, or `dune`; Isabelle responses use `isabelle`; and Agda responses use
-`agda`.
+`rocqtop`, or `dune`; Isabelle responses use `isabelle`; Agda responses use
+`agda`; HOL-family responses use their configured HOL executables; Mizar
+responses use `mizar`; and Metamath responses use the configured Metamath
+verifier.
 
 Every run also writes
 `library_aware_formalization_gap_plan.schema.json` and
@@ -2106,11 +2115,13 @@ The current implementation composes four existing AI Statistician artifacts:
 
 30. `formalization_gap_planner_prover_adapter_contract`
    Exports portable work packets as target-prover mapping tasks and validates
-   target-prover adapter responses for Lean, Rocq/Coq, Isabelle, Agda, or
-   another prover family. Each packet carries its route-alignment edge and
-   alignment status plus compact `quality_controls` traces when the standalone
-   route exposes bounded tool policy. It writes a packet JSON Schema for incoming adapter work
-   and a response JSON Schema for adapter output; raw adapter responses may use
+   target-prover adapter responses for Lean, Rocq/Coq, Isabelle, Agda, HOL4,
+   HOL Light, Mizar, Metamath, or another prover family. Each packet carries
+   its route-alignment edge and alignment status plus compact `quality_controls`
+   traces when the standalone
+   route exposes bounded tool policy. It writes a packet JSON Schema for
+   incoming adapter work and a response JSON Schema for adapter output; raw
+   adapter responses may use
    accepted prover-family aliases such as `coq` or `isabelle/hol`, while packet
    and validation rows stay canonical (`rocq`, `isabelle`). Packet validation
    also checks that `standalone_input_trace.target_library_snapshot_ref` matches
@@ -2123,11 +2134,12 @@ The current implementation composes four existing AI Statistician artifacts:
    target-prover replay/calibration gate.
 
 31. `formalization_gap_planner_cross_prover_matrix_audit`
-   Reruns target-prover packet export for Lean4, Rocq, Isabelle, and Agda from
-   the same portable plan, checks packet-count consistency, packet-schema
-   validity, alignment-backed packet consistency, `standalone_input_trace`
-   provenance counts, quality-control packet counts, and rejection counts, and writes aggregate
-   packet/validation JSONL plus
+   Reruns target-prover packet export for Lean4, Rocq, Isabelle, Agda, HOL4,
+   HOL Light, Mizar, and Metamath from the same portable plan, checks
+   packet-count consistency, packet-schema validity, alignment-backed packet
+   consistency, `standalone_input_trace`
+   provenance counts, quality-control packet counts, and rejection counts, and
+   writes aggregate packet/validation JSONL plus
    `formalization_gap_planner_cross_prover_target_summary.json` for downstream
    prover adapters. The target summary records the target families, packet
    counts, standalone-trace counts, replan-metadata trace counts,

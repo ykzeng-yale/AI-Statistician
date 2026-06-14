@@ -8,6 +8,7 @@ from ai_statistician.formalization_gap_planner_adapter_registry import (
     export_formalization_gap_planner_adapter_registry,
 )
 from ai_statistician.formalization_gap_planner_component_resource_registry import (
+    PORTABLE_REUSE_TARGETS,
     component_resource_contract_row_json_schema,
     component_resource_registry_component_row_json_schema,
     component_resource_registry_resource_row_json_schema,
@@ -109,13 +110,15 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "target_intake_row_schema" in resource_ids
     assert "portable_gap_plan_row_schema" in resource_ids
     assert "local_target_formal_source_index" in resource_ids
+    assert "hol4_tactic_kernel_tools" in resource_ids
+    assert "hol_light_tactic_search" in resource_ids
+    assert "mizar_mml_search" in resource_ids
+    assert "metamath_set_mm" in resource_ids
     by_resource = {row["resource_id"]: row for row in payload["resource_rows"]}
-    assert by_resource["local_target_formal_source_index"]["target_prover_families"] == (
-        "lean4",
-        "rocq",
-        "isabelle",
-        "agda",
-    )
+    assert payload["portable_reuse_targets"] == PORTABLE_REUSE_TARGETS
+    assert by_resource["local_target_formal_source_index"][
+        "target_prover_families"
+    ] == PORTABLE_REUSE_TARGETS
     assert "lean_declaration_hits" not in by_resource[
         "local_target_formal_source_index"
     ]["evidence_contract"]
@@ -133,6 +136,22 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "proof_state_diagnostics_or_residuals_present" in by_resource[
         "lean_lsp_mcp"
     ]["validation_signals"]
+    assert by_resource["hol4_tactic_kernel_tools"]["target_prover_families"] == (
+        "hol4",
+    )
+    assert "formal_library_search" in by_resource["hol4_tactic_kernel_tools"][
+        "capability_tags"
+    ]
+    assert "proof_state_feedback" in by_resource["hol4_tactic_kernel_tools"][
+        "capability_tags"
+    ]
+    assert "formal_hits_or_premises_present" in by_resource[
+        "hol_light_tactic_search"
+    ]["validation_signals"]
+    assert by_resource["mizar_mml_search"]["target_prover_families"] == ("mizar",)
+    assert by_resource["metamath_set_mm"]["target_prover_families"] == (
+        "metamath",
+    )
     by_component = {row["component_id"]: row for row in payload["component_rows"]}
     assert "target_intake_row_schema" in by_component["target_theorem_intake"][
         "local_fallback_resource_ids"
@@ -149,6 +168,12 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "leanexplore_mcp" in by_component["formal_library_coverage_mapping"][
         "frontier_resource_ids"
     ]
+    assert "hol4_tactic_kernel_tools" in by_component[
+        "formal_library_coverage_mapping"
+    ]["frontier_resource_ids"]
+    assert "mizar_mml_search" in by_component["formal_library_coverage_mapping"][
+        "frontier_resource_ids"
+    ]
     assert "local_target_formal_source_index" in by_component[
         "formal_library_coverage_mapping"
     ]["local_fallback_resource_ids"]
@@ -156,6 +181,9 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
         "formal_library_coverage_mapping"
     ]["required_quality_signals"]
     assert "lean_lsp_mcp" in by_component["prover_feedback_refinement"][
+        "frontier_resource_ids"
+    ]
+    assert "metamath_set_mm" in by_component["prover_feedback_refinement"][
         "frontier_resource_ids"
     ]
     assert "proof_state_residuals_classified" in by_component[
@@ -195,6 +223,12 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "not theorem proof evidence" in contracts_by_resource["lean_lsp_mcp"][
         "acceptance_gate"
     ]
+    assert "target_prover_family" in contracts_by_resource[
+        "hol4_tactic_kernel_tools"
+    ]["request_contract_fields"]
+    assert "formal_declaration_hits" in contracts_by_resource[
+        "mizar_mml_search"
+    ]["response_contract_fields"]
 
     assert audit_payload["all_ok"]
     assert audit_payload["n_failed"] == 0
