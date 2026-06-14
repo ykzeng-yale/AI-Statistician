@@ -2826,12 +2826,43 @@ def test_post_executor_promotion_waits_for_executor_placeholder_support() -> Non
     assert len(complete_rows) == 1
     assert complete_rows[0]["artifact_kind"] == "SourceTheoremPromotionWorkOrder"
     assert complete_rows[0]["same_run_post_executor_promotion"] is True
+    assert complete_rows[0][
+        "required_source_theorem_semantic_primitive_support_ids"
+    ] == [
+        "prob_measure_univ",
+        "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+        "split_conformal_good_rank_set_inclusion_bridge",
+    ]
+    assert complete_rows[0]["missing_source_theorem_semantic_primitive_support_ids"] == []
+    assert complete_rows[0][
+        "unresolved_source_theorem_semantic_primitive_placeholder_symbols"
+    ] == []
     assert complete_rows[0]["kernel_verified_source_theorem_semantic_primitive_ids"] == [
         "prob_measure_univ",
         "split_conformal_bad_rank_budget_from_uniform_rank_bound",
         "split_conformal_good_rank_set_inclusion_bridge",
     ]
     assert complete_rows[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
+    handoff_rows = _runtime_source_theorem_promotion_handoff_rows(complete_rows)
+    seed_rows = _runtime_source_theorem_promotion_materialization_seed_rows(
+        handoff_rows,
+        runtime_out_dir=Path("runs/test_post_executor_placeholder_gate"),
+    )
+    assert handoff_rows[0][
+        "required_source_theorem_semantic_primitive_support_ids"
+    ] == complete_rows[0]["required_source_theorem_semantic_primitive_support_ids"]
+    assert seed_rows[0][
+        "required_source_theorem_semantic_primitive_support_ids"
+    ] == complete_rows[0]["required_source_theorem_semantic_primitive_support_ids"]
+    assert seed_rows[0]["kernel_overlay_context"][
+        "required_source_theorem_semantic_primitive_support_ids"
+    ] == complete_rows[0]["required_source_theorem_semantic_primitive_support_ids"]
+    assert seed_rows[0]["kernel_overlay_context"][
+        "missing_source_theorem_semantic_primitive_support_ids"
+    ] == []
+    assert seed_rows[0]["proof_evidence_status"] == (
+        "MATERIALIZATION_SEED_NOT_PROOF_EVIDENCE"
+    )
 
 
 def test_source_theorem_promotion_infers_mathlib_import_for_statistical_statement(

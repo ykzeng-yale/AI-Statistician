@@ -6855,6 +6855,33 @@ def _formalizer_source_theorem_promotion_work_orders(
         or []
         if str(row).strip()
     ]
+    required_semantic_primitive_support_ids = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get(
+            "required_source_theorem_semantic_primitive_support_ids",
+            [],
+        )
+        or []
+        if str(row).strip()
+    ]
+    missing_semantic_primitive_support_ids = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get(
+            "missing_source_theorem_semantic_primitive_support_ids",
+            [],
+        )
+        or []
+        if str(row).strip()
+    ]
+    unresolved_semantic_primitive_placeholder_symbols = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get(
+            "unresolved_source_theorem_semantic_primitive_placeholder_symbols",
+            [],
+        )
+        or []
+        if str(row).strip()
+    ]
     source_targets = [
         row
         for row in proposal_packet.get("formal_targets", []) or []
@@ -6924,6 +6951,15 @@ def _formalizer_source_theorem_promotion_work_orders(
                 "kernel_verified_theorem_reduction_closure_work_order_ids": closure_work_order_ids,
                 "kernel_verified_theorem_reduction_closure_target_ids": closure_target_ids,
                 "kernel_verified_source_theorem_semantic_primitive_ids": semantic_primitive_ids,
+                "required_source_theorem_semantic_primitive_support_ids": (
+                    required_semantic_primitive_support_ids
+                ),
+                "missing_source_theorem_semantic_primitive_support_ids": (
+                    missing_semantic_primitive_support_ids
+                ),
+                "unresolved_source_theorem_semantic_primitive_placeholder_symbols": (
+                    unresolved_semantic_primitive_placeholder_symbols
+                ),
                 "lean_statement_sketch": str(target.get("lean_statement_sketch", "") or ""),
                 "lean_imports": _formal_target_imports(target),
                 "informal_source": str(target.get("informal_source", "") or ""),
@@ -7930,6 +7966,21 @@ def _runtime_source_theorem_promotion_handoff_rows(
                 item.get("kernel_verified_source_theorem_semantic_primitive_ids", [])
                 or []
             ),
+            "required_source_theorem_semantic_primitive_support_ids": list(
+                item.get("required_source_theorem_semantic_primitive_support_ids", [])
+                or []
+            ),
+            "missing_source_theorem_semantic_primitive_support_ids": list(
+                item.get("missing_source_theorem_semantic_primitive_support_ids", [])
+                or []
+            ),
+            "unresolved_source_theorem_semantic_primitive_placeholder_symbols": list(
+                item.get(
+                    "unresolved_source_theorem_semantic_primitive_placeholder_symbols",
+                    [],
+                )
+                or []
+            ),
             "lean_statement_sketch": lean_statement_sketch,
             "lean_imports": list(item.get("lean_imports", []) or []),
             "semantic_alignment_constraints": list(
@@ -8049,6 +8100,30 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             or []
             if str(value).strip()
         ]
+        required_semantic_support_ids = [
+            str(value)
+            for value in item.get(
+                "required_source_theorem_semantic_primitive_support_ids", []
+            )
+            or []
+            if str(value).strip()
+        ]
+        missing_semantic_support_ids = [
+            str(value)
+            for value in item.get(
+                "missing_source_theorem_semantic_primitive_support_ids", []
+            )
+            or []
+            if str(value).strip()
+        ]
+        unresolved_semantic_placeholder_symbols = [
+            str(value)
+            for value in item.get(
+                "unresolved_source_theorem_semantic_primitive_placeholder_symbols", []
+            )
+            or []
+            if str(value).strip()
+        ]
         target_goal_ids = [
             str(value)
             for value in item.get("target_theorem_goal_ids", []) or []
@@ -8102,6 +8177,15 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             "candidate_bridge_lemma_name": target_lean_declaration,
             "lean_statement_sketch": lean_statement_sketch,
             "source_theorem_target_provenance": source_target_provenance,
+            "required_source_theorem_semantic_primitive_support_ids": (
+                required_semantic_support_ids
+            ),
+            "missing_source_theorem_semantic_primitive_support_ids": (
+                missing_semantic_support_ids
+            ),
+            "unresolved_source_theorem_semantic_primitive_placeholder_symbols": (
+                unresolved_semantic_placeholder_symbols
+            ),
             "residual_gap": (
                 "exact source-theorem proof artifact must be materialized and "
                 "kernel verified before source-theorem promotion"
@@ -8136,6 +8220,15 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
                     *verified_closure_ids,
                     *verified_semantic_ids,
                 ],
+                "required_source_theorem_semantic_primitive_support_ids": (
+                    required_semantic_support_ids
+                ),
+                "missing_source_theorem_semantic_primitive_support_ids": (
+                    missing_semantic_support_ids
+                ),
+                "unresolved_source_theorem_semantic_primitive_placeholder_symbols": (
+                    unresolved_semantic_placeholder_symbols
+                ),
                 "target_blockers": [
                     *target_goal_ids,
                     *semantic_constraints,
