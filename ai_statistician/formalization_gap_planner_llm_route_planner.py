@@ -20906,6 +20906,24 @@ def _target_primitives_for_feedback_replan_required(
 def _hook_kind_for_llm_feedback_action(action: Mapping[str, object]) -> str:
     source = _primitive_key(str(action.get("source", "")))
     action_name = _primitive_key(str(action.get("action", "")))
+    if source in {
+        "source_theorem_semantic_primitive_rows",
+        "proof_body_semantic_primitive_work_order_rows",
+    }:
+        return "proof_state_feedback"
+    if source == "source_theorem_formal_environment_rows":
+        return "formal_library_grounding"
+    if source == "source_theorem_proof_body_execution_result_rows":
+        return "route_revision"
+    if action_name in {
+        "verify_or_reformulate_source_theorem_semantic_primitive",
+        "dispatch_or_prove_source_theorem_semantic_work_order",
+    }:
+        return "proof_state_feedback"
+    if action_name == "repair_source_theorem_formal_environment":
+        return "formal_library_grounding"
+    if action_name == "repair_route_from_source_theorem_proof_body_feedback":
+        return "route_revision"
     if source in {"route_revision_overlay", "route_replan_handoff"}:
         return "route_revision"
     if action_name in {

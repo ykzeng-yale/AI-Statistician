@@ -3587,6 +3587,96 @@ def test_llm_route_planner_stages_source_theorem_feedback_rows() -> None:
     )
 
 
+def test_llm_route_planner_routes_source_theorem_feedback_hooks() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_source_theorem_feedback_hooks"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    feedback_dirs = _write_source_theorem_planner_feedback(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["residual_interpretations"] = []
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        source_theorem_semantic_primitive_bridge_dir=feedback_dirs[
+            "semantic_bridge"
+        ],
+        source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir=(
+            feedback_dirs["semantic_from_executor"]
+        ),
+        source_theorem_formal_environment_bridge_dir=feedback_dirs[
+            "formal_environment"
+        ],
+        exact_source_theorem_proof_body_executor_dir=feedback_dirs[
+            "proof_body_executor"
+        ],
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+    assert payload["n_route_adoption_ready"] == 0
+    assert payload["n_route_adoption_pending_refinement"] == 1
+    assert payload["n_route_adoption_pending_feedback_action_blockers"] == 1
+    assert payload["n_route_adoption_pending_feedback_replan_blockers"] == 1
+    row = payload["rows"][0]
+    assert set(row["route_adoption_blockers"]) >= {
+        "feedback_summary_actions_pending_resolution",
+        "feedback_loop_replan_required",
+    }
+    seed_route = payload["standalone_seed"]["routes"][0]
+    feedback_hooks = [
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_feedback_next_action", {}).get("source")
+        in {
+            "source_theorem_semantic_primitive_rows",
+            "proof_body_semantic_primitive_work_order_rows",
+            "source_theorem_formal_environment_rows",
+            "source_theorem_proof_body_execution_result_rows",
+        }
+    ]
+    hook_kind_by_source = {
+        hook["llm_route_planner_feedback_next_action"]["source"]: hook["hook_kind"]
+        for hook in feedback_hooks
+    }
+    assert hook_kind_by_source == {
+        "source_theorem_semantic_primitive_rows": "proof_state_feedback",
+        "proof_body_semantic_primitive_work_order_rows": "proof_state_feedback",
+        "source_theorem_formal_environment_rows": "formal_library_grounding",
+        "source_theorem_proof_body_execution_result_rows": "route_revision",
+    }
+    assert "literature_discovery" not in set(hook_kind_by_source.values())
+    assert any(
+        "distribution-free rank bound follows from exchangeability"
+        in " ".join(hook.get("queries", []))
+        for hook in feedback_hooks
+        if hook["hook_kind"] == "proof_state_feedback"
+    )
+    trigger_sources = {
+        trigger.get("llm_route_planner_feedback_next_action", {}).get("source")
+        for trigger in seed_route["route_revision_triggers"]
+        if trigger.get("llm_route_planner_feedback_next_action", {}).get("source")
+    }
+    assert trigger_sources >= {
+        "source_theorem_semantic_primitive_rows",
+        "proof_body_semantic_primitive_work_order_rows",
+        "source_theorem_formal_environment_rows",
+        "source_theorem_proof_body_execution_result_rows",
+    }
+
+
 def test_llm_route_planner_materializes_bare_feedback_replan_required() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_bare_feedback_replan"
