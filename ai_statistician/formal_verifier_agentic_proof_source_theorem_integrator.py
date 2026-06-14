@@ -43,6 +43,7 @@ class FormalVerifierAgenticProofSourceTheoremIntegratorRow:
     candidate_artifact_path: str
     artifact_kernel_verified: bool
     source_theorem_target_known: bool
+    source_theorem_target_provenance: dict[str, object]
     exact_declaration_present: bool
     vacuous_true_target_detected: bool
     route_probe_detected: bool
@@ -198,6 +199,23 @@ def _integrator_row(
     source_path = Path(exact_source_candidate_path)
     artifact_kernel_verified = bool(row.get("artifact_kernel_verified", False))
     source_theorem_target_known = bool(row.get("source_theorem_target_known", False))
+    source_theorem_target_provenance = (
+        dict(row.get("source_theorem_target_provenance", {}))
+        if isinstance(row.get("source_theorem_target_provenance", {}), dict)
+        else {}
+    )
+    if source_theorem_target_known:
+        source_theorem_target_provenance["source_theorem_target_known"] = True
+    if promotion_id:
+        source_theorem_target_provenance.setdefault(
+            "source_theorem_promotion_id",
+            promotion_id,
+        )
+    if target_theorem_name:
+        source_theorem_target_provenance.setdefault(
+            "target_lean_declaration",
+            target_theorem_name,
+        )
     source = ""
     if promotion_status != "READY_FOR_SOURCE_THEOREM_INTEGRATION":
         errors.append("promotion row is not ready for source theorem integration")
@@ -297,6 +315,7 @@ def _integrator_row(
         candidate_artifact_path=candidate_artifact_path,
         artifact_kernel_verified=artifact_kernel_verified,
         source_theorem_target_known=source_theorem_target_known,
+        source_theorem_target_provenance=source_theorem_target_provenance,
         exact_declaration_present=exact_declaration_present,
         vacuous_true_target_detected=vacuous_true_target_detected,
         route_probe_detected=route_probe_detected,

@@ -35,6 +35,7 @@ class FormalVerifierAgenticProofSourceTheoremPromotionQueueRow:
     artifact_kernel_verified: bool
     source_theorem_kernel_verified: bool
     source_theorem_target_known: bool
+    source_theorem_target_provenance: dict[str, object]
     verifier: str
     verification_strength: str
     source_verification_status: str
@@ -162,6 +163,33 @@ def _promotion_row(
         row.get("source_theorem_target_known", False)
         or row.get("source_theorem_lean_file", "")
     )
+    source_theorem_target_provenance = (
+        dict(row.get("source_theorem_target_provenance", {}))
+        if isinstance(row.get("source_theorem_target_provenance", {}), dict)
+        else {}
+    )
+    if source_theorem_target_known:
+        source_theorem_target_provenance["source_theorem_target_known"] = True
+    if artifact_verification_id:
+        source_theorem_target_provenance.setdefault(
+            "artifact_verification_id",
+            artifact_verification_id,
+        )
+    if materialization_id:
+        source_theorem_target_provenance.setdefault(
+            "materialization_id",
+            materialization_id,
+        )
+    if execution_queue_id:
+        source_theorem_target_provenance.setdefault(
+            "execution_queue_id",
+            execution_queue_id,
+        )
+    if target_lean_declaration:
+        source_theorem_target_provenance.setdefault(
+            "target_lean_declaration",
+            target_lean_declaration,
+        )
     target_lean_line = _int(row.get("target_lean_line"))
     if not artifact_verification_id:
         errors.append("artifact_verification_id missing")
@@ -244,7 +272,12 @@ def _promotion_row(
         source_theorem_promotion_id=(
             "formal_verifier_agentic_proof_source_theorem_promotion_queue:"
             + stable_hash(
-                [artifact_verification_id, materialization_id, target_theorem_name]
+                [
+                    artifact_verification_id,
+                    materialization_id,
+                    target_theorem_name,
+                    source_theorem_target_provenance,
+                ]
             )[:16]
         ),
         artifact_verification_id=artifact_verification_id,
@@ -258,6 +291,7 @@ def _promotion_row(
         artifact_kernel_verified=artifact_kernel_verified,
         source_theorem_kernel_verified=source_theorem_kernel_verified,
         source_theorem_target_known=source_theorem_target_known,
+        source_theorem_target_provenance=source_theorem_target_provenance,
         verifier=str(row.get("verifier", "")),
         verification_strength=str(row.get("verification_strength", "")),
         source_verification_status=str(row.get("verification_status", "")),

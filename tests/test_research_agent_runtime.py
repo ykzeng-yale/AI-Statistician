@@ -2731,6 +2731,11 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         "formal_targets": [
             {
                 "id": "split_conformal_finite_sample_coverage_lean",
+                "source_theorem_route_id": "route:split_conformal_source",
+                "source_theorem_statement": (
+                    "split conformal finite-sample coverage source theorem"
+                ),
+                "source_theorem_lean_file": "StatInference/Conformal.lean",
                 "informal_source": "split conformal finite-sample coverage",
                 "lean_statement_sketch": (
                     "theorem split_conformal_coverage (coverage_claim : Prop) "
@@ -2791,6 +2796,22 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     assert rows[0]["source_formal_target_id"] == (
         "split_conformal_finite_sample_coverage_lean"
     )
+    assert rows[0]["source_theorem_target_known"] is True
+    assert rows[0]["source_theorem_target_provenance"][
+        "source_theorem_route_id"
+    ] == "route:split_conformal_source"
+    assert rows[0]["source_theorem_target_provenance"][
+        "source_theorem_statement"
+    ] == "split conformal finite-sample coverage source theorem"
+    assert rows[0]["source_theorem_target_provenance"][
+        "source_theorem_lean_file"
+    ] == "StatInference/Conformal.lean"
+    assert rows[0]["source_theorem_target_provenance"][
+        "target_lean_declaration"
+    ] == "split_conformal_coverage"
+    assert rows[0]["source_theorem_target_provenance"][
+        "semantic_alignment_constraints"
+    ] == ["marginal coverage only"]
     assert rows[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
     assert rows[0]["kernel_verified_theorem_reduction_closure_work_order_ids"] == [
         "theorem_reduction_closure_work_order:good_rank"
@@ -2805,6 +2826,12 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     assert handoff_rows[0]["target_resolution_status"] == (
         "SOURCE_THEOREM_TARGET_SKETCH_PRESENT"
     )
+    assert handoff_rows[0]["source_theorem_target_provenance"][
+        "source_theorem_route_id"
+    ] == "route:split_conformal_source"
+    assert handoff_rows[0]["source_theorem_target_provenance"][
+        "target_lean_declaration"
+    ] == "split_conformal_coverage"
     assert handoff_rows[0]["handoff_status"] == (
         "NEEDS_KERNEL_VERIFIED_PROOF_ARTIFACT_BEFORE_PROMOTION"
     )
@@ -2821,6 +2848,15 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         "READY_FOR_AGENTIC_PROOF_EXECUTION_MATERIALIZER"
     )
     assert materialization_seed_rows[0]["source_theorem_target_known"] is True
+    assert materialization_seed_rows[0]["source_theorem_target_provenance"][
+        "source_theorem_route_id"
+    ] == "route:split_conformal_source"
+    assert materialization_seed_rows[0]["source_theorem_target_provenance"][
+        "target_lean_declaration"
+    ] == "split_conformal_coverage"
+    assert materialization_seed_rows[0]["kernel_overlay_context"][
+        "source_theorem_target_provenance"
+    ]["source_theorem_route_id"] == "route:split_conformal_source"
     assert materialization_seed_rows[0]["population_bucket"] == (
         "source_theorem_promotion_attempt"
     )
@@ -2862,6 +2898,15 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     assert materializer_payload["rows"][0]["target_lean_declaration"] == (
         "split_conformal_coverage"
     )
+    assert materializer_payload["rows"][0]["source_theorem_target_provenance"][
+        "source_theorem_route_id"
+    ] == "route:split_conformal_source"
+    assert materializer_payload["rows"][0]["source_theorem_target_provenance"][
+        "semantic_alignment_constraints"
+    ] == ["marginal coverage only"]
+    assert materializer_payload["rows"][0]["live_proof_state_request"][
+        "source_theorem_target_provenance"
+    ]["source_theorem_route_id"] == "route:split_conformal_source"
     exact_source_text = Path(
         materializer_payload["rows"][0]["candidate_artifact_path"]
     ).read_text(encoding="utf-8")
@@ -2941,6 +2986,16 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         "target_theorem_name": "split_conformal_coverage",
         "artifact_kernel_verified": True,
         "source_theorem_kernel_verified": False,
+        "source_theorem_target_known": True,
+        "source_theorem_target_provenance": {
+            "source_theorem_route_id": "route:split_conformal_source",
+            "source_theorem_statement": (
+                "split conformal finite-sample coverage source theorem"
+            ),
+            "target_lean_declaration": "split_conformal_coverage",
+            "source_theorem_target_known": True,
+            "semantic_alignment_constraints": ["marginal coverage only"],
+        },
     }
     duplicate_ready_row = {
         **ready_row,
@@ -2972,6 +3027,16 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         "SOURCE_THEOREM_PROMOTION_READY_BUT_UNPROVED"
     )
     assert learning_rows[0]["target_theorem_name"] == "split_conformal_coverage"
+    assert learning_rows[0]["source_theorem_target_known"] is True
+    assert learning_rows[0]["source_theorem_target_provenance"][
+        "source_theorem_route_id"
+    ] == "route:split_conformal_source"
+    assert learning_rows[0]["input_summary"]["source_theorem_target_provenance"][
+        "source_theorem_statement"
+    ] == "split conformal finite-sample coverage source theorem"
+    assert learning_rows[0]["semantic_alignment_constraints"] == [
+        "marginal coverage only"
+    ]
     assert learning_rows[0]["proof_evidence_status"] == (
         "SOURCE_THEOREM_PROMOTION_BRIDGE_LEARNING_NOT_PROOF_EVIDENCE"
     )

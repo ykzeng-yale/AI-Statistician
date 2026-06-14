@@ -4515,6 +4515,11 @@ _SOURCE_THEOREM_EXACT_CANDIDATE_ENVIRONMENT_FAILURES = frozenset(
 )
 
 _SOURCE_THEOREM_TARGET_PROVENANCE_STRING_KEYS = (
+    "source_formalization_manifest_id",
+    "source_formalizer_packet_id",
+    "source_formal_target_id",
+    "source_runtime_learning_task",
+    "question_id",
     "source_theorem_target_resolution_id",
     "source_theorem_promotion_id",
     "source_theorem_route_id",
@@ -6112,6 +6117,35 @@ def _formalizer_source_theorem_promotion_work_orders(
         source_formal_target_id = str(target.get("id", "") or "").strip()
         if not source_formal_target_id:
             continue
+        target_lean_declaration = _lean_declaration_name(
+            str(target.get("lean_statement_sketch", "") or "")
+        )
+        source_target_provenance = _source_theorem_target_provenance_from_row(
+            target
+        )
+        source_target_provenance.setdefault(
+            "source_formalizer_packet_id",
+            str(proposal_packet.get("packet_id", "") or ""),
+        )
+        source_target_provenance.setdefault(
+            "source_formal_target_id",
+            source_formal_target_id,
+        )
+        if len(target_goal_ids) == 1:
+            source_target_provenance.setdefault(
+                "source_theorem_goal_id",
+                target_goal_ids[0],
+            )
+        if target_lean_declaration:
+            source_target_provenance.setdefault(
+                "target_lean_declaration",
+                target_lean_declaration,
+            )
+            source_target_provenance["source_theorem_target_known"] = True
+        semantic_alignment_constraints = list(
+            source_target_provenance.get("semantic_alignment_constraints", [])
+            or []
+        )
         work_orders.append(
             {
                 "schema_version": RUNTIME_SCHEMA_VERSION,
@@ -6134,10 +6168,14 @@ def _formalizer_source_theorem_promotion_work_orders(
                 "lean_statement_sketch": str(target.get("lean_statement_sketch", "") or ""),
                 "lean_imports": _formal_target_imports(target),
                 "informal_source": str(target.get("informal_source", "") or ""),
-                "semantic_alignment_constraints": [
-                    str(row)
-                    for row in target.get("semantic_alignment_constraints", []) or []
-                ][:8],
+                "source_theorem_target_known": bool(
+                    source_target_provenance.get(
+                        "source_theorem_target_known",
+                        False,
+                    )
+                ),
+                "source_theorem_target_provenance": source_target_provenance,
+                "semantic_alignment_constraints": semantic_alignment_constraints[:8],
                 "proof_mode": "source_theorem_exact_semantics_or_theorem_promotion",
                 "action_type": "resolve_exact_source_theorem_target_and_attempt_promotion",
                 "acceptance_gate": (
@@ -6777,6 +6815,23 @@ def _runtime_source_theorem_promotion_work_order_rows(
                 )
                 row["question_id"] = str(question.get("id", "") or "")
                 row["question_title"] = str(question.get("title", "") or "")
+                source_target_provenance = _source_theorem_target_provenance_from_row(
+                    row
+                )
+                if row.get("source_formalization_manifest_id"):
+                    source_target_provenance.setdefault(
+                        "source_formalization_manifest_id",
+                        str(row.get("source_formalization_manifest_id", "") or ""),
+                    )
+                if row.get("question_id"):
+                    source_target_provenance.setdefault(
+                        "question_id",
+                        str(row.get("question_id", "") or ""),
+                    )
+                row["source_theorem_target_provenance"] = source_target_provenance
+                row["source_theorem_target_known"] = bool(
+                    source_target_provenance.get("source_theorem_target_known", False)
+                )
                 row["runtime_queue_status"] = "PENDING_SOURCE_THEOREM_TARGET_RESOLUTION_OR_PROMOTION"
                 row["runtime_queue_boundary"] = (
                     "This queue row is a source-theorem promotion work order exported "
@@ -6805,6 +6860,8 @@ def _runtime_source_theorem_promotion_work_order_rows(
                         "lean_statement_sketch",
                         "lean_imports",
                         "informal_source",
+                        "source_theorem_target_known",
+                        "source_theorem_target_provenance",
                         "semantic_alignment_constraints",
                     ):
                         value = row.get(key)
@@ -6934,6 +6991,28 @@ def _runtime_source_theorem_promotion_work_order_rows_from_learning_rows(
                 row["question_title"] = str(question.get("title", "") or "")
                 row["source_runtime_learning_task"] = source_runtime_learning_task
                 row["same_run_post_executor_promotion"] = True
+                source_target_provenance = _source_theorem_target_provenance_from_row(
+                    row
+                )
+                if row.get("source_formalization_manifest_id"):
+                    source_target_provenance.setdefault(
+                        "source_formalization_manifest_id",
+                        str(row.get("source_formalization_manifest_id", "") or ""),
+                    )
+                if row.get("question_id"):
+                    source_target_provenance.setdefault(
+                        "question_id",
+                        str(row.get("question_id", "") or ""),
+                    )
+                if source_runtime_learning_task:
+                    source_target_provenance.setdefault(
+                        "source_runtime_learning_task",
+                        source_runtime_learning_task,
+                    )
+                row["source_theorem_target_provenance"] = source_target_provenance
+                row["source_theorem_target_known"] = bool(
+                    source_target_provenance.get("source_theorem_target_known", False)
+                )
                 row["runtime_queue_status"] = (
                     "PENDING_SOURCE_THEOREM_TARGET_RESOLUTION_OR_PROMOTION"
                 )
@@ -6961,6 +7040,20 @@ def _runtime_source_theorem_promotion_work_order_rows_from_learning_rows(
                         source_ids.append(source_manifest_id)
                     existing["source_formalization_manifest_ids"] = source_ids
                     existing["n_source_formalization_manifests"] = len(source_ids)
+                    for key in (
+                        "source_formalization_manifest_id",
+                        "source_formalizer_packet_id",
+                        "source_formal_target_id",
+                        "lean_statement_sketch",
+                        "lean_imports",
+                        "informal_source",
+                        "source_theorem_target_known",
+                        "source_theorem_target_provenance",
+                        "semantic_alignment_constraints",
+                    ):
+                        value = row.get(key)
+                        if value:
+                            existing[key] = value
                     continue
                 row["source_formalization_manifest_ids"] = (
                     [source_manifest_id] if source_manifest_id else []
@@ -6985,6 +7078,18 @@ def _runtime_source_theorem_promotion_handoff_rows(
         source_target_id = str(item.get("source_formal_target_id", "") or "").strip()
         lean_statement_sketch = str(item.get("lean_statement_sketch", "") or "").strip()
         target_lean_declaration = _lean_declaration_name(lean_statement_sketch)
+        source_target_provenance = _source_theorem_target_provenance_from_row(item)
+        if source_target_id:
+            source_target_provenance.setdefault(
+                "source_formal_target_id",
+                source_target_id,
+            )
+        if target_lean_declaration:
+            source_target_provenance.setdefault(
+                "target_lean_declaration",
+                target_lean_declaration,
+            )
+            source_target_provenance["source_theorem_target_known"] = True
         target_status = (
             "SOURCE_THEOREM_TARGET_SKETCH_PRESENT"
             if lean_statement_sketch
@@ -7012,6 +7117,10 @@ def _runtime_source_theorem_promotion_handoff_rows(
                 item.get("target_theorem_goal_ids", []) or []
             ),
             "target_lean_declaration": target_lean_declaration,
+            "source_theorem_target_known": bool(
+                source_target_provenance.get("source_theorem_target_known", False)
+            ),
+            "source_theorem_target_provenance": source_target_provenance,
             "target_resolution_status": target_status,
             "handoff_status": handoff_status,
             "owner_agent": "Formalizer/ProofEngineer",
@@ -7084,12 +7193,36 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             item.get("target_lean_declaration", "") or ""
         ).strip()
         target_status = str(item.get("target_resolution_status", "") or "")
+        source_target_provenance = _source_theorem_target_provenance_from_row(item)
+        if work_order_id:
+            source_target_provenance.setdefault(
+                "source_theorem_promotion_id",
+                work_order_id,
+            )
+        if source_target_id:
+            source_target_provenance.setdefault(
+                "source_formal_target_id",
+                source_target_id,
+            )
+        if target_lean_declaration:
+            source_target_provenance.setdefault(
+                "target_lean_declaration",
+                target_lean_declaration,
+            )
         target_known = (
             target_status == "SOURCE_THEOREM_TARGET_SKETCH_PRESENT"
             and bool(target_lean_declaration)
         )
+        if target_known:
+            source_target_provenance["source_theorem_target_known"] = True
         seed_hash = stable_hash(
-            [handoff_id, work_order_id, source_target_id, target_lean_declaration]
+            [
+                handoff_id,
+                work_order_id,
+                source_target_id,
+                target_lean_declaration,
+                source_target_provenance,
+            ]
         )[:16]
         execution_queue_id = (
             "runtime_source_theorem_promotion_materialization_seed:" + seed_hash
@@ -7175,6 +7308,7 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             "target_theorem_name": target_lean_declaration or source_target_id,
             "candidate_bridge_lemma_name": target_lean_declaration,
             "lean_statement_sketch": lean_statement_sketch,
+            "source_theorem_target_provenance": source_target_provenance,
             "residual_gap": (
                 "exact source-theorem proof artifact must be materialized and "
                 "kernel verified before source-theorem promotion"
@@ -7200,6 +7334,7 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
                 "source_theorem_promotion_work_order_id": work_order_id,
                 "source_formal_target_id": source_target_id,
                 "source_theorem_target_known": target_known,
+                "source_theorem_target_provenance": source_target_provenance,
                 "target_location": {
                     "target_lean_declaration": target_lean_declaration,
                     "target_imports": lean_imports,
@@ -7652,11 +7787,27 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
         ):
             continue
         target_theorem_name = str(row.get("target_theorem_name", "") or "")
+        source_target_provenance = _source_theorem_target_provenance_from_row(row)
+        if target_theorem_name:
+            source_target_provenance.setdefault(
+                "target_lean_declaration",
+                target_theorem_name,
+            )
+        if row.get("source_theorem_promotion_id"):
+            source_target_provenance.setdefault(
+                "source_theorem_promotion_id",
+                str(row.get("source_theorem_promotion_id", "") or ""),
+            )
         dedupe_key = target_theorem_name or str(
             row.get("source_theorem_promotion_id", "") or ""
         )
-        if dedupe_key in seen_targets:
+        plain_dedupe_key = dedupe_key
+        if source_target_provenance:
+            dedupe_key = stable_hash([dedupe_key, source_target_provenance])
+        if plain_dedupe_key in seen_targets or dedupe_key in seen_targets:
             continue
+        if plain_dedupe_key:
+            seen_targets.add(plain_dedupe_key)
         if dedupe_key:
             seen_targets.add(dedupe_key)
         rows.append(
@@ -7670,6 +7821,21 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
                     "owner_subsystem": "Formalizer/ProofEngineer",
                     "promotion_status": promotion_status,
                     "target_theorem_name": target_theorem_name,
+                    "source_theorem_target_known": bool(
+                        source_target_provenance.get(
+                            "source_theorem_target_known",
+                            False,
+                        )
+                        or row.get("source_theorem_target_known", False)
+                    ),
+                    "source_theorem_target_provenance": source_target_provenance,
+                    "semantic_alignment_constraints": list(
+                        source_target_provenance.get(
+                            "semantic_alignment_constraints",
+                            [],
+                        )
+                        or []
+                    ),
                     "artifact_kernel_verified": bool(
                         row.get("artifact_kernel_verified", False)
                     ),
@@ -7692,6 +7858,21 @@ def _runtime_source_theorem_promotion_bridge_learning_rows(
                     row.get("source_theorem_promotion_id", "") or ""
                 ),
                 "target_theorem_name": target_theorem_name,
+                "source_theorem_target_known": bool(
+                    source_target_provenance.get(
+                        "source_theorem_target_known",
+                        False,
+                    )
+                    or row.get("source_theorem_target_known", False)
+                ),
+                "source_theorem_target_provenance": source_target_provenance,
+                "semantic_alignment_constraints": list(
+                    source_target_provenance.get(
+                        "semantic_alignment_constraints",
+                        [],
+                    )
+                    or []
+                ),
                 "proof_evidence_status": "SOURCE_THEOREM_PROMOTION_BRIDGE_LEARNING_NOT_PROOF_EVIDENCE",
                 "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
             }
@@ -7791,6 +7972,17 @@ def _runtime_source_theorem_artifact_verifier_bridge_learning_rows(
             or row.get("target_lean_declaration", "")
             or ""
         )
+        source_target_provenance = _source_theorem_target_provenance_from_row(row)
+        if target_theorem_name:
+            source_target_provenance.setdefault(
+                "target_lean_declaration",
+                target_theorem_name,
+            )
+        if row.get("artifact_verification_id"):
+            source_target_provenance.setdefault(
+                "artifact_verification_id",
+                str(row.get("artifact_verification_id", "") or ""),
+            )
         dedupe_key = target_theorem_name or str(row.get("materialization_id", "") or "")
         if dedupe_key in seen_targets:
             continue
@@ -7824,6 +8016,21 @@ def _runtime_source_theorem_artifact_verifier_bridge_learning_rows(
                     "target_theorem_name": target_theorem_name,
                     "target_lean_declaration": str(
                         row.get("target_lean_declaration", "") or ""
+                    ),
+                    "source_theorem_target_known": bool(
+                        source_target_provenance.get(
+                            "source_theorem_target_known",
+                            False,
+                        )
+                        or row.get("source_theorem_target_known", False)
+                    ),
+                    "source_theorem_target_provenance": source_target_provenance,
+                    "semantic_alignment_constraints": list(
+                        source_target_provenance.get(
+                            "semantic_alignment_constraints",
+                            [],
+                        )
+                        or []
                     ),
                     "candidate_artifact_path": str(
                         row.get("candidate_artifact_path", "") or ""
@@ -7863,6 +8070,21 @@ def _runtime_source_theorem_artifact_verifier_bridge_learning_rows(
                     row.get("candidate_artifact_path", "") or ""
                 ),
                 "target_theorem_name": target_theorem_name,
+                "source_theorem_target_known": bool(
+                    source_target_provenance.get(
+                        "source_theorem_target_known",
+                        False,
+                    )
+                    or row.get("source_theorem_target_known", False)
+                ),
+                "source_theorem_target_provenance": source_target_provenance,
+                "semantic_alignment_constraints": list(
+                    source_target_provenance.get(
+                        "semantic_alignment_constraints",
+                        [],
+                    )
+                    or []
+                ),
                 "proof_evidence_status": "SOURCE_THEOREM_EXACT_CANDIDATE_LEAN_FEEDBACK_NOT_PROOF_EVIDENCE",
                 "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
             }
@@ -7905,6 +8127,17 @@ def _runtime_source_theorem_integrator_bridge_learning_rows(
         }:
             continue
         target_theorem_name = str(row.get("target_theorem_name", "") or "")
+        source_target_provenance = _source_theorem_target_provenance_from_row(row)
+        if target_theorem_name:
+            source_target_provenance.setdefault(
+                "target_lean_declaration",
+                target_theorem_name,
+            )
+        if row.get("source_theorem_promotion_id"):
+            source_target_provenance.setdefault(
+                "source_theorem_promotion_id",
+                str(row.get("source_theorem_promotion_id", "") or ""),
+            )
         dedupe_key = target_theorem_name or str(
             row.get("source_theorem_promotion_id", "") or ""
         )
@@ -7937,6 +8170,21 @@ def _runtime_source_theorem_integrator_bridge_learning_rows(
                     "target_assumption_detected": bool(
                         row.get("target_assumption_detected", False)
                     ),
+                    "source_theorem_target_known": bool(
+                        source_target_provenance.get(
+                            "source_theorem_target_known",
+                            False,
+                        )
+                        or row.get("source_theorem_target_known", False)
+                    ),
+                    "source_theorem_target_provenance": source_target_provenance,
+                    "semantic_alignment_constraints": list(
+                        source_target_provenance.get(
+                            "semantic_alignment_constraints",
+                            [],
+                        )
+                        or []
+                    ),
                     "source_theorem_kernel_verified": source_theorem_kernel_verified,
                 },
                 "target_behavior": (
@@ -7954,6 +8202,21 @@ def _runtime_source_theorem_integrator_bridge_learning_rows(
                     row.get("source_theorem_promotion_id", "") or ""
                 ),
                 "target_theorem_name": target_theorem_name,
+                "source_theorem_target_known": bool(
+                    source_target_provenance.get(
+                        "source_theorem_target_known",
+                        False,
+                    )
+                    or row.get("source_theorem_target_known", False)
+                ),
+                "source_theorem_target_provenance": source_target_provenance,
+                "semantic_alignment_constraints": list(
+                    source_target_provenance.get(
+                        "semantic_alignment_constraints",
+                        [],
+                    )
+                    or []
+                ),
                 "proof_evidence_status": "SOURCE_THEOREM_INTEGRATOR_BLOCKER_LEARNING_NOT_PROOF_EVIDENCE",
                 "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
             }

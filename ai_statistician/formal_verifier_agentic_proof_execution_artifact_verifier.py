@@ -47,6 +47,7 @@ class FormalVerifierAgenticProofExecutionArtifactVerifierRow:
     artifact_kernel_verified: bool
     source_theorem_kernel_verified: bool
     source_theorem_target_known: bool
+    source_theorem_target_provenance: dict[str, object]
     verifier: str
     verification_strength: str
     lean_command: tuple[str, ...]
@@ -209,6 +210,28 @@ def _verifier_row(
     source_theorem_target_known = bool(
         row.get("source_theorem_target_known", False)
     )
+    source_theorem_target_provenance = (
+        dict(row.get("source_theorem_target_provenance", {}))
+        if isinstance(row.get("source_theorem_target_provenance", {}), dict)
+        else {}
+    )
+    if source_theorem_target_known:
+        source_theorem_target_provenance["source_theorem_target_known"] = True
+    if target_lean_declaration:
+        source_theorem_target_provenance.setdefault(
+            "target_lean_declaration",
+            target_lean_declaration,
+        )
+    if materialization_id:
+        source_theorem_target_provenance.setdefault(
+            "materialization_id",
+            materialization_id,
+        )
+    if execution_queue_id:
+        source_theorem_target_provenance.setdefault(
+            "execution_queue_id",
+            execution_queue_id,
+        )
     (
         live_request_id,
         live_request_valid,
@@ -286,6 +309,10 @@ def _verifier_row(
         "formal_verifier_agentic_proof_execution_artifact_verifier:"
         + stable_hash([materialization_id, artifact_path, lean_command])[:16]
     )
+    source_theorem_target_provenance.setdefault(
+        "artifact_verification_id",
+        artifact_verification_id,
+    )
     execution_transcript_event_id = (
         "agentic_artifact_verifier_event:"
         + stable_hash([artifact_verification_id, execution_transcript_path, status])[:16]
@@ -308,6 +335,7 @@ def _verifier_row(
         artifact_kernel_verified=compiled,
         source_theorem_kernel_verified=False,
         source_theorem_target_known=source_theorem_target_known,
+        source_theorem_target_provenance=source_theorem_target_provenance,
         verifier=verifier,
         verification_strength=verification_strength,
         returncode=returncode,
@@ -339,6 +367,7 @@ def _verifier_row(
         artifact_kernel_verified=compiled,
         source_theorem_kernel_verified=False,
         source_theorem_target_known=source_theorem_target_known,
+        source_theorem_target_provenance=source_theorem_target_provenance,
         verifier=verifier,
         verification_strength=verification_strength,
         lean_command=lean_command,
@@ -375,6 +404,7 @@ def _append_verifier_transcript_event(
     artifact_kernel_verified: bool,
     source_theorem_kernel_verified: bool,
     source_theorem_target_known: bool,
+    source_theorem_target_provenance: dict[str, object],
     verifier: str,
     verification_strength: str,
     returncode: int,
@@ -412,6 +442,7 @@ def _append_verifier_transcript_event(
             "artifact_kernel_verified": artifact_kernel_verified,
             "source_theorem_kernel_verified": source_theorem_kernel_verified,
             "source_theorem_target_known": source_theorem_target_known,
+            "source_theorem_target_provenance": source_theorem_target_provenance,
             "verifier": verifier,
             "verification_strength": verification_strength,
             "returncode": returncode,

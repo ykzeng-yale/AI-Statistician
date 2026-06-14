@@ -46,6 +46,7 @@ class FormalVerifierAgenticProofExecutionMaterializerRow:
     target_lean_column: int
     target_lean_declaration: str
     source_theorem_target_known: bool
+    source_theorem_target_provenance: dict[str, object]
     materialization_mode: str
     evolve_block_start_line: int
     evolve_block_end_line: int
@@ -160,6 +161,57 @@ def export_formal_verifier_agentic_proof_execution_materializer(
     return payload
 
 
+def _source_theorem_target_provenance(
+    row: dict[str, Any],
+    kernel_overlay_context: dict[str, Any],
+) -> dict[str, object]:
+    provenance: dict[str, object] = {}
+    constraints: list[str] = []
+    for source in (row, kernel_overlay_context):
+        nested = source.get("source_theorem_target_provenance")
+        if isinstance(nested, dict):
+            provenance.update(nested)
+        for key in (
+            "source_formalization_manifest_id",
+            "source_formalizer_packet_id",
+            "source_formal_target_id",
+            "source_theorem_promotion_id",
+            "source_theorem_route_id",
+            "source_theorem_goal_id",
+            "source_theorem_statement",
+            "source_theorem_lean_file",
+            "target_lean_declaration",
+            "materialization_id",
+            "execution_queue_id",
+        ):
+            value = str(source.get(key, "") or "").strip()
+            if value and key not in provenance:
+                provenance[key] = value
+        constraints.extend(
+            str(value).strip()
+            for value in source.get("semantic_alignment_constraints", []) or []
+            if str(value).strip()
+        )
+    if any(
+        "source_theorem_target_known" in source
+        for source in (row, kernel_overlay_context)
+    ):
+        provenance["source_theorem_target_known"] = any(
+            bool(source.get("source_theorem_target_known", False))
+            for source in (row, kernel_overlay_context)
+        )
+    if constraints:
+        existing = [
+            str(value).strip()
+            for value in provenance.get("semantic_alignment_constraints", []) or []
+            if str(value).strip()
+        ]
+        provenance["semantic_alignment_constraints"] = list(
+            dict.fromkeys([*existing, *constraints])
+        )
+    return provenance
+
+
 def _materializer_row(
     row: dict[str, Any],
     *,
@@ -187,6 +239,12 @@ def _materializer_row(
     source_theorem_target_known = bool(
         kernel_overlay_context.get("source_theorem_target_known", False)
     )
+    source_theorem_target_provenance = _source_theorem_target_provenance(
+        row,
+        kernel_overlay_context,
+    )
+    if source_theorem_target_known:
+        source_theorem_target_provenance["source_theorem_target_known"] = True
     materialization_mode = _materialization_mode(row)
     materialization_id = (
         "formal_verifier_agentic_proof_execution_materializer:"
@@ -216,6 +274,21 @@ def _materializer_row(
             suffix="_route_probe",
         )
     )
+    if target_lean_declaration:
+        source_theorem_target_provenance.setdefault(
+            "target_lean_declaration",
+            target_lean_declaration,
+        )
+    if materialization_id:
+        source_theorem_target_provenance.setdefault(
+            "materialization_id",
+            materialization_id,
+        )
+    if execution_queue_id:
+        source_theorem_target_provenance.setdefault(
+            "execution_queue_id",
+            execution_queue_id,
+        )
     status = "MATERIALIZATION_BLOCKED"
     forbidden_tokens_found: tuple[str, ...] = ()
     live_proof_state_request: dict[str, object] = {}
@@ -282,6 +355,7 @@ def _materializer_row(
             target_lean_declaration=target_lean_declaration,
             status=status,
             live_proof_state_request=live_proof_state_request,
+            source_theorem_target_provenance=source_theorem_target_provenance,
         )
     static_contract_status = (
         "STATIC_CONTRACT_READY_FOR_LIVE_GOAL"
@@ -307,6 +381,7 @@ def _materializer_row(
         target_lean_column=target_lean_column,
         target_lean_declaration=target_lean_declaration,
         source_theorem_target_known=source_theorem_target_known,
+        source_theorem_target_provenance=source_theorem_target_provenance,
         materialization_mode=materialization_mode,
         evolve_block_start_line=evolve_start,
         evolve_block_end_line=evolve_end,
@@ -621,6 +696,12 @@ def _live_proof_state_request(
                 )
             )
         ),
+        "source_theorem_target_provenance": _source_theorem_target_provenance(
+            row,
+            row.get("kernel_overlay_context", {})
+            if isinstance(row.get("kernel_overlay_context", {}), dict)
+            else {},
+        ),
         "goal_cache_key": str(row.get("goal_cache_key", "")),
         "candidate_database_key": str(row.get("candidate_database_key", "")),
         "candidate_lineage_key": str(row.get("candidate_lineage_key", "")),
@@ -654,6 +735,7 @@ def _write_transcript(
     target_lean_declaration: str,
     status: str,
     live_proof_state_request: dict[str, object],
+    source_theorem_target_provenance: dict[str, object],
 ) -> None:
     transcript_row = {
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -666,6 +748,7 @@ def _write_transcript(
         "target_lean_line": target_lean_line,
         "target_lean_column": target_lean_column,
         "target_lean_declaration": target_lean_declaration,
+        "source_theorem_target_provenance": source_theorem_target_provenance,
         "live_proof_state_request": live_proof_state_request,
         "kernel_verified": False,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
