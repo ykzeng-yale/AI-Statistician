@@ -64,6 +64,7 @@ from ai_statistician.formalization_gap_planner_route_replan_handoff import (
 )
 from ai_statistician.formalization_gap_planner_standalone import (
     export_formalization_gap_planner_standalone_plan,
+    standalone_input_json_schema,
     validate_llm_route_planner_seed_route_selection_payload,
     validate_standalone_input_payload,
 )
@@ -5828,6 +5829,39 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         == "distribution_free_rank_bound_llm_revision"
     )
     assert validate_standalone_input_payload(payload["standalone_seed"]) == []
+    drifted_standalone_seed = deepcopy(payload["standalone_seed"])
+    drifted_standalone_seed["routes"][0]["target_theorem_context_packet"] = {
+        **drifted_standalone_seed["routes"][0]["target_theorem_context_packet"],
+        "theorem_statement": "A different theorem is now being planned.",
+    }
+    assert (
+        "routes[0].target_theorem_context_packet must match "
+        "routes[0].replan_metadata.target_theorem_context_packet"
+        in validate_standalone_input_payload(drifted_standalone_seed)
+    )
+    drifted_metadata_seed = deepcopy(payload["standalone_seed"])
+    drifted_metadata_seed["routes"][0]["replan_metadata"][
+        "target_theorem_context_packet"
+    ]["target_prover_family"] = "rocq"
+    assert (
+        "routes[0].replan_metadata.target_theorem_context_packet.target_prover_family "
+        "rocq does not match target_prover_family lean4"
+        in validate_standalone_input_payload(drifted_metadata_seed)
+    )
+    standalone_schema = standalone_input_json_schema()
+    standalone_route_props = standalone_schema["$defs"]["route"]["properties"]
+    standalone_metadata_props = standalone_schema["$defs"]["replan_metadata"][
+        "properties"
+    ]
+    assert standalone_route_props["target_theorem_context_packet"]["type"] == (
+        "object"
+    )
+    assert standalone_metadata_props["target_theorem_context_packet"]["type"] == (
+        "object"
+    )
+    assert standalone_metadata_props[
+        "llm_route_planner_target_theorem_context_packet"
+    ]["type"] == "object"
     seed_selection = payload["standalone_seed"][
         "llm_route_planner_seed_route_selection"
     ]
@@ -5935,6 +5969,30 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         ]
         == 1
     )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_target_theorem_context_packet"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_llm_target_theorem_context_packet"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_trace_target_theorem_context_target_mismatches"
+        ]
+        == 0
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_trace_target_theorem_context_route_statement_differs"
+        ]
+        == 1
+    )
     assert plan_payload["n_standalone_input_traces_with_llm_model_tier"] == 1
     assert plan_payload["standalone_input_trace_by_llm_model_tier"] == {
         row["model_tier"]: 1
@@ -5987,6 +6045,24 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     plan_row = plan_payload["rows"][0]
     trace = plan_row["standalone_input_trace"]
     assert trace["llm_route_planner_row_id"] == row["llm_route_planner_row_id"]
+    assert trace["target_theorem_context_packet"] == row[
+        "target_theorem_context_packet"
+    ]
+    assert trace["has_target_theorem_context_packet"] is True
+    assert trace["has_llm_route_planner_target_theorem_context_packet"] is True
+    assert trace["target_theorem_context_packet_kind"] == (
+        TARGET_THEOREM_CONTEXT_PACKET_KIND
+    )
+    assert trace["target_theorem_context_route_id"] == row["route_id"]
+    assert trace["target_theorem_context_target_prover_family"] == "lean4"
+    assert trace["target_theorem_context_theorem_statement"] == row[
+        "target_theorem_context_packet"
+    ]["theorem_statement"]
+    assert trace["target_theorem_context_theorem_statement"] != seed_route[
+        "theorem_statement"
+    ]
+    assert trace["target_theorem_context_packet_target_mismatch"] is False
+    assert trace["target_theorem_context_route_statement_differs"] is True
     assert trace["llm_route_planner_model_tier"] == row["model_tier"]
     assert trace["llm_route_planner_seed_selected"] is True
     assert trace["llm_route_planner_seed_adoptable_for_standalone_replay"] is False

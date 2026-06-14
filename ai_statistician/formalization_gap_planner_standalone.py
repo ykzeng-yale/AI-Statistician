@@ -265,6 +265,32 @@ def export_formalization_gap_planner_standalone_plan(
             for row in rows
             if row.standalone_input_trace.get("has_replan_metadata")
         ),
+        "n_standalone_input_traces_with_target_theorem_context_packet": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get("has_target_theorem_context_packet")
+        ),
+        "n_standalone_input_traces_with_llm_target_theorem_context_packet": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "has_llm_route_planner_target_theorem_context_packet"
+            )
+        ),
+        "n_standalone_input_trace_target_theorem_context_target_mismatches": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "target_theorem_context_packet_target_mismatch"
+            )
+        ),
+        "n_standalone_input_trace_target_theorem_context_route_statement_differs": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "target_theorem_context_route_statement_differs"
+            )
+        ),
         "n_standalone_input_traces_with_llm_route_planner_metadata": sum(
             1
             for row in rows
@@ -606,6 +632,37 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
         effective_target_key = (
             route_target_key or metadata_target_key or payload_target_key
         )
+        errors.extend(
+            _target_theorem_context_packet_input_errors(
+                route.get("target_theorem_context_packet", {}),
+                location=f"routes[{idx}].target_theorem_context_packet",
+                target_prover_family=effective_target,
+            )
+        )
+        metadata_target_context = metadata.get(
+            "target_theorem_context_packet",
+            metadata.get("llm_route_planner_target_theorem_context_packet", {}),
+        )
+        errors.extend(
+            _target_theorem_context_packet_input_errors(
+                metadata_target_context,
+                location=f"routes[{idx}].replan_metadata.target_theorem_context_packet",
+                target_prover_family=effective_target,
+            )
+        )
+        route_target_context = _dict_value(
+            route.get("target_theorem_context_packet", {})
+        )
+        metadata_target_context_dict = _dict_value(metadata_target_context)
+        if (
+            route_target_context
+            and metadata_target_context_dict
+            and route_target_context != metadata_target_context_dict
+        ):
+            errors.append(
+                f"routes[{idx}].target_theorem_context_packet must match "
+                f"routes[{idx}].replan_metadata.target_theorem_context_packet"
+            )
         errors.extend(
             _legacy_lean_declaration_hit_input_errors(
                 route,
@@ -1006,6 +1063,30 @@ def _llm_seed_route_selection_trace_errors(
     return errors
 
 
+def _target_theorem_context_packet_input_errors(
+    packet: Any,
+    *,
+    location: str,
+    target_prover_family: str,
+) -> list[str]:
+    packet_dict = _dict_value(packet)
+    if not packet_dict:
+        return []
+    errors: list[str] = []
+    packet_target = str(packet_dict.get("target_prover_family", "")).strip()
+    if (
+        packet_target
+        and target_prover_family
+        and _target_prover_key(packet_target)
+        != _target_prover_key(target_prover_family)
+    ):
+        errors.append(
+            f"{location}.target_prover_family {packet_target} does not match "
+            f"target_prover_family {target_prover_family}"
+        )
+    return errors
+
+
 def standalone_input_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
     object_array = {"type": "array", "items": {"type": "object"}}
@@ -1058,6 +1139,7 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "target_prover_family": {"type": "string"},
                     "theorem_statement": {"type": "string"},
                     "theorem_skeleton": {"type": "string"},
+                    "target_theorem_context_packet": {"type": "object"},
                     "route_class": {"type": "string"},
                     "recommended_action": {"type": "string"},
                     "source_refs": string_array,
@@ -1255,6 +1337,10 @@ def standalone_input_json_schema() -> dict[str, object]:
                     },
                     "llm_route_planner_realization_coverage_witness": {
                         "$ref": "#/$defs/realization_coverage_witness"
+                    },
+                    "target_theorem_context_packet": {"type": "object"},
+                    "llm_route_planner_target_theorem_context_packet": {
+                        "type": "object"
                     },
                     **seed_route_selection_trace_properties,
                     "alignment_edge_primitives": string_array,
@@ -1800,17 +1886,56 @@ def _standalone_input_trace(
             raw_route.get("llm_route_planner_seed_minimal_delta_route_cost", None),
         )
     )
+    target_context_packet = _target_theorem_context_packet_for_trace(
+        raw_route,
+        metadata,
+    )
+    llm_target_context_packet = _dict_value(
+        metadata.get("llm_route_planner_target_theorem_context_packet", {})
+    )
+    trace_target_prover_family = str(
+        raw_route.get("target_prover_family", "")
+        or metadata.get("target_prover_family", "")
+        or target_prover_family
+    ).strip()
+    target_context_target = str(
+        target_context_packet.get("target_prover_family", "")
+    ).strip()
+    target_context_statement = str(
+        target_context_packet.get("theorem_statement", "")
+    ).strip()
+    route_theorem_statement = str(raw_route.get("theorem_statement", "")).strip()
     return {
         "trace_kind": "standalone_input_route_trace",
         "source_route_id": route_id,
         "route_index": route_index,
-        "target_prover_family": str(
-            raw_route.get("target_prover_family", "")
-            or metadata.get("target_prover_family", "")
-            or target_prover_family
-        ).strip(),
+        "target_prover_family": trace_target_prover_family,
         "has_replan_metadata": bool(metadata),
         "replan_metadata": dict(metadata),
+        "target_theorem_context_packet": dict(target_context_packet),
+        "has_target_theorem_context_packet": bool(target_context_packet),
+        "has_llm_route_planner_target_theorem_context_packet": bool(
+            llm_target_context_packet
+        ),
+        "target_theorem_context_packet_kind": str(
+            target_context_packet.get("context_packet_kind", "")
+        ),
+        "target_theorem_context_route_id": str(
+            target_context_packet.get("route_id", "")
+        ),
+        "target_theorem_context_target_prover_family": target_context_target,
+        "target_theorem_context_theorem_statement": target_context_statement,
+        "target_theorem_context_packet_target_mismatch": bool(
+            target_context_target
+            and trace_target_prover_family
+            and _target_prover_key(target_context_target)
+            != _target_prover_key(trace_target_prover_family)
+        ),
+        "target_theorem_context_route_statement_differs": bool(
+            target_context_statement
+            and route_theorem_statement
+            and target_context_statement != route_theorem_statement
+        ),
         "llm_route_planner_row_id": str(
             metadata.get("llm_route_planner_row_id", "")
         ),
@@ -1968,6 +2093,21 @@ def _standalone_input_trace(
             )
         ),
     }
+
+
+def _target_theorem_context_packet_for_trace(
+    raw_route: dict[str, Any],
+    metadata: dict[str, Any],
+) -> dict[str, object]:
+    for source in (
+        raw_route.get("target_theorem_context_packet", {}),
+        metadata.get("target_theorem_context_packet", {}),
+        metadata.get("llm_route_planner_target_theorem_context_packet", {}),
+    ):
+        packet = _dict_value(source)
+        if packet:
+            return dict(packet)
+    return {}
 
 
 def _quality_controls_for_trace(
