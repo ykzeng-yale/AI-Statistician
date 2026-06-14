@@ -899,6 +899,7 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     realization_coverage_witness: dict[str, object]
     quality_control_obligations: dict[str, object]
     feedback_loop_summary: dict[str, object]
+    target_theorem_context_packet: dict[str, object]
     context_packet_inventory: dict[str, object]
     raw_response_text: str
     generator_metadata: dict[str, object]
@@ -3309,6 +3310,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "realization_coverage_witness",
             "quality_control_obligations",
             "feedback_loop_summary",
+            "target_theorem_context_packet",
             "context_packet_inventory",
             "raw_response_text",
             "generator_metadata",
@@ -3362,6 +3364,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             },
             "quality_control_obligations": {"type": "object"},
             "feedback_loop_summary": {"type": "object"},
+            "target_theorem_context_packet": {"type": "object"},
             "context_packet_inventory": {"type": "object"},
             "raw_response_text": {"type": "string"},
             "generator_metadata": {"type": "object"},
@@ -4577,6 +4580,28 @@ def validate_llm_route_planner_row(
             "context_packet_inventory.inventory_kind must equal "
             + CONTEXT_PACKET_INVENTORY_KIND
         )
+    target_context = _dict_value(row, "target_theorem_context_packet")
+    if bool(
+        inventory.get("target_theorem_context_packet_present", False)
+    ) != bool(target_context):
+        errors.append(
+            "target_theorem_context_packet presence must match "
+            "context_packet_inventory.target_theorem_context_packet_present"
+        )
+    if target_context:
+        if target_context.get("context_packet_kind") != TARGET_THEOREM_CONTEXT_PACKET_KIND:
+            errors.append(
+                "target_theorem_context_packet.context_packet_kind must equal "
+                + TARGET_THEOREM_CONTEXT_PACKET_KIND
+            )
+        if str(target_context.get("route_id", "")) != str(row.get("route_id", "")):
+            errors.append("target_theorem_context_packet.route_id must match row route_id")
+        if str(target_context.get("target_prover_family", "")) != str(
+            row.get("target_prover_family", "")
+        ):
+            errors.append(
+                "target_theorem_context_packet.target_prover_family must match row target_prover_family"
+            )
     if row.get("provider_failure"):
         if not _str_tuple(row.get("generation_errors", [])):
             errors.append("provider_failure row must include generation_errors")
@@ -5009,10 +5034,22 @@ def _target_theorem_context_packet(
 ) -> dict[str, object]:
     target_intake_rows = _dict_tuple(context_packet.get("target_intake_rows", []))
     current_route = _dict_value(context_packet, "current_route") or dict(route)
+    route_metadata = _dict_value(current_route, "replan_metadata")
+    existing_target_context = _dict_value(
+        current_route,
+        "target_theorem_context_packet",
+    ) or _dict_value(
+        route_metadata,
+        "target_theorem_context_packet",
+    ) or _dict_value(
+        route_metadata,
+        "llm_route_planner_target_theorem_context_packet",
+    )
     theorem_statement = str(
         current_route.get("theorem_statement")
         or current_route.get("formal_statement")
         or current_route.get("statement")
+        or existing_target_context.get("theorem_statement")
         or ""
     )
     intake_statements = _unique_strings(
@@ -5036,6 +5073,13 @@ def _target_theorem_context_packet(
                 if str(current_route.get(field_name, "")).strip()
             ],
             *[
+                str(value).strip()
+                for value in _str_tuple(
+                    existing_target_context.get("theorem_skeletons", [])
+                )
+                if str(value).strip()
+            ],
+            *[
                 str(row.get("theorem_skeleton", "")).strip()
                 for row in target_intake_rows
                 if str(row.get("theorem_skeleton", "")).strip()
@@ -5055,6 +5099,13 @@ def _target_theorem_context_packet(
                 if str(value).strip()
             ],
             *[
+                str(value).strip()
+                for value in _str_tuple(
+                    existing_target_context.get("normalized_objects", [])
+                )
+                if str(value).strip()
+            ],
+            *[
                 object_name
                 for row in target_intake_rows
                 for object_name in _str_tuple(row.get("normalized_objects", []))
@@ -5066,6 +5117,13 @@ def _target_theorem_context_packet(
             *[
                 str(value).strip()
                 for value in _str_tuple(current_route.get("assumptions", []))
+                if str(value).strip()
+            ],
+            *[
+                str(value).strip()
+                for value in _str_tuple(
+                    existing_target_context.get("normalized_assumptions", [])
+                )
                 if str(value).strip()
             ],
             *[
@@ -5087,6 +5145,13 @@ def _target_theorem_context_packet(
                 if str(current_route.get(field_name, "")).strip()
             ],
             *[
+                str(value).strip()
+                for value in _str_tuple(
+                    existing_target_context.get("normalized_procedures", [])
+                )
+                if str(value).strip()
+            ],
+            *[
                 str(row.get("normalized_procedure", "")).strip()
                 for row in target_intake_rows
                 if str(row.get("normalized_procedure", "")).strip()
@@ -5104,6 +5169,13 @@ def _target_theorem_context_packet(
                     "claim",
                 )
                 if str(current_route.get(field_name, "")).strip()
+            ],
+            *[
+                str(value).strip()
+                for value in _str_tuple(
+                    existing_target_context.get("desired_conclusions", [])
+                )
+                if str(value).strip()
             ],
             *[
                 str(row.get("normalized_claim", "")).strip()
@@ -5124,6 +5196,13 @@ def _target_theorem_context_packet(
                 if str(current_route.get(field_name, "")).strip()
             ],
             *[
+                str(value).strip()
+                for value in _str_tuple(
+                    existing_target_context.get("desired_theorem_shapes", [])
+                )
+                if str(value).strip()
+            ],
+            *[
                 str(row.get("desired_theorem_shape", "")).strip()
                 for row in target_intake_rows
                 if str(row.get("desired_theorem_shape", "")).strip()
@@ -5142,6 +5221,13 @@ def _target_theorem_context_packet(
                     "preferred_proof_style",
                 )
                 if str(current_route.get(field_name, "")).strip()
+            ],
+            *[
+                str(value).strip()
+                for value in _str_tuple(
+                    existing_target_context.get("proof_style_hints", [])
+                )
+                if str(value).strip()
             ],
             *[
                 f"desired theorem shape: {shape}"
@@ -5167,6 +5253,12 @@ def _target_theorem_context_packet(
             ],
             *[
                 primitive
+                for primitive in _str_tuple(
+                    existing_target_context.get("primitive_candidates", [])
+                )
+            ],
+            *[
+                primitive
                 for row in target_intake_rows
                 for primitive in _str_tuple(row.get("extracted_primitive_candidates", []))
             ],
@@ -5175,12 +5267,22 @@ def _target_theorem_context_packet(
     literature_queries = _unique_strings(
         [
             query
+            for query in _str_tuple(existing_target_context.get("literature_queries", []))
+        ]
+        + [
+            query
             for row in target_intake_rows
             for query in _str_tuple(row.get("literature_queries", []))
         ]
     )
     formal_library_queries = _unique_strings(
         [
+            query
+            for query in _str_tuple(
+                existing_target_context.get("formal_library_grounding_queries", [])
+            )
+        ]
+        + [
             query
             for row in target_intake_rows
             for query in _formal_library_grounding_queries_from_intake_row(row)
@@ -5189,6 +5291,7 @@ def _target_theorem_context_packet(
     proof_source_refs = _unique_strings(
         [
             *_str_tuple(current_route.get("source_refs", [])),
+            *_str_tuple(existing_target_context.get("proof_source_refs", [])),
             *_str_tuple(context_packet.get("available_source_refs", [])),
             *[
                 source_ref
@@ -8977,6 +9080,9 @@ def _row_for_request(
         realization_coverage_witness=realization_coverage_witness,
         quality_control_obligations=dict(quality_control_obligations),
         feedback_loop_summary=dict(feedback_summary),
+        target_theorem_context_packet=dict(
+            _dict_value(context_packet, "target_theorem_context_packet")
+        ),
         context_packet_inventory=dict(context_packet_inventory),
         raw_response_text=raw_text,
         generator_metadata=_jsonable_mapping(
@@ -18237,6 +18343,7 @@ def _fallback_route_for_seed(
     row: FormalizationGapPlannerLLMRoutePlannerRow,
 ) -> dict[str, object]:
     fallback = dict(route)
+    target_context_packet = dict(row.target_theorem_context_packet)
     metadata = _dict_value(fallback, "replan_metadata")
     metadata = {
         **metadata,
@@ -18265,10 +18372,13 @@ def _fallback_route_for_seed(
             row.acceptance_status
             == "REJECTED_LLM_ROUTE_PLANNER_REQUEST_CONTRACT"
         ),
+        "target_theorem_context_packet": target_context_packet,
+        "llm_route_planner_target_theorem_context_packet": target_context_packet,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
     fallback["target_prover_family"] = row.target_prover_family
+    fallback["target_theorem_context_packet"] = target_context_packet
     fallback["replan_metadata"] = metadata
     fallback["llm_route_planner_row_id"] = row.llm_route_planner_row_id
     fallback["llm_route_planner_acceptance_status"] = row.acceptance_status
@@ -18283,7 +18393,9 @@ def _accepted_route_for_seed(
     row: FormalizationGapPlannerLLMRoutePlannerRow,
 ) -> dict[str, object]:
     route = dict(row.standalone_route)
+    target_context_packet = dict(row.target_theorem_context_packet)
     route["target_prover_family"] = row.target_prover_family
+    route["target_theorem_context_packet"] = target_context_packet
     source_refs = tuple(
         dict.fromkeys(
             [
@@ -18523,6 +18635,8 @@ def _accepted_route_for_seed(
             row.quality_control_obligations
         ),
         "llm_route_planner_feedback_loop_summary": dict(row.feedback_loop_summary),
+        "target_theorem_context_packet": target_context_packet,
+        "llm_route_planner_target_theorem_context_packet": target_context_packet,
         "llm_route_planner_errors": list(row.errors),
         "llm_route_planner_generation_errors": list(row.generation_errors),
         "llm_route_planner_request_contract_blocked": (

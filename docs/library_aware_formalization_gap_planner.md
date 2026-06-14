@@ -648,6 +648,12 @@ model emits the informal DAG, formal-realization DAG, alignment edges, and
 minimal-delta plan. Request and manifest validation check the brief and target
 context counts against the raw context and inventory, so they are auditable
 planning guidance rather than separate evidence sources.
+Accepted and fallback LLM route-planner rows now also publish the same
+`target_theorem_context_packet`, and standalone/replan seeds copy it to both
+the route and `replan_metadata`. This keeps the theorem statement, assumptions,
+procedure, desired conclusion, primitive candidates, and residual-goal contract
+available to the next prover-feedback or replan round even when raw prompt rows
+are trimmed for reuse by an external prover adapter.
 Each request packet also includes `context_packet.context_packet_inventory`, a
 validator-checked compact inventory of the same prompt context: row counts for
 target intake, source grounding, library coverage, resource queues, response

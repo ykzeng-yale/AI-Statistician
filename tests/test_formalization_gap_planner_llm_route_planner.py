@@ -1487,6 +1487,17 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert target_context_packet["proof_source_refs"] == [
         "conformal_prediction_textbook"
     ]
+    assert payload["rows"][0]["target_theorem_context_packet"] == target_context_packet
+    fallback_seed_route = payload["standalone_seed"]["routes"][0]
+    assert fallback_seed_route["target_theorem_context_packet"] == (
+        target_context_packet
+    )
+    assert fallback_seed_route["replan_metadata"][
+        "target_theorem_context_packet"
+    ] == target_context_packet
+    assert fallback_seed_route["replan_metadata"][
+        "llm_route_planner_target_theorem_context_packet"
+    ] == target_context_packet
     brief = context["route_planning_brief"]
     assert brief["brief_kind"] == (
         "formalization_gap_planner_llm_route_planner_route_planning_brief"
@@ -5693,6 +5704,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert row["context_packet_inventory"] == payload["request_packets"][0][
         "context_packet"
     ]["context_packet_inventory"]
+    assert row["target_theorem_context_packet"] == payload["request_packets"][0][
+        "context_packet"
+    ]["target_theorem_context_packet"]
     assert row["context_packet_inventory"]["inventory_kind"] == (
         "formalization_gap_planner_llm_route_planner_context_packet_inventory"
     )
@@ -5705,9 +5719,11 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "lean_realization_dag_nodes" not in row_schema["required"]
     assert "source_snippets" in row_schema["required"]
     assert "realization_coverage_witness" in row_schema["required"]
+    assert "target_theorem_context_packet" in row_schema["required"]
     assert "context_packet_inventory" in row_schema["required"]
     assert "model_tier_decision_evidence" in row_schema["required"]
     assert row_schema["properties"]["model_tier_decision_evidence"]["type"] == "object"
+    assert row_schema["properties"]["target_theorem_context_packet"]["type"] == "object"
     assert row_schema["properties"]["context_packet_inventory"]["type"] == "object"
     assert row_schema["properties"]["realization_coverage_witness"] == {
         "$ref": "#/$defs/realization_coverage_witness"
@@ -5780,6 +5796,20 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         missing_generic_row,
         row_schema,
     )
+    missing_target_context_row = dict(row)
+    missing_target_context_row.pop("target_theorem_context_packet", None)
+    assert "target_theorem_context_packet required" in validate_llm_route_planner_row(
+        missing_target_context_row,
+        row_schema,
+    )
+    corrupted_target_context_row = deepcopy(row)
+    corrupted_target_context_row["target_theorem_context_packet"][
+        "route_id"
+    ] = "wrong_route"
+    assert (
+        "target_theorem_context_packet.route_id must match row route_id"
+        in validate_llm_route_planner_row(corrupted_target_context_row, row_schema)
+    )
     corrupted_decision_row = deepcopy(row)
     corrupted_decision_row["model_tier_decision_evidence"][
         "decision_basis"
@@ -5823,6 +5853,15 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         }
     ]
     metadata = seed_route["replan_metadata"]
+    assert seed_route["target_theorem_context_packet"] == row[
+        "target_theorem_context_packet"
+    ]
+    assert metadata["target_theorem_context_packet"] == row[
+        "target_theorem_context_packet"
+    ]
+    assert metadata["llm_route_planner_target_theorem_context_packet"] == row[
+        "target_theorem_context_packet"
+    ]
     assert seed_route["source_snippets"][0]["source_ref"] == (
         "conformal_prediction_textbook"
     )
