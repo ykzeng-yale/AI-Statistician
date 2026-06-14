@@ -2393,7 +2393,7 @@ def test_post_executor_semantic_learning_exports_source_promotion_work_order() -
     _procedures, theorem_goals = TheoryPlanner().plan(problem)
     catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
     verified_ids = [str(row["obligation_id"]) for row in catalog]
-    learning_rows = [
+    input_learning_rows = [
         {
             "learning_task": "theorem_reduction_closure_kernel_overlay",
             "kernel_verified_proof_obligation_ids": verified_ids,
@@ -2407,6 +2407,8 @@ def test_post_executor_semantic_learning_exports_source_promotion_work_order() -
                 "split_conformal_finite_sample_coverage"
             ],
         },
+    ]
+    learning_rows = [
         {
             "learning_task": "source_theorem_semantic_primitive_kernel_overlay",
             "kernel_verified_source_theorem_semantic_primitive_ids": [
@@ -2469,6 +2471,13 @@ def test_post_executor_semantic_learning_exports_source_promotion_work_order() -
             }
         ],
         learning_rows,
+        architect_context={
+            "runtime_learning_memory": {
+                "artifact_kind": "RuntimeLearningMemoryContext",
+                "rows": input_learning_rows,
+                "counts": {"rows_loaded": len(input_learning_rows)},
+            }
+        },
         source_runtime_learning_task="source_theorem_semantic_primitive_kernel_overlay",
     )
 
@@ -2738,6 +2747,7 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
                 "source_theorem_lean_file": "StatInference/Conformal.lean",
                 "informal_source": "split conformal finite-sample coverage",
                 "lean_statement_sketch": (
+                    "def qHat (coverage_claim : Prop) : Prop := coverage_claim\n"
                     "theorem split_conformal_coverage (coverage_claim : Prop) "
                     "(h_coverage : coverage_claim) : coverage_claim := by "
                     "exact h_coverage"
@@ -2867,6 +2877,7 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         "exact_source_theorem_candidate"
     )
     assert materialization_seed_rows[0]["lean_statement_sketch"] == (
+        "def qHat (coverage_claim : Prop) : Prop := coverage_claim\n"
         "theorem split_conformal_coverage (coverage_claim : Prop) "
         "(h_coverage : coverage_claim) : coverage_claim := by exact h_coverage"
     )
