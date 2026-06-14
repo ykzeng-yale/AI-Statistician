@@ -7123,6 +7123,24 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert (
         bundle_manifest["llm_route_planner_summary"][
+            "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
             "n_requests_with_source_theorem_formal_environment_bridge_context"
         ]
         == 1
@@ -7329,6 +7347,24 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         bundle_manifest["feedback_llm_route_planner_summary"][
             "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt"
         ]
         == 1
     )

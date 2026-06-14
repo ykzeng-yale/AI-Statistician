@@ -111,6 +111,10 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "portable_gap_plan_row_schema" in resource_ids
     assert "local_target_formal_source_index" in resource_ids
     assert "source_theorem_semantic_primitive_bridge" in resource_ids
+    assert (
+        "source_theorem_semantic_primitive_from_proof_body_executor_bridge"
+        in resource_ids
+    )
     assert "source_theorem_formal_environment_bridge" in resource_ids
     assert "exact_source_theorem_proof_body_executor" in resource_ids
     assert "hol4_tactic_kernel_tools" in resource_ids
@@ -148,6 +152,19 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "runtime_learning_rows_boundary_preserved" in semantic_bridge[
         "validation_signals"
     ]
+    post_proof_body_semantic_bridge = by_resource[
+        "source_theorem_semantic_primitive_from_proof_body_executor_bridge"
+    ]
+    assert post_proof_body_semantic_bridge["target_prover_families"] == ("lean4",)
+    assert "source_theorem_semantic_bridge_from_proof_body_feedback" in (
+        post_proof_body_semantic_bridge["capability_tags"]
+    )
+    assert "proof_body_feedback_semantic_primitive_repair_classified" in (
+        post_proof_body_semantic_bridge["validation_signals"]
+    )
+    assert "runtime_learning_rows_boundary_preserved" in (
+        post_proof_body_semantic_bridge["validation_signals"]
+    )
     formal_environment_bridge = by_resource["source_theorem_formal_environment_bridge"]
     assert formal_environment_bridge["target_prover_families"] == ("lean4",)
     assert "source_theorem_formal_environment_bridge" in formal_environment_bridge[
@@ -220,6 +237,9 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "source_theorem_semantic_primitive_bridge" in by_component[
         "prover_feedback_refinement"
     ]["local_fallback_resource_ids"]
+    assert "source_theorem_semantic_primitive_from_proof_body_executor_bridge" in (
+        by_component["prover_feedback_refinement"]["local_fallback_resource_ids"]
+    )
     assert "source_theorem_formal_environment_bridge" in by_component[
         "prover_feedback_refinement"
     ]["local_fallback_resource_ids"]
@@ -241,9 +261,15 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "exact_source_theorem_proof_body_execution_classified" in by_component[
         "prover_feedback_refinement"
     ]["required_quality_signals"]
+    assert "proof_body_feedback_semantic_repair_classified" in by_component[
+        "prover_feedback_refinement"
+    ]["required_quality_signals"]
     assert "source_theorem_semantic_primitive_bridge" in by_component[
         "route_revision_handoff"
     ]["local_fallback_resource_ids"]
+    assert "source_theorem_semantic_primitive_from_proof_body_executor_bridge" in (
+        by_component["route_revision_handoff"]["local_fallback_resource_ids"]
+    )
     assert "source_theorem_formal_environment_bridge" in by_component[
         "route_revision_handoff"
     ]["local_fallback_resource_ids"]
@@ -302,6 +328,26 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert contracts_by_resource[
         "source_theorem_semantic_primitive_bridge"
     ]["output_artifact_kind"] == "source_theorem_semantic_primitive_bridge_response"
+    assert "exact_source_theorem_proof_body_execution_feedback_rows" in (
+        contracts_by_resource[
+            "source_theorem_semantic_primitive_from_proof_body_executor_bridge"
+        ]["request_contract_fields"]
+    )
+    assert "source_theorem_semantic_primitive_work_orders_from_proof_body_executor" in (
+        contracts_by_resource[
+            "source_theorem_semantic_primitive_from_proof_body_executor_bridge"
+        ]["request_contract_fields"]
+    )
+    assert "proof_body_feedback_semantic_primitive_repair_classified" in (
+        contracts_by_resource[
+            "source_theorem_semantic_primitive_from_proof_body_executor_bridge"
+        ]["response_validation_signals"]
+    )
+    assert contracts_by_resource[
+        "source_theorem_semantic_primitive_from_proof_body_executor_bridge"
+    ]["output_artifact_kind"] == (
+        "source_theorem_semantic_primitive_from_proof_body_executor_bridge_response"
+    )
     assert "source_theorem_formal_environment_work_orders" in contracts_by_resource[
         "source_theorem_formal_environment_bridge"
     ]["request_contract_fields"]

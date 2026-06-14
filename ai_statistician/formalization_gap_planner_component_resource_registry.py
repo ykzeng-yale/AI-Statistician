@@ -905,6 +905,18 @@ def _resource_request_contract_fields(
         fields.extend(["target_prover_family", "library_snapshot_ref"])
     if "source_theorem_semantic_primitive_work_orders" in row.evidence_contract:
         fields.append("source_theorem_semantic_primitive_work_orders")
+    if (
+        "source_theorem_semantic_primitive_work_orders_from_proof_body_executor"
+        in row.evidence_contract
+    ):
+        fields.append(
+            "source_theorem_semantic_primitive_work_orders_from_proof_body_executor"
+        )
+    if (
+        "exact_source_theorem_proof_body_execution_feedback_rows"
+        in row.evidence_contract
+    ):
+        fields.append("exact_source_theorem_proof_body_execution_feedback_rows")
     if "source_theorem_formal_environment_work_orders" in row.evidence_contract:
         fields.append("source_theorem_formal_environment_work_orders")
     if "exact_source_theorem_proof_body_execution_queue_rows" in row.evidence_contract:
@@ -949,6 +961,14 @@ def _resource_escalation_policy(row: FormalizationGapPlannerResourceRow) -> str:
 
 
 def _resource_output_artifact_kind(row: FormalizationGapPlannerResourceRow) -> str:
+    if (
+        "source_theorem_semantic_primitive_work_orders_from_proof_body_executor"
+        in row.evidence_contract
+    ):
+        return (
+            "source_theorem_semantic_primitive_from_proof_body_executor_"
+            "bridge_response"
+        )
     if "prover_diagnostics" in row.evidence_contract or "residual_goals" in row.evidence_contract:
         return "proof_state_or_prover_feedback_response"
     if "exact_source_theorem_proof_body_execution_result_rows" in row.evidence_contract:
@@ -1143,11 +1163,17 @@ def _resource_capability_tags(
         tags.append("agentic_prover_attempts")
     if fields & {
         "source_theorem_semantic_primitive_work_orders",
+        "source_theorem_semantic_primitive_work_orders_from_proof_body_executor",
         "registered_candidate_obligation_ids",
         "kernel_verified_source_theorem_semantic_support_obligation_ids",
         "runtime_learning_rows",
     }:
         tags.append("source_theorem_semantic_bridge")
+    if fields & {
+        "source_theorem_semantic_primitive_work_orders_from_proof_body_executor",
+        "exact_source_theorem_proof_body_execution_feedback_rows",
+    }:
+        tags.append("source_theorem_semantic_bridge_from_proof_body_feedback")
     if fields & {
         "source_theorem_formal_environment_work_orders",
         "repair_packets",
@@ -1203,10 +1229,16 @@ def _resource_validation_signals(
         signals.append("residuals_or_revision_reasons_classified")
     if fields & {
         "source_theorem_semantic_primitive_work_orders",
+        "source_theorem_semantic_primitive_work_orders_from_proof_body_executor",
         "registered_candidate_obligation_ids",
         "kernel_verified_source_theorem_semantic_support_obligation_ids",
     }:
         signals.append("semantic_primitive_support_classified")
+    if fields & {
+        "source_theorem_semantic_primitive_work_orders_from_proof_body_executor",
+        "exact_source_theorem_proof_body_execution_feedback_rows",
+    }:
+        signals.append("proof_body_feedback_semantic_primitive_repair_classified")
     if fields & {
         "source_theorem_formal_environment_work_orders",
         "repair_packets",
@@ -1250,12 +1282,20 @@ def _component_required_quality_signals(spec: dict[str, Any]) -> tuple[str, ...]
         signals.append("proof_state_residuals_classified")
     if fields & {
         "source_theorem_semantic_primitive_work_orders",
+        "source_theorem_semantic_primitive_work_orders_from_proof_body_executor",
         "registered_candidate_obligation_ids",
         "kernel_verified_source_theorem_semantic_support_obligation_ids",
         "runtime_learning_rows",
         "semantic primitive support links",
+        "semantic primitive support links from proof-body feedback",
     }:
         signals.append("source_theorem_semantic_support_classified")
+    if fields & {
+        "source_theorem_semantic_primitive_work_orders_from_proof_body_executor",
+        "exact_source_theorem_proof_body_execution_feedback_rows",
+        "semantic primitive support links from proof-body feedback",
+    }:
+        signals.append("proof_body_feedback_semantic_repair_classified")
     if fields & {
         "source_theorem_formal_environment_work_orders",
         "repair_packets",
@@ -1625,6 +1665,33 @@ def _resource_specs() -> tuple[dict[str, Any], ...]:
             "target_prover_families": ("lean4",),
         },
         {
+            "resource_id": (
+                "source_theorem_semantic_primitive_from_proof_body_executor_bridge"
+            ),
+            "resource_name": (
+                "Source-theorem semantic primitive bridge from proof-body feedback"
+            ),
+            "resource_kind": "local_fallback",
+            "surface": "python_module",
+            "role": (
+                "materialize semantic primitive repair work orders from exact "
+                "source proof-body executor feedback when placeholder formal "
+                "primitives block source-theorem promotion"
+            ),
+            "local_dependency": True,
+            "evidence_contract": (
+                "exact_source_theorem_proof_body_execution_feedback_rows",
+                "source_theorem_semantic_primitive_work_orders_from_proof_body_executor",
+                "source_theorem_semantic_primitive_work_orders",
+                "registered_candidate_obligation_ids",
+                "proof_body_attempt_summaries",
+                "residual_goals",
+                "runtime_learning_rows",
+                "proof_audit_manifest",
+            ),
+            "target_prover_families": ("lean4",),
+        },
+        {
             "resource_id": "source_theorem_formal_environment_bridge",
             "resource_name": "Source-theorem formal-environment ProofEngineer bridge",
             "resource_kind": "local_fallback",
@@ -1871,6 +1938,7 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
             "local_fallback_resource_ids": (
                 "local_lake_lean",
                 "source_theorem_semantic_primitive_bridge",
+                "source_theorem_semantic_primitive_from_proof_body_executor_bridge",
                 "source_theorem_formal_environment_bridge",
                 "exact_source_theorem_proof_body_executor",
             ),
@@ -1897,9 +1965,11 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
                 "residual_goals",
                 "kernel_verified",
                 "source_theorem_semantic_primitive_work_orders",
+                "source_theorem_semantic_primitive_work_orders_from_proof_body_executor",
                 "registered_candidate_obligation_ids",
                 "source_theorem_formal_environment_work_orders",
                 "exact_source_theorem_proof_body_execution_queue_rows",
+                "exact_source_theorem_proof_body_execution_feedback_rows",
                 "source_theorem_kernel_verified",
             ),
             "evidence_inputs": (
@@ -1907,6 +1977,7 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
                 "theorem_skeleton",
                 "library_snapshot_ref",
                 "source theorem semantic primitive work orders",
+                "semantic primitive work orders from proof-body executor feedback",
                 "source theorem formal-environment work orders",
                 "exact source theorem proof-body execution queue rows",
             ),
@@ -1915,6 +1986,7 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
                 "diagnostic signatures",
                 "route_revision_proposals",
                 "semantic primitive support links",
+                "semantic primitive support links from proof-body feedback",
                 "formal environment repair packets",
                 "proof body execution results",
                 "source theorem kernel status",
@@ -1925,6 +1997,7 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
                 "repair theorem skeleton",
                 "rerun library grounding",
                 "route placeholder source primitives through semantic support bridge",
+                "route proof-body placeholder feedback through semantic support bridge",
                 "route source-theorem formal-environment repairs through ProofEngineer bridge",
                 "try bounded exact source-theorem proof-body execution before promoting proof evidence",
             ),
@@ -1939,6 +2012,7 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
             "local_fallback_resource_ids": (
                 "route_revision_overlay",
                 "source_theorem_semantic_primitive_bridge",
+                "source_theorem_semantic_primitive_from_proof_body_executor_bridge",
                 "source_theorem_formal_environment_bridge",
                 "exact_source_theorem_proof_body_executor",
             ),
@@ -1948,7 +2022,9 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
                 "route_revision_summary",
                 "revised_dag_nodes",
                 "standalone_seed",
+                "source_theorem_semantic_primitive_work_orders_from_proof_body_executor",
                 "exact_source_theorem_proof_body_execution_result_rows",
+                "exact_source_theorem_proof_body_execution_feedback_rows",
                 "source_theorem_kernel_verified",
                 "runtime_learning_rows",
             ),
@@ -1964,6 +2040,7 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
                 "route overlay",
                 "stability audit",
                 "standalone replan seed",
+                "semantic primitive repair handoff from proof-body feedback",
                 "source theorem kernel status",
                 "runtime_learning_rows",
             ),

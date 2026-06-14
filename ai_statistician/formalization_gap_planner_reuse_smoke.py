@@ -2059,6 +2059,24 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_publication_bundle_llm_route_planner_summary_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+                0,
+            )
+        ),
         "n_publication_bundle_llm_route_planner_summary_requests_with_source_theorem_formal_environment_bridge_context": (
             publication_bundle_llm_route_planner_summary.get(
                 "n_requests_with_source_theorem_formal_environment_bridge_context",
@@ -2448,6 +2466,24 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_bridge_contracts_in_prompt": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
                 0,
             )
         ),
@@ -3297,6 +3333,24 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_llm_route_planner_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context": (
+            llm_route_planner_payload.get(
+                "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+                0,
+            )
+        ),
+        "n_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt": (
+            llm_route_planner_payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+                0,
+            )
+        ),
+        "n_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt": (
+            llm_route_planner_payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+                0,
+            )
+        ),
         "n_llm_route_planner_requests_with_source_theorem_formal_environment_bridge_context": (
             llm_route_planner_payload.get(
                 "n_requests_with_source_theorem_formal_environment_bridge_context",
@@ -3937,6 +3991,24 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_source_theorem_semantic_primitive_bridge_contracts_in_prompt": (
             feedback_llm_route_planner_payload.get(
                 "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context": (
+            feedback_llm_route_planner_payload.get(
+                "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt": (
+            feedback_llm_route_planner_payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt": (
+            feedback_llm_route_planner_payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
                 0,
             )
         ),
@@ -7312,6 +7384,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_llm_route_planner_component_resource_registry_contracts_in_prompt')} "
             f"semantic_bridge={payload.get('n_llm_route_planner_source_theorem_semantic_primitive_bridge_resources_in_prompt')}/"
             f"{payload.get('n_llm_route_planner_source_theorem_semantic_primitive_bridge_contracts_in_prompt')} "
+            f"post_proof_body_semantic_bridge={payload.get('n_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt')}/"
+            f"{payload.get('n_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt')} "
             f"formal_env_bridge={payload.get('n_llm_route_planner_source_theorem_formal_environment_bridge_resources_in_prompt')}/"
             f"{payload.get('n_llm_route_planner_source_theorem_formal_environment_bridge_contracts_in_prompt')} "
             f"proof_body_executor={payload.get('n_llm_route_planner_exact_source_theorem_proof_body_executor_resources_in_prompt')}/"
@@ -7351,6 +7425,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"primary={payload.get('n_publication_bundle_llm_route_planner_summary_requests_with_component_resource_registry_context')}/"
             f"{payload.get('n_publication_bundle_llm_route_planner_summary_component_resource_registry_resources_in_prompt')}/"
             f"{payload.get('n_publication_bundle_llm_route_planner_summary_component_resource_registry_contracts_in_prompt')} "
+            f"semantic_bridge={payload.get('n_publication_bundle_llm_route_planner_summary_source_theorem_semantic_primitive_bridge_resources_in_prompt')}/"
+            f"{payload.get('n_publication_bundle_llm_route_planner_summary_source_theorem_semantic_primitive_bridge_contracts_in_prompt')} "
+            f"post_proof_body_semantic_bridge={payload.get('n_publication_bundle_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt')}/"
+            f"{payload.get('n_publication_bundle_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt')} "
             f"formal_env_bridge={payload.get('n_publication_bundle_llm_route_planner_summary_source_theorem_formal_environment_bridge_resources_in_prompt')}/"
             f"{payload.get('n_publication_bundle_llm_route_planner_summary_source_theorem_formal_environment_bridge_contracts_in_prompt')} "
             f"proof_body_executor={payload.get('n_publication_bundle_llm_route_planner_summary_exact_source_theorem_proof_body_executor_resources_in_prompt')}/"
@@ -7358,6 +7436,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"feedback={payload.get('n_publication_bundle_feedback_llm_route_planner_summary_requests_with_component_resource_registry_context')}/"
             f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_component_resource_registry_resources_in_prompt')}/"
             f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_component_resource_registry_contracts_in_prompt')} "
+            f"feedback_semantic_bridge={payload.get('n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_bridge_resources_in_prompt')}/"
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_bridge_contracts_in_prompt')} "
+            f"feedback_post_proof_body_semantic_bridge={payload.get('n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt')}/"
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt')} "
             f"feedback_formal_env_bridge={payload.get('n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_formal_environment_bridge_resources_in_prompt')}/"
             f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_formal_environment_bridge_contracts_in_prompt')} "
             f"feedback_proof_body_executor={payload.get('n_publication_bundle_feedback_llm_route_planner_summary_exact_source_theorem_proof_body_executor_resources_in_prompt')}/"
@@ -7524,6 +7606,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_feedback_llm_route_planner_component_resource_registry_contracts_in_prompt')} "
             f"semantic_bridge={payload.get('n_feedback_llm_route_planner_source_theorem_semantic_primitive_bridge_resources_in_prompt')}/"
             f"{payload.get('n_feedback_llm_route_planner_source_theorem_semantic_primitive_bridge_contracts_in_prompt')} "
+            f"post_proof_body_semantic_bridge={payload.get('n_feedback_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt')}/"
+            f"{payload.get('n_feedback_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt')} "
             f"formal_env_bridge={payload.get('n_feedback_llm_route_planner_source_theorem_formal_environment_bridge_resources_in_prompt')}/"
             f"{payload.get('n_feedback_llm_route_planner_source_theorem_formal_environment_bridge_contracts_in_prompt')} "
             f"proof_body_executor={payload.get('n_feedback_llm_route_planner_exact_source_theorem_proof_body_executor_resources_in_prompt')}/"

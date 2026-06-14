@@ -2287,6 +2287,24 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     )
     assert (
         payload[
+            "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_requests_with_source_theorem_formal_environment_bridge_context"
         ]
         == 1
@@ -2331,6 +2349,9 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     assert "paperclip_cli_mcp" in resource_ids
     assert "lean_lsp_mcp" in resource_ids
     assert "source_theorem_semantic_primitive_bridge" in resource_ids
+    assert "source_theorem_semantic_primitive_from_proof_body_executor_bridge" in (
+        resource_ids
+    )
     assert "source_theorem_formal_environment_bridge" in resource_ids
     assert "exact_source_theorem_proof_body_executor" in resource_ids
     assert any(
@@ -2352,6 +2373,21 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     assert semantic_bridge_contract[
         "output_artifact_kind"
     ] == "source_theorem_semantic_primitive_bridge_response"
+    post_proof_body_semantic_bridge_contract = next(
+        row
+        for row in registry_context["resource_contract_rows"]
+        if row["resource_id"]
+        == "source_theorem_semantic_primitive_from_proof_body_executor_bridge"
+    )
+    assert "exact_source_theorem_proof_body_execution_feedback_rows" in (
+        post_proof_body_semantic_bridge_contract["request_contract_fields"]
+    )
+    assert "source_theorem_semantic_primitive_work_orders_from_proof_body_executor" in (
+        post_proof_body_semantic_bridge_contract["request_contract_fields"]
+    )
+    assert post_proof_body_semantic_bridge_contract[
+        "output_artifact_kind"
+    ] == "source_theorem_semantic_primitive_from_proof_body_executor_bridge_response"
     formal_environment_contract = next(
         row
         for row in registry_context["resource_contract_rows"]
@@ -2377,6 +2413,10 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     assert "component_resource_registry_context" in request["prompt_messages"]["user"]
     assert (
         "source_theorem_semantic_primitive_bridge"
+        in request["prompt_messages"]["user"]
+    )
+    assert (
+        "source_theorem_semantic_primitive_from_proof_body_executor_bridge"
         in request["prompt_messages"]["user"]
     )
     assert (
@@ -2450,6 +2490,24 @@ def test_llm_route_planner_filters_registry_context_for_rocq_target() -> None:
     assert (
         payload[
             "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt"
         ]
         == 0
     )

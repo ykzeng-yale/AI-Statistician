@@ -748,6 +748,24 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_llm_route_planner_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context"
+        ]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
             "n_llm_route_planner_requests_with_source_theorem_formal_environment_bridge_context"
         ]
         == payload["n_llm_route_planner_request_packets"]
@@ -1121,6 +1139,24 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_feedback_llm_route_planner_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
             "n_feedback_llm_route_planner_requests_with_source_theorem_formal_environment_bridge_context"
         ]
         == payload["n_feedback_llm_route_planner_request_packets"]
@@ -1181,6 +1217,18 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_llm_route_planner_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
         ),
         (
+            "n_publication_bundle_llm_route_planner_summary_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+            "n_llm_route_planner_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+            "n_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+            "n_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+        ),
+        (
             "n_publication_bundle_llm_route_planner_summary_requests_with_source_theorem_formal_environment_bridge_context",
             "n_llm_route_planner_requests_with_source_theorem_formal_environment_bridge_context",
         ),
@@ -1227,6 +1275,18 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         (
             "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
             "n_feedback_llm_route_planner_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+            "n_feedback_llm_route_planner_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+            "n_feedback_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+            "n_feedback_llm_route_planner_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
         ),
         (
             "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_source_theorem_formal_environment_bridge_context",

@@ -196,6 +196,9 @@ LIBRARY_ALIGNMENT_SUMMARY_KIND = (
 SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_RESOURCE_ID = (
     "source_theorem_semantic_primitive_bridge"
 )
+SOURCE_THEOREM_SEMANTIC_PRIMITIVE_FROM_PROOF_BODY_EXECUTOR_BRIDGE_RESOURCE_ID = (
+    "source_theorem_semantic_primitive_from_proof_body_executor_bridge"
+)
 SOURCE_THEOREM_FORMAL_ENVIRONMENT_BRIDGE_RESOURCE_ID = (
     "source_theorem_formal_environment_bridge"
 )
@@ -1889,6 +1892,28 @@ def export_formalization_gap_planner_llm_route_planner(
             _component_resource_context_contract_count(
                 packet,
                 SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_RESOURCE_ID,
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context": sum(
+            1
+            for packet in request_packets
+            if _component_resource_context_has_resource(
+                packet,
+                SOURCE_THEOREM_SEMANTIC_PRIMITIVE_FROM_PROOF_BODY_EXECUTOR_BRIDGE_RESOURCE_ID,
+            )
+        ),
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt": sum(
+            _component_resource_context_resource_count(
+                packet,
+                SOURCE_THEOREM_SEMANTIC_PRIMITIVE_FROM_PROOF_BODY_EXECUTOR_BRIDGE_RESOURCE_ID,
+            )
+            for packet in request_packets
+        ),
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt": sum(
+            _component_resource_context_contract_count(
+                packet,
+                SOURCE_THEOREM_SEMANTIC_PRIMITIVE_FROM_PROOF_BODY_EXECUTOR_BRIDGE_RESOURCE_ID,
             )
             for packet in request_packets
         ),
@@ -21532,6 +21557,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Route-option action witness required/missing: {payload.get('n_route_option_action_witness_required_primitives')}/{payload.get('n_route_option_action_witness_missing_primitives')}",
         f"- Component-resource registry context/resources/contracts: {payload.get('n_requests_with_component_resource_registry_context')}/{payload.get('n_component_resource_registry_resources_in_prompt')}/{payload.get('n_component_resource_registry_contracts_in_prompt')}",
         f"- Source-theorem semantic primitive bridge resources/contracts: {payload.get('n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt')}/{payload.get('n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt')}",
+        f"- Source-theorem semantic primitive bridge from proof-body feedback resources/contracts: {payload.get('n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt')}/{payload.get('n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt')}",
         f"- Source-theorem formal-environment bridge resources/contracts: {payload.get('n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt')}/{payload.get('n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt')}",
         f"- Exact source-theorem proof-body executor resources/contracts: {payload.get('n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt')}/{payload.get('n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt')}",
         f"- Search requests: {payload.get('n_search_requests')}",
