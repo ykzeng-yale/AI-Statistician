@@ -2023,6 +2023,78 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_publication_bundle_llm_route_planner_summary_requests_with_component_resource_registry_context": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_requests_with_component_resource_registry_context",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_component_resource_registry_resources_in_prompt": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_component_resource_registry_resources_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_component_resource_registry_contracts_in_prompt": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_component_resource_registry_contracts_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_requests_with_source_theorem_semantic_primitive_bridge_context": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_requests_with_source_theorem_semantic_primitive_bridge_context",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_source_theorem_semantic_primitive_bridge_resources_in_prompt": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_source_theorem_semantic_primitive_bridge_contracts_in_prompt": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_requests_with_source_theorem_formal_environment_bridge_context": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_requests_with_source_theorem_formal_environment_bridge_context",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_source_theorem_formal_environment_bridge_resources_in_prompt": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_source_theorem_formal_environment_bridge_contracts_in_prompt": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_requests_with_exact_source_theorem_proof_body_executor_context": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_requests_with_exact_source_theorem_proof_body_executor_context",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_exact_source_theorem_proof_body_executor_resources_in_prompt": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_exact_source_theorem_proof_body_executor_contracts_in_prompt": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt",
+                0,
+            )
+        ),
         "n_publication_bundle_llm_route_planner_summary_rows": (
             publication_bundle_llm_route_planner_summary.get("n_rows", 0)
         ),
@@ -2340,6 +2412,78 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_prior_llm_hook_traces": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_component_resource_registry_context": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_requests_with_component_resource_registry_context",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_component_resource_registry_resources_in_prompt": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_component_resource_registry_resources_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_component_resource_registry_contracts_in_prompt": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_component_resource_registry_contracts_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_source_theorem_semantic_primitive_bridge_context": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_requests_with_source_theorem_semantic_primitive_bridge_context",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_bridge_resources_in_prompt": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_semantic_primitive_bridge_contracts_in_prompt": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_source_theorem_formal_environment_bridge_context": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_requests_with_source_theorem_formal_environment_bridge_context",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_formal_environment_bridge_resources_in_prompt": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_formal_environment_bridge_contracts_in_prompt": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_exact_source_theorem_proof_body_executor_context": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_requests_with_exact_source_theorem_proof_body_executor_context",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_exact_source_theorem_proof_body_executor_resources_in_prompt": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_exact_source_theorem_proof_body_executor_contracts_in_prompt": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt",
                 0,
             )
         ),
@@ -7201,6 +7345,23 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_route_adoption_ready')}/"
             f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_route_adoption_pending_refinement')}/"
             f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_route_adoption_blockers')}"
+        ),
+        (
+            f"- Bundle LLM route planner registry resource summaries: "
+            f"primary={payload.get('n_publication_bundle_llm_route_planner_summary_requests_with_component_resource_registry_context')}/"
+            f"{payload.get('n_publication_bundle_llm_route_planner_summary_component_resource_registry_resources_in_prompt')}/"
+            f"{payload.get('n_publication_bundle_llm_route_planner_summary_component_resource_registry_contracts_in_prompt')} "
+            f"formal_env_bridge={payload.get('n_publication_bundle_llm_route_planner_summary_source_theorem_formal_environment_bridge_resources_in_prompt')}/"
+            f"{payload.get('n_publication_bundle_llm_route_planner_summary_source_theorem_formal_environment_bridge_contracts_in_prompt')} "
+            f"proof_body_executor={payload.get('n_publication_bundle_llm_route_planner_summary_exact_source_theorem_proof_body_executor_resources_in_prompt')}/"
+            f"{payload.get('n_publication_bundle_llm_route_planner_summary_exact_source_theorem_proof_body_executor_contracts_in_prompt')} "
+            f"feedback={payload.get('n_publication_bundle_feedback_llm_route_planner_summary_requests_with_component_resource_registry_context')}/"
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_component_resource_registry_resources_in_prompt')}/"
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_component_resource_registry_contracts_in_prompt')} "
+            f"feedback_formal_env_bridge={payload.get('n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_formal_environment_bridge_resources_in_prompt')}/"
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_source_theorem_formal_environment_bridge_contracts_in_prompt')} "
+            f"feedback_proof_body_executor={payload.get('n_publication_bundle_feedback_llm_route_planner_summary_exact_source_theorem_proof_body_executor_resources_in_prompt')}/"
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_exact_source_theorem_proof_body_executor_contracts_in_prompt')}"
         ),
         (
             f"- Bundle LLM route planner realization-witness schemas valid: "

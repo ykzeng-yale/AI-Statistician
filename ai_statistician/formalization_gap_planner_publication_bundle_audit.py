@@ -2712,6 +2712,81 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_requests_with_component_resource_registry_context": int(
+            payload.get("n_requests_with_component_resource_registry_context", 0)
+            or 0
+        ),
+        "n_component_resource_registry_resources_in_prompt": int(
+            payload.get("n_component_resource_registry_resources_in_prompt", 0)
+            or 0
+        ),
+        "n_component_resource_registry_contracts_in_prompt": int(
+            payload.get("n_component_resource_registry_contracts_in_prompt", 0)
+            or 0
+        ),
+        "n_requests_with_source_theorem_semantic_primitive_bridge_context": int(
+            payload.get(
+                "n_requests_with_source_theorem_semantic_primitive_bridge_context",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_source_theorem_formal_environment_bridge_context": int(
+            payload.get(
+                "n_requests_with_source_theorem_formal_environment_bridge_context",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_exact_source_theorem_proof_body_executor_context": int(
+            payload.get(
+                "n_requests_with_exact_source_theorem_proof_body_executor_context",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt",
+                0,
+            )
+            or 0
+        ),
+        "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt": int(
+            payload.get(
+                "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt",
+                0,
+            )
+            or 0
+        ),
         "n_rows": int(payload.get("n_rows", len(rows)) or 0),
         "n_response_present": int(
             payload.get(

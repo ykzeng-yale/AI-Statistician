@@ -866,6 +866,30 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         == 0
     )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_requests_with_component_resource_registry_context"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_component_resource_registry_resources_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_requests_with_source_theorem_formal_environment_bridge_context"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_requests_with_exact_source_theorem_proof_body_executor_context"
+        ]
+        == 0
+    )
     assert manifest["llm_route_planner_summary"]["n_rows"] == 1
     assert manifest["llm_route_planner_summary"]["n_response_present"] == 0
     assert (
@@ -1068,6 +1092,30 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert (
         manifest["feedback_llm_route_planner_summary"][
             "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_component_resource_registry_context"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_component_resource_registry_resources_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_source_theorem_formal_environment_bridge_context"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_exact_source_theorem_proof_body_executor_context"
         ]
         == 0
     )
