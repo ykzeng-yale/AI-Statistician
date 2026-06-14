@@ -2285,6 +2285,42 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
         ]
         == 1
     )
+    assert (
+        payload[
+            "n_requests_with_source_theorem_formal_environment_bridge_context"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_requests_with_exact_source_theorem_proof_body_executor_context"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt"
+        ]
+        == 1
+    )
     request = payload["request_packets"][0]
     registry_context = request["context_packet"][
         "component_resource_registry_context"
@@ -2414,6 +2450,42 @@ def test_llm_route_planner_filters_registry_context_for_rocq_target() -> None:
     assert (
         payload[
             "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_requests_with_source_theorem_formal_environment_bridge_context"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_requests_with_exact_source_theorem_proof_body_executor_context"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt"
         ]
         == 0
     )
