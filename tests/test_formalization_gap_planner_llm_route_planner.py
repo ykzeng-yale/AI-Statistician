@@ -1709,6 +1709,20 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         "context_packet.target_theorem_context_packet.route_id must match request route_id"
         in validate_llm_route_planner_request(drifted_target_context_request)
     )
+    drifted_target_context_statement_request = deepcopy(request)
+    drifted_target_context_statement_request["context_packet"][
+        "target_theorem_context_packet"
+    ]["theorem_statement"] = (
+        "A central limit theorem for independent sample means follows from "
+        "Lindeberg conditions."
+    )
+    assert (
+        "context_packet.target_theorem_context_packet.theorem_statement "
+        "must match request route or target-intake theorem statement"
+        in validate_llm_route_planner_request(
+            drifted_target_context_statement_request
+        )
+    )
     drifted_target_context_inventory_request = deepcopy(request)
     drifted_target_context_inventory_request["context_packet"][
         "context_packet_inventory"
@@ -10519,6 +10533,57 @@ def test_llm_route_planner_rejects_target_theorem_identity_drift() -> None:
     assert any(
         "theorem_statement appears to target a different theorem" in error
         for error in row["errors"]
+    )
+
+
+def test_response_payload_validation_uses_target_theorem_context_packet_anchor() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_response_validation_uses_target_context_anchor"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "bad_response.json"
+    request_context_json = root / "request_context.json"
+    validation_out_dir = root / "response_payload_validation"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+
+    prompt_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="prompt_only",
+    )
+    request = deepcopy(prompt_payload["request_packets"][0])
+    request["target_route"]["theorem_statement"] = ""
+    request["context_packet"]["current_route"]["theorem_statement"] = ""
+    request_context_json.write_text(
+        json.dumps({"request_packets": [request]}, indent=2),
+        encoding="utf-8",
+    )
+    bad_response = {
+        "request_id": request["request_id"],
+        "route_id": request["route_id"],
+        "response_payload": _llm_response_payload(),
+    }
+    bad_response["response_payload"]["standalone_route"]["theorem_statement"] = (
+        "A central limit theorem for independent sample means follows from "
+        "Lindeberg conditions."
+    )
+    response_json.write_text(json.dumps(bad_response, indent=2), encoding="utf-8")
+
+    validation_payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        validation_out_dir,
+        request_context_json=request_context_json,
+    )
+
+    assert validation_payload["n_payloads"] == 1
+    assert validation_payload["n_valid_payloads"] == 0
+    assert validation_payload["n_request_context_errors"] == 1
+    rows = validation_payload["rows"]
+    assert any(
+        "theorem_statement appears to target a different theorem" in error
+        for error in rows[0]["errors"]
     )
 
 

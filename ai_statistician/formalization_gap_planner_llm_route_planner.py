@@ -6066,6 +6066,18 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             errors.append(
                 "context_packet.target_theorem_context_packet.target_prover_family must match context_packet"
             )
+        target_statement = str(
+            target_theorem_context.get("theorem_statement", "") or ""
+        ).strip()
+        raw_statement_anchors = _raw_target_theorem_statement_anchors(row)
+        if target_statement and raw_statement_anchors and not any(
+            _target_theorem_identity_overlap_ok(anchor, target_statement)
+            for anchor in raw_statement_anchors
+        ):
+            errors.append(
+                "context_packet.target_theorem_context_packet.theorem_statement "
+                "must match request route or target-intake theorem statement"
+            )
         target_context_count_checks = (
             (
                 "target_theorem_context_object_count",
@@ -10931,23 +10943,47 @@ def _response_target_theorem_identity_errors(
 def _target_theorem_identity_anchors(
     request: Mapping[str, Any],
 ) -> tuple[str, ...]:
-    request_route = _dict_value(request, "target_route")
     context_packet = _dict_value(request, "context_packet")
+    target_context = _dict_value(context_packet, "target_theorem_context_packet")
     statement_anchors = _str_tuple(
         [
-            request_route.get("theorem_statement", ""),
-            *[
-                row.get("theorem_statement", "")
-                for row in _dict_tuple(context_packet.get("target_intake_rows", []))
-            ],
+            *_raw_target_theorem_statement_anchors(request),
+            target_context.get("theorem_statement", ""),
         ]
     )
     if statement_anchors:
         return statement_anchors
     return _str_tuple(
-        row.get("normalized_claim", "")
+        [
+            *[
+                row.get("normalized_claim", "")
+                for row in _dict_tuple(context_packet.get("target_intake_rows", []))
+            ],
+            *_str_tuple(target_context.get("desired_conclusions", [])),
+        ]
+    )
+
+
+def _raw_target_theorem_statement_anchors(
+    request: Mapping[str, Any],
+) -> tuple[str, ...]:
+    request_route = _dict_value(request, "target_route")
+    context_packet = _dict_value(request, "context_packet")
+    current_route = _dict_value(context_packet, "current_route")
+    values: list[object] = []
+    for route in (request_route, current_route):
+        values.extend(
+            [
+                route.get("theorem_statement", ""),
+                route.get("formal_statement", ""),
+                route.get("statement", ""),
+            ]
+        )
+    values.extend(
+        row.get("theorem_statement", "")
         for row in _dict_tuple(context_packet.get("target_intake_rows", []))
     )
+    return _str_tuple(values)
 
 
 def _target_theorem_identity_overlap_ok(anchor: str, response: str) -> bool:
