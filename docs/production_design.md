@@ -1292,6 +1292,10 @@ The system includes estimator-level Lean obligations that AXLE has verified:
   bounds for every rank event, this bridge restricts those bounds to the finite
   bad-rank set. It is kernel-checkable glue for the `hRank` premise, not a proof
   of exchangeability or uniform-rank distribution.
+- `prob_measure_univ`: a probability-measure semantic primitive used to replace
+  generated `MeasureProbability` placeholders with Mathlib
+  `Measure`/`IsProbabilityMeasure` semantics. It is kernel-checkable support for
+  probability-measure normalization, not a full source-theorem proof.
 - `split_conformal_bad_rank_reduction_bridge`: a theorem-level reduction bridge
   for live split-conformal closure work orders. Once the coverage event is
   identified with the complement of a finite bad-rank event and the bad-rank

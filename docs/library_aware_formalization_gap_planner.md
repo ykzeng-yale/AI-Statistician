@@ -1552,7 +1552,14 @@ It also includes
 `examples/formalization_gap_planner_target_intake_example.json` so downstream
 users can run the public path immediately after replacing local corpus,
 formal-source, Lean-RAG, and Lake-project placeholders. The bundle is still not
-proof evidence. The publication-bundle audit
+proof evidence. Runtime feedback that discovers generated source-theorem
+placeholders is routed through source-theorem semantic primitive work orders:
+`MeasureProbability` maps to `probability_measure_semantics` and the registered
+`prob_measure_univ` support obligation, while exchangeability/rank and
+order-statistic placeholders map to their registered split-conformal semantic
+bridges. These rows are reusable planner inputs and runtime learning signals,
+not proof evidence unless the referenced proof-audit manifest kernel-verifies
+the registered obligation. The publication-bundle audit
 then checks the bundle is self-contained, schema-consistent, has the required
 adapter registry, benchmark, benchmark-audit, and reproduction artifacts,
 includes the published planner/prover/refinement/component/benchmark/evaluation

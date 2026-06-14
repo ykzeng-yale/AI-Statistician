@@ -22,7 +22,7 @@ The release audit already makes this boundary visible:
   closure is still a formal-library development problem. The target/action
   audits additionally separate exact proof-bank reuse from unresolved primitive
   work; exact reuse is not new proof evidence for the full frontier theorem.
-- Current release proof-bank evidence is `proofs_kernel_verified=122/122`.
+- Current release proof-bank evidence is `proofs_kernel_verified=126/126`.
   This is strong only when the cited run used AXLE or
   `--local-lean`. Release-speed `research-system-audit` runs may intentionally
   use `mock_static_check`; in that case `proofs_verified` is proof-bank
