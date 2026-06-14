@@ -2006,6 +2006,11 @@ The current implementation composes four existing AI Statistician artifacts:
    route-alignment edges, and copy them into each seed route and its replan
    metadata so the next planner run can be audited for two-DAG alignment
    continuity.
+   If the prior standalone trace carries an LLM
+   `target_theorem_context_packet`, the handoff row, seed route, and seed
+   `replan_metadata` preserve the same packet, including the
+   `llm_route_planner_target_theorem_context_packet` alias, so feedback-driven
+   replan rounds do not lose the original target theorem identity.
    They also preserve applied proposal ids, evidence ids, hook kinds,
    compact resource-response traces, pending or rejected resource-response
    request ids, prover-attempt statuses, diagnostic signatures, residual
@@ -2026,6 +2031,7 @@ The current implementation composes four existing AI Statistician artifacts:
    Validates the handoff manifest and standalone seed, checks proof-boundary
    discipline, verifies that preserved alignment edges cover revised selected
    primitives, checks exact row-to-seed preservation of revised DAG and
+   target-theorem-context packets,
    alignment payloads plus provenance continuity from handoff rows into
    seed-route metadata, and reruns the standalone planner on the generated seed
    to check that the roundtrip regenerates selected-primitive alignment and

@@ -1944,6 +1944,19 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_seed_dag_preservation")
             and check.ok
         ),
+        "n_optional_route_replan_handoff_seed_target_context_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith("_seed_target_context_preservation")
+        ),
+        "n_optional_route_replan_handoff_seed_target_context_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith("_seed_target_context_preservation")
+            and check.ok
+        ),
         "n_optional_route_replan_handoff_generic_formal_dag_checked": sum(
             1
             for check in checks
@@ -17008,6 +17021,17 @@ def _route_replan_handoff_optional_checks(
                 errors=dag_errors,
             )
         )
+        target_context_errors = _handoff_seed_target_context_errors(row, seed_route)
+        checks.append(
+            _check(
+                f"optional_route_replan_handoff_row_{idx}_seed_target_context_preservation",
+                "optional_artifacts",
+                "seed route and replan metadata preserve target theorem context packet",
+                _handoff_seed_target_context_observed(row, seed_route),
+                not target_context_errors,
+                errors=target_context_errors,
+            )
+        )
     for idx, row in enumerate(jsonl_rows):
         schema_errors = validate_route_replan_handoff_row(row)
         checks.append(
@@ -17950,11 +17974,81 @@ def _handoff_seed_dag_observed(
     return "; ".join(parts)
 
 
+def _handoff_seed_target_context_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    row_packet = _as_dict(row.get("target_theorem_context_packet", {}))
+    route_packet = _as_dict(seed_route.get("target_theorem_context_packet", {}))
+    metadata_packet = _as_dict(metadata.get("target_theorem_context_packet", {}))
+    metadata_llm_packet = _as_dict(
+        metadata.get("llm_route_planner_target_theorem_context_packet", {})
+    )
+    if not row_packet:
+        if route_packet or metadata_packet or metadata_llm_packet:
+            errors.append("seed route carries target context absent from handoff row")
+        return tuple(errors)
+    if route_packet != row_packet:
+        errors.append("seed route target_theorem_context_packet mismatch")
+    if metadata_packet != row_packet:
+        errors.append("seed metadata target_theorem_context_packet mismatch")
+    if metadata_llm_packet and metadata_llm_packet != row_packet:
+        errors.append(
+            "seed metadata llm_route_planner_target_theorem_context_packet mismatch"
+        )
+    target_prover_family = _handoff_seed_target_prover_family(
+        row,
+        seed_route,
+        metadata,
+    )
+    packet_target = str(row_packet.get("target_prover_family", "")).strip()
+    if (
+        packet_target
+        and target_prover_family
+        and _target_prover_key(packet_target)
+        != _target_prover_key(target_prover_family)
+    ):
+        errors.append("target_theorem_context_packet target_prover_family mismatch")
+    return tuple(errors)
+
+
+def _handoff_seed_target_context_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    row_packet = _as_dict(row.get("target_theorem_context_packet", {}))
+    route_packet = _as_dict(seed_route.get("target_theorem_context_packet", {}))
+    metadata_packet = _as_dict(metadata.get("target_theorem_context_packet", {}))
+    metadata_llm_packet = _as_dict(
+        metadata.get("llm_route_planner_target_theorem_context_packet", {})
+    )
+    return (
+        f"row_packet={bool(row_packet)}; "
+        f"seed_route_packet={bool(route_packet)}; "
+        f"metadata_packet={bool(metadata_packet)}; "
+        f"metadata_llm_packet={bool(metadata_llm_packet)}; "
+        f"packet_target={row_packet.get('target_prover_family', '')}"
+    )
+
+
 def _seed_route_metadata(seed_route: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(seed_route, dict):
         return None
     metadata = seed_route.get("replan_metadata", {})
     return metadata if isinstance(metadata, dict) else None
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
 
 
 def _seed_resource_feedback_route_count(seed: dict[str, Any]) -> int:
@@ -18689,6 +18783,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional route-revision generic formal DAG valid: {payload.get('n_optional_route_revision_generic_formal_dag_valid')}/{payload.get('n_optional_route_revision_generic_formal_dag_checked')}",
         f"- Optional route-replan handoff seed alignment preserved: {payload.get('n_optional_route_replan_handoff_seed_alignment_valid')}/{payload.get('n_optional_route_replan_handoff_seed_alignment_checked')}",
         f"- Optional route-replan handoff seed DAG preserved: {payload.get('n_optional_route_replan_handoff_seed_dag_valid')}/{payload.get('n_optional_route_replan_handoff_seed_dag_checked')}",
+        f"- Optional route-replan handoff target context preserved: {payload.get('n_optional_route_replan_handoff_seed_target_context_valid')}/{payload.get('n_optional_route_replan_handoff_seed_target_context_checked')}",
         f"- Optional route-replan handoff generic formal DAG valid: {payload.get('n_optional_route_replan_handoff_generic_formal_dag_valid')}/{payload.get('n_optional_route_replan_handoff_generic_formal_dag_checked')}",
         f"- Optional route-replan handoff-audit schema valid: {payload.get('n_optional_route_replan_handoff_audit_row_schema_valid')}/{payload.get('n_optional_route_replan_handoff_audit_row_schema_checked')}",
         f"- Optional runtime handoff-audit schema valid: {payload.get('n_optional_runtime_handoff_audit_row_schema_valid')}/{payload.get('n_optional_runtime_handoff_audit_row_schema_checked')}",

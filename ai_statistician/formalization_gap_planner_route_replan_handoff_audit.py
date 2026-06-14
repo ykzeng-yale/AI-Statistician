@@ -137,6 +137,27 @@ def audit_formalization_gap_planner_route_replan_handoff(
             )
             or 0
         ),
+        "n_roundtrip_standalone_input_traces_with_target_theorem_context_packet": int(
+            roundtrip_payload.get(
+                "n_standalone_input_traces_with_target_theorem_context_packet",
+                0,
+            )
+            or 0
+        ),
+        "n_roundtrip_standalone_input_traces_with_llm_target_theorem_context_packet": int(
+            roundtrip_payload.get(
+                "n_standalone_input_traces_with_llm_target_theorem_context_packet",
+                0,
+            )
+            or 0
+        ),
+        "n_roundtrip_standalone_input_trace_target_theorem_context_target_mismatches": int(
+            roundtrip_payload.get(
+                "n_standalone_input_trace_target_theorem_context_target_mismatches",
+                0,
+            )
+            or 0
+        ),
         "n_roundtrip_standalone_input_trace_llm_route_planner_hook_traces": int(
             roundtrip_payload.get(
                 "n_standalone_input_trace_llm_route_planner_hook_traces",
@@ -675,6 +696,13 @@ def _roundtrip_checks(
             _roundtrip_trace_ok(roundtrip_payload, seed),
         ),
         _check(
+            "roundtrip_target_theorem_context_trace",
+            "roundtrip",
+            "roundtrip standalone-input traces preserve target theorem context packets",
+            _roundtrip_target_context_observed(roundtrip_payload, seed),
+            _roundtrip_target_context_ok(roundtrip_payload, seed),
+        ),
+        _check(
             "roundtrip_llm_route_planner_hook_trace",
             "roundtrip",
             "roundtrip standalone-input traces preserve applied LLM route-planner hook traces",
@@ -773,6 +801,18 @@ def _roundtrip_summary(payload: dict[str, Any]) -> dict[str, object]:
             "n_standalone_input_traces_with_replan_metadata",
             0,
         ),
+        "n_standalone_input_traces_with_target_theorem_context_packet": payload.get(
+            "n_standalone_input_traces_with_target_theorem_context_packet",
+            0,
+        ),
+        "n_standalone_input_traces_with_llm_target_theorem_context_packet": payload.get(
+            "n_standalone_input_traces_with_llm_target_theorem_context_packet",
+            0,
+        ),
+        "n_standalone_input_trace_target_theorem_context_target_mismatches": payload.get(
+            "n_standalone_input_trace_target_theorem_context_target_mismatches",
+            0,
+        ),
         "n_standalone_input_trace_llm_route_planner_hook_traces": payload.get(
             "n_standalone_input_trace_llm_route_planner_hook_traces",
             0,
@@ -861,6 +901,81 @@ def _roundtrip_trace_observed(payload: dict[str, Any], seed: dict[str, Any]) -> 
     return (
         f"trace_routes={matched}/{len(seed_routes)} "
         f"trace_with_replan_metadata={with_metadata}"
+    )
+
+
+def _roundtrip_target_context_ok(payload: dict[str, Any], seed: dict[str, Any]) -> bool:
+    rows = {
+        str(row.get("route_id", "")): row
+        for row in payload.get("rows", [])
+        if isinstance(row, dict)
+    }
+    seed_routes = {
+        str(route.get("route_id", "")): route
+        for route in seed.get("routes", [])
+        if isinstance(route, dict) and str(route.get("route_id", ""))
+    }
+    expected_routes = {
+        route_id: _dict_value(route.get("target_theorem_context_packet", {}))
+        for route_id, route in seed_routes.items()
+        if _dict_value(route.get("target_theorem_context_packet", {}))
+    }
+    if not expected_routes:
+        return True
+    if (
+        int(
+            payload.get(
+                "n_standalone_input_traces_with_target_theorem_context_packet",
+                0,
+            )
+            or 0
+        )
+        < len(expected_routes)
+    ):
+        return False
+    if int(
+        payload.get(
+            "n_standalone_input_trace_target_theorem_context_target_mismatches",
+            0,
+        )
+        or 0
+    ):
+        return False
+    for route_id, expected_packet in expected_routes.items():
+        row = rows.get(route_id, {})
+        trace = row.get("standalone_input_trace", {}) if isinstance(row, dict) else {}
+        if not isinstance(trace, dict):
+            return False
+        if _dict_value(trace.get("target_theorem_context_packet", {})) != expected_packet:
+            return False
+        metadata = _dict_value(trace.get("replan_metadata", {}))
+        if _dict_value(metadata.get("target_theorem_context_packet", {})) != expected_packet:
+            return False
+    return True
+
+
+def _roundtrip_target_context_observed(
+    payload: dict[str, Any],
+    seed: dict[str, Any],
+) -> str:
+    seed_routes = [
+        route
+        for route in seed.get("routes", [])
+        if isinstance(route, dict) and str(route.get("route_id", ""))
+    ]
+    expected = sum(
+        1
+        for route in seed_routes
+        if _dict_value(route.get("target_theorem_context_packet", {}))
+    )
+    return (
+        f"seed_routes_with_packet={expected}; "
+        "roundtrip_traces_with_packet="
+        f"{payload.get('n_standalone_input_traces_with_target_theorem_context_packet', 0)}; "
+        "roundtrip_traces_with_llm_packet="
+        f"{payload.get('n_standalone_input_traces_with_llm_target_theorem_context_packet', 0)}; "
+        "target_mismatches="
+        f"{payload.get('n_standalone_input_trace_target_theorem_context_target_mismatches', 0)}"
     )
 
 
@@ -1468,6 +1583,10 @@ def _dict_tuple(values: Any) -> tuple[dict[str, Any], ...]:
     return tuple(dict(item) for item in values if isinstance(item, dict))
 
 
+def _dict_value(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
 def _str_tuple(values: Any) -> tuple[str, ...]:
     if isinstance(values, str):
         return (values,) if values else tuple()
@@ -1618,6 +1737,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Handoff rows: {payload.get('n_handoff_rows')}",
         f"- Seed routes: {payload.get('n_seed_routes')}",
         f"- Roundtrip plans: {payload.get('n_roundtrip_goal_plans')}",
+        f"- Roundtrip traces with target theorem context: {payload.get('n_roundtrip_standalone_input_traces_with_target_theorem_context_packet')}",
         f"- Roundtrip OK: {payload.get('roundtrip_all_ok')}",
         f"- All OK: {payload.get('all_ok')}",
         "",

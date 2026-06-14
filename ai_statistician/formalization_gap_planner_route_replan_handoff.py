@@ -78,6 +78,7 @@ class FormalizationGapPlannerRouteReplanHandoffRow:
     applied_prover_diagnostic_signatures: tuple[str, ...]
     route_revision_reasons: tuple[str, ...]
     route_revision_summaries: tuple[str, ...]
+    target_theorem_context_packet: dict[str, object]
     source_refs: tuple[str, ...]
     source_snippets: tuple[dict[str, object], ...]
     formal_declaration_hits: tuple[dict[str, object], ...]
@@ -202,6 +203,15 @@ def export_formalization_gap_planner_route_replan_handoff(
         "n_source_snippets": sum(len(row.source_snippets) for row in rows),
         "n_routes_with_source_snippets": sum(1 for row in rows if row.source_snippets),
         "n_routes_with_residual_goals": sum(1 for row in rows if row.residual_goals),
+        "n_routes_with_target_theorem_context_packet": sum(
+            1 for row in rows if row.target_theorem_context_packet
+        ),
+        "n_standalone_seed_routes_with_target_theorem_context_packet": sum(
+            1
+            for route in standalone_seed.get("routes", [])
+            if isinstance(route, dict)
+            and _dict_value(route.get("target_theorem_context_packet", {}))
+        ),
         "n_routes_with_prover_attempt_status": sum(
             1 for row in rows if row.applied_prover_attempt_statuses
         ),
@@ -350,6 +360,7 @@ def route_replan_handoff_row_json_schema() -> dict[str, object]:
             "applied_prover_diagnostic_signatures",
             "route_revision_reasons",
             "route_revision_summaries",
+            "target_theorem_context_packet",
             "formal_declaration_hits",
             "revised_informal_knowledge_dag_nodes",
             "revised_formal_realization_dag_nodes",
@@ -393,6 +404,7 @@ def route_replan_handoff_row_json_schema() -> dict[str, object]:
             "applied_prover_diagnostic_signatures": string_array,
             "route_revision_reasons": string_array,
             "route_revision_summaries": string_array,
+            "target_theorem_context_packet": {"type": "object"},
             "source_refs": string_array,
             "source_snippets": object_array,
             "formal_declaration_hits": object_array,
@@ -446,8 +458,70 @@ def validate_route_replan_handoff_row(
         and not _dict_tuple(row.get("applied_resource_response_traces", []))
     ):
         errors.append("resource_response_ledger hook missing applied_resource_response_traces")
+    errors.extend(_target_theorem_context_packet_consistency_errors(row))
     errors.extend(_declaration_hit_scope_errors(row))
     return tuple(errors)
+
+
+def _target_theorem_context_packet_consistency_errors(
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    packet = _dict_value(row.get("target_theorem_context_packet", {}))
+    standalone_route = _dict_value(row.get("standalone_route", {}))
+    metadata = _dict_value(standalone_route.get("replan_metadata", {}))
+    route_packet = _dict_value(standalone_route.get("target_theorem_context_packet", {}))
+    metadata_packet = _dict_value(metadata.get("target_theorem_context_packet", {}))
+    metadata_llm_packet = _dict_value(
+        metadata.get("llm_route_planner_target_theorem_context_packet", {})
+    )
+    if packet:
+        if not route_packet:
+            errors.append("standalone_route.target_theorem_context_packet missing")
+        elif route_packet != packet:
+            errors.append("standalone_route.target_theorem_context_packet mismatch")
+        if not metadata_packet:
+            errors.append(
+                "standalone_route.replan_metadata.target_theorem_context_packet missing"
+            )
+        elif metadata_packet != packet:
+            errors.append(
+                "standalone_route.replan_metadata.target_theorem_context_packet mismatch"
+            )
+        if metadata_llm_packet and metadata_llm_packet != packet:
+            errors.append(
+                "standalone_route.replan_metadata."
+                "llm_route_planner_target_theorem_context_packet mismatch"
+            )
+        target_prover_family = _target_prover_family_for_handoff_row(row)
+        packet_target = str(packet.get("target_prover_family", "")).strip()
+        if (
+            packet_target
+            and target_prover_family
+            and _target_prover_key(packet_target)
+            != _target_prover_key(target_prover_family)
+        ):
+            errors.append("target_theorem_context_packet.target_prover_family mismatch")
+    elif route_packet and metadata_packet and route_packet != metadata_packet:
+        errors.append(
+            "standalone_route target_theorem_context_packet and replan_metadata "
+            "target_theorem_context_packet mismatch"
+        )
+    return tuple(errors)
+
+
+def _target_prover_family_for_handoff_row(row: dict[str, Any]) -> str:
+    standalone_route = _dict_value(row.get("standalone_route", {}))
+    metadata = _dict_value(standalone_route.get("replan_metadata", {}))
+    for value in (
+        row.get("target_prover_family", ""),
+        standalone_route.get("target_prover_family", ""),
+        metadata.get("target_prover_family", ""),
+    ):
+        text = str(value or "").strip()
+        if text:
+            return text
+    return ""
 
 
 def _schema_property_errors(
@@ -589,6 +663,10 @@ def _handoff_row(
         overlay_row,
         target_prover_family,
     )
+    target_theorem_context_packet = _target_theorem_context_packet_for_handoff(
+        plan_row,
+        overlay_row,
+    )
     informal_nodes = _dict_tuple(
         overlay_row.get("revised_informal_knowledge_dag_nodes", [])
     )
@@ -619,6 +697,16 @@ def _handoff_row(
         errors.append("overlay contains unaligned revised primitives")
     if "resource_response_ledger" in applied_hook_kinds and not applied_resource_response_traces:
         errors.append("resource_response_ledger hook missing applied_resource_response_traces")
+    target_context_target = str(
+        target_theorem_context_packet.get("target_prover_family", "")
+    ).strip()
+    if (
+        target_context_target
+        and target_prover_family
+        and _target_prover_key(target_context_target)
+        != _target_prover_key(target_prover_family)
+    ):
+        errors.append("target_theorem_context_packet target_prover_family mismatch")
     requires_replan = _requires_replan(
         revision_status=revision_status,
         stability_decision=stability_decision,
@@ -645,6 +733,7 @@ def _handoff_row(
         requires_replan=requires_replan,
         target_prover_family=target_prover_family,
         quality_controls=quality_controls,
+        target_theorem_context_packet=target_theorem_context_packet,
     )
     if not standalone_route.get("primitives"):
         errors.append("standalone route primitives missing")
@@ -678,6 +767,7 @@ def _handoff_row(
         applied_prover_diagnostic_signatures=diagnostic_signatures,
         route_revision_reasons=route_revision_reasons,
         route_revision_summaries=route_revision_summaries,
+        target_theorem_context_packet=target_theorem_context_packet,
         source_refs=source_refs,
         source_snippets=source_snippets,
         formal_declaration_hits=formal_declaration_hits,
@@ -806,6 +896,7 @@ def _standalone_route(
     requires_replan: bool,
     target_prover_family: str,
     quality_controls: dict[str, tuple[str, ...]],
+    target_theorem_context_packet: dict[str, object],
 ) -> dict[str, object]:
     node_index = _node_index(plan_row)
     lean_hit_index = _lean_hit_index(overlay_row)
@@ -826,6 +917,7 @@ def _standalone_route(
         "theorem_statement": str(plan_row.get("theorem_statement", "")),
         "theorem_skeleton": str(plan_row.get("theorem_skeleton", "")),
         "target_prover_family": target_prover_family,
+        "target_theorem_context_packet": dict(target_theorem_context_packet),
         "route_class": str(plan_row.get("route_class", "")),
         "recommended_action": _recommended_action(requires_replan, stability_row),
         "source_refs": source_refs,
@@ -851,6 +943,10 @@ def _standalone_route(
             "source_route_id": str(overlay_row.get("route_id", "")),
             "source_goal_plan_id": str(overlay_row.get("goal_plan_id", "")),
             "target_prover_family": target_prover_family,
+            "target_theorem_context_packet": dict(target_theorem_context_packet),
+            "llm_route_planner_target_theorem_context_packet": dict(
+                target_theorem_context_packet
+            ),
             "route_revision_overlay_id": str(overlay_row.get("route_revision_overlay_id", "")),
             "revision_status": str(overlay_row.get("revision_status", "")),
             "stability_decision": str(stability_row.get("stability_decision", "")),
@@ -1117,6 +1213,30 @@ def _merge_quality_controls(
         for field_name, values in merged.items()
         if _str_tuple(values)
     }
+
+
+def _target_theorem_context_packet_for_handoff(
+    plan_row: dict[str, Any],
+    overlay_row: dict[str, Any],
+) -> dict[str, object]:
+    trace = _dict_value(plan_row.get("standalone_input_trace", {}))
+    trace_metadata = _dict_value(trace.get("replan_metadata", {}))
+    plan_metadata = _dict_value(plan_row.get("replan_metadata", {}))
+    overlay_metadata = _dict_value(overlay_row.get("replan_metadata", {}))
+    for source in (
+        overlay_row.get("target_theorem_context_packet", {}),
+        overlay_metadata.get("target_theorem_context_packet", {}),
+        overlay_metadata.get("llm_route_planner_target_theorem_context_packet", {}),
+        trace.get("target_theorem_context_packet", {}),
+        trace_metadata.get("target_theorem_context_packet", {}),
+        trace_metadata.get("llm_route_planner_target_theorem_context_packet", {}),
+        plan_metadata.get("target_theorem_context_packet", {}),
+        plan_metadata.get("llm_route_planner_target_theorem_context_packet", {}),
+    ):
+        packet = _dict_value(source)
+        if packet:
+            return dict(packet)
+    return {}
 
 
 def _node_index(plan_row: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -1501,6 +1621,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Rows: {payload.get('n_ok')}/{payload.get('n_handoff_rows')}",
         f"- Routes requiring replan: {payload.get('n_routes_requiring_replan')}",
         f"- Standalone seed routes: {payload.get('n_standalone_seed_routes')}",
+        f"- Target theorem context packets: {payload.get('n_routes_with_target_theorem_context_packet')}/{payload.get('n_handoff_rows')}",
+        f"- Seed routes with target theorem context packets: {payload.get('n_standalone_seed_routes_with_target_theorem_context_packet')}/{payload.get('n_standalone_seed_routes')}",
         f"- Residual-goal routes: {payload.get('n_routes_with_residual_goals')}",
         f"- Source snippets: {payload.get('n_source_snippets')}",
         f"- Resource-ledger feedback routes: {payload.get('n_routes_with_resource_response_ledger_feedback')}",

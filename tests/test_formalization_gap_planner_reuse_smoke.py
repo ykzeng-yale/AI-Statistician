@@ -1875,6 +1875,15 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_optional_route_replan_handoff_seed_target_context_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_route_replan_handoff_seed_target_context_checked"
+        ]
+        == payload["n_route_replan_handoff_rows"]
+    )
+    assert (
+        payload[
             "n_publication_bundle_optional_route_replan_handoff_audit_row_schema_valid"
         ]
         == payload[
@@ -2064,6 +2073,14 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_route_stability_row_schema_invalid"] == 0
     assert payload["n_routes_requiring_replan"] > 0
     assert payload["n_replan_seed_routes"] > 0
+    assert (
+        payload["n_route_replan_handoff_routes_with_target_theorem_context_packet"]
+        > 0
+    )
+    assert (
+        payload["n_route_replan_handoff_seed_routes_with_target_theorem_context_packet"]
+        == payload["n_route_replan_handoff_routes_with_target_theorem_context_packet"]
+    )
     assert payload["n_route_replan_handoff_audit_failed"] == 0
     assert (
         payload["n_route_replan_handoff_audit_row_schema_valid"]
@@ -2101,6 +2118,28 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_route_replan_roundtrip_standalone_input_traces_with_replan_metadata"
         ]
         == payload["n_replan_seed_routes"]
+    )
+    assert (
+        payload[
+            "n_route_replan_roundtrip_standalone_input_traces_with_target_theorem_context_packet"
+        ]
+        == payload[
+            "n_route_replan_handoff_seed_routes_with_target_theorem_context_packet"
+        ]
+    )
+    assert (
+        payload[
+            "n_route_replan_roundtrip_standalone_input_traces_with_llm_target_theorem_context_packet"
+        ]
+        == payload[
+            "n_route_replan_handoff_seed_routes_with_target_theorem_context_packet"
+        ]
+    )
+    assert (
+        payload[
+            "n_route_replan_roundtrip_standalone_input_trace_target_theorem_context_target_mismatches"
+        ]
+        == 0
     )
     assert (
         payload[
