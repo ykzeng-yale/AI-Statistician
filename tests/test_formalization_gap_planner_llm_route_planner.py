@@ -2295,6 +2295,8 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     assert "paperclip_cli_mcp" in resource_ids
     assert "lean_lsp_mcp" in resource_ids
     assert "source_theorem_semantic_primitive_bridge" in resource_ids
+    assert "source_theorem_formal_environment_bridge" in resource_ids
+    assert "exact_source_theorem_proof_body_executor" in resource_ids
     assert any(
         row["component_id"] == "literature_grounded_route_synthesis"
         for row in registry_context["component_rows"]
@@ -2314,9 +2316,39 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     assert semantic_bridge_contract[
         "output_artifact_kind"
     ] == "source_theorem_semantic_primitive_bridge_response"
+    formal_environment_contract = next(
+        row
+        for row in registry_context["resource_contract_rows"]
+        if row["resource_id"] == "source_theorem_formal_environment_bridge"
+    )
+    assert "source_theorem_formal_environment_work_orders" in formal_environment_contract[
+        "request_contract_fields"
+    ]
+    assert formal_environment_contract[
+        "output_artifact_kind"
+    ] == "source_theorem_formal_environment_bridge_response"
+    proof_body_executor_contract = next(
+        row
+        for row in registry_context["resource_contract_rows"]
+        if row["resource_id"] == "exact_source_theorem_proof_body_executor"
+    )
+    assert "exact_source_theorem_proof_body_execution_queue_rows" in proof_body_executor_contract[
+        "request_contract_fields"
+    ]
+    assert proof_body_executor_contract[
+        "output_artifact_kind"
+    ] == "exact_source_theorem_proof_body_execution_response"
     assert "component_resource_registry_context" in request["prompt_messages"]["user"]
     assert (
         "source_theorem_semantic_primitive_bridge"
+        in request["prompt_messages"]["user"]
+    )
+    assert (
+        "source_theorem_formal_environment_bridge"
+        in request["prompt_messages"]["user"]
+    )
+    assert (
+        "exact_source_theorem_proof_body_executor"
         in request["prompt_messages"]["user"]
     )
     assert "registry rows are not evidence" in request["prompt_messages"]["user"]
@@ -2402,6 +2434,8 @@ def test_llm_route_planner_filters_registry_context_for_rocq_target() -> None:
         "lean_blueprint_leanarchitect",
         "local_lake_lean",
         "source_theorem_semantic_primitive_bridge",
+        "source_theorem_formal_environment_bridge",
+        "exact_source_theorem_proof_body_executor",
         "lean_lsp_mcp",
         "leandojo_reprover",
     }

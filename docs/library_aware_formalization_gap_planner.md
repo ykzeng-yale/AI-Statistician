@@ -1240,7 +1240,8 @@ coverage, minimal-delta planning, prover feedback, route revision, and
 cross-prover publication to local fallbacks and frontier tools such as
 Paperclip/PaperQA/OpenScholar, LeanSearch/Loogle/LeanExplore, Lean/LSP,
 LeanDojo/ReProver, the source-theorem semantic primitive ProofEngineer bridge,
-Rocq LSP/SerAPI, Isabelle/Sledgehammer, Agda
+the source-theorem formal-environment bridge, the exact source-theorem
+proof-body executor, Rocq LSP/SerAPI, Isabelle/Sledgehammer, Agda
 Search/Auto, HOL4/HOL Light, Mizar, and Metamath surfaces. It also emits one
 execution-plan row per planner
 component with local-first resources, frontier escalation resources, adapter

@@ -111,6 +111,8 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "portable_gap_plan_row_schema" in resource_ids
     assert "local_target_formal_source_index" in resource_ids
     assert "source_theorem_semantic_primitive_bridge" in resource_ids
+    assert "source_theorem_formal_environment_bridge" in resource_ids
+    assert "exact_source_theorem_proof_body_executor" in resource_ids
     assert "hol4_tactic_kernel_tools" in resource_ids
     assert "hol_light_tactic_search" in resource_ids
     assert "mizar_mml_search" in resource_ids
@@ -144,6 +146,28 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
         "validation_signals"
     ]
     assert "runtime_learning_rows_boundary_preserved" in semantic_bridge[
+        "validation_signals"
+    ]
+    formal_environment_bridge = by_resource["source_theorem_formal_environment_bridge"]
+    assert formal_environment_bridge["target_prover_families"] == ("lean4",)
+    assert "source_theorem_formal_environment_bridge" in formal_environment_bridge[
+        "capability_tags"
+    ]
+    assert "formal_environment_repair_classified" in formal_environment_bridge[
+        "validation_signals"
+    ]
+    assert "runtime_learning_rows_boundary_preserved" in formal_environment_bridge[
+        "validation_signals"
+    ]
+    proof_body_executor = by_resource["exact_source_theorem_proof_body_executor"]
+    assert proof_body_executor["target_prover_families"] == ("lean4",)
+    assert "exact_source_theorem_proof_body_execution" in proof_body_executor[
+        "capability_tags"
+    ]
+    assert "proof_body_execution_status_classified" in proof_body_executor[
+        "validation_signals"
+    ]
+    assert "source_theorem_kernel_status_preserved" in proof_body_executor[
         "validation_signals"
     ]
     assert by_resource["hol4_tactic_kernel_tools"]["target_prover_families"] == (
@@ -196,6 +220,12 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "source_theorem_semantic_primitive_bridge" in by_component[
         "prover_feedback_refinement"
     ]["local_fallback_resource_ids"]
+    assert "source_theorem_formal_environment_bridge" in by_component[
+        "prover_feedback_refinement"
+    ]["local_fallback_resource_ids"]
+    assert "exact_source_theorem_proof_body_executor" in by_component[
+        "prover_feedback_refinement"
+    ]["local_fallback_resource_ids"]
     assert "metamath_set_mm" in by_component["prover_feedback_refinement"][
         "frontier_resource_ids"
     ]
@@ -205,10 +235,25 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "source_theorem_semantic_support_classified" in by_component[
         "prover_feedback_refinement"
     ]["required_quality_signals"]
+    assert "source_theorem_formal_environment_repair_classified" in by_component[
+        "prover_feedback_refinement"
+    ]["required_quality_signals"]
+    assert "exact_source_theorem_proof_body_execution_classified" in by_component[
+        "prover_feedback_refinement"
+    ]["required_quality_signals"]
     assert "source_theorem_semantic_primitive_bridge" in by_component[
         "route_revision_handoff"
     ]["local_fallback_resource_ids"]
+    assert "source_theorem_formal_environment_bridge" in by_component[
+        "route_revision_handoff"
+    ]["local_fallback_resource_ids"]
+    assert "exact_source_theorem_proof_body_executor" in by_component[
+        "route_revision_handoff"
+    ]["local_fallback_resource_ids"]
     assert "source_theorem_semantic_support_classified" in by_component[
+        "route_revision_handoff"
+    ]["required_quality_signals"]
+    assert "exact_source_theorem_proof_body_execution_classified" in by_component[
         "route_revision_handoff"
     ]["required_quality_signals"]
     assert (
@@ -257,6 +302,30 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert contracts_by_resource[
         "source_theorem_semantic_primitive_bridge"
     ]["output_artifact_kind"] == "source_theorem_semantic_primitive_bridge_response"
+    assert "source_theorem_formal_environment_work_orders" in contracts_by_resource[
+        "source_theorem_formal_environment_bridge"
+    ]["request_contract_fields"]
+    assert "repair_packets" in contracts_by_resource[
+        "source_theorem_formal_environment_bridge"
+    ]["response_contract_fields"]
+    assert "formal_environment_repair_classified" in contracts_by_resource[
+        "source_theorem_formal_environment_bridge"
+    ]["response_validation_signals"]
+    assert contracts_by_resource[
+        "source_theorem_formal_environment_bridge"
+    ]["output_artifact_kind"] == "source_theorem_formal_environment_bridge_response"
+    assert "exact_source_theorem_proof_body_execution_queue_rows" in contracts_by_resource[
+        "exact_source_theorem_proof_body_executor"
+    ]["request_contract_fields"]
+    assert "exact_source_theorem_proof_body_execution_result_rows" in contracts_by_resource[
+        "exact_source_theorem_proof_body_executor"
+    ]["response_contract_fields"]
+    assert "proof_body_execution_status_classified" in contracts_by_resource[
+        "exact_source_theorem_proof_body_executor"
+    ]["response_validation_signals"]
+    assert contracts_by_resource[
+        "exact_source_theorem_proof_body_executor"
+    ]["output_artifact_kind"] == "exact_source_theorem_proof_body_execution_response"
     assert "target_prover_family" in contracts_by_resource[
         "hol4_tactic_kernel_tools"
     ]["request_contract_fields"]
