@@ -80,6 +80,26 @@ QUALITY_CONTROL_FIELDS = (
     "response_validation_signals",
     "stop_conditions",
 )
+RESIDUAL_CONTEXT_STRING_ARRAY_FIELDS = (
+    "residual_goals",
+    "residual_primitives",
+    "target_primitives",
+    "source_refs",
+    "queries",
+    "source_search_queries",
+    "literature_queries",
+)
+RESIDUAL_CONTEXT_TEXT_FIELDS = (
+    "source_kind",
+    "residual_goal",
+    "interpretation",
+    "route_repair",
+    "repair_action",
+    "source_search_status",
+    "formal_gap_boundary",
+    "formal_boundary",
+    "source_ref",
+)
 ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
 ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING = "source_grounding_obligations_pending"
 
@@ -103,6 +123,11 @@ class FormalizationGapPlannerProverAdapterPacket:
     portable_work_packet: dict[str, object]
     route_alignment_edge: dict[str, object]
     standalone_input_trace: dict[str, object]
+    residual_goal_contexts: tuple[dict[str, object], ...]
+    n_residual_goal_contexts: int
+    residual_context_source_kinds: tuple[str, ...]
+    n_residual_contexts_with_source_refs: int
+    n_residual_contexts_with_formal_gap_boundary: int
     llm_route_planner_route_adoption_status: str
     llm_route_planner_route_adoption_blockers: tuple[str, ...]
     alignment_status: str
@@ -263,6 +288,22 @@ def export_formalization_gap_planner_prover_adapter_contract(
             1
             for packet in packets
             if packet.standalone_input_trace.get("has_replan_metadata")
+        ),
+        "n_packets_with_residual_goal_contexts": sum(
+            1 for packet in packets if packet.residual_goal_contexts
+        ),
+        "n_packet_residual_goal_contexts": sum(
+            packet.n_residual_goal_contexts for packet in packets
+        ),
+        "packet_residual_context_source_kinds": (
+            _packet_residual_context_source_kinds(packets)
+        ),
+        "n_packet_residual_contexts_with_source_refs": sum(
+            packet.n_residual_contexts_with_source_refs for packet in packets
+        ),
+        "n_packet_residual_contexts_with_formal_gap_boundary": sum(
+            packet.n_residual_contexts_with_formal_gap_boundary
+            for packet in packets
         ),
         "n_packets_with_quality_controls": sum(
             1 for packet in packets if _quality_controls_from_packet_trace(packet)
@@ -458,6 +499,10 @@ def export_formalization_gap_planner_prover_adapter_contract(
 
 def prover_adapter_packet_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
+    object_array = {
+        "type": "array",
+        "items": {"type": "object", "additionalProperties": True},
+    }
     quality_controls_def = {
         "type": "object",
         "additionalProperties": True,
@@ -483,6 +528,10 @@ def prover_adapter_packet_json_schema() -> dict[str, object]:
             "quality_controls": quality_controls_def,
             "has_quality_controls": {"type": "boolean"},
             "quality_control_fields": string_array,
+            "residual_goal_contexts": object_array,
+            "has_residual_goal_contexts": {"type": "boolean"},
+            "residual_goal_context_count": {"type": "integer"},
+            "residual_context_source_kinds": string_array,
         },
     }
     return {
@@ -513,6 +562,11 @@ def prover_adapter_packet_json_schema() -> dict[str, object]:
             "portable_work_packet",
             "route_alignment_edge",
             "standalone_input_trace",
+            "residual_goal_contexts",
+            "n_residual_goal_contexts",
+            "residual_context_source_kinds",
+            "n_residual_contexts_with_source_refs",
+            "n_residual_contexts_with_formal_gap_boundary",
             "llm_route_planner_route_adoption_status",
             "llm_route_planner_route_adoption_blockers",
             "alignment_status",
@@ -545,6 +599,11 @@ def prover_adapter_packet_json_schema() -> dict[str, object]:
             "portable_work_packet": {"type": "object"},
             "route_alignment_edge": {"$ref": "#/$defs/route_alignment_edge"},
             "standalone_input_trace": {"$ref": "#/$defs/standalone_input_trace"},
+            "residual_goal_contexts": object_array,
+            "n_residual_goal_contexts": {"type": "integer"},
+            "residual_context_source_kinds": string_array,
+            "n_residual_contexts_with_source_refs": {"type": "integer"},
+            "n_residual_contexts_with_formal_gap_boundary": {"type": "integer"},
             "llm_route_planner_route_adoption_status": {"type": "string"},
             "llm_route_planner_route_adoption_blockers": string_array,
             "alignment_status": {"type": "string", "minLength": 1},
@@ -609,8 +668,10 @@ def validate_prover_adapter_packet_row(
             )
         )
         errors.extend(_standalone_trace_quality_control_errors(standalone_input_trace))
+        errors.extend(_standalone_trace_residual_context_errors(standalone_input_trace))
     else:
         errors.append("standalone_input_trace must be an object")
+    errors.extend(_packet_residual_context_field_errors(row))
     return tuple(errors)
 
 
@@ -843,6 +904,10 @@ def _packet_for_work_packet(
             target_library_snapshot_ref=library_snapshot_ref,
         )
     )
+    errors.extend(_standalone_trace_residual_context_errors(standalone_input_trace))
+    residual_goal_contexts = _residual_goal_contexts_from_trace(
+        standalone_input_trace
+    )
     llm_route_adoption_status = str(
         standalone_input_trace.get("llm_route_planner_route_adoption_status", "")
     )
@@ -867,6 +932,21 @@ def _packet_for_work_packet(
         portable_work_packet=dict(packet),
         route_alignment_edge=alignment_edge,
         standalone_input_trace=standalone_input_trace,
+        residual_goal_contexts=residual_goal_contexts,
+        n_residual_goal_contexts=len(residual_goal_contexts),
+        residual_context_source_kinds=_residual_context_source_kinds(
+            residual_goal_contexts
+        ),
+        n_residual_contexts_with_source_refs=sum(
+            1
+            for context in residual_goal_contexts
+            if _residual_context_has_sources(context)
+        ),
+        n_residual_contexts_with_formal_gap_boundary=sum(
+            1
+            for context in residual_goal_contexts
+            if _residual_context_has_formal_gap_boundary(context)
+        ),
         llm_route_planner_route_adoption_status=llm_route_adoption_status,
         llm_route_planner_route_adoption_blockers=llm_route_adoption_blockers,
         alignment_status=str(alignment_edge.get("alignment_status", "")),
@@ -912,12 +992,13 @@ def _standalone_input_trace_for_packet(
         trace["target_library_snapshot_ref"] = library_snapshot_ref
         trace["trace_target_projection"] = "target_prover_adapter_contract"
         _normalize_trace_quality_control_fields(trace)
+        _normalize_trace_residual_context_fields(trace)
         return trace
     replan_metadata = plan_row.get("replan_metadata", {})
     if not isinstance(replan_metadata, dict):
         replan_metadata = {}
     route_revision_triggers = plan_row.get("route_revision_triggers", ())
-    return {
+    trace: dict[str, object] = {
         "trace_source": "formalization_gap_planner_prover_adapter_contract_fallback",
         "goal_plan_id": str(plan_row.get("goal_plan_id", "")),
         "route_id": str(plan_row.get("route_id", "")),
@@ -934,6 +1015,7 @@ def _standalone_input_trace_for_packet(
         "library_snapshot_ref": library_snapshot_ref,
         "target_library_snapshot_ref": library_snapshot_ref,
         "has_replan_metadata": bool(replan_metadata),
+        "replan_metadata": dict(replan_metadata),
         "replan_metadata_keys": tuple(sorted(str(key) for key in replan_metadata)),
         "route_revision_trigger_count": (
             len(route_revision_triggers)
@@ -943,9 +1025,23 @@ def _standalone_input_trace_for_packet(
         "quality_controls": {},
         "has_quality_controls": False,
         "quality_control_fields": [],
+        "residual_goal_contexts": _dict_list(
+            _residual_goal_contexts_from_sources(
+                plan_row.get("residual_goal_context"),
+                plan_row.get("residual_goal_contexts", []),
+                replan_metadata.get("residual_goal_context"),
+                replan_metadata.get("residual_goal_contexts", []),
+                replan_metadata.get("llm_route_planner_residual_goal_contexts", []),
+            )
+        ),
+        "has_residual_goal_contexts": False,
+        "residual_goal_context_count": 0,
+        "residual_context_source_kinds": [],
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+    _normalize_trace_residual_context_fields(trace)
+    return trace
 
 
 def _standalone_trace_target_errors(
@@ -1035,6 +1131,134 @@ def _standalone_trace_quality_control_errors(
     return tuple(errors)
 
 
+def _standalone_trace_residual_context_errors(
+    trace: dict[str, object],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    raw_contexts = trace.get("residual_goal_contexts", [])
+    if "residual_goal_contexts" in trace:
+        if not isinstance(raw_contexts, (list, tuple)):
+            errors.append("standalone_input_trace.residual_goal_contexts must be array")
+            raw_contexts = []
+        else:
+            non_objects = [
+                idx for idx, item in enumerate(raw_contexts) if not isinstance(item, dict)
+            ]
+            if non_objects:
+                errors.append(
+                    "standalone_input_trace.residual_goal_contexts items must be object "
+                    "at indexes "
+                    + ",".join(str(idx) for idx in non_objects)
+                )
+    contexts = _residual_goal_contexts_from_trace(trace)
+    if contexts or "has_residual_goal_contexts" in trace:
+        observed_present = trace.get("has_residual_goal_contexts", False)
+        if not isinstance(observed_present, bool):
+            errors.append("standalone_input_trace.has_residual_goal_contexts must be boolean")
+        elif observed_present != bool(contexts):
+            errors.append(
+                "standalone_input_trace.has_residual_goal_contexts mismatch: "
+                f"observed={observed_present} expected={bool(contexts)}"
+            )
+    if contexts or "residual_goal_context_count" in trace:
+        observed_count = trace.get("residual_goal_context_count", 0)
+        if not isinstance(observed_count, int) or isinstance(observed_count, bool):
+            errors.append(
+                "standalone_input_trace.residual_goal_context_count must be integer"
+            )
+        elif observed_count != len(contexts):
+            errors.append(
+                "standalone_input_trace.residual_goal_context_count mismatch: "
+                f"observed={observed_count} expected={len(contexts)}"
+            )
+    if contexts or "residual_context_source_kinds" in trace:
+        observed_source_kinds = tuple(
+            sorted(_str_tuple(trace.get("residual_context_source_kinds", [])))
+        )
+        expected_source_kinds = _residual_context_source_kinds(contexts)
+        if observed_source_kinds != expected_source_kinds:
+            errors.append(
+                "standalone_input_trace.residual_context_source_kinds mismatch: "
+                f"observed={observed_source_kinds} expected={expected_source_kinds}"
+            )
+    return tuple(errors)
+
+
+def _packet_residual_context_field_errors(row: dict[str, Any]) -> tuple[str, ...]:
+    errors: list[str] = []
+    if "residual_goal_contexts" not in row:
+        return tuple(errors)
+    raw_contexts = row.get("residual_goal_contexts", [])
+    if not isinstance(raw_contexts, (list, tuple)):
+        return ("residual_goal_contexts must be array",)
+    non_objects = [
+        idx for idx, item in enumerate(raw_contexts) if not isinstance(item, dict)
+    ]
+    if non_objects:
+        errors.append(
+            "residual_goal_contexts items must be object at indexes "
+            + ",".join(str(idx) for idx in non_objects)
+        )
+    contexts = _dict_tuple(raw_contexts)
+    if "n_residual_goal_contexts" in row:
+        observed_count = row.get("n_residual_goal_contexts", 0)
+        if not isinstance(observed_count, int) or isinstance(observed_count, bool):
+            errors.append("n_residual_goal_contexts must be integer")
+        elif observed_count != len(contexts):
+            errors.append(
+                "n_residual_goal_contexts mismatch: "
+                f"observed={observed_count} expected={len(contexts)}"
+            )
+    if "residual_context_source_kinds" in row:
+        observed_source_kinds = tuple(
+            sorted(_str_tuple(row.get("residual_context_source_kinds", [])))
+        )
+        expected_source_kinds = _residual_context_source_kinds(contexts)
+        if observed_source_kinds != expected_source_kinds:
+            errors.append(
+                "residual_context_source_kinds mismatch: "
+                f"observed={observed_source_kinds} expected={expected_source_kinds}"
+            )
+    if "n_residual_contexts_with_source_refs" in row:
+        observed_with_sources = row.get("n_residual_contexts_with_source_refs", 0)
+        expected_with_sources = sum(
+            1 for context in contexts if _residual_context_has_sources(context)
+        )
+        if not isinstance(observed_with_sources, int) or isinstance(
+            observed_with_sources,
+            bool,
+        ):
+            errors.append("n_residual_contexts_with_source_refs must be integer")
+        elif observed_with_sources != expected_with_sources:
+            errors.append(
+                "n_residual_contexts_with_source_refs mismatch: "
+                f"observed={observed_with_sources} expected={expected_with_sources}"
+            )
+    if "n_residual_contexts_with_formal_gap_boundary" in row:
+        observed_with_boundary = row.get(
+            "n_residual_contexts_with_formal_gap_boundary",
+            0,
+        )
+        expected_with_boundary = sum(
+            1
+            for context in contexts
+            if _residual_context_has_formal_gap_boundary(context)
+        )
+        if not isinstance(observed_with_boundary, int) or isinstance(
+            observed_with_boundary,
+            bool,
+        ):
+            errors.append(
+                "n_residual_contexts_with_formal_gap_boundary must be integer"
+            )
+        elif observed_with_boundary != expected_with_boundary:
+            errors.append(
+                "n_residual_contexts_with_formal_gap_boundary mismatch: "
+                f"observed={observed_with_boundary} expected={expected_with_boundary}"
+            )
+    return tuple(errors)
+
+
 def _normalize_trace_quality_control_fields(trace: dict[str, object]) -> None:
     controls = _quality_controls_from_trace(trace)
     trace["quality_controls"] = {
@@ -1042,6 +1266,16 @@ def _normalize_trace_quality_control_fields(trace: dict[str, object]) -> None:
     }
     trace["has_quality_controls"] = bool(controls)
     trace["quality_control_fields"] = sorted(controls)
+
+
+def _normalize_trace_residual_context_fields(trace: dict[str, object]) -> None:
+    contexts = _residual_goal_contexts_from_trace(trace)
+    trace["residual_goal_contexts"] = _dict_list(contexts)
+    trace["has_residual_goal_contexts"] = bool(contexts)
+    trace["residual_goal_context_count"] = len(contexts)
+    trace["residual_context_source_kinds"] = list(
+        _residual_context_source_kinds(contexts)
+    )
 
 
 def _quality_controls_from_packet_trace(
@@ -1113,6 +1347,139 @@ def _packet_quality_control_field_summary(
             "values": values,
         }
     return summary
+
+
+def _residual_goal_contexts_from_trace(
+    trace: dict[str, object],
+) -> tuple[dict[str, object], ...]:
+    containers: list[dict[str, object]] = [trace]
+    for container in list(containers):
+        for nested_key in ("replan_metadata", "request_payload", "context_packet"):
+            nested = container.get(nested_key, {})
+            if isinstance(nested, dict):
+                containers.append(nested)
+    for trace_list_key in (
+        "applied_resource_response_traces",
+        "applied_llm_route_planner_hook_traces",
+        "applied_route_revision_traces",
+        "resource_response_traces",
+    ):
+        containers.extend(_dict_tuple(trace.get(trace_list_key, [])))
+    raw_values: list[Any] = []
+    for container in containers:
+        raw_values.extend(
+            [
+                container.get("residual_goal_context"),
+                container.get("residual_goal_contexts", []),
+                container.get("llm_route_planner_residual_goal_contexts", []),
+            ]
+        )
+    return _residual_goal_contexts_from_sources(*raw_values)
+
+
+def _residual_goal_contexts_from_sources(
+    *values: Any,
+) -> tuple[dict[str, object], ...]:
+    contexts: list[dict[str, object]] = []
+    for value in values:
+        for raw_context in _dict_tuple(value):
+            context = _normalize_residual_goal_context(raw_context)
+            if context:
+                contexts.append(context)
+    deduped: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for context in contexts:
+        key = stable_hash(context)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(context)
+    return tuple(deduped)
+
+
+def _normalize_residual_goal_context(
+    context: dict[str, object],
+) -> dict[str, object]:
+    normalized: dict[str, object] = {
+        str(field_name): value
+        for field_name, value in context.items()
+        if str(field_name)
+    }
+    for field_name in RESIDUAL_CONTEXT_STRING_ARRAY_FIELDS:
+        if field_name in normalized:
+            normalized[field_name] = _str_tuple(normalized.get(field_name, []))
+    for field_name in RESIDUAL_CONTEXT_TEXT_FIELDS:
+        if field_name in normalized:
+            normalized[field_name] = str(normalized.get(field_name, "")).strip()
+    if "source_snippets" in normalized:
+        normalized["source_snippets"] = tuple(
+            _normalize_dict(snippet)
+            for snippet in _dict_tuple(normalized.get("source_snippets", []))
+        )
+    return {
+        field_name: value
+        for field_name, value in normalized.items()
+        if _residual_context_value_present(value)
+    }
+
+
+def _normalize_dict(value: dict[str, object]) -> dict[str, object]:
+    return {
+        str(field_name): item
+        for field_name, item in value.items()
+        if str(field_name) and _residual_context_value_present(item)
+    }
+
+
+def _residual_context_value_present(value: object) -> bool:
+    if value is None or value == "":
+        return False
+    if isinstance(value, (list, tuple, set, dict)) and not value:
+        return False
+    return True
+
+
+def _residual_context_source_kinds(
+    contexts: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                str(context.get("source_kind", "")).strip()
+                for context in contexts
+                if str(context.get("source_kind", "")).strip()
+            }
+        )
+    )
+
+
+def _packet_residual_context_source_kinds(
+    packets: list[FormalizationGapPlannerProverAdapterPacket],
+) -> tuple[str, ...]:
+    return _residual_context_source_kinds(
+        tuple(
+            context
+            for packet in packets
+            for context in packet.residual_goal_contexts
+        )
+    )
+
+
+def _residual_context_has_sources(context: dict[str, object]) -> bool:
+    return bool(
+        _str_tuple(context.get("source_refs", []))
+        or _dict_tuple(context.get("source_snippets", []))
+        or str(context.get("source_ref", "")).strip()
+    )
+
+
+def _residual_context_has_formal_gap_boundary(context: dict[str, object]) -> bool:
+    return bool(
+        str(
+            context.get("formal_gap_boundary", "")
+            or context.get("formal_boundary", "")
+        ).strip()
+    )
 
 
 def _alignment_edge_for_primitive(
@@ -1539,6 +1906,18 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     return tuple(dict.fromkeys(str(item) for item in values if str(item)))
 
 
+def _dict_tuple(values: Any) -> tuple[dict[str, object], ...]:
+    if isinstance(values, dict):
+        return (dict(values),)
+    if not isinstance(values, (list, tuple, set)):
+        return tuple()
+    return tuple(dict(item) for item in values if isinstance(item, dict))
+
+
+def _dict_list(values: tuple[dict[str, object], ...]) -> list[dict[str, object]]:
+    return [dict(value) for value in values]
+
+
 def _markdown_report(payload: dict[str, object]) -> str:
     lines = [
         "# Formalization Gap Planner Prover Adapter Contract",
@@ -1550,6 +1929,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Packets with standalone trace: {payload.get('n_packets_with_standalone_input_trace')}",
         f"- Packets missing standalone trace: {payload.get('n_packets_missing_standalone_input_trace')}",
         f"- Packets with replan metadata trace: {payload.get('n_packets_with_replan_metadata_trace')}",
+        f"- Packets with residual goal contexts: {payload.get('n_packets_with_residual_goal_contexts')}",
+        f"- Residual goal contexts: {payload.get('n_packet_residual_goal_contexts')}",
+        f"- Residual context source kinds: {payload.get('packet_residual_context_source_kinds')}",
         f"- Packets with quality controls: {payload.get('n_packets_with_quality_controls')}",
         f"- Packet quality-control fields: {payload.get('packet_quality_control_fields')}",
         "- LLM route-adoption pending quality-control blockers: "

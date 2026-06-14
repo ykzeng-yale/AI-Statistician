@@ -544,6 +544,12 @@ cross-prover matrix/target summary aggregate them as
 non-Lean adapter teams can block kernel-attempt queues on unmet resource,
 response-validation, or source-grounding obligations without parsing generic
 blocker strings.
+They also expose normalized `residual_goal_contexts` on every prover-adapter
+packet, plus residual-context counts, source-kind inventories, source-ref
+coverage, and formal-gap-boundary counts in the adapter contract and
+cross-prover target summary. This makes Lean/LSP residual repair evidence
+portable to Rocq/Coq, Isabelle, Agda, or other adapters without forcing those
+workers to parse opaque standalone trace blobs.
 The publication-bundle manifest itself includes an `evaluation_summary` with
 the same realization, cost-hint, route-adoption, and quality-control counters,
 plus minimal-delta route-option totals, selected-route cost means,

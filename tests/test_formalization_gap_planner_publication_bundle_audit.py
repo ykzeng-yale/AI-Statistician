@@ -321,7 +321,28 @@ def test_publication_bundle_audit_checks_runtime_handoff_registry_context() -> N
     ].ok
 
 
+def _fixture_residual_goal_context() -> dict[str, object]:
+    return {
+        "source_kind": "proof_state_feedback",
+        "residual_goal": "rank_uniformity requires an explicit bridge lemma",
+        "residual_goals": ["rank_uniformity"],
+        "residual_primitives": ["rank_uniformity"],
+        "source_refs": ["fixture-source"],
+        "source_snippets": [
+            {
+                "source_ref": "fixture-source",
+                "text": "Fixture source backs the residual bridge obligation.",
+            }
+        ],
+        "formal_gap_boundary": (
+            "Formal boundary: residual context guides adapter mapping but is "
+            "not kernel proof evidence."
+        ),
+    }
+
+
 def _fixture_prover_adapter_packet() -> dict[str, object]:
+    residual_context = _fixture_residual_goal_context()
     return {
         "schema_version": 1,
         "prover_adapter_packet_id": "packet:fixture",
@@ -358,6 +379,10 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
             ],
             "has_replan_metadata": True,
             "replan_metadata": {"revision_reason": "fixture route revision"},
+            "residual_goal_contexts": [residual_context],
+            "has_residual_goal_contexts": True,
+            "residual_goal_context_count": 1,
+            "residual_context_source_kinds": ["proof_state_feedback"],
             "applied_hook_kinds": ["resource_response_ledger"],
             "quality_controls": {
                 "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
@@ -377,6 +402,11 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
                 "stop_conditions",
             ],
         },
+        "residual_goal_contexts": [residual_context],
+        "n_residual_goal_contexts": 1,
+        "residual_context_source_kinds": ["proof_state_feedback"],
+        "n_residual_contexts_with_source_refs": 1,
+        "n_residual_contexts_with_formal_gap_boundary": 1,
         "llm_route_planner_route_adoption_status": (
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
         ),
@@ -856,6 +886,11 @@ def _fixture_cross_prover_matrix_row(
         "n_packets_missing_target_library_snapshot_trace": 0,
         "n_packets_target_library_snapshot_mismatch": 0,
         "n_packets_with_replan_metadata_trace": 1,
+        "n_packets_with_residual_goal_contexts": 1,
+        "n_packet_residual_goal_contexts": 1,
+        "packet_residual_context_source_kinds": ["proof_state_feedback"],
+        "n_packet_residual_contexts_with_source_refs": 1,
+        "n_packet_residual_contexts_with_formal_gap_boundary": 1,
         "n_packets_with_quality_controls": 1,
         "n_packet_quality_control_fields": 4,
         "packet_quality_control_fields": [
@@ -938,6 +973,11 @@ def _fixture_cross_prover_target_summary(
         "n_total_packets_missing_target_library_snapshot_trace": 0,
         "n_total_packets_target_library_snapshot_mismatch": 0,
         "n_total_packets_with_replan_metadata_trace": 1,
+        "n_total_packets_with_residual_goal_contexts": 1,
+        "n_total_packet_residual_goal_contexts": 1,
+        "packet_residual_context_source_kinds": ["proof_state_feedback"],
+        "n_total_packet_residual_contexts_with_source_refs": 1,
+        "n_total_packet_residual_contexts_with_formal_gap_boundary": 1,
         "n_total_packets_with_quality_controls": 1,
         "n_total_packet_quality_control_fields": 4,
         "packet_quality_control_fields": [
@@ -1000,6 +1040,13 @@ def _fixture_cross_prover_target_summary(
                 "n_packets_missing_target_library_snapshot_trace": 0,
                 "n_packets_target_library_snapshot_mismatch": 0,
                 "n_packets_with_replan_metadata_trace": 1,
+                "n_packets_with_residual_goal_contexts": 1,
+                "n_packet_residual_goal_contexts": 1,
+                "packet_residual_context_source_kinds": [
+                    "proof_state_feedback"
+                ],
+                "n_packet_residual_contexts_with_source_refs": 1,
+                "n_packet_residual_contexts_with_formal_gap_boundary": 1,
                 "n_packets_with_quality_controls": 1,
                 "n_packet_quality_control_fields": 4,
                 "packet_quality_control_fields": [
@@ -1879,11 +1926,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_total_packets_missing_alignment": 0,
                 "n_total_packets_with_standalone_input_trace": 1,
                 "n_total_packets_missing_standalone_input_trace": 0,
-                "n_total_packets_with_target_library_snapshot_trace": 1,
-                "n_total_packets_missing_target_library_snapshot_trace": 0,
-                "n_total_packets_target_library_snapshot_mismatch": 0,
-                "n_total_packets_with_replan_metadata_trace": 1,
-                "n_total_packets_with_quality_controls": 1,
+                    "n_total_packets_with_target_library_snapshot_trace": 1,
+                    "n_total_packets_missing_target_library_snapshot_trace": 0,
+                    "n_total_packets_target_library_snapshot_mismatch": 0,
+                    "n_total_packets_with_replan_metadata_trace": 1,
+                    "n_total_packets_with_residual_goal_contexts": 1,
+                    "n_total_packet_residual_goal_contexts": 1,
+                    "packet_residual_context_source_kinds": [
+                        "proof_state_feedback"
+                    ],
+                    "n_total_packet_residual_contexts_with_source_refs": 1,
+                    "n_total_packet_residual_contexts_with_formal_gap_boundary": 1,
+                    "n_total_packets_with_quality_controls": 1,
                 "n_total_packet_quality_control_fields": 4,
                 "packet_quality_control_fields": [
                     "required_quality_signals",
@@ -1937,10 +1991,11 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 },
                 "packet_count_consistent": True,
                 "alignment_packet_count_consistent": True,
-                "standalone_input_trace_packet_count_consistent": True,
-                "target_library_snapshot_trace_packet_count_consistent": True,
-                "quality_control_packet_count_consistent": True,
-                "all_ok": True,
+                    "standalone_input_trace_packet_count_consistent": True,
+                    "target_library_snapshot_trace_packet_count_consistent": True,
+                    "quality_control_packet_count_consistent": True,
+                    "residual_context_packet_count_consistent": True,
+                    "all_ok": True,
             },
             indent=2,
         ),

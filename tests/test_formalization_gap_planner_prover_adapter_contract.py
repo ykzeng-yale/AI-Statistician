@@ -39,6 +39,30 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
             "route_index": 1,
             "has_replan_metadata": True,
             "replan_metadata": {"revision_reason": "fixture refinement"},
+            "residual_goal_contexts": [
+                {
+                    "source_kind": "proof_state_feedback",
+                    "residual_goal": (
+                        "conditional_mean_residual_zero needs an explicit "
+                        "measurability side condition"
+                    ),
+                    "residual_goals": [
+                        "measurable conditional_mean_residual_zero"
+                    ],
+                    "residual_primitives": ["conditional_mean_residual_zero"],
+                    "source_refs": ["paper:demo#measurability"],
+                    "source_snippets": [
+                        {
+                            "source_ref": "paper:demo#measurability",
+                            "text": "Fixture source backs the side condition.",
+                        }
+                    ],
+                    "formal_gap_boundary": (
+                        "Formal boundary: adapter may translate this residual, "
+                        "but kernel proof remains separate."
+                    ),
+                }
+            ],
             "applied_hook_kinds": ["resource_response_ledger"],
             "quality_controls": {
                 "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
@@ -130,6 +154,13 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
     assert payload["n_packets_with_standalone_input_trace"] == 1
     assert payload["n_packets_missing_standalone_input_trace"] == 0
     assert payload["n_packets_with_replan_metadata_trace"] == 1
+    assert payload["n_packets_with_residual_goal_contexts"] == 1
+    assert payload["n_packet_residual_goal_contexts"] == 1
+    assert payload["packet_residual_context_source_kinds"] == (
+        "proof_state_feedback",
+    )
+    assert payload["n_packet_residual_contexts_with_source_refs"] == 1
+    assert payload["n_packet_residual_contexts_with_formal_gap_boundary"] == 1
     assert payload["n_packets_with_quality_controls"] == 1
     assert payload["n_packet_quality_control_fields"] == 3
     assert payload["packet_quality_control_fields"] == (
@@ -191,6 +222,32 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
     assert payload["packets"][0]["standalone_input_trace"][
         "trace_target_projection"
     ] == "target_prover_adapter_contract"
+    assert payload["packets"][0]["n_residual_goal_contexts"] == 1
+    assert payload["packets"][0]["residual_context_source_kinds"] == (
+        "proof_state_feedback",
+    )
+    assert (
+        payload["packets"][0]["n_residual_contexts_with_source_refs"]
+        == 1
+    )
+    assert (
+        payload["packets"][0][
+            "n_residual_contexts_with_formal_gap_boundary"
+        ]
+        == 1
+    )
+    assert payload["packets"][0]["residual_goal_contexts"][0][
+        "source_refs"
+    ] == ("paper:demo#measurability",)
+    assert payload["packets"][0]["standalone_input_trace"][
+        "has_residual_goal_contexts"
+    ]
+    assert payload["packets"][0]["standalone_input_trace"][
+        "residual_goal_context_count"
+    ] == 1
+    assert payload["packets"][0]["standalone_input_trace"][
+        "residual_context_source_kinds"
+    ] == ["proof_state_feedback"]
     assert payload["packets"][0]["standalone_input_trace"]["quality_controls"] == {
         "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
         "response_validation_signals": [
@@ -269,6 +326,25 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
     bad_packet["standalone_input_trace"]["quality_control_fields"] = []
     assert any(
         "standalone_input_trace.quality_control_fields mismatch" in error
+        for error in validate_prover_adapter_packet_row(
+            bad_packet,
+            prover_adapter_packet_json_schema(),
+        )
+    )
+    bad_packet = dict(payload["packets"][0])
+    bad_packet["standalone_input_trace"] = dict(bad_packet["standalone_input_trace"])
+    bad_packet["standalone_input_trace"]["residual_goal_context_count"] = 0
+    assert any(
+        "standalone_input_trace.residual_goal_context_count mismatch" in error
+        for error in validate_prover_adapter_packet_row(
+            bad_packet,
+            prover_adapter_packet_json_schema(),
+        )
+    )
+    bad_packet = dict(payload["packets"][0])
+    bad_packet["n_residual_goal_contexts"] = 0
+    assert any(
+        "n_residual_goal_contexts mismatch" in error
         for error in validate_prover_adapter_packet_row(
             bad_packet,
             prover_adapter_packet_json_schema(),

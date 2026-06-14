@@ -41,6 +41,37 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
                     {
                         "display_name": "demo_cross_prover_route",
                         "theorem_statement": "A reusable bridge route.",
+                        "residual_goal_contexts": [
+                            {
+                                "source_kind": "proof_state_feedback",
+                                "residual_goal": (
+                                    "rank_uniformity_bridge needs a library "
+                                    "coverage wrapper"
+                                ),
+                                "residual_goals": [
+                                    "coverage wrapper for rank_uniformity_bridge"
+                                ],
+                                "residual_primitives": [
+                                    "rank_uniformity_bridge"
+                                ],
+                                "source_refs": ["paper:demo#rank-uniformity"],
+                                "source_snippets": [
+                                    {
+                                        "source_ref": (
+                                            "paper:demo#rank-uniformity"
+                                        ),
+                                        "text": (
+                                            "Fixture source backs the wrapper "
+                                            "side condition."
+                                        ),
+                                    }
+                                ],
+                                "formal_gap_boundary": (
+                                    "Formal boundary: translate this residual "
+                                    "before target-kernel replay."
+                                ),
+                            }
+                        ],
                         "quality_controls": {
                             "resource_contract_ids": [
                                 "lean_lsp:proof_state_feedback"
@@ -111,6 +142,27 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
     assert payload["n_total_packets_missing_target_library_snapshot_trace"] == 0
     assert payload["n_total_packets_target_library_snapshot_mismatch"] == 0
     assert payload["n_total_packets_with_replan_metadata_trace"] == 0
+    assert (
+        payload["n_total_packets_with_residual_goal_contexts"]
+        == payload["n_total_packets"]
+    )
+    assert (
+        payload["n_total_packet_residual_goal_contexts"]
+        == payload["n_total_packets"]
+    )
+    assert payload["packet_residual_context_source_kinds"] == (
+        "proof_state_feedback",
+    )
+    assert (
+        payload["n_total_packet_residual_contexts_with_source_refs"]
+        == payload["n_total_packets"]
+    )
+    assert (
+        payload[
+            "n_total_packet_residual_contexts_with_formal_gap_boundary"
+        ]
+        == payload["n_total_packets"]
+    )
     assert payload["n_total_packets_with_quality_controls"] == payload[
         "n_total_packets"
     ]
@@ -158,6 +210,7 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
     assert payload["standalone_input_trace_packet_count_consistent"]
     assert payload["target_library_snapshot_trace_packet_count_consistent"]
     assert payload["quality_control_packet_count_consistent"]
+    assert payload["residual_context_packet_count_consistent"]
     assert (
         payload["target_summary"]["n_total_packets_with_standalone_input_trace"]
         == payload["n_total_packets"]
@@ -183,6 +236,29 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         == 0
     )
     assert payload["target_summary"]["n_unmatched_adapter_responses"] == 0
+    assert (
+        payload["target_summary"]["n_total_packets_with_residual_goal_contexts"]
+        == payload["n_total_packets"]
+    )
+    assert (
+        payload["target_summary"]["n_total_packet_residual_goal_contexts"]
+        == payload["n_total_packets"]
+    )
+    assert payload["target_summary"][
+        "packet_residual_context_source_kinds"
+    ] == ("proof_state_feedback",)
+    assert (
+        payload["target_summary"][
+            "n_total_packet_residual_contexts_with_source_refs"
+        ]
+        == payload["n_total_packets"]
+    )
+    assert (
+        payload["target_summary"][
+            "n_total_packet_residual_contexts_with_formal_gap_boundary"
+        ]
+        == payload["n_total_packets"]
+    )
     assert (
         payload["target_summary"]["n_total_packets_with_quality_controls"]
         == payload["n_total_packets"]
@@ -225,6 +301,13 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         and row["n_packets_with_target_library_snapshot_trace"] == row["n_packets"]
         and row["n_packets_missing_target_library_snapshot_trace"] == 0
         and row["n_packets_target_library_snapshot_mismatch"] == 0
+        and row["n_packets_with_residual_goal_contexts"] == row["n_packets"]
+        and row["n_packet_residual_goal_contexts"] == row["n_packets"]
+        and row["packet_residual_context_source_kinds"]
+        == ("proof_state_feedback",)
+        and row["n_packet_residual_contexts_with_source_refs"] == row["n_packets"]
+        and row["n_packet_residual_contexts_with_formal_gap_boundary"]
+        == row["n_packets"]
         and row["n_packets_with_quality_controls"] == row["n_packets"]
         and row["n_packet_quality_control_fields"] == 3 * row["n_packets"]
         and row["packet_quality_control_fields"]
@@ -250,6 +333,13 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         == packet["library_snapshot_ref"]
         and packet["standalone_input_trace"]["trace_target_projection"]
         == "target_prover_adapter_contract"
+        and packet["n_residual_goal_contexts"] == 1
+        and packet["residual_context_source_kinds"] == (
+            "proof_state_feedback",
+        )
+        and packet["standalone_input_trace"]["has_residual_goal_contexts"]
+        and packet["standalone_input_trace"]["residual_goal_context_count"]
+        == 1
         and packet["standalone_input_trace"]["has_quality_controls"]
         and packet["standalone_input_trace"]["quality_control_fields"]
         == [

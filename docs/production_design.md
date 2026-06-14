@@ -276,6 +276,11 @@ formal-gap boundaries remain explicit blockers rather than proof evidence.
 The prover-adapter contract exports those portable work packets as target-prover
 mapping tasks for Lean, Rocq/Coq, Isabelle, Agda, or another prover family and
 validates adapter responses without accepting kernel-proof claims.
+Those adapter packets now carry normalized `residual_goal_contexts` as
+first-class contract fields, and the cross-prover matrix/target summary reports
+their counts, source kinds, source-ref coverage, and formal-gap-boundary counts.
+This keeps proof-state repair evidence available to non-Lean prover adapters
+without depending on opaque standalone trace internals.
 The publication bundle packages the portable schema, contract, route-truth
 benchmark, adapter registry, docs, and optional run artifacts as the reusable
 research-output boundary for external prover adapters and paper supplements.
