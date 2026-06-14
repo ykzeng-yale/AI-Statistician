@@ -59,6 +59,7 @@ from .formalization_gap_planner_library_coverage_map import (
 from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
@@ -73,6 +74,7 @@ from .formalization_gap_planner_llm_route_planner import (
     ROUTE_ADOPTION_REJECTED_STATUS,
     llm_route_planner_library_alignment_summary_json_schema,
     llm_route_planner_manifest_json_schema,
+    llm_route_planner_model_tier_decision_ledger_json_schema,
     llm_route_planner_request_json_schema,
     llm_route_planner_response_payload_validation_manifest_json_schema,
     llm_route_planner_response_payload_validation_row_json_schema,
@@ -196,6 +198,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_requests.jsonl",
         "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl",
         "formalization_gap_planner_llm_route_planner.jsonl",
+        "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl",
         "formalization_gap_planner_llm_route_planner_request.schema.json",
         "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json",
         "formalization_gap_planner_llm_route_planner_response.schema.json",
@@ -203,6 +206,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json",
         "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json",
         "formalization_gap_planner_llm_route_planner_row.schema.json",
+        "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.schema.json",
         "formalization_gap_planner_llm_route_planner_seed_route_selection.schema.json",
@@ -214,6 +218,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_requests.jsonl",
         "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl",
         "formalization_gap_planner_llm_route_planner.jsonl",
+        "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl",
         "formalization_gap_planner_llm_route_planner_request.schema.json",
         "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json",
         "formalization_gap_planner_llm_route_planner_response.schema.json",
@@ -221,6 +226,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json",
         "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json",
         "formalization_gap_planner_llm_route_planner_row.schema.json",
+        "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.schema.json",
         "formalization_gap_planner_llm_route_planner_seed_route_selection.schema.json",
@@ -552,6 +558,9 @@ def export_formalization_gap_planner_publication_bundle(
     )
     llm_route_planner_manifest_schema = llm_route_planner_manifest_json_schema()
     llm_route_planner_row_schema = llm_route_planner_row_json_schema()
+    llm_route_planner_model_tier_decision_ledger_schema = (
+        llm_route_planner_model_tier_decision_ledger_json_schema()
+    )
     llm_route_planner_seed_route_selection_schema = (
         llm_route_planner_seed_route_selection_json_schema()
     )
@@ -673,6 +682,10 @@ def export_formalization_gap_planner_publication_bundle(
     llm_route_planner_row_schema_path = (
         contract_dir
         / "formalization_gap_planner_llm_route_planner_row.schema.json"
+    )
+    llm_route_planner_model_tier_decision_ledger_schema_path = (
+        contract_dir
+        / "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json"
     )
     route_adoption_blocker_taxonomy_schema_path = (
         contract_dir
@@ -882,6 +895,13 @@ def export_formalization_gap_planner_publication_bundle(
     )
     llm_route_planner_row_schema_path.write_text(
         json.dumps(llm_route_planner_row_schema, indent=2),
+        encoding="utf-8",
+    )
+    llm_route_planner_model_tier_decision_ledger_schema_path.write_text(
+        json.dumps(
+            llm_route_planner_model_tier_decision_ledger_schema,
+            indent=2,
+        ),
         encoding="utf-8",
     )
     route_adoption_blocker_taxonomy_schema_path.write_text(
@@ -1458,6 +1478,13 @@ def export_formalization_gap_planner_publication_bundle(
             "required": True,
             "ok": llm_route_planner_row_schema.get("$id")
             == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+        },
+        {
+            "artifact_name": "llm_route_planner_model_tier_decision_ledger_schema",
+            "path": str(llm_route_planner_model_tier_decision_ledger_schema_path),
+            "required": True,
+            "ok": llm_route_planner_model_tier_decision_ledger_schema.get("$id")
+            == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
         },
         {
             "artifact_name": "route_adoption_blocker_taxonomy_schema",
@@ -2297,6 +2324,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_generated_responses_model_tier_escalated",
             "n_generated_responses_haiku_to_sonnet_escalated",
             "n_repair_attempt_ledger_model_tier_escalations",
+            "n_model_tier_decision_ledger_rows",
+            "n_model_tier_decision_ledger_rows_with_escalation",
+            "n_model_tier_decision_ledger_provider_failure_rows",
             "n_rows_with_model_tier_escalation",
             "n_requests_with_model_tier_decision_evidence",
             "n_request_model_tier_decision_auto_haiku_bounded",
@@ -2466,6 +2496,13 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_repair_attempt_ledger_model_tier_escalations": (
+                nonnegative_integer
+            ),
+            "n_model_tier_decision_ledger_rows": nonnegative_integer,
+            "n_model_tier_decision_ledger_rows_with_escalation": (
+                nonnegative_integer
+            ),
+            "n_model_tier_decision_ledger_provider_failure_rows": (
                 nonnegative_integer
             ),
             "n_rows_with_model_tier_escalation": nonnegative_integer,
@@ -4050,6 +4087,7 @@ def _reproduction_payload(
         "contract/formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_manifest.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_row.schema.json",
+        "contract/formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_seed_route_selection.schema.json",
         "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json",
         "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.json",
@@ -4658,6 +4696,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_generated_responses_model_tier_escalated": 0,
         "n_generated_responses_haiku_to_sonnet_escalated": 0,
         "n_repair_attempt_ledger_model_tier_escalations": 0,
+        "n_model_tier_decision_ledger_rows": 0,
+        "n_model_tier_decision_ledger_rows_with_escalation": 0,
+        "n_model_tier_decision_ledger_provider_failure_rows": 0,
         "n_rows_with_model_tier_escalation": 0,
         "n_requests_with_model_tier_decision_evidence": 0,
         "n_request_model_tier_decision_auto_haiku_bounded": 0,
@@ -4747,6 +4788,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
     route_adoption_status_counts = _llm_route_planner_status_counts(payload, rows)
     route_adoption_blocker_counts = _llm_route_planner_blocker_counts(payload, rows)
     standalone_replay_gate = _dict_value(payload, "standalone_replay_gate")
+    model_tier_decision_ledger = _dict_tuple(
+        payload.get("model_tier_decision_ledger", [])
+    )
     return {
         **zero_summary,
         "requested": True,
@@ -5027,6 +5071,31 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                     for ledger_row in _dict_tuple(row.get("repair_attempt_ledger"))
                     if bool(ledger_row.get("model_tier_escalated"))
                 ),
+            )
+            or 0
+        ),
+        "n_model_tier_decision_ledger_rows": int(
+            payload.get(
+                "n_model_tier_decision_ledger_rows",
+                len(model_tier_decision_ledger),
+            )
+            or 0
+        ),
+        "n_model_tier_decision_ledger_rows_with_escalation": int(
+            payload.get(
+                "n_model_tier_decision_ledger_rows_with_escalation",
+                sum(
+                    1
+                    for row in model_tier_decision_ledger
+                    if row.get("model_tier_escalated")
+                ),
+            )
+            or 0
+        ),
+        "n_model_tier_decision_ledger_provider_failure_rows": int(
+            payload.get(
+                "n_model_tier_decision_ledger_provider_failure_rows",
+                sum(1 for row in model_tier_decision_ledger if row.get("provider_failure")),
             )
             or 0
         ),

@@ -64,7 +64,11 @@ requirements, proof-state probes, complex theorem shape, many generic
 Sonnet. When a live Anthropic Haiku route-plan response fails local response
 validation and a repair attempt remains, the repair request escalates to Sonnet
 and records the requested/effective tiers in generator metadata and the repair
-ledger.
+ledger. The planner also writes a model-tier decision ledger JSONL that binds
+each request to selected/effective tier, resolved model, decision basis,
+source-feedback counts, provider-failure status, and Haiku-to-Sonnet repair
+escalation evidence, so cost-control claims can be evaluated without parsing
+raw model completions.
 
 1. The theory layer emits only estimator families with registered formal
    obligations.

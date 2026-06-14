@@ -72,6 +72,13 @@ LLM_ROUTE_PLANNER_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-row:1"
 )
+LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-llm-route-planner-model-tier-decision-ledger:1"
+)
+MODEL_TIER_DECISION_LEDGER_KIND = (
+    "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger"
+)
 ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-route-adoption-blocker-taxonomy:1"
@@ -1168,6 +1175,10 @@ def export_formalization_gap_planner_llm_route_planner(
         for request, request_errors in zip(request_packets, request_schema_errors)
     )
     row_dicts = [asdict(row) for row in rows]
+    model_tier_decision_ledger = tuple(
+        _model_tier_decision_ledger_row(request, row)
+        for request, row in zip(request_packets, row_dicts)
+    )
     response_schema = llm_route_planner_response_json_schema()
     row_schema = llm_route_planner_row_json_schema()
     response_schema_errors = [
@@ -2209,6 +2220,16 @@ def export_formalization_gap_planner_llm_route_planner(
             if row.get("model_tier_escalated")
         ),
         "repair_attempt_ledger": repair_attempt_ledger,
+        "n_model_tier_decision_ledger_rows": len(model_tier_decision_ledger),
+        "n_model_tier_decision_ledger_rows_with_escalation": sum(
+            1
+            for row in model_tier_decision_ledger
+            if row.get("model_tier_escalated")
+        ),
+        "n_model_tier_decision_ledger_provider_failure_rows": sum(
+            1 for row in model_tier_decision_ledger if row.get("provider_failure")
+        ),
+        "model_tier_decision_ledger": model_tier_decision_ledger,
         "n_response_schema_valid": sum(
             1 for response_errors in response_schema_errors if not response_errors
         ),
@@ -2522,6 +2543,9 @@ def export_formalization_gap_planner_llm_route_planner(
         "response_payload_schema": response_payload_schema,
         "response_schema": response_schema,
         "row_schema": row_schema,
+        "model_tier_decision_ledger_schema": (
+            llm_route_planner_model_tier_decision_ledger_json_schema()
+        ),
         "request_packets": request_packets,
         "rows": row_dicts,
         "standalone_seed": standalone_seed,
@@ -3061,6 +3085,91 @@ def llm_route_planner_library_alignment_summary_json_schema() -> dict[str, objec
     }
 
 
+def llm_route_planner_model_tier_decision_ledger_json_schema() -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    nonnegative_integer = {"type": "integer", "minimum": 0}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
+        "title": (
+            "Formalization Gap Planner LLM Route Planner Model Tier Decision "
+            "Ledger Row"
+        ),
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "ledger_kind",
+            "ledger_row_id",
+            "request_id",
+            "route_id",
+            "provider_name",
+            "target_prover_family",
+            "operator_requested_model_tier",
+            "selected_model_tier",
+            "effective_model_tier",
+            "request_model",
+            "effective_model",
+            "decision_basis",
+            "sonnet_triggers",
+            "sonnet_trigger_count",
+            "model_tier_escalated",
+            "provider_failure",
+            "acceptance_status",
+            "route_adoption_status",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ],
+        "properties": {
+            "ledger_kind": {
+                "type": "string",
+                "const": MODEL_TIER_DECISION_LEDGER_KIND,
+            },
+            "ledger_row_id": {"type": "string", "minLength": 1},
+            "request_id": {"type": "string", "minLength": 1},
+            "route_id": {"type": "string"},
+            "display_name": {"type": "string"},
+            "provider_name": {"type": "string", "minLength": 1},
+            "target_prover_family": {"type": "string"},
+            "operator_requested_model_tier": {
+                "type": "string",
+                "enum": ["auto", "haiku", "sonnet", "opus", ""],
+            },
+            "selected_model_tier": {
+                "type": "string",
+                "enum": ["haiku", "sonnet", "opus", ""],
+            },
+            "effective_model_tier": {
+                "type": "string",
+                "enum": ["haiku", "sonnet", "opus", ""],
+            },
+            "request_model": {"type": "string"},
+            "effective_model": {"type": "string"},
+            "selection_mode": {"type": "string"},
+            "decision_basis": {"type": "string"},
+            "sonnet_triggers": string_array,
+            "sonnet_trigger_count": nonnegative_integer,
+            "haiku_safety_checks": {"type": "object"},
+            "route_signal_counts": {"type": "object"},
+            "source_theorem_feedback_counts": {"type": "object"},
+            "model_tier_escalated": {"type": "boolean"},
+            "model_tier_escalation_reason": {"type": "string"},
+            "response_present": {"type": "boolean"},
+            "response_contract_ok": {"type": "boolean"},
+            "provider_failure": {"type": "boolean"},
+            "generator_metadata_keys": string_array,
+            "generation_errors": string_array,
+            "errors": string_array,
+            "acceptance_status": {"type": "string"},
+            "route_adoption_status": {"type": "string"},
+            "proof_evidence_status": {
+                "type": "string",
+                "const": PROOF_EVIDENCE_STATUS,
+            },
+            "proof_evidence_boundary": {"type": "string", "minLength": 1},
+        },
+    }
+
+
 def llm_route_planner_manifest_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
     object_array = {"type": "array", "items": {"type": "object"}}
@@ -3171,6 +3280,10 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_repair_attempt_ledger",
             "n_repair_attempt_ledger_error_items",
             "repair_attempt_ledger",
+            "n_model_tier_decision_ledger_rows",
+            "n_model_tier_decision_ledger_rows_with_escalation",
+            "n_model_tier_decision_ledger_provider_failure_rows",
+            "model_tier_decision_ledger",
             "n_response_schema_valid",
             "n_response_schema_invalid",
             "n_rows",
@@ -3208,6 +3321,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "response_payload_schema",
             "response_schema",
             "row_schema",
+            "model_tier_decision_ledger_schema",
             "request_packets",
             "rows",
             "standalone_seed",
@@ -3443,6 +3557,14 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "repair_attempt_ledger": object_array,
+            "n_model_tier_decision_ledger_rows": nonnegative_integer,
+            "n_model_tier_decision_ledger_rows_with_escalation": (
+                nonnegative_integer
+            ),
+            "n_model_tier_decision_ledger_provider_failure_rows": (
+                nonnegative_integer
+            ),
+            "model_tier_decision_ledger": object_array,
             "n_response_schema_valid": nonnegative_integer,
             "n_response_schema_invalid": nonnegative_integer,
             "n_rows": nonnegative_integer,
@@ -3511,6 +3633,17 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 "type": "object",
                 "required": ["$id"],
                 "properties": {"$id": {"const": LLM_ROUTE_PLANNER_ROW_SCHEMA_ID}},
+            },
+            "model_tier_decision_ledger_schema": {
+                "type": "object",
+                "required": ["$id"],
+                "properties": {
+                    "$id": {
+                        "const": (
+                            LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID
+                        )
+                    }
+                },
             },
             "request_packets": object_array,
             "rows": object_array,
@@ -4673,6 +4806,35 @@ def validate_llm_route_planner_manifest(
         errors.append(
             "n_repair_attempt_ledger_error_items must match repair_attempt_ledger"
         )
+    model_tier_decision_ledger = _dict_tuple(
+        manifest.get("model_tier_decision_ledger", [])
+    )
+    expected_model_tier_decision_ledger = tuple(
+        _model_tier_decision_ledger_row(request, row)
+        for request, row in zip(request_packets, manifest_rows)
+    )
+    if int(manifest.get("n_model_tier_decision_ledger_rows", 0) or 0) != len(
+        model_tier_decision_ledger
+    ):
+        errors.append(
+            "n_model_tier_decision_ledger_rows must match model_tier_decision_ledger"
+        )
+    if tuple(model_tier_decision_ledger) != expected_model_tier_decision_ledger:
+        errors.append(
+            "model_tier_decision_ledger must match request_packets and rows"
+        )
+    if int(
+        manifest.get("n_model_tier_decision_ledger_rows_with_escalation", 0) or 0
+    ) != sum(1 for row in model_tier_decision_ledger if row.get("model_tier_escalated")):
+        errors.append(
+            "n_model_tier_decision_ledger_rows_with_escalation must match model_tier_decision_ledger"
+        )
+    if int(
+        manifest.get("n_model_tier_decision_ledger_provider_failure_rows", 0) or 0
+    ) != sum(1 for row in model_tier_decision_ledger if row.get("provider_failure")):
+        errors.append(
+            "n_model_tier_decision_ledger_provider_failure_rows must match model_tier_decision_ledger"
+        )
     expected_standalone_replay_gate = _standalone_replay_gate(
         manifest_rows,
         _dict_value(manifest, "standalone_seed"),
@@ -4721,6 +4883,9 @@ def validate_llm_route_planner_manifest(
         "response_payload_schema": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
         "response_schema": LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
         "row_schema": LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+        "model_tier_decision_ledger_schema": (
+            LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID
+        ),
     }
     for field_name, expected_schema_id in embedded_schema_ids.items():
         embedded_schema = manifest.get(field_name, {})
@@ -9501,6 +9666,99 @@ def _nonnegative_int(value: object, *, default: int = 0) -> int:
     except (TypeError, ValueError):
         return default
     return max(0, parsed)
+
+
+def _model_tier_decision_ledger_row(
+    request: Mapping[str, Any],
+    row: Mapping[str, Any],
+) -> dict[str, object]:
+    evidence = _dict_value(row, "model_tier_decision_evidence")
+    if not evidence:
+        evidence = _dict_value(request, "model_tier_decision_evidence")
+    generator_metadata = _dict_value(row, "generator_metadata")
+    selected_model_tier = str(
+        evidence.get("selected_model_tier")
+        or request.get("model_tier", "")
+        or ""
+    ).strip().lower()
+    effective_model_tier = str(
+        evidence.get("effective_model_tier")
+        or row.get("model_tier", "")
+        or selected_model_tier
+    ).strip().lower()
+    model_tier_escalated = bool(
+        evidence.get("model_tier_escalated")
+        or generator_metadata.get("model_tier_escalated")
+        or row.get("model_tier_escalated")
+    )
+    escalation_reason = str(
+        evidence.get("model_tier_escalation_reason")
+        or generator_metadata.get("model_tier_escalation_reason")
+        or row.get("model_tier_escalation_reason")
+        or ""
+    )
+    sonnet_triggers = _str_tuple(evidence.get("sonnet_triggers", []))
+    route_signal_counts = _dict_value(evidence, "route_signal_counts")
+    source_theorem_feedback_counts = _dict_value(
+        evidence,
+        "source_theorem_feedback_counts",
+    )
+    request_id = str(row.get("request_id") or request.get("request_id") or "")
+    route_id = str(row.get("route_id") or request.get("route_id") or "")
+    provider_name = str(row.get("provider_name") or request.get("provider_name") or "")
+    return {
+        "ledger_kind": MODEL_TIER_DECISION_LEDGER_KIND,
+        "ledger_row_id": (
+            "formalization_gap_planner_llm_route_planner_model_tier_decision:"
+            + stable_hash(
+                [
+                    request_id,
+                    route_id,
+                    provider_name,
+                    selected_model_tier,
+                    effective_model_tier,
+                    str(evidence.get("decision_basis", "")),
+                    sonnet_triggers,
+                    model_tier_escalated,
+                ]
+            )[:20]
+        ),
+        "request_id": request_id,
+        "route_id": route_id,
+        "display_name": str(row.get("display_name") or request.get("display_name") or ""),
+        "provider_name": provider_name,
+        "target_prover_family": str(
+            row.get("target_prover_family")
+            or request.get("target_prover_family")
+            or ""
+        ),
+        "operator_requested_model_tier": str(
+            evidence.get("requested_model_tier", "")
+        ).strip().lower(),
+        "selected_model_tier": selected_model_tier,
+        "effective_model_tier": effective_model_tier,
+        "request_model": str(request.get("model", "") or ""),
+        "effective_model": str(row.get("model") or request.get("model") or ""),
+        "selection_mode": str(evidence.get("selection_mode", "")),
+        "decision_basis": str(evidence.get("decision_basis", "")),
+        "sonnet_triggers": list(sonnet_triggers),
+        "sonnet_trigger_count": len(sonnet_triggers),
+        "haiku_safety_checks": _dict_value(evidence, "haiku_safety_checks"),
+        "route_signal_counts": route_signal_counts,
+        "source_theorem_feedback_counts": source_theorem_feedback_counts,
+        "model_tier_escalated": model_tier_escalated,
+        "model_tier_escalation_reason": escalation_reason,
+        "response_present": bool(row.get("response_present", False)),
+        "response_contract_ok": bool(row.get("response_contract_ok", False)),
+        "provider_failure": bool(row.get("provider_failure", False)),
+        "generator_metadata_keys": sorted(str(key) for key in generator_metadata),
+        "generation_errors": list(_str_tuple(row.get("generation_errors", []))),
+        "errors": list(_str_tuple(row.get("errors", []))),
+        "acceptance_status": str(row.get("acceptance_status", "")),
+        "route_adoption_status": str(row.get("route_adoption_status", "")),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
 
 
 def _repair_attempt_ledger_rows(
@@ -22751,6 +23009,18 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
         + ("\n" if payload.get("rows") else ""),
         encoding="utf-8",
     )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl"
+    ).write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in payload.get("model_tier_decision_ledger", [])
+            if isinstance(row, dict)
+        )
+        + ("\n" if payload.get("model_tier_decision_ledger") else ""),
+        encoding="utf-8",
+    )
     (out_dir / "formalization_gap_planner_llm_route_planner_request.schema.json").write_text(
         json.dumps(llm_route_planner_request_json_schema(), indent=2),
         encoding="utf-8",
@@ -22795,6 +23065,16 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
     )
     (out_dir / "formalization_gap_planner_llm_route_planner_row.schema.json").write_text(
         json.dumps(llm_route_planner_row_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json"
+    ).write_text(
+        json.dumps(
+            llm_route_planner_model_tier_decision_ledger_json_schema(),
+            indent=2,
+        ),
         encoding="utf-8",
     )
     (out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json").write_text(
@@ -22882,6 +23162,8 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Repair attempts: {payload.get('n_generated_response_repair_attempts')}",
         f"- Repaired responses: {payload.get('n_generated_responses_repaired')}",
         f"- Repair ledger rows: {payload.get('n_repair_attempt_ledger_rows')}",
+        f"- Model-tier decision ledger rows: {payload.get('n_model_tier_decision_ledger_rows')}",
+        f"- Model-tier decision ledger escalations: {payload.get('n_model_tier_decision_ledger_rows_with_escalation')}",
         f"- Responses present: {payload.get('n_response_present')}",
         f"- Provider failures: {payload.get('n_provider_failures')}",
         f"- Rows with generator metadata: {payload.get('n_rows_with_generator_metadata')}",

@@ -60,6 +60,7 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES,
     LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
     LLM_ROUTE_PLANNER_PLANNER_NEXT_ACTION_HOOK_ALIASES,
     LLM_ROUTE_PLANNER_SEARCH_REQUEST_KIND_ALIASES,
@@ -222,6 +223,7 @@ REQUIRED_CORE_ARTIFACTS = (
     "llm_route_planner_response_payload_validation_row_schema",
     "llm_route_planner_manifest_schema",
     "llm_route_planner_row_schema",
+    "llm_route_planner_model_tier_decision_ledger_schema",
     "route_adoption_blocker_taxonomy_schema",
     "route_adoption_blocker_taxonomy_contract",
     "route_revision_overlay_row_schema",
@@ -2622,6 +2624,9 @@ def _expected_bundle_llm_route_planner_summary(
     payload = _read_json_no_error(manifest_path)
     rows, _row_errors = _read_jsonl_dict_rows_no_error(rows_path)
     request_packets = _dict_tuple(payload.get("request_packets", []))
+    model_tier_decision_ledger = _dict_tuple(
+        payload.get("model_tier_decision_ledger", [])
+    )
     decision_basis_counts = _llm_route_planner_decision_basis_counts(request_packets)
     route_adoption_status_counts = _llm_route_planner_status_counts_for_summary(
         payload,
@@ -2907,6 +2912,31 @@ def _expected_bundle_llm_route_planner_summary(
                     for ledger_row in _dict_tuple(row.get("repair_attempt_ledger"))
                     if bool(ledger_row.get("model_tier_escalated"))
                 ),
+            )
+            or 0
+        ),
+        "n_model_tier_decision_ledger_rows": int(
+            payload.get(
+                "n_model_tier_decision_ledger_rows",
+                len(model_tier_decision_ledger),
+            )
+            or 0
+        ),
+        "n_model_tier_decision_ledger_rows_with_escalation": int(
+            payload.get(
+                "n_model_tier_decision_ledger_rows_with_escalation",
+                sum(
+                    1
+                    for row in model_tier_decision_ledger
+                    if row.get("model_tier_escalated")
+                ),
+            )
+            or 0
+        ),
+        "n_model_tier_decision_ledger_provider_failure_rows": int(
+            payload.get(
+                "n_model_tier_decision_ledger_provider_failure_rows",
+                sum(1 for row in model_tier_decision_ledger if row.get("provider_failure")),
             )
             or 0
         ),
@@ -3556,6 +3586,11 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         / "contract"
         / "formalization_gap_planner_llm_route_planner_row.schema.json"
     )
+    llm_route_planner_model_tier_decision_ledger_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json"
+    )
     route_adoption_blocker_taxonomy_schema_path = (
         bundle_dir
         / "contract"
@@ -3731,6 +3766,9 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
     )
     llm_route_planner_row_schema = _read_json_no_error(
         llm_route_planner_row_schema_path
+    )
+    llm_route_planner_model_tier_decision_ledger_schema = _read_json_no_error(
+        llm_route_planner_model_tier_decision_ledger_schema_path
     )
     route_adoption_blocker_taxonomy_schema = _read_json_no_error(
         route_adoption_blocker_taxonomy_schema_path
@@ -5075,6 +5113,21 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             str(llm_route_planner_row_schema.get("$id", "")),
             llm_route_planner_row_schema.get("$id")
             == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+        ),
+        _check(
+            "llm_route_planner_model_tier_decision_ledger_schema_file",
+            "contract",
+            "LLM route-planner model-tier decision ledger schema exists",
+            str(llm_route_planner_model_tier_decision_ledger_schema_path.exists()),
+            llm_route_planner_model_tier_decision_ledger_schema_path.exists(),
+        ),
+        _check(
+            "llm_route_planner_model_tier_decision_ledger_schema_id",
+            "contract",
+            LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
+            str(llm_route_planner_model_tier_decision_ledger_schema.get("$id", "")),
+            llm_route_planner_model_tier_decision_ledger_schema.get("$id")
+            == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
         ),
         _check(
             "route_adoption_blocker_taxonomy_schema_file",

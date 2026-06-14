@@ -42,6 +42,7 @@ from ai_statistician.formalization_gap_planner_local_formal_source_adapter impor
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
@@ -2960,6 +2961,13 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     ] == LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID
     assert "llm_route_planner_row_schema" in schema_catalog_entry_names
     assert (
+        "llm_route_planner_model_tier_decision_ledger_schema"
+        in schema_catalog_entry_names
+    )
+    assert schema_catalog_entries_by_name[
+        "llm_route_planner_model_tier_decision_ledger_schema"
+    ]["schema_id"] == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID
+    assert (
         "llm_route_planner_seed_route_selection_schema"
         in schema_catalog_entry_names
     )
@@ -3567,6 +3575,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert (
         "contract/formalization_gap_planner_llm_route_planner_row.schema.json"
+        in reproduction_payload["bundle_relative_artifacts"]
+    )
+    assert (
+        "contract/formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json"
         in reproduction_payload["bundle_relative_artifacts"]
     )
     assert (

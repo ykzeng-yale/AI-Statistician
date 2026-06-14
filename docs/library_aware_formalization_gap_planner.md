@@ -231,6 +231,13 @@ free-text rationale. Source-theorem and proof-body feedback rows are included
 in those counts; semantic-primitive gaps, exact proof-body execution failures,
 and formal-environment blockers are explicit Sonnet auto-tier triggers because
 they require route repair rather than cheap bounded triage. In
+addition, the planner writes
+`formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl`
+plus its schema. Each row binds the request tier, effective response tier,
+resolved model, decision basis, Sonnet triggers, source-feedback counts,
+provider-failure status, and repair escalation evidence, so downstream runtime,
+benchmark, and publication tools can audit cost routing without parsing full
+request packets or raw model text. In
 the same request packet, `context_packet.legacy_context_field_aliases` is
 target-aware: Lean requests map legacy context fields such as
 `lean_grounding_queries` and `lean_declaration_hits` back to portable
@@ -864,7 +871,11 @@ Claude after the deterministic residual/context stages have completed, use
 Sonnet 4.6 unless a model is supplied. Static or reviewed JSON responses can be
 passed with the matching `--feedback-llm-route-planner-static-response-file` or
 `--feedback-llm-route-planner-response-json` flags for no-cost reproducible
-review. When the initial or feedback LLM route planner has an actual response
+review. Both primary and feedback route-planner directories also publish a
+model-tier decision ledger JSONL, which lets reuse-smoke and publication audits
+inspect Haiku/Sonnet/Opus routing, source-feedback Sonnet triggers, provider
+failures, and Haiku-to-Sonnet repair escalation without replaying the full
+planner run. When the initial or feedback LLM route planner has an actual response
 payload, reuse-smoke now writes
 `formalization_gap_planner_llm_route_planner_response_payload_validation/` and
 passes that optional validator run into the publication bundle. The smoke path

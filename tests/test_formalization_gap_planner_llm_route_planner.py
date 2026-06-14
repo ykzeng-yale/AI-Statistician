@@ -11,6 +11,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES,
     LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
@@ -29,6 +30,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     export_formalization_gap_planner_llm_route_planner,
     llm_route_planner_library_alignment_summary_json_schema,
     llm_route_planner_manifest_json_schema,
+    llm_route_planner_model_tier_decision_ledger_json_schema,
     llm_route_planner_response_payload_schema,
     llm_route_planner_row_json_schema,
     route_adoption_blocker_taxonomy_json_schema,
@@ -1635,6 +1637,39 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     ]
     assert len(library_alignment_summary_rows) == 1
     request = payload["request_packets"][0]
+    ledger_schema = llm_route_planner_model_tier_decision_ledger_json_schema()
+    assert (
+        ledger_schema["$id"]
+        == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID
+    )
+    assert (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json"
+    ).exists()
+    ledger_rows = [
+        json.loads(line)
+        for line in (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl"
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert ledger_rows == list(payload["model_tier_decision_ledger"])
+    assert payload["n_model_tier_decision_ledger_rows"] == 1
+    assert payload["n_model_tier_decision_ledger_rows_with_escalation"] == 0
+    ledger_row = ledger_rows[0]
+    assert ledger_row["request_id"] == request["request_id"]
+    assert ledger_row["operator_requested_model_tier"] == "auto"
+    assert ledger_row["selected_model_tier"] == request["model_tier"]
+    assert ledger_row["effective_model_tier"] == request["model_tier"]
+    assert ledger_row["decision_basis"] == "auto_sonnet_triggers"
+    assert ledger_row["response_present"] is False
+    assert ledger_row["provider_failure"] is False
+    assert ledger_row["proof_evidence_status"] == (
+        "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+    )
     assert "LLM route planner" in request["prompt_messages"]["system"]
     assert "required_output_contract" in request["prompt_messages"]["user"]
     assert request["minimal_delta_cost_policy"]["cost_policy_id"] == (
@@ -6246,6 +6281,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert manifest_schema["properties"]["row_schema"]["properties"]["$id"][
         "const"
     ] == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID
+    assert manifest_schema["properties"]["model_tier_decision_ledger_schema"][
+        "properties"
+    ]["$id"]["const"] == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID
     assert llm_route_planner_manifest_json_schema()["$id"] == (
         LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID
     )
@@ -6271,6 +6309,12 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     ] == ["rank_uniformity"]
     assert "repair_attempt_ledger" in manifest_schema["required"]
     assert "n_repair_attempt_ledger_rows" in manifest_schema["required"]
+    assert "model_tier_decision_ledger" in manifest_schema["required"]
+    assert "n_model_tier_decision_ledger_rows" in manifest_schema["required"]
+    assert (
+        "n_model_tier_decision_ledger_rows_with_escalation"
+        in manifest_schema["required"]
+    )
     assert "standalone_replay_gate" in manifest_schema["required"]
     assert "standalone_replay_gate_ok" in manifest_schema["required"]
     component_resource_manifest_fields = (
@@ -6299,6 +6343,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["n_repair_attempt_ledger_rows"] == 0
     assert payload["n_requests_with_repair_attempt_ledger"] == 0
     assert payload["n_repair_attempt_ledger_error_items"] == 0
+    assert payload["n_model_tier_decision_ledger_rows"] == 1
+    assert payload["n_model_tier_decision_ledger_rows_with_escalation"] == 0
+    assert payload["n_model_tier_decision_ledger_provider_failure_rows"] == 0
     assert (
         manifest_schema["properties"]["legacy_context_field_aliases"][
             "properties"
@@ -6354,6 +6401,29 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_repair_attempt_ledger_rows must match repair_attempt_ledger"
         in validate_llm_route_planner_manifest(
             drifted_repair_ledger_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_tier_ledger_count_manifest = deepcopy(payload)
+    drifted_tier_ledger_count_manifest["n_model_tier_decision_ledger_rows"] = 0
+    assert (
+        "n_model_tier_decision_ledger_rows must match model_tier_decision_ledger"
+        in validate_llm_route_planner_manifest(
+            drifted_tier_ledger_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_tier_ledger_manifest = deepcopy(payload)
+    drifted_tier_ledger_manifest["model_tier_decision_ledger"] = [
+        dict(row) for row in payload["model_tier_decision_ledger"]
+    ]
+    drifted_tier_ledger_manifest["model_tier_decision_ledger"][0]["decision_basis"] = (
+        "wrong"
+    )
+    assert (
+        "model_tier_decision_ledger must match request_packets and rows"
+        in validate_llm_route_planner_manifest(
+            drifted_tier_ledger_manifest,
             manifest_schema,
         )
     )
@@ -9785,6 +9855,16 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
         "bridge_needed" in trigger
         for trigger in row["model_tier_decision_evidence"]["sonnet_triggers"]
     )
+    tier_ledger_row = payload["model_tier_decision_ledger"][0]
+    assert tier_ledger_row["provider_name"] == "anthropic"
+    assert tier_ledger_row["selected_model_tier"] == "sonnet"
+    assert tier_ledger_row["effective_model_tier"] == "sonnet"
+    assert tier_ledger_row["request_model"] == "claude-sonnet-4-6"
+    assert tier_ledger_row["effective_model"] == "claude-sonnet-4-6"
+    assert tier_ledger_row["response_present"] is True
+    assert tier_ledger_row["response_contract_ok"] is True
+    assert tier_ledger_row["provider_failure"] is False
+    assert "retry_count" in tier_ledger_row["generator_metadata_keys"]
     packet = payload["request_packets"][0]
     assert packet["model"] == "claude-sonnet-4-6"
     assert packet["model_tier"] == "sonnet"
@@ -10237,6 +10317,17 @@ def test_llm_route_planner_escalates_failed_haiku_repair_to_sonnet() -> None:
     assert "auto escalated Claude Haiku repair attempt to Sonnet" in row[
         "model_selection_rationale"
     ]
+    tier_ledger_row = payload["model_tier_decision_ledger"][0]
+    assert tier_ledger_row["operator_requested_model_tier"] == "auto"
+    assert tier_ledger_row["selected_model_tier"] == "haiku"
+    assert tier_ledger_row["effective_model_tier"] == "sonnet"
+    assert tier_ledger_row["request_model"] == "claude-haiku-4-5-20251001"
+    assert tier_ledger_row["effective_model"] == "claude-sonnet-4-6"
+    assert tier_ledger_row["model_tier_escalated"] is True
+    assert "Haiku repair attempt to Sonnet" in tier_ledger_row[
+        "model_tier_escalation_reason"
+    ]
+    assert payload["n_model_tier_decision_ledger_rows_with_escalation"] == 1
     assert row["repair_error_history"][0]["model_tier"] == "haiku"
     assert row["repair_error_history"][0]["next_repair_model_tier"] == "sonnet"
     repair_ledger_row = row["repair_attempt_ledger"][0]
