@@ -566,6 +566,10 @@ def test_operator_docs_preserve_claude_tier_env_contract() -> None:
         for env_var in env_vars[:1]:
             assert env_var in env_example
             assert env_var in production_design
+    assert (
+        f"source-checked {ANTHROPIC_MODEL_SOURCE_CHECKED_DATE}"
+        in env_example
+    )
     assert "Leave AI_STATISTICIAN_LLM_MODEL unset" in env_example
     assert "must not collapse cost-aware Haiku/Sonnet routing" in production_design_text
     assert "Codex/Codex exec are not accepted as pure LLM providers" in env_example
