@@ -3015,6 +3015,22 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_model_tier_mismatches",
             "request_model_tier_mismatches",
             "n_generation_preflight_blocked",
+            "n_requests_with_component_resource_registry_context",
+            "n_component_resource_registry_components_in_prompt",
+            "n_component_resource_registry_resources_in_prompt",
+            "n_component_resource_registry_contracts_in_prompt",
+            "n_requests_with_source_theorem_semantic_primitive_bridge_context",
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+            "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+            "n_requests_with_source_theorem_formal_environment_bridge_context",
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt",
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt",
+            "n_requests_with_exact_source_theorem_proof_body_executor_context",
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt",
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt",
             "n_request_source_grounding_rows",
             "n_requests_with_source_grounding_obligation_inventory",
             "n_requests_with_pending_source_grounding_obligation_inventory",
@@ -3189,6 +3205,54 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "request_model_tier_mismatches": object_array,
             "n_generation_preflight_blocked": nonnegative_integer,
             "generation_preflight_errors": object_array,
+            "n_requests_with_component_resource_registry_context": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_components_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_resources_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_contracts_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_requests_with_source_theorem_semantic_primitive_bridge_context": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_requests_with_source_theorem_formal_environment_bridge_context": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_requests_with_exact_source_theorem_proof_body_executor_context": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt": (
+                nonnegative_integer
+            ),
             "n_feedback_loop_summary_interactive_resource_requests": (
                 nonnegative_integer
             ),
@@ -3933,6 +3997,187 @@ def validate_llm_route_planner_manifest(
         errors.append(
             "n_request_route_planning_evidence_gaps must match request_packets"
         )
+    component_resource_count_checks = (
+        (
+            "n_requests_with_component_resource_registry_context",
+            sum(
+                1
+                for packet in request_packets
+                if _dict_value(packet, "context_packet").get(
+                    "component_resource_registry_context"
+                )
+            ),
+        ),
+        (
+            "n_component_resource_registry_components_in_prompt",
+            sum(
+                len(
+                    _dict_tuple(
+                        _component_resource_context_from_request(packet).get(
+                            "component_rows",
+                            [],
+                        )
+                    )
+                )
+                for packet in request_packets
+            ),
+        ),
+        (
+            "n_component_resource_registry_resources_in_prompt",
+            sum(
+                len(
+                    _dict_tuple(
+                        _component_resource_context_from_request(packet).get(
+                            "resource_rows",
+                            [],
+                        )
+                    )
+                )
+                for packet in request_packets
+            ),
+        ),
+        (
+            "n_component_resource_registry_contracts_in_prompt",
+            sum(
+                len(
+                    _dict_tuple(
+                        _component_resource_context_from_request(packet).get(
+                            "resource_contract_rows",
+                            [],
+                        )
+                    )
+                )
+                for packet in request_packets
+            ),
+        ),
+        (
+            "n_requests_with_source_theorem_semantic_primitive_bridge_context",
+            sum(
+                1
+                for packet in request_packets
+                if _component_resource_context_has_resource(
+                    packet,
+                    SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_RESOURCE_ID,
+                )
+            ),
+        ),
+        (
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+            sum(
+                _component_resource_context_resource_count(
+                    packet,
+                    SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_RESOURCE_ID,
+                )
+                for packet in request_packets
+            ),
+        ),
+        (
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+            sum(
+                _component_resource_context_contract_count(
+                    packet,
+                    SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_RESOURCE_ID,
+                )
+                for packet in request_packets
+            ),
+        ),
+        (
+            "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+            sum(
+                1
+                for packet in request_packets
+                if _component_resource_context_has_resource(
+                    packet,
+                    SOURCE_THEOREM_SEMANTIC_PRIMITIVE_FROM_PROOF_BODY_EXECUTOR_BRIDGE_RESOURCE_ID,
+                )
+            ),
+        ),
+        (
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+            sum(
+                _component_resource_context_resource_count(
+                    packet,
+                    SOURCE_THEOREM_SEMANTIC_PRIMITIVE_FROM_PROOF_BODY_EXECUTOR_BRIDGE_RESOURCE_ID,
+                )
+                for packet in request_packets
+            ),
+        ),
+        (
+            "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+            sum(
+                _component_resource_context_contract_count(
+                    packet,
+                    SOURCE_THEOREM_SEMANTIC_PRIMITIVE_FROM_PROOF_BODY_EXECUTOR_BRIDGE_RESOURCE_ID,
+                )
+                for packet in request_packets
+            ),
+        ),
+        (
+            "n_requests_with_source_theorem_formal_environment_bridge_context",
+            sum(
+                1
+                for packet in request_packets
+                if _component_resource_context_has_resource(
+                    packet,
+                    SOURCE_THEOREM_FORMAL_ENVIRONMENT_BRIDGE_RESOURCE_ID,
+                )
+            ),
+        ),
+        (
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt",
+            sum(
+                _component_resource_context_resource_count(
+                    packet,
+                    SOURCE_THEOREM_FORMAL_ENVIRONMENT_BRIDGE_RESOURCE_ID,
+                )
+                for packet in request_packets
+            ),
+        ),
+        (
+            "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt",
+            sum(
+                _component_resource_context_contract_count(
+                    packet,
+                    SOURCE_THEOREM_FORMAL_ENVIRONMENT_BRIDGE_RESOURCE_ID,
+                )
+                for packet in request_packets
+            ),
+        ),
+        (
+            "n_requests_with_exact_source_theorem_proof_body_executor_context",
+            sum(
+                1
+                for packet in request_packets
+                if _component_resource_context_has_resource(
+                    packet,
+                    EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_RESOURCE_ID,
+                )
+            ),
+        ),
+        (
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt",
+            sum(
+                _component_resource_context_resource_count(
+                    packet,
+                    EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_RESOURCE_ID,
+                )
+                for packet in request_packets
+            ),
+        ),
+        (
+            "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt",
+            sum(
+                _component_resource_context_contract_count(
+                    packet,
+                    EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_RESOURCE_ID,
+                )
+                for packet in request_packets
+            ),
+        ),
+    )
+    for field_name, expected_value in component_resource_count_checks:
+        if int(manifest.get(field_name, 0) or 0) != int(expected_value):
+            errors.append(f"{field_name} must match request_packets")
     library_alignment_summaries = tuple(
         _request_library_alignment_summary(packet) for packet in request_packets
     )

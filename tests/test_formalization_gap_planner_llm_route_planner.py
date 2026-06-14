@@ -5734,6 +5734,28 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "n_repair_attempt_ledger_rows" in manifest_schema["required"]
     assert "standalone_replay_gate" in manifest_schema["required"]
     assert "standalone_replay_gate_ok" in manifest_schema["required"]
+    component_resource_manifest_fields = (
+        "n_requests_with_component_resource_registry_context",
+        "n_component_resource_registry_components_in_prompt",
+        "n_component_resource_registry_resources_in_prompt",
+        "n_component_resource_registry_contracts_in_prompt",
+        "n_requests_with_source_theorem_semantic_primitive_bridge_context",
+        "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+        "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+        "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context",
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt",
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt",
+        "n_requests_with_source_theorem_formal_environment_bridge_context",
+        "n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt",
+        "n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt",
+        "n_requests_with_exact_source_theorem_proof_body_executor_context",
+        "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt",
+        "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt",
+    )
+    for field_name in component_resource_manifest_fields:
+        assert field_name in manifest_schema["required"]
+        assert manifest_schema["properties"][field_name]["type"] == "integer"
+        assert manifest_schema["properties"][field_name]["minimum"] == 0
     assert payload["repair_attempt_ledger"] == ()
     assert payload["n_repair_attempt_ledger_rows"] == 0
     assert payload["n_requests_with_repair_attempt_ledger"] == 0
@@ -5827,6 +5849,28 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_requests_with_route_planning_brief must match request_packets"
         in validate_llm_route_planner_manifest(
             drifted_brief_count_manifest,
+            manifest_schema,
+        )
+    )
+    missing_component_resource_manifest = deepcopy(payload)
+    missing_component_resource_manifest.pop(
+        "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context"
+    )
+    assert (
+        "n_requests_with_source_theorem_semantic_primitive_from_proof_body_executor_bridge_context required"
+        in validate_llm_route_planner_manifest(
+            missing_component_resource_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_component_resource_manifest = deepcopy(payload)
+    drifted_component_resource_manifest[
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt"
+    ] = 1
+    assert (
+        "n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_component_resource_manifest,
             manifest_schema,
         )
     )
