@@ -202,6 +202,15 @@ def test_source_semantic_bridge_exports_learning_from_kernel_proof_audit(
     assert manifest["kernel_verified_registered_candidate_obligation_ids"] == [
         "split_conformal_bad_rank_budget_from_uniform_rank_bound"
     ]
+    assert manifest[
+        "kernel_verified_source_theorem_semantic_support_obligation_ids"
+    ] == ["split_conformal_bad_rank_budget_from_uniform_rank_bound"]
+    assert learning_rows[0][
+        "kernel_verified_source_theorem_semantic_support_obligation_ids"
+    ] == ["split_conformal_bad_rank_budget_from_uniform_rank_bound"]
+    assert learning_rows[0]["input_summary"][
+        "kernel_verified_source_theorem_semantic_support_obligation_ids"
+    ] == ["split_conformal_bad_rank_budget_from_uniform_rank_bound"]
     assert learning_rows[0]["kernel_verified_source_theorem_semantic_primitive_ids"] == [
         "split_conformal_bad_rank_budget_from_uniform_rank_bound"
     ]

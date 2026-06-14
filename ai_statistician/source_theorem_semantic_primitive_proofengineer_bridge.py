@@ -177,6 +177,9 @@ def run_source_theorem_semantic_primitive_proofengineer_bridge(
         "kernel_verified_registered_candidate_obligation_ids": (
             kernel_verified_candidate_ids
         ),
+        "kernel_verified_source_theorem_semantic_support_obligation_ids": (
+            kernel_verified_candidate_ids
+        ),
         "n_kernel_verified_work_order_support_links": n_kernel_verified_support,
         "runtime_learning_ready": bool(learning_result["n_learning_rows"]),
         "proof_evidence_status": (
@@ -340,6 +343,9 @@ def _export_runtime_learning_rows(
                 "input_summary": {
                     "source_theorem_semantic_primitive_work_order_ids": work_order_ids,
                     "semantic_primitive_ids": semantic_ids,
+                    "kernel_verified_source_theorem_semantic_support_obligation_ids": (
+                        kernel_ids
+                    ),
                     "kernel_verified_source_theorem_semantic_primitive_ids": kernel_ids,
                     "kernel_verified_proof_obligation_ids": kernel_ids,
                     "proof_audit_manifest": str(proof_audit_manifest or ""),
@@ -347,6 +353,7 @@ def _export_runtime_learning_rows(
                 },
                 "source_theorem_semantic_primitive_work_order_ids": work_order_ids,
                 "semantic_primitive_ids": semantic_ids,
+                "kernel_verified_source_theorem_semantic_support_obligation_ids": kernel_ids,
                 "kernel_verified_source_theorem_semantic_primitive_ids": kernel_ids,
                 "kernel_verified_proof_obligation_ids": kernel_ids,
                 "target_behavior": (
@@ -370,6 +377,11 @@ def _export_runtime_learning_rows(
         "proof_audit_manifest": str(proof_audit_manifest or ""),
         "runtime_learning_rows_jsonl": str(learning_path),
         "n_learning_rows": len(rows),
+        "kernel_verified_source_theorem_semantic_support_obligation_ids": (
+            rows[0]["kernel_verified_source_theorem_semantic_support_obligation_ids"]
+            if rows
+            else []
+        ),
         "kernel_verified_source_theorem_semantic_primitive_ids": (
             rows[0]["kernel_verified_source_theorem_semantic_primitive_ids"]
             if rows

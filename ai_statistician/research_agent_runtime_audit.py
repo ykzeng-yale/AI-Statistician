@@ -223,6 +223,11 @@ def audit_research_agent_runtime(
                 "kernel_verified_source_theorem_semantic_primitive_ids"
             ]
         ),
+        "runtime_memory_kernel_verified_source_theorem_semantic_support_obligation_ids": (
+            runtime_memory_evidence[
+                "kernel_verified_source_theorem_semantic_support_obligation_ids"
+            ]
+        ),
         "runtime_memory_kernel_verified_theorem_reduction_closure_work_order_ids": (
             runtime_memory_evidence[
                 "kernel_verified_theorem_reduction_closure_work_order_ids"
@@ -244,6 +249,11 @@ def audit_research_agent_runtime(
         "n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids": len(
             runtime_memory_evidence[
                 "kernel_verified_source_theorem_semantic_primitive_ids"
+            ]
+        ),
+        "n_runtime_memory_kernel_verified_source_theorem_semantic_support_obligation_ids": len(
+            runtime_memory_evidence[
+                "kernel_verified_source_theorem_semantic_support_obligation_ids"
             ]
         ),
         "n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids": len(
@@ -707,6 +717,7 @@ def _runtime_capability_gaps_from_scorecard(
 def _runtime_learning_memory_evidence(traces: list[Any]) -> dict[str, list[str]]:
     proof_obligation_ids: list[str] = []
     source_semantic_ids: list[str] = []
+    source_semantic_support_obligation_ids: list[str] = []
     closure_work_order_ids: list[str] = []
     closure_target_ids: list[str] = []
     closure_goal_ids: list[str] = []
@@ -727,6 +738,11 @@ def _runtime_learning_memory_evidence(traces: list[Any]) -> dict[str, list[str]]
                 proof_obligation_ids,
                 row,
                 "kernel_verified_proof_obligation_ids",
+            )
+            _extend_unique_from_row(
+                source_semantic_support_obligation_ids,
+                row,
+                "kernel_verified_source_theorem_semantic_support_obligation_ids",
             )
             for obligation_id in proof_obligation_ids:
                 if _proof_obligation_has_tag(
@@ -756,6 +772,11 @@ def _runtime_learning_memory_evidence(traces: list[Any]) -> dict[str, list[str]]
                     input_summary,
                     "kernel_verified_proof_obligation_ids",
                 )
+                _extend_unique_from_row(
+                    source_semantic_support_obligation_ids,
+                    input_summary,
+                    "kernel_verified_source_theorem_semantic_support_obligation_ids",
+                )
                 for obligation_id in proof_obligation_ids:
                     if _proof_obligation_has_tag(
                         obligation_id,
@@ -779,6 +800,9 @@ def _runtime_learning_memory_evidence(traces: list[Any]) -> dict[str, list[str]]
                 )
     return {
         "kernel_verified_proof_obligation_ids": proof_obligation_ids,
+        "kernel_verified_source_theorem_semantic_support_obligation_ids": (
+            source_semantic_support_obligation_ids or source_semantic_ids
+        ),
         "kernel_verified_source_theorem_semantic_primitive_ids": source_semantic_ids,
         "kernel_verified_theorem_reduction_closure_work_order_ids": closure_work_order_ids,
         "kernel_verified_theorem_reduction_closure_target_ids": closure_target_ids,

@@ -476,6 +476,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "memory_kernel_verified_theorem_reduction_closure_work_order_ids",
         "memory_kernel_verified_theorem_reduction_closure_target_ids",
         "memory_kernel_verified_theorem_reduction_closure_goal_ids",
+        "memory_kernel_verified_source_theorem_semantic_support_obligation_ids",
         "memory_kernel_verified_source_theorem_semantic_primitive_ids",
         "source_theorem_semantic_primitive_support_already_kernel_verified",
         "source_theorem_promotion_ready_but_unproved",

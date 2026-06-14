@@ -2543,6 +2543,10 @@ def test_source_semantic_bridge_learning_rows_enter_runtime_memory(
                 "split_conformal_bad_rank_budget_from_uniform_rank_bound",
                 "split_conformal_good_rank_set_inclusion_bridge",
             ],
+            "kernel_verified_source_theorem_semantic_support_obligation_ids": [
+                "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+                "split_conformal_good_rank_set_inclusion_bridge",
+            ],
             "kernel_verified_proof_obligation_ids": [
                 "split_conformal_bad_rank_budget_from_uniform_rank_bound",
                 "split_conformal_good_rank_set_inclusion_bridge",
@@ -2559,6 +2563,10 @@ def test_source_semantic_bridge_learning_rows_enter_runtime_memory(
             "order_statistic_quantile_semantics",
         ],
         "kernel_verified_source_theorem_semantic_primitive_ids": [
+            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+            "split_conformal_good_rank_set_inclusion_bridge",
+        ],
+        "kernel_verified_source_theorem_semantic_support_obligation_ids": [
             "split_conformal_bad_rank_budget_from_uniform_rank_bound",
             "split_conformal_good_rank_set_inclusion_bridge",
         ],
@@ -2692,6 +2700,12 @@ def test_post_executor_semantic_learning_exports_source_promotion_work_order() -
         "split_conformal_bad_rank_budget_from_uniform_rank_bound",
         "split_conformal_good_rank_set_inclusion_bridge",
     ]
+    assert rows[0][
+        "kernel_verified_source_theorem_semantic_support_obligation_ids"
+    ] == [
+        "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+        "split_conformal_good_rank_set_inclusion_bridge",
+    ]
     assert rows[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
 
 
@@ -2738,6 +2752,10 @@ def test_post_executor_promotion_waits_for_executor_placeholder_support() -> Non
             "split_conformal_bad_rank_budget_from_uniform_rank_bound",
             "split_conformal_good_rank_set_inclusion_bridge",
         ],
+        "kernel_verified_source_theorem_semantic_support_obligation_ids": [
+            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+            "split_conformal_good_rank_set_inclusion_bridge",
+        ],
         "kernel_verified_proof_obligation_ids": [
             "split_conformal_bad_rank_budget_from_uniform_rank_bound",
             "split_conformal_good_rank_set_inclusion_bridge",
@@ -2746,6 +2764,11 @@ def test_post_executor_promotion_waits_for_executor_placeholder_support() -> Non
     complete_semantic_learning = {
         "learning_task": "source_theorem_semantic_primitive_kernel_overlay",
         "kernel_verified_source_theorem_semantic_primitive_ids": [
+            "prob_measure_univ",
+            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+            "split_conformal_good_rank_set_inclusion_bridge",
+        ],
+        "kernel_verified_source_theorem_semantic_support_obligation_ids": [
             "prob_measure_univ",
             "split_conformal_bad_rank_budget_from_uniform_rank_bound",
             "split_conformal_good_rank_set_inclusion_bridge",
@@ -2842,6 +2865,13 @@ def test_post_executor_promotion_waits_for_executor_placeholder_support() -> Non
         "split_conformal_bad_rank_budget_from_uniform_rank_bound",
         "split_conformal_good_rank_set_inclusion_bridge",
     ]
+    assert complete_rows[0][
+        "kernel_verified_source_theorem_semantic_support_obligation_ids"
+    ] == [
+        "prob_measure_univ",
+        "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+        "split_conformal_good_rank_set_inclusion_bridge",
+    ]
     assert complete_rows[0]["proof_evidence_status"] == "WORK_ORDER_NOT_PROOF_EVIDENCE"
     handoff_rows = _runtime_source_theorem_promotion_handoff_rows(complete_rows)
     seed_rows = _runtime_source_theorem_promotion_materialization_seed_rows(
@@ -2854,9 +2884,24 @@ def test_post_executor_promotion_waits_for_executor_placeholder_support() -> Non
     assert seed_rows[0][
         "required_source_theorem_semantic_primitive_support_ids"
     ] == complete_rows[0]["required_source_theorem_semantic_primitive_support_ids"]
+    assert handoff_rows[0][
+        "kernel_verified_source_theorem_semantic_support_obligation_ids"
+    ] == complete_rows[0][
+        "kernel_verified_source_theorem_semantic_support_obligation_ids"
+    ]
+    assert seed_rows[0][
+        "kernel_verified_source_theorem_semantic_support_obligation_ids"
+    ] == complete_rows[0][
+        "kernel_verified_source_theorem_semantic_support_obligation_ids"
+    ]
     assert seed_rows[0]["kernel_overlay_context"][
         "required_source_theorem_semantic_primitive_support_ids"
     ] == complete_rows[0]["required_source_theorem_semantic_primitive_support_ids"]
+    assert seed_rows[0]["kernel_overlay_context"][
+        "kernel_verified_source_theorem_semantic_support_obligation_ids"
+    ] == complete_rows[0][
+        "kernel_verified_source_theorem_semantic_support_obligation_ids"
+    ]
     assert seed_rows[0]["kernel_overlay_context"][
         "missing_source_theorem_semantic_primitive_support_ids"
     ] == []

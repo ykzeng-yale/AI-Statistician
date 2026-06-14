@@ -1265,6 +1265,17 @@ class FormalizationEvaluatorRuntimeSubsystem:
             or []
         )
         proof_obligation_control[
+            "memory_kernel_verified_source_theorem_semantic_support_obligation_ids"
+        ] = list(
+            proof_bank_runtime_memory_summary.get(
+                "memory_kernel_verified_source_theorem_semantic_support_obligation_ids",
+                proof_obligation_control[
+                    "memory_kernel_verified_source_theorem_semantic_primitive_ids"
+                ],
+            )
+            or []
+        )
+        proof_obligation_control[
             "source_theorem_semantic_primitive_support_already_kernel_verified"
         ] = bool(
             proof_bank_runtime_memory_summary.get(
@@ -2077,6 +2088,16 @@ def run_research_agent_runtime(
             proof_control_summary.get(
                 "memory_kernel_verified_source_theorem_semantic_primitive_ids",
                 [],
+            )
+            or []
+        ),
+        "memory_kernel_verified_source_theorem_semantic_support_obligation_ids": list(
+            proof_control_summary.get(
+                "memory_kernel_verified_source_theorem_semantic_support_obligation_ids",
+                proof_control_summary.get(
+                    "memory_kernel_verified_source_theorem_semantic_primitive_ids",
+                    [],
+                ),
             )
             or []
         ),
@@ -4930,15 +4951,12 @@ def _formalization_manifest_has_kernel_verified_source_semantic_support(
         if isinstance(formalization_manifest.get("proof_obligation_control"), Mapping)
         else {}
     )
-    if any(
-        str(row).strip()
-        for row in proof_control.get(
-            "memory_kernel_verified_source_theorem_semantic_primitive_ids",
-            [],
-        )
-        or []
+    for key in (
+        "memory_kernel_verified_source_theorem_semantic_support_obligation_ids",
+        "memory_kernel_verified_source_theorem_semantic_primitive_ids",
     ):
-        return True
+        if any(str(row).strip() for row in proof_control.get(key, []) or []):
+            return True
     summary = (
         formalization_manifest.get("proof_bank_runtime_memory_summary", {})
         if isinstance(
@@ -4949,11 +4967,11 @@ def _formalization_manifest_has_kernel_verified_source_semantic_support(
     )
     return any(
         str(row).strip()
-        for row in summary.get(
+        for key in (
+            "memory_kernel_verified_source_theorem_semantic_support_obligation_ids",
             "memory_kernel_verified_source_theorem_semantic_primitive_ids",
-            [],
         )
-        or []
+        for row in summary.get(key, []) or []
     )
 
 
@@ -5019,19 +5037,24 @@ def _runtime_learning_memory_kernel_verified_source_theorem_semantic_primitives(
     for row in rows:
         if not isinstance(row, Mapping):
             continue
-        for value in row.get("kernel_verified_source_theorem_semantic_primitive_ids", []) or []:
-            text = str(value).strip()
-            if text:
-                primitive_ids.append(text)
-        input_summary = row.get("input_summary", {})
-        if isinstance(input_summary, Mapping):
-            for value in input_summary.get(
-                "kernel_verified_source_theorem_semantic_primitive_ids",
-                [],
-            ) or []:
+        for key in (
+            "kernel_verified_source_theorem_semantic_support_obligation_ids",
+            "kernel_verified_source_theorem_semantic_primitive_ids",
+        ):
+            for value in row.get(key, []) or []:
                 text = str(value).strip()
                 if text:
                     primitive_ids.append(text)
+        input_summary = row.get("input_summary", {})
+        if isinstance(input_summary, Mapping):
+            for key in (
+                "kernel_verified_source_theorem_semantic_support_obligation_ids",
+                "kernel_verified_source_theorem_semantic_primitive_ids",
+            ):
+                for value in input_summary.get(key, []) or []:
+                    text = str(value).strip()
+                    if text:
+                        primitive_ids.append(text)
     return tuple(dict.fromkeys(primitive_ids))
 
 
@@ -5743,6 +5766,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
             closure_goal_ids
         ),
         "memory_kernel_verified_source_theorem_semantic_primitive_ids": list(
+            source_semantic_memory_ids
+        ),
+        "memory_kernel_verified_source_theorem_semantic_support_obligation_ids": list(
             source_semantic_memory_ids
         ),
         "required_source_theorem_semantic_primitive_support_ids": list(
@@ -6846,6 +6872,18 @@ def _formalizer_source_theorem_promotion_work_orders(
         or []
         if str(row).strip()
     ]
+    semantic_support_obligation_ids = [
+        str(row).strip()
+        for row in proof_bank_runtime_memory_summary.get(
+            "memory_kernel_verified_source_theorem_semantic_support_obligation_ids",
+            proof_bank_runtime_memory_summary.get(
+                "memory_kernel_verified_source_theorem_semantic_primitive_ids",
+                [],
+            ),
+        )
+        or []
+        if str(row).strip()
+    ]
     semantic_primitive_ids = [
         str(row).strip()
         for row in proof_bank_runtime_memory_summary.get(
@@ -6942,7 +6980,7 @@ def _formalizer_source_theorem_promotion_work_orders(
                         source_formal_target_id,
                         target_goal_ids,
                         closure_work_order_ids,
-                        semantic_primitive_ids,
+                        semantic_support_obligation_ids,
                     ]
                 )[:20],
                 "source_formalizer_packet_id": str(proposal_packet.get("packet_id", "")),
@@ -6950,6 +6988,9 @@ def _formalizer_source_theorem_promotion_work_orders(
                 "target_theorem_goal_ids": target_goal_ids,
                 "kernel_verified_theorem_reduction_closure_work_order_ids": closure_work_order_ids,
                 "kernel_verified_theorem_reduction_closure_target_ids": closure_target_ids,
+                "kernel_verified_source_theorem_semantic_support_obligation_ids": (
+                    semantic_support_obligation_ids
+                ),
                 "kernel_verified_source_theorem_semantic_primitive_ids": semantic_primitive_ids,
                 "required_source_theorem_semantic_primitive_support_ids": (
                     required_semantic_primitive_support_ids
@@ -7962,6 +8003,13 @@ def _runtime_source_theorem_promotion_handoff_rows(
                 item.get("kernel_verified_theorem_reduction_closure_target_ids", [])
                 or []
             ),
+            "kernel_verified_source_theorem_semantic_support_obligation_ids": list(
+                item.get(
+                    "kernel_verified_source_theorem_semantic_support_obligation_ids",
+                    item.get("kernel_verified_source_theorem_semantic_primitive_ids", []),
+                )
+                or []
+            ),
             "kernel_verified_source_theorem_semantic_primitive_ids": list(
                 item.get("kernel_verified_source_theorem_semantic_primitive_ids", [])
                 or []
@@ -8092,6 +8140,15 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             or []
             if str(value).strip()
         ]
+        verified_semantic_support_obligation_ids = [
+            str(value)
+            for value in item.get(
+                "kernel_verified_source_theorem_semantic_support_obligation_ids",
+                item.get("kernel_verified_source_theorem_semantic_primitive_ids", []),
+            )
+            or []
+            if str(value).strip()
+        ]
         verified_semantic_ids = [
             str(value)
             for value in item.get(
@@ -8177,6 +8234,12 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             "candidate_bridge_lemma_name": target_lean_declaration,
             "lean_statement_sketch": lean_statement_sketch,
             "source_theorem_target_provenance": source_target_provenance,
+            "kernel_verified_source_theorem_semantic_support_obligation_ids": (
+                verified_semantic_support_obligation_ids
+            ),
+            "kernel_verified_source_theorem_semantic_primitive_ids": (
+                verified_semantic_ids
+            ),
             "required_source_theorem_semantic_primitive_support_ids": (
                 required_semantic_support_ids
             ),
@@ -8218,8 +8281,14 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
                 },
                 "already_kernel_verified_subclaims": [
                     *verified_closure_ids,
-                    *verified_semantic_ids,
+                    *verified_semantic_support_obligation_ids,
                 ],
+                "kernel_verified_source_theorem_semantic_support_obligation_ids": (
+                    verified_semantic_support_obligation_ids
+                ),
+                "kernel_verified_source_theorem_semantic_primitive_ids": (
+                    verified_semantic_ids
+                ),
                 "required_source_theorem_semantic_primitive_support_ids": (
                     required_semantic_support_ids
                 ),
