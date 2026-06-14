@@ -9,8 +9,54 @@ from ai_statistician.exact_source_theorem_proof_body_executor import (
     export_exact_source_theorem_proof_body_execution_results,
 )
 from ai_statistician.source_theorem_formal_environment_proofengineer_bridge import (
+    resolve_source_theorem_formal_environment_queue_path,
     run_source_theorem_formal_environment_proofengineer_bridge,
 )
+
+
+def test_formal_environment_bridge_resolves_queue_from_promotion_bridge_manifest(
+    tmp_path: Path,
+) -> None:
+    runtime_dir = tmp_path / "runs" / "live_runtime"
+    bridge_dir = runtime_dir / "runtime_source_theorem_promotion_proofengineer_bridge"
+    queue_dir = bridge_dir / "formal_verifier_agentic_proof_source_theorem_formal_environment_work_orders"
+    queue_dir.mkdir(parents=True)
+    queue_jsonl = (
+        queue_dir
+        / "formal_verifier_agentic_proof_source_theorem_formal_environment_work_orders.jsonl"
+    )
+    queue_jsonl.write_text("", encoding="utf-8")
+    bridge_manifest = (
+        bridge_dir / "runtime_source_theorem_promotion_proofengineer_bridge_manifest.json"
+    )
+    bridge_manifest.write_text(
+        json.dumps(
+            {
+                "source_theorem_formal_environment_work_orders_jsonl": str(
+                    queue_jsonl.relative_to(tmp_path)
+                )
+            }
+        ),
+        encoding="utf-8",
+    )
+    (runtime_dir / "research_agent_runtime_manifest.json").write_text(
+        json.dumps(
+            {
+                "artifacts": {
+                    "runtime_source_theorem_promotion_proofengineer_bridge_manifest": str(
+                        bridge_manifest.relative_to(tmp_path)
+                    )
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    resolved = resolve_source_theorem_formal_environment_queue_path(
+        runtime_dir=runtime_dir
+    )
+
+    assert resolved == queue_jsonl
 
 
 def test_source_theorem_formal_environment_bridge_exports_repair_packets(

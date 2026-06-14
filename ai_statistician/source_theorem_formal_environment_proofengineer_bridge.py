@@ -132,10 +132,54 @@ def resolve_source_theorem_formal_environment_queue_path(
         or ""
     )
     if not raw_path:
+        raw_path = _formal_environment_queue_path_from_bridge_manifest(
+            runtime_dir=runtime_dir,
+            artifacts=artifacts,
+        )
+    if not raw_path:
         raise ValueError(
             "runtime manifest does not list "
-            "runtime_source_theorem_formal_environment_work_orders_jsonl"
+            "runtime_source_theorem_formal_environment_work_orders_jsonl or "
+            "a source-theorem promotion bridge manifest with formal-environment "
+            "work orders"
         )
+    return _resolve_runtime_artifact_path(runtime_dir=runtime_dir, raw_path=raw_path)
+
+
+def _formal_environment_queue_path_from_bridge_manifest(
+    *,
+    runtime_dir: Path,
+    artifacts: Mapping[str, Any],
+) -> str:
+    bridge_manifest_keys = (
+        "runtime_source_theorem_promotion_proofengineer_bridge_manifest",
+        "runtime_source_theorem_promotion_proofengineer_bridge_from_source_semantic_support_manifest",
+        "runtime_source_theorem_promotion_proofengineer_bridge_from_post_executor_semantic_support_manifest",
+    )
+    for key in bridge_manifest_keys:
+        raw_manifest_path = str(artifacts.get(key, "") or "")
+        if not raw_manifest_path:
+            continue
+        manifest_path = _resolve_runtime_artifact_path(
+            runtime_dir=runtime_dir,
+            raw_path=raw_manifest_path,
+        )
+        if not manifest_path.exists():
+            continue
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        raw_queue_path = str(
+            payload.get("source_theorem_formal_environment_work_orders_jsonl", "")
+            or ""
+        )
+        if raw_queue_path:
+            return raw_queue_path
+    return ""
+
+
+def _resolve_runtime_artifact_path(*, runtime_dir: Path, raw_path: str) -> Path:
     queue_path = Path(raw_path)
     if queue_path.is_absolute() or queue_path.exists():
         return queue_path
