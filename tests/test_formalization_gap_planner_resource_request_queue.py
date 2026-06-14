@@ -544,6 +544,25 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
                                 "target_primitives": ["rank_uniformity"],
                             }
                         ],
+                        "residual_interpretations": [
+                            {
+                                "residual_goal": (
+                                    "rank_uniformity: missing conditioning side "
+                                    "condition from prover feedback"
+                                ),
+                                "interpretation": (
+                                    "the proof route must add the conditional "
+                                    "exchangeability side condition before replay"
+                                ),
+                                "route_repair": (
+                                    "add conditional exchangeability to the "
+                                    "informal and formal route DAGs"
+                                ),
+                                "residual_primitives": ["rank_uniformity"],
+                                "target_primitives": ["rank_uniformity"],
+                                "source_refs": ["conformal_prediction_textbook"],
+                            }
+                        ],
                     }
                 ],
             },
@@ -566,11 +585,14 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
     assert payload["n_llm_route_planner_rows"] == 1
     assert payload["n_llm_route_planner_rows_with_search_requests"] == 1
     assert payload["n_llm_route_planner_rows_with_planner_next_actions"] == 1
+    assert payload["n_llm_route_planner_rows_with_residual_interpretations"] == 1
     assert payload["n_llm_route_planner_search_requests"] == 1
     assert payload["n_llm_route_planner_planner_next_actions"] == 1
+    assert payload["n_llm_route_planner_residual_interpretations"] == 1
     assert payload["n_llm_route_planner_search_request_rows"] == 3
     assert payload["n_llm_route_planner_planner_next_action_rows"] == 3
-    assert payload["n_llm_route_planner_resource_request_rows"] == 6
+    assert payload["n_llm_route_planner_residual_interpretation_rows"] == 2
+    assert payload["n_llm_route_planner_resource_request_rows"] == 8
     assert (
         payload["n_resource_request_rows"]
         == payload["n_action_resource_plan_resource_request_rows"]
@@ -591,6 +613,8 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
             "local_lake_lean",
             "lean_lsp_mcp",
             "leandojo_reprover",
+            "local_route_revision_overlay",
+            "frontier_route_revision_handoff",
         }
     )
     paperclip_row = next(
@@ -645,6 +669,30 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
         == tuple(lean_lsp_row["actionable_work_items"])
     )
     assert "not theorem proof evidence" in lean_lsp_row["proof_evidence_boundary"]
+    route_revision_row = next(
+        row for row in llm_rows if row["resource_id"] == "local_route_revision_overlay"
+    )
+    assert route_revision_row["request_payload"][
+        "llm_route_planner_source_kind"
+    ] == "residual_interpretation"
+    assert route_revision_row["request_payload"][
+        "llm_route_planner_hook_kind"
+    ] == "route_revision"
+    assert route_revision_row["queue_action_kind"] == "route_revision"
+    assert route_revision_row["expected_response_artifact"] == "route_revision_response"
+    assert "residual_goal_context" in route_revision_row["request_contract_fields"]
+    residual_context = route_revision_row["request_payload"]["residual_goal_context"]
+    assert residual_context["residual_goal"].startswith("rank_uniformity")
+    assert residual_context["residual_primitives"] == ("rank_uniformity",)
+    assert residual_context == route_revision_row["request_playbook"][
+        "residual_goal_context"
+    ]
+    assert residual_context == route_revision_row["request_playbook"][
+        "input_summary"
+    ]["residual_goal_context"]
+    assert "conditional exchangeability" in " ".join(
+        route_revision_row["actionable_work_items"]
+    )
     assert (
         validate_resource_request_queue_row(
             paperclip_row,
@@ -655,6 +703,13 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
     assert (
         validate_resource_request_queue_row(
             lean_lsp_row,
+            resource_request_queue_row_json_schema(),
+        )
+        == []
+    )
+    assert (
+        validate_resource_request_queue_row(
+            route_revision_row,
             resource_request_queue_row_json_schema(),
         )
         == []

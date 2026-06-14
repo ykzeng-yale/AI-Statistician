@@ -1018,7 +1018,14 @@ the first-class `target_primitives` scope, the propagated
 proof boundary. It
 is the executable interface for literature search, formal-source search, Lean-library lookup,
 Lean/LSP/Lake/LeanDojo-style prover feedback, and cross-prover/publication
-audits; it is still not theorem proof evidence. When both action-resource and
+audits; it is still not theorem proof evidence. Accepted LLM route-planner
+`search_requests`, `planner_next_actions`, and `residual_interpretations` are
+also converted into these dispatch packets. Residual interpretations become
+route-revision requests by default, or literature/formal-library/prover
+requests when the repair text explicitly asks for those tools, and the queue
+preserves `residual_goal_context` in both `request_payload` and
+`request_playbook` so residual-driven route repair cannot be mistaken for a
+generic search. When both action-resource and
 request-queue artifacts are bundled, the publication audit checks that each
 request row resolves to its action-resource row and matches the selected
 resource's contract map, so stale per-tool contract fields cannot silently pass

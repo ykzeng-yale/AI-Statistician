@@ -5393,6 +5393,14 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_distinct_resources",
             0,
         ),
+        "n_resource_request_llm_route_planner_residual_interpretations": resource_request_queue_payload.get(
+            "n_llm_route_planner_residual_interpretations",
+            0,
+        ),
+        "n_resource_request_llm_route_planner_residual_interpretation_rows": resource_request_queue_payload.get(
+            "n_llm_route_planner_residual_interpretation_rows",
+            0,
+        ),
         "n_resource_request_self_contained_payloads": resource_request_queue_payload.get(
             "n_self_contained_request_payloads",
             0,
@@ -7708,6 +7716,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Resource request dispatch specs valid: "
             f"{payload.get('n_resource_request_dispatch_spec_identity_valid')}/"
             f"{payload.get('n_resource_request_rows')}"
+        ),
+        (
+            f"- Resource request LLM residual interpretations/rows: "
+            f"{payload.get('n_resource_request_llm_route_planner_residual_interpretations')}/"
+            f"{payload.get('n_resource_request_llm_route_planner_residual_interpretation_rows')}"
         ),
         (
             f"- Bundle resource request contract alignment valid: "

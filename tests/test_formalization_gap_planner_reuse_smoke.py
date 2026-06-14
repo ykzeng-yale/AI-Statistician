@@ -1685,6 +1685,13 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_resource_request_frontier_escalation"] > 0
     assert payload["n_resource_request_distinct_resources"] > 0
     assert (
+        payload["n_resource_request_llm_route_planner_residual_interpretations"] >= 0
+    )
+    assert (
+        payload["n_resource_request_llm_route_planner_residual_interpretation_rows"]
+        >= payload["n_resource_request_llm_route_planner_residual_interpretations"]
+    )
+    assert (
         payload["n_resource_request_self_contained_payloads"]
         == payload["n_resource_request_rows"]
     )

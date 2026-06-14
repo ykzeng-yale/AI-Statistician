@@ -203,12 +203,21 @@ def export_formalization_gap_planner_resource_request_queue(
             for row in llm_route_planner_rows
             if _dict_tuple(row.get("planner_next_actions", []))
         ),
+        "n_llm_route_planner_rows_with_residual_interpretations": sum(
+            1
+            for row in llm_route_planner_rows
+            if _dict_tuple(row.get("residual_interpretations", []))
+        ),
         "n_llm_route_planner_search_requests": sum(
             len(_dict_tuple(row.get("search_requests", [])))
             for row in llm_route_planner_rows
         ),
         "n_llm_route_planner_planner_next_actions": sum(
             len(_dict_tuple(row.get("planner_next_actions", [])))
+            for row in llm_route_planner_rows
+        ),
+        "n_llm_route_planner_residual_interpretations": sum(
+            len(_dict_tuple(row.get("residual_interpretations", [])))
             for row in llm_route_planner_rows
         ),
         "n_llm_route_planner_resource_request_rows": len(llm_resource_request_rows),
@@ -223,6 +232,12 @@ def export_formalization_gap_planner_resource_request_queue(
             for row in llm_resource_request_rows
             if row.request_payload.get("llm_route_planner_source_kind")
             == "planner_next_action"
+        ),
+        "n_llm_route_planner_residual_interpretation_rows": sum(
+            1
+            for row in llm_resource_request_rows
+            if row.request_payload.get("llm_route_planner_source_kind")
+            == "residual_interpretation"
         ),
         "n_resource_request_rows": len(rows),
         "n_ok": sum(1 for row in rows if row.ok),
@@ -526,6 +541,10 @@ def _llm_route_planner_resource_request_rows(
                 "planner_next_action",
                 _dict_tuple(planner_row.get("planner_next_actions", [])),
             ),
+            (
+                "residual_interpretation",
+                _dict_tuple(planner_row.get("residual_interpretations", [])),
+            ),
         ):
             for source_index, source_item in enumerate(source_items):
                 action_row = _llm_route_planner_action_row(
@@ -819,6 +838,12 @@ def _with_llm_route_planner_trace(
             "llm_route_planner_queries": queries,
         }
     )
+    residual_goal_context = _llm_residual_goal_context(
+        source_item,
+        source_kind=source_kind,
+    )
+    if residual_goal_context:
+        input_summary["residual_goal_context"] = residual_goal_context
     request_playbook.update(
         {
             "input_summary": input_summary,
@@ -830,6 +855,8 @@ def _with_llm_route_planner_trace(
             "llm_route_planner_source_item": dict(source_item),
         }
     )
+    if residual_goal_context:
+        request_playbook["residual_goal_context"] = residual_goal_context
     request_payload.update(
         {
             "llm_route_planner_row_id": planner_row_id,
@@ -842,6 +869,8 @@ def _with_llm_route_planner_trace(
             "request_playbook": request_playbook,
         }
     )
+    if residual_goal_context:
+        request_payload["residual_goal_context"] = residual_goal_context
     return replace(
         row,
         request_payload=request_payload,
@@ -854,6 +883,59 @@ def _llm_hook_kind(
     *,
     source_kind: str,
 ) -> str:
+    if source_kind == "residual_interpretation":
+        residual_directive = _text_key(
+            " ".join(
+                [
+                    *_str_tuple(item.get("request_kind", "")),
+                    *_str_tuple(item.get("kind", "")),
+                    *_str_tuple(item.get("route_repair", "")),
+                    *_str_tuple(item.get("repair_action", "")),
+                    *_str_tuple(item.get("interpretation", "")),
+                    *_str_tuple(item.get("recommended_next_action", "")),
+                    *_flatten_llm_strings(item.get("resource_id", [])),
+                    *_flatten_llm_strings(item.get("resource_ids", [])),
+                    *_flatten_llm_strings(item.get("tool_owner_ids", [])),
+                ]
+            )
+        )
+        if any(
+            token in residual_directive
+            for token in ("literature", "source", "paper", "paperclip", "paperqa")
+        ):
+            return "literature_discovery"
+        if any(
+            token in residual_directive
+            for token in (
+                "lean_search",
+                "leansearch",
+                "leanfinder",
+                "loogle",
+                "mathlib",
+            )
+        ):
+            return "lean_library_grounding"
+        if any(
+            token in residual_directive
+            for token in ("formal_library", "formal_source", "declaration", "library")
+        ):
+            return "formal_library_grounding"
+        if any(
+            token in residual_directive
+            for token in (
+                "proof_state",
+                "prover",
+                "diagnostic",
+                "lean_lsp",
+                "lsp",
+                "lake",
+                "serapi",
+                "sledgehammer",
+                "agda",
+            )
+        ):
+            return "proof_state_feedback"
+        return "route_revision"
     text = _text_key(
         " ".join(
             [
@@ -968,6 +1050,8 @@ def _llm_queue_action_kind(hook_kind: str) -> str:
         return "rerun_library_alignment"
     if hook_kind == "proof_state_feedback":
         return "prove_bridge_lemma"
+    if hook_kind == "route_revision":
+        return "route_revision"
     return "rerun_library_alignment"
 
 
@@ -1009,7 +1093,9 @@ def _llm_request_contract_fields_for_hook(
     if hook_kind == "proof_state_feedback":
         fields.extend(["candidate_declaration_rows", "residual_goal_context"])
     if hook_kind == "route_revision":
-        fields.extend(["minimal_delta_plan", "route_revision_trigger"])
+        fields.extend(
+            ["minimal_delta_plan", "route_revision_trigger", "residual_goal_context"]
+        )
     if resource_id:
         fields.append("resource_id")
     return tuple(dict.fromkeys(fields))
@@ -1056,7 +1142,12 @@ def _llm_target_primitives(
     source_item: dict[str, object],
 ) -> tuple[str, ...]:
     primitives: list[str] = []
-    for field_name in ("target_primitives", "primitives", "primitive"):
+    for field_name in (
+        "target_primitives",
+        "residual_primitives",
+        "primitives",
+        "primitive",
+    ):
         primitives.extend(_str_tuple(source_item.get(field_name, [])))
     minimal_delta_plan = planner_row.get("minimal_delta_plan", {})
     if isinstance(minimal_delta_plan, dict):
@@ -1133,9 +1224,48 @@ def _llm_query_tuple(item: dict[str, object]) -> tuple[str, ...]:
         "action",
         "next_action",
         "description",
+        "residual_goal",
+        "residual_goals",
+        "route_repair",
+        "repair_action",
+        "interpretation",
+        "recommended_next_action",
+        "source_search_queries",
+        "formal_library_queries",
+        "prover_feedback_queries",
     ):
         values.append(item.get(field_name, []))
     return _str_tuple(_flatten_llm_strings(values))
+
+
+def _llm_residual_goal_context(
+    source_item: dict[str, object],
+    *,
+    source_kind: str,
+) -> dict[str, object]:
+    if source_kind != "residual_interpretation" and not any(
+        key in source_item
+        for key in (
+            "residual_goal",
+            "residual_goals",
+            "residual_primitives",
+            "route_repair",
+            "repair_action",
+        )
+    ):
+        return {}
+    return {
+        "source_kind": source_kind,
+        "residual_goal": str(source_item.get("residual_goal", "") or ""),
+        "residual_goals": _str_tuple(source_item.get("residual_goals", [])),
+        "residual_primitives": _str_tuple(source_item.get("residual_primitives", [])),
+        "target_primitives": _str_tuple(source_item.get("target_primitives", [])),
+        "interpretation": str(source_item.get("interpretation", "") or ""),
+        "route_repair": str(source_item.get("route_repair", "") or ""),
+        "repair_action": str(source_item.get("repair_action", "") or ""),
+        "source_refs": _str_tuple(source_item.get("source_refs", [])),
+        "queries": _llm_query_tuple(source_item),
+    }
 
 
 def _llm_actionable_work_items(
@@ -2108,6 +2238,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         (
             f"- LLM planner next actions: "
             f"{payload.get('n_llm_route_planner_planner_next_actions')}"
+        ),
+        (
+            f"- LLM residual interpretations: "
+            f"{payload.get('n_llm_route_planner_residual_interpretations')}"
         ),
         f"- Target prover family: {payload.get('target_prover_family')}",
         f"- Target prover families: {payload.get('n_target_prover_families')}",

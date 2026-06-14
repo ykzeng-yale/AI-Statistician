@@ -50,6 +50,7 @@ QUEUE_ACTION_KINDS = (
     "source_port",
     "design_new_theory_fragment",
     "rerun_library_alignment",
+    "route_revision",
 )
 OWNER_AGENTS = (
     "target_prover_adapter",

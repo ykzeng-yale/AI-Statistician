@@ -249,6 +249,12 @@ side of the same contract: it runs queued skeleton probes through local Lean
 when available, blocks `sorry`/`admit`/`axiom` probes, classifies non-Lean
 skeletons as statement-materialization gaps, and merges diagnostics and
 residual goals into the validator JSONL without treating them as proof evidence.
+LLM route-planner residual interpretations now enter the same dispatch path as
+search requests and planner next actions: the resource-request queue materializes
+them as route-revision work by default, preserves the residual goal and repair
+context in the request payload/playbook, and only routes them to literature,
+formal-library, or prover resources when the repair text explicitly asks for
+that evidence class.
 The prover-adapter contract exports those portable work packets as target-prover
 mapping tasks for Lean, Rocq/Coq, Isabelle, Agda, or another prover family and
 validates adapter responses without accepting kernel-proof claims.

@@ -76,6 +76,10 @@ ACTION_KIND_COMPONENT_IDS: dict[str, tuple[str, ...]] = {
         "formal_library_coverage_mapping",
         "route_revision_handoff",
     ),
+    "route_revision": (
+        "route_revision_handoff",
+        "prover_feedback_refinement",
+    ),
 }
 
 
