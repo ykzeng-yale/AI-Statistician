@@ -5473,6 +5473,14 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_response_request_mismatches",
             0,
         ),
+        "n_resource_response_ledger_llm_residual_context_rows": resource_response_ledger_payload.get(
+            "n_llm_route_planner_residual_context_rows",
+            0,
+        ),
+        "n_resource_response_ledger_llm_traced_residual_interpretation_rows": resource_response_ledger_payload.get(
+            "n_llm_route_planner_traced_residual_interpretation_rows",
+            0,
+        ),
         "n_resource_response_ledger_route_revision_recommended": resource_response_ledger_payload.get(
             "n_route_revision_recommended",
             0,
@@ -7745,7 +7753,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"playbook_present={payload.get('n_resource_response_ledger_request_playbook_present')} "
             f"playbook_grounded={payload.get('n_resource_response_ledger_playbook_grounded')} "
             f"playbook_failures={payload.get('n_resource_response_ledger_playbook_grounding_failures')} "
-            f"request_mismatch={payload.get('n_resource_response_ledger_request_mismatches')}"
+            f"request_mismatch={payload.get('n_resource_response_ledger_request_mismatches')} "
+            f"llm_residual_context={payload.get('n_resource_response_ledger_llm_residual_context_rows')} "
+            f"llm_residual_interpretation={payload.get('n_resource_response_ledger_llm_traced_residual_interpretation_rows')}"
         ),
         (
             f"- Bundle resource response contract accounting valid: "

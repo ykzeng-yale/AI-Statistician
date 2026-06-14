@@ -254,7 +254,11 @@ search requests and planner next actions: the resource-request queue materialize
 them as route-revision work by default, preserves the residual goal and repair
 context in the request payload/playbook, and only routes them to literature,
 formal-library, or prover resources when the repair text explicitly asks for
-that evidence class.
+that evidence class. The resource-response ledger carries that same
+`residual_goal_context` into accepted/rejected response rows and the
+route-revision overlay propagates it through applied resource-response and LLM
+hook traces, so later replans can distinguish residual-driven route repair from
+generic search or handoff activity.
 The prover-adapter contract exports those portable work packets as target-prover
 mapping tasks for Lean, Rocq/Coq, Isabelle, Agda, or another prover family and
 validates adapter responses without accepting kernel-proof claims.

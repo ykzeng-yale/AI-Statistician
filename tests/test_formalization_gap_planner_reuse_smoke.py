@@ -1772,6 +1772,16 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_resource_response_ledger_playbook_grounded"] == 0
     assert payload["n_resource_response_ledger_playbook_grounding_failures"] == 0
     assert payload["n_resource_response_ledger_request_mismatches"] == 0
+    assert (
+        payload["n_resource_response_ledger_llm_residual_context_rows"]
+        >= payload["n_resource_request_llm_route_planner_residual_interpretation_rows"]
+    )
+    assert (
+        payload[
+            "n_resource_response_ledger_llm_traced_residual_interpretation_rows"
+        ]
+        == payload["n_resource_request_llm_route_planner_residual_interpretation_rows"]
+    )
     assert payload["n_resource_response_ledger_route_revision_recommended"] == 0
     assert payload["n_resource_response_ledger_rejected"] == 0
     assert (

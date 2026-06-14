@@ -16,7 +16,7 @@ from .formalization_gap_planner_resource_request_queue import (
 from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
-FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 9
+FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 10
 QUALITY_CONTROL_FIELDS = (
     "resource_contract_ids",
     "required_quality_signals",
@@ -30,7 +30,7 @@ RESOURCE_RESPONSE_SCHEMA_ID = (
 )
 RESOURCE_RESPONSE_LEDGER_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
-    "formalization-gap-planner-resource-response-ledger-row:9"
+    "formalization-gap-planner-resource-response-ledger-row:10"
 )
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_NOT_PROOF_EVIDENCE"
@@ -79,6 +79,7 @@ class FormalizationGapPlannerResourceResponseLedgerRow:
     llm_route_planner_hook_kind: str
     llm_route_planner_queries: tuple[str, ...]
     llm_route_planner_source_item: dict[str, object]
+    residual_goal_context: dict[str, object]
     llm_route_planner_response_trace_grounded: bool
     llm_route_planner_response_trace_mismatches: tuple[str, ...]
     response_present: bool
@@ -280,6 +281,14 @@ def export_formalization_gap_planner_resource_response_ledger(
             and not row.llm_route_planner_response_trace_grounded
             and not row.llm_route_planner_response_trace_mismatches
         ),
+        "n_llm_route_planner_residual_context_rows": sum(
+            1 for row in rows if row.residual_goal_context
+        ),
+        "n_llm_route_planner_traced_residual_interpretation_rows": sum(
+            1
+            for row in rows
+            if row.llm_route_planner_source_kind == "residual_interpretation"
+        ),
         "n_with_candidate_declaration_rows": sum(
             1 for row in rows if row.candidate_declaration_rows
         ),
@@ -440,6 +449,7 @@ def resource_response_json_schema() -> dict[str, object]:
             "llm_route_planner_source_kind": {"type": "string"},
             "llm_route_planner_source_index": {"type": "integer"},
             "llm_route_planner_hook_kind": {"type": "string"},
+            "residual_goal_context": {"type": "object"},
             "kernel_verified": {"type": "boolean", "const": False},
             "proof_evidence_boundary": {
                 "type": "string",
@@ -501,6 +511,7 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
         "llm_route_planner_hook_kind",
         "llm_route_planner_queries",
         "llm_route_planner_source_item",
+        "residual_goal_context",
         "llm_route_planner_response_trace_grounded",
         "llm_route_planner_response_trace_mismatches",
         "response_present",
@@ -586,6 +597,7 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
             "llm_route_planner_hook_kind": {"type": "string"},
             "llm_route_planner_queries": string_array,
             "llm_route_planner_source_item": {"type": "object"},
+            "residual_goal_context": {"type": "object"},
             "llm_route_planner_response_trace_grounded": {"type": "boolean"},
             "llm_route_planner_response_trace_mismatches": string_array,
             "response_present": {"type": "boolean"},
@@ -961,6 +973,7 @@ def _ledger_row(
         llm_route_planner_hook_kind=str(llm_trace["hook_kind"]),
         llm_route_planner_queries=_str_tuple(llm_trace["queries"]),
         llm_route_planner_source_item=_dict_value(llm_trace, "source_item"),
+        residual_goal_context=_dict_value(llm_trace, "residual_goal_context"),
         llm_route_planner_response_trace_grounded=llm_trace_grounded,
         llm_route_planner_response_trace_mismatches=llm_trace_mismatches,
         response_present=response_present,
@@ -1039,8 +1052,15 @@ def _llm_route_planner_trace_from_request(
         _dict_value(request_payload, "llm_route_planner_source_item")
         or _dict_value(request_playbook, "llm_route_planner_source_item")
     )
+    residual_goal_context = _residual_goal_context_value(
+        _dict_value(request_payload, "residual_goal_context")
+        or _dict_value(request_playbook, "residual_goal_context")
+        or _dict_value(playbook_summary, "residual_goal_context")
+    )
     return {
-        "trace_present": bool(row_id or source_kind or hook_kind or source_item),
+        "trace_present": bool(
+            row_id or source_kind or hook_kind or source_item or residual_goal_context
+        ),
         "row_id": row_id,
         "request_id": request_id,
         "source_kind": source_kind,
@@ -1048,7 +1068,33 @@ def _llm_route_planner_trace_from_request(
         "hook_kind": hook_kind,
         "queries": queries,
         "source_item": source_item,
+        "residual_goal_context": residual_goal_context,
     }
+
+
+def _residual_goal_context_value(value: Any) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    context: dict[str, object] = dict(value)
+    for field_name in (
+        "residual_goals",
+        "residual_primitives",
+        "target_primitives",
+        "source_refs",
+        "queries",
+    ):
+        if field_name in context:
+            context[field_name] = _str_tuple(context.get(field_name, []))
+    for field_name in (
+        "source_kind",
+        "residual_goal",
+        "interpretation",
+        "route_repair",
+        "repair_action",
+    ):
+        if field_name in context:
+            context[field_name] = str(context.get(field_name, "") or "")
+    return context
 
 
 def _llm_route_planner_response_trace_status(
@@ -1805,6 +1851,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
         (
             f"- LLM route-planner response trace mismatches: "
             f"{payload.get('n_llm_route_planner_response_trace_mismatches')}"
+        ),
+        (
+            f"- LLM route-planner residual context rows: "
+            f"{payload.get('n_llm_route_planner_residual_context_rows')} "
+            f"residual_interpretation={payload.get('n_llm_route_planner_traced_residual_interpretation_rows')}"
         ),
         f"- Formal declaration hits: {payload.get('n_formal_declaration_hits')}",
         f"- Rows with missing contract fields: {payload.get('n_missing_response_contract_field_rows')}",

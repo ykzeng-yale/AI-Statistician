@@ -1297,6 +1297,9 @@ def _resource_response_trace(row: dict[str, Any]) -> dict[str, object]:
         "llm_route_planner_hook_kind": str(
             row.get("llm_route_planner_hook_kind", "")
         ),
+        "residual_goal_context": _residual_goal_context_value(
+            _dict_value(row, "residual_goal_context")
+        ),
         "llm_route_planner_response_trace_grounded": bool(
             row.get("llm_route_planner_response_trace_grounded", False)
         ),
@@ -1341,6 +1344,9 @@ def _resource_response_llm_route_planner_trace(
         "llm_route_planner_source_item": _dict_value(
             row,
             "llm_route_planner_source_item",
+        ),
+        "residual_goal_context": _residual_goal_context_value(
+            _dict_value(row, "residual_goal_context")
         ),
         "llm_route_planner_response_trace_grounded": bool(
             row.get("llm_route_planner_response_trace_grounded", False)
@@ -2020,6 +2026,31 @@ def _dict_tuple(values: Any) -> tuple[dict[str, object], ...]:
 def _dict_value(row: dict[str, Any], key: str) -> dict[str, Any]:
     value = row.get(key, {})
     return value if isinstance(value, dict) else {}
+
+
+def _residual_goal_context_value(value: Any) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    context: dict[str, object] = dict(value)
+    for field_name in (
+        "residual_goals",
+        "residual_primitives",
+        "target_primitives",
+        "source_refs",
+        "queries",
+    ):
+        if field_name in context:
+            context[field_name] = _str_tuple(context.get(field_name, []))
+    for field_name in (
+        "source_kind",
+        "residual_goal",
+        "interpretation",
+        "route_repair",
+        "repair_action",
+    ):
+        if field_name in context:
+            context[field_name] = str(context.get(field_name, "") or "")
+    return context
 
 
 def _int_value(value: Any, *, default: int = -1) -> int:

@@ -1025,7 +1025,13 @@ route-revision requests by default, or literature/formal-library/prover
 requests when the repair text explicitly asks for those tools, and the queue
 preserves `residual_goal_context` in both `request_payload` and
 `request_playbook` so residual-driven route repair cannot be mistaken for a
-generic search. When both action-resource and
+generic search. The resource-response ledger treats that residual packet as
+request-bound context: `residual_goal_context` is copied from the request into
+the validated ledger row and then into both applied resource-response traces
+and LLM route-planner hook traces consumed by the route-revision overlay. This
+keeps a residual-driven revision tied to the concrete prover side condition and
+repair directive that triggered it, rather than only to a generic
+route-revision response. When both action-resource and
 request-queue artifacts are bundled, the publication audit checks that each
 request row resolves to its action-resource row and matches the selected
 resource's contract map, so stale per-tool contract fields cannot silently pass

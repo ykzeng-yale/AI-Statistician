@@ -587,7 +587,7 @@ def test_route_revision_overlay_keeps_rocq_resource_hits_portable() -> None:
                 "component_name": "formalization_gap_planner_resource_response_ledger",
                 "rows": [
                     {
-                        "schema_version": 9,
+                        "schema_version": 10,
                         "resource_response_ledger_id": "ledger:rocq_exchangeability",
                         "resource_request_id": "request:rocq_exchangeability",
                         "goal_plan_id": "goal:rocq_ledger",
@@ -865,7 +865,7 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                 "component_name": "formalization_gap_planner_resource_response_ledger",
                 "rows": [
                     {
-                        "schema_version": 9,
+                        "schema_version": 10,
                         "resource_response_ledger_id": "ledger:rank_uniformity",
                         "resource_request_id": "request:rank_uniformity",
                         "action_resource_plan_id": "action-resource-plan:rank_uniformity",
@@ -934,6 +934,28 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                             ),
                             "resource_id": "lean_lsp_mcp",
                             "target_primitives": ["rank_uniformity"],
+                        },
+                        "residual_goal_context": {
+                            "source_kind": "planner_next_action",
+                            "residual_goal": "prove finite denominator is nonzero",
+                            "residual_goals": ["prove finite denominator is nonzero"],
+                            "residual_primitives": ["rank_uniformity"],
+                            "target_primitives": ["rank_uniformity"],
+                            "interpretation": (
+                                "Lean feedback exposed a finite-rank denominator "
+                                "side condition"
+                            ),
+                            "route_repair": (
+                                "add the finite-denominator side condition to "
+                                "the rank_uniformity bridge route"
+                            ),
+                            "repair_action": "revise the rank_uniformity bridge route",
+                            "source_refs": [
+                                "Vovk-Gammerman-Shafer conformal prediction"
+                            ],
+                            "queries": [
+                                "ask Lean LSP for residual goals on rank_uniformity"
+                            ],
                         },
                         "llm_route_planner_response_trace_grounded": True,
                         "llm_route_planner_response_trace_mismatches": [],
@@ -1074,6 +1096,9 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert trace["llm_route_planner_hook_kind"] == "proof_state_feedback"
     assert trace["llm_route_planner_response_trace_grounded"] is True
     assert trace["llm_route_planner_response_trace_mismatches"] == ()
+    assert trace["residual_goal_context"]["residual_goal"] == (
+        "prove finite denominator is nonzero"
+    )
     assert overlay_row["applied_llm_route_planner_hook_traces"]
     llm_trace = overlay_row["applied_llm_route_planner_hook_traces"][0]
     assert llm_trace["trace_source"] == "resource_response_ledger"
@@ -1094,6 +1119,9 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
         "lean_lsp_mcp"
     )
     assert llm_trace["llm_route_planner_response_trace_grounded"] is True
+    assert llm_trace["residual_goal_context"]["residual_primitives"] == (
+        "rank_uniformity",
+    )
     assert overlay_row["source_refs"] == (
         "Vovk-Gammerman-Shafer conformal prediction",
     )
