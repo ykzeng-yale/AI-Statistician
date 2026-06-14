@@ -1162,12 +1162,26 @@ def test_formalizer_prompt_includes_exact_source_proof_body_executor_feedback() 
     assert summary["source_theorem_exact_candidate_repair_diagnostics"][0][
         "typeclass_blockers"
     ] == ["HSub ℕ ℝ ENNReal"]
+    assert summary["source_theorem_exact_candidate_placeholder_resolution_plan"][
+        0
+    ]["placeholder_symbol"] == "Exchangeable"
+    assert "reviewed exchangeability predicate" in summary[
+        "source_theorem_exact_candidate_placeholder_resolution_plan"
+    ][0]["replacement_strategy"]
+    assert summary["source_theorem_exact_candidate_placeholder_resolution_plan"][
+        1
+    ]["placeholder_symbol"] == "orderStat"
+    assert "order-statistic/quantile primitive" in summary[
+        "source_theorem_exact_candidate_placeholder_resolution_plan"
+    ][1]["replacement_strategy"]
     assert summary["recommended_source_theorem_integration_action"] == (
         "repair_exact_source_theorem_candidate_formal_environment"
     )
     assert "EXACT_SOURCE_PROOF_BODY_LOCAL_LEAN_FAILED" in prompt
     assert "formal_environment_placeholder_primitives" in prompt
     assert "repair_exact_source_theorem_candidate_formal_environment" in prompt
+    assert "source_theorem_exact_candidate_placeholder_resolution_plan" in prompt
+    assert "reviewed exchangeability predicate" in prompt
     assert "Exchangeable" in prompt
 
 

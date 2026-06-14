@@ -5472,6 +5472,116 @@ def _runtime_learning_memory_source_theorem_exact_candidate_repairs(
     return tuple(repairs)
 
 
+def _source_theorem_placeholder_resolution_rows(
+    repairs: tuple[dict[str, Any], ...],
+) -> list[dict[str, Any]]:
+    replacement_catalog = {
+        "MeasureProbability": {
+            "replacement_strategy": (
+                "replace generated `MeasureProbability Ω` with "
+                "`P : MeasureTheory.Measure Ω` and "
+                "`[MeasureTheory.IsProbabilityMeasure P]`"
+            ),
+            "search_targets": [
+                "MeasureTheory.Measure",
+                "MeasureTheory.IsProbabilityMeasure",
+                "Mathlib.MeasureTheory.Measure.ProbabilityMeasure",
+            ],
+            "promotion_gate": (
+                "source theorem promotion remains blocked until the probability "
+                "measure semantics are represented by reviewed Mathlib/StatInference "
+                "declarations, not a local wrapper"
+            ),
+        },
+        "Exchangeable": {
+            "replacement_strategy": (
+                "map generated `Exchangeable P s` to a reviewed exchangeability "
+                "predicate over the joint law/permutation-invariant score family"
+            ),
+            "search_targets": [
+                "exchangeable finite family",
+                "permutation invariant distribution",
+                "StatInference conformal exchangeability primitive",
+            ],
+            "promotion_gate": (
+                "source theorem promotion remains blocked until exchangeability "
+                "semantics are reviewed or kernel-proved as a source primitive"
+            ),
+        },
+        "orderStatistic": {
+            "replacement_strategy": (
+                "replace generated `orderStatistic` with a reviewed finite "
+                "order-statistic/quantile primitive compatible with calibration "
+                "indices"
+            ),
+            "search_targets": [
+                "finite order statistic real",
+                "Finset sort nth",
+                "StatInference conformal quantile primitive",
+            ],
+            "promotion_gate": (
+                "source theorem promotion remains blocked until the order-statistic "
+                "definition is tied to the rank/coverage bridge semantics"
+            ),
+        },
+        "orderStat": {
+            "replacement_strategy": (
+                "replace generated `orderStat` with a reviewed finite "
+                "order-statistic/quantile primitive compatible with calibration "
+                "indices"
+            ),
+            "search_targets": [
+                "finite order statistic real",
+                "Finset sort nth",
+                "StatInference conformal quantile primitive",
+            ],
+            "promotion_gate": (
+                "source theorem promotion remains blocked until the order-statistic "
+                "definition is tied to the rank/coverage bridge semantics"
+            ),
+        },
+    }
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for repair in repairs:
+        target = str(repair.get("target_theorem_name", "") or "")
+        for symbol in repair.get("missing_formal_symbols", []) or []:
+            symbol_value = str(symbol or "").strip()
+            if not symbol_value:
+                continue
+            key = (target, symbol_value)
+            if key in seen:
+                continue
+            seen.add(key)
+            catalog_row = replacement_catalog.get(symbol_value, {})
+            rows.append(
+                {
+                    "target_theorem_name": target,
+                    "placeholder_symbol": symbol_value,
+                    "failure_classification": str(
+                        repair.get("failure_classification", "") or ""
+                    ),
+                    "replacement_strategy": str(
+                        catalog_row.get(
+                            "replacement_strategy",
+                            "search Mathlib/StatInference/local Lean sources for a reviewed primitive before using a local placeholder",
+                        )
+                    ),
+                    "search_targets": list(catalog_row.get("search_targets", [])),
+                    "promotion_gate": str(
+                        catalog_row.get(
+                            "promotion_gate",
+                            "placeholder primitives are routing evidence only and block source theorem promotion",
+                        )
+                    ),
+                    "proof_evidence_status": (
+                        "PLACEHOLDER_RESOLUTION_PLAN_NOT_PROOF_EVIDENCE"
+                    ),
+                }
+            )
+    return rows
+
+
 def _formalizer_proof_bank_runtime_memory_summary(
     *,
     context: Mapping[str, Any],
@@ -5552,6 +5662,11 @@ def _formalizer_proof_bank_runtime_memory_summary(
     exact_candidate_environment_gap = any(
         value in _SOURCE_THEOREM_EXACT_CANDIDATE_ENVIRONMENT_FAILURES
         for value in exact_candidate_failure_classifications
+    )
+    exact_candidate_placeholder_resolution_rows = (
+        _source_theorem_placeholder_resolution_rows(
+            source_theorem_exact_candidate_repairs
+        )
     )
     unresolved_source_theorem_promotion_targets = tuple(
         dict.fromkeys(
@@ -5635,6 +5750,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
         ),
         "source_theorem_exact_candidate_environment_gap": (
             exact_candidate_environment_gap
+        ),
+        "source_theorem_exact_candidate_placeholder_resolution_plan": (
+            exact_candidate_placeholder_resolution_rows[:8]
         ),
         "source_theorem_exact_candidate_repair_diagnostics": [
             {

@@ -488,6 +488,7 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "source_theorem_exact_candidate_repair_triggers",
         "source_theorem_exact_candidate_failure_classifications",
         "source_theorem_exact_candidate_environment_gap",
+        "source_theorem_exact_candidate_placeholder_resolution_plan",
         "source_theorem_exact_candidate_repair_diagnostics",
         "recommended_source_theorem_integration_action",
         "critic_high_priority_agenda_ids",
