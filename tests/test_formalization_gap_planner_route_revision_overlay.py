@@ -200,6 +200,25 @@ def test_route_revision_overlay_applies_adapter_evidence_to_plan() -> None:
     assert overlay_row["applied_prover_diagnostic_signatures"] == (
         "prover_diagnostic_signature:test",
     )
+    assert overlay_row["applied_llm_route_planner_hook_traces"]
+    derived_context_traces = [
+        trace
+        for trace in overlay_row["applied_llm_route_planner_hook_traces"]
+        if trace.get("trace_source") == "refinement_evidence"
+        and trace.get("residual_goal_context")
+    ]
+    assert derived_context_traces
+    derived_context = derived_context_traces[0]["residual_goal_context"]
+    assert derived_context["source_kind"] == "proof_state_feedback"
+    assert derived_context["prover_attempt_status"] == (
+        "failed_with_residual_goals"
+    )
+    assert derived_context["proof_evidence_status"] == (
+        "FORMALIZATION_GAP_PLANNER_REFINEMENT_EVIDENCE_NOT_PROOF_EVIDENCE"
+    )
+    assert "conditional_mean_residual_zero" in " ".join(
+        derived_context["residual_goals"]
+    )
     assert len(overlay_row["revised_lean_realization_dag_nodes"]) >= 4
     assert overlay_row["revised_formal_realization_dag_nodes"] == overlay_row[
         "revised_lean_realization_dag_nodes"

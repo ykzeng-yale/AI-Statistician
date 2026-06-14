@@ -177,6 +177,8 @@ def test_local_proof_state_adapter_emits_prover_feedback(
     assert evidence_payload["n_evidence_row_schema_valid"] == evidence_payload["n_evidence_rows"]
     assert evidence_payload["n_evidence_row_schema_invalid"] == 0
     assert evidence_payload["n_route_revision_proposals"] == 3
+    assert evidence_payload["n_rows_with_residual_goal_context"] == 3
+    assert evidence_payload["n_route_revision_proposals_with_residual_goal_context"] == 3
     assert evidence_payload["by_prover_attempt_status"] == {
         "formal_gap_scaffold_blocked": 1,
         "local_lean_failed": 1,
@@ -204,6 +206,17 @@ def test_local_proof_state_adapter_emits_prover_feedback(
     )
     assert formal_gap_evidence["target_prover_family"] == "lean4"
     assert formal_gap_evidence["prover_diagnostic_signature"]
+    assert formal_gap_evidence["residual_goal_context"]["source_kind"] == (
+        "proof_state_feedback"
+    )
+    assert formal_gap_evidence["residual_goal_context"][
+        "prover_attempt_status"
+    ] == "formal_gap_scaffold_blocked"
+    assert formal_gap_evidence["residual_goal_context"][
+        "proof_evidence_status"
+    ] == (
+        "FORMALIZATION_GAP_PLANNER_REFINEMENT_EVIDENCE_NOT_PROOF_EVIDENCE"
+    )
     proposals_by_item = {
         row["refinement_item_id"]: row
         for row in evidence_payload["route_revision_proposals"]
@@ -216,6 +229,9 @@ def test_local_proof_state_adapter_emits_prover_feedback(
         proposals_by_item["refinement:formal_gap"]["prover_attempt_class"]
         == "formal_gap_scaffold_blocked"
     )
+    assert proposals_by_item["refinement:formal_gap"][
+        "residual_goal_context"
+    ] == formal_gap_evidence["residual_goal_context"]
     assert (
         evidence_dir / "formalization_gap_planner_refinement_evidence_row.schema.json"
     ).exists()

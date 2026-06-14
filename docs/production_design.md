@@ -265,7 +265,11 @@ trace used by the next LLM route-planner prompt. Refinement-evidence responses
 preserve the same field in route-revision proposals, and the next LLM
 route-planner request exposes the resulting contexts both top-level and inside
 `context_packet.residual_goal_contexts`, with target-context, route-brief, and
-inventory counts.
+inventory counts. If proof-state feedback supplies residual goals but omits
+`residual_goal_context`, refinement evidence derives a conservative
+`proof_state_feedback` context from the residuals, diagnostics, target
+primitives, and route-revision reasons while preserving the not-proof-evidence
+boundary.
 The prover-adapter contract exports those portable work packets as target-prover
 mapping tasks for Lean, Rocq/Coq, Isabelle, Agda, or another prover family and
 validates adapter responses without accepting kernel-proof claims.

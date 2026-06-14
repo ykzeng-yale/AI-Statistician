@@ -769,7 +769,7 @@ def _evidence_row(
     coverage_updates = _coverage_updates(response.get("coverage_updates", {}), errors)
     prover_diagnostics = _str_tuple(response.get("prover_diagnostics", []))
     residual_goals = _str_tuple(response.get("residual_goals", []))
-    residual_goal_context = _residual_goal_context_value(
+    explicit_residual_goal_context = _residual_goal_context_value(
         _dict_value(response, "residual_goal_context")
     )
     prover_attempt_status = str(response.get("attempt_status", ""))
@@ -812,6 +812,22 @@ def _evidence_row(
     )
     route_revision_recommended = bool(response.get("route_revision_recommended", False))
     route_revision_reasons = _str_tuple(response.get("route_revision_reasons", []))
+    residual_goal_context = (
+        explicit_residual_goal_context
+        or _derived_residual_goal_context(
+            hook_kind=hook_kind,
+            residual_goals=residual_goals,
+            prover_diagnostics=prover_diagnostics,
+            target_primitives=target_primitives,
+            source_refs=source_refs,
+            route_revision_summary=route_revision_summary,
+            route_revision_reasons=route_revision_reasons,
+            route_revision_recommended=route_revision_recommended,
+            prover_attempt_status=prover_attempt_status,
+            prover_attempt_class=prover_attempt_class,
+            target_prover_family=target_prover_family,
+        )
+    )
     prover_diagnostic_signature = _prover_diagnostic_signature(
         prover_attempt_status,
         prover_diagnostics,
@@ -997,6 +1013,52 @@ def _residual_goal_context_value(value: Any) -> dict[str, object]:
         if field_name in context:
             context[field_name] = str(context.get(field_name, "") or "")
     return context
+
+
+def _derived_residual_goal_context(
+    *,
+    hook_kind: str,
+    residual_goals: tuple[str, ...],
+    prover_diagnostics: tuple[str, ...],
+    target_primitives: tuple[str, ...],
+    source_refs: tuple[str, ...],
+    route_revision_summary: str,
+    route_revision_reasons: tuple[str, ...],
+    route_revision_recommended: bool,
+    prover_attempt_status: str,
+    prover_attempt_class: str,
+    target_prover_family: str,
+) -> dict[str, object]:
+    if hook_kind != "proof_state_feedback" or not residual_goals:
+        return {}
+    repair_text = (
+        str(route_revision_summary).strip()
+        or "; ".join(route_revision_reasons)
+        or "rerun route planning from proof-state residual goals"
+    )
+    diagnostic_text = (
+        prover_diagnostics[0]
+        if prover_diagnostics
+        else "proof-state feedback reported residual goals"
+    )
+    return {
+        "source_kind": "proof_state_feedback",
+        "residual_goal": residual_goals[0],
+        "residual_goals": residual_goals,
+        "residual_primitives": target_primitives,
+        "target_primitives": target_primitives,
+        "interpretation": diagnostic_text,
+        "route_repair": repair_text,
+        "repair_action": repair_text,
+        "source_refs": source_refs,
+        "queries": (),
+        "route_revision_recommended": route_revision_recommended,
+        "prover_attempt_status": prover_attempt_status,
+        "prover_attempt_class": prover_attempt_class,
+        "target_prover_family": target_prover_family,
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
 
 
 def _expected_evidence_kinds(hook_kind: str) -> tuple[str, ...]:

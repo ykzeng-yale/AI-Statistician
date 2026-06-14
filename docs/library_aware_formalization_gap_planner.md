@@ -1034,9 +1034,13 @@ repair directive that triggered it, rather than only to a generic
 route-revision response. Refinement-evidence responses also preserve
 `residual_goal_context` and pass it into route-revision proposals, so
 adapter-provided proof-state residuals follow the same overlay path as
-LLM-originated residual repairs. Route-replan handoff rows now aggregate those
-residual contexts into `residual_goal_contexts`, copy them into the replayable
-standalone seed's `replan_metadata`, and the standalone planner exposes them in
+LLM-originated residual repairs. When proof-state feedback reports residual
+goals but omits that field, refinement evidence derives a conservative
+`proof_state_feedback` context from the residuals, diagnostics, target
+primitives, and route-revision reasons while retaining the not-proof-evidence
+boundary. Route-replan handoff rows now aggregate those residual contexts into
+`residual_goal_contexts`, copy them into the replayable standalone seed's
+`replan_metadata`, and the standalone planner exposes them in
 `standalone_input_trace`. The next LLM route-planning request then promotes the
 same contexts into top-level and `context_packet.residual_goal_contexts`,
 target-theorem context counts, route-planning brief focus rows, and inventory
