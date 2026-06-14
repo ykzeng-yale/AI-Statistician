@@ -632,16 +632,22 @@ adds explicit repair actions for missing formal realization nodes or missing
 route-alignment edges. It does not replace raw rows and is not proof evidence;
 it gives the LLM planner a compact view of what changed and what still needs
 search, library grounding, proof-state feedback, or route revision.
-Each request packet also carries `context_packet.route_planning_brief`, a
-target-aware planning brief generated from the same raw context. It records the
-target theorem identity, target-intake claims and shapes, admissible evidence
-counts, prioritized planner focus rows, and explicit evidence gaps such as
-missing source grounding, missing formal-library grounding, residual repair, or
-pending quality controls. The prompt uses it as a compact route-synthesis
-checklist before the model emits the informal DAG, formal-realization DAG,
-alignment edges, and minimal-delta plan. Request and manifest validation check
-the brief's counts against the raw context and inventory, so the brief is
-auditable planning guidance rather than a separate evidence source.
+Each request packet also carries
+`context_packet.target_theorem_context_packet`, a compact theorem-context
+packet for the route planner. It preserves the target theorem statement,
+skeleton, mathematical objects, assumptions, statistical procedure, desired
+conclusion, theorem shape, proof-style hints, source/formal queries, primitive
+candidates, and residual goals while keeping raw context rows as the source of
+truth. `context_packet.route_planning_brief` is then generated from the same
+packet and raw context. It records the target theorem identity, target-intake
+claims and shapes, admissible evidence counts, prioritized planner focus rows,
+and explicit evidence gaps such as missing source grounding, missing
+formal-library grounding, residual repair, or pending quality controls. The
+prompt uses these fields as a compact route-synthesis checklist before the
+model emits the informal DAG, formal-realization DAG, alignment edges, and
+minimal-delta plan. Request and manifest validation check the brief and target
+context counts against the raw context and inventory, so they are auditable
+planning guidance rather than separate evidence sources.
 Each request packet also includes `context_packet.context_packet_inventory`, a
 validator-checked compact inventory of the same prompt context: row counts for
 target intake, source grounding, library coverage, resource queues, response

@@ -20,6 +20,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     PROOF_EVIDENCE_BOUNDARY,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
+    TARGET_THEOREM_CONTEXT_PACKET_KIND,
     _available_formal_declaration_rows_for_context,
     _generator_model_for_request,
     _route_adoption_readiness,
@@ -1470,12 +1471,35 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert "primitive_costs" in request["prompt_messages"]["user"]
     context = request["context_packet"]
     assert context["current_route"]["route_id"] == "rank_route"
+    target_context_packet = context["target_theorem_context_packet"]
+    assert target_context_packet["context_packet_kind"] == (
+        TARGET_THEOREM_CONTEXT_PACKET_KIND
+    )
+    assert target_context_packet["route_id"] == "rank_route"
+    assert target_context_packet["target_prover_family"] == "lean4"
+    assert target_context_packet["theorem_statement"] == (
+        "A distribution-free rank bound follows from exchangeability."
+    )
+    assert target_context_packet["primitive_candidates"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert target_context_packet["proof_source_refs"] == [
+        "conformal_prediction_textbook"
+    ]
     brief = context["route_planning_brief"]
     assert brief["brief_kind"] == (
         "formalization_gap_planner_llm_route_planner_route_planning_brief"
     )
     assert brief["route_id"] == "rank_route"
     assert brief["target_prover_family"] == "lean4"
+    assert brief["target_context"]["context_packet_kind"] == (
+        TARGET_THEOREM_CONTEXT_PACKET_KIND
+    )
+    assert brief["target_context"]["primitive_candidates"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
     assert brief["evidence_summary"]["source_ref_count"] == len(
         context["available_source_refs"]
     )
@@ -1545,6 +1569,12 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert inventory["available_formal_declaration_row_count"] == len(
         declaration_rows
     )
+    assert inventory["target_theorem_context_packet_present"] is True
+    assert inventory["target_theorem_context_object_count"] == 0
+    assert inventory["target_theorem_context_assumption_count"] == 0
+    assert inventory["target_theorem_context_procedure_count"] == 0
+    assert inventory["target_theorem_context_desired_conclusion_count"] == 0
+    assert inventory["target_theorem_context_proof_style_hint_count"] == 0
     assert {
         (row["declaration"], row["target_prover_family"]) for row in declaration_rows
     } >= {("Probability.exchangeable", "lean4")}
@@ -1670,6 +1700,26 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         "context_packet.route_planning_brief.evidence_summary.source_ref_count "
         "must match context_packet"
         in validate_llm_route_planner_request(drifted_brief_request)
+    )
+    drifted_target_context_request = deepcopy(request)
+    drifted_target_context_request["context_packet"][
+        "target_theorem_context_packet"
+    ]["route_id"] = "wrong_route"
+    assert (
+        "context_packet.target_theorem_context_packet.route_id must match request route_id"
+        in validate_llm_route_planner_request(drifted_target_context_request)
+    )
+    drifted_target_context_inventory_request = deepcopy(request)
+    drifted_target_context_inventory_request["context_packet"][
+        "context_packet_inventory"
+    ]["target_theorem_context_proof_style_hint_count"] = 999
+    assert (
+        "context_packet.context_packet_inventory."
+        "target_theorem_context_proof_style_hint_count must match "
+        "target_theorem_context_packet"
+        in validate_llm_route_planner_request(
+            drifted_target_context_inventory_request
+        )
     )
     drifted_alias_request = deepcopy(request)
     drifted_alias_request["context_packet"]["legacy_context_field_aliases"] = {}
@@ -2038,9 +2088,65 @@ def test_llm_route_planner_stages_target_intake_context() -> None:
     assert intake_row["normalized_claim"] == "finite-sample coverage inequality"
     assert intake_row["desired_theorem_shape"] == "finite_sample_rank_coverage"
     assert "rank_uniformity" in intake_row["extracted_primitive_candidates"]
+    target_context_packet = context["target_theorem_context_packet"]
+    assert target_context_packet["context_packet_kind"] == (
+        TARGET_THEOREM_CONTEXT_PACKET_KIND
+    )
+    assert target_context_packet["theorem_statement"] == (
+        "For exchangeable calibration and test scores, the split "
+        "conformal rank bound has finite-sample coverage."
+    )
+    assert target_context_packet["theorem_skeletons"] == [
+        "theorem split_conformal_rank_bound : ..."
+    ]
+    assert target_context_packet["normalized_objects"] == [
+        "calibration scores",
+        "test score",
+        "rank statistic",
+    ]
+    assert target_context_packet["normalized_assumptions"] == [
+        "exchangeability",
+        "deterministic tie handling",
+    ]
+    assert target_context_packet["normalized_procedures"] == [
+        "split conformal prediction"
+    ]
+    assert target_context_packet["desired_conclusions"] == [
+        "finite-sample coverage inequality"
+    ]
+    assert target_context_packet["desired_theorem_shapes"] == [
+        "finite_sample_rank_coverage"
+    ]
+    assert target_context_packet["proof_style_hints"] == [
+        "desired theorem shape: finite_sample_rank_coverage",
+        "proof-state probe required",
+    ]
+    assert "rank_uniformity" in target_context_packet["primitive_candidates"]
+    assert "conformal_prediction_textbook" in target_context_packet[
+        "proof_source_refs"
+    ]
+    assert context["route_planning_brief"]["target_context"][
+        "normalized_procedures"
+    ] == ["split conformal prediction"]
+    assert context["context_packet_inventory"][
+        "target_theorem_context_assumption_count"
+    ] == 2
+    assert context["context_packet_inventory"][
+        "target_theorem_context_procedure_count"
+    ] == 1
+    assert context["context_packet_inventory"][
+        "target_theorem_context_desired_conclusion_count"
+    ] == 1
+    assert context["context_packet_inventory"][
+        "target_theorem_context_proof_style_hint_count"
+    ] == 2
     prompt_text = request["prompt_messages"]["user"]
     assert "context_packet.target_intake_rows" in prompt_text
+    assert "context_packet.target_theorem_context_packet" in prompt_text
     assert "normalized_assumptions" in prompt_text
+    assert "statistical procedure" in prompt_text
+    assert "desired conclusion" in prompt_text
+    assert "proof-style hints" in prompt_text
     assert "formal_library_grounding_queries" in prompt_text
     assert "legacy alias" in prompt_text
     assert "target intake is not proof evidence" in prompt_text
@@ -4791,6 +4897,74 @@ def test_llm_route_planner_accepts_prefixed_residual_goal_target_primitive() -> 
     assert payload["all_ok"]
     row = payload["rows"][0]
     assert row["acceptance_status"] == "ACCEPTED_WITH_RESIDUAL_REPAIR"
+    seed = json.loads(
+        (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
+        ).read_text(encoding="utf-8")
+    )
+    replan_metadata = seed["routes"][0]["replan_metadata"]
+    residual_hooks = [
+        hook
+        for hook in replan_metadata["llm_route_planner_interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_residual_interpretation_index") == 0
+    ]
+    assert residual_hooks
+    assert residual_hooks[0]["target_primitives"] == ["rank_uniformity"]
+
+
+def test_llm_route_planner_accepts_target_prover_prefixed_residual_goal() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_target_prover_prefixed_residual_goal"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["routes"][0]["source_refs"].append("paper:rocq-adapter-boundary")
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    interactive_session_dir = _write_interactive_session(root)
+    manifest_path = (
+        interactive_session_dir
+        / "formalization_gap_planner_interactive_session_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["rows"][0]["residual_goals"] = [
+        "rocq:rank_uniformity: awaiting prover adapter mapping"
+    ]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": "rocq:rank_uniformity: awaiting prover adapter mapping",
+            "interpretation": (
+                "The Rocq route needs an adapter mapping for rank_uniformity "
+                "before kernel replay."
+            ),
+            "route_repair": "run Rocq adapter mapping for rank_uniformity",
+            "source_refs": ["paper:rocq-adapter-boundary"],
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_WITH_RESIDUAL_REPAIR"
+    assert not any("ungrounded target_primitives: rocq" in error for error in row["errors"])
     seed = json.loads(
         (
             out_dir

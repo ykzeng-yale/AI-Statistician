@@ -187,6 +187,9 @@ CONTEXT_PACKET_INVENTORY_KIND = (
 ROUTE_PLANNING_BRIEF_KIND = (
     "formalization_gap_planner_llm_route_planner_route_planning_brief"
 )
+TARGET_THEOREM_CONTEXT_PACKET_KIND = (
+    "formalization_gap_planner_llm_route_planner_target_theorem_context_packet"
+)
 LIBRARY_ALIGNMENT_SUMMARY_KIND = (
     "formalization_gap_planner_llm_route_planner_library_alignment_summary"
 )
@@ -4723,6 +4726,17 @@ def _request_packet(
     context_packet["source_grounding_obligations"] = (
         _source_grounding_obligation_summary(context_packet)
     )
+    context_packet["target_theorem_context_packet"] = (
+        _target_theorem_context_packet(
+            route_id=route_id,
+            display_name=display_name,
+            route=route,
+            context_packet=context_packet,
+            residual_goals=residual_goals,
+            target_prover_family=target_prover_family,
+            library_snapshot_ref=library_snapshot_ref,
+        )
+    )
     context_packet["feedback_loop_summary"] = _feedback_loop_summary(
         context_packet,
         residual_goals=residual_goals,
@@ -4983,6 +4997,254 @@ def _library_delta_class_for_bucket(bucket: str) -> str:
     return "unknown"
 
 
+def _target_theorem_context_packet(
+    *,
+    route_id: str,
+    display_name: str,
+    route: Mapping[str, Any],
+    context_packet: Mapping[str, Any],
+    residual_goals: tuple[str, ...],
+    target_prover_family: str,
+    library_snapshot_ref: str,
+) -> dict[str, object]:
+    target_intake_rows = _dict_tuple(context_packet.get("target_intake_rows", []))
+    current_route = _dict_value(context_packet, "current_route") or dict(route)
+    theorem_statement = str(
+        current_route.get("theorem_statement")
+        or current_route.get("formal_statement")
+        or current_route.get("statement")
+        or ""
+    )
+    intake_statements = _unique_strings(
+        [
+            str(row.get("theorem_statement", "")).strip()
+            for row in target_intake_rows
+            if str(row.get("theorem_statement", "")).strip()
+        ]
+    )
+    if not theorem_statement and intake_statements:
+        theorem_statement = intake_statements[0]
+    theorem_skeletons = _unique_strings(
+        [
+            *[
+                str(current_route.get(field_name, "")).strip()
+                for field_name in (
+                    "theorem_skeleton",
+                    "formal_statement",
+                    "lean_statement_sketch",
+                )
+                if str(current_route.get(field_name, "")).strip()
+            ],
+            *[
+                str(row.get("theorem_skeleton", "")).strip()
+                for row in target_intake_rows
+                if str(row.get("theorem_skeleton", "")).strip()
+            ],
+        ]
+    )
+    normalized_objects = _unique_strings(
+        [
+            *[
+                str(value).strip()
+                for value in _str_tuple(
+                    current_route.get(
+                        "objects",
+                        current_route.get("mathematical_objects", []),
+                    )
+                )
+                if str(value).strip()
+            ],
+            *[
+                object_name
+                for row in target_intake_rows
+                for object_name in _str_tuple(row.get("normalized_objects", []))
+            ],
+        ]
+    )
+    normalized_assumptions = _unique_strings(
+        [
+            *[
+                str(value).strip()
+                for value in _str_tuple(current_route.get("assumptions", []))
+                if str(value).strip()
+            ],
+            *[
+                assumption
+                for row in target_intake_rows
+                for assumption in _str_tuple(row.get("normalized_assumptions", []))
+            ],
+        ]
+    )
+    normalized_procedures = _unique_strings(
+        [
+            *[
+                str(current_route.get(field_name, "")).strip()
+                for field_name in (
+                    "normalized_procedure",
+                    "statistical_procedure",
+                    "procedure",
+                )
+                if str(current_route.get(field_name, "")).strip()
+            ],
+            *[
+                str(row.get("normalized_procedure", "")).strip()
+                for row in target_intake_rows
+                if str(row.get("normalized_procedure", "")).strip()
+            ],
+        ]
+    )
+    desired_conclusions = _unique_strings(
+        [
+            *[
+                str(current_route.get(field_name, "")).strip()
+                for field_name in (
+                    "normalized_claim",
+                    "desired_conclusion",
+                    "conclusion",
+                    "claim",
+                )
+                if str(current_route.get(field_name, "")).strip()
+            ],
+            *[
+                str(row.get("normalized_claim", "")).strip()
+                for row in target_intake_rows
+                if str(row.get("normalized_claim", "")).strip()
+            ],
+        ]
+    )
+    desired_theorem_shapes = _unique_strings(
+        [
+            *[
+                str(current_route.get(field_name, "")).strip()
+                for field_name in (
+                    "desired_theorem_shape",
+                    "theorem_shape",
+                    "target_theorem_shape",
+                )
+                if str(current_route.get(field_name, "")).strip()
+            ],
+            *[
+                str(row.get("desired_theorem_shape", "")).strip()
+                for row in target_intake_rows
+                if str(row.get("desired_theorem_shape", "")).strip()
+            ],
+        ]
+    )
+    proof_style_hints = _unique_strings(
+        [
+            *[
+                str(current_route.get(field_name, "")).strip()
+                for field_name in (
+                    "proof_style",
+                    "proof_strategy",
+                    "proof_method",
+                    "proof_outline",
+                    "preferred_proof_style",
+                )
+                if str(current_route.get(field_name, "")).strip()
+            ],
+            *[
+                f"desired theorem shape: {shape}"
+                for shape in desired_theorem_shapes
+                if shape
+            ],
+            *(
+                ["proof-state probe required"]
+                if any(
+                    bool(row.get("proof_state_probe_required", False))
+                    for row in target_intake_rows
+                )
+                else []
+            ),
+        ]
+    )
+    primitive_candidates = _unique_strings(
+        [
+            *[
+                _primitive_key(primitive.get("primitive", ""))
+                for primitive in _dict_tuple(current_route.get("primitives", []))
+                if _primitive_key(primitive.get("primitive", ""))
+            ],
+            *[
+                primitive
+                for row in target_intake_rows
+                for primitive in _str_tuple(row.get("extracted_primitive_candidates", []))
+            ],
+        ]
+    )
+    literature_queries = _unique_strings(
+        [
+            query
+            for row in target_intake_rows
+            for query in _str_tuple(row.get("literature_queries", []))
+        ]
+    )
+    formal_library_queries = _unique_strings(
+        [
+            query
+            for row in target_intake_rows
+            for query in _formal_library_grounding_queries_from_intake_row(row)
+        ]
+    )
+    proof_source_refs = _unique_strings(
+        [
+            *_str_tuple(current_route.get("source_refs", [])),
+            *_str_tuple(context_packet.get("available_source_refs", [])),
+            *[
+                source_ref
+                for row in target_intake_rows
+                for source_ref in _str_tuple(row.get("proof_source_refs", []))
+            ],
+        ]
+    )
+    return {
+        "context_packet_kind": TARGET_THEOREM_CONTEXT_PACKET_KIND,
+        "route_id": route_id,
+        "display_name": display_name,
+        "target_prover_family": target_prover_family,
+        "library_snapshot_ref": library_snapshot_ref,
+        "target_intake_ids": [
+            str(row.get("target_intake_id", "")).strip()
+            for row in target_intake_rows
+            if str(row.get("target_intake_id", "")).strip()
+        ],
+        "target_ids": list(
+            _unique_strings(
+                [
+                    str(current_route.get("target_id", "")).strip(),
+                    str(current_route.get("target_theorem_id", "")).strip(),
+                    *[
+                        str(row.get("target_id", "")).strip()
+                        for row in target_intake_rows
+                    ],
+                ]
+            )
+        ),
+        "theorem_statement": theorem_statement,
+        "theorem_skeletons": list(theorem_skeletons[:6]),
+        "normalized_objects": list(normalized_objects[:20]),
+        "normalized_assumptions": list(normalized_assumptions[:20]),
+        "normalized_procedures": list(normalized_procedures[:8]),
+        "desired_conclusions": list(desired_conclusions[:8]),
+        "desired_theorem_shapes": list(desired_theorem_shapes[:8]),
+        "proof_style_hints": list(proof_style_hints[:12]),
+        "proof_source_refs": list(proof_source_refs[:25]),
+        "literature_queries": list(literature_queries[:20]),
+        "formal_library_grounding_queries": list(formal_library_queries[:25]),
+        "primitive_candidates": list(primitive_candidates[:25]),
+        "residual_goal_count": len(residual_goals),
+        "residual_goals": list(residual_goals[:20]),
+        "source_snippet_count": len(
+            _dict_tuple(context_packet.get("available_source_snippets", []))
+        ),
+        "formal_declaration_row_count": len(
+            _dict_tuple(context_packet.get("available_formal_declaration_rows", []))
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
 def _route_planning_brief(
     *,
     route_id: str,
@@ -5007,6 +5269,10 @@ def _route_planning_brief(
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     source_grounding_obligations = _source_grounding_obligation_summary(
         context_packet
+    )
+    target_theorem_context = _dict_value(
+        context_packet,
+        "target_theorem_context_packet",
     )
     target_intake_rows = _dict_tuple(context_packet.get("target_intake_rows", []))
     planner_focus: list[dict[str, object]] = []
@@ -5245,38 +5511,16 @@ def _route_planning_brief(
             evidence_fields=("context_packet.source_grounding_obligations",),
         )
 
-    target_context = {
-        "theorem_statement": str(
-            route.get("theorem_statement")
-            or route.get("formal_statement")
-            or route.get("statement")
-            or ""
-        ),
-        "target_intake_claims": [
+    target_context = dict(target_theorem_context)
+    target_context.update(
+        {
+            "target_intake_claims": [
             str(row.get("normalized_claim", "")).strip()
             for row in target_intake_rows[:6]
             if str(row.get("normalized_claim", "")).strip()
-        ],
-        "desired_theorem_shapes": [
-            str(row.get("desired_theorem_shape", "")).strip()
-            for row in target_intake_rows[:6]
-            if str(row.get("desired_theorem_shape", "")).strip()
-        ],
-        "normalized_objects": list(
-            dict.fromkeys(
-                object_name
-                for row in target_intake_rows
-                for object_name in _str_tuple(row.get("normalized_objects", []))
-            )
-        )[:12],
-        "normalized_assumptions": list(
-            dict.fromkeys(
-                assumption
-                for row in target_intake_rows
-                for assumption in _str_tuple(row.get("normalized_assumptions", []))
-            )
-        )[:12],
-    }
+            ],
+        }
+    )
     evidence_summary = {
         "source_ref_count": len(source_refs),
         "source_snippet_count": len(source_snippets),
@@ -5446,6 +5690,10 @@ def _context_packet_inventory(
         "component_resource_registry_context",
     )
     route_planning_brief = _dict_value(context_packet, "route_planning_brief")
+    target_theorem_context = _dict_value(
+        context_packet,
+        "target_theorem_context_packet",
+    )
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     source_grounding_obligations = _source_grounding_obligation_summary(
         context_packet
@@ -5480,6 +5728,22 @@ def _context_packet_inventory(
         ),
         "available_formal_declaration_row_count": len(
             _dict_tuple(context_packet.get("available_formal_declaration_rows", []))
+        ),
+        "target_theorem_context_packet_present": bool(target_theorem_context),
+        "target_theorem_context_object_count": len(
+            _str_tuple(target_theorem_context.get("normalized_objects", []))
+        ),
+        "target_theorem_context_assumption_count": len(
+            _str_tuple(target_theorem_context.get("normalized_assumptions", []))
+        ),
+        "target_theorem_context_procedure_count": len(
+            _str_tuple(target_theorem_context.get("normalized_procedures", []))
+        ),
+        "target_theorem_context_desired_conclusion_count": len(
+            _str_tuple(target_theorem_context.get("desired_conclusions", []))
+        ),
+        "target_theorem_context_proof_style_hint_count": len(
+            _str_tuple(target_theorem_context.get("proof_style_hints", []))
         ),
         "resource_request_playbook_count": len(
             _dict_tuple(context_packet.get("resource_request_playbooks", []))
@@ -5770,6 +6034,82 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                 "context_packet.context_packet_inventory."
                 f"{field_name} must match context_packet"
             )
+    target_theorem_context = _dict_value(
+        context_packet,
+        "target_theorem_context_packet",
+    )
+    if bool(
+        inventory.get("target_theorem_context_packet_present", False)
+    ) != bool(target_theorem_context):
+        errors.append(
+            "context_packet.context_packet_inventory."
+            "target_theorem_context_packet_present must match context_packet"
+        )
+    if target_theorem_context:
+        if (
+            target_theorem_context.get("context_packet_kind")
+            != TARGET_THEOREM_CONTEXT_PACKET_KIND
+        ):
+            errors.append(
+                "context_packet.target_theorem_context_packet.context_packet_kind "
+                "must equal " + TARGET_THEOREM_CONTEXT_PACKET_KIND
+            )
+        if str(target_theorem_context.get("route_id", "")) != str(
+            row.get("route_id", "")
+        ):
+            errors.append(
+                "context_packet.target_theorem_context_packet.route_id must match request route_id"
+            )
+        if str(target_theorem_context.get("target_prover_family", "")) != str(
+            context_packet.get("target_prover_family", "")
+        ):
+            errors.append(
+                "context_packet.target_theorem_context_packet.target_prover_family must match context_packet"
+            )
+        target_context_count_checks = (
+            (
+                "target_theorem_context_object_count",
+                len(_str_tuple(target_theorem_context.get("normalized_objects", []))),
+            ),
+            (
+                "target_theorem_context_assumption_count",
+                len(
+                    _str_tuple(
+                        target_theorem_context.get("normalized_assumptions", [])
+                    )
+                ),
+            ),
+            (
+                "target_theorem_context_procedure_count",
+                len(
+                    _str_tuple(
+                        target_theorem_context.get("normalized_procedures", [])
+                    )
+                ),
+            ),
+            (
+                "target_theorem_context_desired_conclusion_count",
+                len(
+                    _str_tuple(
+                        target_theorem_context.get("desired_conclusions", [])
+                    )
+                ),
+            ),
+            (
+                "target_theorem_context_proof_style_hint_count",
+                len(
+                    _str_tuple(
+                        target_theorem_context.get("proof_style_hints", [])
+                    )
+                ),
+            ),
+        )
+        for field_name, expected_count in target_context_count_checks:
+            if int(inventory.get(field_name, 0) or 0) != expected_count:
+                errors.append(
+                    "context_packet.context_packet_inventory."
+                    f"{field_name} must match target_theorem_context_packet"
+                )
     cost_hints = _dict_value(context_packet, "minimal_delta_cost_hints")
     if int(inventory.get("primitive_cost_hint_count", 0) or 0) != len(
         _dict_tuple(cost_hints.get("primitive_cost_hints", []))
@@ -6199,6 +6539,7 @@ def _user_prompt(
         "hard_requirements": [
             "Return only JSON.",
             target_intake_requirement,
+            "Use context_packet.target_theorem_context_packet as the compact target theorem context packet for theorem statement, skeleton, objects, assumptions, statistical procedure, desired conclusion, proof-style hints, source/formal queries, and residual goals; raw context_packet rows remain the source of truth if a count or summary is surprising.",
             "standalone_route.theorem_statement must preserve the requested target theorem identity; route repairs may add explicit side-condition notes but must not switch to a different theorem.",
             "Every informal DAG node must have source_refs, a source_search_status, or a formal_gap_boundary.",
             "source_search_status values are limited to SOURCE_BACKED, SEARCH_REQUESTED/search_pending/source_search_pending/literature_search_pending, or FORMAL_GAP_BOUNDARY/formal_boundary_declared; unsupported status strings are rejected.",
@@ -10006,10 +10347,21 @@ def _residual_goal_prefixed_primitive_key(
     interpretation: Mapping[str, Any],
 ) -> str:
     residual_goal = str(interpretation.get("residual_goal", "") or "").strip()
-    if ":" not in residual_goal:
+    return _residual_goal_prefixed_primitive_key_from_text(residual_goal)
+
+
+def _residual_goal_prefixed_primitive_key_from_text(residual_goal: str) -> str:
+    parts = [part.strip() for part in str(residual_goal or "").split(":")]
+    if len(parts) < 2:
         return ""
-    prefix = residual_goal.split(":", 1)[0]
-    return _primitive_key(prefix)
+    first = _primitive_key(parts[0])
+    if (
+        len(parts) >= 3
+        and first
+        and _target_prover_key(first) in LLM_ROUTE_PLANNER_TARGET_SPECIFIC_TOOL_ALIASES
+    ):
+        return _primitive_key(parts[1])
+    return first
 
 
 def _response_residual_source_grounding_errors(
@@ -10169,8 +10521,9 @@ def _residual_interpretation_search_primitives(
     primitives.extend(_str_tuple(interpretation.get("primitive", [])))
     primitives.extend(_str_tuple(interpretation.get("primitives", [])))
     residual_goal = str(interpretation.get("residual_goal", "")).strip()
-    if ":" in residual_goal:
-        primitives.append(residual_goal.split(":", 1)[0])
+    prefixed_primitive = _residual_goal_prefixed_primitive_key_from_text(residual_goal)
+    if prefixed_primitive:
+        primitives.append(prefixed_primitive)
     return tuple(
         dict.fromkeys(
             primitive

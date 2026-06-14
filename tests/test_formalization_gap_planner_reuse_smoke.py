@@ -37,10 +37,11 @@ def _reviewed_primitive_cost(
     }
 
 
-def _reviewed_baseline_boundary_text() -> str:
+def _reviewed_baseline_boundary_text(primitive: str) -> str:
     return (
-        "Current target-intake baseline primitive retained only for AND/OR "
-        "cost comparison; it is not selected by this focused reviewed LLM route."
+        f"Primitive {primitive} is retained only for AND/OR cost comparison; "
+        "it is not selected by this focused reviewed LLM route and remains a "
+        "formal-library search boundary."
     )
 
 
@@ -49,8 +50,8 @@ def _reviewed_baseline_formal_node(primitive: str) -> dict[str, object]:
         "node_id": f"formal:{primitive}_baseline_boundary",
         "primitive": primitive,
         "coverage_bucket": "unknown",
-        "formalization_action": "defer_formal_library_grounding",
-        "formal_gap_boundary": _reviewed_baseline_boundary_text(),
+        "formalization_action": "formal_library_search_pending",
+        "formal_gap_boundary": _reviewed_baseline_boundary_text(primitive),
     }
 
 
@@ -61,7 +62,7 @@ def _reviewed_baseline_standalone_primitive(
         "primitive": primitive,
         "coverage_status": "unknown",
         "source_refs": ["conformal_prediction_textbook"],
-        "formal_gap_boundary": _reviewed_baseline_boundary_text(),
+        "formal_gap_boundary": _reviewed_baseline_boundary_text(primitive),
     }
 
 
@@ -75,9 +76,10 @@ def _reviewed_target_adapter_boundary_residual(
             f"{primitive} before any kernel replay can be claimed."
         ),
         "repair_action": f"run target-prover adapter mapping for {primitive}",
+        "target_primitives": [primitive],
         "formal_gap_boundary": (
-            "Awaiting Rocq adapter mapping is target-prover feedback, not "
-            "source evidence or theorem proof evidence."
+            f"Primitive {primitive} is awaiting Rocq adapter mapping; this is "
+            "target-prover feedback, not source evidence or theorem proof evidence."
         ),
     }
 
@@ -251,6 +253,12 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                         "selected_primitives": ["exchangeability", "rank_uniformity"],
                         "route_cost": 7,
                         "primitive_costs": source_port_option_cost_rows,
+                        "source_port_lemmas": [
+                            (
+                                "rank_uniformity: port the finite-rank uniformity "
+                                "lemma from the conformal prediction source route"
+                            )
+                        ],
                         "cost_rationale": "A source port is broader than the selected bridge.",
                     },
                     {
@@ -2806,6 +2814,27 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     for option in feedback_response["minimal_delta_plan"]["and_or_cost_graph"][
         "route_options"
     ]:
+        if option["route_option_id"] == "route_option:source_port_rank_theory":
+            option["route_cost"] = 9
+            option["cost_rationale"] = (
+                "A source port is broader than the selected bridge and still "
+                "requires the target-prover exchangeability wrapper."
+            )
+            option["wrapper_lemmas"] = [
+                (
+                    "exchangeability: write the target-prover wrapper around "
+                    "the available exchangeability declaration"
+                )
+            ]
+            for cost_row in option.get("primitive_costs", []):
+                if cost_row.get("primitive") == "exchangeability":
+                    cost_row["coverage_bucket"] = "wrapper_needed"
+                    cost_row["base_cost"] = 2
+                    cost_row["total_cost"] = 2
+                    cost_row["cost_rationale"] = (
+                        "The feedback pass requires a target-prover "
+                        "exchangeability wrapper before the source-port route."
+                    )
         if (
             option["route_option_id"]
             == "route_option:current_route_min_delta_baseline"
