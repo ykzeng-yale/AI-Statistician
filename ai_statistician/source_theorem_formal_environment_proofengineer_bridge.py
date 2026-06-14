@@ -40,6 +40,12 @@ SIGNATURE_PROBE_BOUNDARY = (
     "but they are not artifact proof, source-theorem proof, or semantic promotion "
     "evidence."
 )
+SIGNATURE_PROBE_DEFAULT_MATHLIB_IMPORTS = (
+    "import Mathlib.MeasureTheory.Measure.ProbabilityMeasure",
+    "import Mathlib.Data.Real.Basic",
+    "import Mathlib.Data.Fin.Basic",
+    "import Mathlib.Data.ENNReal.Basic",
+)
 PROOF_BODY_WORK_ORDER_BOUNDARY = (
     "Exact source-theorem proof-body work orders are ProofEngineer tasks emitted "
     "after a signature probe reaches the theorem proof body. They are not proof "
@@ -748,7 +754,7 @@ def _signature_probe_row(
 def _signature_probe_source(source: str, packet: Mapping[str, Any]) -> str:
     import_lines, body_lines = _split_import_lines(source)
     if not import_lines:
-        import_lines = ["import Mathlib"]
+        import_lines = list(SIGNATURE_PROBE_DEFAULT_MATHLIB_IMPORTS)
     body = "\n".join(body_lines).strip()
     body = _apply_statement_repair_hints(body, packet)
     declaration_prelude = _signature_probe_declaration_prelude(
@@ -790,8 +796,22 @@ def _split_import_lines(source: str) -> tuple[list[str], list[str]]:
                 imports.append(line.strip())
         else:
             body.append(line)
-    if imports and "import Mathlib" not in imports:
-        imports.insert(0, "import Mathlib")
+    if imports:
+        non_mathlib_imports = [
+            row
+            for row in imports
+            if row != "import Mathlib" and not row.startswith("import Mathlib.")
+        ]
+        if any(row == "import Mathlib" or row.startswith("import Mathlib.") for row in imports):
+            imports = [
+                *SIGNATURE_PROBE_DEFAULT_MATHLIB_IMPORTS,
+                *non_mathlib_imports,
+            ]
+        elif not any(row.startswith("import Mathlib.") for row in imports):
+            imports = [
+                *SIGNATURE_PROBE_DEFAULT_MATHLIB_IMPORTS,
+                *imports,
+            ]
     return imports, body
 
 
@@ -824,6 +844,17 @@ def _signature_probe_reached_proof_body(
 ) -> bool:
     text = "\n".join(diagnostics)
     lowered = text.lower()
+    formal_environment_error_markers = (
+        "unknown identifier",
+        "unknown constant",
+        "function expected at",
+        "failed to synthesize",
+        "invalid field notation",
+        "application type mismatch",
+        "type mismatch",
+    )
+    if any(marker in lowered for marker in formal_environment_error_markers):
+        return False
     missing_symbols = _str_list(packet.get("missing_formal_symbols", []) or [])
     typeclass_blockers = _str_list(packet.get("typeclass_blockers", []) or [])
     for symbol in missing_symbols:
@@ -854,6 +885,8 @@ def _classify_signature_probe_failure(diagnostics: tuple[str, ...]) -> str:
     if "unsolved goals" in text:
         return "proof_body_incomplete"
     if "invalid 'import' command" in text or "unknown module prefix" in text:
+        return "lean_import_environment_missing"
+    if "object file" in text and "does not exist" in text and ".olean" in text:
         return "lean_import_environment_missing"
     return "signature_probe_local_lean_failed_unclassified"
 

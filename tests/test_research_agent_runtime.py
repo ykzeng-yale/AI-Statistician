@@ -2699,6 +2699,30 @@ def test_source_theorem_promotion_bridge_exports_formal_environment_work_order(
     )
     assert formal_env_learning_rows
     assert proof_body_learning_rows == []
+    (
+        formal_env_bridge_manifest_with_executor_requested,
+        proof_body_executor_manifest_with_empty_queue,
+        _formal_env_learning_rows_with_executor_requested,
+        proof_body_learning_rows_with_empty_queue,
+    ) = _run_runtime_source_theorem_formal_environment_bridge_stack(
+        out_dir=tmp_path
+        / "runtime_source_theorem_formal_environment_proofengineer_bridge_empty_proof_body_queue",
+        queue_jsonl=work_orders_path,
+        question_id="conformal_prediction_coverage",
+        config=ResearchAgentRuntimeConfig(
+            source_theorem_formal_environment_proofengineer_bridge=True,
+            source_theorem_formal_environment_proofengineer_execute_proof_body=True,
+        ),
+    )
+    assert formal_env_bridge_manifest_with_executor_requested is not None
+    assert (
+        formal_env_bridge_manifest_with_executor_requested[
+            "n_proof_body_execution_queue_rows"
+        ]
+        == 0
+    )
+    assert proof_body_executor_manifest_with_empty_queue is None
+    assert proof_body_learning_rows_with_empty_queue == []
 
     cli_out = tmp_path / "runtime_source_theorem_promotion_proofengineer_bridge_cli"
     code = main(

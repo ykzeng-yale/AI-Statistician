@@ -197,9 +197,13 @@ def _run_runtime_source_theorem_formal_environment_bridge_stack(
         lean_timeout=config.source_theorem_formal_environment_proofengineer_lean_timeout,
     )
     proof_body_executor_manifest: dict[str, Any] | None = None
+    n_proof_body_execution_queue_rows = int(
+        bridge_manifest.get("n_proof_body_execution_queue_rows", 0) or 0
+    )
     if (
         config.source_theorem_formal_environment_proofengineer_execute_proof_body
         and bridge_manifest.get("proof_body_execution_queue_manifest")
+        and n_proof_body_execution_queue_rows > 0
     ):
         proof_body_execution_queue_dir = Path(
             str(bridge_manifest["proof_body_execution_queue_manifest"])

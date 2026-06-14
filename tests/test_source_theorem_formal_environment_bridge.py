@@ -18,7 +18,8 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
 ) -> None:
     candidate_artifact = tmp_path / "split_conformal_coverage.lean"
     candidate_artifact.write_text(
-        "import Mathlib\n\n"
+        "import Mathlib.Probability.ProbabilityMeasure\n"
+        "import Mathlib.Order.LocallyFiniteOrder\n\n"
         "theorem split_conformal_coverage {Ω : Type _} [MeasurableSpace Ω] "
         "(P : MeasureTheory.Measure Ω) [MeasureTheory.IsProbabilityMeasure P] "
         "(m : ℕ) (hm : 0 < m) (alpha : ℝ) "
@@ -162,6 +163,13 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     )
     assert "def Exchangeable" in probe_source
     assert "def orderStat" in probe_source
+    assert "import Mathlib.MeasureTheory.Measure.ProbabilityMeasure\n" in probe_source
+    assert "import Mathlib.Data.Real.Basic\n" in probe_source
+    assert "import Mathlib.Data.Fin.Basic\n" in probe_source
+    assert "import Mathlib.Data.ENNReal.Basic\n" in probe_source
+    assert "import Mathlib\n" not in probe_source
+    assert "import Mathlib.Probability.ProbabilityMeasure" not in probe_source
+    assert "import Mathlib.Order.LocallyFiniteOrder" not in probe_source
     assert "ENNReal.ofReal (1 - alpha)" in probe_source
     assert probe_manifest["proof_evidence_status"] == "SIGNATURE_PROBE_NOT_PROOF_EVIDENCE"
     proof_body_rows_path = Path(str(manifest["proof_body_work_orders_jsonl"]))
@@ -402,6 +410,73 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     )
     assert cli_manifest["n_repair_packets"] == 1
     assert cli_manifest["runtime_learning_ready"] is True
+
+
+def test_signature_probe_does_not_queue_proof_body_with_environment_errors(
+    tmp_path: Path,
+) -> None:
+    candidate_artifact = tmp_path / "bad_environment_source_claim.lean"
+    candidate_artifact.write_text(
+        "import Mathlib.Probability.ProbabilityMeasure\n\n"
+        "theorem bad_environment_source_claim {Ω : Type _} "
+        "(P : MeasureProbability Ω) : True := by\n"
+        "  fail_if_success trivial\n",
+        encoding="utf-8",
+    )
+    queue_jsonl = tmp_path / "runtime_source_theorem_formal_environment_work_orders.jsonl"
+    queue_jsonl.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "SourceTheoremFormalEnvironmentWorkOrder",
+                "work_order_id": "source_theorem_formal_environment_work_order:bad_env",
+                "question_id": "split_conformal",
+                "target_theorem_name": "bad_environment_source_claim",
+                "target_lean_declaration": "bad_environment_source_claim",
+                "source_theorem_target_known": True,
+                "candidate_artifact_path": str(candidate_artifact),
+                "failure_classification": "formal_environment_symbol_missing",
+                "diagnostics": [
+                    "Function expected at",
+                    "  MeasureProbability",
+                    "error: unsolved goals",
+                ],
+                "missing_formal_symbols": [],
+                "typeclass_blockers": [],
+                "recommended_repair_tasks": [
+                    "replace nonexistent MeasureProbability with a real Mathlib probability measure type"
+                ],
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_formal_environment_proofengineer_bridge(
+        out_dir=tmp_path / "bridge",
+        queue_jsonl=queue_jsonl,
+        question_id="split_conformal",
+        run_signature_probes=True,
+        lean_command=(
+            sys.executable,
+            "-c",
+            "import sys; print('Function expected at\\n  MeasureProbability\\nerror: unsolved goals'); sys.exit(1)",
+        ),
+    )
+
+    assert manifest["n_signature_probe_rows"] == 1
+    assert manifest["n_signature_probes_reached_proof_body"] == 0
+    assert manifest["n_proof_body_work_orders"] == 0
+    assert manifest["n_proof_body_execution_queue_rows"] == 0
+    probe_manifest = json.loads(
+        Path(str(manifest["signature_probe_manifest"])).read_text(encoding="utf-8")
+    )
+    probe_row = probe_manifest["rows"][0]
+    assert probe_row["failure_classification"] == "formal_environment_symbol_missing"
+    assert probe_row["signature_probe_status"] == "SIGNATURE_PROBE_LOCAL_LEAN_FAILED"
+    assert probe_row["signature_typecheck_reached_proof_body"] is False
 
 
 def test_proof_body_execution_queue_blocks_target_declaration_mismatch(
