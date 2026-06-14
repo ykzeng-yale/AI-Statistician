@@ -6109,6 +6109,10 @@ def _formalizer_theorem_reduction_closure_work_orders(
 
 def _source_semantic_primitive_id(gap_text: str, gap_kind: str) -> str:
     text = f"{gap_kind} {gap_text}".lower()
+    if "measureprobability" in text or (
+        "probability" in text and "measure" in text
+    ):
+        return "probability_measure_semantics"
     if "exchangeab" in text and "rank" in text:
         return "exchangeability_to_uniform_rank_semantics"
     if "exchangeab" in text:
@@ -7455,14 +7459,19 @@ def _semantic_primitive_gap_for_placeholder_symbol(
 ) -> str:
     normalized = symbol.strip()
     target = f" for `{target_theorem_name}`" if target_theorem_name else ""
+    if normalized == "MeasureProbability":
+        return (
+            "Replace placeholder `MeasureProbability` with reviewed Mathlib/StatInference "
+            f"probability-measure semantics{target}."
+        )
     if normalized == "Exchangeable":
         return (
             "Replace placeholder `Exchangeable := True` with reviewed exchangeability "
             f"semantics and its finite-rank/uniformity bridge{target}."
         )
-    if normalized == "orderStat":
+    if normalized in {"orderStat", "orderStatistic"}:
         return (
-            "Replace placeholder `orderStat := 0` with reviewed finite-sample "
+            f"Replace placeholder `{normalized}` with reviewed finite-sample "
             f"order-statistic/quantile semantics{target}."
         )
     return (
@@ -7473,9 +7482,11 @@ def _semantic_primitive_gap_for_placeholder_symbol(
 
 def _registered_support_for_placeholder_symbol(symbol: str) -> tuple[str, ...]:
     normalized = symbol.strip()
+    if normalized == "MeasureProbability":
+        return ("prob_measure_univ",)
     if normalized == "Exchangeable":
         return ("split_conformal_bad_rank_budget_from_uniform_rank_bound",)
-    if normalized == "orderStat":
+    if normalized in {"orderStat", "orderStatistic"}:
         return ("split_conformal_good_rank_set_inclusion_bridge",)
     return ()
 

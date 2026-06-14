@@ -2296,10 +2296,15 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders() -
             "candidate_artifact_path": "runs/split_conformal_coverage_attempt.lean",
             "source_theorem_kernel_verified": False,
             "failure_classification": "formal_environment_placeholder_primitives",
-            "formal_environment_placeholder_symbols": ["Exchangeable", "orderStat"],
+            "formal_environment_placeholder_symbols": [
+                "MeasureProbability",
+                "Exchangeable",
+                "orderStatistic",
+            ],
             "diagnostics": [
+                "candidate artifact still contains placeholder primitive: MeasureProbability",
                 "candidate artifact still contains placeholder primitive: Exchangeable",
-                "candidate artifact still contains placeholder primitive: orderStat",
+                "candidate artifact still contains placeholder primitive: orderStatistic",
             ],
         },
         "kernel_verified_source_theorem_ids": [],
@@ -2314,18 +2319,24 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders() -
         )
     )
 
-    assert len(work_orders) == 2
+    assert len(work_orders) == 3
     by_symbol = {row["placeholder_symbol"]: row for row in work_orders}
+    assert by_symbol["MeasureProbability"]["semantic_primitive_id"] == (
+        "probability_measure_semantics"
+    )
+    assert by_symbol["MeasureProbability"]["candidate_registered_obligation_ids"] == [
+        "prob_measure_univ"
+    ]
     assert by_symbol["Exchangeable"]["semantic_primitive_id"] == (
         "exchangeability_to_uniform_rank_semantics"
     )
     assert by_symbol["Exchangeable"]["candidate_registered_obligation_ids"] == [
         "split_conformal_bad_rank_budget_from_uniform_rank_bound"
     ]
-    assert by_symbol["orderStat"]["semantic_primitive_id"] == (
+    assert by_symbol["orderStatistic"]["semantic_primitive_id"] == (
         "order_statistic_quantile_semantics"
     )
-    assert by_symbol["orderStat"]["candidate_registered_obligation_ids"] == [
+    assert by_symbol["orderStatistic"]["candidate_registered_obligation_ids"] == [
         "split_conformal_good_rank_set_inclusion_bridge"
     ]
     assert all(
