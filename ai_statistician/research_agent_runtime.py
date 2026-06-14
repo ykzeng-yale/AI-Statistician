@@ -10502,6 +10502,7 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             "memory_kernel_verified_theorem_reduction_closure_work_order_ids": [],
             "memory_kernel_verified_theorem_reduction_closure_target_ids": [],
             "memory_kernel_verified_theorem_reduction_closure_goal_ids": [],
+            "memory_kernel_verified_source_theorem_semantic_support_obligation_ids": [],
             "memory_kernel_verified_source_theorem_semantic_primitive_ids": [],
             "source_theorem_semantic_primitive_support_already_kernel_verified": False,
             "selection_boundary": (
@@ -10692,6 +10693,7 @@ def _runtime_evidence_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
                     "memory_kernel_verified_theorem_reduction_closure_work_order_ids",
                     "memory_kernel_verified_theorem_reduction_closure_target_ids",
                     "memory_kernel_verified_theorem_reduction_closure_goal_ids",
+                    "memory_kernel_verified_source_theorem_semantic_support_obligation_ids",
                     "memory_kernel_verified_source_theorem_semantic_primitive_ids",
                 ):
                     proof_control[key] = sorted(

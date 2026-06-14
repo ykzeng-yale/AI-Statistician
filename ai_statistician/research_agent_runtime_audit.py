@@ -292,6 +292,93 @@ def audit_research_agent_runtime(
             row.n_unsafe_generated_code_rejected for row in rows
         ),
         "n_lean_lsp_mcp_live_calls": sum(row.n_lean_lsp_mcp_live_calls for row in rows),
+        "source_theorem_promotion_proofengineer_bridge_ran": bool(
+            manifest.get("source_theorem_promotion_proofengineer_bridge_ran", False)
+        ),
+        "source_theorem_promotion_proofengineer_bridge_skipped_reason": str(
+            manifest.get("source_theorem_promotion_proofengineer_bridge_skipped_reason", "")
+            or ""
+        ),
+        "source_theorem_formal_environment_proofengineer_bridge_ran": bool(
+            manifest.get("source_theorem_formal_environment_proofengineer_bridge_ran", False)
+        )
+        or bool(
+            manifest.get(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_ran",
+                False,
+            )
+        ),
+        "source_theorem_formal_environment_proofengineer_bridge_skipped_reason": str(
+            manifest.get("source_theorem_formal_environment_proofengineer_bridge_skipped_reason", "")
+            or manifest.get(
+                "source_theorem_formal_environment_from_source_semantic_promotion_bridge_skipped_reason",
+                "",
+            )
+            or ""
+        ),
+        "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body": max(
+            int(
+                manifest.get(
+                    "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body",
+                    0,
+                )
+                or 0
+            ),
+            int(
+                manifest.get(
+                    "source_theorem_formal_environment_from_source_semantic_promotion_bridge_n_proof_body_work_orders",
+                    0,
+                )
+                or 0
+            ),
+        ),
+        "source_theorem_formal_environment_proof_body_executor_ran": bool(
+            manifest.get("source_theorem_formal_environment_proof_body_executor_ran", False)
+        )
+        or bool(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_ran",
+                False,
+            )
+        ),
+        "source_theorem_formal_environment_proof_body_executor_local_lean_requested": bool(
+            manifest.get(
+                "source_theorem_formal_environment_proof_body_executor_local_lean_requested",
+                False,
+            )
+        ),
+        "source_theorem_formal_environment_proof_body_executor_n_result_rows": (
+            int(
+                manifest.get(
+                    "source_theorem_formal_environment_proof_body_executor_n_result_rows",
+                    0,
+                )
+                or 0
+            )
+            + int(
+                manifest.get(
+                    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_result_rows",
+                    0,
+                )
+                or 0
+            )
+        ),
+        "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": (
+            int(
+                manifest.get(
+                    "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
+                    0,
+                )
+                or 0
+            )
+            + int(
+                manifest.get(
+                    "source_theorem_formal_environment_proof_body_executor_from_source_semantic_promotion_n_source_theorem_kernel_verified",
+                    0,
+                )
+                or 0
+            )
+        ),
         "architect_coordinator_enabled": any(row.architect_coordinator_enabled for row in rows),
         "llm_topology_policy_ok": not topology_errors,
         "unsupported_generator_backends_enabled": _topology_unsupported_count(manifest),
@@ -1054,6 +1141,73 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 f"runtime_traces={payload.get('n_runtime_traces')}"
             ),
             "runtime progress JSONL did not record start/finish events for every trace",
+        ),
+        _scorecard_row(
+            "source_theorem_promotion_proofengineer_bridge_ran",
+            payload.get("source_theorem_promotion_proofengineer_bridge_ran") is True,
+            (
+                "ran="
+                f"{payload.get('source_theorem_promotion_proofengineer_bridge_ran')} "
+                "skipped="
+                f"{payload.get('source_theorem_promotion_proofengineer_bridge_skipped_reason')}"
+            ),
+            "source-theorem promotion ProofEngineer bridge did not run inside the runtime",
+        ),
+        _scorecard_row(
+            "source_theorem_formal_environment_bridge_ran",
+            (
+                payload.get("source_theorem_formal_environment_proofengineer_bridge_ran")
+                is True
+            ),
+            (
+                "ran="
+                f"{payload.get('source_theorem_formal_environment_proofengineer_bridge_ran')} "
+                "skipped="
+                f"{payload.get('source_theorem_formal_environment_proofengineer_bridge_skipped_reason')}"
+            ),
+            "source-theorem formal-environment ProofEngineer bridge did not run inside the runtime",
+        ),
+        _scorecard_row(
+            "source_theorem_signature_probe_reached_proof_body",
+            int(
+                payload.get(
+                    "source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body",
+                    0,
+                )
+                or 0
+            )
+            > 0,
+            (
+                "n_signature_or_proof_body_work_orders="
+                f"{payload.get('source_theorem_formal_environment_proofengineer_n_signature_probes_reached_proof_body')}"
+            ),
+            "source-theorem signature probe did not reach an exact proof body",
+        ),
+        _scorecard_row(
+            "source_theorem_proof_body_executor_ran",
+            payload.get("source_theorem_formal_environment_proof_body_executor_ran")
+            is True,
+            (
+                "ran="
+                f"{payload.get('source_theorem_formal_environment_proof_body_executor_ran')} "
+                "n_rows="
+                f"{payload.get('source_theorem_formal_environment_proof_body_executor_n_result_rows')}"
+            ),
+            "exact source-theorem proof-body executor did not run inside the runtime",
+        ),
+        _scorecard_row(
+            "source_theorem_proof_body_local_lean_gate_requested",
+            (
+                payload.get(
+                    "source_theorem_formal_environment_proof_body_executor_local_lean_requested"
+                )
+                is True
+            ),
+            (
+                "local_lean_requested="
+                f"{payload.get('source_theorem_formal_environment_proof_body_executor_local_lean_requested')}"
+            ),
+            "exact source-theorem proof-body executor did not request local Lean",
         ),
         _scorecard_row(
             "live_lean_lsp_mcp_called",

@@ -6638,6 +6638,54 @@ def _research_agent_runtime_capability_config_errors(
         errors.append(
             "capability eval must not use --proof-obligation-id; manual proof filters are debug-only"
         )
+    proofengineer_required_flags = (
+        (
+            "theorem_closure_proofengineer_bridge",
+            "--theorem-closure-proofengineer-bridge",
+        ),
+        (
+            "theorem_closure_proofengineer_local_lean",
+            "--theorem-closure-proofengineer-local-lean",
+        ),
+        (
+            "source_semantic_proofengineer_bridge",
+            "--source-semantic-proofengineer-bridge",
+        ),
+        (
+            "source_semantic_proofengineer_local_lean",
+            "--source-semantic-proofengineer-local-lean",
+        ),
+        (
+            "source_theorem_promotion_proofengineer_bridge",
+            "--source-theorem-promotion-proofengineer-bridge",
+        ),
+        (
+            "source_theorem_promotion_proofengineer_local_lean",
+            "--source-theorem-promotion-proofengineer-local-lean",
+        ),
+        (
+            "source_theorem_formal_environment_proofengineer_bridge",
+            "--source-theorem-formal-environment-proofengineer-bridge",
+        ),
+        (
+            "source_theorem_formal_environment_proofengineer_signature_probes",
+            "--source-theorem-formal-environment-proofengineer-signature-probes",
+        ),
+        (
+            "source_theorem_formal_environment_proofengineer_execute_proof_body",
+            "--source-theorem-formal-environment-proofengineer-execute-proof-body",
+        ),
+        (
+            "source_theorem_formal_environment_proofengineer_proof_body_local_lean",
+            "--source-theorem-formal-environment-proofengineer-proof-body-local-lean",
+        ),
+    )
+    for field_name, flag in proofengineer_required_flags:
+        if not bool(getattr(args, field_name, False)):
+            errors.append(
+                "capability eval requires the internal ProofEngineer proof path; "
+                f"missing {flag}"
+            )
     return errors
 
 

@@ -6649,6 +6649,33 @@ def test_research_agent_runtime_cli_capability_eval_rejects_debug_modes() -> Non
     )
     assert manual_filter_code == 2
 
+    missing_proofengineer_path_code = main(
+        [
+            "research-agent-runtime",
+            "--capability-eval",
+            "--provider",
+            "anthropic",
+            "--architect-coordinator-provider",
+            "anthropic",
+            "--simulation-engineer-provider",
+            "anthropic",
+            "--algorithm-engineer-provider",
+            "anthropic",
+            "--formalizer-provider",
+            "anthropic",
+            "--critic-evaluator-provider",
+            "anthropic",
+            "--question-file",
+            "examples/research_questions.json",
+            "--max-questions",
+            "1",
+            "--local-lean",
+            "--out",
+            str(root / "missing_proofengineer_path_out"),
+        ]
+    )
+    assert missing_proofengineer_path_code == 2
+
 
 def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     root = Path("runs/test_research_agent_runtime_cli")
