@@ -7495,6 +7495,38 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
             for value in input_summary.get("diagnostics", []) or []
             if str(value).strip()
         ][:8]
+        typeclass_blockers = [
+            str(value).strip()
+            for value in (
+                input_summary.get("formal_environment_typeclass_blockers", [])
+                or input_summary.get("typeclass_blockers", [])
+                or []
+            )
+            if str(value).strip()
+        ]
+        proof_body_attempt_summaries = [
+            str(value)
+            for value in input_summary.get("proof_body_attempt_summaries", []) or []
+            if str(value).strip()
+        ][:8]
+        live_request = input_summary.get("candidate_live_proof_state_request", {})
+        if not isinstance(live_request, Mapping):
+            live_request = {}
+        proof_body_goal_excerpt = [
+            str(value)
+            for value in live_request.get("proof_body_goal_excerpt", []) or []
+            if str(value).strip()
+        ][:18]
+        source_target_provenance = _source_theorem_target_provenance_from_row(row)
+        input_summary_provenance = _source_theorem_target_provenance_from_row(
+            input_summary
+        )
+        for key, value in input_summary_provenance.items():
+            if key not in source_target_provenance:
+                source_target_provenance[key] = value
+        semantic_alignment_constraints = list(
+            source_target_provenance.get("semantic_alignment_constraints", []) or []
+        )
         source_learning_row_id = str(
             row.get("runtime_learning_row_id", "")
             or row.get("learning_row_id", "")
@@ -7543,10 +7575,24 @@ def _runtime_source_theorem_semantic_primitive_work_order_rows_from_learning_row
                         row.get("source_work_order_id", "") or ""
                     ),
                     "target_theorem_name": target_theorem_name,
+                    "source_theorem_target_known": bool(
+                        source_target_provenance.get("source_theorem_target_known", False)
+                    ),
+                    "source_theorem_target_provenance": source_target_provenance,
+                    "semantic_alignment_constraints": semantic_alignment_constraints,
                     "candidate_artifact_path": candidate_artifact_path,
                     "placeholder_symbol": symbol,
                     "failure_classification": failure_classification,
                     "diagnostics": diagnostics,
+                    "formal_environment_typeclass_blockers": typeclass_blockers,
+                    "proof_body_attempted": bool(
+                        input_summary.get("proof_body_attempted", False)
+                    ),
+                    "proof_body_attempt_success": bool(
+                        input_summary.get("proof_body_attempt_success", False)
+                    ),
+                    "proof_body_attempt_summaries": proof_body_attempt_summaries,
+                    "proof_body_goal_excerpt": proof_body_goal_excerpt,
                     "target_theorem_goal_ids": (
                         [target_theorem_name] if target_theorem_name else []
                     ),

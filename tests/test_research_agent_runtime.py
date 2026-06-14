@@ -2459,6 +2459,16 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders() -
         "schema_version": 1,
         "learning_task": "exact_source_theorem_proof_body_execution_feedback",
         "target_theorem_name": "split_conformal_coverage",
+        "source_theorem_target_known": True,
+        "source_theorem_target_provenance": {
+            "source_theorem_target_known": True,
+            "target_lean_declaration": "split_conformal_coverage",
+            "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
+            "artifact_verification_id": "artifact:split",
+        },
+        "semantic_alignment_constraints": [
+            "preserve marginal coverage target",
+        ],
         "source_work_order_id": "source_theorem_formal_environment_work_order:seed",
         "execution_queue_id": "exact_source_queue:1",
         "execution_result_id": "exact_source_result:1",
@@ -2473,6 +2483,17 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders() -
                 "Exchangeable",
                 "orderStatistic",
             ],
+            "formal_environment_typeclass_blockers": ["HSub ℕ ℝ ENNReal"],
+            "proof_body_attempted": True,
+            "proof_body_attempt_success": False,
+            "proof_body_attempt_summaries": [
+                "1:assumption:returncode=1:compiled=False"
+            ],
+            "candidate_live_proof_state_request": {
+                "proof_body_goal_excerpt": [
+                    "⊢ P {ω | s (Fin.last n₂) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - α)"
+                ]
+            },
             "diagnostics": [
                 "candidate artifact still contains placeholder primitive: MeasureProbability",
                 "candidate artifact still contains placeholder primitive: Exchangeable",
@@ -2505,6 +2526,22 @@ def test_proof_body_executor_feedback_exports_semantic_primitive_work_orders() -
     assert by_symbol["Exchangeable"]["candidate_registered_obligation_ids"] == [
         "split_conformal_bad_rank_budget_from_uniform_rank_bound"
     ]
+    assert by_symbol["Exchangeable"]["source_theorem_target_known"] is True
+    assert by_symbol["Exchangeable"]["source_theorem_target_provenance"][
+        "source_theorem_goal_id"
+    ] == "split_conformal_finite_sample_coverage"
+    assert by_symbol["Exchangeable"]["semantic_alignment_constraints"] == [
+        "preserve marginal coverage target"
+    ]
+    assert by_symbol["Exchangeable"]["formal_environment_typeclass_blockers"] == [
+        "HSub ℕ ℝ ENNReal"
+    ]
+    assert by_symbol["Exchangeable"]["proof_body_attempted"] is True
+    assert by_symbol["Exchangeable"]["proof_body_attempt_success"] is False
+    assert by_symbol["Exchangeable"]["proof_body_attempt_summaries"] == [
+        "1:assumption:returncode=1:compiled=False"
+    ]
+    assert "ENNReal.ofReal" in by_symbol["Exchangeable"]["proof_body_goal_excerpt"][0]
     assert by_symbol["orderStatistic"]["semantic_primitive_id"] == (
         "order_statistic_quantile_semantics"
     )
