@@ -890,10 +890,13 @@ external prover or planner team can discover and validate the next-round input
 without importing AI Statistician internals. The seed carries the revised
 informal DAG nodes, revised formal-realization DAG nodes, the legacy
 `revised_lean_realization_dag_nodes` alias, and exact revised route-alignment
-edges in each route and in its `replan_metadata`, and the
+edges in each route and in its `replan_metadata`. It also carries the
+`llm_route_planner_route_planning_brief` in each route and its
+`replan_metadata` when an LLM route-planner seed produced the handoff, and the
 sidecar standalone-input schema publishes those optional route and metadata
 fields for external validators. The publication-bundle audit reports
-seed-alignment and seed-DAG preservation counters. It also names the cross-prover
+seed-alignment, seed-DAG, and route-planning-brief preservation counters. It
+also names the cross-prover
 target summary and `formalization_gap_planner_cross_prover_target_summary.schema.json`,
 which tell non-Lean prover teams how to filter aggregate packet and response
 JSONL files for their prover family. Each target-prover adapter packet also
@@ -1446,17 +1449,18 @@ round. It also writes
 seed so a downloaded handoff is a self-describing standalone planner input; the
 schema includes optional replan metadata fields for revised DAG nodes,
 alignment edges, applied feedback ids, resource-response traces, pending or
-rejected resource-response request ids, prover diagnostics, source refs, and
-Lean declaration hits. The standalone planner copies that seed provenance into
-each roundtrip goal-plan row as `standalone_input_trace`, so later prover queues
-can recover which overlay, resource-response-ledger row, prover diagnostic, and
+rejected resource-response request ids, prover diagnostics, source refs, Lean
+declaration hits, and `llm_route_planner_route_planning_brief`. The standalone
+planner copies that seed provenance into each roundtrip goal-plan row as
+`standalone_input_trace`, so later prover queues can recover which overlay,
+resource-response-ledger row, prover diagnostic, route-planning brief, and
 revised DAG/alignment payload shaped the route. The
 handoff audit checks that schema id, checks the seed, verifies exact
 row-to-seed preservation of revised alignment edges and revised informal/Lean
 DAG nodes, rejects promoted proof claims, and runs a standalone planner
-round-trip that must preserve `standalone_input_trace`, including applied LLM
-route-planner hook traces that shaped the replan; this is replayability
-evidence, not theorem proof evidence. The proof-state triage command turns overlay-level prover statuses into
+round-trip that must preserve `standalone_input_trace`, including the LLM
+route-planning brief and applied LLM route-planner hook traces that shaped the
+replan; this is replayability evidence, not theorem proof evidence. The proof-state triage command turns overlay-level prover statuses into
 ranked work items for statement materialization, local Lean repair, or
 environment configuration.
 The interactive-session command joins the plan, refinement queue, evidence,
@@ -2017,6 +2021,11 @@ The current implementation composes four existing AI Statistician artifacts:
    `replan_metadata` preserve the same packet, including the
    `llm_route_planner_target_theorem_context_packet` alias, so feedback-driven
    replan rounds do not lose the original target theorem identity.
+   If the prior standalone trace also carries
+   `llm_route_planner_route_planning_brief`, the handoff row, seed route, and
+   seed `replan_metadata` preserve it too, so the next LLM route-planner call
+   keeps the compact planner-focus and evidence-gap checklist instead of
+   reconstructing route intent from raw prompts.
    They also preserve applied proposal ids, evidence ids, hook kinds,
    compact resource-response traces, pending or rejected resource-response
    request ids, prover-attempt statuses, diagnostic signatures, residual

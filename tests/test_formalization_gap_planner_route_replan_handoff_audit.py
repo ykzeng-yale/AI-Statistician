@@ -28,6 +28,32 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     shutil.rmtree(root, ignore_errors=True)
     handoff_dir.mkdir(parents=True, exist_ok=True)
     route_id = "replan_route:rank_uniformity_fixture"
+    route_planning_brief = {
+        "brief_kind": "formalization_gap_planner_llm_route_planner_route_planning_brief",
+        "route_id": "rank_uniformity_fixture",
+        "display_name": "split_conformal_rank_uniformity",
+        "target_prover_family": "lean4",
+        "planner_focus": [
+            {
+                "focus_id": "close_rank_uniformity_bridge",
+                "priority": 1,
+                "action": "preserve rank_uniformity as the next bridge lemma",
+                "reason": "the residual goal names the same primitive",
+                "target_primitives": ["rank_uniformity"],
+            }
+        ],
+        "evidence_gaps": [
+            {
+                "gap_id": "rank_uniformity_source_snippet",
+                "gap_kind": "source_grounding",
+                "recommended_action": "keep source-backed rank-uniformity snippets attached",
+                "target_primitives": ["rank_uniformity"],
+            }
+        ],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+    }
     alignment_edges = [
         {
             "source": "informal:rank_uniformity",
@@ -108,6 +134,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "theorem_skeleton": "theorem split_conformal_rank_uniformity : True := by trivial",
         "route_class": "bridge_or_wrapper",
         "recommended_action": "rerun standalone planning on revised rank route",
+        "llm_route_planner_route_planning_brief": route_planning_brief,
         "source_refs": ["Lei-Wasserman distribution-free prediction"],
         "source_snippets": [source_snippet],
         "quality_controls": quality_controls,
@@ -146,6 +173,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
             "source_refs": ["Lei-Wasserman distribution-free prediction"],
             "source_snippets": [source_snippet],
             "quality_controls": quality_controls,
+            "llm_route_planner_route_planning_brief": route_planning_brief,
             "lean_declaration_hits": [
                 {"primitive": "rank_uniformity", "declaration": "Fintype.card"}
             ],
@@ -191,6 +219,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "applied_prover_diagnostic_signatures": ["missing_rank_uniformity_bridge"],
         "route_revision_reasons": ["proof-state feedback exposed rank bridge"],
         "route_revision_summaries": ["add rank-uniformity bridge before replay"],
+        "route_planning_brief": route_planning_brief,
         "source_refs": ["Lei-Wasserman distribution-free prediction"],
         "source_snippets": [source_snippet],
         "quality_controls": quality_controls,
@@ -302,6 +331,12 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         ]
         == 1
     )
+    assert (
+        payload[
+            "n_roundtrip_standalone_input_traces_with_llm_route_planning_brief"
+        ]
+        == 1
+    )
     assert any(
         check["check_name"] == "standalone_seed_no_kernel_verified_claims" and check["ok"]
         for check in payload["checks"]
@@ -325,6 +360,8 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "row_0_seed_route_provenance_metadata" in ok_checks
     assert "row_0_seed_route_source_snippets" in ok_checks
     assert "row_0_seed_route_quality_controls" in ok_checks
+    assert "row_0_seed_route_llm_route_planning_brief" in ok_checks
+    assert "roundtrip_llm_route_planning_brief_trace" in ok_checks
     provenance_check = next(
         check
         for check in payload["checks"]
@@ -355,6 +392,22 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "expected=1" in llm_hook_roundtrip_check["observed"]
     assert "trace=1" in llm_hook_roundtrip_check["observed"]
     assert "trace_metadata=1" in llm_hook_roundtrip_check["observed"]
+    brief_check = next(
+        check
+        for check in payload["checks"]
+        if check["check_name"] == "row_0_seed_route_llm_route_planning_brief"
+    )
+    assert "row=True" in brief_check["observed"]
+    assert "route=True" in brief_check["observed"]
+    assert "metadata=True" in brief_check["observed"]
+    brief_roundtrip_check = next(
+        check
+        for check in payload["checks"]
+        if check["check_name"] == "roundtrip_llm_route_planning_brief_trace"
+    )
+    assert "seed_routes_with_brief=1" in brief_roundtrip_check["observed"]
+    assert "trace_matches=1" in brief_roundtrip_check["observed"]
+    assert "metadata_matches=1" in brief_roundtrip_check["observed"]
     assert (
         audit_dir
         / "formalization_gap_planner_route_replan_handoff_audit_row.schema.json"
@@ -429,6 +482,28 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         if not check["ok"]
     }
     assert "row_0_seed_route_quality_controls" in quality_failed
+
+    brief_rejected_seed = json.loads(json.dumps(seed))
+    brief_rejected_seed["routes"][0]["replan_metadata"].pop(
+        "llm_route_planner_route_planning_brief",
+        None,
+    )
+    (handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json").write_text(
+        json.dumps(brief_rejected_seed, indent=2),
+        encoding="utf-8",
+    )
+    brief_rejected = audit_formalization_gap_planner_route_replan_handoff(
+        handoff_dir,
+        root / "brief_audit",
+    )
+
+    assert not brief_rejected["all_ok"]
+    brief_failed = {
+        check["check_name"]
+        for check in brief_rejected["checks"]
+        if not check["ok"]
+    }
+    assert "row_0_seed_route_llm_route_planning_brief" in brief_failed
 
     llm_hook_rejected_seed = json.loads(json.dumps(seed))
     llm_hook_rejected_seed["routes"][0]["replan_metadata"][

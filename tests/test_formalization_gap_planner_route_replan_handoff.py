@@ -32,6 +32,32 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     root.mkdir(parents=True, exist_ok=True)
     overlay_dir.mkdir(parents=True, exist_ok=True)
     stability_dir.mkdir(parents=True, exist_ok=True)
+    route_planning_brief = {
+        "brief_kind": "formalization_gap_planner_llm_route_planner_route_planning_brief",
+        "route_id": "route:split_conformal_seed",
+        "display_name": "split_conformal_finite_sample_coverage",
+        "target_prover_family": "lean4",
+        "planner_focus": [
+            {
+                "focus_id": "preserve_rank_route",
+                "priority": 1,
+                "action": "keep the rank-uniformity route under exchangeability",
+                "reason": "proof-state feedback should refine, not replace, the target theorem",
+                "target_primitives": ["rank_uniformity"],
+            }
+        ],
+        "evidence_gaps": [
+            {
+                "gap_id": "conditional_rank_argument_source",
+                "gap_kind": "source_grounding",
+                "recommended_action": "search source proof for the conditional rank argument",
+                "target_primitives": ["conditional_rank_argument"],
+            }
+        ],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+    }
     input_json.write_text(
         json.dumps(
             {
@@ -43,6 +69,7 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
                     {
                         "display_name": "split_conformal_finite_sample_coverage",
                         "theorem_statement": "Split conformal has finite sample coverage.",
+                        "llm_route_planner_route_planning_brief": route_planning_brief,
                         "source_refs": ["Lei-Wasserman distribution-free prediction"],
                         "primitives": [
                             {
@@ -66,6 +93,10 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         encoding="utf-8",
     )
     plan_payload = export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    assert (
+        plan_payload["n_standalone_input_traces_with_llm_route_planning_brief"]
+        == 1
+    )
     plan_row = plan_payload["rows"][0]
     revised_selected = [
         *plan_row["selected_primitives"],
@@ -251,6 +282,8 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert payload["n_routes_with_llm_route_planner_hook_trace"] == 1
     assert payload["n_source_snippets"] == 1
     assert payload["n_routes_with_source_snippets"] == 1
+    assert payload["n_routes_with_llm_route_planning_brief"] == 1
+    assert payload["n_standalone_seed_routes_with_llm_route_planning_brief"] == 1
     assert payload["n_route_alignment_edges"] >= 1
     assert payload["n_revised_informal_knowledge_dag_nodes"] >= 1
     assert payload["n_revised_formal_realization_dag_nodes"] >= 1
@@ -327,6 +360,13 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert row["formal_declaration_hits"] == row["lean_declaration_hits"]
     assert row["standalone_route"]["target_prover_family"] == "lean4"
     assert row["standalone_route"]["replan_metadata"]["target_prover_family"] == "lean4"
+    assert row["route_planning_brief"] == route_planning_brief
+    assert row["standalone_route"]["llm_route_planner_route_planning_brief"] == (
+        route_planning_brief
+    )
+    assert row["standalone_route"]["replan_metadata"][
+        "llm_route_planner_route_planning_brief"
+    ] == route_planning_brief
     seed = json.loads(
         (handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json").read_text(
             encoding="utf-8"
@@ -336,6 +376,12 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert seed["target_prover_family"] == "lean4"
     assert seed["routes"][0]["target_prover_family"] == "lean4"
     assert seed["routes"][0]["replan_metadata"]["target_prover_family"] == "lean4"
+    assert seed["routes"][0]["llm_route_planner_route_planning_brief"] == (
+        route_planning_brief
+    )
+    assert seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_route_planning_brief"
+    ] == route_planning_brief
     assert seed["routes"][0]["revised_informal_knowledge_dag_nodes"]
     assert seed["routes"][0]["revised_formal_realization_dag_nodes"] == seed[
         "routes"
@@ -351,6 +397,7 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     )
     assert seed["routes"][0]["replan_metadata"]["alignment_edge_primitives"]
     handoff_schema = route_replan_handoff_row_json_schema()
+    assert "route_planning_brief" in handoff_schema["properties"]
     assert "source_snippets" in handoff_schema["properties"]
     assert "source_snippets" not in handoff_schema["required"]
     assert "formal_declaration_hits" in handoff_schema["required"]
@@ -366,6 +413,17 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert "revised_formal_realization_dag_nodes required" in validate_route_replan_handoff_row(
         missing_generic_row,
         handoff_schema,
+    )
+    dropped_brief_row = dict(row)
+    dropped_brief_route = dict(row["standalone_route"])
+    dropped_brief_route.pop("llm_route_planner_route_planning_brief", None)
+    dropped_brief_row["standalone_route"] = dropped_brief_route
+    assert (
+        "standalone_route.llm_route_planner_route_planning_brief missing"
+        in validate_route_replan_handoff_row(
+            dropped_brief_row,
+            handoff_schema,
+        )
     )
     assert seed["routes"][0]["replan_metadata"][
         "revised_informal_knowledge_dag_nodes"
@@ -485,6 +543,7 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert next_plan["n_standalone_input_traces"] == 1
     assert next_plan["n_standalone_input_traces_with_replan_metadata"] == 1
     assert next_plan["n_standalone_input_traces_with_source_snippets"] == 1
+    assert next_plan["n_standalone_input_traces_with_llm_route_planning_brief"] == 1
     assert next_plan["n_standalone_input_trace_source_snippets"] == 1
     assert (
         next_plan["n_standalone_input_traces_with_llm_route_planner_hook_traces"]
@@ -496,6 +555,11 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     trace = next_row["standalone_input_trace"]
     assert trace["source_route_id"] == seed["routes"][0]["route_id"]
     assert trace["has_replan_metadata"]
+    assert trace["has_llm_route_planner_route_planning_brief"]
+    assert trace["llm_route_planner_route_planning_brief"] == route_planning_brief
+    assert trace["replan_metadata"][
+        "llm_route_planner_route_planning_brief"
+    ] == route_planning_brief
     assert trace["has_source_snippets"]
     assert trace["source_snippets"][0]["source_ref"] == (
         "Lei-Wasserman theorem proof route"
