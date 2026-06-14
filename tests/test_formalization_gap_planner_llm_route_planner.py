@@ -3587,6 +3587,87 @@ def test_llm_route_planner_stages_source_theorem_feedback_rows() -> None:
     )
 
 
+def test_llm_route_planner_filters_lean_source_theorem_feedback_for_rocq_target() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_source_theorem_feedback_rocq"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["target_prover_family"] = "rocq"
+    input_payload["library_snapshot_ref"] = "rocq_probability_snapshot"
+    input_payload["routes"][0]["target_prover_family"] = "rocq"
+    input_payload["routes"][0]["library_snapshot_ref"] = "rocq_probability_snapshot"
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    feedback_dirs = _write_source_theorem_planner_feedback(root)
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        source_theorem_semantic_primitive_bridge_dir=feedback_dirs[
+            "semantic_bridge"
+        ],
+        source_theorem_semantic_primitive_from_proof_body_executor_work_orders_dir=(
+            feedback_dirs["semantic_from_executor"]
+        ),
+        source_theorem_formal_environment_bridge_dir=feedback_dirs[
+            "formal_environment"
+        ],
+        exact_source_theorem_proof_body_executor_dir=feedback_dirs[
+            "proof_body_executor"
+        ],
+    )
+
+    assert payload["all_ok"]
+    assert payload[
+        "n_requests_with_source_theorem_semantic_primitive_rows"
+    ] == 0
+    assert payload["n_request_source_theorem_semantic_primitive_rows"] == 0
+    assert payload[
+        "n_requests_with_proof_body_semantic_primitive_work_order_rows"
+    ] == 0
+    assert (
+        payload["n_request_proof_body_semantic_primitive_work_order_rows"] == 0
+    )
+    assert (
+        payload["n_requests_with_source_theorem_formal_environment_rows"] == 0
+    )
+    assert payload["n_request_source_theorem_formal_environment_rows"] == 0
+    assert (
+        payload[
+            "n_requests_with_source_theorem_proof_body_execution_result_rows"
+        ]
+        == 0
+    )
+    assert payload[
+        "n_request_source_theorem_proof_body_execution_result_rows"
+    ] == 0
+
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    assert context["target_prover_family"] == "rocq"
+    for field_name in (
+        "source_theorem_semantic_primitive_rows",
+        "proof_body_semantic_primitive_work_order_rows",
+        "source_theorem_formal_environment_rows",
+        "source_theorem_proof_body_execution_result_rows",
+    ):
+        assert not context[field_name]
+        assert context["context_packet_inventory"]["row_counts"][field_name] == 0
+    assert (
+        context["feedback_loop_summary"]
+        .get("source_theorem_feedback", {})
+        .get("total_count", 0)
+        == 0
+    )
+    prompt = request["prompt_messages"]["user"]
+    assert "OrderStatisticQuantileSemantics" not in prompt
+    assert "exchangeability_to_uniform_rank_semantics" not in prompt
+    assert validate_llm_route_planner_request(request) == []
+
+
 def test_llm_route_planner_routes_source_theorem_feedback_hooks() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_source_theorem_feedback_hooks"

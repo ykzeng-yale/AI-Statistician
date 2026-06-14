@@ -5247,26 +5247,30 @@ def _request_packet(
             context_payloads.get("resource_response_ledger", {}),
             route_match_ids,
         ),
-        "source_theorem_semantic_primitive_rows": _rows_for_route(
+        "source_theorem_semantic_primitive_rows": _source_theorem_rows_for_route(
             context_payloads.get("source_theorem_semantic_primitive_bridge", {}),
             route_match_ids,
+            target_prover_family=target_prover_family,
         ),
         "proof_body_semantic_primitive_work_order_rows": (
-            _rows_for_route(
+            _source_theorem_rows_for_route(
                 context_payloads.get(
                     "source_theorem_semantic_primitive_from_proof_body_executor_work_orders",
                     {},
                 ),
                 route_match_ids,
+                target_prover_family=target_prover_family,
             )
         ),
-        "source_theorem_formal_environment_rows": _rows_for_route(
+        "source_theorem_formal_environment_rows": _source_theorem_rows_for_route(
             context_payloads.get("source_theorem_formal_environment_bridge", {}),
             route_match_ids,
+            target_prover_family=target_prover_family,
         ),
-        "source_theorem_proof_body_execution_result_rows": _rows_for_route(
+        "source_theorem_proof_body_execution_result_rows": _source_theorem_rows_for_route(
             context_payloads.get("exact_source_theorem_proof_body_executor", {}),
             route_match_ids,
+            target_prover_family=target_prover_family,
         ),
         "refinement_evidence_rows": _rows_for_route(
             context_payloads.get("refinement_evidence", {}),
@@ -17120,7 +17124,9 @@ def _rows_for_route(
 ) -> tuple[dict[str, object], ...]:
     if not isinstance(payload, Mapping):
         return tuple()
-    route_id_set = {str(route_id) for route_id in _str_tuple(route_ids) if str(route_id)}
+    route_id_set = {
+        str(route_id) for route_id in _str_tuple(route_ids) if str(route_id)
+    }
     rows = payload.get(row_key, [])
     if not isinstance(rows, list):
         return tuple()
@@ -17132,6 +17138,92 @@ def _rows_for_route(
         if route_id_set.intersection(candidate_ids) or not route_id_set:
             matched.append(_compact_row(row))
     return tuple(matched[:25])
+
+
+def _source_theorem_rows_for_route(
+    payload: Any,
+    route_ids: str | tuple[str, ...],
+    *,
+    target_prover_family: str,
+    row_key: str = "rows",
+) -> tuple[dict[str, object], ...]:
+    if not isinstance(payload, Mapping):
+        return tuple()
+    route_id_set = {str(route_id) for route_id in _str_tuple(route_ids) if str(route_id)}
+    rows = payload.get(row_key, [])
+    if not isinstance(rows, list):
+        return tuple()
+    matched: list[dict[str, object]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        candidate_ids = _row_route_match_ids(row)
+        if route_id_set.intersection(candidate_ids) or not route_id_set:
+            if _source_theorem_row_targets_match(row, target_prover_family):
+                matched.append(_compact_row(row))
+    return tuple(matched[:25])
+
+
+def _source_theorem_row_targets_match(
+    row: Mapping[str, Any],
+    target_prover_family: str,
+) -> bool:
+    target = _target_prover_key(target_prover_family)
+    if not target:
+        return True
+    declared_targets = _source_theorem_row_target_keys(row)
+    if not declared_targets:
+        return target == "lean4"
+    portable_targets = {
+        "all",
+        "any",
+        "portable",
+        "cross_prover",
+        "prover_agnostic",
+        "system_agnostic",
+    }
+    return target in declared_targets or bool(
+        declared_targets.intersection(portable_targets)
+    )
+
+
+def _source_theorem_row_target_keys(row: Mapping[str, Any]) -> set[str]:
+    values: list[str] = []
+    for field_name in (
+        "target_prover_family",
+        "target_prover",
+        "prover_family",
+        "target_family",
+    ):
+        values.extend(_str_tuple(row.get(field_name, "")))
+    for field_name in (
+        "target_prover_families",
+        "target_provers",
+        "prover_families",
+        "target_families",
+    ):
+        values.extend(_str_tuple(row.get(field_name, [])))
+    provenance = _dict_value(row, "source_theorem_target_provenance")
+    if provenance:
+        for field_name in (
+            "target_prover_family",
+            "target_prover",
+            "prover_family",
+            "target_family",
+        ):
+            values.extend(_str_tuple(provenance.get(field_name, "")))
+        for field_name in (
+            "target_prover_families",
+            "target_provers",
+            "prover_families",
+            "target_families",
+        ):
+            values.extend(_str_tuple(provenance.get(field_name, [])))
+    return {
+        _target_prover_key(value)
+        for value in values
+        if _target_prover_key(value)
+    }
 
 
 def _row_route_match_ids(row: Mapping[str, Any]) -> set[str]:
