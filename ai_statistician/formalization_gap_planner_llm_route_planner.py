@@ -900,6 +900,7 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     quality_control_obligations: dict[str, object]
     feedback_loop_summary: dict[str, object]
     target_theorem_context_packet: dict[str, object]
+    route_planning_brief: dict[str, object]
     context_packet_inventory: dict[str, object]
     raw_response_text: str
     generator_metadata: dict[str, object]
@@ -3311,6 +3312,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "quality_control_obligations",
             "feedback_loop_summary",
             "target_theorem_context_packet",
+            "route_planning_brief",
             "context_packet_inventory",
             "raw_response_text",
             "generator_metadata",
@@ -3365,6 +3367,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "quality_control_obligations": {"type": "object"},
             "feedback_loop_summary": {"type": "object"},
             "target_theorem_context_packet": {"type": "object"},
+            "route_planning_brief": {"type": "object"},
             "context_packet_inventory": {"type": "object"},
             "raw_response_text": {"type": "string"},
             "generator_metadata": {"type": "object"},
@@ -9082,6 +9085,9 @@ def _row_for_request(
         feedback_loop_summary=dict(feedback_summary),
         target_theorem_context_packet=dict(
             _dict_value(context_packet, "target_theorem_context_packet")
+        ),
+        route_planning_brief=dict(
+            _dict_value(context_packet, "route_planning_brief")
         ),
         context_packet_inventory=dict(context_packet_inventory),
         raw_response_text=raw_text,
@@ -18344,6 +18350,7 @@ def _fallback_route_for_seed(
 ) -> dict[str, object]:
     fallback = dict(route)
     target_context_packet = dict(row.target_theorem_context_packet)
+    route_planning_brief = dict(row.route_planning_brief)
     metadata = _dict_value(fallback, "replan_metadata")
     metadata = {
         **metadata,
@@ -18374,11 +18381,14 @@ def _fallback_route_for_seed(
         ),
         "target_theorem_context_packet": target_context_packet,
         "llm_route_planner_target_theorem_context_packet": target_context_packet,
+        "llm_route_planner_route_planning_brief": route_planning_brief,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
     fallback["target_prover_family"] = row.target_prover_family
     fallback["target_theorem_context_packet"] = target_context_packet
+    if route_planning_brief:
+        fallback["llm_route_planner_route_planning_brief"] = route_planning_brief
     fallback["replan_metadata"] = metadata
     fallback["llm_route_planner_row_id"] = row.llm_route_planner_row_id
     fallback["llm_route_planner_acceptance_status"] = row.acceptance_status
@@ -18394,8 +18404,11 @@ def _accepted_route_for_seed(
 ) -> dict[str, object]:
     route = dict(row.standalone_route)
     target_context_packet = dict(row.target_theorem_context_packet)
+    route_planning_brief = dict(row.route_planning_brief)
     route["target_prover_family"] = row.target_prover_family
     route["target_theorem_context_packet"] = target_context_packet
+    if route_planning_brief:
+        route["llm_route_planner_route_planning_brief"] = route_planning_brief
     source_refs = tuple(
         dict.fromkeys(
             [
@@ -18637,6 +18650,7 @@ def _accepted_route_for_seed(
         "llm_route_planner_feedback_loop_summary": dict(row.feedback_loop_summary),
         "target_theorem_context_packet": target_context_packet,
         "llm_route_planner_target_theorem_context_packet": target_context_packet,
+        "llm_route_planner_route_planning_brief": route_planning_brief,
         "llm_route_planner_errors": list(row.errors),
         "llm_route_planner_generation_errors": list(row.generation_errors),
         "llm_route_planner_request_contract_blocked": (

@@ -277,6 +277,13 @@ def export_formalization_gap_planner_standalone_plan(
                 "has_llm_route_planner_target_theorem_context_packet"
             )
         ),
+        "n_standalone_input_traces_with_llm_route_planning_brief": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "has_llm_route_planner_route_planning_brief"
+            )
+        ),
         "n_standalone_input_trace_target_theorem_context_target_mismatches": sum(
             1
             for row in rows
@@ -1140,6 +1147,7 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "theorem_statement": {"type": "string"},
                     "theorem_skeleton": {"type": "string"},
                     "target_theorem_context_packet": {"type": "object"},
+                    "llm_route_planner_route_planning_brief": {"type": "object"},
                     "route_class": {"type": "string"},
                     "recommended_action": {"type": "string"},
                     "source_refs": string_array,
@@ -1342,6 +1350,7 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "llm_route_planner_target_theorem_context_packet": {
                         "type": "object"
                     },
+                    "llm_route_planner_route_planning_brief": {"type": "object"},
                     **seed_route_selection_trace_properties,
                     "alignment_edge_primitives": string_array,
                     "proof_evidence_status": {"type": "string"},
@@ -1893,6 +1902,12 @@ def _standalone_input_trace(
     llm_target_context_packet = _dict_value(
         metadata.get("llm_route_planner_target_theorem_context_packet", {})
     )
+    llm_route_planning_brief = _dict_value(
+        metadata.get(
+            "llm_route_planner_route_planning_brief",
+            raw_route.get("llm_route_planner_route_planning_brief", {}),
+        )
+    )
     trace_target_prover_family = str(
         raw_route.get("target_prover_family", "")
         or metadata.get("target_prover_family", "")
@@ -1916,6 +1931,16 @@ def _standalone_input_trace(
         "has_target_theorem_context_packet": bool(target_context_packet),
         "has_llm_route_planner_target_theorem_context_packet": bool(
             llm_target_context_packet
+        ),
+        "llm_route_planner_route_planning_brief": dict(llm_route_planning_brief),
+        "has_llm_route_planner_route_planning_brief": bool(
+            llm_route_planning_brief
+        ),
+        "llm_route_planning_brief_focus_count": len(
+            _dict_list(llm_route_planning_brief.get("planner_focus", []))
+        ),
+        "llm_route_planning_brief_evidence_gap_count": len(
+            _dict_list(llm_route_planning_brief.get("evidence_gaps", []))
         ),
         "target_theorem_context_packet_kind": str(
             target_context_packet.get("context_packet_kind", "")

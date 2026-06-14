@@ -613,6 +613,13 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
                                 "selected_primitives": ["rank_uniformity"],
                                 "route_cost": 7,
                                 "cost_rationale": "A source port is broader than this route.",
+                                "source_port_lemmas": [
+                                    (
+                                        "rank_uniformity: port the finite-rank "
+                                        "exchangeability source theorem as a "
+                                        "reusable route alternative"
+                                    )
+                                ],
                                 "primitive_costs": [
                                     {
                                         "primitive": "rank_uniformity",
@@ -2874,6 +2881,23 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "# route revision overlay\nnot theorem proof evidence\n",
         encoding="utf-8",
     )
+    handoff_target_theorem_context_packet = {
+        "context_packet_kind": (
+            "formalization_gap_planner_llm_route_planner_target_theorem_context_packet"
+        ),
+        "route_id": "route:fixture",
+        "display_name": "fixture route",
+        "target_prover_family": "lean4",
+        "library_snapshot_ref": "mathlib4:fixture",
+        "target_ids": ["rank_uniformity_fixture"],
+        "theorem_statement": (
+            "For exchangeable calibration and test scores, the test score rank "
+            "is uniformly distributed."
+        ),
+        "primitive_candidates": ["rank_uniformity"],
+        "residual_goals": ["rank_uniformity"],
+        "source_refs": ["fixture source"],
+    }
     handoff_row = {
         "schema_version": 1,
         "route_replan_handoff_id": "handoff:rank_uniformity",
@@ -2903,6 +2927,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "applied_prover_diagnostic_signatures": ["materialize_statement"],
         "route_revision_reasons": ["proof-state feedback exposed missing bridge"],
         "route_revision_summaries": ["add rank uniformity bridge"],
+        "target_theorem_context_packet": handoff_target_theorem_context_packet,
         "source_refs": ["fixture source"],
         "formal_declaration_hits": [
             {"primitive": "rank_uniformity", "declaration": "Fixture.rank_uniformity"}
@@ -2916,7 +2941,17 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "revised_route_alignment_edges": handoff_alignment_edges,
         "unaligned_primitives": [],
         "standalone_route_id": "replan_route:rank_uniformity",
-        "standalone_route": {"route_id": "replan_route:rank_uniformity"},
+        "standalone_route": {
+            "route_id": "replan_route:rank_uniformity",
+            "target_prover_family": "lean4",
+            "target_theorem_context_packet": handoff_target_theorem_context_packet,
+            "replan_metadata": {
+                "target_theorem_context_packet": handoff_target_theorem_context_packet,
+                "llm_route_planner_target_theorem_context_packet": (
+                    handoff_target_theorem_context_packet
+                ),
+            },
+        },
         "next_commands": [
             "formalization-gap-planner-standalone-plan --input formalization_gap_planner_route_replan_standalone_seed.json",
             "formalization-gap-planner-component-resource-registry --out <formalization_gap_planner_component_resource_registry_dir>",
@@ -2966,6 +3001,8 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_resource_response_awaiting_request_ids": 1,
                 "n_resource_response_rejected_request_ids": 1,
                 "n_distinct_prover_diagnostic_signatures": 1,
+                "n_routes_with_target_theorem_context_packet": 1,
+                "n_standalone_seed_routes_with_target_theorem_context_packet": 1,
                 "all_ok": True,
                 "rows": [handoff_row],
             },
@@ -2990,11 +3027,21 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "routes": [
                     {
                         "route_id": "replan_route:rank_uniformity",
+                        "target_prover_family": "lean4",
+                        "target_theorem_context_packet": (
+                            handoff_target_theorem_context_packet
+                        ),
                         "revised_informal_knowledge_dag_nodes": handoff_informal_nodes,
                         "revised_formal_realization_dag_nodes": handoff_lean_nodes,
                         "revised_lean_realization_dag_nodes": handoff_lean_nodes,
                         "revised_route_alignment_edges": handoff_alignment_edges,
                         "replan_metadata": {
+                            "target_theorem_context_packet": (
+                                handoff_target_theorem_context_packet
+                            ),
+                            "llm_route_planner_target_theorem_context_packet": (
+                                handoff_target_theorem_context_packet
+                            ),
                             "applied_proposal_ids": ["proposal:rank_uniformity"],
                             "applied_refinement_evidence_ids": [
                                 "resource_response_ledger:rank_uniformity"

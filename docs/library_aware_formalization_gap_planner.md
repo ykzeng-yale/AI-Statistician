@@ -649,19 +649,25 @@ minimal-delta plan. Request and manifest validation check the brief and target
 context counts against the raw context and inventory, so they are auditable
 planning guidance rather than separate evidence sources.
 Accepted and fallback LLM route-planner rows now also publish the same
-`target_theorem_context_packet`, and standalone/replan seeds copy it to both
-the route and `replan_metadata`. This keeps the theorem statement, assumptions,
-procedure, desired conclusion, primitive candidates, and residual-goal contract
-available to the next prover-feedback or replan round even when raw prompt rows
-are trimmed for reuse by an external prover adapter.
+`target_theorem_context_packet` and the compact `route_planning_brief`, and
+standalone/replan seeds copy them to route-level provenance and
+`replan_metadata`. This keeps the theorem statement, assumptions, procedure,
+desired conclusion, primitive candidates, residual-goal contract, prioritized
+planner focus, and evidence-gap checklist available to the next prover-feedback
+or replan round even when raw prompt rows are trimmed for reuse by an external
+prover adapter.
 Standalone replay exposes that same packet as
 `standalone_input_trace.target_theorem_context_packet` with compact route id,
 target-prover, theorem-statement, packet-kind, target-mismatch, and
 route-statement-differs fields. The standalone manifest counts traces with
 target-context packets, target mismatches, and route statements that differ from
-the preserved target theorem. This lets reusable/publication bundles distinguish
-legitimate route-specific theorem wording from actual target-prover drift after
-LLM route adoption.
+the preserved target theorem. It also counts traces with
+`llm_route_planner_route_planning_brief`, and the reuse-smoke manifest lifts
+that counter, so publication consumers can verify that the distilled route
+planning checklist survived request -> LLM row -> seed -> standalone replay.
+This lets reusable/publication bundles distinguish legitimate route-specific
+theorem wording from actual target-prover drift after LLM route adoption while
+keeping route-repair focus auditable.
 Each request packet also includes `context_packet.context_packet_inventory`, a
 validator-checked compact inventory of the same prompt context: row counts for
 target intake, source grounding, library coverage, resource queues, response

@@ -1473,6 +1473,7 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     context = request["context_packet"]
     assert context["current_route"]["route_id"] == "rank_route"
     target_context_packet = context["target_theorem_context_packet"]
+    route_planning_brief = context["route_planning_brief"]
     assert target_context_packet["context_packet_kind"] == (
         TARGET_THEOREM_CONTEXT_PACKET_KIND
     )
@@ -1489,9 +1490,13 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         "conformal_prediction_textbook"
     ]
     assert payload["rows"][0]["target_theorem_context_packet"] == target_context_packet
+    assert payload["rows"][0]["route_planning_brief"] == route_planning_brief
     fallback_seed_route = payload["standalone_seed"]["routes"][0]
     assert fallback_seed_route["target_theorem_context_packet"] == (
         target_context_packet
+    )
+    assert fallback_seed_route["llm_route_planner_route_planning_brief"] == (
+        route_planning_brief
     )
     assert fallback_seed_route["replan_metadata"][
         "target_theorem_context_packet"
@@ -1499,6 +1504,9 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert fallback_seed_route["replan_metadata"][
         "llm_route_planner_target_theorem_context_packet"
     ] == target_context_packet
+    assert fallback_seed_route["replan_metadata"][
+        "llm_route_planner_route_planning_brief"
+    ] == route_planning_brief
     brief = context["route_planning_brief"]
     assert brief["brief_kind"] == (
         "formalization_gap_planner_llm_route_planner_route_planning_brief"
@@ -5890,11 +5898,17 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert seed_route["target_theorem_context_packet"] == row[
         "target_theorem_context_packet"
     ]
+    assert seed_route["llm_route_planner_route_planning_brief"] == row[
+        "route_planning_brief"
+    ]
     assert metadata["target_theorem_context_packet"] == row[
         "target_theorem_context_packet"
     ]
     assert metadata["llm_route_planner_target_theorem_context_packet"] == row[
         "target_theorem_context_packet"
+    ]
+    assert metadata["llm_route_planner_route_planning_brief"] == row[
+        "route_planning_brief"
     ]
     assert seed_route["source_snippets"][0]["source_ref"] == (
         "conformal_prediction_textbook"
@@ -5983,6 +5997,12 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     )
     assert (
         plan_payload[
+            "n_standalone_input_traces_with_llm_route_planning_brief"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
             "n_standalone_input_trace_target_theorem_context_target_mismatches"
         ]
         == 0
@@ -6048,8 +6068,15 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert trace["target_theorem_context_packet"] == row[
         "target_theorem_context_packet"
     ]
+    assert trace["llm_route_planner_route_planning_brief"] == row[
+        "route_planning_brief"
+    ]
     assert trace["has_target_theorem_context_packet"] is True
     assert trace["has_llm_route_planner_target_theorem_context_packet"] is True
+    assert trace["has_llm_route_planner_route_planning_brief"] is True
+    assert trace["llm_route_planning_brief_focus_count"] == len(
+        row["route_planning_brief"]["planner_focus"]
+    )
     assert trace["target_theorem_context_packet_kind"] == (
         TARGET_THEOREM_CONTEXT_PACKET_KIND
     )
