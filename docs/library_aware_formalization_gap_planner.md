@@ -1235,8 +1235,9 @@ intake, literature route synthesis, informal DAG decomposition, formal-library
 coverage, minimal-delta planning, prover feedback, route revision, and
 cross-prover publication to local fallbacks and frontier tools such as
 Paperclip/PaperQA/OpenScholar, LeanSearch/Loogle/LeanExplore, Lean/LSP,
-LeanDojo/ReProver, Rocq LSP/SerAPI, Isabelle/Sledgehammer, and Agda
-Search/Auto surfaces. It also emits one execution-plan row per planner
+LeanDojo/ReProver, Rocq LSP/SerAPI, Isabelle/Sledgehammer, Agda
+Search/Auto, HOL4/HOL Light, Mizar, and Metamath surfaces. It also emits one
+execution-plan row per planner
 component with local-first resources, frontier escalation resources, adapter
 ids, evidence inputs, expected outputs, escalation triggers, and stop
 conditions. Resource rows include `capability_tags` and `validation_signals`,

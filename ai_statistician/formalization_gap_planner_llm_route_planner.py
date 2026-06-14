@@ -565,6 +565,27 @@ LLM_ROUTE_PLANNER_TARGET_SPECIFIC_TOOL_ALIASES = {
         "afp",
     ),
     "agda": ("agda",),
+    "hol4": (
+        "hol4",
+        "hol_4",
+        "hol4_tactic",
+        "hol4_kernel",
+    ),
+    "hol_light": (
+        "hol_light",
+        "hol_light_tactic",
+        "hollight",
+    ),
+    "mizar": (
+        "mizar",
+        "mizarlib",
+        "mml",
+    ),
+    "metamath": (
+        "metamath",
+        "set_mm",
+        "setmm",
+    ),
 }
 
 
@@ -11196,6 +11217,11 @@ def _target_prover_key(value: object) -> str:
         "lean_4": "lean4",
         "lean4": "lean4",
         "isabelle_hol": "isabelle",
+        "hol_4": "hol4",
+        "hollight": "hol_light",
+        "hol_light": "hol_light",
+        "set_mm": "metamath",
+        "setmm": "metamath",
     }
     return aliases.get(key, key)
 
@@ -16431,14 +16457,8 @@ def _adapter_targets_match(
     if resource_row is not None:
         return _resource_targets_match(resource_row, target)
     key = _resource_ref_key(adapter)
-    target_specific_tokens = {
-        "lean4": ("lean", "lake", "loogle", "mathlib", "leandojo"),
-        "rocq": ("rocq", "coq", "serapi"),
-        "isabelle": ("isabelle", "sledgehammer", "afp"),
-        "agda": ("agda",),
-    }
-    for prover_key, tokens in target_specific_tokens.items():
-        if any(token in key for token in tokens):
+    for prover_key, tokens in LLM_ROUTE_PLANNER_TARGET_SPECIFIC_TOOL_ALIASES.items():
+        if any(_text_key_contains_alias(key, token) for token in tokens):
             return target == prover_key
     return True
 

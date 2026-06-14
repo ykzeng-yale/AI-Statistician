@@ -21,6 +21,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
     TARGET_THEOREM_CONTEXT_PACKET_KIND,
+    _adapter_targets_match,
     _available_formal_declaration_rows_for_context,
     _generator_model_for_request,
     _route_adoption_readiness,
@@ -10645,6 +10646,130 @@ def test_llm_route_planner_accepts_target_specific_rocq_tools_for_rocq_target() 
 
     assert payload["all_ok"]
     assert payload["n_response_contract_ok"] == 1
+
+
+def test_llm_route_planner_accepts_target_specific_hol4_tools_for_hol4_target() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_hol4_tool_for_hol4"
+    )
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["target_prover_family"] = "hol_4"
+    input_payload["library_snapshot_ref"] = "hol4_probability_snapshot"
+    input_json.write_text(json.dumps(input_payload), encoding="utf-8")
+    response = _llm_response_payload()
+    response["formal_realization_dag_nodes"] = response.pop(
+        "lean_realization_dag_nodes"
+    )
+    response["search_requests"] = [
+        {
+            "request_kind": "formal_library",
+            "owner": "hol4_tactic_search",
+            "query": "rank uniformity HOL4 theorem search",
+            "reason": "Search the HOL4 library adapter for the target primitive.",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response["planner_next_actions"] = [
+        {
+            "owner": "hol4_kernel_replay",
+            "action": "run HOL4 proof-state feedback for the rank route",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_response_contract_ok"] == 1
+    assert payload["rows"][0]["target_prover_family"] == "hol_4"
+
+
+def test_llm_route_planner_rejects_target_specific_hol4_tools_for_isabelle_target() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_hol4_tool_for_isabelle"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["target_prover_family"] = "isabelle_hol"
+    input_payload["library_snapshot_ref"] = "isabelle_afp_snapshot"
+    input_json.write_text(json.dumps(input_payload), encoding="utf-8")
+    bad_response = _llm_response_payload()
+    bad_response["formal_realization_dag_nodes"] = bad_response.pop(
+        "lean_realization_dag_nodes"
+    )
+    bad_response["search_requests"] = [
+        {
+            "request_kind": "formal_library",
+            "owner": "hol4_tactic_search",
+            "query": "rank uniformity HOL4 theorem search",
+            "reason": "This incorrectly dispatches a HOL4-specific search for Isabelle.",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    bad_response["planner_next_actions"] = [
+        {
+            "owner": "hol4_kernel_replay",
+            "action": "run a HOL4 replay despite the Isabelle target",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert "search_requests[0] uses target-specific tool/resource" in error_text
+    assert "hol4_tactic_search targets hol4" in error_text
+    assert "planner_next_actions[0] uses target-specific tool/resource" in error_text
+    assert "hol4_kernel_replay targets hol4" in error_text
+    assert "target_prover_family isabelle_hol" in error_text
+
+
+def test_llm_route_planner_adapter_target_filter_supports_extended_provers() -> None:
+    assert _adapter_targets_match(
+        "hol4_tactic_search",
+        target_prover_family="hol_4",
+        compatible_resource_ids=set(),
+        resource_row_by_id={},
+    )
+    assert not _adapter_targets_match(
+        "hol4_tactic_search",
+        target_prover_family="isabelle_hol",
+        compatible_resource_ids=set(),
+        resource_row_by_id={},
+    )
+    assert _adapter_targets_match(
+        "mizar_mml_search",
+        target_prover_family="mizar",
+        compatible_resource_ids=set(),
+        resource_row_by_id={},
+    )
+    assert not _adapter_targets_match(
+        "set_mm_lookup",
+        target_prover_family="mizar",
+        compatible_resource_ids=set(),
+        resource_row_by_id={},
+    )
 
 
 def test_llm_route_planner_rejects_target_theorem_identity_drift() -> None:
