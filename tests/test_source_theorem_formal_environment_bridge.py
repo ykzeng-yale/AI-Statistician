@@ -590,6 +590,69 @@ def test_exact_source_theorem_proof_body_executor_attempts_bounded_tactics(
     ]
 
 
+def test_signature_probe_repairs_greek_alpha_ennreal_lower_bound(
+    tmp_path: Path,
+) -> None:
+    candidate_artifact = tmp_path / "split_conformal_coverage_greek.lean"
+    candidate_artifact.write_text(
+        "import Mathlib.MeasureTheory.Measure.ProbabilityMeasure\n"
+        "import Mathlib.Data.Real.Basic\n"
+        "import Mathlib.Data.Fin.Basic\n\n"
+        "theorem split_conformal_coverage {Ω : Type _} [MeasurableSpace Ω] "
+        "(P : MeasureTheory.Measure Ω) [MeasureTheory.IsProbabilityMeasure P] "
+        "(n₂ : ℕ) (hn₂ : 0 < n₂) (α : ℝ) (hα : 0 < α) (hα1 : α < 1) "
+        "(s : Fin (n₂ + 1) → Ω → ℝ) (hexch : Exchangeable P s) "
+        "(q_hat : Ω → ℝ) "
+        "(hq : ∀ ω, q_hat ω = orderStat s (⌈(↑(n₂ + 1) * (1 - α))⌉₊) ω) : "
+        "P {ω | s (Fin.last n₂) ω ≤ q_hat ω} ≥ 1 - α := by\n"
+        "  fail_if_success trivial\n",
+        encoding="utf-8",
+    )
+    queue_jsonl = tmp_path / "runtime_source_theorem_formal_environment_work_orders.jsonl"
+    queue_jsonl.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_kind": "SourceTheoremFormalEnvironmentWorkOrder",
+                "work_order_id": "source_theorem_formal_environment_work_order:greek",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "source_theorem_target_known": True,
+                "candidate_artifact_path": str(candidate_artifact),
+                "failure_classification": "formal_environment_symbol_missing",
+                "diagnostics": ["HSub ℕ ℝ ENNReal"],
+                "missing_formal_symbols": ["Exchangeable", "orderStat"],
+                "typeclass_blockers": ["HSub ℕ ℝ ENNReal"],
+                "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_formal_environment_proofengineer_bridge(
+        out_dir=tmp_path / "bridge_greek",
+        queue_jsonl=queue_jsonl,
+        run_signature_probes=True,
+        lean_command=(
+            sys.executable,
+            "-c",
+            "import sys; print('unsolved goals'); sys.exit(1)",
+        ),
+    )
+
+    probe_manifest = json.loads(
+        Path(str(manifest["signature_probe_manifest"])).read_text(encoding="utf-8")
+    )
+    probe_source = Path(
+        str(probe_manifest["rows"][0]["signature_probe_artifact_path"])
+    ).read_text(encoding="utf-8")
+    assert "ENNReal.ofReal (1 - α)" in probe_source
+    assert manifest["n_signature_probes_reached_proof_body"] == 1
+    assert manifest["n_proof_body_execution_queue_rows"] == 1
+
+
 def test_signature_probe_does_not_queue_proof_body_with_environment_errors(
     tmp_path: Path,
 ) -> None:

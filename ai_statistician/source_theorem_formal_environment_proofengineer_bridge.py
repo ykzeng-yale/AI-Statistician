@@ -945,6 +945,7 @@ def _apply_statement_repair_hints(source: str, packet: Mapping[str, Any]) -> str
     missing_symbols = _str_list(packet.get("missing_formal_symbols", []) or [])
     if any("HSub ℕ ℝ ENNReal" in blocker for blocker in blockers):
         source = re.sub(r"≥\s*1\s*-\s*alpha\b", "≥ ENNReal.ofReal (1 - alpha)", source)
+        source = re.sub(r"≥\s*1\s*-\s*α\b", "≥ ENNReal.ofReal (1 - α)", source)
     if "MeasureProbability" in missing_symbols:
         source = source.replace(
             "1 - α ≤ P.toMeasure",
