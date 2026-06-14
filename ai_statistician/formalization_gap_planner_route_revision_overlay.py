@@ -1372,6 +1372,9 @@ def _proposal_resource_response_traces(
 def _proposal_llm_route_planner_hook_traces(
     proposal: dict[str, Any],
 ) -> tuple[dict[str, object], ...]:
+    residual_goal_context = _residual_goal_context_value(
+        _dict_value(proposal, "residual_goal_context")
+    )
     traces = tuple(
         trace
         for trace in _dict_tuple(proposal.get("llm_route_planner_hook_traces", []))
@@ -1379,7 +1382,31 @@ def _proposal_llm_route_planner_hook_traces(
     )
     single = proposal.get("llm_route_planner_hook_trace")
     if isinstance(single, dict) and single:
+        single = dict(single)
+        if residual_goal_context and not single.get("residual_goal_context"):
+            single["residual_goal_context"] = residual_goal_context
         traces = (*traces, single)
+    elif residual_goal_context:
+        traces = (
+            *traces,
+            {
+                "trace_source": "refinement_evidence",
+                "refinement_evidence_id": str(
+                    proposal.get("refinement_evidence_id", "")
+                ),
+                "refinement_item_id": str(proposal.get("refinement_item_id", "")),
+                "route_id": str(proposal.get("route_id", "")),
+                "goal_plan_id": str(proposal.get("goal_plan_id", "")),
+                "hook_kind": str(proposal.get("hook_kind", "")),
+                "residual_goal_context": residual_goal_context,
+                "proof_evidence_status": str(
+                    proposal.get("proof_evidence_status", PROOF_EVIDENCE_STATUS)
+                ),
+                "proof_evidence_boundary": str(
+                    proposal.get("proof_evidence_boundary", PROOF_EVIDENCE_BOUNDARY)
+                ),
+            },
+        )
     return traces
 
 

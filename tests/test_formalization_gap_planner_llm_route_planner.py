@@ -5365,6 +5365,33 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
                     "residual_goals": [
                         "rank_uniformity: missing finite tie-breaking side condition"
                     ],
+                    "residual_goal_context": {
+                        "source_kind": "proof_state_feedback",
+                        "residual_goal": (
+                            "rank_uniformity: missing finite tie-breaking side condition"
+                        ),
+                        "residual_goals": [
+                            "rank_uniformity: missing finite tie-breaking side condition"
+                        ],
+                        "residual_primitives": ["rank_uniformity"],
+                        "target_primitives": ["rank_uniformity"],
+                        "interpretation": (
+                            "The proof-state residual requires explicit finite "
+                            "tie-breaking."
+                        ),
+                        "route_repair": (
+                            "Keep proof-state feedback bounded to the Lean "
+                            "residual before route adoption."
+                        ),
+                        "repair_action": (
+                            "rerun route planning with rank_uniformity "
+                            "side-condition evidence"
+                        ),
+                        "source_refs": ["conformal_prediction_textbook"],
+                        "queries": [
+                            "ask Lean LSP for rank_uniformity residual goals"
+                        ],
+                    },
                 }
             )
     response_jsonl = root / "quality_control_route_revision_responses.jsonl"
@@ -5485,6 +5512,39 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
     assert tuple(replan_context["residual_goals"]) == (
         "rank_uniformity: missing finite tie-breaking side condition",
     )
+    assert replan_payload["n_requests_with_residual_goal_contexts"] == 1
+    assert replan_payload["n_request_residual_goal_contexts"] == 1
+    assert replan_payload["n_request_context_residual_goal_contexts"] == 1
+    assert replan_payload["n_request_inventory_residual_goal_contexts"] == 1
+    assert (
+        replan_payload["request_packets"][0]["residual_goal_contexts"]
+        == replan_context["residual_goal_contexts"]
+    )
+    assert len(replan_context["residual_goal_contexts"]) == 1
+    residual_context = replan_context["residual_goal_contexts"][0]
+    assert residual_context["residual_goal"] == (
+        "rank_uniformity: missing finite tie-breaking side condition"
+    )
+    assert residual_context["route_repair"].startswith(
+        "Keep proof-state feedback"
+    )
+    assert residual_context["source_refs"] == ("conformal_prediction_textbook",)
+    target_context = replan_context["target_theorem_context_packet"]
+    assert target_context["residual_goal_context_count"] == 1
+    assert target_context["residual_goal_contexts"] == [
+        dict(residual_context)
+    ]
+    route_brief = replan_context["route_planning_brief"]
+    assert route_brief["evidence_summary"]["residual_goal_context_count"] == 1
+    assert {
+        focus["focus_id"] for focus in route_brief["planner_focus"]
+    } >= {"repair_from_residual_goal_contexts"}
+    assert replan_context["context_packet_inventory"][
+        "residual_goal_context_count"
+    ] == 1
+    assert replan_context["context_packet_inventory"][
+        "target_theorem_context_residual_goal_context_count"
+    ] == 1
     handoff_rows = replan_context["route_replan_handoff_rows"]
     assert len(handoff_rows) == 1
     assert handoff_rows[0]["route_replan_handoff_id"].startswith(
@@ -5517,7 +5577,15 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
     assert "route_replan_handoff_rows" in replan_payload["request_packets"][0][
         "prompt_messages"
     ]["user"]
+    assert "residual_goal_contexts" in replan_payload["request_packets"][0][
+        "prompt_messages"
+    ]["user"]
     replan_row = replan_payload["rows"][0]
+    assert replan_row["residual_goal_contexts"] == (
+        dict(residual_context),
+    )
+    assert replan_payload["n_rows_with_residual_goal_contexts"] == 1
+    assert replan_payload["n_row_residual_goal_contexts"] == 1
     assert replan_row["response_contract_ok"] is True
     assert replan_row["planner_next_actions"][0]["quality_gates"] == [
         "response_schema_valid"

@@ -2788,6 +2788,22 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_rows_with_context_packet_inventory",
             0,
         ),
+        "n_llm_route_planner_request_residual_goal_contexts": llm_route_planner_payload.get(
+            "n_request_residual_goal_contexts",
+            0,
+        ),
+        "n_llm_route_planner_context_residual_goal_contexts": llm_route_planner_payload.get(
+            "n_request_context_residual_goal_contexts",
+            0,
+        ),
+        "n_llm_route_planner_rows_with_residual_goal_contexts": llm_route_planner_payload.get(
+            "n_rows_with_residual_goal_contexts",
+            0,
+        ),
+        "n_llm_route_planner_row_residual_goal_contexts": llm_route_planner_payload.get(
+            "n_row_residual_goal_contexts",
+            0,
+        ),
         "n_llm_route_planner_quality_control_obligation_inventories": (
             llm_route_planner_payload.get(
                 "n_requests_with_quality_control_obligation_inventory",
@@ -3406,6 +3422,30 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_rows_with_context_packet_inventory": (
             feedback_llm_route_planner_payload.get(
                 "n_rows_with_context_packet_inventory",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_residual_goal_contexts": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_residual_goal_contexts",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_context_residual_goal_contexts": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_context_residual_goal_contexts",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_rows_with_residual_goal_contexts": (
+            feedback_llm_route_planner_payload.get(
+                "n_rows_with_residual_goal_contexts",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_row_residual_goal_contexts": (
+            feedback_llm_route_planner_payload.get(
+                "n_row_residual_goal_contexts",
                 0,
             )
         ),
@@ -5781,6 +5821,14 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_refinement_evidence_row_schema_invalid": refinement_evidence_payload.get(
             "n_evidence_row_schema_invalid",
+            0,
+        ),
+        "n_refinement_evidence_rows_with_residual_goal_context": refinement_evidence_payload.get(
+            "n_rows_with_residual_goal_context",
+            0,
+        ),
+        "n_refinement_route_revision_proposals_with_residual_goal_context": refinement_evidence_payload.get(
+            "n_route_revision_proposals_with_residual_goal_context",
             0,
         ),
         "n_route_revision_recommended": refinement_evidence_payload.get(

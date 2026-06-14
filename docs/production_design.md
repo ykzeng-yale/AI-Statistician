@@ -261,7 +261,11 @@ hook traces, so later replans can distinguish residual-driven route repair from
 generic search or handoff activity. Route-replan handoff rows aggregate those
 contexts as `residual_goal_contexts`, copy them into the replayable standalone
 seed metadata, and the standalone planner exposes them in the roundtrip input
-trace used by the next LLM route-planner prompt.
+trace used by the next LLM route-planner prompt. Refinement-evidence responses
+preserve the same field in route-revision proposals, and the next LLM
+route-planner request exposes the resulting contexts both top-level and inside
+`context_packet.residual_goal_contexts`, with target-context, route-brief, and
+inventory counts.
 The prover-adapter contract exports those portable work packets as target-prover
 mapping tasks for Lean, Rocq/Coq, Isabelle, Agda, or another prover family and
 validates adapter responses without accepting kernel-proof claims.

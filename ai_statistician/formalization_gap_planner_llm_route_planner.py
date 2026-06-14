@@ -952,6 +952,7 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     target_theorem_context_packet: dict[str, object]
     route_planning_brief: dict[str, object]
     context_packet_inventory: dict[str, object]
+    residual_goal_contexts: tuple[dict[str, object], ...]
     raw_response_text: str
     generator_metadata: dict[str, object]
     provider_failure: bool
@@ -1437,6 +1438,36 @@ def export_formalization_gap_planner_llm_route_planner(
         "generation_preflight_errors": generation_preflight_errors,
         "n_request_residual_goals": sum(
             len(_str_tuple(packet.get("residual_goals", [])))
+            for packet in request_packets
+        ),
+        "n_requests_with_residual_goal_contexts": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(packet.get("residual_goal_contexts", []))
+        ),
+        "n_request_residual_goal_contexts": sum(
+            len(_dict_tuple(packet.get("residual_goal_contexts", [])))
+            for packet in request_packets
+        ),
+        "n_request_context_residual_goal_contexts": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "residual_goal_contexts",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_request_inventory_residual_goal_contexts": sum(
+            int(
+                _request_context_packet_inventory(packet).get(
+                    "residual_goal_context_count",
+                    0,
+                )
+                or 0
+            )
             for packet in request_packets
         ),
         "n_requests_with_library_coverage_rows": sum(
@@ -2512,6 +2543,12 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_rows_with_context_packet_inventory": sum(
             1 for row in rows if row.context_packet_inventory
         ),
+        "n_rows_with_residual_goal_contexts": sum(
+            1 for row in rows if row.residual_goal_contexts
+        ),
+        "n_row_residual_goal_contexts": sum(
+            len(row.residual_goal_contexts) for row in rows
+        ),
         "n_uncertainty_flags": sum(len(row.uncertainty_flags) for row in rows),
         "n_residual_interpretations": sum(
             len(row.residual_interpretations) for row in rows
@@ -2834,6 +2871,7 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
 
 def llm_route_planner_request_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
+    object_array = {"type": "array", "items": {"type": "object"}}
     library_alignment_summary_schema = (
         llm_route_planner_library_alignment_summary_json_schema()
     )
@@ -2886,11 +2924,13 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
                 "properties": {
                     "library_alignment_summary": {
                         "$ref": "#/$defs/library_alignment_summary"
-                    }
+                    },
+                    "residual_goal_contexts": object_array,
                 },
             },
             "minimal_delta_cost_policy": {"type": "object"},
             "residual_goals": string_array,
+            "residual_goal_contexts": object_array,
             "required_output_contract": {"type": "object"},
             "prompt_messages": {"type": "object"},
             "proof_evidence_status": {"type": "string", "const": PROOF_EVIDENCE_STATUS},
@@ -3776,6 +3816,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "target_theorem_context_packet",
             "route_planning_brief",
             "context_packet_inventory",
+            "residual_goal_contexts",
             "raw_response_text",
             "generator_metadata",
             "provider_failure",
@@ -3831,6 +3872,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "target_theorem_context_packet": {"type": "object"},
             "route_planning_brief": {"type": "object"},
             "context_packet_inventory": {"type": "object"},
+            "residual_goal_contexts": object_array,
             "raw_response_text": {"type": "string"},
             "generator_metadata": {"type": "object"},
             "provider_failure": {"type": "boolean"},
@@ -4165,6 +4207,14 @@ def validate_llm_route_planner_request(
             allow_repair_escalation=False,
         )
     )
+    context_packet = _dict_value(row, "context_packet")
+    if stable_hash(_dict_tuple(row.get("residual_goal_contexts", []))) != stable_hash(
+        _dict_tuple(context_packet.get("residual_goal_contexts", []))
+    ):
+        errors.append(
+            "residual_goal_contexts must match "
+            "context_packet.residual_goal_contexts"
+        )
     errors.extend(_llm_generation_policy_errors(row))
     errors.extend(_context_packet_inventory_errors(row))
     return sorted(set(errors))
@@ -5316,6 +5366,13 @@ def validate_llm_route_planner_row(
             "context_packet_inventory.inventory_kind must equal "
             + CONTEXT_PACKET_INVENTORY_KIND
         )
+    if int(inventory.get("residual_goal_context_count", 0) or 0) != len(
+        _dict_tuple(row.get("residual_goal_contexts", []))
+    ):
+        errors.append(
+            "residual_goal_contexts count must match "
+            "context_packet_inventory.residual_goal_context_count"
+        )
     target_context = _dict_value(row, "target_theorem_context_packet")
     if bool(
         inventory.get("target_theorem_context_packet_present", False)
@@ -5379,6 +5436,11 @@ def _request_packet(
         route.get("library_snapshot_ref") or input_payload.get("library_snapshot_ref", "")
     )
     residual_goals = _residual_goals_for_route(
+        route_match_ids,
+        context_payloads,
+        route=route,
+    )
+    residual_goal_contexts = _residual_goal_contexts_for_request(
         route_match_ids,
         context_payloads,
         route=route,
@@ -5470,6 +5532,9 @@ def _request_packet(
             _legacy_context_field_aliases_for_target(target_prover_family)
         ),
         "residual_goals": residual_goals,
+        "residual_goal_contexts": [
+            dict(context) for context in residual_goal_contexts
+        ],
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
     context_packet["resource_request_playbooks"] = [
@@ -5519,6 +5584,7 @@ def _request_packet(
             route=route,
             context_packet=context_packet,
             residual_goals=residual_goals,
+            residual_goal_contexts=residual_goal_contexts,
             target_prover_family=target_prover_family,
             library_snapshot_ref=library_snapshot_ref,
         )
@@ -5592,6 +5658,9 @@ def _request_packet(
         "target_route": dict(route),
         "context_packet": context_packet,
         "residual_goals": residual_goals,
+        "residual_goal_contexts": [
+            dict(context) for context in residual_goal_contexts
+        ],
         "minimal_delta_cost_policy": MINIMAL_DELTA_COST_POLICY,
         "required_output_contract": required_output_contract,
         "prompt_messages": prompt_messages,
@@ -5790,6 +5859,7 @@ def _target_theorem_context_packet(
     route: Mapping[str, Any],
     context_packet: Mapping[str, Any],
     residual_goals: tuple[str, ...],
+    residual_goal_contexts: tuple[dict[str, object], ...],
     target_prover_family: str,
     library_snapshot_ref: str,
 ) -> dict[str, object]:
@@ -6098,6 +6168,10 @@ def _target_theorem_context_packet(
         "primitive_candidates": list(primitive_candidates[:25]),
         "residual_goal_count": len(residual_goals),
         "residual_goals": list(residual_goals[:20]),
+        "residual_goal_context_count": len(residual_goal_contexts),
+        "residual_goal_contexts": [
+            dict(context) for context in residual_goal_contexts[:12]
+        ],
         "source_snippet_count": len(
             _dict_tuple(context_packet.get("available_source_snippets", []))
         ),
@@ -6141,6 +6215,9 @@ def _route_planning_brief(
     target_theorem_context = _dict_value(
         context_packet,
         "target_theorem_context_packet",
+    )
+    residual_goal_contexts = _dict_tuple(
+        context_packet.get("residual_goal_contexts", [])
     )
     target_intake_rows = _dict_tuple(context_packet.get("target_intake_rows", []))
     planner_focus: list[dict[str, object]] = []
@@ -6211,6 +6288,34 @@ def _route_planning_brief(
             ),
             required_output_fields=("residual_interpretations", "search_requests"),
             target_primitives=_residual_goal_target_primitives(residual_goals),
+        )
+    if residual_goal_contexts:
+        add_focus(
+            "repair_from_residual_goal_contexts",
+            priority=1,
+            action=(
+                "use structured residual-goal contexts to preserve the concrete "
+                "prover side condition, route repair, source refs, and target "
+                "primitives during replanning"
+            ),
+            reason=(
+                "context_packet.residual_goal_contexts carries residual repair "
+                "metadata from route-replan handoff, resource-response ledger, "
+                "or LLM route-planner hook traces"
+            ),
+            evidence_fields=(
+                "context_packet.residual_goal_contexts",
+                "context_packet.route_replan_handoff_rows",
+                "context_packet.feedback_loop_summary",
+            ),
+            required_output_fields=(
+                "residual_interpretations",
+                "standalone_route.primitives.side_conditions",
+                "planner_next_actions",
+            ),
+            target_primitives=_residual_goal_context_target_primitives(
+                residual_goal_contexts
+            ),
         )
     if source_refs or source_snippets:
         add_focus(
@@ -6440,6 +6545,7 @@ def _route_planning_brief(
         "source_snippet_count": len(source_snippets),
         "formal_declaration_row_count": len(formal_declaration_rows),
         "residual_goal_count": len(residual_goals),
+        "residual_goal_context_count": len(residual_goal_contexts),
         "primitive_cost_hint_count": len(primitive_cost_hints),
         "route_option_cost_hint_count": len(route_option_hints),
         "library_alignment_primitive_count": int(
@@ -6515,6 +6621,20 @@ def _residual_goal_target_primitives(
         if prefix and re.match(r"^[A-Za-z_][A-Za-z0-9_.'-]*$", prefix):
             primitives.append(prefix)
     return tuple(dict.fromkeys(primitives))
+
+
+def _residual_goal_context_target_primitives(
+    residual_goal_contexts: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    primitives: list[str] = []
+    for context in residual_goal_contexts:
+        primitives.extend(_str_tuple(context.get("target_primitives", [])))
+        primitives.extend(_str_tuple(context.get("residual_primitives", [])))
+        residual_goal = str(context.get("residual_goal", "") or "").strip()
+        prefix = residual_goal.split(":", 1)[0].strip()
+        if prefix and re.match(r"^[A-Za-z_][A-Za-z0-9_.'-]*$", prefix):
+            primitives.append(prefix)
+    return tuple(dict.fromkeys(primitive for primitive in primitives if primitive))
 
 
 def _source_grounding_obligation_summary(
@@ -6645,6 +6765,9 @@ def _context_packet_inventory(
         "row_counts": row_counts,
         "total_context_rows": sum(row_counts.values()),
         "residual_goal_count": len(residual_goals),
+        "residual_goal_context_count": len(
+            _dict_tuple(context_packet.get("residual_goal_contexts", []))
+        ),
         "available_source_ref_count": len(
             _str_tuple(context_packet.get("available_source_refs", []))
         ),
@@ -6672,6 +6795,9 @@ def _context_packet_inventory(
         ),
         "target_theorem_context_proof_style_hint_count": len(
             _str_tuple(target_theorem_context.get("proof_style_hints", []))
+        ),
+        "target_theorem_context_residual_goal_context_count": len(
+            _dict_tuple(target_theorem_context.get("residual_goal_contexts", []))
         ),
         "resource_request_playbook_count": len(
             _dict_tuple(context_packet.get("resource_request_playbooks", []))
@@ -6893,6 +7019,10 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             len(_str_tuple(context_packet.get("residual_goals", []))),
         ),
         (
+            "residual_goal_context_count",
+            len(_dict_tuple(context_packet.get("residual_goal_contexts", []))),
+        ),
+        (
             "available_source_ref_count",
             len(_str_tuple(context_packet.get("available_source_refs", []))),
         ),
@@ -7040,6 +7170,14 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                 len(
                     _str_tuple(
                         target_theorem_context.get("proof_style_hints", [])
+                    )
+                ),
+            ),
+            (
+                "target_theorem_context_residual_goal_context_count",
+                len(
+                    _dict_tuple(
+                        target_theorem_context.get("residual_goal_contexts", [])
                     )
                 ),
             ),
@@ -7206,6 +7344,10 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             (
                 "residual_goal_count",
                 len(_str_tuple(context_packet.get("residual_goals", []))),
+            ),
+            (
+                "residual_goal_context_count",
+                len(_dict_tuple(context_packet.get("residual_goal_contexts", []))),
             ),
             (
                 "primitive_cost_hint_count",
@@ -10203,6 +10345,9 @@ def _row_for_request(
             _dict_value(context_packet, "route_planning_brief")
         ),
         context_packet_inventory=dict(context_packet_inventory),
+        residual_goal_contexts=_dict_tuple(
+            context_packet.get("residual_goal_contexts", [])
+        ),
         raw_response_text=raw_text,
         generator_metadata=_jsonable_mapping(
             (response or {}).get("generator_metadata", {})
@@ -19631,6 +19776,42 @@ def _residual_goals_for_route(
     return _unique_strings(residuals)
 
 
+def _residual_goal_contexts_for_request(
+    route_ids: tuple[str, ...],
+    context_payloads: Mapping[str, Any],
+    *,
+    route: Mapping[str, Any] | None = None,
+) -> tuple[dict[str, object], ...]:
+    contexts: list[dict[str, object]] = []
+    route = route or {}
+    contexts.extend(_residual_goal_contexts_for_route(route))
+    for source_name in (
+        "resource_response_ledger",
+        "source_grounding_audit",
+        "refinement_evidence",
+        "route_revision_overlay",
+        "route_replan_handoff",
+        "interactive_session",
+    ):
+        for row in _rows_for_route(context_payloads.get(source_name, {}), route_ids):
+            if (
+                source_name == "resource_response_ledger"
+                and not _resource_response_row_is_admissible_feedback(row)
+            ):
+                continue
+            if (
+                source_name == "refinement_evidence"
+                and not _refinement_evidence_row_is_admissible_feedback(row)
+            ):
+                continue
+            contexts.extend(_residual_goal_contexts_for_route(row))
+    return _merge_dict_rows(
+        (),
+        tuple(contexts),
+        key_fields=("residual_goal", "route_repair", "repair_action"),
+    )
+
+
 def _residual_goal_contexts_for_route(route: Mapping[str, Any]) -> tuple[dict[str, object], ...]:
     contexts: list[dict[str, object]] = []
     metadata = _dict_value(route, "replan_metadata")
@@ -23253,6 +23434,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Route adoption blocker counts: {payload.get('route_adoption_blocker_counts')}",
         f"- Awaiting LLM response: {payload.get('n_awaiting_llm_response')}",
         f"- Rejected: {payload.get('n_rejected')}",
+        f"- Request residual-goal contexts: {payload.get('n_request_residual_goal_contexts')} rows={payload.get('n_row_residual_goal_contexts')}",
         f"- Informal DAG nodes: {payload.get('n_informal_knowledge_dag_nodes')}",
         f"- Formal realization nodes: {payload.get('n_formal_realization_dag_nodes')}",
         f"- Alignment edges: {payload.get('n_route_alignment_edges')}",

@@ -65,6 +65,7 @@ class FormalizationGapPlannerRefinementEvidenceRow:
     coverage_updates: dict[str, str]
     prover_diagnostics: tuple[str, ...]
     residual_goals: tuple[str, ...]
+    residual_goal_context: dict[str, object]
     prover_attempt_status: str
     prover_attempt_class: str
     target_prover_family: str
@@ -227,6 +228,14 @@ def export_formalization_gap_planner_refinement_evidence(
             declaration_hit_target_error_counts
         ),
         "n_prover_feedback_evidence": by_hook_kind.get("proof_state_feedback", 0),
+        "n_rows_with_residual_goal_context": sum(
+            1 for row in rows if row.residual_goal_context
+        ),
+        "n_route_revision_proposals_with_residual_goal_context": sum(
+            1
+            for proposal in route_revision_proposals
+            if proposal.get("residual_goal_context")
+        ),
         "n_route_revision_evidence": by_hook_kind.get("route_revision", 0),
         "n_route_revision_recommended": sum(
             1 for row in rows if row.route_revision_recommended
@@ -356,6 +365,7 @@ def refinement_tool_response_json_schema() -> dict[str, object]:
             "coverage_updates": {"type": "object"},
             "prover_diagnostics": string_array,
             "residual_goals": string_array,
+            "residual_goal_context": {"type": "object"},
             "attempt_status": {"type": "string"},
             "prover_attempt_class": {"type": "string"},
             "target_prover_family": {"type": "string"},
@@ -431,6 +441,7 @@ def refinement_evidence_row_json_schema() -> dict[str, object]:
             "coverage_updates",
             "prover_diagnostics",
             "residual_goals",
+            "residual_goal_context",
             "prover_attempt_status",
             "prover_attempt_class",
             "target_prover_family",
@@ -486,6 +497,7 @@ def refinement_evidence_row_json_schema() -> dict[str, object]:
             "coverage_updates": string_map,
             "prover_diagnostics": string_array,
             "residual_goals": string_array,
+            "residual_goal_context": {"type": "object"},
             "prover_attempt_status": {"type": "string"},
             "prover_attempt_class": {"type": "string"},
             "target_prover_family": {"type": "string"},
@@ -615,6 +627,7 @@ def _evidence_row(
             coverage_updates={},
             prover_diagnostics=(),
             residual_goals=(),
+            residual_goal_context={},
             prover_attempt_status="",
             prover_attempt_class="",
             target_prover_family=str(queue_row.get("target_prover_family", "")),
@@ -756,6 +769,9 @@ def _evidence_row(
     coverage_updates = _coverage_updates(response.get("coverage_updates", {}), errors)
     prover_diagnostics = _str_tuple(response.get("prover_diagnostics", []))
     residual_goals = _str_tuple(response.get("residual_goals", []))
+    residual_goal_context = _residual_goal_context_value(
+        _dict_value(response, "residual_goal_context")
+    )
     prover_attempt_status = str(response.get("attempt_status", ""))
     prover_attempt_class = str(
         response.get(
@@ -887,6 +903,7 @@ def _evidence_row(
         coverage_updates=coverage_updates,
         prover_diagnostics=prover_diagnostics,
         residual_goals=residual_goals,
+        residual_goal_context=residual_goal_context,
         prover_attempt_status=prover_attempt_status,
         prover_attempt_class=prover_attempt_class,
         target_prover_family=target_prover_family,
@@ -941,6 +958,7 @@ def _route_revision_proposal(
         "formal_declaration_hits": row.formal_declaration_hits,
         "lean_declaration_hits": row.lean_declaration_hits,
         "residual_goals": row.residual_goals,
+        "residual_goal_context": row.residual_goal_context,
         "prover_attempt_status": row.prover_attempt_status,
         "prover_attempt_class": row.prover_attempt_class,
         "target_prover_family": row.target_prover_family,
@@ -954,6 +972,31 @@ def _route_revision_proposal(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _residual_goal_context_value(value: Any) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    context: dict[str, object] = dict(value)
+    for field_name in (
+        "residual_goals",
+        "residual_primitives",
+        "target_primitives",
+        "source_refs",
+        "queries",
+    ):
+        if field_name in context:
+            context[field_name] = _str_tuple(context.get(field_name, []))
+    for field_name in (
+        "source_kind",
+        "residual_goal",
+        "interpretation",
+        "route_repair",
+        "repair_action",
+    ):
+        if field_name in context:
+            context[field_name] = str(context.get(field_name, "") or "")
+    return context
 
 
 def _expected_evidence_kinds(hook_kind: str) -> tuple[str, ...]:

@@ -1031,11 +1031,17 @@ the validated ledger row and then into both applied resource-response traces
 and LLM route-planner hook traces consumed by the route-revision overlay. This
 keeps a residual-driven revision tied to the concrete prover side condition and
 repair directive that triggered it, rather than only to a generic
-route-revision response. Route-replan handoff rows now aggregate those
+route-revision response. Refinement-evidence responses also preserve
+`residual_goal_context` and pass it into route-revision proposals, so
+adapter-provided proof-state residuals follow the same overlay path as
+LLM-originated residual repairs. Route-replan handoff rows now aggregate those
 residual contexts into `residual_goal_contexts`, copy them into the replayable
 standalone seed's `replan_metadata`, and the standalone planner exposes them in
-`standalone_input_trace`, so the next LLM route-planning pass can consume the
-specific residual repair without scanning opaque hook traces. When both
+`standalone_input_trace`. The next LLM route-planning request then promotes the
+same contexts into top-level and `context_packet.residual_goal_contexts`,
+target-theorem context counts, route-planning brief focus rows, and inventory
+counters, so a replan prompt can consume the specific residual repair without
+scanning opaque hook traces. When both
 action-resource and
 request-queue artifacts are bundled, the publication audit checks that each
 request row resolves to its action-resource row and matches the selected
