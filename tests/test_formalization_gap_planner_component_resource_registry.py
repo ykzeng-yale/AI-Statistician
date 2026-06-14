@@ -110,6 +110,7 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "target_intake_row_schema" in resource_ids
     assert "portable_gap_plan_row_schema" in resource_ids
     assert "local_target_formal_source_index" in resource_ids
+    assert "source_theorem_semantic_primitive_bridge" in resource_ids
     assert "hol4_tactic_kernel_tools" in resource_ids
     assert "hol_light_tactic_search" in resource_ids
     assert "mizar_mml_search" in resource_ids
@@ -136,6 +137,15 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "proof_state_diagnostics_or_residuals_present" in by_resource[
         "lean_lsp_mcp"
     ]["validation_signals"]
+    semantic_bridge = by_resource["source_theorem_semantic_primitive_bridge"]
+    assert semantic_bridge["target_prover_families"] == ("lean4",)
+    assert "source_theorem_semantic_bridge" in semantic_bridge["capability_tags"]
+    assert "semantic_primitive_support_classified" in semantic_bridge[
+        "validation_signals"
+    ]
+    assert "runtime_learning_rows_boundary_preserved" in semantic_bridge[
+        "validation_signals"
+    ]
     assert by_resource["hol4_tactic_kernel_tools"]["target_prover_families"] == (
         "hol4",
     )
@@ -183,11 +193,23 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "lean_lsp_mcp" in by_component["prover_feedback_refinement"][
         "frontier_resource_ids"
     ]
+    assert "source_theorem_semantic_primitive_bridge" in by_component[
+        "prover_feedback_refinement"
+    ]["local_fallback_resource_ids"]
     assert "metamath_set_mm" in by_component["prover_feedback_refinement"][
         "frontier_resource_ids"
     ]
     assert "proof_state_residuals_classified" in by_component[
         "prover_feedback_refinement"
+    ]["required_quality_signals"]
+    assert "source_theorem_semantic_support_classified" in by_component[
+        "prover_feedback_refinement"
+    ]["required_quality_signals"]
+    assert "source_theorem_semantic_primitive_bridge" in by_component[
+        "route_revision_handoff"
+    ]["local_fallback_resource_ids"]
+    assert "source_theorem_semantic_support_classified" in by_component[
+        "route_revision_handoff"
     ]["required_quality_signals"]
     assert (
         by_component["formal_library_coverage_mapping"]["detected_adapter_statuses"][
@@ -223,6 +245,18 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "not theorem proof evidence" in contracts_by_resource["lean_lsp_mcp"][
         "acceptance_gate"
     ]
+    assert "source_theorem_semantic_primitive_work_orders" in contracts_by_resource[
+        "source_theorem_semantic_primitive_bridge"
+    ]["request_contract_fields"]
+    assert "runtime_learning_rows" in contracts_by_resource[
+        "source_theorem_semantic_primitive_bridge"
+    ]["response_contract_fields"]
+    assert "semantic_primitive_support_classified" in contracts_by_resource[
+        "source_theorem_semantic_primitive_bridge"
+    ]["response_validation_signals"]
+    assert contracts_by_resource[
+        "source_theorem_semantic_primitive_bridge"
+    ]["output_artifact_kind"] == "source_theorem_semantic_primitive_bridge_response"
     assert "target_prover_family" in contracts_by_resource[
         "hol4_tactic_kernel_tools"
     ]["request_contract_fields"]

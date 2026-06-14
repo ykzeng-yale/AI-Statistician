@@ -903,6 +903,8 @@ def _resource_request_contract_fields(
     ]
     if row.target_prover_families != PORTABLE_REUSE_TARGETS:
         fields.extend(["target_prover_family", "library_snapshot_ref"])
+    if "source_theorem_semantic_primitive_work_orders" in row.evidence_contract:
+        fields.append("source_theorem_semantic_primitive_work_orders")
     if row.online_dependency:
         fields.append("source_query_or_search_plan")
     if row.mcp_compatible or "mcp" in row.surface.lower():
@@ -945,6 +947,8 @@ def _resource_escalation_policy(row: FormalizationGapPlannerResourceRow) -> str:
 def _resource_output_artifact_kind(row: FormalizationGapPlannerResourceRow) -> str:
     if "prover_diagnostics" in row.evidence_contract or "residual_goals" in row.evidence_contract:
         return "proof_state_or_prover_feedback_response"
+    if "source_theorem_semantic_primitive_work_orders" in row.evidence_contract:
+        return "source_theorem_semantic_primitive_bridge_response"
     if "source_refs" in row.evidence_contract:
         return "literature_or_source_grounding_response"
     if (
@@ -1129,6 +1133,13 @@ def _resource_capability_tags(
         tags.append("proof_state_feedback")
     if fields & {"proof_attempts", "attempt_traces", "retrieved_premises"}:
         tags.append("agentic_prover_attempts")
+    if fields & {
+        "source_theorem_semantic_primitive_work_orders",
+        "registered_candidate_obligation_ids",
+        "kernel_verified_source_theorem_semantic_support_obligation_ids",
+        "runtime_learning_rows",
+    }:
+        tags.append("source_theorem_semantic_bridge")
     if fields & {"route_revision_summary", "revised_dag_nodes", "replan_seed"}:
         tags.append("route_revision_handoff")
     if fields & {"portable_work_packets", "adapter_response_contract", "target_prover_family"}:
@@ -1166,6 +1177,14 @@ def _resource_validation_signals(
         signals.append("attempt_trace_present")
     if fields & {"residual_goals", "route_revision_proposals"}:
         signals.append("residuals_or_revision_reasons_classified")
+    if fields & {
+        "source_theorem_semantic_primitive_work_orders",
+        "registered_candidate_obligation_ids",
+        "kernel_verified_source_theorem_semantic_support_obligation_ids",
+    }:
+        signals.append("semantic_primitive_support_classified")
+    if "runtime_learning_rows" in fields:
+        signals.append("runtime_learning_rows_boundary_preserved")
     if fields & {"portable_work_packets", "adapter_response_contract", "target_prover_family"}:
         signals.append("target_prover_family_and_adapter_contract_present")
     if fields & {"core_artifacts", "reproduction_commands", "audit_checks"}:
@@ -1189,6 +1208,14 @@ def _component_required_quality_signals(spec: dict[str, Any]) -> tuple[str, ...]
         signals.append("formal_coverage_classification_recorded")
     if fields & {"residual_goals", "prover_diagnostics", "diagnostic signatures"}:
         signals.append("proof_state_residuals_classified")
+    if fields & {
+        "source_theorem_semantic_primitive_work_orders",
+        "registered_candidate_obligation_ids",
+        "kernel_verified_source_theorem_semantic_support_obligation_ids",
+        "runtime_learning_rows",
+        "semantic primitive support links",
+    }:
+        signals.append("source_theorem_semantic_support_classified")
     if fields & {"route_revision_summary", "revised_dag_nodes", "standalone_seed"}:
         signals.append("route_revision_is_replayable")
     if fields & {"portable_work_packets", "adapter_response_schema", "reproduction_commands", "publication bundle"}:
@@ -1524,6 +1551,25 @@ def _resource_specs() -> tuple[dict[str, Any], ...]:
             "target_prover_families": ("lean4",),
         },
         {
+            "resource_id": "source_theorem_semantic_primitive_bridge",
+            "resource_name": "Source-theorem semantic primitive ProofEngineer bridge",
+            "resource_kind": "local_fallback",
+            "surface": "python_module",
+            "role": (
+                "map placeholder-derived source-theorem semantic primitive work "
+                "orders to registered proof-bank support and runtime learning rows"
+            ),
+            "local_dependency": True,
+            "evidence_contract": (
+                "source_theorem_semantic_primitive_work_orders",
+                "registered_candidate_obligation_ids",
+                "kernel_verified_source_theorem_semantic_support_obligation_ids",
+                "runtime_learning_rows",
+                "proof_audit_manifest",
+            ),
+            "target_prover_families": ("lean4",),
+        },
+        {
             "resource_id": "lean_lsp_mcp",
             "resource_name": "Lean LSP MCP",
             "resource_kind": "frontier_tool",
@@ -1724,7 +1770,10 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
             "planner_stage": "route leaves -> proof-state diagnostics -> route revision evidence",
             "role": "try leaves bottom-up, collect residual goals, and feed missing assumptions back to the route planner",
             "required_capabilities": ("kernel-adjacent diagnostics", "proof-state extraction", "attempt trace normalization"),
-            "local_fallback_resource_ids": ("local_lake_lean",),
+            "local_fallback_resource_ids": (
+                "local_lake_lean",
+                "source_theorem_semantic_primitive_bridge",
+            ),
             "frontier_resource_ids": (
                 "lean_lsp_mcp",
                 "leandojo_reprover",
@@ -1743,10 +1792,32 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
                 "leandojo_reprover",
                 "agentic_prover_orchestration",
             ),
-            "integration_contract_fields": ("prover_diagnostics", "residual_goals", "kernel_verified"),
-            "evidence_inputs": ("proof_state_feedback_items", "theorem_skeleton", "library_snapshot_ref"),
-            "expected_outputs": ("residual_goals", "diagnostic signatures", "route_revision_proposals"),
-            "feedback_actions": ("add missing measurability/integrability/topology assumption", "repair theorem skeleton", "rerun library grounding"),
+            "integration_contract_fields": (
+                "prover_diagnostics",
+                "residual_goals",
+                "kernel_verified",
+                "source_theorem_semantic_primitive_work_orders",
+                "registered_candidate_obligation_ids",
+            ),
+            "evidence_inputs": (
+                "proof_state_feedback_items",
+                "theorem_skeleton",
+                "library_snapshot_ref",
+                "source theorem semantic primitive work orders",
+            ),
+            "expected_outputs": (
+                "residual_goals",
+                "diagnostic signatures",
+                "route_revision_proposals",
+                "semantic primitive support links",
+                "runtime_learning_rows",
+            ),
+            "feedback_actions": (
+                "add missing measurability/integrability/topology assumption",
+                "repair theorem skeleton",
+                "rerun library grounding",
+                "route placeholder source primitives through semantic support bridge",
+            ),
             "evaluation_hooks": ("proof_state_triage", "route_replan_handoff_audit"),
         },
         {
@@ -1755,12 +1826,30 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
             "planner_stage": "accepted evidence -> revised route seed",
             "role": "apply accepted refinement evidence without mutating the original plan and export a replayable next-round seed",
             "required_capabilities": ("evidence validation", "non-mutating overlay", "round-trip replan seed"),
-            "local_fallback_resource_ids": ("route_revision_overlay",),
+            "local_fallback_resource_ids": (
+                "route_revision_overlay",
+                "source_theorem_semantic_primitive_bridge",
+            ),
             "frontier_resource_ids": ("agentic_prover_orchestration", "dependency_graph_autoformalization"),
             "adapter_ids": ("route_revision_overlay",),
-            "integration_contract_fields": ("route_revision_summary", "revised_dag_nodes", "standalone_seed"),
-            "evidence_inputs": ("refinement_evidence", "route_stability_decisions", "prover residual goals"),
-            "expected_outputs": ("route overlay", "stability audit", "standalone replan seed"),
+            "integration_contract_fields": (
+                "route_revision_summary",
+                "revised_dag_nodes",
+                "standalone_seed",
+                "runtime_learning_rows",
+            ),
+            "evidence_inputs": (
+                "refinement_evidence",
+                "route_stability_decisions",
+                "prover residual goals",
+                "source-theorem semantic bridge learning rows",
+            ),
+            "expected_outputs": (
+                "route overlay",
+                "stability audit",
+                "standalone replan seed",
+                "runtime_learning_rows",
+            ),
             "feedback_actions": ("expand search", "rerun formal-source grounding", "rerun prover feedback", "stop when stable"),
             "evaluation_hooks": ("route_stability_audit", "route_replan_handoff_audit"),
         },

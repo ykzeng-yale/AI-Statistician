@@ -52,6 +52,7 @@ REQUIRED_RESOURCE_IDS = (
     "loogle_leansearch",
     "leanexplore_mcp",
     "local_lake_lean",
+    "source_theorem_semantic_primitive_bridge",
     "lean_lsp_mcp",
     "leandojo_reprover",
     "rocq_lsp_serapi",
