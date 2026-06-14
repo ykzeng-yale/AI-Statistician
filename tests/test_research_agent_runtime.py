@@ -1576,6 +1576,178 @@ def test_source_semantic_learning_memory_advances_beyond_repeat_queue() -> None:
     assert "formal_gap:source_theorem_semantic_primitives" not in agenda_ids
 
 
+def test_source_promotion_waits_for_all_placeholder_semantic_support() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    problem = ProblemFormalizer().formalize(question)
+    _procedures, theorem_goals = TheoryPlanner().plan(problem)
+    catalog = FormalSubclaimProver().proof_obligation_catalog(problem, theorem_goals)
+    verified_ids = [str(row["obligation_id"]) for row in catalog]
+
+    def summary_with_semantic_support(
+        semantic_support_ids: list[str],
+        placeholder_symbols: list[str] | None = None,
+    ) -> dict[str, object]:
+        if placeholder_symbols is None:
+            placeholder_symbols = [
+                "MeasureProbability",
+                "Exchangeable",
+                "orderStatistic",
+            ]
+        return _formalizer_proof_bank_runtime_memory_summary(
+            context={
+                "runtime_learning_memory": {
+                    "artifact_kind": "RuntimeLearningMemoryContext",
+                    "rows": [
+                        {
+                            "kernel_verified_proof_obligation_ids": verified_ids,
+                            "kernel_verified_theorem_reduction_closure_work_order_ids": [
+                                "theorem_reduction_closure_work_order:good_rank"
+                            ],
+                            "kernel_verified_theorem_reduction_closure_target_ids": [
+                                "split_conformal_finite_sample_coverage_reduction_closure"
+                            ],
+                            "kernel_verified_theorem_reduction_closure_goal_ids": [
+                                "split_conformal_finite_sample_coverage"
+                            ],
+                            "kernel_verified_source_theorem_semantic_primitive_ids": (
+                                semantic_support_ids
+                            ),
+                        },
+                        {
+                            "learning_task": (
+                                "source_theorem_exact_candidate_lean_feedback"
+                            ),
+                            "input_summary": {
+                                "trigger": (
+                                    "EXACT_SOURCE_PROOF_BODY_ARTIFACT_KERNEL_ENVIRONMENT_OPEN"
+                                ),
+                                "target_theorem_name": "split_conformal_coverage",
+                                "source_theorem_kernel_verified": False,
+                                "failure_classification": (
+                                    "formal_environment_placeholder_primitives"
+                                ),
+                                "formal_environment_placeholder_symbols": (
+                                    placeholder_symbols
+                                ),
+                            },
+                        },
+                    ],
+                }
+            },
+            proof_bank_obligation_catalog=catalog,
+            theorem_goals=theorem_goals,
+            memory_kernel_verified_proof_obligation_ids=tuple(verified_ids),
+            memory_prioritized_proof_obligation_ids=(),
+        )
+
+    proposal = {
+        "packet_id": "formalizer_proposal:source_promotion",
+        "formal_targets": [
+            {
+                "id": "split_conformal_coverage",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_coverage : True := by trivial"
+                ),
+            }
+        ],
+    }
+    partial_summary = summary_with_semantic_support(
+        [
+            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+            "split_conformal_good_rank_set_inclusion_bridge",
+        ]
+    )
+    partial_promotion_work_orders = _formalizer_source_theorem_promotion_work_orders(
+        proposal_packet=proposal,
+        proof_bank_runtime_memory_summary=partial_summary,
+        theorem_goals=theorem_goals,
+    )
+
+    assert partial_summary["required_source_theorem_semantic_primitive_support_ids"] == [
+        "prob_measure_univ",
+        "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+        "split_conformal_good_rank_set_inclusion_bridge",
+    ]
+    assert partial_summary["missing_source_theorem_semantic_primitive_support_ids"] == [
+        "prob_measure_univ"
+    ]
+    assert partial_summary[
+        "unresolved_source_theorem_semantic_primitive_placeholder_symbols"
+    ] == []
+    assert (
+        partial_summary[
+            "source_theorem_semantic_primitive_support_already_kernel_verified"
+        ]
+        is False
+    )
+    assert partial_summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_semantic_primitive_closure"
+    )
+    assert partial_promotion_work_orders == []
+
+    complete_summary = summary_with_semantic_support(
+        [
+            "prob_measure_univ",
+            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+            "split_conformal_good_rank_set_inclusion_bridge",
+        ]
+    )
+    complete_promotion_work_orders = _formalizer_source_theorem_promotion_work_orders(
+        proposal_packet=proposal,
+        proof_bank_runtime_memory_summary=complete_summary,
+        theorem_goals=theorem_goals,
+    )
+
+    assert complete_summary["missing_source_theorem_semantic_primitive_support_ids"] == []
+    assert complete_summary[
+        "unresolved_source_theorem_semantic_primitive_placeholder_symbols"
+    ] == []
+    assert (
+        complete_summary[
+            "source_theorem_semantic_primitive_support_already_kernel_verified"
+        ]
+        is True
+    )
+    assert complete_summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_exact_semantics_or_theorem_promotion"
+    )
+    assert len(complete_promotion_work_orders) == 1
+    assert complete_promotion_work_orders[0][
+        "kernel_verified_source_theorem_semantic_primitive_ids"
+    ] == [
+        "prob_measure_univ",
+        "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+        "split_conformal_good_rank_set_inclusion_bridge",
+    ]
+
+    unknown_placeholder_summary = summary_with_semantic_support(
+        [
+            "prob_measure_univ",
+            "split_conformal_bad_rank_budget_from_uniform_rank_bound",
+            "split_conformal_good_rank_set_inclusion_bridge",
+        ],
+        placeholder_symbols=[
+            "MeasureProbability",
+            "GeneratedUnknownSourcePrimitive",
+        ],
+    )
+    assert unknown_placeholder_summary[
+        "missing_source_theorem_semantic_primitive_support_ids"
+    ] == []
+    assert unknown_placeholder_summary[
+        "unresolved_source_theorem_semantic_primitive_placeholder_symbols"
+    ] == ["GeneratedUnknownSourcePrimitive"]
+    assert (
+        unknown_placeholder_summary[
+            "source_theorem_semantic_primitive_support_already_kernel_verified"
+        ]
+        is False
+    )
+    assert unknown_placeholder_summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_semantic_primitive_closure"
+    )
+
+
 def test_source_theorem_integrator_blocker_memory_repairs_exact_target() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     problem = ProblemFormalizer().formalize(question)

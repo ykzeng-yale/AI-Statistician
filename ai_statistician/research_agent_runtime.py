@@ -5574,6 +5574,9 @@ def _source_theorem_placeholder_resolution_rows(
                             "placeholder primitives are routing evidence only and block source theorem promotion",
                         )
                     ),
+                    "candidate_registered_obligation_ids": list(
+                        _registered_support_for_placeholder_symbol(symbol_value)
+                    ),
                     "proof_evidence_status": (
                         "PLACEHOLDER_RESOLUTION_PLAN_NOT_PROOF_EVIDENCE"
                     ),
@@ -5668,6 +5671,30 @@ def _formalizer_proof_bank_runtime_memory_summary(
             source_theorem_exact_candidate_repairs
         )
     )
+    required_source_semantic_support_ids = tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for row in exact_candidate_placeholder_resolution_rows
+            for value in row.get("candidate_registered_obligation_ids", []) or []
+            if str(value).strip()
+        )
+    )
+    missing_source_semantic_support_ids = tuple(
+        row
+        for row in required_source_semantic_support_ids
+        if row not in set(source_semantic_memory_ids)
+    )
+    unresolved_source_semantic_placeholder_symbols = tuple(
+        dict.fromkeys(
+            str(row.get("placeholder_symbol", "") or "").strip()
+            for row in exact_candidate_placeholder_resolution_rows
+            if not any(
+                str(value).strip()
+                for value in row.get("candidate_registered_obligation_ids", []) or []
+            )
+            and str(row.get("placeholder_symbol", "") or "").strip()
+        )
+    )
     unresolved_source_theorem_promotion_targets = tuple(
         dict.fromkeys(
             [
@@ -5681,9 +5708,17 @@ def _formalizer_proof_bank_runtime_memory_summary(
         row for row in theorem_closure_memory["goal_ids"] if row in set(theorem_goal_ids)
     )
     theorem_reduction_closure_already_kernel_verified = bool(closure_goal_ids)
-    source_theorem_semantic_primitive_support_already_kernel_verified = bool(
-        theorem_reduction_closure_already_kernel_verified and source_semantic_memory_ids
-    )
+    if required_source_semantic_support_ids:
+        source_theorem_semantic_primitive_support_already_kernel_verified = bool(
+            theorem_reduction_closure_already_kernel_verified
+            and not missing_source_semantic_support_ids
+            and not unresolved_source_semantic_placeholder_symbols
+        )
+    else:
+        source_theorem_semantic_primitive_support_already_kernel_verified = bool(
+            theorem_reduction_closure_already_kernel_verified
+            and source_semantic_memory_ids
+        )
     theorem_reduction_closure_required = bool(
         (theorem_closure_requested_by_critic or catalog_exhausted)
         and not theorem_reduction_closure_already_kernel_verified
@@ -5709,6 +5744,15 @@ def _formalizer_proof_bank_runtime_memory_summary(
         ),
         "memory_kernel_verified_source_theorem_semantic_primitive_ids": list(
             source_semantic_memory_ids
+        ),
+        "required_source_theorem_semantic_primitive_support_ids": list(
+            required_source_semantic_support_ids
+        ),
+        "missing_source_theorem_semantic_primitive_support_ids": list(
+            missing_source_semantic_support_ids
+        ),
+        "unresolved_source_theorem_semantic_primitive_placeholder_symbols": list(
+            unresolved_source_semantic_placeholder_symbols
         ),
         "source_theorem_semantic_primitive_support_already_kernel_verified": (
             source_theorem_semantic_primitive_support_already_kernel_verified
