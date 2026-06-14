@@ -213,13 +213,53 @@ def _bridge_check(
         if candidate_ids
         else "FORMAL_BLOCKED_NO_REGISTERED_SEMANTIC_PRIMITIVE_SUPPORT"
     )
+    source_theorem_target_provenance = dict(
+        row.get("source_theorem_target_provenance", {}) or {}
+    )
+    semantic_alignment_constraints = [
+        str(value).strip()
+        for value in row.get("semantic_alignment_constraints", []) or []
+        if str(value).strip()
+    ]
+    formal_environment_typeclass_blockers = [
+        str(value).strip()
+        for value in row.get("formal_environment_typeclass_blockers", []) or []
+        if str(value).strip()
+    ]
+    proof_body_attempt_summaries = [
+        str(value).strip()
+        for value in row.get("proof_body_attempt_summaries", []) or []
+        if str(value).strip()
+    ]
+    proof_body_goal_excerpt = [
+        str(value).strip()
+        for value in row.get("proof_body_goal_excerpt", []) or []
+        if str(value).strip()
+    ]
     return {
         "schema_version": 1,
         "work_order_id": _work_order_id(row),
         "question_id": str(row.get("question_id", "") or ""),
         "semantic_primitive_id": str(row.get("semantic_primitive_id", "") or ""),
         "semantic_primitive_gap": str(row.get("semantic_primitive_gap", "") or ""),
+        "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
+        "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
         "target_theorem_goal_ids": list(row.get("target_theorem_goal_ids", []) or []),
+        "source_theorem_target_known": bool(
+            row.get("source_theorem_target_known", False)
+            or source_theorem_target_provenance.get("source_theorem_target_known", False)
+        ),
+        "source_theorem_target_provenance": source_theorem_target_provenance,
+        "semantic_alignment_constraints": semantic_alignment_constraints,
+        "candidate_artifact_path": str(row.get("candidate_artifact_path", "") or ""),
+        "failure_classification": str(row.get("failure_classification", "") or ""),
+        "formal_environment_typeclass_blockers": formal_environment_typeclass_blockers,
+        "proof_body_attempted": bool(row.get("proof_body_attempted", False)),
+        "proof_body_attempt_success": bool(
+            row.get("proof_body_attempt_success", False)
+        ),
+        "proof_body_attempt_summaries": proof_body_attempt_summaries,
+        "proof_body_goal_excerpt": proof_body_goal_excerpt,
         "registered_candidate_obligation_ids": list(candidate_ids),
         "kernel_verified_registered_obligation_ids": kernel_verified_support,
         "registered_support_level": (
@@ -350,6 +390,9 @@ def _export_runtime_learning_rows(
                     "kernel_verified_proof_obligation_ids": kernel_ids,
                     "proof_audit_manifest": str(proof_audit_manifest or ""),
                     "support_level": "registered_partial_semantic_bridge",
+                    "semantic_primitive_checks": [
+                        _learning_check_context(row) for row in verified_checks
+                    ],
                 },
                 "source_theorem_semantic_primitive_work_order_ids": work_order_ids,
                 "semantic_primitive_ids": semantic_ids,
@@ -405,6 +448,40 @@ def _export_runtime_learning_rows(
         "runtime_learning_rows_jsonl": learning_path,
         "export_manifest_path": manifest_out,
         "export_manifest": export_manifest,
+    }
+
+
+def _learning_check_context(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "work_order_id": str(row.get("work_order_id", "") or ""),
+        "semantic_primitive_id": str(row.get("semantic_primitive_id", "") or ""),
+        "placeholder_symbol": str(row.get("placeholder_symbol", "") or ""),
+        "target_theorem_name": str(row.get("target_theorem_name", "") or ""),
+        "target_theorem_goal_ids": list(row.get("target_theorem_goal_ids", []) or []),
+        "source_theorem_target_known": bool(
+            row.get("source_theorem_target_known", False)
+        ),
+        "source_theorem_target_provenance": dict(
+            row.get("source_theorem_target_provenance", {}) or {}
+        ),
+        "semantic_alignment_constraints": list(
+            row.get("semantic_alignment_constraints", []) or []
+        ),
+        "candidate_artifact_path": str(row.get("candidate_artifact_path", "") or ""),
+        "formal_environment_typeclass_blockers": list(
+            row.get("formal_environment_typeclass_blockers", []) or []
+        ),
+        "proof_body_attempted": bool(row.get("proof_body_attempted", False)),
+        "proof_body_attempt_success": bool(
+            row.get("proof_body_attempt_success", False)
+        ),
+        "proof_body_attempt_summaries": list(
+            row.get("proof_body_attempt_summaries", []) or []
+        ),
+        "proof_body_goal_excerpt": list(row.get("proof_body_goal_excerpt", []) or []),
+        "kernel_verified_registered_obligation_ids": list(
+            row.get("kernel_verified_registered_obligation_ids", []) or []
+        ),
     }
 
 

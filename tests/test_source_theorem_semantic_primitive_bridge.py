@@ -25,7 +25,28 @@ def test_source_semantic_bridge_records_registered_support_without_proof_claim(
                 "question_id": "conformal_prediction_coverage",
                 "semantic_primitive_id": "order_statistic_quantile_semantics",
                 "semantic_primitive_gap": "formalize order statistic quantile semantics",
+                "placeholder_symbol": "orderStat",
+                "target_theorem_name": "split_conformal_coverage",
                 "target_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
+                "source_theorem_target_known": True,
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": "split_conformal_coverage",
+                    "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
+                },
+                "semantic_alignment_constraints": [
+                    "preserve marginal coverage target"
+                ],
+                "candidate_artifact_path": "runs/proof_body_attempt.lean",
+                "formal_environment_typeclass_blockers": ["HSub ℕ ℝ ENNReal"],
+                "proof_body_attempted": True,
+                "proof_body_attempt_success": False,
+                "proof_body_attempt_summaries": [
+                    "1:simpa:returncode=1:compiled=False"
+                ],
+                "proof_body_goal_excerpt": [
+                    "⊢ P {ω | s (Fin.last n₂) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - α)"
+                ],
             }
         ],
     )
@@ -48,6 +69,21 @@ def test_source_semantic_bridge_records_registered_support_without_proof_claim(
     check = manifest["checks"][0]
     assert check["registered_support_level"] == "registered_partial_semantic_bridge"
     assert check["kernel_verified"] is False
+    assert check["placeholder_symbol"] == "orderStat"
+    assert check["source_theorem_target_known"] is True
+    assert check["source_theorem_target_provenance"]["target_lean_declaration"] == (
+        "split_conformal_coverage"
+    )
+    assert check["semantic_alignment_constraints"] == [
+        "preserve marginal coverage target"
+    ]
+    assert check["formal_environment_typeclass_blockers"] == ["HSub ℕ ℝ ENNReal"]
+    assert check["proof_body_attempted"] is True
+    assert check["proof_body_attempt_success"] is False
+    assert check["proof_body_attempt_summaries"] == [
+        "1:simpa:returncode=1:compiled=False"
+    ]
+    assert "ENNReal.ofReal" in check["proof_body_goal_excerpt"][0]
     assert "not proof evidence unless" in manifest["boundary"]
 
 
@@ -159,7 +195,21 @@ def test_source_semantic_bridge_exports_learning_from_kernel_proof_audit(
                 "question_id": "conformal_prediction_coverage",
                 "semantic_primitive_id": "rank_uniformity_semantics",
                 "semantic_primitive_gap": "formalize rank-uniformity semantic bridge",
+                "placeholder_symbol": "Exchangeable",
+                "target_theorem_name": "split_conformal_coverage",
                 "target_theorem_goal_ids": ["split_conformal_finite_sample_coverage"],
+                "source_theorem_target_known": True,
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": "split_conformal_coverage",
+                    "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
+                },
+                "formal_environment_typeclass_blockers": ["HSub ℕ ℝ ENNReal"],
+                "proof_body_attempted": True,
+                "proof_body_attempt_success": False,
+                "proof_body_goal_excerpt": [
+                    "⊢ P {ω | s (Fin.last n₂) ω ≤ q_hat ω} ≥ ENNReal.ofReal (1 - α)"
+                ],
             }
         ],
     )
@@ -211,6 +261,17 @@ def test_source_semantic_bridge_exports_learning_from_kernel_proof_audit(
     assert learning_rows[0]["input_summary"][
         "kernel_verified_source_theorem_semantic_support_obligation_ids"
     ] == ["split_conformal_bad_rank_budget_from_uniform_rank_bound"]
+    check_context = learning_rows[0]["input_summary"]["semantic_primitive_checks"][0]
+    assert check_context["placeholder_symbol"] == "Exchangeable"
+    assert check_context["source_theorem_target_known"] is True
+    assert check_context["source_theorem_target_provenance"][
+        "source_theorem_goal_id"
+    ] == "split_conformal_finite_sample_coverage"
+    assert check_context["formal_environment_typeclass_blockers"] == [
+        "HSub ℕ ℝ ENNReal"
+    ]
+    assert check_context["proof_body_attempted"] is True
+    assert "ENNReal.ofReal" in check_context["proof_body_goal_excerpt"][0]
     assert learning_rows[0]["kernel_verified_source_theorem_semantic_primitive_ids"] == [
         "split_conformal_bad_rank_budget_from_uniform_rank_bound"
     ]
