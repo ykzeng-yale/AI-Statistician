@@ -5960,6 +5960,10 @@ def _route_planning_brief(
     primitive_cost_hints = _dict_tuple(cost_hints.get("primitive_cost_hints", []))
     route_option_hints = _dict_tuple(cost_hints.get("route_option_hints", []))
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    source_theorem_feedback = _dict_value(
+        feedback_summary,
+        "source_theorem_feedback",
+    )
     playbooks = _dict_tuple(context_packet.get("resource_request_playbooks", []))
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     source_grounding_obligations = _source_grounding_obligation_summary(
@@ -6147,6 +6151,52 @@ def _route_planning_brief(
                 "residual_interpretations",
             ),
         )
+    if source_theorem_feedback:
+        add_focus(
+            "repair_source_theorem_feedback",
+            priority=1,
+            action=(
+                "use source-theorem semantic, formal-environment, and proof-body "
+                "feedback to revise the formal route and next prover actions"
+            ),
+            reason=(
+                "source_theorem_feedback summarizes ProofEngineer/proof-body "
+                "rows that require bounded route repair or formal-environment work"
+            ),
+            evidence_fields=(
+                "context_packet.feedback_loop_summary.source_theorem_feedback",
+                "context_packet.source_theorem_semantic_primitive_rows",
+                "context_packet.proof_body_semantic_primitive_work_order_rows",
+                "context_packet.source_theorem_formal_environment_rows",
+                "context_packet.source_theorem_proof_body_execution_result_rows",
+            ),
+            required_output_fields=(
+                "planner_next_actions",
+                "formal_realization_dag_nodes",
+            ),
+            target_primitives=_str_tuple(
+                source_theorem_feedback.get("semantic_primitive_ids", [])
+            ),
+        )
+        if bool(source_theorem_feedback.get("replan_required", False)):
+            add_gap(
+                "source_theorem_feedback_requires_repair",
+                gap_kind="proof_body_feedback",
+                reason=(
+                    "source-theorem feedback reports unresolved semantic "
+                    "primitive, formal-environment, or proof-body blockers"
+                ),
+                recommended_action=(
+                    "emit bounded planner_next_actions or route repairs that "
+                    "address the listed semantic/formal blockers"
+                ),
+                evidence_fields=(
+                    "context_packet.feedback_loop_summary.source_theorem_feedback",
+                ),
+                target_primitives=_str_tuple(
+                    source_theorem_feedback.get("semantic_primitive_ids", [])
+                ),
+            )
     if playbooks:
         add_focus(
             "align_followup_to_resource_playbooks",
@@ -6237,6 +6287,20 @@ def _route_planning_brief(
             or 0
         ),
         "resource_request_playbook_count": len(playbooks),
+        "source_theorem_feedback_row_count": int(
+            source_theorem_feedback.get("total_count", 0) or 0
+        ),
+        "source_theorem_feedback_replan_required": bool(
+            source_theorem_feedback.get("replan_required", False)
+        ),
+        "source_theorem_feedback_proof_body_execution_failure_count": int(
+            source_theorem_feedback.get("proof_body_execution_failure_count", 0)
+            or 0
+        ),
+        "source_theorem_feedback_formal_environment_blocker_count": int(
+            source_theorem_feedback.get("formal_environment_blocker_count", 0)
+            or 0
+        ),
         "feedback_replan_required": bool(feedback_summary.get("replan_required", False)),
         "pending_quality_control_value_count": int(
             quality_control_obligations.get("n_pending_values", 0) or 0
@@ -7010,6 +7074,45 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             (
                 "resource_request_playbook_count",
                 len(_dict_tuple(context_packet.get("resource_request_playbooks", []))),
+            ),
+            (
+                "source_theorem_feedback_row_count",
+                int(
+                    _dict_value(
+                        _dict_value(
+                            context_packet,
+                            "feedback_loop_summary",
+                        ),
+                        "source_theorem_feedback",
+                    ).get("total_count", 0)
+                    or 0
+                ),
+            ),
+            (
+                "source_theorem_feedback_proof_body_execution_failure_count",
+                int(
+                    _dict_value(
+                        _dict_value(
+                            context_packet,
+                            "feedback_loop_summary",
+                        ),
+                        "source_theorem_feedback",
+                    ).get("proof_body_execution_failure_count", 0)
+                    or 0
+                ),
+            ),
+            (
+                "source_theorem_feedback_formal_environment_blocker_count",
+                int(
+                    _dict_value(
+                        _dict_value(
+                            context_packet,
+                            "feedback_loop_summary",
+                        ),
+                        "source_theorem_feedback",
+                    ).get("formal_environment_blocker_count", 0)
+                    or 0
+                ),
             ),
             (
                 "source_grounding_unresolved_count",
@@ -17268,6 +17371,10 @@ def _feedback_loop_summary(
         "source_grounding_rows",
         "resource_request_queue_rows",
         "resource_response_ledger_rows",
+        "source_theorem_semantic_primitive_rows",
+        "proof_body_semantic_primitive_work_order_rows",
+        "source_theorem_formal_environment_rows",
+        "source_theorem_proof_body_execution_result_rows",
         "refinement_evidence_rows",
         "route_revision_overlay_rows",
         "route_replan_handoff_rows",
@@ -17290,6 +17397,7 @@ def _feedback_loop_summary(
     refinement_evidence_admissibility = _refinement_evidence_admissibility_summary(
         rows_by_field.get("refinement_evidence_rows", ())
     )
+    source_theorem_feedback = _source_theorem_feedback_summary(rows_by_field)
     all_rows = tuple(row for rows in rows_by_field.values() for row in rows)
     actionable_rows_by_field = dict(rows_by_field)
     actionable_rows_by_field["resource_response_ledger_rows"] = tuple(
@@ -17328,12 +17436,28 @@ def _feedback_loop_summary(
             *_collect_row_values(actionable_rows, "triage_class"),
             *_collect_row_values(actionable_rows, "triage_required_gate"),
             *_collect_row_values(actionable_rows, "next_required_gate"),
+            *_collect_row_values(actionable_rows, "semantic_primitive_id"),
+            *_collect_row_values(actionable_rows, "semantic_primitive_gap"),
+            *_collect_row_values(actionable_rows, "placeholder_symbol"),
+            *_collect_row_values(actionable_rows, "missing_formal_symbols"),
+            *_collect_row_values(actionable_rows, "typeclass_blockers"),
+            *_collect_row_values(
+                actionable_rows,
+                "formal_environment_typeclass_blockers",
+            ),
+            *_collect_row_values(actionable_rows, "failure_classification"),
         ]
     )
     recommended_next_actions = _feedback_next_actions(
         rows_by_field,
         residual_goals=residual_goals,
     )
+    if source_theorem_feedback:
+        recommended_next_actions = _merge_dict_rows(
+            recommended_next_actions,
+            _dict_tuple(source_theorem_feedback.get("recommended_next_actions", [])),
+            key_fields=("source", "action", "work_order_id", "execution_result_id"),
+        )
     realization_coverage = _realization_feedback_summary(
         context_packet,
         all_rows,
@@ -17357,15 +17481,18 @@ def _feedback_loop_summary(
         recommended_next_actions=recommended_next_actions,
         include_feedback_summary=False,
     )
+    source_theorem_feedback_replan_required = bool(
+        source_theorem_feedback.get("replan_required", False)
+    )
     replan_required = any(
         _truthy(row.get(field_name))
         for row in actionable_rows
         for field_name in (
             "replan_required",
             "needs_route_replanning",
-                "route_revision_recommended",
+            "route_revision_recommended",
             )
-    ) or realization_replan_required
+    ) or realization_replan_required or source_theorem_feedback_replan_required
     needs_more_library_grounding = any(
         _truthy(row.get("needs_more_lean_grounding"))
         or _truthy(row.get("needs_more_library_grounding"))
@@ -17443,6 +17570,8 @@ def _feedback_loop_summary(
         summary["interactive_session_resource_requests"] = interactive_resource_requests
     if realization_coverage:
         summary["realization_coverage"] = realization_coverage
+    if source_theorem_feedback:
+        summary["source_theorem_feedback"] = source_theorem_feedback
     if quality_control_obligations.get("present"):
         summary["quality_control_obligations"] = quality_control_obligations
     if replan_metadata:
@@ -17463,6 +17592,283 @@ def _feedback_loop_summary(
             if key in replan_metadata
         }
     return summary
+
+
+def _source_theorem_feedback_summary(
+    rows_by_field: Mapping[str, tuple[dict[str, object], ...]],
+) -> dict[str, object]:
+    semantic_rows = rows_by_field.get("source_theorem_semantic_primitive_rows", ())
+    proof_body_semantic_rows = rows_by_field.get(
+        "proof_body_semantic_primitive_work_order_rows",
+        (),
+    )
+    formal_environment_rows = rows_by_field.get(
+        "source_theorem_formal_environment_rows",
+        (),
+    )
+    proof_body_execution_rows = rows_by_field.get(
+        "source_theorem_proof_body_execution_result_rows",
+        (),
+    )
+    all_rows = (
+        *semantic_rows,
+        *proof_body_semantic_rows,
+        *formal_environment_rows,
+        *proof_body_execution_rows,
+    )
+    if not all_rows:
+        return {}
+    placeholder_symbols = _unique_strings(
+        [
+            *_collect_row_values(all_rows, "placeholder_symbol"),
+            *_collect_row_values(all_rows, "formal_environment_placeholder_symbols"),
+        ]
+    )
+    missing_formal_symbols = _unique_strings(
+        _collect_row_values(all_rows, "missing_formal_symbols")
+    )
+    typeclass_blockers = _unique_strings(
+        [
+            *_collect_row_values(all_rows, "typeclass_blockers"),
+            *_collect_row_values(all_rows, "formal_environment_typeclass_blockers"),
+        ]
+    )
+    failure_classifications = _unique_strings(
+        _collect_row_values(all_rows, "failure_classification")
+    )
+    semantic_primitive_ids = _unique_strings(
+        _collect_row_values(all_rows, "semantic_primitive_id")
+    )
+    semantic_primitive_gaps = _unique_strings(
+        _collect_row_values(all_rows, "semantic_primitive_gap")
+    )
+    target_theorem_names = _unique_strings(
+        [
+            *_collect_row_values(all_rows, "target_theorem_name"),
+            *_collect_row_values(all_rows, "target_lean_declaration"),
+        ]
+    )
+    source_route_ids = _unique_strings(
+        [
+            *_collect_row_values(all_rows, "source_theorem_route_id"),
+            *[
+                str(_dict_value(row, "source_theorem_target_provenance").get(
+                    "source_theorem_route_id",
+                    "",
+                )).strip()
+                for row in all_rows
+                if str(
+                    _dict_value(row, "source_theorem_target_provenance").get(
+                        "source_theorem_route_id",
+                        "",
+                    )
+                ).strip()
+            ],
+        ]
+    )
+    unverified_semantic_rows = [
+        row
+        for row in (*semantic_rows, *proof_body_semantic_rows)
+        if not _source_theorem_row_has_kernel_verified_support(row)
+    ]
+    proof_body_failure_rows = [
+        row
+        for row in proof_body_execution_rows
+        if _source_theorem_proof_body_execution_row_is_failure(row)
+    ]
+    formal_environment_blocker_count = (
+        len(missing_formal_symbols)
+        + len(typeclass_blockers)
+        + len(placeholder_symbols)
+    )
+    replan_required = bool(
+        unverified_semantic_rows
+        or proof_body_semantic_rows
+        or formal_environment_rows
+        or proof_body_failure_rows
+        or formal_environment_blocker_count
+    )
+    return {
+        "summary_kind": "formalization_gap_planner_source_theorem_feedback_summary",
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "total_count": len(all_rows),
+        "semantic_primitive_row_count": len(semantic_rows),
+        "proof_body_semantic_primitive_work_order_count": len(
+            proof_body_semantic_rows
+        ),
+        "formal_environment_row_count": len(formal_environment_rows),
+        "proof_body_execution_result_row_count": len(proof_body_execution_rows),
+        "unverified_semantic_primitive_row_count": len(unverified_semantic_rows),
+        "proof_body_execution_failure_count": len(proof_body_failure_rows),
+        "formal_environment_blocker_count": formal_environment_blocker_count,
+        "placeholder_symbols": list(placeholder_symbols[:20]),
+        "missing_formal_symbols": list(missing_formal_symbols[:20]),
+        "typeclass_blockers": list(typeclass_blockers[:20]),
+        "failure_classifications": list(failure_classifications[:20]),
+        "semantic_primitive_ids": list(semantic_primitive_ids[:20]),
+        "semantic_primitive_gaps": list(semantic_primitive_gaps[:20]),
+        "target_theorem_names": list(target_theorem_names[:12]),
+        "source_theorem_route_ids": list(source_route_ids[:12]),
+        "replan_required": replan_required,
+        "recommended_next_actions": _source_theorem_feedback_next_actions(
+            rows_by_field
+        ),
+        "boundary": (
+            "source-theorem feedback rows are planning feedback for route repair "
+            "and minimal-delta selection; they are not source grounding and not "
+            "theorem proof evidence"
+        ),
+    }
+
+
+def _source_theorem_row_has_kernel_verified_support(
+    row: Mapping[str, object],
+) -> bool:
+    if _truthy(row.get("source_theorem_kernel_verified")):
+        return True
+    status = str(row.get("proof_evidence_status", "") or "").strip().upper()
+    return "KERNEL_VERIFIED" in status and "NO_KERNEL_VERIFIED" not in status
+
+
+def _source_theorem_proof_body_execution_row_is_failure(
+    row: Mapping[str, object],
+) -> bool:
+    if _truthy(row.get("source_theorem_kernel_verified")):
+        return False
+    if str(row.get("failure_classification", "") or "").strip():
+        return True
+    if _str_tuple(row.get("formal_environment_placeholder_symbols", [])):
+        return True
+    if _str_tuple(row.get("formal_environment_typeclass_blockers", [])):
+        return True
+    status = str(
+        row.get("proof_body_execution_status")
+        or row.get("execution_status")
+        or row.get("prover_attempt_status")
+        or ""
+    ).strip().lower()
+    return bool(status and status not in {"ok", "success", "passed", "proved"})
+
+
+def _source_theorem_feedback_next_actions(
+    rows_by_field: Mapping[str, tuple[dict[str, object], ...]],
+) -> tuple[dict[str, object], ...]:
+    actions: list[dict[str, object]] = []
+    for row in rows_by_field.get("source_theorem_semantic_primitive_rows", ()):
+        if _source_theorem_row_has_kernel_verified_support(row):
+            continue
+        semantic_id = str(row.get("semantic_primitive_id", "") or "").strip()
+        gap = str(row.get("semantic_primitive_gap", "") or "").strip()
+        if not semantic_id and not gap:
+            continue
+        actions.append(
+            {
+                "source": "source_theorem_semantic_primitive_rows",
+                "owner": "FormalizerProofEngineer",
+                "action": "verify_or_reformulate_source_theorem_semantic_primitive",
+                "semantic_primitive_id": semantic_id,
+                "semantic_primitive_gap": gap,
+                "target_theorem_name": str(
+                    row.get("target_theorem_name", "")
+                ).strip(),
+                "candidate_registered_obligation_ids": list(
+                    _str_tuple(row.get("candidate_registered_obligation_ids", []))[:8]
+                ),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", PROOF_EVIDENCE_STATUS)
+                ),
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    for row in rows_by_field.get(
+        "proof_body_semantic_primitive_work_order_rows",
+        (),
+    ):
+        semantic_id = str(row.get("semantic_primitive_id", "") or "").strip()
+        actions.append(
+            {
+                "source": "proof_body_semantic_primitive_work_order_rows",
+                "owner": str(row.get("next_owner", "") or "FormalizerProofEngineer"),
+                "action": "dispatch_or_prove_source_theorem_semantic_work_order",
+                "work_order_id": str(row.get("work_order_id", "")).strip(),
+                "semantic_primitive_id": semantic_id,
+                "semantic_primitive_gap": str(
+                    row.get("semantic_primitive_gap", "")
+                ).strip(),
+                "placeholder_symbol": str(row.get("placeholder_symbol", "")).strip(),
+                "failure_classification": str(
+                    row.get("failure_classification", "")
+                ).strip(),
+                "goal_excerpt": list(
+                    _str_tuple(row.get("proof_body_goal_excerpt", []))[:8]
+                ),
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    for row in rows_by_field.get("source_theorem_formal_environment_rows", ()):
+        missing_symbols = _str_tuple(row.get("missing_formal_symbols", []))
+        typeclass_blockers = _str_tuple(
+            row.get("typeclass_blockers", [])
+            or row.get("formal_environment_typeclass_blockers", [])
+        )
+        if not missing_symbols and not typeclass_blockers:
+            continue
+        actions.append(
+            {
+                "source": "source_theorem_formal_environment_rows",
+                "owner": "FormalizerProofEngineer",
+                "action": "repair_source_theorem_formal_environment",
+                "work_order_id": str(row.get("work_order_id", "")).strip(),
+                "target_theorem_name": str(
+                    row.get("target_theorem_name", "")
+                ).strip(),
+                "missing_formal_symbols": list(missing_symbols[:12]),
+                "typeclass_blockers": list(typeclass_blockers[:12]),
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    for row in rows_by_field.get(
+        "source_theorem_proof_body_execution_result_rows",
+        (),
+    ):
+        if not _source_theorem_proof_body_execution_row_is_failure(row):
+            continue
+        live_request = _dict_value(row, "candidate_live_proof_state_request")
+        goal_excerpt = _str_tuple(
+            live_request.get("proof_body_goal_excerpt", [])
+            or row.get("proof_body_goal_excerpt", [])
+        )
+        actions.append(
+            {
+                "source": "source_theorem_proof_body_execution_result_rows",
+                "owner": "route_planner",
+                "action": "repair_route_from_source_theorem_proof_body_feedback",
+                "execution_result_id": str(
+                    row.get("execution_result_id", "")
+                ).strip(),
+                "execution_queue_id": str(row.get("execution_queue_id", "")).strip(),
+                "target_theorem_name": str(
+                    row.get("target_theorem_name", "")
+                ).strip(),
+                "failure_classification": str(
+                    row.get("failure_classification", "")
+                ).strip(),
+                "placeholder_symbols": list(
+                    _str_tuple(
+                        row.get("formal_environment_placeholder_symbols", [])
+                    )[:12]
+                ),
+                "typeclass_blockers": list(
+                    _str_tuple(
+                        row.get("formal_environment_typeclass_blockers", [])
+                    )[:12]
+                ),
+                "goal_excerpt": list(goal_excerpt[:8]),
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    return tuple(actions[:12])
 
 
 def _realization_feedback_summary(

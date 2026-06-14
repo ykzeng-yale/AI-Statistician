@@ -3505,6 +3505,58 @@ def test_llm_route_planner_stages_source_theorem_feedback_rows() -> None:
         "formal_environment_placeholder_primitives"
     )
     assert proof_body_row["source_theorem_kernel_verified"] is False
+    summary = context["feedback_loop_summary"]
+    assert summary["replan_required"] is True
+    assert summary["evidence_counts"]["source_theorem_semantic_primitive_rows"] == 1
+    assert summary["evidence_counts"][
+        "proof_body_semantic_primitive_work_order_rows"
+    ] == 1
+    assert summary["evidence_counts"]["source_theorem_formal_environment_rows"] == 1
+    assert summary["evidence_counts"][
+        "source_theorem_proof_body_execution_result_rows"
+    ] == 1
+    source_theorem_feedback = summary["source_theorem_feedback"]
+    assert source_theorem_feedback["total_count"] == 4
+    assert source_theorem_feedback["unverified_semantic_primitive_row_count"] == 2
+    assert source_theorem_feedback["proof_body_execution_failure_count"] == 1
+    assert source_theorem_feedback["formal_environment_blocker_count"] == 3
+    assert source_theorem_feedback["replan_required"] is True
+    assert source_theorem_feedback["semantic_primitive_ids"] == [
+        "exchangeability_to_uniform_rank_semantics",
+        "order_statistic_quantile_semantics",
+    ]
+    assert source_theorem_feedback["placeholder_symbols"] == [
+        "OrderStatisticQuantileSemantics"
+    ]
+    assert source_theorem_feedback["missing_formal_symbols"] == [
+        "OrderStatisticQuantileSemantics"
+    ]
+    assert source_theorem_feedback["typeclass_blockers"] == ["DecidableEq score"]
+    assert {
+        action["source"] for action in summary["recommended_next_actions"]
+    } >= {
+        "source_theorem_semantic_primitive_rows",
+        "proof_body_semantic_primitive_work_order_rows",
+        "source_theorem_formal_environment_rows",
+        "source_theorem_proof_body_execution_result_rows",
+    }
+    brief = context["route_planning_brief"]
+    assert brief["evidence_summary"]["source_theorem_feedback_row_count"] == 4
+    assert brief["evidence_summary"][
+        "source_theorem_feedback_proof_body_execution_failure_count"
+    ] == 1
+    assert brief["evidence_summary"][
+        "source_theorem_feedback_formal_environment_blocker_count"
+    ] == 3
+    assert brief["evidence_summary"][
+        "source_theorem_feedback_replan_required"
+    ] is True
+    assert "repair_source_theorem_feedback" in {
+        focus["focus_id"] for focus in brief["planner_focus"]
+    }
+    assert "source_theorem_feedback_requires_repair" in {
+        gap["gap_id"] for gap in brief["evidence_gaps"]
+    }
     prompt = request["prompt_messages"]["user"]
     assert "source_theorem_semantic_primitive_rows" in prompt
     assert "source_theorem_formal_environment_rows" in prompt
