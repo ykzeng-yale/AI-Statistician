@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
+from .fingerprint import stable_hash
 from .proof_audit import audit_proof_bank
 from .proof_bank import FORMAL_OBLIGATIONS
 from .verifier import LocalLeanProofVerifier
@@ -42,11 +43,22 @@ def resolve_source_semantic_primitive_queue_path(
     *,
     runtime_dir: Path | None = None,
     queue_jsonl: Path | None = None,
+    proof_body_executor_dir: Path | None = None,
+    out_dir: Path | None = None,
 ) -> Path:
     if queue_jsonl is not None:
         return queue_jsonl
+    if proof_body_executor_dir is not None:
+        if out_dir is None:
+            raise ValueError("out_dir is required with proof_body_executor_dir")
+        return materialize_source_semantic_primitive_queue_from_proof_body_executor(
+            proof_body_executor_dir=proof_body_executor_dir,
+            out_dir=out_dir,
+        )
     if runtime_dir is None:
-        raise ValueError("runtime_dir or queue_jsonl is required")
+        raise ValueError(
+            "runtime_dir, queue_jsonl, or proof_body_executor_dir is required"
+        )
     manifest_path = runtime_dir / "research_agent_runtime_manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     artifacts = manifest.get("artifacts", {})
@@ -79,11 +91,279 @@ def resolve_source_semantic_primitive_queue_path(
     return candidates[0]
 
 
+def materialize_source_semantic_primitive_queue_from_proof_body_executor(
+    *,
+    proof_body_executor_dir: Path,
+    out_dir: Path,
+) -> Path:
+    learning_rows_path = _resolve_proof_body_executor_learning_rows_path(
+        proof_body_executor_dir
+    )
+    learning_rows = _read_jsonl(learning_rows_path)
+    queue_rows = _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
+        learning_rows
+    )
+    queue_path = out_dir / (
+        "runtime_source_theorem_semantic_primitive_work_orders_from_"
+        "proof_body_executor.jsonl"
+    )
+    _write_jsonl(queue_path, queue_rows)
+    return queue_path
+
+
+def _resolve_proof_body_executor_learning_rows_path(
+    proof_body_executor_dir: Path,
+) -> Path:
+    direct = (
+        proof_body_executor_dir
+        / "runtime_learning_export"
+        / "runtime_learning_rows.jsonl"
+    )
+    if direct.exists():
+        return direct
+    manifest_path = (
+        proof_body_executor_dir
+        / "runtime_learning_export"
+        / "exact_source_theorem_proof_body_execution_learning_manifest.json"
+    )
+    if not manifest_path.exists():
+        raise FileNotFoundError(
+            "proof-body executor runtime learning rows not found under "
+            f"{proof_body_executor_dir}"
+        )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    raw_path = str(manifest.get("runtime_learning_rows_jsonl", "") or "")
+    if not raw_path:
+        raise ValueError(
+            "proof-body executor learning manifest does not list "
+            "runtime_learning_rows_jsonl"
+        )
+    rows_path = Path(raw_path)
+    if rows_path.is_absolute() or rows_path.exists():
+        return rows_path
+    candidates = [
+        proof_body_executor_dir / rows_path,
+        proof_body_executor_dir.parent / rows_path,
+        manifest_path.parent / rows_path,
+    ]
+    parts = rows_path.parts
+    if parts and parts[0] == proof_body_executor_dir.name:
+        candidates.append(proof_body_executor_dir.parent / rows_path)
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+def _semantic_primitive_queue_rows_from_proof_body_executor_learning_rows(
+    learning_rows: list[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in learning_rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = row.get("input_summary", {})
+        if not isinstance(input_summary, Mapping):
+            continue
+        learning_task = str(row.get("learning_task", "") or "")
+        if learning_task != "exact_source_theorem_proof_body_execution_feedback":
+            continue
+        if bool(
+            row.get("source_theorem_kernel_verified", False)
+            or input_summary.get("source_theorem_kernel_verified", False)
+        ):
+            continue
+        failure_classification = str(
+            input_summary.get("failure_classification", "") or ""
+        ).strip()
+        if failure_classification != "formal_environment_placeholder_primitives":
+            continue
+        placeholder_symbols = [
+            str(value).strip()
+            for value in input_summary.get("formal_environment_placeholder_symbols", [])
+            or []
+            if str(value).strip()
+        ]
+        if not placeholder_symbols:
+            continue
+        target_theorem_name = str(
+            row.get("target_theorem_name", "")
+            or input_summary.get("target_theorem_name", "")
+            or input_summary.get("target_lean_declaration", "")
+            or ""
+        ).strip()
+        candidate_artifact_path = str(
+            input_summary.get("candidate_artifact_path", "")
+            or row.get("candidate_artifact_path", "")
+            or ""
+        ).strip()
+        typeclass_blockers = [
+            str(value).strip()
+            for value in input_summary.get("formal_environment_typeclass_blockers", [])
+            or []
+            if str(value).strip()
+        ]
+        proof_body_attempt_summaries = [
+            str(value).strip()
+            for value in input_summary.get("proof_body_attempt_summaries", []) or []
+            if str(value).strip()
+        ][:8]
+        live_request = input_summary.get("candidate_live_proof_state_request", {})
+        if not isinstance(live_request, Mapping):
+            live_request = {}
+        proof_body_goal_excerpt = [
+            str(value).strip()
+            for value in (
+                live_request.get("proof_body_goal_excerpt", [])
+                or input_summary.get("proof_body_goal_excerpt", [])
+                or []
+            )
+            if str(value).strip()
+        ][:18]
+        provenance = dict(row.get("source_theorem_target_provenance", {}) or {})
+        input_provenance = dict(
+            input_summary.get("source_theorem_target_provenance", {}) or {}
+        )
+        for key, value in input_provenance.items():
+            provenance.setdefault(key, value)
+        if target_theorem_name:
+            provenance.setdefault("target_lean_declaration", target_theorem_name)
+        source_learning_row_id = str(
+            row.get("runtime_learning_row_id", "")
+            or row.get("learning_row_id", "")
+            or row.get("execution_result_id", "")
+            or ""
+        ).strip()
+        for symbol in placeholder_symbols:
+            primitive_id, gap = _semantic_primitive_for_placeholder_symbol(
+                symbol,
+                target_theorem_name=target_theorem_name,
+            )
+            work_order_id = (
+                "source_theorem_semantic_primitive_work_order:"
+                + stable_hash(
+                    [
+                        source_learning_row_id,
+                        row.get("execution_result_id", ""),
+                        row.get("execution_queue_id", ""),
+                        target_theorem_name,
+                        symbol,
+                        primitive_id,
+                        candidate_artifact_path,
+                    ]
+                )[:20]
+            )
+            if work_order_id in seen:
+                continue
+            seen.add(work_order_id)
+            rows.append(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "SourceTheoremSemanticPrimitiveWorkOrder",
+                    "work_order_id": work_order_id,
+                    "semantic_primitive_id": primitive_id,
+                    "semantic_primitive_gap": gap,
+                    "semantic_primitive_gap_kind": "source_theorem_semantic_primitives",
+                    "next_owner": "FormalizerProofEngineer",
+                    "source_learning_task": learning_task,
+                    "source_learning_row_id": source_learning_row_id,
+                    "source_execution_result_id": str(
+                        row.get("execution_result_id", "") or ""
+                    ),
+                    "source_execution_queue_id": str(
+                        row.get("execution_queue_id", "") or ""
+                    ),
+                    "source_formal_environment_work_order_id": str(
+                        row.get("source_work_order_id", "") or ""
+                    ),
+                    "target_theorem_name": target_theorem_name,
+                    "source_theorem_target_known": bool(
+                        row.get("source_theorem_target_known", False)
+                        or input_summary.get("source_theorem_target_known", False)
+                        or provenance.get("source_theorem_target_known", False)
+                    ),
+                    "source_theorem_target_provenance": provenance,
+                    "semantic_alignment_constraints": list(
+                        row.get("semantic_alignment_constraints", [])
+                        or input_summary.get("semantic_alignment_constraints", [])
+                        or provenance.get("semantic_alignment_constraints", [])
+                        or []
+                    ),
+                    "candidate_artifact_path": candidate_artifact_path,
+                    "placeholder_symbol": symbol,
+                    "failure_classification": failure_classification,
+                    "diagnostics": list(input_summary.get("diagnostics", []) or [])[:8],
+                    "formal_environment_typeclass_blockers": typeclass_blockers,
+                    "proof_body_attempted": bool(
+                        input_summary.get("proof_body_attempted", False)
+                    ),
+                    "proof_body_attempt_success": bool(
+                        input_summary.get("proof_body_attempt_success", False)
+                    ),
+                    "proof_body_attempt_summaries": proof_body_attempt_summaries,
+                    "proof_body_goal_excerpt": proof_body_goal_excerpt,
+                    "target_theorem_goal_ids": (
+                        [target_theorem_name] if target_theorem_name else []
+                    ),
+                    "candidate_registered_obligation_ids": list(
+                        _PRIMITIVE_TO_REGISTERED_SUPPORT.get(primitive_id, ())
+                    ),
+                    "proof_mode": "source_theorem_semantic_primitive_closure",
+                    "runtime_queue_status": "PENDING_SOURCE_SEMANTIC_LEAN_PROOF_ATTEMPT",
+                    "runtime_queue_boundary": (
+                        "This queue row was exported from exact source proof-body executor "
+                        "feedback after placeholder formal primitives blocked source-theorem "
+                        "promotion. It is not proof evidence until AXLE/local Lean kernel "
+                        "verification accepts the intended semantic primitive."
+                    ),
+                    "acceptance_gate": (
+                        "AXLE/local Lean kernel verifies the upstream semantic primitive "
+                        "with no sorry, and the manifest keeps this primitive evidence "
+                        "separate from signature scaffolds and full source theorem proof."
+                    ),
+                    "proof_evidence_status": "WORK_ORDER_NOT_PROOF_EVIDENCE",
+                    "proof_evidence_boundary": BOUNDARY,
+                }
+            )
+    return rows
+
+
+def _semantic_primitive_for_placeholder_symbol(
+    symbol: str,
+    *,
+    target_theorem_name: str,
+) -> tuple[str, str]:
+    lowered = symbol.lower()
+    target = f" for {target_theorem_name}" if target_theorem_name else ""
+    if "order" in lowered:
+        return (
+            "order_statistic_quantile_semantics",
+            f"formalize order-statistic quantile semantics{target}",
+        )
+    if "exchange" in lowered:
+        return (
+            "exchangeability_to_uniform_rank_semantics",
+            f"formalize exchangeability-to-uniform-rank semantics{target}",
+        )
+    if "prob" in lowered or "measure" in lowered:
+        return (
+            "probability_measure_semantics",
+            f"formalize probability-measure semantics{target}",
+        )
+    return (
+        "source_theorem_semantic_primitive:"
+        + stable_hash([symbol, target_theorem_name])[:16],
+        f"formalize placeholder {symbol} as a source-theorem semantic primitive{target}",
+    )
+
+
 def run_source_theorem_semantic_primitive_proofengineer_bridge(
     *,
     out_dir: Path,
     runtime_dir: Path | None = None,
     queue_jsonl: Path | None = None,
+    proof_body_executor_dir: Path | None = None,
     question_id: str = "",
     local_lean: bool = False,
     lean_project: Path | None = None,
@@ -94,6 +374,8 @@ def run_source_theorem_semantic_primitive_proofengineer_bridge(
     queue_path = resolve_source_semantic_primitive_queue_path(
         runtime_dir=runtime_dir,
         queue_jsonl=queue_jsonl,
+        proof_body_executor_dir=proof_body_executor_dir,
+        out_dir=out_dir,
     )
     rows = _read_jsonl(queue_path)
     candidate_ids_by_work_order = {
@@ -160,6 +442,7 @@ def run_source_theorem_semantic_primitive_proofengineer_bridge(
         "schema_version": 1,
         "artifact_kind": ARTIFACT_KIND,
         "source_runtime_dir": str(runtime_dir or ""),
+        "source_proof_body_executor_dir": str(proof_body_executor_dir or ""),
         "source_queue_jsonl": str(queue_path),
         "source_proof_audit_manifest": str(audit_manifest_path or ""),
         "checks_jsonl": str(checks_path),

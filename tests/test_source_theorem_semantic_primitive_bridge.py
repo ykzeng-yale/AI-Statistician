@@ -281,3 +281,112 @@ def test_source_semantic_bridge_exports_learning_from_kernel_proof_audit(
     assert "Do not treat them as full source theorem proof" in learning_rows[0][
         "target_behavior"
     ]
+
+
+def test_source_semantic_bridge_materializes_queue_from_proof_body_executor_feedback(
+    tmp_path: Path,
+) -> None:
+    executor_dir = tmp_path / "proof_body_executor"
+    learning_dir = executor_dir / "runtime_learning_export"
+    learning_dir.mkdir(parents=True)
+    _write_jsonl(
+        learning_dir / "runtime_learning_rows.jsonl",
+        [
+            {
+                "learning_task": "exact_source_theorem_proof_body_execution_feedback",
+                "execution_result_id": (
+                    "exact_source_theorem_proof_body_execution_result:1"
+                ),
+                "execution_queue_id": (
+                    "exact_source_theorem_proof_body_execution_queue:1"
+                ),
+                "target_theorem_name": "split_conformal_coverage",
+                "source_theorem_target_known": True,
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": "split_conformal_coverage",
+                },
+                "input_summary": {
+                    "candidate_artifact_path": "runs/proof_body_attempt.lean",
+                    "failure_classification": (
+                        "formal_environment_placeholder_primitives"
+                    ),
+                    "formal_environment_placeholder_symbols": [
+                        "Exchangeable",
+                        "orderStat",
+                    ],
+                    "formal_environment_typeclass_blockers": [
+                        "HSub ℕ ℝ ENNReal"
+                    ],
+                    "proof_body_attempted": True,
+                    "proof_body_attempt_success": False,
+                    "proof_body_attempt_summaries": [
+                        "1:simpa:returncode=1:compiled=False"
+                    ],
+                    "candidate_live_proof_state_request": {
+                        "proof_body_goal_excerpt": [
+                            "⊢ P {ω | s (Fin.last n₂) ω ≤ q_hat ω} ≥ "
+                            "ENNReal.ofReal (1 - α)"
+                        ]
+                    },
+                    "source_theorem_target_known": True,
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": "split_conformal_coverage",
+                    },
+                },
+            }
+        ],
+    )
+    proof_manifest = tmp_path / "proof_audit_manifest.json"
+    proof_manifest.write_text(
+        json.dumps(
+            {
+                "checks": [
+                    {
+                        "obligation_id": (
+                            "split_conformal_bad_rank_budget_from_uniform_rank_bound"
+                        ),
+                        "kernel_verified": True,
+                    },
+                    {
+                        "obligation_id": (
+                            "split_conformal_good_rank_set_inclusion_bridge"
+                        ),
+                        "kernel_verified": True,
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    manifest = run_source_theorem_semantic_primitive_proofengineer_bridge(
+        out_dir=tmp_path / "bridge",
+        proof_body_executor_dir=executor_dir,
+        question_id="conformal_prediction_coverage",
+        proof_audit_manifest=proof_manifest,
+    )
+
+    queue_path = Path(str(manifest["source_queue_jsonl"]))
+    queue_rows = [
+        json.loads(line)
+        for line in queue_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    by_symbol = {row["placeholder_symbol"]: row for row in queue_rows}
+    assert set(by_symbol) == {"Exchangeable", "orderStat"}
+    assert by_symbol["Exchangeable"]["semantic_primitive_id"] == (
+        "exchangeability_to_uniform_rank_semantics"
+    )
+    assert by_symbol["orderStat"]["semantic_primitive_id"] == (
+        "order_statistic_quantile_semantics"
+    )
+    assert by_symbol["Exchangeable"]["source_theorem_target_known"] is True
+    assert by_symbol["orderStat"]["source_theorem_target_provenance"][
+        "target_lean_declaration"
+    ] == "split_conformal_coverage"
+    assert "ENNReal.ofReal" in by_symbol["orderStat"]["proof_body_goal_excerpt"][0]
+    assert manifest["n_work_orders"] == 2
+    assert manifest["n_kernel_verified_registered_candidate_obligations"] == 2
+    assert manifest["runtime_learning_ready"] is True

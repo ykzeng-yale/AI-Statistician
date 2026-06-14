@@ -1069,6 +1069,11 @@ def _source_theorem_semantic_primitive_proofengineer_bridge(
         out_dir=out_dir,
         runtime_dir=Path(args.runtime_dir) if args.runtime_dir else None,
         queue_jsonl=Path(args.queue_jsonl) if args.queue_jsonl else None,
+        proof_body_executor_dir=(
+            Path(args.proof_body_executor_dir)
+            if args.proof_body_executor_dir
+            else None
+        ),
         question_id=str(args.question_id or ""),
         local_lean=bool(args.local_lean),
         lean_project=Path(args.lean_project) if args.lean_project else None,
@@ -6908,6 +6913,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "runtime_source_theorem_semantic_primitive_work_orders.jsonl from "
             "research-agent-runtime"
+        ),
+    )
+    semantic_bridge_source.add_argument(
+        "--proof-body-executor-dir",
+        help=(
+            "exact-source theorem proof-body executor output directory; the bridge "
+            "will materialize source semantic primitive work orders from its runtime "
+            "learning rows"
         ),
     )
     source_theorem_semantic_primitive_proofengineer_bridge.add_argument(
