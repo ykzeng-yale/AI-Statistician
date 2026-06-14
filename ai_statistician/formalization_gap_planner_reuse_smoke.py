@@ -3135,6 +3135,24 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_llm_route_planner_requests_with_source_theorem_semantic_primitive_bridge_context": (
+            llm_route_planner_payload.get(
+                "n_requests_with_source_theorem_semantic_primitive_bridge_context",
+                0,
+            )
+        ),
+        "n_llm_route_planner_source_theorem_semantic_primitive_bridge_resources_in_prompt": (
+            llm_route_planner_payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+                0,
+            )
+        ),
+        "n_llm_route_planner_source_theorem_semantic_primitive_bridge_contracts_in_prompt": (
+            llm_route_planner_payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
+                0,
+            )
+        ),
         "n_feedback_llm_route_planner_request_packets": feedback_llm_route_planner_payload.get(
             "n_request_packets",
             0,
@@ -3721,6 +3739,24 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_component_resource_registry_contracts_in_prompt": (
             feedback_llm_route_planner_payload.get(
                 "n_component_resource_registry_contracts_in_prompt",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_requests_with_source_theorem_semantic_primitive_bridge_context": (
+            feedback_llm_route_planner_payload.get(
+                "n_requests_with_source_theorem_semantic_primitive_bridge_context",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_source_theorem_semantic_primitive_bridge_resources_in_prompt": (
+            feedback_llm_route_planner_payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_source_theorem_semantic_primitive_bridge_contracts_in_prompt": (
+            feedback_llm_route_planner_payload.get(
+                "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
                 0,
             )
         ),
@@ -7057,7 +7093,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- LLM route planner resource registry context/resources/contracts: "
             f"{payload.get('n_llm_route_planner_requests_with_component_resource_registry_context')}/"
             f"{payload.get('n_llm_route_planner_component_resource_registry_resources_in_prompt')}/"
-            f"{payload.get('n_llm_route_planner_component_resource_registry_contracts_in_prompt')}"
+            f"{payload.get('n_llm_route_planner_component_resource_registry_contracts_in_prompt')} "
+            f"semantic_bridge={payload.get('n_llm_route_planner_source_theorem_semantic_primitive_bridge_resources_in_prompt')}/"
+            f"{payload.get('n_llm_route_planner_source_theorem_semantic_primitive_bridge_contracts_in_prompt')}"
         ),
         (
             f"- LLM route planner feedback realization witnesses/incomplete/cost-hint-incomplete/missing-selected/missing-alignment/omitted-cost-hints: "
@@ -7246,7 +7284,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Feedback LLM route planner resource registry context/resources/contracts: "
             f"{payload.get('n_feedback_llm_route_planner_requests_with_component_resource_registry_context')}/"
             f"{payload.get('n_feedback_llm_route_planner_component_resource_registry_resources_in_prompt')}/"
-            f"{payload.get('n_feedback_llm_route_planner_component_resource_registry_contracts_in_prompt')}"
+            f"{payload.get('n_feedback_llm_route_planner_component_resource_registry_contracts_in_prompt')} "
+            f"semantic_bridge={payload.get('n_feedback_llm_route_planner_source_theorem_semantic_primitive_bridge_resources_in_prompt')}/"
+            f"{payload.get('n_feedback_llm_route_planner_source_theorem_semantic_primitive_bridge_contracts_in_prompt')}"
         ),
         (
             f"- Route-alignment edge schema valid: "

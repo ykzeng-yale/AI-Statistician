@@ -193,6 +193,9 @@ TARGET_THEOREM_CONTEXT_PACKET_KIND = (
 LIBRARY_ALIGNMENT_SUMMARY_KIND = (
     "formalization_gap_planner_llm_route_planner_library_alignment_summary"
 )
+SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_RESOURCE_ID = (
+    "source_theorem_semantic_primitive_bridge"
+)
 CONTEXT_PACKET_ROW_FIELDS = (
     "target_intake_rows",
     "library_coverage_rows",
@@ -1858,6 +1861,28 @@ def export_formalization_gap_planner_llm_route_planner(
                         [],
                     )
                 )
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_source_theorem_semantic_primitive_bridge_context": sum(
+            1
+            for packet in request_packets
+            if _component_resource_context_has_resource(
+                packet,
+                SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_RESOURCE_ID,
+            )
+        ),
+        "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt": sum(
+            _component_resource_context_resource_count(
+                packet,
+                SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_RESOURCE_ID,
+            )
+            for packet in request_packets
+        ),
+        "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt": sum(
+            _component_resource_context_contract_count(
+                packet,
+                SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_RESOURCE_ID,
             )
             for packet in request_packets
         ),
@@ -16471,6 +16496,54 @@ def _component_resource_context_from_request(
     return dict(registry_context) if isinstance(registry_context, Mapping) else {}
 
 
+def _component_resource_context_has_resource(
+    request: Mapping[str, Any],
+    resource_id: str,
+) -> bool:
+    return (
+        _component_resource_context_resource_count(request, resource_id) > 0
+        or _component_resource_context_contract_count(request, resource_id) > 0
+    )
+
+
+def _component_resource_context_resource_count(
+    request: Mapping[str, Any],
+    resource_id: str,
+) -> int:
+    resource_id = str(resource_id or "").strip()
+    if not resource_id:
+        return 0
+    return sum(
+        1
+        for row in _dict_tuple(
+            _component_resource_context_from_request(request).get(
+                "resource_rows",
+                [],
+            )
+        )
+        if str(row.get("resource_id", "")).strip() == resource_id
+    )
+
+
+def _component_resource_context_contract_count(
+    request: Mapping[str, Any],
+    resource_id: str,
+) -> int:
+    resource_id = str(resource_id or "").strip()
+    if not resource_id:
+        return 0
+    return sum(
+        1
+        for row in _dict_tuple(
+            _component_resource_context_from_request(request).get(
+                "resource_contract_rows",
+                [],
+            )
+        )
+        if str(row.get("resource_id", "")).strip() == resource_id
+    )
+
+
 def _request_context_packet_inventory(
     request: Mapping[str, Any],
 ) -> dict[str, object]:
@@ -21407,6 +21480,8 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Alignment edges: {payload.get('n_route_alignment_edges')}",
         f"- Delta action witness required/missing: {payload.get('n_delta_action_witness_required_primitives')}/{payload.get('n_delta_action_witness_missing_primitives')}",
         f"- Route-option action witness required/missing: {payload.get('n_route_option_action_witness_required_primitives')}/{payload.get('n_route_option_action_witness_missing_primitives')}",
+        f"- Component-resource registry context/resources/contracts: {payload.get('n_requests_with_component_resource_registry_context')}/{payload.get('n_component_resource_registry_resources_in_prompt')}/{payload.get('n_component_resource_registry_contracts_in_prompt')}",
+        f"- Source-theorem semantic primitive bridge resources/contracts: {payload.get('n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt')}/{payload.get('n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt')}",
         f"- Search requests: {payload.get('n_search_requests')}",
         f"- Planner next actions: {payload.get('n_planner_next_actions')}",
         f"- All OK: {payload.get('all_ok')}",

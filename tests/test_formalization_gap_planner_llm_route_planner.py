@@ -2270,6 +2270,21 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     assert payload["n_component_resource_registry_components_in_prompt"] > 0
     assert payload["n_component_resource_registry_resources_in_prompt"] > 0
     assert payload["n_component_resource_registry_contracts_in_prompt"] > 0
+    assert payload[
+        "n_requests_with_source_theorem_semantic_primitive_bridge_context"
+    ] == 1
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt"
+        ]
+        == 1
+    )
     request = payload["request_packets"][0]
     registry_context = request["context_packet"][
         "component_resource_registry_context"
@@ -2279,6 +2294,7 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     }
     assert "paperclip_cli_mcp" in resource_ids
     assert "lean_lsp_mcp" in resource_ids
+    assert "source_theorem_semantic_primitive_bridge" in resource_ids
     assert any(
         row["component_id"] == "literature_grounded_route_synthesis"
         for row in registry_context["component_rows"]
@@ -2287,7 +2303,22 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
         row["resource_id"] == "paperclip_cli_mcp"
         for row in registry_context["resource_contract_rows"]
     )
+    semantic_bridge_contract = next(
+        row
+        for row in registry_context["resource_contract_rows"]
+        if row["resource_id"] == "source_theorem_semantic_primitive_bridge"
+    )
+    assert "source_theorem_semantic_primitive_work_orders" in semantic_bridge_contract[
+        "request_contract_fields"
+    ]
+    assert semantic_bridge_contract[
+        "output_artifact_kind"
+    ] == "source_theorem_semantic_primitive_bridge_response"
     assert "component_resource_registry_context" in request["prompt_messages"]["user"]
+    assert (
+        "source_theorem_semantic_primitive_bridge"
+        in request["prompt_messages"]["user"]
+    )
     assert "registry rows are not evidence" in request["prompt_messages"]["user"]
 
 
@@ -2338,6 +2369,22 @@ def test_llm_route_planner_filters_registry_context_for_rocq_target() -> None:
     )
 
     assert payload["all_ok"]
+    assert (
+        payload["n_requests_with_source_theorem_semantic_primitive_bridge_context"]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt"
+        ]
+        == 0
+    )
     request = payload["request_packets"][0]
     registry_context = request["context_packet"][
         "component_resource_registry_context"
@@ -2354,6 +2401,7 @@ def test_llm_route_planner_filters_registry_context_for_rocq_target() -> None:
         "leanexplore_mcp",
         "lean_blueprint_leanarchitect",
         "local_lake_lean",
+        "source_theorem_semantic_primitive_bridge",
         "lean_lsp_mcp",
         "leandojo_reprover",
     }

@@ -728,6 +728,24 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_llm_route_planner_component_resource_registry_resources_in_prompt"] > 0
     assert payload["n_llm_route_planner_component_resource_registry_contracts_in_prompt"] > 0
+    assert (
+        payload[
+            "n_llm_route_planner_requests_with_source_theorem_semantic_primitive_bridge_context"
+        ]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_source_theorem_semantic_primitive_bridge_resources_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_source_theorem_semantic_primitive_bridge_contracts_in_prompt"
+        ]
+        > 0
+    )
     assert payload["n_feedback_llm_route_planner_request_packets"] > 0
     assert payload["feedback_llm_route_planner_model_tier_selection_mode"] == "auto"
     assert (
@@ -1044,6 +1062,24 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert (
         payload[
             "n_feedback_llm_route_planner_component_resource_registry_contracts_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_requests_with_source_theorem_semantic_primitive_bridge_context"
+        ]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_source_theorem_semantic_primitive_bridge_resources_in_prompt"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_source_theorem_semantic_primitive_bridge_contracts_in_prompt"
         ]
         > 0
     )
