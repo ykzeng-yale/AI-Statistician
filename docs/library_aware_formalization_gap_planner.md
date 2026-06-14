@@ -1508,7 +1508,12 @@ Those session and decision-policy rows can be passed back into
 `formalization_gap_planner_llm_route_planner`, so the next LLM route-planning
 packet sees the current bounded interaction state, selected tools, quality
 gates, stop conditions, and fallback actions rather than replanning from only
-static route artifacts.
+static route artifacts. For `route_replan` rows, the session ledger requires
+the LLM route-planner request, response-payload, and model-tier decision-ledger
+schemas. It also injects prompt-only plus explicit live Anthropic
+`--model-tier auto` LLM route-planner commands if a legacy/manual replan handoff
+did not already include them, so residual/prover feedback returns to
+literature-grounded route synthesis before any replay claim is attempted.
 Literature, Lean-search, prover-diagnostic responses, revision overlays,
 proof-state triage rows, interactive-session rows, and decision-policy rows are
 route evidence only.
@@ -2111,7 +2116,10 @@ The current implementation composes four existing AI Statistician artifacts:
    decisions, replan handoff, and proof-state triage into one next-action
    ledger for each route. It records the bounded interaction to run next plus a
    decision-policy row explaining trigger signals, evidence inputs, stop
-   conditions, and fallback actions. All rows stay outside the proof-evidence
+   conditions, and fallback actions. Route-replan rows surface prompt-only and
+   live Anthropic `--model-tier auto` LLM route-planner commands and require the
+   planner request/response/decision-ledger schemas, even when the handoff row
+   itself predates those commands. All rows stay outside the proof-evidence
    boundary.
 
 27. `formalization_gap_planner_benchmark`

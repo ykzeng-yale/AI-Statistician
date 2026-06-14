@@ -448,6 +448,24 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
     )
     assert by_route["route:revise"]["next_interaction_kind"] == "route_replan"
     assert by_route["route:revise"]["replan_required"]
+    assert "formalization_gap_planner_llm_route_planner" in by_route[
+        "route:revise"
+    ]["next_tools"]
+    assert "anthropic_claude_api" in by_route["route:revise"]["next_tools"]
+    assert any(
+        "formalization-gap-planner-llm-route-planner" in command
+        and "--provider anthropic" in command
+        and "--model-tier auto" in command
+        and "--invoke-provider" not in command
+        for command in by_route["route:revise"]["next_commands"]
+    )
+    assert any(
+        "formalization-gap-planner-llm-route-planner" in command
+        and "--provider anthropic" in command
+        and "--model-tier auto" in command
+        and "--invoke-provider" in command
+        for command in by_route["route:revise"]["next_commands"]
+    )
     assert "target-prover LSP/MCP adapter" in by_route["route:revise"]["next_tools"]
     assert (
         by_route["route:revise"]["prover_triage_class"]
@@ -548,6 +566,18 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
     assert (
         "formalization_gap_planner_route_replan_handoff_row.schema.json"
         in policy_by_route["route:revise"]["required_tool_contracts"]
+    )
+    assert (
+        "formalization_gap_planner_llm_route_planner_request.schema.json"
+        in policy_by_route["route:revise"]["required_tool_contracts"]
+    )
+    assert (
+        "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json"
+        in policy_by_route["route:revise"]["required_tool_contracts"]
+    )
+    assert (
+        "LLM route-planner prompt packet is staged before live provider invocation"
+        in policy_by_route["route:revise"]["stop_conditions"]
     )
     assert "route_revision_handoff" in policy_by_route["route:revise"][
         "component_ids"

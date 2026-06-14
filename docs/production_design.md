@@ -68,7 +68,12 @@ ledger. The planner also writes a model-tier decision ledger JSONL that binds
 each request to selected/effective tier, resolved model, decision basis,
 source-feedback counts, provider-failure status, and Haiku-to-Sonnet repair
 escalation evidence, so cost-control claims can be evaluated without parsing
-raw model completions.
+raw model completions. Interactive route-replan rows now also surface the LLM
+route-planner request/response/decision-ledger schemas plus prompt-only and
+explicit live Anthropic `--model-tier auto` commands even when a handoff
+manifest is older or manually authored. That makes prover residual feedback
+feed back into source-grounded route synthesis before the system exports a new
+target-prover replay path.
 
 1. The theory layer emits only estimator families with registered formal
    obligations.

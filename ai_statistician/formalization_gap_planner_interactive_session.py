@@ -1160,6 +1160,9 @@ def _required_tool_contracts(next_kind: str) -> tuple[str, ...]:
                 "formalization_gap_planner_route_replan_handoff_row.schema.json",
                 "formalization_gap_planner_proof_state_triage_row.schema.json",
                 "formalization_gap_planner_standalone_input.schema.json",
+                "formalization_gap_planner_llm_route_planner_request.schema.json",
+                "formalization_gap_planner_llm_route_planner_response_payload.schema.json",
+                "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json",
             ),
             "target_prover_replay": (
                 "formalization_gap_planner_prover_adapter_packet.schema.json",
@@ -1212,6 +1215,8 @@ def _stop_conditions(next_kind: str) -> tuple[str, ...]:
             ),
             "route_replan": (
                 "standalone replan seed validates",
+                "LLM route-planner prompt packet is staged before live provider invocation",
+                "Claude model-tier decision ledger records any Haiku-to-Sonnet escalation",
                 "roundtrip plan preserves revised route-alignment edges",
             ),
             "target_prover_replay": (
@@ -1257,6 +1262,7 @@ def _fallback_actions(next_kind: str) -> tuple[str, ...]:
             ),
             "route_revision": ("rerun route stability audit", "handoff to replan"),
             "route_replan": (
+                "stage prompt-only LLM route-planner packet",
                 "rerun standalone planner",
                 "audit route-replan handoff roundtrip",
             ),
@@ -1470,6 +1476,14 @@ def _session_row(
     next_tools = _str_tuple(
         [
             *primary_triage.get("recommended_tools", []),
+            *(
+                [
+                    "formalization_gap_planner_llm_route_planner",
+                    "anthropic_claude_api",
+                ]
+                if next_kind == "route_replan"
+                else []
+            ),
             *resource_request_resource_ids,
             *(
                 ["resource_response_ledger"]
@@ -1805,6 +1819,7 @@ def _next_commands(
     commands: list[str] = []
     if next_kind == "route_replan":
         commands.extend(_str_tuple(handoff_row.get("next_commands", [])))
+        commands.extend(_route_replan_llm_route_planner_commands(commands))
     if next_kind in {"proof_state_feedback", "target_prover_replay"} and primary_triage:
         commands.extend(_str_tuple(primary_triage.get("execution_commands", [])))
     if next_kind == "await_refinement_response":
@@ -1818,6 +1833,40 @@ def _next_commands(
         commands.extend(_str_tuple(row.get("execution_commands", [])))
     commands.extend(_resource_request_execution_commands(resource_request_rows))
     return _str_tuple(commands)
+
+
+def _route_replan_llm_route_planner_commands(
+    existing_commands: list[str],
+) -> tuple[str, ...]:
+    if any(
+        "formalization-gap-planner-llm-route-planner" in command
+        for command in existing_commands
+    ):
+        return tuple()
+    seed_path = "formalization_gap_planner_route_replan_standalone_seed.json"
+    registry_dir = "<formalization_gap_planner_component_resource_registry_dir>"
+    handoff_dir = "<formalization_gap_planner_route_replan_handoff_dir>"
+    common_args = (
+        f"--input {seed_path} --provider anthropic --model-tier auto "
+        "--max-repair-attempts 1 "
+        f"--formalization-gap-planner-route-replan-handoff-dir {handoff_dir} "
+        "--formalization-gap-planner-component-resource-registry-dir "
+        f"{registry_dir}"
+    )
+    return (
+        "formalization-gap-planner-component-resource-registry "
+        f"--out {registry_dir}",
+        (
+            "formalization-gap-planner-llm-route-planner "
+            f"{common_args} "
+            "--out <formalization_gap_planner_route_replan_llm_route_planner_prompt_dir>"
+        ),
+        (
+            "formalization-gap-planner-llm-route-planner "
+            f"{common_args} --invoke-provider "
+            "--out <formalization_gap_planner_route_replan_llm_route_planner_live_dir>"
+        ),
+    )
 
 
 def _resource_request_execution_commands(
