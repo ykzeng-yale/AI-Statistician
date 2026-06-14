@@ -337,6 +337,34 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
                             "llm_route_planner_model_selection_rationale": (
                                 "auto selected Sonnet because the route needs a bridge"
                             ),
+                            "llm_route_planner_model_tier_decision_evidence": {
+                                "decision_basis": "auto_sonnet_triggers",
+                                "selection_mode": "auto",
+                                "selected_model_tier": "sonnet",
+                                "effective_model_tier": "sonnet",
+                                "sonnet_triggers": [
+                                    (
+                                        "1 source-theorem proof-body execution "
+                                        "failure(s)"
+                                    ),
+                                    (
+                                        "3 source-theorem formal-environment "
+                                        "blocker(s)"
+                                    ),
+                                ],
+                                "route_signal_counts": {
+                                    "source_theorem_feedback_row_count": 4,
+                                    "source_theorem_unverified_semantic_primitive_row_count": 2,
+                                    "source_theorem_proof_body_execution_failure_count": 1,
+                                    "source_theorem_formal_environment_blocker_count": 3,
+                                },
+                                "source_theorem_feedback_counts": {
+                                    "total_count": 4,
+                                    "unverified_semantic_primitive_row_count": 2,
+                                    "proof_body_execution_failure_count": 1,
+                                    "formal_environment_blocker_count": 3,
+                                },
+                            },
                             "llm_route_planner_generator_metadata": {
                                 "generator_only": True,
                                 "retry_count": 0,
@@ -411,6 +439,28 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert payload["n_rows_with_complete_realization_coverage"] == 1
     assert payload["n_rows_with_llm_route_planner_trace"] == 1
     assert payload["n_rows_with_llm_route_planner_model_tier"] == 1
+    assert payload["n_rows_with_llm_route_planner_model_tier_decision_basis"] == 1
+    assert payload["n_llm_route_planner_model_tier_decision_sonnet_triggers"] == 2
+    assert payload["n_rows_with_llm_route_planner_source_feedback_tier_signal"] == 1
+    assert payload["n_llm_route_planner_source_feedback_rows"] == 4
+    assert (
+        payload[
+            "n_llm_route_planner_source_feedback_unverified_semantic_primitive_rows"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_source_feedback_proof_body_execution_failures"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_source_feedback_formal_environment_blockers"
+        ]
+        == 3
+    )
     assert payload["n_rows_with_llm_route_planner_route_adoption_status"] == 1
     assert payload["n_rows_ready_for_route_adoption"] == 0
     assert payload["n_rows_pending_refinement_before_route_adoption"] == 1
@@ -481,6 +531,24 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "n_rows_with_generator_metadata": 1,
             "n_rows_with_request_contract_blocked": 0,
             "n_rows_with_errors": 0,
+            "n_sonnet_triggers": 2,
+            "n_source_feedback_rows": 4,
+            "n_source_feedback_proof_body_execution_failures": 1,
+            "n_source_feedback_formal_environment_blockers": 3,
+        }
+    }
+    assert payload["evaluation_by_llm_model_tier_decision_basis"] == {
+        "auto_sonnet_triggers": {
+            "n_rows": 1,
+            "n_ok": 0,
+            "n_matched_ground_truth": 1,
+            "by_model_tier": {"sonnet": 1},
+            "n_sonnet_triggers": 2,
+            "n_source_feedback_rows": 4,
+            "n_source_feedback_proof_body_execution_failures": 1,
+            "n_source_feedback_formal_environment_blockers": 3,
+            "mean_route_recall": 1.0,
+            "mean_delta_precision": 1.0,
         }
     }
     assert payload["n_rows_with_quality_controls"] == 1
@@ -541,6 +609,34 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert row["llm_route_planner_provider"] == "anthropic"
     assert row["llm_route_planner_model"] == "claude-sonnet-4-6"
     assert row["llm_route_planner_model_tier"] == "sonnet"
+    assert (
+        row["llm_route_planner_model_tier_decision_basis"]
+        == "auto_sonnet_triggers"
+    )
+    assert row["llm_route_planner_model_tier_decision_sonnet_triggers"] == (
+        "1 source-theorem proof-body execution failure(s)",
+        "3 source-theorem formal-environment blocker(s)",
+    )
+    assert row["llm_route_planner_model_tier_decision_sonnet_trigger_count"] == 2
+    assert row["llm_route_planner_source_feedback_row_count"] == 4
+    assert (
+        row[
+            "llm_route_planner_source_feedback_unverified_semantic_primitive_row_count"
+        ]
+        == 2
+    )
+    assert (
+        row[
+            "llm_route_planner_source_feedback_proof_body_execution_failure_count"
+        ]
+        == 1
+    )
+    assert (
+        row[
+            "llm_route_planner_source_feedback_formal_environment_blocker_count"
+        ]
+        == 3
+    )
     assert row["llm_route_planner_route_adoption_status"] == (
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )

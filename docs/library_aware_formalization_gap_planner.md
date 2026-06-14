@@ -2271,6 +2271,8 @@ A publication-quality evaluation should measure:
 - import cone and dependency depth
 - route cost versus a human minimal-delta plan
 - proof-bank and local-library reuse
+- LLM cost-tier routing efficiency, including whether Sonnet calls are driven
+  by source/proof-body feedback rather than routine bounded triage
 - rate of avoiding unrelated field-wide formalization
 - downstream proof-attempt success after replay
 - semantic faithfulness of selected route to the informal theorem

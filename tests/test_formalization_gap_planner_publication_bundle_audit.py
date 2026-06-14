@@ -1139,6 +1139,15 @@ def _fixture_evaluation_row() -> dict[str, object]:
         "llm_route_planner_provider": "anthropic",
         "llm_route_planner_model": "claude-sonnet-4-6",
         "llm_route_planner_model_tier": "sonnet",
+        "llm_route_planner_model_tier_decision_basis": "auto_sonnet_triggers",
+        "llm_route_planner_model_tier_decision_sonnet_triggers": [
+            "fixture Sonnet trigger"
+        ],
+        "llm_route_planner_model_tier_decision_sonnet_trigger_count": 1,
+        "llm_route_planner_source_feedback_row_count": 0,
+        "llm_route_planner_source_feedback_unverified_semantic_primitive_row_count": 0,
+        "llm_route_planner_source_feedback_proof_body_execution_failure_count": 0,
+        "llm_route_planner_source_feedback_formal_environment_blocker_count": 0,
         "llm_route_planner_route_adoption_status": (
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
         ),

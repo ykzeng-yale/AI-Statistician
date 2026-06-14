@@ -19851,6 +19851,9 @@ def _fallback_route_for_seed(
         "llm_route_planner_model_selection_rationale": (
             row.model_selection_rationale
         ),
+        "llm_route_planner_model_tier_decision_evidence": dict(
+            row.model_tier_decision_evidence
+        ),
         "llm_route_planner_generator_metadata": dict(row.generator_metadata),
         "llm_route_planner_generator_metadata_keys": sorted(
             str(key) for key in row.generator_metadata
@@ -20104,6 +20107,9 @@ def _accepted_route_for_seed(
         "llm_route_planner_model_tier": row.model_tier,
         "llm_route_planner_model_selection_rationale": (
             row.model_selection_rationale
+        ),
+        "llm_route_planner_model_tier_decision_evidence": dict(
+            row.model_tier_decision_evidence
         ),
         "llm_route_planner_generator_metadata": dict(row.generator_metadata),
         "llm_route_planner_generator_metadata_keys": sorted(

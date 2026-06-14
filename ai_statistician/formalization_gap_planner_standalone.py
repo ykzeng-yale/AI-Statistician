@@ -1883,6 +1883,22 @@ def _standalone_input_trace(
     llm_generator_metadata = _dict_value(
         metadata.get("llm_route_planner_generator_metadata", {})
     )
+    llm_model_tier_decision_evidence = _dict_value(
+        metadata.get("llm_route_planner_model_tier_decision_evidence", {})
+    )
+    if not llm_model_tier_decision_evidence:
+        llm_model_tier_decision_evidence = _dict_value(
+            metadata.get("model_tier_decision_evidence", {})
+        )
+    llm_model_tier_route_signal_counts = _dict_value(
+        llm_model_tier_decision_evidence.get("route_signal_counts", {})
+    )
+    llm_source_feedback_counts = _dict_value(
+        llm_model_tier_decision_evidence.get("source_theorem_feedback_counts", {})
+    )
+    llm_sonnet_triggers = _str_list(
+        llm_model_tier_decision_evidence.get("sonnet_triggers", [])
+    )
     llm_seed_selection_rank = _int_value(
         metadata.get(
             "llm_route_planner_seed_selection_rank",
@@ -1976,6 +1992,63 @@ def _standalone_input_trace(
         ),
         "llm_route_planner_model_selection_rationale": str(
             metadata.get("llm_route_planner_model_selection_rationale", "")
+        ),
+        "llm_route_planner_model_tier_decision_evidence": (
+            llm_model_tier_decision_evidence
+        ),
+        "llm_route_planner_model_tier_decision_basis": str(
+            llm_model_tier_decision_evidence.get("decision_basis", "")
+        ),
+        "llm_route_planner_model_tier_decision_selection_mode": str(
+            llm_model_tier_decision_evidence.get("selection_mode", "")
+        ),
+        "llm_route_planner_model_tier_decision_sonnet_triggers": (
+            llm_sonnet_triggers
+        ),
+        "llm_route_planner_model_tier_decision_sonnet_trigger_count": len(
+            llm_sonnet_triggers
+        ),
+        "llm_route_planner_source_feedback_row_count": _int_value(
+            llm_source_feedback_counts.get(
+                "total_count",
+                llm_model_tier_route_signal_counts.get(
+                    "source_theorem_feedback_row_count",
+                    0,
+                ),
+            )
+        ),
+        "llm_route_planner_source_feedback_unverified_semantic_primitive_row_count": (
+            _int_value(
+                llm_source_feedback_counts.get(
+                    "unverified_semantic_primitive_row_count",
+                    llm_model_tier_route_signal_counts.get(
+                        "source_theorem_unverified_semantic_primitive_row_count",
+                        0,
+                    ),
+                )
+            )
+        ),
+        "llm_route_planner_source_feedback_proof_body_execution_failure_count": (
+            _int_value(
+                llm_source_feedback_counts.get(
+                    "proof_body_execution_failure_count",
+                    llm_model_tier_route_signal_counts.get(
+                        "source_theorem_proof_body_execution_failure_count",
+                        0,
+                    ),
+                )
+            )
+        ),
+        "llm_route_planner_source_feedback_formal_environment_blocker_count": (
+            _int_value(
+                llm_source_feedback_counts.get(
+                    "formal_environment_blocker_count",
+                    llm_model_tier_route_signal_counts.get(
+                        "source_theorem_formal_environment_blocker_count",
+                        0,
+                    ),
+                )
+            )
         ),
         "llm_route_planner_acceptance_status": str(
             metadata.get("llm_route_planner_acceptance_status", "")

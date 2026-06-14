@@ -1967,6 +1967,18 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["evaluation_realization_missing_primitives_by_route"] == ()
     assert payload["n_evaluation_rows_with_llm_route_planner_trace"] == 1
     assert payload["n_evaluation_rows_with_llm_route_planner_model_tier"] == 1
+    assert payload["n_evaluation_rows_with_llm_route_planner_model_tier_decision_basis"] == 1
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_model_tier_decision_sonnet_triggers"
+        ]
+        == 6
+    )
+    assert (
+        payload["n_evaluation_rows_with_llm_route_planner_source_feedback_tier_signal"]
+        == 0
+    )
+    assert payload["n_evaluation_llm_route_planner_source_feedback_rows"] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_request_contract_blocked"] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_errors"] == 0
@@ -1983,6 +1995,24 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_rows_with_generator_metadata": 0,
             "n_rows_with_request_contract_blocked": 0,
             "n_rows_with_errors": 0,
+            "n_sonnet_triggers": 6,
+            "n_source_feedback_rows": 0,
+            "n_source_feedback_proof_body_execution_failures": 0,
+            "n_source_feedback_formal_environment_blockers": 0,
+        }
+    }
+    assert payload["evaluation_by_llm_model_tier_decision_basis"] == {
+        "auto_sonnet_triggers": {
+            "n_rows": 1,
+            "n_ok": 1,
+            "n_matched_ground_truth": 1,
+            "by_model_tier": {"sonnet": 1},
+            "n_sonnet_triggers": 6,
+            "n_source_feedback_rows": 0,
+            "n_source_feedback_proof_body_execution_failures": 0,
+            "n_source_feedback_formal_environment_blockers": 0,
+            "mean_route_recall": 1.0,
+            "mean_delta_precision": 1.0,
         }
     }
     assert payload["evaluation_by_llm_route_adoption_status"] == {

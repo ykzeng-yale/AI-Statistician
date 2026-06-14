@@ -4780,6 +4780,48 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_rows_with_llm_route_planner_model_tier",
             0,
         ),
+        "n_evaluation_rows_with_llm_route_planner_model_tier_decision_basis": (
+            evaluation_payload.get(
+                "n_rows_with_llm_route_planner_model_tier_decision_basis",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_model_tier_decision_sonnet_triggers": (
+            evaluation_payload.get(
+                "n_llm_route_planner_model_tier_decision_sonnet_triggers",
+                0,
+            )
+        ),
+        "n_evaluation_rows_with_llm_route_planner_source_feedback_tier_signal": (
+            evaluation_payload.get(
+                "n_rows_with_llm_route_planner_source_feedback_tier_signal",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_source_feedback_rows": (
+            evaluation_payload.get(
+                "n_llm_route_planner_source_feedback_rows",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_source_feedback_unverified_semantic_primitive_rows": (
+            evaluation_payload.get(
+                "n_llm_route_planner_source_feedback_unverified_semantic_primitive_rows",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_source_feedback_proof_body_execution_failures": (
+            evaluation_payload.get(
+                "n_llm_route_planner_source_feedback_proof_body_execution_failures",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_source_feedback_formal_environment_blockers": (
+            evaluation_payload.get(
+                "n_llm_route_planner_source_feedback_formal_environment_blockers",
+                0,
+            )
+        ),
         "n_evaluation_rows_with_llm_route_planner_route_adoption_status": (
             evaluation_payload.get(
                 "n_rows_with_llm_route_planner_route_adoption_status",
@@ -4850,6 +4892,10 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "evaluation_by_llm_model_tier": evaluation_payload.get(
             "evaluation_by_llm_model_tier",
+            {},
+        ),
+        "evaluation_by_llm_model_tier_decision_basis": evaluation_payload.get(
+            "evaluation_by_llm_model_tier_decision_basis",
             {},
         ),
         "mean_evaluation_route_recall": evaluation_payload.get(
@@ -7761,6 +7807,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_evaluation_rows_with_llm_route_planner_generator_metadata')} "
             f"request_blocks={payload.get('n_evaluation_rows_with_llm_route_planner_request_contract_blocked')} "
             f"errors={payload.get('n_evaluation_llm_route_planner_errors')} "
+            f"tier_basis={payload.get('evaluation_by_llm_model_tier_decision_basis')} "
+            f"source_feedback_rows={payload.get('n_evaluation_llm_route_planner_source_feedback_rows')} "
             f"tiers={payload.get('evaluation_by_llm_model_tier')}"
         ),
         (
