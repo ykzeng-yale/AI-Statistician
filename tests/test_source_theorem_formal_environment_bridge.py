@@ -412,6 +412,102 @@ def test_source_theorem_formal_environment_bridge_exports_repair_packets(
     assert cli_manifest["runtime_learning_ready"] is True
 
 
+def test_exact_source_theorem_proof_body_executor_attempts_bounded_tactics(
+    tmp_path: Path,
+) -> None:
+    queue_dir = tmp_path / "proof_body_queue"
+    queue_dir.mkdir()
+    signature_probe_artifact = tmp_path / "signature_probe.lean"
+    candidate_artifact = tmp_path / "candidate.lean"
+    transcript_path = tmp_path / "candidate.jsonl"
+    signature_probe_artifact.write_text(
+        "theorem exact_source_claim {claim : Prop} (h_claim : claim) : claim := by\n"
+        "  fail_if_success trivial\n",
+        encoding="utf-8",
+    )
+    (
+        queue_dir / "exact_source_theorem_proof_body_execution_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "rows": [
+                    {
+                        "artifact_kind": "ExactSourceTheoremProofBodyExecutionQueueRow",
+                        "execution_queue_id": "exact_source_queue:bounded_tactic",
+                        "source_work_order_id": "source_work_order:bounded_tactic",
+                        "target_theorem_name": "exact_source_claim",
+                        "target_lean_declaration": "exact_source_claim",
+                        "expected_target_lean_declaration": "exact_source_claim",
+                        "source_theorem_target_known": True,
+                        "source_theorem_target_provenance": {
+                            "source_theorem_route_id": "route:bounded_tactic"
+                        },
+                        "semantic_alignment_constraints": [
+                            "do not change theorem statement"
+                        ],
+                        "target_identity_status": "TARGET_DECLARATION_MATCHED",
+                        "source_candidate_artifact_path": str(signature_probe_artifact),
+                        "signature_probe_artifact_path": str(signature_probe_artifact),
+                        "candidate_artifact_path": str(candidate_artifact),
+                        "execution_transcript_path": str(transcript_path),
+                        "live_goal_location_ready": True,
+                        "execution_status": "READY_FOR_EXACT_SOURCE_PROOF_BODY_WORKER",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_exact_source_theorem_proof_body_execution_results(
+        queue_dir,
+        tmp_path / "proof_body_executor",
+        overwrite=True,
+        local_lean=True,
+        lean_command=(
+            sys.executable,
+            "-c",
+            (
+                "import pathlib, sys; "
+                "text = pathlib.Path(sys.argv[-1]).read_text(); "
+                "sys.exit(0 if 'assumption' in text else "
+                "(print('unsolved goals') or 1))"
+            ),
+        ),
+    )
+
+    assert payload["n_execution_result_rows"] == 1
+    assert payload["n_local_lean_checked"] == 1
+    assert payload["n_proof_body_attempted"] == 1
+    assert payload["n_proof_body_attempt_success"] == 1
+    assert payload["n_artifact_kernel_verified"] == 1
+    assert payload["n_source_theorem_kernel_verified"] == 1
+    assert payload["proof_evidence_status"] == (
+        "EXACT_SOURCE_THEOREM_PROOF_BODY_SOURCE_KERNEL_VERIFIED"
+    )
+    row = payload["rows"][0]
+    assert row["execution_status"] == "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+    assert row["proof_body_attempted"] is True
+    assert row["proof_body_attempt_success"] is True
+    assert row["proof_body_attempt_strategy"] == "assumption"
+    assert row["source_theorem_kernel_verified"] is True
+    assert "assumption" in candidate_artifact.read_text(encoding="utf-8")
+    transcript_event = json.loads(transcript_path.read_text(encoding="utf-8"))
+    assert transcript_event["proof_body_attempt_success"] is True
+    learning_export = payload["runtime_learning_export"]
+    learning_row = json.loads(
+        Path(str(learning_export["runtime_learning_rows_jsonl"])).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert learning_row["trigger"] == "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
+    assert learning_row["kernel_verified_source_theorem_ids"] == [
+        "exact_source_claim"
+    ]
+
+
 def test_signature_probe_does_not_queue_proof_body_with_environment_errors(
     tmp_path: Path,
 ) -> None:

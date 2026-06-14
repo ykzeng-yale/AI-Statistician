@@ -30,6 +30,12 @@ PROOF_EVIDENCE_BOUNDARY = (
     "passes Lean/AXLE and the formal environment has no placeholder primitives "
     "or unresolved semantic repairs."
 )
+DEFAULT_PROOF_BODY_TACTIC_ATTEMPTS = (
+    "assumption",
+    "trivial",
+    "simp",
+    "exact True.intro",
+)
 
 
 @dataclass(frozen=True)
@@ -62,6 +68,11 @@ class ExactSourceTheoremProofBodyExecutionResultRow:
     local_lean_requested: bool
     local_lean_checked: bool
     local_lean_compiled: bool
+    proof_body_attempted: bool
+    proof_body_attempt_count: int
+    proof_body_attempt_success: bool
+    proof_body_attempt_strategy: str
+    proof_body_attempt_summaries: tuple[str, ...]
     artifact_kernel_verified: bool
     source_theorem_kernel_verified: bool
     verifier: str
@@ -145,6 +156,10 @@ def export_exact_source_theorem_proof_body_execution_results(
         ),
         "n_local_lean_checked": sum(1 for row in rows if row.local_lean_checked),
         "n_local_lean_compiled": sum(1 for row in rows if row.local_lean_compiled),
+        "n_proof_body_attempted": sum(1 for row in rows if row.proof_body_attempted),
+        "n_proof_body_attempt_success": sum(
+            1 for row in rows if row.proof_body_attempt_success
+        ),
         "n_artifact_kernel_verified": sum(1 for row in rows if row.artifact_kernel_verified),
         "n_source_theorem_kernel_verified": sum(
             1 for row in rows if row.source_theorem_kernel_verified
@@ -311,6 +326,10 @@ def _execution_result_row(
     compiled = False
     returncode = -1
     diagnostics: tuple[str, ...] = ()
+    proof_body_attempted = False
+    proof_body_attempt_success = False
+    proof_body_attempt_strategy = ""
+    proof_body_attempt_summaries: tuple[str, ...] = ()
     verifier = "local.exact_source_theorem_proof_body_executor"
     verification_strength = "exact_source_proof_body_static"
     if local_lean and not lean_command:
@@ -326,6 +345,28 @@ def _execution_result_row(
             timeout_s=lean_timeout,
         )
         verification_strength = "local_lean_exact_source_proof_body_kernel"
+        if not compiled and _proof_body_attempts_should_run(diagnostics):
+            (
+                proof_body_attempted,
+                proof_body_attempt_success,
+                proof_body_attempt_strategy,
+                proof_body_attempt_summaries,
+                compiled,
+                returncode,
+                diagnostics,
+                source,
+            ) = _run_bounded_proof_body_attempts(
+                source=source,
+                declaration_name=target_lean_declaration,
+                candidate_artifact_path=candidate_artifact_path,
+                row=row,
+                lean_command=lean_command,
+                lean_project=lean_project,
+                lean_timeout=lean_timeout,
+                fallback_compiled=compiled,
+                fallback_returncode=returncode,
+                fallback_diagnostics=diagnostics,
+            )
         if compiled:
             status = (
                 "EXACT_SOURCE_THEOREM_KERNEL_VERIFIED"
@@ -384,6 +425,11 @@ def _execution_result_row(
         local_lean_compiled=compiled,
         artifact_kernel_verified=artifact_kernel_verified,
         source_theorem_kernel_verified=source_theorem_kernel_verified,
+        proof_body_attempted=proof_body_attempted,
+        proof_body_attempt_count=len(proof_body_attempt_summaries),
+        proof_body_attempt_success=proof_body_attempt_success,
+        proof_body_attempt_strategy=proof_body_attempt_strategy,
+        proof_body_attempt_summaries=proof_body_attempt_summaries,
         formal_environment_placeholder_symbols=placeholder_symbols,
         formal_environment_typeclass_blockers=typeclass_blockers,
         diagnostics=diagnostics,
@@ -419,6 +465,11 @@ def _execution_result_row(
         local_lean_requested=local_lean,
         local_lean_checked=checked,
         local_lean_compiled=compiled,
+        proof_body_attempted=proof_body_attempted,
+        proof_body_attempt_count=len(proof_body_attempt_summaries),
+        proof_body_attempt_success=proof_body_attempt_success,
+        proof_body_attempt_strategy=proof_body_attempt_strategy,
+        proof_body_attempt_summaries=proof_body_attempt_summaries,
         artifact_kernel_verified=artifact_kernel_verified,
         source_theorem_kernel_verified=source_theorem_kernel_verified,
         verifier=verifier,
@@ -436,6 +487,112 @@ def _execution_result_row(
         ok=not errors,
         errors=tuple(errors),
     )
+
+
+def _proof_body_attempts_should_run(diagnostics: tuple[str, ...]) -> bool:
+    text = "\n".join(diagnostics).lower()
+    return "unsolved goals" in text
+
+
+def _proof_body_attempts(row: Mapping[str, Any]) -> tuple[str, ...]:
+    attempts: list[str] = []
+    for value in row.get("proof_body_attempts", []) or []:
+        text = str(value).strip()
+        if text:
+            attempts.append(text)
+    attempts.extend(DEFAULT_PROOF_BODY_TACTIC_ATTEMPTS)
+    cleaned: list[str] = []
+    for tactic in attempts:
+        if any(token in tactic for token in FORBIDDEN_ARTIFACT_TOKENS):
+            continue
+        cleaned.append(tactic)
+    return tuple(dict.fromkeys(cleaned))
+
+
+def _run_bounded_proof_body_attempts(
+    *,
+    source: str,
+    declaration_name: str,
+    candidate_artifact_path: Path,
+    row: Mapping[str, Any],
+    lean_command: tuple[str, ...],
+    lean_project: Path | None,
+    lean_timeout: int,
+    fallback_compiled: bool,
+    fallback_returncode: int,
+    fallback_diagnostics: tuple[str, ...],
+) -> tuple[bool, bool, str, tuple[str, ...], bool, int, tuple[str, ...], str]:
+    summaries: list[str] = []
+    for index, tactic in enumerate(_proof_body_attempts(row), start=1):
+        attempted_source = _replace_exact_theorem_proof_body(
+            source,
+            declaration_name=declaration_name,
+            tactic=tactic,
+        )
+        if not attempted_source:
+            summaries.append(f"{index}:{tactic}:not_applied")
+            continue
+        attempt_path = candidate_artifact_path.with_name(
+            f"{candidate_artifact_path.stem}.proof_body_attempt_{index}"
+            f"{candidate_artifact_path.suffix or '.lean'}"
+        )
+        attempt_path.write_text(attempted_source, encoding="utf-8")
+        compiled, returncode, diagnostics = _run_local_lean(
+            attempt_path,
+            lean_command=lean_command,
+            lean_project=lean_project,
+            timeout_s=lean_timeout,
+        )
+        summary = f"{index}:{tactic}:returncode={returncode}:compiled={compiled}"
+        if diagnostics:
+            summary += ":diagnostic=" + diagnostics[0][:160]
+        summaries.append(summary)
+        if compiled:
+            candidate_artifact_path.write_text(attempted_source, encoding="utf-8")
+            return (
+                True,
+                True,
+                tactic,
+                tuple(summaries),
+                compiled,
+                returncode,
+                diagnostics,
+                attempted_source,
+            )
+    return (
+        bool(summaries),
+        False,
+        "",
+        tuple(summaries),
+        fallback_compiled,
+        fallback_returncode,
+        fallback_diagnostics,
+        source,
+    )
+
+
+def _replace_exact_theorem_proof_body(
+    source: str,
+    *,
+    declaration_name: str,
+    tactic: str,
+) -> str:
+    if not source or not declaration_name or not tactic.strip():
+        return ""
+    match = re.search(r"\btheorem\s+" + re.escape(declaration_name) + r"\b", source)
+    if match is None:
+        return ""
+    theorem_start = match.start()
+    proof_match = re.search(r":=\s*by\b", source[theorem_start:])
+    if proof_match is None:
+        return ""
+    proof_start = theorem_start + proof_match.start()
+    proof_body_start = theorem_start + proof_match.end()
+    trailing = source[proof_body_start:]
+    if re.search(r"\n(?:theorem|lemma|def|structure|class|inductive)\s+", trailing):
+        return ""
+    prefix = source[:proof_start]
+    return prefix.rstrip() + " := by\n  " + tactic.strip() + "\n"
 
 
 def _candidate_live_proof_state_request(
@@ -488,6 +645,11 @@ def _append_transcript_event(
     local_lean_compiled: bool,
     artifact_kernel_verified: bool,
     source_theorem_kernel_verified: bool,
+    proof_body_attempted: bool,
+    proof_body_attempt_count: int,
+    proof_body_attempt_success: bool,
+    proof_body_attempt_strategy: str,
+    proof_body_attempt_summaries: tuple[str, ...],
     formal_environment_placeholder_symbols: tuple[str, ...],
     formal_environment_typeclass_blockers: tuple[str, ...],
     diagnostics: tuple[str, ...],
@@ -525,6 +687,11 @@ def _append_transcript_event(
             "local_lean_compiled": local_lean_compiled,
             "artifact_kernel_verified": artifact_kernel_verified,
             "source_theorem_kernel_verified": source_theorem_kernel_verified,
+            "proof_body_attempted": proof_body_attempted,
+            "proof_body_attempt_count": proof_body_attempt_count,
+            "proof_body_attempt_success": proof_body_attempt_success,
+            "proof_body_attempt_strategy": proof_body_attempt_strategy,
+            "proof_body_attempt_summaries": proof_body_attempt_summaries,
             "formal_environment_placeholder_symbols": formal_environment_placeholder_symbols,
             "formal_environment_typeclass_blockers": formal_environment_typeclass_blockers,
             "diagnostics": diagnostics,

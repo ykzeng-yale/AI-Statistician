@@ -1013,10 +1013,22 @@ def _runtime_capability_ladder(payload: Mapping[str, Any]) -> dict[str, Any]:
         _ladder_level(
             7,
             "full_source_theorem_kernel_verified",
-            int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0
+            (
+                int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0
+                or int(
+                    payload.get(
+                        "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
+                        0,
+                    )
+                    or 0
+                )
+                > 0
+            )
             and int(payload.get("n_formal_gaps", 0) or 0) <= 0,
             (
                 f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')} "
+                "proof_body_source_kernel="
+                f"{payload.get('source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified')} "
                 f"n_formal_gaps={payload.get('n_formal_gaps')}"
             ),
             "no full source/frontier theorem was kernel-verified with formal gaps closed",
@@ -1229,8 +1241,20 @@ def _runtime_capability_scorecard(payload: Mapping[str, Any]) -> dict[str, Any]:
         ),
         _scorecard_row(
             "full_frontier_theorem_kernel_proved",
-            int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0,
-            f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')}",
+            int(payload.get("n_full_frontier_theorem_proved", 0) or 0) > 0
+            or int(
+                payload.get(
+                    "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified",
+                    0,
+                )
+                or 0
+            )
+            > 0,
+            (
+                f"n_full_frontier_theorem_proved={payload.get('n_full_frontier_theorem_proved')} "
+                "proof_body_source_kernel="
+                f"{payload.get('source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified')}"
+            ),
             "no full frontier theorem was kernel-proved",
         ),
     ]

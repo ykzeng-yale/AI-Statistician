@@ -6187,6 +6187,32 @@ def test_runtime_capability_ladder_separates_closure_memory_from_full_theorem() 
     assert "no full source/frontier theorem" in rows[7]["blocker"]
 
 
+def test_runtime_capability_ladder_accepts_proof_body_source_kernel_evidence() -> None:
+    payload = {
+        "all_ok": True,
+        "n_results": 1,
+        "n_distinct_question_ids": 1,
+        "n_live_generator_agents_enabled": 6,
+        "architect_coordinator_enabled": True,
+        "n_algorithm_sandbox_executed": 1,
+        "n_real_kernel_verified_subclaims": 0,
+        "n_runtime_memory_kernel_verified_proof_obligation_ids": 9,
+        "n_runtime_memory_kernel_verified_theorem_reduction_closure_goal_ids": 1,
+        "n_runtime_memory_kernel_verified_source_theorem_semantic_primitive_ids": 2,
+        "n_real_kernel_verified_source_theorem_semantic_primitive_subclaims": 0,
+        "n_runtime_theorem_reduction_closure_work_orders": 0,
+        "n_full_frontier_theorem_proved": 0,
+        "source_theorem_formal_environment_proof_body_executor_n_source_theorem_kernel_verified": 1,
+        "n_formal_gaps": 0,
+    }
+
+    ladder = _runtime_capability_ladder(payload)
+    rows = {row["level"]: row for row in ladder["levels"]}
+
+    assert rows[7]["passed"] is True
+    assert ladder["max_contiguous_level"] == 7
+
+
 def test_runtime_audit_resolves_workspace_relative_run_paths(tmp_path: Path) -> None:
     runtime_dir = tmp_path / "runs" / "live_runtime"
     runtime_dir.mkdir(parents=True)
