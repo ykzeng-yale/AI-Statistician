@@ -558,6 +558,10 @@ therefore expose semantic route weakening, minimal-delta quality, and readiness
 blockers before a consumer runs the separate audit command; the audit also
 recomputes and checks this top-level summary against the packaged evaluation
 artifacts.
+The bundle audit also validates the packaged LLM model policy against official
+Anthropic source URLs and the pinned-snapshot/not-evergreen Claude model-ID
+versioning claim, so Haiku/Sonnet/Opus routing evidence is source-attributed in
+the reusable artifact rather than only implied by constants.
 The same bundle manifest also includes `llm_route_planner_summary` and
 `feedback_llm_route_planner_summary`, projecting request/row counts, response
 presence, accepted route plans, route-adoption status counts, and blocker

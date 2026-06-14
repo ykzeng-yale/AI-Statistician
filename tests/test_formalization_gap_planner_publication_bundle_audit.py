@@ -4008,6 +4008,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "llm_model_policy_official_source_urls"
+        and "platform.claude.com/docs" in row["observed"]
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "llm_model_policy_pinned_snapshot_versioning"
+        and "not evergreen" in row["observed"]
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "portable_contract_has_llm_model_policy_contract"
         and row["ok"]
         for row in audit_payload["checks"]

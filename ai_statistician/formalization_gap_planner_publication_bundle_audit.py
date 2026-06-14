@@ -173,6 +173,9 @@ from .formalization_gap_planner_target_intake import (
 )
 from .model_backend import (
     ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+    ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL,
+    ANTHROPIC_MODEL_ID_VERSIONING_POLICY,
+    ANTHROPIC_MODELS_OVERVIEW_URL,
     CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS,
     DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
     DEFAULT_CLAUDE_HAIKU_GENERATOR_MODEL,
@@ -3883,6 +3886,29 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         component_resource_contract_row_schema_path
     )
     llm_model_policy = _read_json_no_error(llm_model_policy_path)
+    llm_model_policy_source_evidence = (
+        llm_model_policy.get("source_evidence", {})
+        if isinstance(llm_model_policy.get("source_evidence", {}), dict)
+        else {}
+    )
+    llm_model_selection_policy = (
+        llm_model_policy.get("claude_model_selection", {})
+        if isinstance(llm_model_policy.get("claude_model_selection", {}), dict)
+        else {}
+    )
+    llm_models_overview_url = str(
+        llm_model_policy_source_evidence.get("models_overview_url", "")
+    )
+    llm_model_ids_and_versioning_url = str(
+        llm_model_policy_source_evidence.get(
+            "model_ids_and_versioning_url",
+            "",
+        )
+    )
+    llm_model_id_versioning_policy = str(
+        llm_model_selection_policy.get("model_id_versioning")
+        or ANTHROPIC_MODEL_ID_VERSIONING_POLICY
+    )
     llm_models_by_tier = (
         llm_model_policy.get("latest_claude_models_by_tier", {})
         if isinstance(llm_model_policy.get("latest_claude_models_by_tier", {}), dict)
@@ -4069,6 +4095,37 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             str(llm_model_policy.get("source_checked_date", "")),
             llm_model_policy.get("source_checked_date")
             == ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+        ),
+        _check(
+            "llm_model_policy_official_source_urls",
+            "contract",
+            "official Anthropic Claude model docs URLs",
+            json.dumps(
+                {
+                    "models_overview_url": llm_models_overview_url,
+                    "model_ids_and_versioning_url": (
+                        llm_model_ids_and_versioning_url
+                    ),
+                },
+                sort_keys=True,
+            ),
+            llm_models_overview_url == ANTHROPIC_MODELS_OVERVIEW_URL
+            and llm_model_ids_and_versioning_url
+            == ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL
+            and str(ANTHROPIC_MODELS_OVERVIEW_URL).startswith(
+                "https://platform.claude.com/docs/"
+            )
+            and str(ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL).startswith(
+                "https://platform.claude.com/docs/"
+            ),
+        ),
+        _check(
+            "llm_model_policy_pinned_snapshot_versioning",
+            "contract",
+            "Claude 4.6+ model IDs are pinned snapshots, not evergreen aliases",
+            llm_model_id_versioning_policy,
+            "pinned snapshot" in llm_model_id_versioning_policy.lower()
+            and "not evergreen" in llm_model_id_versioning_policy.lower(),
         ),
         _check(
             "llm_model_policy_outside_cost_tier_models",
