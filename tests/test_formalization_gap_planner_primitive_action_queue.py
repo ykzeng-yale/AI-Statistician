@@ -113,10 +113,28 @@ def test_primitive_action_queue_exports_per_coverage_row_work_orders() -> None:
     assert payload["n_candidate_declaration_rows"] == 1
     assert payload["n_with_actionable_work_items"] == 2
     assert payload["n_actionable_work_items"] == 2
+    assert payload["n_minimal_delta_reuse_ready"] == 1
+    assert payload["n_minimal_delta_light_bridge_or_wrapper"] == 1
+    assert payload["n_minimal_delta_source_or_new_theory"] == 1
+    assert payload["n_minimal_delta_alignment_blocked"] == 0
+    assert payload["average_reuse_readiness_score"] == 68
+    assert payload["average_evidence_readiness_score"] == 72
     assert "candidate_declaration_rows" in payload[
         "primitive_action_queue_row_schema"
     ]["required"]
     assert "actionable_work_items" in payload[
+        "primitive_action_queue_row_schema"
+    ]["required"]
+    assert "minimal_delta_cost_score" in payload[
+        "primitive_action_queue_row_schema"
+    ]["required"]
+    assert "reuse_readiness_score" in payload[
+        "primitive_action_queue_row_schema"
+    ]["required"]
+    assert "evidence_readiness_score" in payload[
+        "primitive_action_queue_row_schema"
+    ]["required"]
+    assert "priority_rationale" in payload[
         "primitive_action_queue_row_schema"
     ]["required"]
     assert by_primitive["exchangeability"]["candidate_declaration_rows"] == (
@@ -126,13 +144,24 @@ def test_primitive_action_queue_exports_per_coverage_row_work_orders() -> None:
             "source_field": "candidate_declarations",
         },
     )
+    assert by_primitive["exchangeability"]["minimal_delta_cost_score"] == 0
+    assert by_primitive["exchangeability"]["reuse_readiness_score"] == 100
+    assert by_primitive["exchangeability"]["evidence_readiness_score"] == 75
+    assert (
+        "prefer exact current-library reuse before adding declarations"
+        in by_primitive["exchangeability"]["priority_rationale"]
+    )
     assert by_primitive["rank_uniformity"]["queue_action_kind"] == "prove_bridge_lemma"
     assert by_primitive["rank_uniformity"]["owner_agent"] == "formal_verifier"
+    assert by_primitive["rank_uniformity"]["minimal_delta_cost_score"] == 40
+    assert by_primitive["rank_uniformity"]["reuse_readiness_score"] == 70
+    assert by_primitive["rank_uniformity"]["evidence_readiness_score"] == 75
     assert by_primitive["rank_uniformity"]["actionable_work_items"] == (
         "rank_uniformity: prove finite rank uniformity from exchangeability",
     )
     assert by_primitive["coverage_inequality"]["queue_action_kind"] == "source_port"
     assert by_primitive["coverage_inequality"]["owner_agent"] == "literature_router"
+    assert by_primitive["coverage_inequality"]["minimal_delta_cost_score"] == 60
     assert by_primitive["coverage_inequality"]["actionable_work_items"] == (
         "coverage_inequality: port the source-backed coverage inequality",
     )
@@ -222,5 +251,10 @@ def test_primitive_action_queue_preserves_unknown_alignment_blocker() -> None:
     assert payload["n_action_items"] == 1
     assert payload["n_rerun_library_alignment"] == 1
     assert payload["n_failed"] == 1
+    assert payload["n_minimal_delta_alignment_blocked"] == 1
     assert payload["rows"][0]["queue_action_kind"] == "rerun_library_alignment"
+    assert payload["rows"][0]["minimal_delta_cost_score"] == 100
+    assert "alignment unknown; rerun library search before formalization" in payload[
+        "rows"
+    ][0]["priority_rationale"]
     assert payload["rows"][0]["errors"]

@@ -1063,6 +1063,10 @@ primitive-action-queue command consumes that coverage map and writes
 executable work order per selected primitive, with action kinds such as target
 prover replay, compose existing declarations, write wrapper, prove bridge
 lemma, source port, design new theory fragment, or rerun library alignment.
+Each work order also publishes a deterministic `minimal_delta_cost_score`,
+`reuse_readiness_score`, `evidence_readiness_score`, and `priority_rationale`,
+so a downstream prover team can choose cheap exact/near reuse before expanding
+source ports or new theory.
 These are operational work orders and acceptance gates, not proof evidence. The
 action-resource-plan command then joins those primitive work orders to the
 component-resource registry and writes
@@ -2070,8 +2074,9 @@ The current implementation composes four existing AI Statistician artifacts:
    library-coverage-map row schema.
    The companion `formalization_gap_planner_primitive_action_queue` command
    turns those coverage rows into primitive-level work orders with action kind,
-   owner, priority, tools, acceptance gate, and expected outputs under the
-   published primitive-action-queue row schema.
+   owner, priority, minimal-delta cost score, reuse/evidence readiness scores,
+   tools, acceptance gate, and expected outputs under the published
+   primitive-action-queue row schema.
 
 8. `formalization_gap_planner_adapter_registry`
    Records the live/offline adapter inventory, preflight readiness, output
