@@ -681,8 +681,13 @@ candidates, and residual goals while keeping raw context rows as the source of
 truth. `context_packet.route_planning_brief` is then generated from the same
 packet and raw context. It records the target theorem identity, target-intake
 claims and shapes, admissible evidence counts, prioritized planner focus rows,
-and explicit evidence gaps such as missing source grounding, missing
-formal-library grounding, residual repair, or pending quality controls. The
+an auditable `primitive_evidence_matrix`, and explicit evidence gaps such as
+missing source grounding, missing formal-library grounding, residual repair,
+or pending quality controls. The matrix joins each candidate primitive to its
+primitive-scoped source snippets, target-compatible formal declarations,
+minimal-delta coverage bucket, residual-goal context, and recommended planner
+actions, so the LLM does not have to reconstruct the source/formal/residual
+alignment from scattered context arrays. The
 prompt uses these fields as a compact route-synthesis checklist before the
 model emits the informal DAG, formal-realization DAG, alignment edges, and
 minimal-delta plan. Request and manifest validation check the brief and target
@@ -703,8 +708,11 @@ route-statement-differs fields. The standalone manifest counts traces with
 target-context packets, target mismatches, and route statements that differ from
 the preserved target theorem. It also counts traces with
 `llm_route_planner_route_planning_brief`, and the reuse-smoke manifest lifts
-that counter, so publication consumers can verify that the distilled route
-planning checklist survived request -> LLM row -> seed -> standalone replay.
+that counter, while the LLM route-planner manifest separately counts
+`primitive_evidence_matrix` rows, source-backed primitives, and
+formal-supported primitives. Publication consumers can therefore verify that
+the distilled route planning checklist and the per-primitive source/formal
+alignment survived request -> LLM row -> seed -> standalone replay.
 This lets reusable/publication bundles distinguish legitimate route-specific
 theorem wording from actual target-prover drift after LLM route adoption while
 keeping route-repair focus auditable.
@@ -959,8 +967,8 @@ fields for external validators. The publication-bundle audit reports
 seed-alignment, seed-DAG, and route-planning-brief preservation counters. It
 also checks the packaged route-replan handoff audit for the
 `roundtrip_llm_route_planning_brief_trace` signal, so public bundles expose
-whether the compact route-focus/evidence-gap checklist survived standalone
-replay. It also names the cross-prover
+whether the compact route-focus/evidence-gap checklist and its
+per-primitive evidence matrix survived standalone replay. It also names the cross-prover
 target summary and `formalization_gap_planner_cross_prover_target_summary.schema.json`,
 which tell non-Lean prover teams how to filter aggregate packet and response
 JSONL files for their prover family. Each target-prover adapter packet also
@@ -2183,8 +2191,9 @@ The current implementation composes four existing AI Statistician artifacts:
    If the prior standalone trace also carries
    `llm_route_planner_route_planning_brief`, the handoff row, seed route, and
    seed `replan_metadata` preserve it too, so the next LLM route-planner call
-   keeps the compact planner-focus and evidence-gap checklist instead of
-   reconstructing route intent from raw prompts.
+   keeps the compact planner-focus, evidence-gap checklist, and per-primitive
+   source/formal/residual/cost matrix instead of reconstructing route intent
+   from raw prompts.
    If the prior trace carries
    `llm_route_planner_route_adoption_preconditions`, the handoff row, seed
    route, and seed `replan_metadata` preserve it too, so the next LLM

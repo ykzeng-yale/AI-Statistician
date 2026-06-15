@@ -1275,6 +1275,43 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for packet in request_packets
         ),
+        "n_request_route_planning_primitive_evidence_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "route_planning_brief",
+                    ).get("primitive_evidence_matrix", [])
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_request_route_planning_source_backed_primitives": sum(
+            1
+            for packet in request_packets
+            for row in _dict_tuple(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "route_planning_brief",
+                ).get("primitive_evidence_matrix", [])
+            )
+            if row.get("source_support_status") == "source_backed"
+        ),
+        "n_request_route_planning_formal_supported_primitives": sum(
+            1
+            for packet in request_packets
+            for row in _dict_tuple(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "route_planning_brief",
+                ).get("primitive_evidence_matrix", [])
+            )
+            if row.get("formal_support_status")
+            in {
+                "existing_library_reuse_ready",
+                "target_compatible_candidate_available",
+            }
+        ),
         "n_requests_with_route_adoption_preconditions": sum(
             1
             for packet in request_packets
@@ -3402,6 +3439,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_route_planning_brief",
             "n_request_route_planning_focus_rows",
             "n_request_route_planning_evidence_gaps",
+            "n_request_route_planning_primitive_evidence_rows",
+            "n_request_route_planning_source_backed_primitives",
+            "n_request_route_planning_formal_supported_primitives",
             "n_requests_with_route_adoption_preconditions",
             "n_request_route_adoption_precondition_known_blockers",
             "n_request_route_adoption_precondition_required_response_fields",
@@ -3589,6 +3629,15 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_route_planning_brief": nonnegative_integer,
             "n_request_route_planning_focus_rows": nonnegative_integer,
             "n_request_route_planning_evidence_gaps": nonnegative_integer,
+            "n_request_route_planning_primitive_evidence_rows": (
+                nonnegative_integer
+            ),
+            "n_request_route_planning_source_backed_primitives": (
+                nonnegative_integer
+            ),
+            "n_request_route_planning_formal_supported_primitives": (
+                nonnegative_integer
+            ),
             "n_requests_with_route_adoption_preconditions": nonnegative_integer,
             "n_request_route_adoption_precondition_known_blockers": (
                 nonnegative_integer
@@ -4547,6 +4596,61 @@ def validate_llm_route_planner_manifest(
     ) != n_route_planning_evidence_gaps:
         errors.append(
             "n_request_route_planning_evidence_gaps must match request_packets"
+        )
+    n_route_planning_primitive_evidence_rows = sum(
+        len(
+            _dict_tuple(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "route_planning_brief",
+                ).get("primitive_evidence_matrix", [])
+            )
+        )
+        for packet in request_packets
+    )
+    if int(
+        manifest.get("n_request_route_planning_primitive_evidence_rows", 0) or 0
+    ) != n_route_planning_primitive_evidence_rows:
+        errors.append(
+            "n_request_route_planning_primitive_evidence_rows must match request_packets"
+        )
+    n_route_planning_source_backed_primitives = sum(
+        1
+        for packet in request_packets
+        for row in _dict_tuple(
+            _dict_value(
+                _dict_value(packet, "context_packet"),
+                "route_planning_brief",
+            ).get("primitive_evidence_matrix", [])
+        )
+        if row.get("source_support_status") == "source_backed"
+    )
+    if int(
+        manifest.get("n_request_route_planning_source_backed_primitives", 0) or 0
+    ) != n_route_planning_source_backed_primitives:
+        errors.append(
+            "n_request_route_planning_source_backed_primitives must match request_packets"
+        )
+    n_route_planning_formal_supported_primitives = sum(
+        1
+        for packet in request_packets
+        for row in _dict_tuple(
+            _dict_value(
+                _dict_value(packet, "context_packet"),
+                "route_planning_brief",
+            ).get("primitive_evidence_matrix", [])
+        )
+        if row.get("formal_support_status")
+        in {
+            "existing_library_reuse_ready",
+            "target_compatible_candidate_available",
+        }
+    )
+    if int(
+        manifest.get("n_request_route_planning_formal_supported_primitives", 0) or 0
+    ) != n_route_planning_formal_supported_primitives:
+        errors.append(
+            "n_request_route_planning_formal_supported_primitives must match request_packets"
         )
     n_requests_with_route_adoption_preconditions = sum(
         1
@@ -6978,6 +7082,12 @@ def _route_planning_brief(
             ],
         }
     )
+    primitive_evidence_matrix = _route_planning_primitive_evidence_matrix(
+        route=route,
+        context_packet=context_packet,
+        residual_goals=residual_goals,
+        target_prover_family=target_prover_family,
+    )
     evidence_summary = {
         "source_ref_count": len(source_refs),
         "source_snippet_count": len(source_snippets),
@@ -7035,6 +7145,43 @@ def _route_planning_brief(
         "route_adoption_precondition_required_response_field_count": len(
             _str_tuple(route_adoption_preconditions.get("response_required_fields", []))
         ),
+        "primitive_evidence_row_count": len(primitive_evidence_matrix),
+        "primitive_source_backed_count": sum(
+            1
+            for row in primitive_evidence_matrix
+            if row.get("source_support_status") == "source_backed"
+        ),
+        "primitive_formal_supported_count": sum(
+            1
+            for row in primitive_evidence_matrix
+            if row.get("formal_support_status")
+            in {
+                "existing_library_reuse_ready",
+                "target_compatible_candidate_available",
+            }
+        ),
+        "primitive_with_residual_goal_count": sum(
+            1
+            for row in primitive_evidence_matrix
+            if int(row.get("residual_goal_count", 0) or 0) > 0
+        ),
+        "primitive_needing_source_search_count": sum(
+            1
+            for row in primitive_evidence_matrix
+            if row.get("source_support_status") != "source_backed"
+        ),
+        "primitive_needing_formal_delta_count": sum(
+            1
+            for row in primitive_evidence_matrix
+            if row.get("library_delta_class")
+            in {
+                "bridge",
+                "source_port",
+                "new_definition",
+                "new_theory",
+                "unknown",
+            }
+        ),
     }
     return {
         "brief_kind": ROUTE_PLANNING_BRIEF_KIND,
@@ -7044,6 +7191,7 @@ def _route_planning_brief(
         "library_snapshot_ref": library_snapshot_ref,
         "target_context": target_context,
         "evidence_summary": evidence_summary,
+        "primitive_evidence_matrix": [dict(row) for row in primitive_evidence_matrix],
         "planner_focus": sorted(
             planner_focus,
             key=lambda item: (
@@ -7055,6 +7203,384 @@ def _route_planning_brief(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _route_planning_primitive_evidence_matrix(
+    *,
+    route: Mapping[str, Any],
+    context_packet: Mapping[str, Any],
+    residual_goals: tuple[str, ...],
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    target_context = _dict_value(context_packet, "target_theorem_context_packet")
+    cost_hints = _dict_value(context_packet, "minimal_delta_cost_hints")
+    alignment_summary = _dict_value(context_packet, "library_alignment_summary")
+    source_snippets = _dict_tuple(context_packet.get("available_source_snippets", []))
+    formal_declaration_rows = _target_compatible_formal_declaration_rows(
+        _dict_tuple(context_packet.get("available_formal_declaration_rows", [])),
+        target_prover_family=target_prover_family,
+    )
+    residual_goal_contexts = _dict_tuple(
+        context_packet.get("residual_goal_contexts", [])
+    )
+    primitives: list[str] = []
+    seen_primitives: set[str] = set()
+
+    def add_primitive(value: object) -> None:
+        primitive = _primitive_key(value)
+        if primitive and primitive not in seen_primitives:
+            seen_primitives.add(primitive)
+            primitives.append(primitive)
+
+    for primitive in _str_tuple(target_context.get("primitive_candidates", [])):
+        add_primitive(primitive)
+    for hint in _dict_tuple(cost_hints.get("primitive_cost_hints", [])):
+        add_primitive(hint.get("primitive", ""))
+    for row in _dict_tuple(alignment_summary.get("primitive_alignment", [])):
+        add_primitive(row.get("primitive", ""))
+    for row in _dict_tuple(route.get("primitives", [])):
+        add_primitive(row.get("primitive", ""))
+    for primitive in _residual_goal_target_primitives(residual_goals):
+        add_primitive(primitive)
+    for primitive in _residual_goal_context_target_primitives(residual_goal_contexts):
+        add_primitive(primitive)
+
+    alignment_by_primitive = {
+        _primitive_key(row.get("primitive", "")): row
+        for row in _dict_tuple(alignment_summary.get("primitive_alignment", []))
+        if _primitive_key(row.get("primitive", ""))
+    }
+    cost_hint_by_primitive = {
+        _primitive_key(row.get("primitive", "")): row
+        for row in _dict_tuple(cost_hints.get("primitive_cost_hints", []))
+        if _primitive_key(row.get("primitive", ""))
+    }
+    rows: list[dict[str, object]] = []
+    for primitive in primitives[:25]:
+        alignment_row = alignment_by_primitive.get(primitive, {})
+        cost_hint = cost_hint_by_primitive.get(primitive, {})
+        source_rows = [
+            _route_planning_json_safe_dict(snippet)
+            for snippet in source_snippets
+            if _source_snippet_supports_primitive(snippet, primitive)
+        ]
+        unsupported_source_rows = [
+            _route_planning_json_safe_dict(snippet)
+            for snippet in source_snippets
+            if _source_snippet_marks_primitive_unsupported(snippet, primitive)
+        ]
+        source_refs = list(
+            dict.fromkeys(
+                str(snippet.get("source_ref", "")).strip()
+                for snippet in source_rows
+                if str(snippet.get("source_ref", "")).strip()
+            )
+        )
+        candidate_declaration_rows = _route_planning_candidate_declaration_rows(
+            primitive=primitive,
+            formal_declaration_rows=formal_declaration_rows,
+            cost_hint=cost_hint,
+            target_prover_family=target_prover_family,
+        )
+        target_compatible_declarations = list(
+            dict.fromkeys(
+                [
+                    *[
+                        str(value).strip()
+                        for value in _str_tuple(
+                            alignment_row.get("target_compatible_declarations", [])
+                        )
+                        if str(value).strip()
+                    ],
+                    *[
+                        str(row.get("declaration", "")).strip()
+                        for row in candidate_declaration_rows
+                        if str(row.get("declaration", "")).strip()
+                    ],
+                ]
+            )
+        )
+        residual_rows = _route_planning_residual_rows_for_primitive(
+            primitive=primitive,
+            residual_goals=residual_goals,
+            residual_goal_contexts=residual_goal_contexts,
+        )
+        library_delta_class = str(
+            alignment_row.get("library_delta_class")
+            or _library_delta_class_for_bucket(
+                str(cost_hint.get("minimum_coverage_bucket", "unknown"))
+            )
+        )
+        minimum_coverage_bucket = str(
+            alignment_row.get("minimum_coverage_bucket")
+            or cost_hint.get("minimum_coverage_bucket")
+            or "unknown"
+        )
+        minimum_base_cost = alignment_row.get(
+            "minimum_base_cost",
+            cost_hint.get("minimum_base_cost", 20),
+        )
+        row = {
+            "row_kind": "route_planning_primitive_evidence",
+            "row_id": f"route_planning_primitive_evidence:{primitive}",
+            "primitive": primitive,
+            "source_support_status": _primitive_source_support_status(
+                source_rows,
+                unsupported_source_rows,
+                source_snippets,
+            ),
+            "source_refs": source_refs,
+            "source_snippet_count": len(source_rows),
+            "source_snippets": source_rows[:3],
+            "unsupported_source_snippet_count": len(unsupported_source_rows),
+            "formal_support_status": _primitive_formal_support_status(
+                library_delta_class=library_delta_class,
+                target_compatible_declarations=tuple(target_compatible_declarations),
+                candidate_declaration_rows=tuple(candidate_declaration_rows),
+            ),
+            "target_compatible_declarations": target_compatible_declarations[:8],
+            "candidate_declaration_row_count": len(candidate_declaration_rows),
+            "candidate_declaration_rows": candidate_declaration_rows[:5],
+            "minimum_coverage_bucket": minimum_coverage_bucket,
+            "library_delta_class": library_delta_class,
+            "minimum_base_cost": minimum_base_cost,
+            "minimum_cost_source": str(
+                alignment_row.get(
+                    "minimum_cost_source",
+                    cost_hint.get("minimum_cost_source", ""),
+                )
+            ),
+            "minimum_cost_marker": str(
+                alignment_row.get(
+                    "minimum_cost_marker",
+                    cost_hint.get("minimum_cost_marker", ""),
+                )
+            ),
+            "coverage_evidence_sources": list(
+                dict.fromkeys(
+                    _str_tuple(
+                        alignment_row.get(
+                            "evidence_sources",
+                            cost_hint.get("evidence_sources", []),
+                        )
+                    )
+                )
+            ),
+            "residual_goal_count": len(residual_rows),
+            "residual_goals": [
+                str(row.get("residual_goal", "")).strip()
+                for row in residual_rows[:5]
+                if str(row.get("residual_goal", "")).strip()
+            ],
+            "residual_goal_contexts": residual_rows[:3],
+        }
+        row["recommended_planner_actions"] = (
+            _route_planning_primitive_recommended_actions(row)
+        )
+        rows.append(row)
+    return tuple(rows)
+
+
+def _source_snippet_supports_primitive(
+    snippet: Mapping[str, object],
+    primitive: str,
+) -> bool:
+    primitive_key = _primitive_key(primitive)
+    supported = {
+        _primitive_key(value)
+        for value in _str_tuple(snippet.get("supported_target_primitives", []))
+        if _primitive_key(value)
+    }
+    if primitive_key in supported:
+        return True
+    if supported:
+        return False
+    unsupported = {
+        _primitive_key(value)
+        for value in _str_tuple(snippet.get("unsupported_target_primitives", []))
+        if _primitive_key(value)
+    }
+    if primitive_key in unsupported:
+        return False
+    targets = {
+        _primitive_key(value)
+        for value in _str_tuple(snippet.get("target_primitives", []))
+        if _primitive_key(value)
+    }
+    return primitive_key in targets
+
+
+def _source_snippet_marks_primitive_unsupported(
+    snippet: Mapping[str, object],
+    primitive: str,
+) -> bool:
+    primitive_key = _primitive_key(primitive)
+    supported = {
+        _primitive_key(value)
+        for value in _str_tuple(snippet.get("supported_target_primitives", []))
+        if _primitive_key(value)
+    }
+    unsupported = {
+        _primitive_key(value)
+        for value in _str_tuple(snippet.get("unsupported_target_primitives", []))
+        if _primitive_key(value)
+    }
+    return primitive_key in unsupported and primitive_key not in supported
+
+
+def _route_planning_candidate_declaration_rows(
+    *,
+    primitive: str,
+    formal_declaration_rows: tuple[dict[str, object], ...],
+    cost_hint: Mapping[str, object],
+    target_prover_family: str,
+) -> list[dict[str, object]]:
+    primitive_key = _primitive_key(primitive)
+    rows: list[dict[str, object]] = []
+    rows.extend(
+        dict(row)
+        for row in _target_compatible_formal_declaration_rows(
+            _dict_tuple(cost_hint.get("candidate_declaration_rows", [])),
+            target_prover_family=target_prover_family,
+        )
+    )
+    for row in formal_declaration_rows:
+        row_primitives = {
+            _primitive_key(value)
+            for value in _primitive_positive_scope_values(row)
+            if _primitive_key(value)
+        }
+        if primitive_key in row_primitives:
+            rows.append(dict(row))
+    return _compact_candidate_declaration_rows(rows)
+
+
+def _route_planning_residual_rows_for_primitive(
+    *,
+    primitive: str,
+    residual_goals: tuple[str, ...],
+    residual_goal_contexts: tuple[dict[str, object], ...],
+) -> list[dict[str, object]]:
+    primitive_key = _primitive_key(primitive)
+    rows: list[dict[str, object]] = []
+    for residual in residual_goals:
+        residual_text = str(residual).strip()
+        if not residual_text:
+            continue
+        residual_prefix = _primitive_key(residual_text.split(":", 1)[0])
+        if residual_prefix == primitive_key:
+            rows.append(
+                {
+                    "residual_goal": residual_text,
+                    "source_field": "residual_goals",
+                }
+            )
+    for context in residual_goal_contexts:
+        context_primitives = {
+            _primitive_key(value)
+            for value in (
+                *_str_tuple(context.get("target_primitives", [])),
+                *_str_tuple(context.get("residual_primitives", [])),
+            )
+            if _primitive_key(value)
+        }
+        residual_goal = str(context.get("residual_goal", "")).strip()
+        residual_prefix = _primitive_key(residual_goal.split(":", 1)[0])
+        if primitive_key in context_primitives or residual_prefix == primitive_key:
+            compact = {
+                key: context[key]
+                for key in (
+                    "residual_goal",
+                    "route_repair",
+                    "target_primitives",
+                    "residual_primitives",
+                    "source_refs",
+                    "source_search_status",
+                    "source_field",
+                )
+                if key in context
+            }
+            rows.append(compact)
+    return rows
+
+
+def _primitive_source_support_status(
+    source_rows: list[dict[str, object]],
+    unsupported_source_rows: list[dict[str, object]],
+    available_source_snippets: tuple[dict[str, object], ...],
+) -> str:
+    if source_rows:
+        return "source_backed"
+    if unsupported_source_rows:
+        return "source_partial_or_unsupported"
+    if available_source_snippets:
+        return "source_search_pending"
+    return "source_missing"
+
+
+def _primitive_formal_support_status(
+    *,
+    library_delta_class: str,
+    target_compatible_declarations: tuple[str, ...],
+    candidate_declaration_rows: tuple[dict[str, object], ...],
+) -> str:
+    if library_delta_class == "reuse_ready" and target_compatible_declarations:
+        return "existing_library_reuse_ready"
+    if target_compatible_declarations:
+        return "target_compatible_candidate_available"
+    if candidate_declaration_rows:
+        return "candidate_requires_bridge_or_target_check"
+    if library_delta_class in {
+        "bridge",
+        "source_port",
+        "new_definition",
+        "new_theory",
+        "unknown",
+    }:
+        return library_delta_class + "_needed"
+    return "formal_search_needed"
+
+
+def _route_planning_primitive_recommended_actions(
+    row: Mapping[str, object],
+) -> list[str]:
+    actions: list[str] = []
+    if row.get("source_support_status") != "source_backed":
+        actions.append("request_or_attach_primitive_source_evidence")
+    if int(row.get("residual_goal_count", 0) or 0) > 0:
+        actions.append("interpret_residual_goal_with_source_grounding")
+    delta_class = str(row.get("library_delta_class", "") or "")
+    if delta_class == "reuse_ready" and row.get("target_compatible_declarations"):
+        actions.append("reuse_target_compatible_declarations")
+    elif delta_class in {
+        "bridge",
+        "source_port",
+        "new_definition",
+        "new_theory",
+    }:
+        actions.append("plan_minimal_formal_delta")
+    elif delta_class == "unknown":
+        actions.append("request_formal_library_grounding")
+    return actions
+
+
+def _route_planning_json_safe_dict(
+    row: Mapping[str, object],
+) -> dict[str, object]:
+    return {
+        str(key): _route_planning_json_safe_value(value)
+        for key, value in row.items()
+    }
+
+
+def _route_planning_json_safe_value(value: object) -> object:
+    if isinstance(value, Mapping):
+        return _route_planning_json_safe_dict(value)
+    if isinstance(value, (list, tuple)):
+        return [_route_planning_json_safe_value(item) for item in value]
+    if isinstance(value, set):
+        return [_route_planning_json_safe_value(item) for item in sorted(value)]
+    return value
 
 
 def _residual_goal_target_primitives(
@@ -7352,6 +7878,9 @@ def _context_packet_inventory(
         ),
         "route_planning_brief_evidence_gap_count": len(
             _dict_tuple(route_planning_brief.get("evidence_gaps", []))
+        ),
+        "route_planning_brief_primitive_evidence_row_count": len(
+            _dict_tuple(route_planning_brief.get("primitive_evidence_matrix", []))
         ),
         "feedback_loop_summary_present": bool(feedback_summary),
         "feedback_loop_summary_replan_required": bool(
@@ -7896,6 +8425,18 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                 "context_packet.context_packet_inventory.route_planning_brief_evidence_gap_count "
                 "must match context_packet.route_planning_brief"
             )
+        primitive_evidence_matrix = _dict_tuple(
+            route_planning_brief.get("primitive_evidence_matrix", [])
+        )
+        if int(
+            inventory.get("route_planning_brief_primitive_evidence_row_count", 0)
+            or 0
+        ) != len(primitive_evidence_matrix):
+            errors.append(
+                "context_packet.context_packet_inventory."
+                "route_planning_brief_primitive_evidence_row_count must match "
+                "context_packet.route_planning_brief"
+            )
         brief_summary = _dict_value(route_planning_brief, "evidence_summary")
         brief_count_checks = (
             (
@@ -8045,6 +8586,69 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                 errors.append(
                     "context_packet.route_planning_brief.evidence_summary."
                     f"{field_name} must match context_packet"
+                )
+        primitive_matrix_count_checks = (
+            ("primitive_evidence_row_count", len(primitive_evidence_matrix)),
+            (
+                "primitive_source_backed_count",
+                sum(
+                    1
+                    for matrix_row in primitive_evidence_matrix
+                    if matrix_row.get("source_support_status") == "source_backed"
+                ),
+            ),
+            (
+                "primitive_formal_supported_count",
+                sum(
+                    1
+                    for matrix_row in primitive_evidence_matrix
+                    if matrix_row.get("formal_support_status")
+                    in {
+                        "existing_library_reuse_ready",
+                        "target_compatible_candidate_available",
+                    }
+                ),
+            ),
+            (
+                "primitive_with_residual_goal_count",
+                sum(
+                    1
+                    for matrix_row in primitive_evidence_matrix
+                    if int(matrix_row.get("residual_goal_count", 0) or 0) > 0
+                ),
+            ),
+            (
+                "primitive_needing_source_search_count",
+                sum(
+                    1
+                    for matrix_row in primitive_evidence_matrix
+                    if matrix_row.get("source_support_status") != "source_backed"
+                ),
+            ),
+            (
+                "primitive_needing_formal_delta_count",
+                sum(
+                    1
+                    for matrix_row in primitive_evidence_matrix
+                    if matrix_row.get("library_delta_class")
+                    in {
+                        "bridge",
+                        "source_port",
+                        "new_definition",
+                        "new_theory",
+                        "unknown",
+                    }
+                ),
+            ),
+        )
+        for field_name, expected_count in primitive_matrix_count_checks:
+            if field_name not in brief_summary and not primitive_evidence_matrix:
+                continue
+            if int(brief_summary.get(field_name, 0) or 0) != expected_count:
+                errors.append(
+                    "context_packet.route_planning_brief.evidence_summary."
+                    f"{field_name} must match "
+                    "context_packet.route_planning_brief.primitive_evidence_matrix"
                 )
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     quality_controls = _dict_value(quality_control_obligations, "quality_controls")
@@ -8277,6 +8881,7 @@ def _user_prompt(
             "search_requests.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
             "Every planner_next_actions row must include owner and action, and the row must resolve to a supported literature/formal-library/proof-state/route-revision hook family.",
             "planner_next_actions.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
+            "Use context_packet.route_planning_brief.primitive_evidence_matrix as the compact per-primitive join of source snippets, formal declaration coverage, residual goals, and minimal-delta cost hints.",
             "Use context_packet.context_packet_inventory as the compact inventory of available evidence and feedback rows; raw context_packet rows remain the source of truth if a count is surprising.",
             "Use context_packet.route_adoption_preconditions as the pre-response forecast of known route-adoption blockers; if known_pre_response_blockers is nonempty, preserve blocker-specific residual interpretations, search_requests, or planner_next_actions instead of presenting the route as replay-ready.",
             "Use context_packet.legacy_context_field_aliases only as a compatibility map; prefer portable fields such as formal_library_grounding_queries and formal_declaration_hits in new route output.",

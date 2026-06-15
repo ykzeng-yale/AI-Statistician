@@ -1529,6 +1529,9 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["n_requests_with_route_planning_brief"] == 1
     assert payload["n_request_route_planning_focus_rows"] >= 4
     assert payload["n_request_route_planning_evidence_gaps"] == 0
+    assert payload["n_request_route_planning_primitive_evidence_rows"] == 2
+    assert payload["n_request_route_planning_source_backed_primitives"] == 1
+    assert payload["n_request_route_planning_formal_supported_primitives"] == 1
     assert payload["legacy_context_field_aliases"] == (
         LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES
     )
@@ -1733,6 +1736,41 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert brief["evidence_summary"]["formal_declaration_row_count"] == len(
         context["available_formal_declaration_rows"]
     )
+    assert brief["evidence_summary"]["primitive_evidence_row_count"] == 2
+    assert brief["evidence_summary"]["primitive_source_backed_count"] == 1
+    assert brief["evidence_summary"]["primitive_formal_supported_count"] == 1
+    assert brief["evidence_summary"]["primitive_needing_source_search_count"] == 1
+    assert brief["evidence_summary"]["primitive_needing_formal_delta_count"] == 1
+    primitive_evidence_by_primitive = {
+        row["primitive"]: row for row in brief["primitive_evidence_matrix"]
+    }
+    assert set(primitive_evidence_by_primitive) == {
+        "exchangeability",
+        "rank_uniformity",
+    }
+    exchangeability_evidence = primitive_evidence_by_primitive["exchangeability"]
+    assert exchangeability_evidence["formal_support_status"] == (
+        "existing_library_reuse_ready"
+    )
+    assert exchangeability_evidence["source_support_status"] == (
+        "source_search_pending"
+    )
+    assert "Probability.exchangeable" in set(
+        exchangeability_evidence["target_compatible_declarations"]
+    )
+    assert "reuse_target_compatible_declarations" in set(
+        exchangeability_evidence["recommended_planner_actions"]
+    )
+    rank_evidence = primitive_evidence_by_primitive["rank_uniformity"]
+    assert rank_evidence["source_support_status"] == "source_backed"
+    assert rank_evidence["formal_support_status"] == "bridge_needed"
+    assert rank_evidence["library_delta_class"] == "bridge"
+    assert rank_evidence["minimum_base_cost"] == 4.0
+    assert rank_evidence["source_refs"] == ["conformal_prediction_textbook"]
+    assert rank_evidence["source_snippet_count"] == 1
+    assert "plan_minimal_formal_delta" in set(
+        rank_evidence["recommended_planner_actions"]
+    )
     assert {
         focus["focus_id"] for focus in brief["planner_focus"]
     } >= {
@@ -1769,6 +1807,9 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     )
     assert inventory["route_planning_brief_evidence_gap_count"] == len(
         brief["evidence_gaps"]
+    )
+    assert inventory["route_planning_brief_primitive_evidence_row_count"] == len(
+        brief["primitive_evidence_matrix"]
     )
     assert inventory["primitive_cost_hint_count"] == 2
     assert inventory["route_option_cost_hint_count"] == 1
@@ -1876,6 +1917,7 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert "minimum_base_cost" in request["prompt_messages"]["user"]
     assert "context_packet_inventory" in request["prompt_messages"]["user"]
     assert "route_planning_brief" in request["prompt_messages"]["user"]
+    assert "primitive_evidence_matrix" in request["prompt_messages"]["user"]
     assert (
         out_dir
         / "formalization_gap_planner_llm_route_planner_manifest.json"
@@ -1927,6 +1969,26 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         "context_packet.route_planning_brief.evidence_summary.source_ref_count "
         "must match context_packet"
         in validate_llm_route_planner_request(drifted_brief_request)
+    )
+    drifted_matrix_inventory_request = deepcopy(request)
+    drifted_matrix_inventory_request["context_packet"]["context_packet_inventory"][
+        "route_planning_brief_primitive_evidence_row_count"
+    ] = 999
+    assert (
+        "context_packet.context_packet_inventory."
+        "route_planning_brief_primitive_evidence_row_count must match "
+        "context_packet.route_planning_brief"
+        in validate_llm_route_planner_request(drifted_matrix_inventory_request)
+    )
+    drifted_matrix_summary_request = deepcopy(request)
+    drifted_matrix_summary_request["context_packet"]["route_planning_brief"][
+        "evidence_summary"
+    ]["primitive_evidence_row_count"] = 999
+    assert (
+        "context_packet.route_planning_brief.evidence_summary."
+        "primitive_evidence_row_count must match "
+        "context_packet.route_planning_brief.primitive_evidence_matrix"
+        in validate_llm_route_planner_request(drifted_matrix_summary_request)
     )
     drifted_target_context_request = deepcopy(request)
     drifted_target_context_request["context_packet"][
@@ -6502,11 +6564,24 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "n_request_route_planning_focus_rows" in manifest_schema["required"]
     assert "n_request_route_planning_evidence_gaps" in manifest_schema["required"]
     assert (
+        "n_request_route_planning_primitive_evidence_rows"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_request_route_planning_source_backed_primitives"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_request_route_planning_formal_supported_primitives"
+        in manifest_schema["required"]
+    )
+    assert (
         "n_request_llm_generation_policy_current_claude_tier_source"
         in manifest_schema["required"]
     )
     assert payload["n_requests_with_route_planning_brief"] == 1
     assert payload["n_request_route_planning_focus_rows"] >= 4
+    assert payload["n_request_route_planning_primitive_evidence_rows"] == 2
     assert payload["n_route_option_action_witness_required_primitives"] == 1
     assert payload["n_route_option_action_witness_missing_primitives"] == 0
     assert payload["n_rows_with_route_option_action_witness_obligations"] == 1
@@ -6667,6 +6742,17 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_requests_with_route_planning_brief must match request_packets"
         in validate_llm_route_planner_manifest(
             drifted_brief_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_matrix_count_manifest = deepcopy(payload)
+    drifted_matrix_count_manifest[
+        "n_request_route_planning_primitive_evidence_rows"
+    ] = 999
+    assert (
+        "n_request_route_planning_primitive_evidence_rows must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_matrix_count_manifest,
             manifest_schema,
         )
     )
