@@ -746,6 +746,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert "Source prover targets: `lean4` families=1 by={'lean4': 1}" in report_text
     assert "cost-hint-incomplete" in report_text
     assert "LLM route planner provider usage rows/input/output/total" in report_text
+    assert "Evaluation LLM provider usage rows/input/output/total" in report_text
     assert (
         "Combined LLM route planner provider usage rows/input/output/total"
         in report_text
@@ -2155,6 +2156,22 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_evaluation_llm_route_planner_source_feedback_rows"] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 0
+    assert payload["n_evaluation_rows_with_llm_route_planner_provider_usage"] == 0
+    assert payload["total_evaluation_llm_route_planner_provider_input_tokens"] == 0
+    assert payload["total_evaluation_llm_route_planner_provider_output_tokens"] == 0
+    assert (
+        payload[
+            "total_evaluation_llm_route_planner_provider_cache_creation_input_tokens"
+        ]
+        == 0
+    )
+    assert payload[
+        "total_evaluation_llm_route_planner_provider_cache_read_input_tokens"
+    ] == 0
+    assert payload["total_evaluation_llm_route_planner_provider_total_tokens"] == 0
+    assert payload["evaluation_llm_route_planner_provider_usage_summary"][
+        "row_count"
+    ] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_request_contract_blocked"] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_errors"] == 0
     assert payload["n_evaluation_llm_route_planner_errors"] == 0
@@ -5295,6 +5312,11 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
                     "provider_failure": True,
                     "exception_type": "TimeoutError",
                     "exception_message": "simulated Anthropic timeout",
+                    "provider_usage": {
+                        "input_tokens": 80,
+                        "output_tokens": 0,
+                        "cache_read_input_tokens": 3,
+                    },
                     "repair_attempt": 0,
                 },
                 "provider_failure": True,
@@ -5388,6 +5410,22 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
     )
     assert payload["n_evaluation_rows_with_llm_route_planner_trace"] == 1
     assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 1
+    assert payload["n_evaluation_rows_with_llm_route_planner_provider_usage"] == 1
+    assert payload["total_evaluation_llm_route_planner_provider_input_tokens"] == 80
+    assert payload["total_evaluation_llm_route_planner_provider_output_tokens"] == 0
+    assert (
+        payload[
+            "total_evaluation_llm_route_planner_provider_cache_creation_input_tokens"
+        ]
+        == 0
+    )
+    assert payload[
+        "total_evaluation_llm_route_planner_provider_cache_read_input_tokens"
+    ] == 3
+    assert payload["total_evaluation_llm_route_planner_provider_total_tokens"] == 83
+    assert payload["evaluation_llm_route_planner_provider_usage_summary"][
+        "by_provider"
+    ]["anthropic"]["total_tokens"] == 83
     assert payload["n_evaluation_rows_with_llm_route_planner_request_contract_blocked"] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_errors"] == 1
     assert payload["n_evaluation_llm_route_planner_errors"] == 1
@@ -5409,6 +5447,11 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
     assert payload["n_llm_route_planner_response_present"] == 0
     assert payload["n_llm_route_planner_provider_failures"] == 1
     assert payload["n_llm_route_planner_rows_with_generator_metadata"] == 1
+    assert payload["n_llm_route_planner_rows_with_provider_usage"] == 1
+    assert payload["total_llm_route_planner_provider_input_tokens"] == 80
+    assert payload["total_llm_route_planner_provider_output_tokens"] == 0
+    assert payload["total_llm_route_planner_provider_cache_read_input_tokens"] == 3
+    assert payload["total_llm_route_planner_provider_total_tokens"] == 83
     assert payload["n_llm_route_planner_rows_with_generation_errors"] == 1
     assert payload["n_llm_route_planner_awaiting"] == 0
     assert payload["n_llm_route_planner_accepted_route_plans"] == 0
@@ -5434,6 +5477,9 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
     assert llm_manifest["rows"][0]["generator_metadata"]["exception_type"] == (
         "TimeoutError"
     )
+    assert llm_manifest["provider_usage_summary"]["by_provider"]["anthropic"][
+        "total_tokens"
+    ] == 83
     report = (
         out_dir / "formalization_gap_planner_reuse_smoke.md"
     ).read_text(encoding="utf-8")

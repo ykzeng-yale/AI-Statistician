@@ -5444,6 +5444,48 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_rows_with_llm_route_planner_generator_metadata",
             0,
         ),
+        "evaluation_llm_route_planner_provider_usage_rows": evaluation_payload.get(
+            "llm_route_planner_provider_usage_rows",
+            (),
+        ),
+        "evaluation_llm_route_planner_provider_usage_summary": evaluation_payload.get(
+            "llm_route_planner_provider_usage_summary",
+            {},
+        ),
+        "n_evaluation_rows_with_llm_route_planner_provider_usage": evaluation_payload.get(
+            "n_rows_with_llm_route_planner_provider_usage",
+            0,
+        ),
+        "total_evaluation_llm_route_planner_provider_input_tokens": (
+            evaluation_payload.get(
+                "total_llm_route_planner_provider_input_tokens",
+                0,
+            )
+        ),
+        "total_evaluation_llm_route_planner_provider_output_tokens": (
+            evaluation_payload.get(
+                "total_llm_route_planner_provider_output_tokens",
+                0,
+            )
+        ),
+        "total_evaluation_llm_route_planner_provider_cache_creation_input_tokens": (
+            evaluation_payload.get(
+                "total_llm_route_planner_provider_cache_creation_input_tokens",
+                0,
+            )
+        ),
+        "total_evaluation_llm_route_planner_provider_cache_read_input_tokens": (
+            evaluation_payload.get(
+                "total_llm_route_planner_provider_cache_read_input_tokens",
+                0,
+            )
+        ),
+        "total_evaluation_llm_route_planner_provider_total_tokens": (
+            evaluation_payload.get(
+                "total_llm_route_planner_provider_total_tokens",
+                0,
+            )
+        ),
         "n_evaluation_rows_with_llm_route_planner_request_contract_blocked": evaluation_payload.get(
             "n_rows_with_llm_route_planner_request_contract_blocked",
             0,
@@ -8730,6 +8772,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"tier_basis={payload.get('evaluation_by_llm_model_tier_decision_basis')} "
             f"source_feedback_rows={payload.get('n_evaluation_llm_route_planner_source_feedback_rows')} "
             f"tiers={payload.get('evaluation_by_llm_model_tier')}"
+        ),
+        (
+            f"- Evaluation LLM provider usage rows/input/output/total: "
+            f"{payload.get('n_evaluation_rows_with_llm_route_planner_provider_usage')}/"
+            f"{payload.get('total_evaluation_llm_route_planner_provider_input_tokens')}/"
+            f"{payload.get('total_evaluation_llm_route_planner_provider_output_tokens')}/"
+            f"{payload.get('total_evaluation_llm_route_planner_provider_total_tokens')}"
         ),
         (
             f"- Evaluation LLM route-adoption ready/pending/blockers: "
