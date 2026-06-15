@@ -1433,6 +1433,16 @@ required-response-field counts, and
 `route_adoption_precondition_unresolved`; the published row validator rejects a
 stale row that marks such a route as stable.
 
+The feedback LLM route planner now keeps those interactive-session
+preconditions live in the next request packet. Interactive rows that are
+waiting on unresolved route-adoption preconditions are compacted with their
+blockers and required response fields, summarized in
+`context_packet.feedback_loop_summary.interactive_route_adoption_preconditions`,
+and folded back into `context_packet.route_adoption_preconditions`. This keeps
+the next Haiku/Sonnet/Opus planner turn from treating a route as replay-ready
+when the interactive loop is still waiting for source search, proof-state
+feedback, or route-repair obligations.
+
 python3 -m ai_statistician.cli formalization-gap-planner-route-replan-handoff \
   --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \
   --formalization-gap-planner-route-revision-overlay-dir runs/current/formalization_gap_planner_route_revision_overlay \

@@ -5161,6 +5161,48 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
     root.mkdir(parents=True, exist_ok=True)
     input_json = _write_input(root)
     interactive_session_dir = _write_interactive_session(root)
+    interactive_manifest_path = (
+        interactive_session_dir
+        / "formalization_gap_planner_interactive_session_manifest.json"
+    )
+    interactive_manifest = json.loads(
+        interactive_manifest_path.read_text(encoding="utf-8")
+    )
+    interactive_preconditions = {
+        "precondition_kind": (
+            "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+        ),
+        "status": "PENDING_CONTEXT_OBLIGATIONS",
+        "blocked_before_response": True,
+        "known_pre_response_blockers": [
+            ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING
+        ],
+        "n_known_pre_response_blockers": 1,
+        "response_required_fields": ["search_requests", "planner_next_actions"],
+        "n_response_required_fields": 2,
+    }
+    interactive_manifest["rows"][0].update(
+        {
+            "session_state": "AWAITING_REFINEMENT_RESPONSES",
+            "route_adoption_preconditions": interactive_preconditions,
+            "route_adoption_precondition_present": True,
+            "route_adoption_precondition_blocked_before_response": True,
+            "route_adoption_precondition_unresolved": True,
+            "route_adoption_precondition_known_blockers": [
+                ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING
+            ],
+            "route_adoption_precondition_required_response_fields": [
+                "search_requests",
+                "planner_next_actions",
+            ],
+            "route_adoption_precondition_known_blocker_count": 1,
+            "route_adoption_precondition_required_response_field_count": 2,
+        }
+    )
+    interactive_manifest_path.write_text(
+        json.dumps(interactive_manifest, indent=2),
+        encoding="utf-8",
+    )
 
     payload = export_formalization_gap_planner_llm_route_planner(
         input_json,
@@ -5174,6 +5216,30 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
     assert payload["n_requests_with_feedback_loop_summary"] == 1
     assert payload["n_request_residual_goals"] == 1
     assert payload["n_feedback_loop_summary_interactive_resource_requests"] == 1
+    assert (
+        payload[
+            "n_feedback_loop_summary_interactive_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_loop_summary_interactive_unresolved_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_loop_summary_interactive_route_adoption_precondition_known_blockers"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_loop_summary_interactive_route_adoption_precondition_required_response_fields"
+        ]
+        == 2
+    )
     assert (
         payload[
             "n_feedback_loop_summary_interactive_resource_request_dispatch_summaries"
@@ -5209,7 +5275,38 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
         inventory["interactive_session_resource_request_execution_command_count"]
         == 1
     )
+    assert inventory["interactive_route_adoption_precondition_count"] == 1
+    assert inventory["interactive_unresolved_route_adoption_precondition_count"] == 1
+    assert (
+        inventory[
+            "interactive_route_adoption_precondition_known_blocker_count"
+        ]
+        == 1
+    )
+    assert (
+        inventory[
+            "interactive_route_adoption_precondition_required_response_field_count"
+        ]
+        == 2
+    )
     assert context["feedback_loop_summary"]["needs_more_proof_state_feedback"] is True
+    precondition_summary = context["feedback_loop_summary"][
+        "interactive_route_adoption_preconditions"
+    ]
+    assert precondition_summary["unresolved_count"] == 1
+    assert precondition_summary["known_pre_response_blockers"] == [
+        ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING
+    ]
+    assert set(precondition_summary["response_required_fields"]) == {
+        "search_requests",
+        "planner_next_actions",
+    }
+    assert ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING in context[
+        "route_adoption_preconditions"
+    ]["known_pre_response_blockers"]
+    assert set(
+        context["route_adoption_preconditions"]["response_required_fields"]
+    ) >= {"search_requests", "planner_next_actions"}
     assert context["feedback_loop_summary"]["interactive_session_resource_requests"][
         "resource_request_ids"
     ] == ["resource-request:rank_route"]
@@ -5228,7 +5325,16 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
     assert context["feedback_loop_summary"]["recommended_next_actions"][0][
         "resource_request_execution_commands"
     ] == ["lean-lsp-mcp goal rank_uniformity"]
+    assert context["feedback_loop_summary"]["recommended_next_actions"][0][
+        "route_adoption_precondition_unresolved"
+    ] is True
+    assert context["feedback_loop_summary"]["recommended_next_actions"][0][
+        "route_adoption_precondition_known_blockers"
+    ] == [ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING]
     assert "interactive_decision_policy_rows" in request["prompt_messages"]["user"]
+    assert "interactive_route_adoption_preconditions" in request["prompt_messages"][
+        "user"
+    ]
     assert "resource_request_dispatch_summaries" in request["prompt_messages"]["user"]
 
 

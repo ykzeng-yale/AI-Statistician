@@ -1853,6 +1853,58 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for packet in request_packets
         ),
+        "n_feedback_loop_summary_interactive_route_adoption_preconditions": sum(
+            int(
+                _dict_value(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "feedback_loop_summary",
+                    ),
+                    "interactive_route_adoption_preconditions",
+                ).get("total_count", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_feedback_loop_summary_interactive_unresolved_route_adoption_preconditions": sum(
+            int(
+                _dict_value(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "feedback_loop_summary",
+                    ),
+                    "interactive_route_adoption_preconditions",
+                ).get("unresolved_count", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_feedback_loop_summary_interactive_route_adoption_precondition_known_blockers": sum(
+            int(
+                _dict_value(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "feedback_loop_summary",
+                    ),
+                    "interactive_route_adoption_preconditions",
+                ).get("n_known_pre_response_blockers", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_feedback_loop_summary_interactive_route_adoption_precondition_required_response_fields": sum(
+            int(
+                _dict_value(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "feedback_loop_summary",
+                    ),
+                    "interactive_route_adoption_preconditions",
+                ).get("n_response_required_fields", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
         "n_feedback_loop_summary_resource_response_admissible": sum(
             int(
                 _dict_value(
@@ -3413,6 +3465,10 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_source_theorem_formal_environment_rows",
             "n_requests_with_source_theorem_proof_body_execution_result_rows",
             "n_request_source_theorem_proof_body_execution_result_rows",
+            "n_feedback_loop_summary_interactive_route_adoption_preconditions",
+            "n_feedback_loop_summary_interactive_unresolved_route_adoption_preconditions",
+            "n_feedback_loop_summary_interactive_route_adoption_precondition_known_blockers",
+            "n_feedback_loop_summary_interactive_route_adoption_precondition_required_response_fields",
             "n_request_source_grounding_rows",
             "n_requests_with_source_grounding_obligation_inventory",
             "n_requests_with_pending_source_grounding_obligation_inventory",
@@ -3680,6 +3736,18 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_feedback_loop_summary_interactive_resource_request_execution_commands": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_interactive_route_adoption_preconditions": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_interactive_unresolved_route_adoption_preconditions": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_interactive_route_adoption_precondition_known_blockers": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_interactive_route_adoption_precondition_required_response_fields": (
                 nonnegative_integer
             ),
             "n_request_source_grounding_rows": nonnegative_integer,
@@ -7129,6 +7197,12 @@ def _context_packet_inventory(
     interactive_resource_requests = _interactive_session_resource_request_summary(
         _dict_tuple(context_packet.get("interactive_session_rows", []))
     )
+    interactive_route_adoption_preconditions = _dict_value(
+        feedback_summary,
+        "interactive_route_adoption_preconditions",
+    ) or _interactive_route_adoption_precondition_summary(
+        _dict_tuple(context_packet.get("interactive_session_rows", []))
+    )
     quality_controls = _dict_value(quality_control_obligations, "quality_controls")
     pending_quality_controls = _dict_value(
         quality_control_obligations,
@@ -7190,6 +7264,26 @@ def _context_packet_inventory(
         ),
         "interactive_session_resource_request_execution_command_count": int(
             interactive_resource_requests.get("execution_command_count", 0) or 0
+        ),
+        "interactive_route_adoption_precondition_count": int(
+            interactive_route_adoption_preconditions.get("total_count", 0) or 0
+        ),
+        "interactive_unresolved_route_adoption_precondition_count": int(
+            interactive_route_adoption_preconditions.get("unresolved_count", 0) or 0
+        ),
+        "interactive_route_adoption_precondition_known_blocker_count": int(
+            interactive_route_adoption_preconditions.get(
+                "n_known_pre_response_blockers",
+                0,
+            )
+            or 0
+        ),
+        "interactive_route_adoption_precondition_required_response_field_count": int(
+            interactive_route_adoption_preconditions.get(
+                "n_response_required_fields",
+                0,
+            )
+            or 0
         ),
         "legacy_context_field_alias_count": len(
             _dict_value(context_packet, "legacy_context_field_aliases")
@@ -8188,6 +8282,7 @@ def _user_prompt(
             "Use context_packet.component_resource_registry_context only to choose bounded search/prover next actions; registry rows are not evidence that a tool was called.",
             "Use context_packet.source_theorem_semantic_primitive_rows, context_packet.proof_body_semantic_primitive_work_order_rows, context_packet.source_theorem_formal_environment_rows, and context_packet.source_theorem_proof_body_execution_result_rows as ProofEngineer/proof-body feedback for route repair and minimal-delta planning; these rows are not theorem proof evidence and do not by themselves source-ground new mathematical side conditions.",
             "When context_packet.feedback_loop_summary is present, treat it as the route-repair brief derived from raw residual/resource/interactive rows; it is planning context, not proof evidence.",
+            "When context_packet.feedback_loop_summary.interactive_route_adoption_preconditions is present, preserve its known_pre_response_blockers and response_required_fields as blocking route-repair obligations for the next LLM plan.",
             "When context_packet.route_replan_handoff_rows is present, preserve its applied evidence ids, quality controls, and next_commands as prior handoff context; route-replan handoff rows are planning input, not proof evidence.",
             "Resource-response ledger rows with awaiting, rejected, absent-response, failed-contract, or unmet-contract-minimum status are status-only; do not use them as residual-goal or route-repair evidence.",
             "Residual interpretations may cover only residual_goals listed in the request packet.",
@@ -10993,6 +11088,10 @@ def _route_adoption_preconditions(
 ) -> dict[str, object]:
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
     feedback_actions = _dict_tuple(feedback_summary.get("recommended_next_actions", []))
+    interactive_route_adoption_preconditions = _dict_value(
+        feedback_summary,
+        "interactive_route_adoption_preconditions",
+    )
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     source_grounding_obligations = _source_grounding_obligation_summary(
         context_packet
@@ -11019,6 +11118,25 @@ def _route_adoption_preconditions(
         blockers.append(ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE)
     if _truthy(feedback_summary.get("replan_required")):
         blockers.append(ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN)
+    if int(
+        interactive_route_adoption_preconditions.get("unresolved_count", 0) or 0
+    ):
+        blockers.extend(
+            _str_tuple(
+                interactive_route_adoption_preconditions.get(
+                    "known_pre_response_blockers",
+                    [],
+                )
+            )
+        )
+        response_required_fields.extend(
+            _str_tuple(
+                interactive_route_adoption_preconditions.get(
+                    "response_required_fields",
+                    [],
+                )
+            )
+        )
     if (
         realization_coverage.get("complete") is False
         or realization_coverage.get("cost_hint_baseline_coverage_complete") is False
@@ -18732,6 +18850,14 @@ def _feedback_loop_summary(
             *_collect_row_values(actionable_rows, "triage_class"),
             *_collect_row_values(actionable_rows, "triage_required_gate"),
             *_collect_row_values(actionable_rows, "next_required_gate"),
+            *_collect_row_values(
+                actionable_rows,
+                "route_adoption_precondition_known_blockers",
+            ),
+            *_collect_row_values(
+                actionable_rows,
+                "route_adoption_precondition_required_response_fields",
+            ),
             *_collect_row_values(actionable_rows, "semantic_primitive_id"),
             *_collect_row_values(actionable_rows, "semantic_primitive_gap"),
             *_collect_row_values(actionable_rows, "placeholder_symbol"),
@@ -18777,6 +18903,11 @@ def _feedback_loop_summary(
         recommended_next_actions=recommended_next_actions,
         include_feedback_summary=False,
     )
+    interactive_route_adoption_preconditions = (
+        _interactive_route_adoption_precondition_summary(
+            rows_by_field.get("interactive_session_rows", ())
+        )
+    )
     source_theorem_feedback_replan_required = bool(
         source_theorem_feedback.get("replan_required", False)
     )
@@ -18789,6 +18920,8 @@ def _feedback_loop_summary(
             "route_revision_recommended",
             )
     ) or realization_replan_required or source_theorem_feedback_replan_required
+    if interactive_route_adoption_preconditions.get("unresolved_count", 0):
+        replan_required = True
     needs_more_library_grounding = any(
         _truthy(row.get("needs_more_lean_grounding"))
         or _truthy(row.get("needs_more_library_grounding"))
@@ -18864,6 +18997,10 @@ def _feedback_loop_summary(
     )
     if interactive_resource_requests.get("resource_request_count"):
         summary["interactive_session_resource_requests"] = interactive_resource_requests
+    if interactive_route_adoption_preconditions:
+        summary["interactive_route_adoption_preconditions"] = (
+            interactive_route_adoption_preconditions
+        )
     if realization_coverage:
         summary["realization_coverage"] = realization_coverage
     if source_theorem_feedback:
@@ -19569,6 +19706,87 @@ def _interactive_session_resource_request_summary(
     }
 
 
+def _interactive_route_adoption_precondition_summary(
+    rows: tuple[dict[str, object], ...],
+) -> dict[str, object]:
+    summary_rows: list[dict[str, object]] = []
+    blockers: list[str] = []
+    required_fields: list[str] = []
+    unresolved_row_ids: list[str] = []
+    blocked_row_ids: list[str] = []
+    for row in rows:
+        preconditions = _dict_value(row, "route_adoption_preconditions")
+        row_blockers = _str_tuple(
+            row.get("route_adoption_precondition_known_blockers", [])
+        ) or _str_tuple(preconditions.get("known_pre_response_blockers", []))
+        row_required_fields = _str_tuple(
+            row.get("route_adoption_precondition_required_response_fields", [])
+        ) or _str_tuple(preconditions.get("response_required_fields", []))
+        blocked_before_response = bool(
+            _truthy(row.get("route_adoption_precondition_blocked_before_response"))
+            or _truthy(preconditions.get("blocked_before_response"))
+        )
+        unresolved = bool(
+            _truthy(row.get("route_adoption_precondition_unresolved"))
+            or (
+                blocked_before_response
+                and (row_blockers or row_required_fields)
+                and str(row.get("session_state", "")).strip()
+                == "AWAITING_REFINEMENT_RESPONSES"
+            )
+        )
+        if not (preconditions or row_blockers or row_required_fields or unresolved):
+            continue
+        row_id = str(row.get("interactive_session_row_id", "")).strip()
+        if unresolved and row_id:
+            unresolved_row_ids.append(row_id)
+        if blocked_before_response and row_id:
+            blocked_row_ids.append(row_id)
+        blockers.extend(row_blockers)
+        required_fields.extend(row_required_fields)
+        summary_rows.append(
+            {
+                "interactive_session_row_id": row_id,
+                "route_id": str(row.get("route_id", "")).strip(),
+                "goal_plan_id": str(row.get("goal_plan_id", "")).strip(),
+                "session_state": str(row.get("session_state", "")).strip(),
+                "blocked_before_response": blocked_before_response,
+                "unresolved": unresolved,
+                "known_pre_response_blockers": list(row_blockers[:12]),
+                "response_required_fields": list(row_required_fields[:12]),
+                "next_interaction_kind": str(
+                    row.get("next_interaction_kind", "")
+                ).strip(),
+                "next_owner_agent": str(row.get("next_owner_agent", "")).strip(),
+            }
+        )
+    if not summary_rows:
+        return {}
+    unique_blockers = _unique_strings(blockers)
+    unique_required_fields = _unique_strings(required_fields)
+    return {
+        "summary_kind": "interactive_route_adoption_precondition_summary",
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "total_count": len(summary_rows),
+        "blocked_before_response_count": len(_unique_strings(blocked_row_ids)),
+        "unresolved_count": len(_unique_strings(unresolved_row_ids)),
+        "interactive_session_row_ids": [
+            str(row.get("interactive_session_row_id", "")).strip()
+            for row in summary_rows
+            if str(row.get("interactive_session_row_id", "")).strip()
+        ],
+        "unresolved_interactive_session_row_ids": list(
+            _unique_strings(unresolved_row_ids)[:20]
+        ),
+        "known_pre_response_blockers": list(unique_blockers[:20]),
+        "n_known_pre_response_blockers": len(unique_blockers),
+        "response_required_fields": list(unique_required_fields[:20]),
+        "n_response_required_fields": len(unique_required_fields),
+        "rows": summary_rows[:12],
+    }
+
+
 def _feedback_next_actions(
     rows_by_field: Mapping[str, tuple[dict[str, object], ...]],
     *,
@@ -19576,46 +19794,69 @@ def _feedback_next_actions(
 ) -> list[dict[str, object]]:
     actions: list[dict[str, object]] = []
     for row in rows_by_field.get("interactive_session_rows", ()):
+        preconditions = _dict_value(row, "route_adoption_preconditions")
+        precondition_blockers = _str_tuple(
+            row.get("route_adoption_precondition_known_blockers", [])
+        ) or _str_tuple(preconditions.get("known_pre_response_blockers", []))
+        precondition_required_fields = _str_tuple(
+            row.get("route_adoption_precondition_required_response_fields", [])
+        ) or _str_tuple(preconditions.get("response_required_fields", []))
+        precondition_unresolved = _truthy(
+            row.get("route_adoption_precondition_unresolved")
+        )
+        action_text = str(row.get("next_interaction_kind", "")).strip()
+        if not action_text and (
+            precondition_unresolved
+            or precondition_blockers
+            or precondition_required_fields
+        ):
+            action_text = "resolve_route_adoption_preconditions"
         if not (
-            str(row.get("next_interaction_kind", "")).strip()
+            action_text
             or str(row.get("next_owner_agent", "")).strip()
             or _str_tuple(row.get("next_tools", []))
             or _str_tuple(row.get("next_queries", []))
+            or precondition_unresolved
         ):
             continue
-        actions.append(
-            {
-                "source": "interactive_session",
-                "owner": str(row.get("next_owner_agent", "")).strip(),
-                "action": str(row.get("next_interaction_kind", "")).strip(),
-                "tools": list(_str_tuple(row.get("next_tools", []))[:8]),
-                "queries": list(_str_tuple(row.get("next_queries", []))[:8]),
-                "commands": list(_str_tuple(row.get("next_commands", []))[:8]),
-                "resource_request_ids": list(
-                    _str_tuple(row.get("resource_request_ids", []))[:8]
-                ),
-                "resource_ids": list(
-                    _str_tuple(row.get("resource_request_resource_ids", []))[:8]
-                ),
-                "resource_request_queue_action_kinds": list(
-                    _str_tuple(
-                        row.get("resource_request_queue_action_kinds", [])
-                    )[:8]
-                ),
-                "resource_request_dispatch_summaries": [
-                    dict(summary_row)
-                    for summary_row in _dict_tuple(
-                        row.get("resource_request_dispatch_summaries", [])
-                    )[:8]
-                ],
-                "resource_request_execution_commands": list(
-                    _str_tuple(
-                        row.get("resource_request_execution_commands", [])
-                    )[:8]
-                ),
-                "gate": str(row.get("triage_required_gate", "")).strip(),
-            }
-        )
+        action_row: dict[str, object] = {
+            "source": "interactive_session",
+            "owner": str(row.get("next_owner_agent", "")).strip(),
+            "action": action_text,
+            "tools": list(_str_tuple(row.get("next_tools", []))[:8]),
+            "queries": list(_str_tuple(row.get("next_queries", []))[:8]),
+            "commands": list(_str_tuple(row.get("next_commands", []))[:8]),
+            "resource_request_ids": list(
+                _str_tuple(row.get("resource_request_ids", []))[:8]
+            ),
+            "resource_ids": list(
+                _str_tuple(row.get("resource_request_resource_ids", []))[:8]
+            ),
+            "resource_request_queue_action_kinds": list(
+                _str_tuple(row.get("resource_request_queue_action_kinds", []))[:8]
+            ),
+            "resource_request_dispatch_summaries": [
+                dict(summary_row)
+                for summary_row in _dict_tuple(
+                    row.get("resource_request_dispatch_summaries", [])
+                )[:8]
+            ],
+            "resource_request_execution_commands": list(
+                _str_tuple(row.get("resource_request_execution_commands", []))[:8]
+            ),
+            "gate": str(row.get("triage_required_gate", "")).strip(),
+        }
+        if precondition_unresolved:
+            action_row["route_adoption_precondition_unresolved"] = True
+        if precondition_blockers:
+            action_row["route_adoption_precondition_known_blockers"] = list(
+                precondition_blockers[:8]
+            )
+        if precondition_required_fields:
+            action_row[
+                "route_adoption_precondition_required_response_fields"
+            ] = list(precondition_required_fields[:8])
+        actions.append(action_row)
     for row in rows_by_field.get("interactive_decision_policy_rows", ()):
         action_text = (
             str(row.get("next_interaction_kind", "")).strip()
@@ -20216,6 +20457,14 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "user_checkpoint",
         "stability_decision",
         "stable_under_current_evidence_bound",
+        "route_adoption_preconditions",
+        "route_adoption_precondition_present",
+        "route_adoption_precondition_blocked_before_response",
+        "route_adoption_precondition_unresolved",
+        "route_adoption_precondition_known_blockers",
+        "route_adoption_precondition_required_response_fields",
+        "route_adoption_precondition_known_blocker_count",
+        "route_adoption_precondition_required_response_field_count",
         "needs_more_literature",
         "needs_more_lean_grounding",
         "needs_more_proof_state_feedback",

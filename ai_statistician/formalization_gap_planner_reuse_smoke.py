@@ -2891,6 +2891,22 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_request_route_adoption_precondition_required_response_fields",
             0,
         ),
+        "n_llm_route_planner_feedback_summary_interactive_route_adoption_preconditions": llm_route_planner_payload.get(
+            "n_feedback_loop_summary_interactive_route_adoption_preconditions",
+            0,
+        ),
+        "n_llm_route_planner_feedback_summary_interactive_unresolved_route_adoption_preconditions": llm_route_planner_payload.get(
+            "n_feedback_loop_summary_interactive_unresolved_route_adoption_preconditions",
+            0,
+        ),
+        "n_llm_route_planner_feedback_summary_interactive_route_adoption_precondition_known_blockers": llm_route_planner_payload.get(
+            "n_feedback_loop_summary_interactive_route_adoption_precondition_known_blockers",
+            0,
+        ),
+        "n_llm_route_planner_feedback_summary_interactive_route_adoption_precondition_required_response_fields": llm_route_planner_payload.get(
+            "n_feedback_loop_summary_interactive_route_adoption_precondition_required_response_fields",
+            0,
+        ),
         "n_llm_route_planner_rows_with_route_adoption_preconditions": llm_route_planner_payload.get(
             "n_rows_with_route_adoption_preconditions",
             0,
@@ -3551,6 +3567,30 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_request_route_adoption_precondition_required_response_fields": (
             feedback_llm_route_planner_payload.get(
                 "n_request_route_adoption_precondition_required_response_fields",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_feedback_summary_interactive_route_adoption_preconditions": (
+            feedback_llm_route_planner_payload.get(
+                "n_feedback_loop_summary_interactive_route_adoption_preconditions",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_feedback_summary_interactive_unresolved_route_adoption_preconditions": (
+            feedback_llm_route_planner_payload.get(
+                "n_feedback_loop_summary_interactive_unresolved_route_adoption_preconditions",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_feedback_summary_interactive_route_adoption_precondition_known_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_feedback_loop_summary_interactive_route_adoption_precondition_known_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_feedback_summary_interactive_route_adoption_precondition_required_response_fields": (
+            feedback_llm_route_planner_payload.get(
+                "n_feedback_loop_summary_interactive_route_adoption_precondition_required_response_fields",
                 0,
             )
         ),
@@ -8280,6 +8320,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Interactive session replay-ready: {payload.get('n_interactive_session_replay')}",
         f"- Interactive session rows with resource requests: {payload.get('n_interactive_session_rows_with_resource_requests')}",
         f"- Interactive session unresolved route-adoption preconditions: {payload.get('n_interactive_session_rows_with_unresolved_route_adoption_preconditions')}/{payload.get('n_interactive_session_rows_with_route_adoption_preconditions')}",
+        (
+            f"- LLM feedback-summary interactive route-adoption preconditions: "
+            f"{payload.get('n_llm_route_planner_feedback_summary_interactive_unresolved_route_adoption_preconditions')}/"
+            f"{payload.get('n_llm_route_planner_feedback_summary_interactive_route_adoption_preconditions')} "
+            f"feedback={payload.get('n_feedback_llm_route_planner_feedback_summary_interactive_unresolved_route_adoption_preconditions')}/"
+            f"{payload.get('n_feedback_llm_route_planner_feedback_summary_interactive_route_adoption_preconditions')}"
+        ),
         f"- Interactive session linked resource requests: {payload.get('n_interactive_session_resource_requests_linked')}",
         f"- Ablation variants valid: {payload.get('n_ablation_row_schema_valid')}/{payload.get('n_ablation_variants')}",
         f"- Ablation largest route-recall drop: {payload.get('ablation_largest_route_recall_drop_variant')}",
