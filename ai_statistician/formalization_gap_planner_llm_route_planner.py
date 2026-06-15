@@ -11062,6 +11062,7 @@ def _response_contract_errors(
     errors.extend(_response_source_snippet_provenance_errors(payload, request))
     errors.extend(_response_source_snippet_primitive_support_errors(payload, request))
     errors.extend(_response_resource_request_alignment_errors(payload, request))
+    errors.extend(_response_route_adoption_precondition_errors(payload, request))
     for index, node in enumerate(formal_nodes):
         if not str(node.get("node_id", "")).strip():
             errors.append(f"formal_realization_dag_nodes[{index}].node_id missing")
@@ -11139,6 +11140,43 @@ def _response_contract_errors(
     )
     errors.extend(_response_residual_source_grounding_errors(payload))
     errors.extend(_response_residual_formal_search_obligation_errors(payload))
+    return errors
+
+
+def _response_route_adoption_precondition_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    preconditions = _dict_value(
+        _dict_value(request, "context_packet"),
+        "route_adoption_preconditions",
+    )
+    if not _truthy(preconditions.get("blocked_before_response", False)):
+        return []
+    required_fields = set(
+        _str_tuple(preconditions.get("response_required_fields", []))
+    )
+    if not required_fields:
+        return []
+
+    errors: list[str] = []
+    if (
+        "residual_interpretations" in required_fields
+        and not _dict_tuple(payload.get("residual_interpretations", []))
+    ):
+        errors.append(
+            "route_adoption_preconditions require nonempty "
+            "residual_interpretations"
+        )
+    followup_fields = required_fields & {"search_requests", "planner_next_actions"}
+    if followup_fields and not (
+        _dict_tuple(payload.get("search_requests", []))
+        or _dict_tuple(payload.get("planner_next_actions", []))
+    ):
+        errors.append(
+            "route_adoption_preconditions require at least one nonempty "
+            "search_requests or planner_next_actions row"
+        )
     return errors
 
 

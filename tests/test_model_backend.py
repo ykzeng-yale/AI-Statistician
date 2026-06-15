@@ -403,7 +403,7 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     assert "runtime calls" in ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY[
         "runtime_model_id_policy"
     ]
-    assert ANTHROPIC_MODEL_SOURCE_CHECKED_DATE == "2026-06-14"
+    assert ANTHROPIC_MODEL_SOURCE_CHECKED_DATE == "2026-06-15"
     assert (
         ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["source_evidence"]
         == ANTHROPIC_MODEL_SOURCE_EVIDENCE

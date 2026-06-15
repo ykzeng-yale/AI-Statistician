@@ -747,6 +747,10 @@ redispatch work, or incomplete realization coverage. The route-planning prompt,
 manifest counters, and output rows preserve this object so a live LLM and a
 public replay consumer can see which blocker-specific response fields or next
 actions must be produced before standalone replay can become admissible.
+The response contract now enforces that forecast: when preconditions require
+`residual_interpretations`, `search_requests`, or `planner_next_actions`, a
+silent response is rejected instead of being accepted and repaired only by local
+post-processing.
 Residual-only repair responses are labeled `ACCEPTED_WITH_RESIDUAL_REPAIR` and
 remain pending with `residual_interpretations_require_route_replay` until the
 repair is replayed or discharged by later evidence. The standalone seed also

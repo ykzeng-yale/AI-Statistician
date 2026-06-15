@@ -3940,7 +3940,15 @@ def test_llm_route_planner_materializes_feedback_replan_with_resource_actions() 
 
     response = _llm_response_payload()
     response["search_requests"] = []
-    response["planner_next_actions"] = []
+    response["planner_next_actions"] = [
+        {
+            "owner": "paperclip_cli_mcp",
+            "action": "dispatch queued rank_uniformity resource response before route replan",
+            "resource_request_id": "resource-request:rank_route",
+            "resource_id": "paperclip_cli_mcp",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
     response["uncertainty_flags"] = []
     response["semantic_alignment_risks"] = []
     response["residual_interpretations"] = []
@@ -5760,7 +5768,15 @@ def test_llm_route_planner_accepts_prefixed_residual_goal_target_primitive() -> 
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     response = _llm_response_payload()
     response["search_requests"] = []
-    response["planner_next_actions"] = []
+    response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": "run proof-state feedback for the tie-breaking residual",
+            "query": "rank_uniformity residual side conditions",
+            "target_primitives": ["rank_uniformity"],
+            "resource_id": "lean_lsp_mcp",
+        }
+    ]
     response["uncertainty_flags"] = []
     response["semantic_alignment_risks"] = []
     response["residual_interpretations"] = [
@@ -5785,7 +5801,7 @@ def test_llm_route_planner_accepts_prefixed_residual_goal_target_primitive() -> 
 
     assert payload["all_ok"]
     row = payload["rows"][0]
-    assert row["acceptance_status"] == "ACCEPTED_WITH_RESIDUAL_REPAIR"
+    assert row["acceptance_status"] == "ACCEPTED_WITH_PLANNER_NEXT_ACTIONS"
     seed = json.loads(
         (
             out_dir
@@ -5826,7 +5842,15 @@ def test_llm_route_planner_accepts_target_prover_prefixed_residual_goal() -> Non
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     response = _llm_response_payload()
     response["search_requests"] = []
-    response["planner_next_actions"] = []
+    response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": "run proof-state feedback for the adapter-prefixed residual",
+            "query": "rank_uniformity adapter-prefixed residual side conditions",
+            "target_primitives": ["rank_uniformity"],
+            "resource_id": "lean_lsp_mcp",
+        }
+    ]
     response["uncertainty_flags"] = []
     response["semantic_alignment_risks"] = []
     response["residual_interpretations"] = [
@@ -5852,7 +5876,7 @@ def test_llm_route_planner_accepts_target_prover_prefixed_residual_goal() -> Non
 
     assert payload["all_ok"]
     row = payload["rows"][0]
-    assert row["acceptance_status"] == "ACCEPTED_WITH_RESIDUAL_REPAIR"
+    assert row["acceptance_status"] == "ACCEPTED_WITH_PLANNER_NEXT_ACTIONS"
     assert not any("ungrounded target_primitives: rocq" in error for error in row["errors"])
     seed = json.loads(
         (
@@ -5886,7 +5910,15 @@ def test_llm_route_planner_marks_residual_repair_as_pending_replay() -> None:
     interactive_session_dir = _write_interactive_session(root)
     response = _llm_response_payload()
     response["search_requests"] = []
-    response["planner_next_actions"] = []
+    response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": "run proof-state feedback for the tie-breaking residual",
+            "query": "rank_uniformity residual side conditions",
+            "target_primitives": ["rank_uniformity"],
+            "resource_id": "lean_lsp_mcp",
+        }
+    ]
     response["uncertainty_flags"] = []
     response["semantic_alignment_risks"] = []
     response["residual_interpretations"] = [
@@ -5913,11 +5945,14 @@ def test_llm_route_planner_marks_residual_repair_as_pending_replay() -> None:
     assert payload["n_route_adoption_pending_refinement"] == 1
     assert payload["n_route_adoption_pending_residual_repair_blockers"] == 1
     row = payload["rows"][0]
-    assert row["acceptance_status"] == "ACCEPTED_WITH_RESIDUAL_REPAIR"
+    assert row["acceptance_status"] == "ACCEPTED_WITH_PLANNER_NEXT_ACTIONS"
     assert row["route_adoption_status"] == (
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
     assert "residual_interpretations_require_route_replay" in row[
+        "route_adoption_blockers"
+    ]
+    assert "planner_next_actions_pending_evidence" in row[
         "route_adoption_blockers"
     ]
     seed_route = payload["standalone_seed"]["routes"][0]
@@ -8484,6 +8519,26 @@ def test_llm_route_planner_blocks_route_adoption_on_unresolved_source_grounding(
             "source_refs": ["conformal_prediction_textbook"],
         }
     ]
+    silent_response_json = root / "silent_response.json"
+    silent_response = deepcopy(response)
+    silent_response_json.write_text(
+        json.dumps(silent_response, indent=2),
+        encoding="utf-8",
+    )
+    response["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": (
+                "source-backed measurability side condition for finite rank "
+                "uniformity under exchangeability"
+            ),
+            "reason": (
+                "route_adoption_preconditions require a source-grounding "
+                "follow-up before adopting the repaired route"
+            ),
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
     response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
 
     payload = export_formalization_gap_planner_llm_route_planner(
@@ -8515,11 +8570,12 @@ def test_llm_route_planner_blocks_route_adoption_on_unresolved_source_grounding(
     assert payload["n_route_adoption_pending_residual_repair_blockers"] == 1
     assert payload["n_route_adoption_pending_source_grounding_blockers"] == 1
     row = payload["rows"][0]
-    assert row["acceptance_status"] == "ACCEPTED_WITH_RESIDUAL_REPAIR"
+    assert row["acceptance_status"] == "ACCEPTED_WITH_SEARCH_REQUESTS"
     assert row["route_adoption_status"] == (
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
     assert set(row["route_adoption_blockers"]) >= {
+        "search_requests_pending_evidence",
         "residual_interpretations_require_route_replay",
         ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
     }
@@ -8571,9 +8627,27 @@ def test_llm_route_planner_blocks_route_adoption_on_unresolved_source_grounding(
     assert set(
         seed_route["replan_metadata"]["llm_route_planner_route_adoption_blockers"]
     ) >= {
+        "search_requests_pending_evidence",
         "residual_interpretations_require_route_replay",
         ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
     }
+
+    silent_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        root / "llm_route_planner_silent_precondition_response",
+        provider_name="static",
+        static_response_json=silent_response_json,
+        formalization_gap_planner_source_grounding_audit_dir=source_grounding_dir,
+    )
+    assert not silent_payload["all_ok"]
+    silent_row = silent_payload["rows"][0]
+    assert silent_row["response_contract_ok"] is False
+    assert silent_row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "route_adoption_preconditions require at least one nonempty "
+        "search_requests or planner_next_actions row" in error
+        for error in silent_row["errors"]
+    )
 
 
 def test_route_adoption_readiness_uses_current_realization_witness() -> None:
@@ -8664,7 +8738,25 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
     response = _llm_response_payload()
     response["search_requests"] = []
-    response["planner_next_actions"] = []
+    response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": (
+                "collect proof-state feedback with diagnostic_signature before "
+                "adopting the quality-controlled route"
+            ),
+            "query": "rank_uniformity bridge residual goals and diagnostics",
+            "target_primitives": ["rank_uniformity"],
+            "resource_id": "lean_lsp_mcp",
+            "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
+            "required_quality_signals": ["diagnostic_signature"],
+            "quality_gates": ["response_schema_valid"],
+            "response_validation_signals": [
+                "residual_goals_or_diagnostics_present"
+            ],
+            "stop_conditions": ["residual interpreted or source search requested"],
+        }
+    ]
     response["uncertainty_flags"] = []
     response["semantic_alignment_risks"] = []
     response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
@@ -8705,11 +8797,12 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
         == 2
     )
     pending_row = pending_payload["rows"][0]
-    assert pending_row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert pending_row["acceptance_status"] == "ACCEPTED_WITH_PLANNER_NEXT_ACTIONS"
     assert pending_row["route_adoption_status"] == (
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
     assert pending_row["route_adoption_blockers"] == (
+        "planner_next_actions_pending_evidence",
         "quality_control_obligations_pending",
     )
     pending_summary = pending_payload["request_packets"][0]["context_packet"][
@@ -8763,7 +8856,10 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
         pending_payload["standalone_seed"]["routes"][0]["replan_metadata"][
             "llm_route_planner_route_adoption_blockers"
         ]
-        == ["quality_control_obligations_pending"]
+        == [
+            "planner_next_actions_pending_evidence",
+            "quality_control_obligations_pending",
+        ]
     )
     seed_route = pending_payload["standalone_seed"]["routes"][0]
     assert seed_route["llm_route_planner_route_adoption_preconditions"] == (
@@ -8841,6 +8937,12 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
             },
             indent=2,
         ),
+        encoding="utf-8",
+    )
+    discharged_response = deepcopy(response)
+    discharged_response["planner_next_actions"] = []
+    response_json.write_text(
+        json.dumps(discharged_response, indent=2),
         encoding="utf-8",
     )
 
@@ -9032,7 +9134,15 @@ def test_llm_route_planner_blocks_route_adoption_on_pending_resource_request_que
     resource_request_queue_dir = _write_resource_request_queue(root)
     response = _llm_response_payload()
     response["search_requests"] = []
-    response["planner_next_actions"] = []
+    response["planner_next_actions"] = [
+        {
+            "owner": "paperclip_cli_mcp",
+            "action": "dispatch queued rank_uniformity literature evidence request",
+            "resource_request_id": "resource-request:rank_route",
+            "resource_id": "paperclip_cli_mcp",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
     response["uncertainty_flags"] = []
     response["semantic_alignment_risks"] = []
     response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
@@ -9056,11 +9166,12 @@ def test_llm_route_planner_blocks_route_adoption_on_pending_resource_request_que
     assert payload["n_route_adoption_pending_feedback_replan_blockers"] == 0
     assert payload["n_route_adoption_pending_realization_coverage_blockers"] == 0
     row = payload["rows"][0]
-    assert row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert row["acceptance_status"] == "ACCEPTED_WITH_PLANNER_NEXT_ACTIONS"
     assert row["route_adoption_status"] == (
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
     assert set(row["route_adoption_blockers"]) >= {
+        "planner_next_actions_pending_evidence",
         "feedback_summary_actions_pending_resolution",
         "resource_request_queue_pending_response",
     }
