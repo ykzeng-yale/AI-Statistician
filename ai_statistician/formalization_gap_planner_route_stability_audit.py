@@ -59,6 +59,15 @@ class FormalizationGapPlannerRouteStabilityAuditRow:
     responded_hook_kinds: tuple[str, ...]
     resource_response_awaiting_request_ids: tuple[str, ...]
     resource_response_rejected_request_ids: tuple[str, ...]
+    llm_route_planner_route_adoption_status: str
+    route_adoption_preconditions: dict[str, object]
+    route_adoption_precondition_present: bool
+    route_adoption_precondition_blocked_before_response: bool
+    route_adoption_precondition_unresolved: bool
+    route_adoption_precondition_known_blockers: tuple[str, ...]
+    route_adoption_precondition_required_response_fields: tuple[str, ...]
+    route_adoption_precondition_known_blocker_count: int
+    route_adoption_precondition_required_response_field_count: int
     revision_status: str
     original_selected_primitives: tuple[str, ...]
     revised_selected_primitives: tuple[str, ...]
@@ -203,6 +212,24 @@ def audit_formalization_gap_planner_route_stability(
         "n_routes_with_prover_attempt_class": sum(
             1 for row in rows if row.prover_attempt_classes
         ),
+        "n_routes_with_route_adoption_preconditions": sum(
+            1 for row in rows if row.route_adoption_precondition_present
+        ),
+        "n_routes_with_blocking_route_adoption_preconditions": sum(
+            1
+            for row in rows
+            if row.route_adoption_precondition_blocked_before_response
+        ),
+        "n_routes_with_unresolved_route_adoption_preconditions": sum(
+            1 for row in rows if row.route_adoption_precondition_unresolved
+        ),
+        "n_route_adoption_precondition_known_blockers": sum(
+            row.route_adoption_precondition_known_blocker_count for row in rows
+        ),
+        "n_route_adoption_precondition_required_response_fields": sum(
+            row.route_adoption_precondition_required_response_field_count
+            for row in rows
+        ),
         "target_prover_families": _str_tuple(
             family for row in rows for family in row.target_prover_families
         ),
@@ -229,6 +256,7 @@ def audit_formalization_gap_planner_route_stability(
             "stop expanding a route only when queued evidence is present and contract-valid",
             "do not stop if accepted evidence adds route or delta primitives",
             "do not stop if proof-state feedback leaves residual goals",
+            "do not stop while LLM route-adoption preconditions remain unresolved",
             "route-stability decisions trigger focused literature, formal-library, proof-state, or replanning work",
         ],
         "limitations": [
@@ -277,6 +305,15 @@ def route_stability_audit_row_json_schema() -> dict[str, object]:
         "responded_hook_kinds",
         "resource_response_awaiting_request_ids",
         "resource_response_rejected_request_ids",
+        "llm_route_planner_route_adoption_status",
+        "route_adoption_preconditions",
+        "route_adoption_precondition_present",
+        "route_adoption_precondition_blocked_before_response",
+        "route_adoption_precondition_unresolved",
+        "route_adoption_precondition_known_blockers",
+        "route_adoption_precondition_required_response_fields",
+        "route_adoption_precondition_known_blocker_count",
+        "route_adoption_precondition_required_response_field_count",
         "revision_status",
         "original_selected_primitives",
         "revised_selected_primitives",
@@ -345,6 +382,19 @@ def route_stability_audit_row_json_schema() -> dict[str, object]:
             "responded_hook_kinds": string_array,
             "resource_response_awaiting_request_ids": string_array,
             "resource_response_rejected_request_ids": string_array,
+            "llm_route_planner_route_adoption_status": {"type": "string"},
+            "route_adoption_preconditions": {"type": "object"},
+            "route_adoption_precondition_present": {"type": "boolean"},
+            "route_adoption_precondition_blocked_before_response": {
+                "type": "boolean"
+            },
+            "route_adoption_precondition_unresolved": {"type": "boolean"},
+            "route_adoption_precondition_known_blockers": string_array,
+            "route_adoption_precondition_required_response_fields": string_array,
+            "route_adoption_precondition_known_blocker_count": {"type": "integer"},
+            "route_adoption_precondition_required_response_field_count": {
+                "type": "integer"
+            },
             "revision_status": {"type": "string"},
             "original_selected_primitives": string_array,
             "revised_selected_primitives": string_array,
@@ -404,6 +454,7 @@ def validate_route_stability_audit_row(
         if field_name not in allowed:
             errors.append(f"{field_name} unexpected")
     errors.extend(_declaration_hit_scope_errors(row))
+    errors.extend(_route_adoption_precondition_scope_errors(row))
     return errors
 
 
@@ -468,6 +519,38 @@ def _audit_row(
                 else ""
             ),
         ]
+    )
+    route_adoption_status = _route_adoption_status_for_audit(plan_row, overlay_row)
+    route_adoption_preconditions = _route_adoption_preconditions_for_audit(
+        plan_row,
+        overlay_row,
+    )
+    route_adoption_precondition_known_blockers = _str_tuple(
+        route_adoption_preconditions.get("known_pre_response_blockers", [])
+    )
+    route_adoption_precondition_required_response_fields = _str_tuple(
+        route_adoption_preconditions.get("response_required_fields", [])
+    )
+    route_adoption_precondition_known_blocker_count = (
+        _route_adoption_precondition_known_blocker_count(
+            route_adoption_preconditions,
+            route_adoption_precondition_known_blockers,
+        )
+    )
+    route_adoption_precondition_required_response_field_count = (
+        _route_adoption_precondition_required_response_field_count(
+            route_adoption_preconditions,
+            route_adoption_precondition_required_response_fields,
+        )
+    )
+    route_adoption_precondition_blocked = bool(
+        route_adoption_preconditions.get("blocked_before_response", False)
+    )
+    route_adoption_precondition_unresolved = _route_adoption_precondition_unresolved(
+        route_adoption_status=route_adoption_status,
+        blocked_before_response=route_adoption_precondition_blocked,
+        known_blockers=route_adoption_precondition_known_blockers,
+        required_response_fields=route_adoption_precondition_required_response_fields,
     )
     route_revision_recommended = any(
         bool(row.get("route_revision_recommended", False)) for row in evidence_rows
@@ -592,6 +675,9 @@ def _audit_row(
         prover_classes=prover_classes,
         source_refs=source_refs,
         formal_hits=formal_hits,
+        route_adoption_precondition_unresolved=(
+            route_adoption_precondition_unresolved
+        ),
     )
     return FormalizationGapPlannerRouteStabilityAuditRow(
         schema_version=FORMALIZATION_GAP_PLANNER_ROUTE_STABILITY_AUDIT_SCHEMA_VERSION,
@@ -615,6 +701,25 @@ def _audit_row(
         responded_hook_kinds=responded,
         resource_response_awaiting_request_ids=resource_response_awaiting,
         resource_response_rejected_request_ids=resource_response_rejected,
+        llm_route_planner_route_adoption_status=route_adoption_status,
+        route_adoption_preconditions=route_adoption_preconditions,
+        route_adoption_precondition_present=bool(route_adoption_preconditions),
+        route_adoption_precondition_blocked_before_response=(
+            route_adoption_precondition_blocked
+        ),
+        route_adoption_precondition_unresolved=route_adoption_precondition_unresolved,
+        route_adoption_precondition_known_blockers=(
+            route_adoption_precondition_known_blockers
+        ),
+        route_adoption_precondition_required_response_fields=(
+            route_adoption_precondition_required_response_fields
+        ),
+        route_adoption_precondition_known_blocker_count=(
+            route_adoption_precondition_known_blocker_count
+        ),
+        route_adoption_precondition_required_response_field_count=(
+            route_adoption_precondition_required_response_field_count
+        ),
         revision_status=revision_status,
         original_selected_primitives=original_selected,
         revised_selected_primitives=revised_selected,
@@ -632,8 +737,27 @@ def _audit_row(
         prover_attempt_classes=prover_classes,
         target_prover_families=target_prover_families,
         route_revision_reasons=revision_reasons,
-        stopping_rule_evidence=_stopping_rule_evidence(decision, summary, new_primitives, residual_goals),
-        next_actions=_next_actions(decision),
+        stopping_rule_evidence=_stopping_rule_evidence(
+            decision,
+            summary,
+            new_primitives,
+            residual_goals,
+            route_adoption_precondition_unresolved=(
+                route_adoption_precondition_unresolved
+            ),
+            route_adoption_precondition_known_blockers=(
+                route_adoption_precondition_known_blockers
+            ),
+            route_adoption_precondition_required_response_fields=(
+                route_adoption_precondition_required_response_fields
+            ),
+        ),
+        next_actions=_next_actions(
+            decision,
+            route_adoption_precondition_unresolved=(
+                route_adoption_precondition_unresolved
+            ),
+        ),
         proof_evidence_status=PROOF_EVIDENCE_STATUS,
         proof_evidence_boundary=PROOF_EVIDENCE_BOUNDARY,
         ok=not errors,
@@ -670,6 +794,15 @@ def _orphan_audit_row(
         responded_hook_kinds=(),
         resource_response_awaiting_request_ids=(),
         resource_response_rejected_request_ids=(),
+        llm_route_planner_route_adoption_status="",
+        route_adoption_preconditions={},
+        route_adoption_precondition_present=False,
+        route_adoption_precondition_blocked_before_response=False,
+        route_adoption_precondition_unresolved=False,
+        route_adoption_precondition_known_blockers=(),
+        route_adoption_precondition_required_response_fields=(),
+        route_adoption_precondition_known_blocker_count=0,
+        route_adoption_precondition_required_response_field_count=0,
         revision_status=str(overlay_row.get("revision_status", "")),
         original_selected_primitives=(),
         revised_selected_primitives=_str_tuple(
@@ -723,6 +856,90 @@ def _orphan_audit_row(
         ok=False,
         errors=errors,
     )
+
+
+def _route_adoption_status_for_audit(
+    plan_row: dict[str, Any],
+    overlay_row: dict[str, Any],
+) -> str:
+    for container in _route_adoption_trace_containers(plan_row, overlay_row):
+        status = str(
+            container.get("llm_route_planner_route_adoption_status", "")
+            or container.get("route_adoption_status", "")
+        ).strip()
+        if status:
+            return status
+    return ""
+
+
+def _route_adoption_preconditions_for_audit(
+    plan_row: dict[str, Any],
+    overlay_row: dict[str, Any],
+) -> dict[str, object]:
+    for container in _route_adoption_trace_containers(plan_row, overlay_row):
+        preconditions = _dict_value(container, "route_adoption_preconditions")
+        if not preconditions:
+            preconditions = _dict_value(
+                container,
+                "llm_route_planner_route_adoption_preconditions",
+            )
+        if preconditions:
+            return preconditions
+    return {}
+
+
+def _route_adoption_trace_containers(
+    plan_row: dict[str, Any],
+    overlay_row: dict[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    containers: list[dict[str, Any]] = [plan_row, overlay_row]
+    for row in (plan_row, overlay_row):
+        for field_name in (
+            "standalone_input_trace",
+            "replan_metadata",
+            "route_summary",
+            "standalone_seed_metadata",
+        ):
+            value = row.get(field_name, {})
+            if isinstance(value, dict):
+                containers.append(value)
+    return tuple(containers)
+
+
+def _route_adoption_precondition_known_blocker_count(
+    preconditions: dict[str, object],
+    known_blockers: tuple[str, ...],
+) -> int:
+    return _nonnegative_int(
+        preconditions.get("n_known_pre_response_blockers"),
+        len(known_blockers),
+    )
+
+
+def _route_adoption_precondition_required_response_field_count(
+    preconditions: dict[str, object],
+    required_response_fields: tuple[str, ...],
+) -> int:
+    return _nonnegative_int(
+        preconditions.get("n_response_required_fields"),
+        len(required_response_fields),
+    )
+
+
+def _route_adoption_precondition_unresolved(
+    *,
+    route_adoption_status: str,
+    blocked_before_response: bool,
+    known_blockers: tuple[str, ...],
+    required_response_fields: tuple[str, ...],
+) -> bool:
+    if not blocked_before_response:
+        return False
+    if route_adoption_status == "READY_FOR_STANDALONE_REPLAY":
+        return False
+    if route_adoption_status:
+        return route_adoption_status != "READY_FOR_STANDALONE_REPLAY"
+    return bool(known_blockers or required_response_fields)
 
 
 def _target_prover_families_for_audit(
@@ -815,6 +1032,53 @@ def _declaration_hit_scope_errors(row: dict[str, object]) -> list[str]:
             target_label="row target_prover_families",
         )
     )
+    return errors
+
+
+def _route_adoption_precondition_scope_errors(row: dict[str, object]) -> list[str]:
+    errors: list[str] = []
+    known_blockers = _str_tuple(
+        row.get("route_adoption_precondition_known_blockers", [])
+    )
+    required_fields = _str_tuple(
+        row.get("route_adoption_precondition_required_response_fields", [])
+    )
+    known_count = _nonnegative_int(
+        row.get("route_adoption_precondition_known_blocker_count"),
+        len(known_blockers),
+    )
+    required_count = _nonnegative_int(
+        row.get("route_adoption_precondition_required_response_field_count"),
+        len(required_fields),
+    )
+    if known_count != len(known_blockers):
+        errors.append(
+            "route_adoption_precondition_known_blocker_count must match "
+            "route_adoption_precondition_known_blockers"
+        )
+    if required_count != len(required_fields):
+        errors.append(
+            "route_adoption_precondition_required_response_field_count must "
+            "match route_adoption_precondition_required_response_fields"
+        )
+    if bool(row.get("route_adoption_precondition_unresolved", False)):
+        if row.get("stability_decision") == "ROUTE_STABILIZED_FOR_CURRENT_EVIDENCE_BOUND":
+            errors.append(
+                "unresolved route_adoption_preconditions cannot be marked stable"
+            )
+        if bool(row.get("stable_under_current_evidence_bound", False)):
+            errors.append(
+                "stable_under_current_evidence_bound must be false when "
+                "route_adoption_precondition_unresolved is true"
+            )
+    if (
+        bool(row.get("route_adoption_precondition_blocked_before_response", False))
+        and not known_blockers
+        and known_count == 0
+    ):
+        errors.append(
+            "blocked route_adoption_preconditions must carry known blockers"
+        )
     return errors
 
 
@@ -953,6 +1217,7 @@ def _stability_decision(
     prover_classes: tuple[str, ...],
     source_refs: tuple[str, ...],
     formal_hits: tuple[dict[str, object], ...],
+    route_adoption_precondition_unresolved: bool,
 ) -> str:
     if errors:
         return "BLOCKED_ROUTE_STABILITY_INPUT"
@@ -972,6 +1237,8 @@ def _stability_decision(
         return "EXPAND_LITERATURE_EVIDENCE"
     if has_lean_grounding_hook and not formal_hits:
         return "EXPAND_FORMAL_LIBRARY_GROUNDING"
+    if route_adoption_precondition_unresolved:
+        return "AWAITING_REFINEMENT_RESPONSES"
     return "ROUTE_STABILIZED_FOR_CURRENT_EVIDENCE_BOUND"
 
 
@@ -1075,23 +1342,48 @@ def _stopping_rule_evidence(
     summary: dict[str, dict[str, int]],
     new_primitives: tuple[str, ...],
     residual_goals: tuple[str, ...],
+    *,
+    route_adoption_precondition_unresolved: bool,
+    route_adoption_precondition_known_blockers: tuple[str, ...],
+    route_adoption_precondition_required_response_fields: tuple[str, ...],
 ) -> tuple[str, ...]:
     if decision != "ROUTE_STABILIZED_FOR_CURRENT_EVIDENCE_BOUND":
-        return (
+        evidence = [
             f"route did not satisfy stop rule: {decision}",
             f"new_primitives_since_plan={len(new_primitives)}",
             f"residual_goals={len(residual_goals)}",
-        )
+        ]
+        if route_adoption_precondition_unresolved:
+            evidence.extend(
+                [
+                    "route_adoption_preconditions remain unresolved",
+                    "route_adoption_precondition_known_blockers="
+                    + str(len(route_adoption_precondition_known_blockers)),
+                    "route_adoption_precondition_required_response_fields="
+                    + str(len(route_adoption_precondition_required_response_fields)),
+                ]
+            )
+        return tuple(evidence)
     responded = sum(bucket["responded"] for bucket in summary.values())
     contract_ok = sum(bucket["contract_ok"] for bucket in summary.values())
     return (
         f"all recorded refinement responses are contract valid: {contract_ok}/{responded}",
         "no accepted refinement evidence added selected or delta primitives",
         "no proof-state residual goals remain in the current evidence round",
+        "no unresolved LLM route-adoption preconditions remain",
     )
 
 
-def _next_actions(decision: str) -> tuple[str, ...]:
+def _next_actions(
+    decision: str,
+    *,
+    route_adoption_precondition_unresolved: bool = False,
+) -> tuple[str, ...]:
+    if decision == "AWAITING_REFINEMENT_RESPONSES" and route_adoption_precondition_unresolved:
+        return (
+            "resolve LLM route-adoption precondition blockers with source-backed refinement responses",
+            "rerun resource requests, route revision overlay, and route-stability audit before freezing the route",
+        )
     return {
         "ROUTE_STABILIZED_FOR_CURRENT_EVIDENCE_BOUND": (
             "freeze current route for minimal-delta replay",
@@ -1203,6 +1495,11 @@ def _read_json(path: Path, errors: list[str]) -> dict[str, Any]:
     return {}
 
 
+def _dict_value(row: dict[str, Any] | dict[str, object], field_name: str) -> dict[str, object]:
+    value = row.get(field_name, {})
+    return dict(value) if isinstance(value, dict) else {}
+
+
 def _dict_tuple(values: Any) -> tuple[dict[str, object], ...]:
     if not isinstance(values, (list, tuple, set)):
         try:
@@ -1231,6 +1528,17 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
         except TypeError:
             return tuple()
     return tuple(dict.fromkeys(str(item) for item in values if str(item)))
+
+
+def _nonnegative_int(value: object, fallback: int = 0) -> int:
+    if isinstance(value, bool):
+        return fallback
+    if isinstance(value, int):
+        return max(value, 0)
+    try:
+        return max(int(str(value)), 0)
+    except (TypeError, ValueError):
+        return fallback
 
 
 def _schema_property_errors(
@@ -1299,6 +1607,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Expand formal grounding: {payload.get('n_expand_formal_grounding')}",
         f"- Expand Lean grounding (legacy): {payload.get('n_expand_lean_grounding')}",
         f"- Expand proof state: {payload.get('n_expand_proof_state')}",
+        f"- Routes with route-adoption preconditions: {payload.get('n_routes_with_route_adoption_preconditions')}",
+        f"- Unresolved route-adoption preconditions: {payload.get('n_routes_with_unresolved_route_adoption_preconditions')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
         "## Boundary",
@@ -1314,7 +1624,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(
             f"- `{row.get('display_name')}` decision={row.get('stability_decision')} "
             f"new={len(row.get('new_primitives_since_plan', []))} "
-            f"residual={len(row.get('residual_goals', []))}"
+            f"residual={len(row.get('residual_goals', []))} "
+            f"route_precondition_unresolved={row.get('route_adoption_precondition_unresolved')}"
         )
         actions = row.get("next_actions", [])
         if actions:

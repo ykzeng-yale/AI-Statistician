@@ -6081,6 +6081,30 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_row_schema_invalid",
             0,
         ),
+        "n_route_stability_routes_with_route_adoption_preconditions": (
+            route_stability_audit_payload.get(
+                "n_routes_with_route_adoption_preconditions",
+                0,
+            )
+        ),
+        "n_route_stability_routes_with_unresolved_route_adoption_preconditions": (
+            route_stability_audit_payload.get(
+                "n_routes_with_unresolved_route_adoption_preconditions",
+                0,
+            )
+        ),
+        "n_route_stability_route_adoption_precondition_known_blockers": (
+            route_stability_audit_payload.get(
+                "n_route_adoption_precondition_known_blockers",
+                0,
+            )
+        ),
+        "n_route_stability_route_adoption_precondition_required_response_fields": (
+            route_stability_audit_payload.get(
+                "n_route_adoption_precondition_required_response_fields",
+                0,
+            )
+        ),
         "n_route_replan_handoff_rows": route_replan_handoff_payload.get(
             "n_handoff_rows",
             0,
@@ -8192,6 +8216,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Bundle route-revision resource-response status summaries valid: {payload.get('n_publication_bundle_optional_route_revision_resource_response_status_valid')}/{payload.get('n_publication_bundle_optional_route_revision_resource_response_status_checked')}",
         f"- Route-stability needs expansion: {payload.get('n_route_stability_needs_expansion')}",
         f"- Route-stability row schema valid: {payload.get('n_route_stability_row_schema_valid')}/{payload.get('n_route_stability_rows')}",
+        f"- Route-stability unresolved route-adoption preconditions: {payload.get('n_route_stability_routes_with_unresolved_route_adoption_preconditions')}/{payload.get('n_route_stability_routes_with_route_adoption_preconditions')}",
         f"- Bundle route-stability resource-response status consistent: {payload.get('n_publication_bundle_optional_route_stability_resource_response_status_valid')}/{payload.get('n_publication_bundle_optional_route_stability_resource_response_status_checked')}",
         f"- Routes requiring replan: {payload.get('n_routes_requiring_replan')}",
         f"- Replan seed routes: {payload.get('n_replan_seed_routes')}",

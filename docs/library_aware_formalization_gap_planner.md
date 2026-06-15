@@ -1424,6 +1424,15 @@ python3 -m ai_statistician.cli formalization-gap-planner-route-stability-audit \
   --formalization-gap-planner-route-revision-overlay-dir runs/current/formalization_gap_planner_route_revision_overlay \
   --out runs/current/formalization_gap_planner_route_stability_audit
 
+The route-stability audit now treats the LLM route planner's
+`route_adoption_preconditions` as part of the stop rule. A route that otherwise
+has accepted literature, formal-library, and proof-state evidence is still
+reported as awaiting refinement while `blocked_before_response` preconditions
+remain unresolved. Stability rows expose the precondition object, blocker and
+required-response-field counts, and
+`route_adoption_precondition_unresolved`; the published row validator rejects a
+stale row that marks such a route as stable.
+
 python3 -m ai_statistician.cli formalization-gap-planner-route-replan-handoff \
   --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \
   --formalization-gap-planner-route-revision-overlay-dir runs/current/formalization_gap_planner_route_revision_overlay \
