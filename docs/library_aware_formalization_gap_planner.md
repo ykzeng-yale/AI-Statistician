@@ -975,7 +975,13 @@ edges in each route and in its `replan_metadata`. It also carries the
 `llm_route_planner_primitive_evidence_matrix_witness`, when an LLM
 route-planner seed produced the handoff, and the
 sidecar standalone-input schema publishes those optional route and metadata
-fields for external validators. The publication-bundle audit reports
+fields for external validators. Standalone traces also publish compact
+primitive-matrix accounting counters for complete accounting, total repair
+obligations, unaccounted matrix primitives, selected primitives without matrix
+rows, source-backed rows missing response snippets, formal-supported rows
+missing declaration reuse, and delta-needed rows missing delta/action
+accounting, so external prover teams can triage adoption blockers without
+reparsing the whole witness. The publication-bundle audit reports
 seed-alignment, seed-DAG, and route-planning-brief preservation counters. It
 also checks the packaged route-replan handoff audit for the
 `roundtrip_llm_route_planning_brief_trace` signal, so public bundles expose
@@ -1292,7 +1298,11 @@ benchmark evidence about planning quality, not theorem proof evidence.
 Evaluation rows and publication/reuse summaries also preserve the LLM route
 planner's pre-response `route_adoption_preconditions`, including blocker and
 required-response-field counts, so adoption-readiness metrics can be stratified
-by obligations known before the planner response was accepted or rejected.
+by obligations known before the planner response was accepted or rejected. The
+same evaluation summaries now expose LLM primitive-matrix witness presence,
+complete-accounting rows, total matrix repair obligations, and source/reuse/delta
+gap counts, so benchmark reports explain why a source-grounded route still was
+not adoptable for standalone prover replay.
 
 The ablation study compares the observed planner with counterfactual
 `no_literature_evidence`, `no_formal_grounding`, `no_proof_state_feedback`, and

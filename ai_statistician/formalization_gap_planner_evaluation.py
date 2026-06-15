@@ -13,6 +13,7 @@ from .formalization_gap_planner_contract import (
     PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
 )
 from .formalization_gap_planner_llm_route_planner import (
+    ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
 )
@@ -111,6 +112,14 @@ class FormalizationGapPlannerEvaluationRow:
     llm_route_planner_source_feedback_formal_environment_blocker_count: int
     llm_route_planner_route_adoption_status: str
     llm_route_planner_route_adoption_blockers: tuple[str, ...]
+    llm_route_planner_primitive_evidence_matrix_witness_present: bool
+    llm_route_planner_primitive_evidence_matrix_accounting_complete: bool
+    llm_route_planner_primitive_evidence_matrix_repair_obligation_count: int
+    llm_route_planner_primitive_evidence_matrix_unaccounted_primitive_count: int
+    llm_route_planner_primitive_evidence_matrix_selected_without_matrix_row_count: int
+    llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count: int
+    llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count: int
+    llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count: int
     llm_route_planner_route_adoption_preconditions: dict[str, object]
     llm_route_planner_route_adoption_precondition_present: bool
     llm_route_planner_route_adoption_precondition_blocked_before_response: bool
@@ -383,6 +392,46 @@ def evaluate_formalization_gap_planner(
             for row in evaluation_rows
             if ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING
             in row.llm_route_planner_route_adoption_blockers
+        ),
+        "n_llm_route_adoption_pending_primitive_evidence_matrix_blockers": sum(
+            1
+            for row in evaluation_rows
+            if ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX
+            in row.llm_route_planner_route_adoption_blockers
+        ),
+        "n_rows_with_llm_route_planner_primitive_evidence_matrix_witness": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_primitive_evidence_matrix_witness_present
+        ),
+        "n_rows_with_complete_llm_route_planner_primitive_evidence_matrix_accounting": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_primitive_evidence_matrix_accounting_complete
+        ),
+        "n_llm_route_planner_primitive_evidence_matrix_repair_obligations": sum(
+            row.llm_route_planner_primitive_evidence_matrix_repair_obligation_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_primitive_evidence_matrix_unaccounted_primitives": sum(
+            row.llm_route_planner_primitive_evidence_matrix_unaccounted_primitive_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_primitive_evidence_matrix_selected_without_matrix_rows": sum(
+            row.llm_route_planner_primitive_evidence_matrix_selected_without_matrix_row_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippets": sum(
+            row.llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse": sum(
+            row.llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting": sum(
+            row.llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count
+            for row in evaluation_rows
         ),
         "n_rows_with_llm_route_planner_route_adoption_preconditions": sum(
             1
@@ -780,6 +829,36 @@ def evaluation_row_json_schema() -> dict[str, object]:
             },
             "llm_route_planner_route_adoption_status": {"type": "string"},
             "llm_route_planner_route_adoption_blockers": string_array,
+            "llm_route_planner_primitive_evidence_matrix_witness_present": {
+                "type": "boolean"
+            },
+            "llm_route_planner_primitive_evidence_matrix_accounting_complete": {
+                "type": "boolean"
+            },
+            "llm_route_planner_primitive_evidence_matrix_repair_obligation_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_primitive_evidence_matrix_unaccounted_primitive_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_primitive_evidence_matrix_selected_without_matrix_row_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
             "llm_route_planner_route_adoption_preconditions": {"type": "object"},
             "llm_route_planner_route_adoption_precondition_present": {
                 "type": "boolean"
@@ -1036,6 +1115,38 @@ def _evaluate_row(
         ),
         llm_route_planner_route_adoption_blockers=_str_tuple(
             llm_trace["route_adoption_blockers"]
+        ),
+        llm_route_planner_primitive_evidence_matrix_witness_present=bool(
+            llm_trace["primitive_evidence_matrix_witness_present"]
+        ),
+        llm_route_planner_primitive_evidence_matrix_accounting_complete=bool(
+            llm_trace["primitive_evidence_matrix_accounting_complete"]
+        ),
+        llm_route_planner_primitive_evidence_matrix_repair_obligation_count=int(
+            llm_trace["primitive_evidence_matrix_repair_obligation_count"]
+        ),
+        llm_route_planner_primitive_evidence_matrix_unaccounted_primitive_count=int(
+            llm_trace["primitive_evidence_matrix_unaccounted_primitive_count"]
+        ),
+        llm_route_planner_primitive_evidence_matrix_selected_without_matrix_row_count=int(
+            llm_trace[
+                "primitive_evidence_matrix_selected_without_matrix_row_count"
+            ]
+        ),
+        llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count=int(
+            llm_trace[
+                "primitive_evidence_matrix_source_backed_missing_response_source_snippet_count"
+            ]
+        ),
+        llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count=int(
+            llm_trace[
+                "primitive_evidence_matrix_formal_supported_missing_reuse_count"
+            ]
+        ),
+        llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count=int(
+            llm_trace[
+                "primitive_evidence_matrix_delta_needed_missing_accounting_count"
+            ]
         ),
         llm_route_planner_route_adoption_preconditions=dict(
             llm_trace["route_adoption_preconditions"]
@@ -1544,6 +1655,77 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
     )
     if not precondition_required_count:
         precondition_required_count = len(precondition_required_fields)
+    primitive_matrix_witness = _dict_value(
+        trace,
+        "llm_route_planner_primitive_evidence_matrix_witness",
+    )
+    matrix_unaccounted_primitives = _str_tuple(
+        primitive_matrix_witness.get("matrix_unaccounted_primitives", [])
+    )
+    matrix_selected_without_row = _str_tuple(
+        primitive_matrix_witness.get(
+            "selected_primitives_without_matrix_row",
+            [],
+        )
+    )
+    matrix_source_missing = _str_tuple(
+        primitive_matrix_witness.get(
+            "source_backed_matrix_primitives_missing_response_source_snippet",
+            [],
+        )
+    )
+    matrix_formal_missing_reuse = _str_tuple(
+        primitive_matrix_witness.get(
+            "formal_supported_matrix_primitives_missing_reuse",
+            [],
+        )
+    )
+    matrix_delta_missing_accounting = _str_tuple(
+        primitive_matrix_witness.get(
+            "delta_needed_matrix_primitives_missing_accounting",
+            [],
+        )
+    )
+    matrix_unaccounted_count = _int_value(
+        trace.get(
+            "llm_route_planner_primitive_evidence_matrix_unaccounted_primitive_count",
+            len(matrix_unaccounted_primitives),
+        )
+    )
+    matrix_selected_without_count = _int_value(
+        trace.get(
+            "llm_route_planner_primitive_evidence_matrix_selected_without_matrix_row_count",
+            len(matrix_selected_without_row),
+        )
+    )
+    matrix_source_missing_count = _int_value(
+        trace.get(
+            "llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count",
+            len(matrix_source_missing),
+        )
+    )
+    matrix_formal_missing_reuse_count = _int_value(
+        trace.get(
+            "llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count",
+            len(matrix_formal_missing_reuse),
+        )
+    )
+    matrix_delta_missing_accounting_count = _int_value(
+        trace.get(
+            "llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count",
+            len(matrix_delta_missing_accounting),
+        )
+    )
+    matrix_repair_obligation_count = _int_value(
+        trace.get(
+            "llm_route_planner_primitive_evidence_matrix_repair_obligation_count",
+            matrix_unaccounted_count
+            + matrix_selected_without_count
+            + matrix_source_missing_count
+            + matrix_formal_missing_reuse_count
+            + matrix_delta_missing_accounting_count,
+        )
+    )
     return {
         "trace_present": bool(
             row_id
@@ -1621,6 +1803,34 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
         "route_adoption_status": route_adoption_status,
         "route_adoption_blockers": _str_tuple(
             trace.get("llm_route_planner_route_adoption_blockers", [])
+        ),
+        "primitive_evidence_matrix_witness_present": bool(
+            primitive_matrix_witness
+            or trace.get("has_llm_route_planner_primitive_evidence_matrix_witness")
+        ),
+        "primitive_evidence_matrix_accounting_complete": bool(
+            trace.get(
+                "llm_route_planner_primitive_evidence_matrix_accounting_complete",
+                primitive_matrix_witness.get("matrix_accounting_complete", False),
+            )
+        ),
+        "primitive_evidence_matrix_repair_obligation_count": (
+            matrix_repair_obligation_count
+        ),
+        "primitive_evidence_matrix_unaccounted_primitive_count": (
+            matrix_unaccounted_count
+        ),
+        "primitive_evidence_matrix_selected_without_matrix_row_count": (
+            matrix_selected_without_count
+        ),
+        "primitive_evidence_matrix_source_backed_missing_response_source_snippet_count": (
+            matrix_source_missing_count
+        ),
+        "primitive_evidence_matrix_formal_supported_missing_reuse_count": (
+            matrix_formal_missing_reuse_count
+        ),
+        "primitive_evidence_matrix_delta_needed_missing_accounting_count": (
+            matrix_delta_missing_accounting_count
         ),
         "route_adoption_preconditions": route_adoption_preconditions,
         "route_adoption_precondition_present": bool(route_adoption_preconditions),
@@ -2244,6 +2454,14 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Evaluation by LLM route adoption status: {payload.get('evaluation_by_llm_route_adoption_status')}",
         f"- LLM route adoption blockers: {payload.get('llm_route_adoption_blockers')}",
         f"- Rows with LLM route-adoption preconditions: {payload.get('n_rows_with_llm_route_planner_route_adoption_preconditions')}",
+        (
+            f"- LLM primitive matrix complete/repair/source/reuse/delta gaps: "
+            f"{payload.get('n_rows_with_complete_llm_route_planner_primitive_evidence_matrix_accounting')}/"
+            f"{payload.get('n_llm_route_planner_primitive_evidence_matrix_repair_obligations')}/"
+            f"{payload.get('n_llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippets')}/"
+            f"{payload.get('n_llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse')}/"
+            f"{payload.get('n_llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting')}"
+        ),
         f"- Rows with quality controls: {payload.get('n_rows_with_quality_controls')}",
         f"- Quality control fields: {payload.get('quality_control_fields')}",
         f"- Mean selected route-option cost: {payload.get('mean_minimal_delta_selected_route_cost')}",

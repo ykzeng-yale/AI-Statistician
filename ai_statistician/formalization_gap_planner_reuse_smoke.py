@@ -1684,6 +1684,48 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_goal_plan_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting": (
+            plan_payload.get(
+                "n_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting",
+                0,
+            )
+        ),
+        "n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations": (
+            plan_payload.get(
+                "n_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations",
+                0,
+            )
+        ),
+        "n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_unaccounted_primitives": (
+            plan_payload.get(
+                "n_standalone_input_trace_llm_primitive_evidence_matrix_unaccounted_primitives",
+                0,
+            )
+        ),
+        "n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_selected_without_matrix_rows": (
+            plan_payload.get(
+                "n_standalone_input_trace_llm_primitive_evidence_matrix_selected_without_matrix_rows",
+                0,
+            )
+        ),
+        "n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_source_backed_missing_response_source_snippets": (
+            plan_payload.get(
+                "n_standalone_input_trace_llm_primitive_evidence_matrix_source_backed_missing_response_source_snippets",
+                0,
+            )
+        ),
+        "n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_formal_supported_missing_reuse": (
+            plan_payload.get(
+                "n_standalone_input_trace_llm_primitive_evidence_matrix_formal_supported_missing_reuse",
+                0,
+            )
+        ),
+        "n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_delta_needed_missing_accounting": (
+            plan_payload.get(
+                "n_standalone_input_trace_llm_primitive_evidence_matrix_delta_needed_missing_accounting",
+                0,
+            )
+        ),
         "n_goal_plan_standalone_input_traces_with_llm_model_tier": (
             plan_payload.get(
                 "n_standalone_input_traces_with_llm_model_tier",
@@ -5081,6 +5123,60 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_evaluation_llm_route_adoption_pending_primitive_evidence_matrix_blockers": (
+            evaluation_payload.get(
+                "n_llm_route_adoption_pending_primitive_evidence_matrix_blockers",
+                0,
+            )
+        ),
+        "n_evaluation_rows_with_llm_route_planner_primitive_evidence_matrix_witness": (
+            evaluation_payload.get(
+                "n_rows_with_llm_route_planner_primitive_evidence_matrix_witness",
+                0,
+            )
+        ),
+        "n_evaluation_rows_with_complete_llm_route_planner_primitive_evidence_matrix_accounting": (
+            evaluation_payload.get(
+                "n_rows_with_complete_llm_route_planner_primitive_evidence_matrix_accounting",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_primitive_evidence_matrix_repair_obligations": (
+            evaluation_payload.get(
+                "n_llm_route_planner_primitive_evidence_matrix_repair_obligations",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_primitive_evidence_matrix_unaccounted_primitives": (
+            evaluation_payload.get(
+                "n_llm_route_planner_primitive_evidence_matrix_unaccounted_primitives",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_primitive_evidence_matrix_selected_without_matrix_rows": (
+            evaluation_payload.get(
+                "n_llm_route_planner_primitive_evidence_matrix_selected_without_matrix_rows",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippets": (
+            evaluation_payload.get(
+                "n_llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippets",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse": (
+            evaluation_payload.get(
+                "n_llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting": (
+            evaluation_payload.get(
+                "n_llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting",
+                0,
+            )
+        ),
         "n_evaluation_rows_with_llm_route_planner_route_adoption_preconditions": (
             evaluation_payload.get(
                 "n_rows_with_llm_route_planner_route_adoption_preconditions",
@@ -7768,6 +7864,14 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"adoption={payload.get('goal_plan_standalone_input_trace_by_llm_route_adoption_status')}"
         ),
         (
+            f"- Goal-plan LLM primitive matrix complete/repair/source/reuse/delta gaps: "
+            f"{payload.get('n_goal_plan_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting')}/"
+            f"{payload.get('n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations')}/"
+            f"{payload.get('n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_source_backed_missing_response_source_snippets')}/"
+            f"{payload.get('n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_formal_supported_missing_reuse')}/"
+            f"{payload.get('n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_delta_needed_missing_accounting')}"
+        ),
+        (
             f"- Goal-plan LLM route-adoption ready/pending/blockers: "
             f"{payload.get('n_goal_plan_standalone_input_traces_ready_for_route_adoption')}/"
             f"{payload.get('n_goal_plan_standalone_input_traces_pending_refinement_before_route_adoption')}/"
@@ -8237,9 +8341,18 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_evaluation_rows_with_llm_route_planner_blocking_route_adoption_preconditions')} "
             f"precondition_blockers={payload.get('n_evaluation_llm_route_planner_route_adoption_precondition_known_blockers')} "
             f"required_fields={payload.get('n_evaluation_llm_route_planner_route_adoption_precondition_required_response_fields')} "
+            f"primitive_matrix={payload.get('n_evaluation_llm_route_adoption_pending_primitive_evidence_matrix_blockers')} "
             f"source_grounding={payload.get('n_evaluation_llm_route_adoption_pending_source_grounding_blockers')} "
             f"quality_controls={payload.get('n_evaluation_llm_route_adoption_pending_quality_control_blockers')} "
             f"statuses={payload.get('evaluation_by_llm_route_adoption_status')}"
+        ),
+        (
+            f"- Evaluation LLM primitive matrix complete/repair/source/reuse/delta gaps: "
+            f"{payload.get('n_evaluation_rows_with_complete_llm_route_planner_primitive_evidence_matrix_accounting')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_primitive_evidence_matrix_repair_obligations')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippets')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting')}"
         ),
         f"- Evaluation mean route recall: {payload.get('mean_evaluation_route_recall')}",
         f"- Evaluation mean alignment coverage: {payload.get('mean_evaluation_alignment_coverage')}",

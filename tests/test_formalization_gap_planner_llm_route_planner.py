@@ -7310,6 +7310,18 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     )
     assert (
         plan_payload[
+            "n_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations"
+        ]
+        == 0
+    )
+    assert (
+        plan_payload[
             "n_standalone_input_traces_with_llm_route_adoption_preconditions"
         ]
         == 1
@@ -7387,6 +7399,36 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert trace["llm_route_planner_primitive_evidence_matrix_witness"] == row[
         "primitive_evidence_matrix_witness"
     ]
+    assert (
+        trace[
+            "llm_route_planner_primitive_evidence_matrix_accounting_complete"
+        ]
+        is True
+    )
+    assert (
+        trace[
+            "llm_route_planner_primitive_evidence_matrix_repair_obligation_count"
+        ]
+        == 0
+    )
+    assert (
+        trace[
+            "llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count"
+        ]
+        == 0
+    )
+    assert (
+        trace[
+            "llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count"
+        ]
+        == 0
+    )
+    assert (
+        trace[
+            "llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count"
+        ]
+        == 0
+    )
     assert trace["llm_route_planner_route_adoption_preconditions"] == row[
         "route_adoption_preconditions"
     ]

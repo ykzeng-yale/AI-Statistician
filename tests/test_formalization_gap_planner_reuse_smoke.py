@@ -454,6 +454,24 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == 1
     )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations"
+        ]
+        == 20
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_unaccounted_primitives"
+        ]
+        == 10
+    )
     assert payload["n_goal_plan_standalone_input_traces_with_llm_model_tier"] == 1
     assert payload["goal_plan_standalone_input_trace_by_llm_model_tier"] == {
         "sonnet": 1
@@ -2039,6 +2057,36 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_evaluation_rows_with_llm_route_planner_model_tier_decision_basis"] == 1
     assert (
         payload[
+            "n_evaluation_rows_with_llm_route_planner_primitive_evidence_matrix_witness"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_evaluation_rows_with_complete_llm_route_planner_primitive_evidence_matrix_accounting"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_primitive_evidence_matrix_repair_obligations"
+        ]
+        == 20
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_primitive_evidence_matrix_unaccounted_primitives"
+        ]
+        == 10
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_adoption_pending_primitive_evidence_matrix_blockers"
+        ]
+        == 0
+    )
+    assert (
+        payload[
             "n_evaluation_llm_route_planner_model_tier_decision_sonnet_triggers"
         ]
         == 6
@@ -3434,6 +3482,18 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == 1
     )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations"
+        ]
+        == 8
+    )
     assert payload["n_goal_plan_standalone_input_traces_with_llm_model_tier"] == 1
     assert payload["goal_plan_standalone_input_trace_by_llm_model_tier"] == {
         "sonnet": 1
@@ -3471,6 +3531,30 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert payload["n_evaluation_rows_with_llm_route_planner_model_tier"] == 1
     assert (
         payload[
+            "n_evaluation_rows_with_llm_route_planner_primitive_evidence_matrix_witness"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_evaluation_rows_with_complete_llm_route_planner_primitive_evidence_matrix_accounting"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_primitive_evidence_matrix_repair_obligations"
+        ]
+        == 8
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_adoption_pending_primitive_evidence_matrix_blockers"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_evaluation_rows_with_llm_route_planner_route_adoption_status"
         ]
         == 1
@@ -3480,7 +3564,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         payload["n_evaluation_rows_pending_refinement_before_route_adoption"]
         == 1
     )
-    assert payload["n_evaluation_llm_route_adoption_blockers"] == 6
+    assert payload["n_evaluation_llm_route_adoption_blockers"] == 7
     assert (
         payload[
             "n_evaluation_rows_with_llm_route_planner_route_adoption_preconditions"
@@ -3544,6 +3628,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         "formal_gap_boundaries_require_resolution",
         "omitted_cost_hint_primitives_require_review",
         "planner_next_actions_pending_evidence",
+        "primitive_evidence_matrix_incomplete",
         "search_requests_pending_evidence",
         "semantic_alignment_risks_require_review",
         "uncertainty_flags_require_review",
@@ -3552,6 +3637,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         "formal_gap_boundaries_require_resolution": 1,
         "omitted_cost_hint_primitives_require_review": 1,
         "planner_next_actions_pending_evidence": 1,
+        "primitive_evidence_matrix_incomplete": 1,
         "search_requests_pending_evidence": 1,
         "semantic_alignment_risks_require_review": 1,
         "uncertainty_flags_require_review": 1,
@@ -3561,7 +3647,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "n_rows": 1,
             "n_ok": 0,
             "n_matched_ground_truth": 1,
-            "n_route_adoption_blockers": 6,
+            "n_route_adoption_blockers": 7,
             "mean_route_recall": 1.0,
             "mean_delta_precision": 1.0,
         }
@@ -5181,6 +5267,18 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
             "n_goal_plan_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
         ]
         == 1
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations"
+        ]
+        == 20
     )
     assert payload["n_goal_plan_standalone_input_traces_with_llm_model_tier"] == 1
     assert payload["goal_plan_standalone_input_trace_by_llm_model_tier"] == {

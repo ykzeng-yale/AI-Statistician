@@ -291,6 +291,73 @@ def export_formalization_gap_planner_standalone_plan(
                 "has_llm_route_planner_primitive_evidence_matrix_witness"
             )
         ),
+        "n_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "llm_route_planner_primitive_evidence_matrix_accounting_complete"
+            )
+        ),
+        "n_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_planner_primitive_evidence_matrix_repair_obligation_count",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
+        "n_standalone_input_trace_llm_primitive_evidence_matrix_unaccounted_primitives": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_planner_primitive_evidence_matrix_unaccounted_primitive_count",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
+        "n_standalone_input_trace_llm_primitive_evidence_matrix_selected_without_matrix_rows": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_planner_primitive_evidence_matrix_selected_without_matrix_row_count",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
+        "n_standalone_input_trace_llm_primitive_evidence_matrix_source_backed_missing_response_source_snippets": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
+        "n_standalone_input_trace_llm_primitive_evidence_matrix_formal_supported_missing_reuse": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
+        "n_standalone_input_trace_llm_primitive_evidence_matrix_delta_needed_missing_accounting": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
         "n_standalone_input_traces_with_llm_route_adoption_preconditions": sum(
             1
             for row in rows
@@ -2002,6 +2069,40 @@ def _standalone_input_trace(
             ),
         )
     )
+    llm_matrix_unaccounted_primitives = _str_list(
+        llm_primitive_evidence_matrix_witness.get("matrix_unaccounted_primitives", [])
+    )
+    llm_matrix_selected_without_row = _str_list(
+        llm_primitive_evidence_matrix_witness.get(
+            "selected_primitives_without_matrix_row",
+            [],
+        )
+    )
+    llm_matrix_source_backed_missing = _str_list(
+        llm_primitive_evidence_matrix_witness.get(
+            "source_backed_matrix_primitives_missing_response_source_snippet",
+            [],
+        )
+    )
+    llm_matrix_formal_missing_reuse = _str_list(
+        llm_primitive_evidence_matrix_witness.get(
+            "formal_supported_matrix_primitives_missing_reuse",
+            [],
+        )
+    )
+    llm_matrix_delta_missing_accounting = _str_list(
+        llm_primitive_evidence_matrix_witness.get(
+            "delta_needed_matrix_primitives_missing_accounting",
+            [],
+        )
+    )
+    llm_matrix_repair_obligation_count = (
+        len(llm_matrix_unaccounted_primitives)
+        + len(llm_matrix_selected_without_row)
+        + len(llm_matrix_source_backed_missing)
+        + len(llm_matrix_formal_missing_reuse)
+        + len(llm_matrix_delta_missing_accounting)
+    )
     llm_route_adoption_preconditions = _dict_value(
         metadata.get(
             "llm_route_planner_route_adoption_preconditions",
@@ -2041,6 +2142,30 @@ def _standalone_input_trace(
         ),
         "has_llm_route_planner_primitive_evidence_matrix_witness": bool(
             llm_primitive_evidence_matrix_witness
+        ),
+        "llm_route_planner_primitive_evidence_matrix_accounting_complete": bool(
+            llm_primitive_evidence_matrix_witness.get(
+                "matrix_accounting_complete",
+                False,
+            )
+        ),
+        "llm_route_planner_primitive_evidence_matrix_repair_obligation_count": (
+            llm_matrix_repair_obligation_count
+        ),
+        "llm_route_planner_primitive_evidence_matrix_unaccounted_primitive_count": (
+            len(llm_matrix_unaccounted_primitives)
+        ),
+        "llm_route_planner_primitive_evidence_matrix_selected_without_matrix_row_count": (
+            len(llm_matrix_selected_without_row)
+        ),
+        "llm_route_planner_primitive_evidence_matrix_source_backed_missing_response_source_snippet_count": (
+            len(llm_matrix_source_backed_missing)
+        ),
+        "llm_route_planner_primitive_evidence_matrix_formal_supported_missing_reuse_count": (
+            len(llm_matrix_formal_missing_reuse)
+        ),
+        "llm_route_planner_primitive_evidence_matrix_delta_needed_missing_accounting_count": (
+            len(llm_matrix_delta_missing_accounting)
         ),
         "llm_route_planner_route_adoption_preconditions": dict(
             llm_route_adoption_preconditions
