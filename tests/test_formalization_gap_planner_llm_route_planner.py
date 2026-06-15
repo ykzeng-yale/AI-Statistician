@@ -12026,6 +12026,150 @@ def test_response_payload_validation_uses_target_theorem_context_packet_anchor()
     )
 
 
+def test_response_payload_validation_enforces_route_adoption_preconditions() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_response_validation_route_preconditions"
+    )
+    out_dir = root / "llm_route_planner"
+    source_grounding_dir = root / "source_grounding"
+    response_json = root / "responses.json"
+    request_context_json = root / "request_context.json"
+    validation_out_dir = root / "response_payload_validation"
+    shutil.rmtree(root, ignore_errors=True)
+    source_grounding_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    (
+        source_grounding_dir
+        / "formalization_gap_planner_source_grounding_audit_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_source_grounding_audit",
+                "rows": [
+                    {
+                        "source_grounding_id": "source-grounding:rank-residual",
+                        "route_id": "rank_route",
+                        "display_name": "distribution_free_rank_bound",
+                        "node_source": "refinement_evidence_prover_feedback",
+                        "node_id": "residual:rank_uniformity:measurability",
+                        "node_kind": "prover_residual_goal",
+                        "node_label": "Rank bridge residual measurability condition",
+                        "source_refs": [],
+                        "source_snippets": [],
+                        "residual_goals": [
+                            "rank_uniformity: missing measurability side condition"
+                        ],
+                        "residual_primitives": ["rank_uniformity"],
+                        "residual_evidence_ids": ["evidence:rank-lsp"],
+                        "grounding_status": "unaccounted",
+                        "required_next_action": "route_repair_or_source_search",
+                        "ok": False,
+                        "errors": ["residual goal has no source-backed route repair"],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    prompt_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="prompt_only",
+        formalization_gap_planner_source_grounding_audit_dir=source_grounding_dir,
+    )
+    request = prompt_payload["request_packets"][0]
+    preconditions = request["context_packet"]["route_adoption_preconditions"]
+    assert preconditions["blocked_before_response"] is True
+    assert set(preconditions["response_required_fields"]) >= {
+        "residual_interpretations",
+        "search_requests",
+        "planner_next_actions",
+    }
+    request_context_json.write_text(
+        json.dumps({"request_packets": [request]}, indent=2),
+        encoding="utf-8",
+    )
+
+    valid_payload = _llm_response_payload()
+    valid_payload["residual_interpretations"] = [
+        {
+            "residual_goal": "rank_uniformity: missing measurability side condition",
+            "interpretation": (
+                "The attempted rank-uniformity bridge exposed a side condition "
+                "that is not yet source-backed."
+            ),
+            "route_repair": (
+                "Keep the measurability side condition as a route-repair "
+                "obligation until source evidence or a formal boundary is added."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    ]
+    valid_payload["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": (
+                "source-backed measurability side condition for finite rank "
+                "uniformity under exchangeability"
+            ),
+            "reason": (
+                "route_adoption_preconditions require a source-grounding "
+                "follow-up before adopting the repaired route"
+            ),
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    valid_payload["planner_next_actions"] = []
+    silent_payload = deepcopy(valid_payload)
+    silent_payload["search_requests"] = []
+    silent_payload["planner_next_actions"] = []
+    response_json.write_text(
+        json.dumps(
+            {
+                "responses": [
+                    {
+                        "request_id": request["request_id"],
+                        "route_id": request["route_id"],
+                        "response_payload": valid_payload,
+                    },
+                    {
+                        "request_id": request["request_id"],
+                        "route_id": request["route_id"],
+                        "response_payload": silent_payload,
+                    },
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    validation_payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        validation_out_dir,
+        request_context_json=request_context_json,
+    )
+
+    assert validation_payload["all_ok"] is False
+    assert validation_payload["n_payloads"] == 2
+    assert validation_payload["n_valid_payloads"] == 1
+    assert validation_payload["n_invalid_payloads"] == 1
+    assert validation_payload["n_request_bound_payloads"] == 2
+    valid_row, silent_row = validation_payload["rows"]
+    assert valid_row["ok"] is True
+    assert valid_row["n_request_context_errors"] == 0
+    assert silent_row["ok"] is False
+    assert silent_row["n_request_context_errors"] == 1
+    assert any(
+        "route_adoption_preconditions require at least one nonempty "
+        "search_requests or planner_next_actions row" in error
+        for error in silent_row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_unsupported_source_search_status() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_bad_source_status"

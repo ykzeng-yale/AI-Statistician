@@ -139,7 +139,8 @@ the command is schema-only. With `--request-context` pointing at a staged
 request packet, request JSONL, planner manifest, or planner output directory,
 it also runs the full request-bound preflight checks for target theorem
 identity, target prover family, source-ref grounding, formal-declaration
-provenance, residual repair grounding, and minimal-delta cost accounting. The
+provenance, residual repair grounding, route-adoption precondition response
+fields, and minimal-delta cost accounting. The
 validator also writes manifest and row schemas, and the publication bundle
 exports those schemas as reusable contracts. The publication bundle can also
 package an actual validator run with
@@ -750,7 +751,9 @@ actions must be produced before standalone replay can become admissible.
 The response contract now enforces that forecast: when preconditions require
 `residual_interpretations`, `search_requests`, or `planner_next_actions`, a
 silent response is rejected instead of being accepted and repaired only by local
-post-processing.
+post-processing. The standalone response-payload validator applies the same
+rule in request-bound mode, so external prover integrations cannot bypass the
+route-adoption gate by validating only the reusable JSON payload artifact.
 Residual-only repair responses are labeled `ACCEPTED_WITH_RESIDUAL_REPAIR` and
 remain pending with `residual_interpretations_require_route_replay` until the
 repair is replayed or discharged by later evidence. The standalone seed also
