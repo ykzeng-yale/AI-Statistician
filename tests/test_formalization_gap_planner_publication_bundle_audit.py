@@ -2989,6 +2989,20 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
         ),
     }
+    handoff_route_adoption_preconditions = {
+        "precondition_kind": (
+            "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+        ),
+        "status": "PENDING_CONTEXT_OBLIGATIONS",
+        "blocked_before_response": True,
+        "known_pre_response_blockers": ["source_grounding_obligations_pending"],
+        "n_known_pre_response_blockers": 1,
+        "response_required_fields": ["search_requests", "planner_next_actions"],
+        "n_response_required_fields": 2,
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+    }
     handoff_row = {
         "schema_version": 1,
         "route_replan_handoff_id": "handoff:rank_uniformity",
@@ -3020,6 +3034,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "route_revision_summaries": ["add rank uniformity bridge"],
         "target_theorem_context_packet": handoff_target_theorem_context_packet,
         "route_planning_brief": handoff_route_planning_brief,
+        "route_adoption_preconditions": handoff_route_adoption_preconditions,
         "source_refs": ["fixture source"],
         "formal_declaration_hits": [
             {"primitive": "rank_uniformity", "declaration": "Fixture.rank_uniformity"}
@@ -3040,6 +3055,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "llm_route_planner_route_planning_brief": (
                 handoff_route_planning_brief
             ),
+            "llm_route_planner_route_adoption_preconditions": (
+                handoff_route_adoption_preconditions
+            ),
             "replan_metadata": {
                 "target_theorem_context_packet": handoff_target_theorem_context_packet,
                 "llm_route_planner_target_theorem_context_packet": (
@@ -3047,6 +3065,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 ),
                 "llm_route_planner_route_planning_brief": (
                     handoff_route_planning_brief
+                ),
+                "llm_route_planner_route_adoption_preconditions": (
+                    handoff_route_adoption_preconditions
                 ),
             },
         },
@@ -3103,6 +3124,8 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_standalone_seed_routes_with_target_theorem_context_packet": 1,
                 "n_routes_with_llm_route_planning_brief": 1,
                 "n_standalone_seed_routes_with_llm_route_planning_brief": 1,
+                "n_routes_with_llm_route_adoption_preconditions": 1,
+                "n_standalone_seed_routes_with_llm_route_adoption_preconditions": 1,
                 "all_ok": True,
                 "rows": [handoff_row],
             },
@@ -3134,6 +3157,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                         "llm_route_planner_route_planning_brief": (
                             handoff_route_planning_brief
                         ),
+                        "llm_route_planner_route_adoption_preconditions": (
+                            handoff_route_adoption_preconditions
+                        ),
                         "revised_informal_knowledge_dag_nodes": handoff_informal_nodes,
                         "revised_formal_realization_dag_nodes": handoff_lean_nodes,
                         "revised_lean_realization_dag_nodes": handoff_lean_nodes,
@@ -3147,6 +3173,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                             ),
                             "llm_route_planner_route_planning_brief": (
                                 handoff_route_planning_brief
+                            ),
+                            "llm_route_planner_route_adoption_preconditions": (
+                                handoff_route_adoption_preconditions
                             ),
                             "applied_proposal_ids": ["proposal:rank_uniformity"],
                             "applied_refinement_evidence_ids": [
@@ -3298,6 +3327,26 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         },
         {
             "schema_version": 1,
+            "check_id": "check:roundtrip_llm_route_adoption_preconditions_trace",
+            "check_name": "roundtrip_llm_route_adoption_preconditions_trace",
+            "category": "roundtrip",
+            "expected": (
+                "roundtrip standalone-input traces preserve LLM "
+                "route-adoption preconditions"
+            ),
+            "observed": (
+                "seed_routes_with_preconditions=1; "
+                "roundtrip_traces_with_preconditions=1; "
+                "trace_matches=1; metadata_matches=1; expected_blockers=1; "
+                "roundtrip_blockers=1; expected_required_fields=2; "
+                "roundtrip_required_fields=2"
+            ),
+            "ok": True,
+            "severity": "error",
+            "errors": [],
+        },
+        {
+            "schema_version": 1,
             "check_id": "check:row_0_seed_route_provenance_metadata",
             "check_name": "row_0_seed_route_provenance_metadata",
             "category": "provenance",
@@ -3321,19 +3370,34 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "severity": "error",
             "errors": [],
         },
+        {
+            "schema_version": 1,
+            "check_id": "check:row_0_seed_route_llm_route_adoption_preconditions",
+            "check_name": "row_0_seed_route_llm_route_adoption_preconditions",
+            "category": "provenance",
+            "expected": (
+                "seed route and replan metadata preserve LLM "
+                "route-adoption preconditions"
+            ),
+            "observed": "row=True route=True metadata=True blockers=1 required_fields=2",
+            "ok": True,
+            "severity": "error",
+            "errors": [],
+        },
     ]
     (replan_handoff_audit_dir / "formalization_gap_planner_route_replan_handoff_audit_manifest.json").write_text(
         json.dumps(
             {
                 "component_name": "formalization_gap_planner_route_replan_handoff_audit",
-                "n_checks": 9,
+                "n_checks": 11,
                 "n_failed": 0,
-                "n_row_schema_valid": 9,
+                "n_row_schema_valid": 11,
                 "n_row_schema_invalid": 0,
                 "n_seed_routes": 1,
                 "n_roundtrip_goal_plans": 1,
                 "n_roundtrip_route_alignment_edges": 1,
                 "n_roundtrip_standalone_input_traces_with_llm_route_planning_brief": 1,
+                "n_roundtrip_standalone_input_traces_with_llm_route_adoption_preconditions": 1,
                 "roundtrip_all_ok": True,
                 "all_ok": True,
                 "checks": audit_checks,
@@ -4638,6 +4702,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"]
+        == "optional_route_replan_handoff_row_0_seed_route_adoption_preconditions_preservation"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "optional_route_replan_handoff_seed_schema_id"
         and row["ok"]
         for row in audit_payload["checks"]
@@ -4697,6 +4767,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         and row["ok"]
         for row in audit_payload["checks"]
     )
+    assert any(
+        row["check_name"]
+        == "optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_trace"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
     assert audit_payload["n_optional_route_revision_overlay_row_schema_checked"] == 1
     assert audit_payload["n_optional_route_revision_overlay_row_schema_valid"] == 1
     assert audit_payload["n_optional_route_replan_handoff_row_schema_checked"] == 1
@@ -4717,12 +4793,24 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         ]
         == 1
     )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_seed_route_adoption_preconditions_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_seed_route_adoption_preconditions_valid"
+        ]
+        == 1
+    )
     assert audit_payload["n_optional_route_revision_generic_formal_dag_checked"] == 1
     assert audit_payload["n_optional_route_revision_generic_formal_dag_valid"] == 1
     assert audit_payload["n_optional_route_replan_handoff_generic_formal_dag_checked"] == 1
     assert audit_payload["n_optional_route_replan_handoff_generic_formal_dag_valid"] == 1
-    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_checked"] == 9
-    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_valid"] == 9
+    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_checked"] == 11
+    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_valid"] == 11
     assert (
         audit_payload[
             "n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_checked"
@@ -4732,6 +4820,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert (
         audit_payload[
             "n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_valid"
         ]
         == 1
     )

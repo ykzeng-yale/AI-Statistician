@@ -54,6 +54,20 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
             "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
         ),
     }
+    route_adoption_preconditions = {
+        "precondition_kind": (
+            "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+        ),
+        "status": "PENDING_CONTEXT_OBLIGATIONS",
+        "blocked_before_response": True,
+        "known_pre_response_blockers": ["source_grounding_obligations_pending"],
+        "n_known_pre_response_blockers": 1,
+        "response_required_fields": ["search_requests", "planner_next_actions"],
+        "n_response_required_fields": 2,
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+    }
     alignment_edges = [
         {
             "source": "informal:rank_uniformity",
@@ -135,6 +149,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "route_class": "bridge_or_wrapper",
         "recommended_action": "rerun standalone planning on revised rank route",
         "llm_route_planner_route_planning_brief": route_planning_brief,
+        "llm_route_planner_route_adoption_preconditions": (
+            route_adoption_preconditions
+        ),
         "source_refs": ["Lei-Wasserman distribution-free prediction"],
         "source_snippets": [source_snippet],
         "quality_controls": quality_controls,
@@ -174,6 +191,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
             "source_snippets": [source_snippet],
             "quality_controls": quality_controls,
             "llm_route_planner_route_planning_brief": route_planning_brief,
+            "llm_route_planner_route_adoption_preconditions": (
+                route_adoption_preconditions
+            ),
             "lean_declaration_hits": [
                 {"primitive": "rank_uniformity", "declaration": "Fintype.card"}
             ],
@@ -220,6 +240,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "route_revision_reasons": ["proof-state feedback exposed rank bridge"],
         "route_revision_summaries": ["add rank-uniformity bridge before replay"],
         "route_planning_brief": route_planning_brief,
+        "route_adoption_preconditions": route_adoption_preconditions,
         "source_refs": ["Lei-Wasserman distribution-free prediction"],
         "source_snippets": [source_snippet],
         "quality_controls": quality_controls,
@@ -337,6 +358,18 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         ]
         == 1
     )
+    assert (
+        payload[
+            "n_roundtrip_standalone_input_traces_with_llm_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_roundtrip_standalone_input_trace_llm_route_adoption_precondition_blockers"
+        ]
+        == 1
+    )
     assert any(
         check["check_name"] == "standalone_seed_no_kernel_verified_claims" and check["ok"]
         for check in payload["checks"]
@@ -361,7 +394,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "row_0_seed_route_source_snippets" in ok_checks
     assert "row_0_seed_route_quality_controls" in ok_checks
     assert "row_0_seed_route_llm_route_planning_brief" in ok_checks
+    assert "row_0_seed_route_llm_route_adoption_preconditions" in ok_checks
     assert "roundtrip_llm_route_planning_brief_trace" in ok_checks
+    assert "roundtrip_llm_route_adoption_preconditions_trace" in ok_checks
     provenance_check = next(
         check
         for check in payload["checks"]
@@ -400,6 +435,15 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "row=True" in brief_check["observed"]
     assert "route=True" in brief_check["observed"]
     assert "metadata=True" in brief_check["observed"]
+    precondition_check = next(
+        check
+        for check in payload["checks"]
+        if check["check_name"] == "row_0_seed_route_llm_route_adoption_preconditions"
+    )
+    assert "row=True" in precondition_check["observed"]
+    assert "route=True" in precondition_check["observed"]
+    assert "metadata=True" in precondition_check["observed"]
+    assert "blockers=1" in precondition_check["observed"]
     brief_roundtrip_check = next(
         check
         for check in payload["checks"]
@@ -408,6 +452,16 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "seed_routes_with_brief=1" in brief_roundtrip_check["observed"]
     assert "trace_matches=1" in brief_roundtrip_check["observed"]
     assert "metadata_matches=1" in brief_roundtrip_check["observed"]
+    precondition_roundtrip_check = next(
+        check
+        for check in payload["checks"]
+        if check["check_name"] == "roundtrip_llm_route_adoption_preconditions_trace"
+    )
+    assert "seed_routes_with_preconditions=1" in precondition_roundtrip_check[
+        "observed"
+    ]
+    assert "trace_matches=1" in precondition_roundtrip_check["observed"]
+    assert "metadata_matches=1" in precondition_roundtrip_check["observed"]
     assert (
         audit_dir
         / "formalization_gap_planner_route_replan_handoff_audit_row.schema.json"
@@ -504,6 +558,28 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         if not check["ok"]
     }
     assert "row_0_seed_route_llm_route_planning_brief" in brief_failed
+
+    precondition_rejected_seed = json.loads(json.dumps(seed))
+    precondition_rejected_seed["routes"][0]["replan_metadata"].pop(
+        "llm_route_planner_route_adoption_preconditions",
+        None,
+    )
+    (handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json").write_text(
+        json.dumps(precondition_rejected_seed, indent=2),
+        encoding="utf-8",
+    )
+    precondition_rejected = audit_formalization_gap_planner_route_replan_handoff(
+        handoff_dir,
+        root / "precondition_audit",
+    )
+
+    assert not precondition_rejected["all_ok"]
+    precondition_failed = {
+        check["check_name"]
+        for check in precondition_rejected["checks"]
+        if not check["ok"]
+    }
+    assert "row_0_seed_route_llm_route_adoption_preconditions" in precondition_failed
 
     llm_hook_rejected_seed = json.loads(json.dumps(seed))
     llm_hook_rejected_seed["routes"][0]["replan_metadata"][
