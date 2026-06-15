@@ -1300,6 +1300,30 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert validation_summary["n_payloads"] == 1
     assert validation_summary["n_valid_payloads"] == 1
     assert validation_summary["n_invalid_payloads"] == 0
+    assert (
+        validation_summary[
+            "n_request_bound_payloads_with_route_adoption_preconditions"
+        ]
+        == 0
+    )
+    assert (
+        validation_summary[
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions"
+        ]
+        == 0
+    )
+    assert (
+        validation_summary[
+            "n_request_bound_payload_route_adoption_precondition_known_blockers"
+        ]
+        == 0
+    )
+    assert (
+        validation_summary[
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields"
+        ]
+        == 0
+    )
     assert validation_summary["n_payloads_with_declared_target_prover_family"] == 0
     assert (
         validation_summary[
@@ -2853,6 +2877,14 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     ]["llm_route_planner_response_payload_validation_summary"]
     assert (
         "n_request_bound_payloads_with_target_prover_family_mismatch"
+        in validation_summary_schema["required"]
+    )
+    assert (
+        "n_request_bound_payloads_with_route_adoption_preconditions"
+        in validation_summary_schema["required"]
+    )
+    assert (
+        "n_request_bound_payloads_with_blocking_route_adoption_preconditions"
         in validation_summary_schema["required"]
     )
     assert "path" in publication_bundle_manifest_schema_payload["properties"][

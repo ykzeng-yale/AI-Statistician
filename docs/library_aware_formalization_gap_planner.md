@@ -158,21 +158,27 @@ to route-planning consistency against the staged request, but it still does not
 prove kernel verification. Request-bound validator manifests and rows also
 record whether each matched request context carried
 `context_packet.context_packet_inventory` and the corresponding inventory row
-totals. They also record the declared payload target prover, the matched
+totals. They also record whether each matched request context carried blocking
+`route_adoption_preconditions`, plus the known-blocker and required-response
+field counts, so external audits can measure blocked route-adoption coverage
+without reparsing the full staged request packet. They also record the declared
+payload target prover, the matched
 request-context target prover, normalized target keys, and a
 `target_prover_family_consistent` flag, with manifest-level target counts and
 mismatch counters. This lets external prover adapters audit target-family drift
 from the reusable validator output without reopening the raw response payload.
 The publication-bundle audit checks those counters against JSONL rows
 when the optional validator artifact is packaged, and the publication-bundle
-manifest lifts the same validation target-count summary into
+manifest lifts the same validation target-count and route-precondition-count
+summary into
 `llm_route_planner_response_payload_validation_summary`. The public planner path
 records `*_provider_execution_mode`, live-call counters, and generation
 preflight block counts/errors so staged packets are distinguishable from paid
 provider calls and schema/model-tier-invalid requests are visible before any
 live Claude call. The reuse-smoke manifest/report lifts the validator
-target-prover counts and mismatch counter into top-level fields for release
-gating. When a live generator response fails local validation and the planner
+target-prover counts, mismatch counter, and request-bound route-precondition
+counters into top-level fields for release gating. When a live generator response
+fails local validation and the planner
 spends a repair attempt, the planner manifest and rows now publish a
 `repair_attempt_ledger` with the failed attempt index, bounded validator errors,
 error fingerprint, structured repair-guidance categories, repair-guidance

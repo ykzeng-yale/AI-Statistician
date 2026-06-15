@@ -2632,6 +2632,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_bound_payloads",
             "n_request_bound_payloads_with_context_packet_inventory",
             "n_request_bound_payload_context_inventory_total_rows",
+            "n_request_bound_payloads_with_route_adoption_preconditions",
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions",
+            "n_request_bound_payload_route_adoption_precondition_known_blockers",
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields",
             "n_payloads_with_declared_target_prover_family",
             "n_request_bound_payloads_with_target_prover_family_mismatch",
             "by_payload_target_prover_family",
@@ -2655,6 +2659,18 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_request_bound_payload_context_inventory_total_rows": (
+                nonnegative_integer
+            ),
+            "n_request_bound_payloads_with_route_adoption_preconditions": (
+                nonnegative_integer
+            ),
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions": (
+                nonnegative_integer
+            ),
+            "n_request_bound_payload_route_adoption_precondition_known_blockers": (
+                nonnegative_integer
+            ),
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields": (
                 nonnegative_integer
             ),
             "n_payloads_with_declared_target_prover_family": nonnegative_integer,
@@ -5615,6 +5631,10 @@ def _llm_route_planner_response_payload_validation_summary(
         "n_request_bound_payloads": 0,
         "n_request_bound_payloads_with_context_packet_inventory": 0,
         "n_request_bound_payload_context_inventory_total_rows": 0,
+        "n_request_bound_payloads_with_route_adoption_preconditions": 0,
+        "n_request_bound_payloads_with_blocking_route_adoption_preconditions": 0,
+        "n_request_bound_payload_route_adoption_precondition_known_blockers": 0,
+        "n_request_bound_payload_route_adoption_precondition_required_response_fields": 0,
         "n_payloads_with_declared_target_prover_family": 0,
         "n_request_bound_payloads_with_target_prover_family_mismatch": 0,
         "by_payload_target_prover_family": {},
@@ -5666,6 +5686,34 @@ def _llm_route_planner_response_payload_validation_summary(
         ),
         "n_request_bound_payload_context_inventory_total_rows": int(
             payload.get("n_request_bound_payload_context_inventory_total_rows", 0)
+            or 0
+        ),
+        "n_request_bound_payloads_with_route_adoption_preconditions": int(
+            payload.get(
+                "n_request_bound_payloads_with_route_adoption_preconditions",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payloads_with_blocking_route_adoption_preconditions": int(
+            payload.get(
+                "n_request_bound_payloads_with_blocking_route_adoption_preconditions",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payload_route_adoption_precondition_known_blockers": int(
+            payload.get(
+                "n_request_bound_payload_route_adoption_precondition_known_blockers",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payload_route_adoption_precondition_required_response_fields": int(
+            payload.get(
+                "n_request_bound_payload_route_adoption_precondition_required_response_fields",
+                0,
+            )
             or 0
         ),
         "n_payloads_with_declared_target_prover_family": int(

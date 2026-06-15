@@ -642,6 +642,30 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_route_adoption_preconditions"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_blocking_route_adoption_preconditions"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_route_adoption_precondition_known_blockers"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_route_adoption_precondition_required_response_fields"
+        ]
+        == 0
+    )
+    assert (
+        payload[
             "n_llm_route_planner_response_payload_validation_declared_target_prover_payloads"
         ]
         == 0
@@ -3315,6 +3339,30 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "n_llm_route_planner_response_payload_validation_request_bound_context_inventory_total_rows"
         ]
         >= 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_route_adoption_preconditions"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_blocking_route_adoption_preconditions"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_route_adoption_precondition_known_blockers"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_route_adoption_precondition_required_response_fields"
+        ]
+        >= 0
     )
     assert (
         payload[

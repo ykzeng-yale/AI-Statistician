@@ -7225,6 +7225,25 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert payload["n_request_bound_payloads"] == 0
     assert payload["n_request_bound_payloads_with_context_packet_inventory"] == 0
     assert payload["n_request_bound_payload_context_inventory_total_rows"] == 0
+    assert payload["n_request_bound_payloads_with_route_adoption_preconditions"] == 0
+    assert (
+        payload[
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_request_bound_payload_route_adoption_precondition_known_blockers"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields"
+        ]
+        == 0
+    )
     assert payload["n_payloads_with_declared_target_prover_family"] == 0
     assert (
         payload["n_request_bound_payloads_with_target_prover_family_mismatch"]
@@ -7245,6 +7264,20 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert row["target_prover_family_consistent"] is True
     assert row["request_context_inventory_present"] is False
     assert row["request_context_inventory_total_rows"] == 0
+    assert row["request_context_route_adoption_precondition_present"] is False
+    assert (
+        row[
+            "request_context_route_adoption_precondition_blocked_before_response"
+        ]
+        is False
+    )
+    assert row["request_context_route_adoption_precondition_known_blocker_count"] == 0
+    assert (
+        row[
+            "request_context_route_adoption_precondition_required_response_field_count"
+        ]
+        == 0
+    )
     assert row["n_schema_errors"] == 0
     assert row["n_request_context_errors"] == 0
     row_schema = payload["response_payload_validation_row_schema"]
@@ -7253,6 +7286,9 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert row_schema["properties"]["target_prover_family_consistent"][
         "type"
     ] == "boolean"
+    assert row_schema["properties"][
+        "request_context_route_adoption_precondition_present"
+    ]["type"] == "boolean"
     assert (
         validate_llm_route_planner_response_payload_validation_row(
             row,
@@ -12158,9 +12194,57 @@ def test_response_payload_validation_enforces_route_adoption_preconditions() -> 
     assert validation_payload["n_valid_payloads"] == 1
     assert validation_payload["n_invalid_payloads"] == 1
     assert validation_payload["n_request_bound_payloads"] == 2
+    assert (
+        validation_payload[
+            "n_request_bound_payloads_with_route_adoption_preconditions"
+        ]
+        == 2
+    )
+    assert (
+        validation_payload[
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions"
+        ]
+        == 2
+    )
+    assert (
+        validation_payload[
+            "n_request_bound_payload_route_adoption_precondition_known_blockers"
+        ]
+        == preconditions["n_known_pre_response_blockers"] * 2
+    )
+    assert (
+        validation_payload[
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields"
+        ]
+        == preconditions["n_response_required_fields"] * 2
+    )
+    assert (
+        validate_llm_route_planner_response_payload_validation_manifest(
+            validation_payload,
+            validation_payload["response_payload_validation_manifest_schema"],
+        )
+        == []
+    )
     valid_row, silent_row = validation_payload["rows"]
     assert valid_row["ok"] is True
     assert valid_row["n_request_context_errors"] == 0
+    assert valid_row["request_context_route_adoption_precondition_present"] is True
+    assert (
+        valid_row[
+            "request_context_route_adoption_precondition_blocked_before_response"
+        ]
+        is True
+    )
+    assert (
+        valid_row["request_context_route_adoption_precondition_known_blocker_count"]
+        == preconditions["n_known_pre_response_blockers"]
+    )
+    assert (
+        valid_row[
+            "request_context_route_adoption_precondition_required_response_field_count"
+        ]
+        == preconditions["n_response_required_fields"]
+    )
     assert silent_row["ok"] is False
     assert silent_row["n_request_context_errors"] == 1
     assert any(

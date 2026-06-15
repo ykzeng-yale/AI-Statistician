@@ -1848,6 +1848,30 @@ def run_formalization_gap_planner_reuse_smoke(
                 "n_request_bound_payload_context_inventory_total_rows",
             )
         ),
+        "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_route_adoption_preconditions": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payloads_with_route_adoption_preconditions",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_blocking_route_adoption_preconditions": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payloads_with_blocking_route_adoption_preconditions",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_route_adoption_precondition_known_blockers": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payload_route_adoption_precondition_known_blockers",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_route_adoption_precondition_required_response_fields": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payload_route_adoption_precondition_required_response_fields",
+            )
+        ),
         "n_llm_route_planner_response_payload_validation_declared_target_prover_payloads": (
             _optional_int(
                 llm_response_payload_validation_payload,
@@ -7809,6 +7833,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_llm_route_planner_response_payload_validation_invalid_payloads')} "
             f"request_bound={payload.get('n_llm_route_planner_response_payload_validation_request_bound_payloads')}/"
             f"{payload.get('n_llm_route_planner_response_payload_validation_payloads')} "
+            f"precondition_blocked={payload.get('n_llm_route_planner_response_payload_validation_request_bound_payloads_with_blocking_route_adoption_preconditions')} "
             f"target_mismatch={payload.get('n_llm_route_planner_response_payload_validation_target_prover_mismatches')} "
             f"present={payload.get('has_llm_route_planner_response_payload_validation')}"
         ),

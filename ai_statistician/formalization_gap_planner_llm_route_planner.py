@@ -2746,6 +2746,10 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
                 _dict_value(request_context, "context_packet"),
                 "context_packet_inventory",
             )
+            request_context_route_adoption_preconditions = _dict_value(
+                _dict_value(request_context, "context_packet"),
+                "route_adoption_preconditions",
+            )
         elif request_context_json is not None:
             request_context_validation_mode = "request_context_unmatched"
             request_context_id = ""
@@ -2753,6 +2757,7 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
             request_context_target_prover_family = ""
             request_context_target_prover_key = ""
             request_context_inventory = {}
+            request_context_route_adoption_preconditions = {}
         else:
             request_context_validation_mode = "schema_only"
             request_context_id = ""
@@ -2760,6 +2765,7 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
             request_context_target_prover_family = ""
             request_context_target_prover_key = ""
             request_context_inventory = {}
+            request_context_route_adoption_preconditions = {}
         target_prover_family_consistent = not (
             payload_target_prover_key
             and request_context_target_prover_key
@@ -2803,6 +2809,29 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
                 "request_context_inventory_present": bool(request_context_inventory),
                 "request_context_inventory_total_rows": int(
                     request_context_inventory.get("total_context_rows", 0) or 0
+                ),
+                "request_context_route_adoption_precondition_present": bool(
+                    request_context_route_adoption_preconditions
+                ),
+                "request_context_route_adoption_precondition_blocked_before_response": bool(
+                    request_context_route_adoption_preconditions.get(
+                        "blocked_before_response",
+                        False,
+                    )
+                ),
+                "request_context_route_adoption_precondition_known_blocker_count": int(
+                    request_context_route_adoption_preconditions.get(
+                        "n_known_pre_response_blockers",
+                        0,
+                    )
+                    or 0
+                ),
+                "request_context_route_adoption_precondition_required_response_field_count": int(
+                    request_context_route_adoption_preconditions.get(
+                        "n_response_required_fields",
+                        0,
+                    )
+                    or 0
                 ),
                 "n_schema_errors": len(schema_errors),
                 "n_request_context_errors": len(request_context_errors),
@@ -2867,6 +2896,40 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
         ),
         "n_request_bound_payload_context_inventory_total_rows": sum(
             int(row["request_context_inventory_total_rows"] or 0)
+            for row in rows
+            if row["request_context_validation_mode"] == "request_bound"
+        ),
+        "n_request_bound_payloads_with_route_adoption_preconditions": sum(
+            1
+            for row in rows
+            if row["request_context_validation_mode"] == "request_bound"
+            and row["request_context_route_adoption_precondition_present"]
+        ),
+        "n_request_bound_payloads_with_blocking_route_adoption_preconditions": sum(
+            1
+            for row in rows
+            if row["request_context_validation_mode"] == "request_bound"
+            and row[
+                "request_context_route_adoption_precondition_blocked_before_response"
+            ]
+        ),
+        "n_request_bound_payload_route_adoption_precondition_known_blockers": sum(
+            int(
+                row[
+                    "request_context_route_adoption_precondition_known_blocker_count"
+                ]
+                or 0
+            )
+            for row in rows
+            if row["request_context_validation_mode"] == "request_bound"
+        ),
+        "n_request_bound_payload_route_adoption_precondition_required_response_fields": sum(
+            int(
+                row[
+                    "request_context_route_adoption_precondition_required_response_field_count"
+                ]
+                or 0
+            )
             for row in rows
             if row["request_context_validation_mode"] == "request_bound"
         ),
@@ -5222,6 +5285,41 @@ def validate_llm_route_planner_response_payload_validation_manifest(
         int(row.get("request_context_inventory_total_rows", 0) or 0)
         for row in request_bound_rows
     )
+    request_bound_rows_with_preconditions = tuple(
+        row
+        for row in request_bound_rows
+        if bool(row.get("request_context_route_adoption_precondition_present", False))
+    )
+    request_bound_rows_with_blocking_preconditions = tuple(
+        row
+        for row in request_bound_rows
+        if bool(
+            row.get(
+                "request_context_route_adoption_precondition_blocked_before_response",
+                False,
+            )
+        )
+    )
+    request_bound_precondition_known_blockers = sum(
+        int(
+            row.get(
+                "request_context_route_adoption_precondition_known_blocker_count",
+                0,
+            )
+            or 0
+        )
+        for row in request_bound_rows
+    )
+    request_bound_precondition_required_fields = sum(
+        int(
+            row.get(
+                "request_context_route_adoption_precondition_required_response_field_count",
+                0,
+            )
+            or 0
+        )
+        for row in request_bound_rows
+    )
     payload_target_counts = _value_counts(
         [
             _target_prover_key(row.get("payload_target_prover_key", ""))
@@ -5281,6 +5379,50 @@ def validate_llm_route_planner_response_payload_validation_manifest(
         errors.append(
             "n_request_bound_payload_context_inventory_total_rows must match "
             "request_bound row inventory total"
+        )
+    if int(
+        manifest.get(
+            "n_request_bound_payloads_with_route_adoption_preconditions",
+            0,
+        )
+        or 0
+    ) != len(request_bound_rows_with_preconditions):
+        errors.append(
+            "n_request_bound_payloads_with_route_adoption_preconditions must "
+            "match request_bound rows with route_adoption_preconditions"
+        )
+    if int(
+        manifest.get(
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions",
+            0,
+        )
+        or 0
+    ) != len(request_bound_rows_with_blocking_preconditions):
+        errors.append(
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions "
+            "must match request_bound rows with blocked route_adoption_preconditions"
+        )
+    if int(
+        manifest.get(
+            "n_request_bound_payload_route_adoption_precondition_known_blockers",
+            0,
+        )
+        or 0
+    ) != request_bound_precondition_known_blockers:
+        errors.append(
+            "n_request_bound_payload_route_adoption_precondition_known_blockers "
+            "must match request_bound row precondition blocker counts"
+        )
+    if int(
+        manifest.get(
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields",
+            0,
+        )
+        or 0
+    ) != request_bound_precondition_required_fields:
+        errors.append(
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields "
+            "must match request_bound row precondition required-field counts"
         )
     if int(
         manifest.get("n_payloads_with_declared_target_prover_family", 0) or 0
@@ -5359,6 +5501,8 @@ def validate_llm_route_planner_response_payload_validation_row(
     count_fields = (
         "payload_index",
         "request_context_inventory_total_rows",
+        "request_context_route_adoption_precondition_known_blocker_count",
+        "request_context_route_adoption_precondition_required_response_field_count",
         "n_schema_errors",
         "n_request_context_errors",
         "n_errors",
@@ -5406,6 +5550,34 @@ def validate_llm_route_planner_response_payload_validation_row(
     ):
         errors.append(
             "target_prover_family_consistent must match normalized payload and request target prover keys"
+        )
+    precondition_present = bool(
+        row.get("request_context_route_adoption_precondition_present", False)
+    )
+    precondition_blocked = bool(
+        row.get(
+            "request_context_route_adoption_precondition_blocked_before_response",
+            False,
+        )
+    )
+    precondition_known_count = count_values[
+        "request_context_route_adoption_precondition_known_blocker_count"
+    ]
+    precondition_required_count = count_values[
+        "request_context_route_adoption_precondition_required_response_field_count"
+    ]
+    if not precondition_present and (
+        precondition_blocked
+        or precondition_known_count
+        or precondition_required_count
+    ):
+        errors.append(
+            "request_context_route_adoption_precondition_present must be true "
+            "when precondition blocked/count fields are nonzero"
+        )
+    if precondition_blocked and precondition_known_count <= 0:
+        errors.append(
+            "blocked route_adoption_preconditions must carry known blocker count"
         )
 
     return sorted(set(errors))
@@ -9012,6 +9184,10 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
             "target_prover_family_consistent",
             "request_context_inventory_present",
             "request_context_inventory_total_rows",
+            "request_context_route_adoption_precondition_present",
+            "request_context_route_adoption_precondition_blocked_before_response",
+            "request_context_route_adoption_precondition_known_blocker_count",
+            "request_context_route_adoption_precondition_required_response_field_count",
             "n_schema_errors",
             "n_request_context_errors",
             "n_errors",
@@ -9051,6 +9227,18 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
             "target_prover_family_consistent": {"type": "boolean"},
             "request_context_inventory_present": {"type": "boolean"},
             "request_context_inventory_total_rows": nonnegative_integer,
+            "request_context_route_adoption_precondition_present": {
+                "type": "boolean"
+            },
+            "request_context_route_adoption_precondition_blocked_before_response": {
+                "type": "boolean"
+            },
+            "request_context_route_adoption_precondition_known_blocker_count": (
+                nonnegative_integer
+            ),
+            "request_context_route_adoption_precondition_required_response_field_count": (
+                nonnegative_integer
+            ),
             "n_schema_errors": nonnegative_integer,
             "n_request_context_errors": nonnegative_integer,
             "n_errors": nonnegative_integer,
@@ -9096,6 +9284,10 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
             "n_request_bound_payloads",
             "n_request_bound_payloads_with_context_packet_inventory",
             "n_request_bound_payload_context_inventory_total_rows",
+            "n_request_bound_payloads_with_route_adoption_preconditions",
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions",
+            "n_request_bound_payload_route_adoption_precondition_known_blockers",
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields",
             "n_payloads_with_declared_target_prover_family",
             "n_request_bound_payloads_with_target_prover_family_mismatch",
             "by_payload_target_prover_family",
@@ -9170,6 +9362,18 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
             "n_request_bound_payloads": {"type": "integer"},
             "n_request_bound_payloads_with_context_packet_inventory": {"type": "integer"},
             "n_request_bound_payload_context_inventory_total_rows": {
+                "type": "integer"
+            },
+            "n_request_bound_payloads_with_route_adoption_preconditions": {
+                "type": "integer"
+            },
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions": {
+                "type": "integer"
+            },
+            "n_request_bound_payload_route_adoption_precondition_known_blockers": {
+                "type": "integer"
+            },
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields": {
                 "type": "integer"
             },
             "n_payloads_with_declared_target_prover_family": {"type": "integer"},
