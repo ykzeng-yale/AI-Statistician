@@ -2601,6 +2601,22 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_ablation_row_schema_invalid"] == 0
     assert payload["ablation_best_variant_by_route_recall"] == "full_planner_observed"
     assert (
+        payload[
+            "ablation_full_planner_observed_route_adoption_precondition_known_blockers"
+        ]
+        == payload[
+            "n_evaluation_llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+    )
+    assert (
+        payload[
+            "ablation_full_planner_observed_route_adoption_precondition_required_response_fields"
+        ]
+        == payload[
+            "n_evaluation_llm_route_planner_route_adoption_precondition_required_response_fields"
+        ]
+    )
+    assert (
         payload["n_publication_bundle_optional_ablation_study_row_schema_valid"]
         == payload["n_publication_bundle_optional_ablation_study_row_schema_checked"]
         == payload["n_ablation_variants"]

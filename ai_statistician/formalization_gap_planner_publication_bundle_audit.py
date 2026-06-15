@@ -17016,6 +17016,8 @@ def _ablation_study_row_has_route_adoption_metrics(row: dict[str, Any]) -> bool:
             "mean_route_adoption_blockers",
             "mean_route_adoption_pending_quality_control_blockers",
             "mean_route_adoption_pending_source_grounding_blockers",
+            "mean_route_adoption_precondition_known_blockers",
+            "mean_route_adoption_precondition_required_response_fields",
             "relative_route_adoption_ready_drop",
         )
     )

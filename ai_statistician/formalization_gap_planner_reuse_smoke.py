@@ -1289,6 +1289,12 @@ def run_formalization_gap_planner_reuse_smoke(
         ablation_study_dir,
         formalization_gap_planner_interactive_session_dir=interactive_session_dir,
     )
+    ablation_rows_by_variant = {
+        str(row.get("ablation_variant", "")).strip(): row
+        for row in ablation_study_payload.get("rows", [])
+        if isinstance(row, dict)
+    }
+    full_ablation_row = ablation_rows_by_variant.get("full_planner_observed", {})
     publication_snapshot_ref = (
         str(plan_payload.get("library_snapshot_ref", "")).strip()
         or str(intake_payload.get("library_snapshot_ref", "")).strip()
@@ -5330,6 +5336,18 @@ def run_formalization_gap_planner_reuse_smoke(
             "largest_delta_recall_drop_variant",
             "",
         ),
+        "ablation_full_planner_observed_route_adoption_precondition_known_blockers": (
+            full_ablation_row.get(
+                "mean_route_adoption_precondition_known_blockers",
+                0.0,
+            )
+        ),
+        "ablation_full_planner_observed_route_adoption_precondition_required_response_fields": (
+            full_ablation_row.get(
+                "mean_route_adoption_precondition_required_response_fields",
+                0.0,
+            )
+        ),
         "n_publication_bundle_optional_portable_plan_audit_row_schema_checked": publication_bundle_audit_payload.get(
             "n_optional_portable_plan_audit_row_schema_checked",
             0,
@@ -8215,6 +8233,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Interactive session linked resource requests: {payload.get('n_interactive_session_resource_requests_linked')}",
         f"- Ablation variants valid: {payload.get('n_ablation_row_schema_valid')}/{payload.get('n_ablation_variants')}",
         f"- Ablation largest route-recall drop: {payload.get('ablation_largest_route_recall_drop_variant')}",
+        (
+            f"- Ablation full-observed route-adoption preconditions: "
+            f"{payload.get('ablation_full_planner_observed_route_adoption_precondition_known_blockers')}/"
+            f"{payload.get('ablation_full_planner_observed_route_adoption_precondition_required_response_fields')}"
+        ),
         f"- Cross-prover targets: {payload.get('n_cross_prover_targets_ok')}/{payload.get('n_cross_prover_targets')}",
         f"- Cross-prover target-summary contract errors: {payload.get('n_cross_prover_target_summary_contract_errors')}",
         f"- Cross-prover matrix row schema valid: {payload.get('n_cross_prover_matrix_row_schema_valid')}/{payload.get('n_cross_prover_targets')}",

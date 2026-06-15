@@ -2723,6 +2723,8 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "mean_route_adoption_blockers": 0.0,
         "mean_route_adoption_pending_quality_control_blockers": 0.0,
         "mean_route_adoption_pending_source_grounding_blockers": 0.0,
+        "mean_route_adoption_precondition_known_blockers": 0.0,
+        "mean_route_adoption_precondition_required_response_fields": 0.0,
         "relative_route_recall_drop": 0.0,
         "relative_delta_recall_drop": 0.0,
         "relative_residual_recall_drop": 0.0,

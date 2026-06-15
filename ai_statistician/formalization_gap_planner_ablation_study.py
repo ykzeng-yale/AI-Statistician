@@ -67,6 +67,8 @@ class FormalizationGapPlannerAblationStudyRow:
     mean_route_adoption_blockers: float
     mean_route_adoption_pending_quality_control_blockers: float
     mean_route_adoption_pending_source_grounding_blockers: float
+    mean_route_adoption_precondition_known_blockers: float
+    mean_route_adoption_precondition_required_response_fields: float
     relative_route_recall_drop: float
     relative_delta_recall_drop: float
     relative_residual_recall_drop: float
@@ -271,6 +273,8 @@ def ablation_study_row_json_schema() -> dict[str, object]:
         "mean_route_adoption_blockers",
         "mean_route_adoption_pending_quality_control_blockers",
         "mean_route_adoption_pending_source_grounding_blockers",
+        "mean_route_adoption_precondition_known_blockers",
+        "mean_route_adoption_precondition_required_response_fields",
         "relative_route_recall_drop",
         "relative_delta_recall_drop",
         "relative_residual_recall_drop",
@@ -324,6 +328,10 @@ def ablation_study_row_json_schema() -> dict[str, object]:
                 nonnegative_number
             ),
             "mean_route_adoption_pending_source_grounding_blockers": (
+                nonnegative_number
+            ),
+            "mean_route_adoption_precondition_known_blockers": nonnegative_number,
+            "mean_route_adoption_precondition_required_response_fields": (
                 nonnegative_number
             ),
             "relative_route_recall_drop": nonnegative_number,
@@ -426,6 +434,10 @@ def _ablation_row(
         ) = (
             _route_adoption_metrics(variant, row, removed)
         )
+        (
+            adoption_precondition_known_blockers,
+            adoption_precondition_required_fields,
+        ) = _route_adoption_precondition_metrics(variant, row)
         if removed:
             impacted_routes += 1
             impacted_primitives.update(removed)
@@ -451,6 +463,12 @@ def _ablation_row(
                 ),
                 "route_adoption_source_grounding_blockers": (
                     adoption_source_grounding_blockers
+                ),
+                "route_adoption_precondition_known_blockers": (
+                    adoption_precondition_known_blockers
+                ),
+                "route_adoption_precondition_required_response_fields": (
+                    adoption_precondition_required_fields
                 ),
             }
         )
@@ -504,6 +522,14 @@ def _ablation_row(
         ),
         mean_route_adoption_pending_source_grounding_blockers=_mean(
             metric["route_adoption_source_grounding_blockers"]
+            for metric in metrics
+        ),
+        mean_route_adoption_precondition_known_blockers=_mean(
+            metric["route_adoption_precondition_known_blockers"]
+            for metric in metrics
+        ),
+        mean_route_adoption_precondition_required_response_fields=_mean(
+            metric["route_adoption_precondition_required_response_fields"]
             for metric in metrics
         ),
         relative_route_recall_drop=0.0,
@@ -662,6 +688,41 @@ def _route_adoption_metrics(
     )
 
 
+def _route_adoption_precondition_metrics(
+    variant: str,
+    evaluation_row: dict[str, Any],
+) -> tuple[float, float]:
+    if variant == "no_route_planner":
+        return (0.0, 0.0)
+    preconditions = (
+        evaluation_row.get("llm_route_planner_route_adoption_preconditions", {})
+        if isinstance(
+            evaluation_row.get("llm_route_planner_route_adoption_preconditions", {}),
+            dict,
+        )
+        else {}
+    )
+    known_blockers = _count_or_len(
+        evaluation_row.get(
+            "llm_route_planner_route_adoption_precondition_known_blocker_count"
+        ),
+        evaluation_row.get(
+            "llm_route_planner_route_adoption_precondition_known_blockers",
+            preconditions.get("known_pre_response_blockers", []),
+        ),
+    )
+    required_fields = _count_or_len(
+        evaluation_row.get(
+            "llm_route_planner_route_adoption_precondition_required_response_field_count"
+        ),
+        evaluation_row.get(
+            "llm_route_planner_route_adoption_precondition_required_response_fields",
+            preconditions.get("response_required_fields", []),
+        ),
+    )
+    return (float(known_blockers), float(required_fields))
+
+
 def _next_action_rate(
     variant: str,
     session_row: dict[str, Any],
@@ -765,6 +826,16 @@ def _float(value: object) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _count_or_len(count_value: object, values: object) -> int:
+    try:
+        count = int(count_value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        count = 0
+    if count > 0:
+        return count
+    return len(_str_tuple(values))
 
 
 def _set_recall(predicted: tuple[str, ...], truth: tuple[str, ...]) -> float:
@@ -883,6 +954,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"{row.get('mean_route_adoption_pending_quality_control_blockers')}",
                 "- Route-adoption pending source-grounding blockers: "
                 f"{row.get('mean_route_adoption_pending_source_grounding_blockers')}",
+                "- Route-adoption precondition known blockers / required response fields: "
+                f"{row.get('mean_route_adoption_precondition_known_blockers')}/"
+                f"{row.get('mean_route_adoption_precondition_required_response_fields')}",
                 f"- Impacted routes: {row.get('n_impacted_routes')}",
                 f"- Interpretation: {row.get('interpretation')}",
                 "",

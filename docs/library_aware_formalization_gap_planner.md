@@ -1282,8 +1282,12 @@ generic route-adoption blockers from
 `mean_route_adoption_pending_source_grounding_blockers`, so ablation rows can
 show when readiness loss reflects unmet resource/response-validation policy or
 source-grounding obligations rather than missing literature, formal-library,
-proof-state, or route-planner signals. It is not theorem
-proof evidence. `research-system-audit` promotes the evaluation and ablation
+proof-state, or route-planner signals. The same rows also report
+`mean_route_adoption_precondition_known_blockers` and
+`mean_route_adoption_precondition_required_response_fields`, preserving the
+LLM route planner's recorded pre-response adoption obligations through
+counterfactual evaluation. It is not theorem proof evidence.
+`research-system-audit` promotes the evaluation and ablation
 route-adoption counts into its top-level `counts` payload so AI Statistician
 runs can be filtered by adoption readiness without parsing nested planner
 artifacts. The publication-bundle audit recomputes the ablation
