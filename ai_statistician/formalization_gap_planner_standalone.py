@@ -284,6 +284,13 @@ def export_formalization_gap_planner_standalone_plan(
                 "has_llm_route_planner_route_planning_brief"
             )
         ),
+        "n_standalone_input_traces_with_llm_primitive_evidence_matrix_witness": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "has_llm_route_planner_primitive_evidence_matrix_witness"
+            )
+        ),
         "n_standalone_input_traces_with_llm_route_adoption_preconditions": sum(
             1
             for row in rows
@@ -1198,6 +1205,9 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "theorem_skeleton": {"type": "string"},
                     "target_theorem_context_packet": {"type": "object"},
                     "llm_route_planner_route_planning_brief": {"type": "object"},
+                    "llm_route_planner_primitive_evidence_matrix_witness": {
+                        "type": "object"
+                    },
                     "llm_route_planner_route_adoption_preconditions": {
                         "type": "object"
                     },
@@ -1404,6 +1414,9 @@ def standalone_input_json_schema() -> dict[str, object]:
                         "type": "object"
                     },
                     "llm_route_planner_route_planning_brief": {"type": "object"},
+                    "llm_route_planner_primitive_evidence_matrix_witness": {
+                        "type": "object"
+                    },
                     "llm_route_planner_route_adoption_preconditions": {
                         "type": "object"
                     },
@@ -1980,6 +1993,15 @@ def _standalone_input_trace(
             raw_route.get("llm_route_planner_route_planning_brief", {}),
         )
     )
+    llm_primitive_evidence_matrix_witness = _dict_value(
+        metadata.get(
+            "llm_route_planner_primitive_evidence_matrix_witness",
+            raw_route.get(
+                "llm_route_planner_primitive_evidence_matrix_witness",
+                {},
+            ),
+        )
+    )
     llm_route_adoption_preconditions = _dict_value(
         metadata.get(
             "llm_route_planner_route_adoption_preconditions",
@@ -2013,6 +2035,12 @@ def _standalone_input_trace(
         "llm_route_planner_route_planning_brief": dict(llm_route_planning_brief),
         "has_llm_route_planner_route_planning_brief": bool(
             llm_route_planning_brief
+        ),
+        "llm_route_planner_primitive_evidence_matrix_witness": dict(
+            llm_primitive_evidence_matrix_witness
+        ),
+        "has_llm_route_planner_primitive_evidence_matrix_witness": bool(
+            llm_primitive_evidence_matrix_witness
         ),
         "llm_route_planner_route_adoption_preconditions": dict(
             llm_route_adoption_preconditions

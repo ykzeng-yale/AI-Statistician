@@ -448,6 +448,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == 1
     )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
+        ]
+        == 1
+    )
     assert payload["n_goal_plan_standalone_input_traces_with_llm_model_tier"] == 1
     assert payload["goal_plan_standalone_input_trace_by_llm_model_tier"] == {
         "sonnet": 1
@@ -3422,6 +3428,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == 1
     )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
+        ]
+        == 1
+    )
     assert payload["n_goal_plan_standalone_input_traces_with_llm_model_tier"] == 1
     assert payload["goal_plan_standalone_input_trace_by_llm_model_tier"] == {
         "sonnet": 1
@@ -5161,6 +5173,12 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
     assert (
         payload[
             "n_goal_plan_standalone_input_traces_with_llm_route_planning_brief"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
         ]
         == 1
     )

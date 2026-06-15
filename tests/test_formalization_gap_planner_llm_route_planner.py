@@ -1580,6 +1580,14 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     }
     assert payload["n_response_present"] == 0
     assert payload["n_awaiting_llm_response"] == 1
+    assert payload["n_rows_with_primitive_evidence_matrix_witness"] == 1
+    assert payload["n_rows_with_complete_primitive_evidence_matrix_accounting"] == 0
+    assert payload["n_primitive_evidence_matrix_witness_rows"] == 2
+    assert payload["n_primitive_evidence_matrix_unaccounted_primitives"] == 2
+    assert (
+        payload["n_selected_primitives_without_primitive_evidence_matrix_row"]
+        == 0
+    )
     assert payload["standalone_replay_gate_ok"] is False
     assert payload["n_standalone_replay_route_candidates"] == 1
     assert payload["n_standalone_replay_adoptable_route_candidates"] == 0
@@ -1599,6 +1607,16 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["route_adoption_blocker_counts"] == {
         "llm_route_planner_response_missing": 1
     }
+    assert payload[
+        "n_route_adoption_pending_primitive_evidence_matrix_blockers"
+    ] == 0
+    staged_row = payload["rows"][0]
+    assert staged_row["primitive_evidence_matrix_witness"][
+        "matrix_accounting_complete"
+    ] is False
+    assert staged_row["primitive_evidence_matrix_witness"][
+        "matrix_unaccounted_primitives"
+    ] == ["exchangeability", "rank_uniformity"]
     assert payload["by_route_adoption_blocker"][
         "llm_route_planner_response_missing"
     ]["by_route_adoption_status"] == {
@@ -6576,12 +6594,33 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         in manifest_schema["required"]
     )
     assert (
+        "n_rows_with_primitive_evidence_matrix_witness"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_rows_with_complete_primitive_evidence_matrix_accounting"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_primitive_evidence_matrix_unaccounted_primitives"
+        in manifest_schema["required"]
+    )
+    assert (
         "n_request_llm_generation_policy_current_claude_tier_source"
         in manifest_schema["required"]
     )
     assert payload["n_requests_with_route_planning_brief"] == 1
     assert payload["n_request_route_planning_focus_rows"] >= 4
     assert payload["n_request_route_planning_primitive_evidence_rows"] == 2
+    assert payload["n_rows_with_primitive_evidence_matrix_witness"] == 1
+    assert payload["n_rows_with_complete_primitive_evidence_matrix_accounting"] == 1
+    assert payload["n_primitive_evidence_matrix_witness_rows"] == 2
+    assert payload["n_primitive_evidence_matrix_accounted_primitives"] == 2
+    assert payload["n_primitive_evidence_matrix_unaccounted_primitives"] == 0
+    assert (
+        payload["n_selected_primitives_without_primitive_evidence_matrix_row"]
+        == 0
+    )
     assert payload["n_route_option_action_witness_required_primitives"] == 1
     assert payload["n_route_option_action_witness_missing_primitives"] == 0
     assert payload["n_rows_with_route_option_action_witness_obligations"] == 1
@@ -6848,6 +6887,11 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["n_route_alignment_edges"] == 2
     assert payload["n_rows_with_realization_coverage_witness"] == 1
     assert payload["n_rows_with_complete_realization_coverage"] == 1
+    assert payload["n_rows_with_primitive_evidence_matrix_witness"] == 1
+    assert payload["n_rows_with_complete_primitive_evidence_matrix_accounting"] == 1
+    assert payload[
+        "n_route_adoption_pending_primitive_evidence_matrix_blockers"
+    ] == 0
     assert payload["n_rows_with_context_packet_inventory"] == 1
     assert payload["n_selected_primitives_missing_formal_realization"] == 0
     assert payload["n_delta_primitives_missing_route_alignment"] == 0
@@ -6870,6 +6914,27 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "uncertainty_flags_require_review",
         "semantic_alignment_risks_require_review",
     }
+    matrix_witness = row["primitive_evidence_matrix_witness"]
+    assert matrix_witness["matrix_accounting_complete"] is True
+    assert matrix_witness["matrix_primitives"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert matrix_witness["matrix_accounted_primitives"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert matrix_witness["matrix_unaccounted_primitives"] == []
+    assert matrix_witness["selected_primitives_without_matrix_row"] == []
+    assert matrix_witness[
+        "source_backed_matrix_primitives_with_response_source_snippet"
+    ] == ["rank_uniformity"]
+    assert matrix_witness["formal_supported_matrix_primitives_reused"] == [
+        "exchangeability"
+    ]
+    assert "minimal_delta.selected_primitives" in set(
+        matrix_witness["accounted_by_primitive"]["rank_uniformity"]
+    )
     assert "conformal_prediction_textbook" in row["source_refs"]
     assert row["context_packet_inventory"] == payload["request_packets"][0][
         "context_packet"
@@ -6889,6 +6954,7 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "lean_realization_dag_nodes" not in row_schema["required"]
     assert "source_snippets" in row_schema["required"]
     assert "realization_coverage_witness" in row_schema["required"]
+    assert "primitive_evidence_matrix_witness" in row_schema["required"]
     assert "target_theorem_context_packet" in row_schema["required"]
     assert "context_packet_inventory" in row_schema["required"]
     assert "model_tier_decision_evidence" in row_schema["required"]
@@ -7078,6 +7144,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert seed_route["llm_route_planner_route_planning_brief"] == row[
         "route_planning_brief"
     ]
+    assert seed_route["llm_route_planner_primitive_evidence_matrix_witness"] == row[
+        "primitive_evidence_matrix_witness"
+    ]
     assert seed_route["llm_route_planner_route_adoption_preconditions"] == row[
         "route_adoption_preconditions"
     ]
@@ -7089,6 +7158,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     ]
     assert metadata["llm_route_planner_route_planning_brief"] == row[
         "route_planning_brief"
+    ]
+    assert metadata["llm_route_planner_primitive_evidence_matrix_witness"] == row[
+        "primitive_evidence_matrix_witness"
     ]
     assert metadata["llm_route_planner_route_adoption_preconditions"] == row[
         "route_adoption_preconditions"
@@ -7134,6 +7206,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     ]
     assert metadata["llm_route_planner_realization_coverage_witness"] == row[
         "realization_coverage_witness"
+    ]
+    assert metadata["llm_route_planner_primitive_evidence_matrix_witness"] == row[
+        "primitive_evidence_matrix_witness"
     ]
     assert metadata["revised_informal_knowledge_dag_nodes"][0]["node_source"] == (
         "llm_route_planner_revised_informal_dag"
@@ -7181,6 +7256,12 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert (
         plan_payload[
             "n_standalone_input_traces_with_llm_route_planning_brief"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
         ]
         == 1
     )
@@ -7259,6 +7340,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     ]
     assert trace["llm_route_planner_route_planning_brief"] == row[
         "route_planning_brief"
+    ]
+    assert trace["llm_route_planner_primitive_evidence_matrix_witness"] == row[
+        "primitive_evidence_matrix_witness"
     ]
     assert trace["llm_route_planner_route_adoption_preconditions"] == row[
         "route_adoption_preconditions"
@@ -8897,6 +8981,29 @@ def test_route_adoption_readiness_uses_current_realization_witness() -> None:
 
     assert status == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     assert blockers == ("realization_coverage_incomplete",)
+
+    status, blockers = _route_adoption_readiness(
+        response_present=True,
+        provider_failure=False,
+        response_contract_ok=True,
+        search_requests=(),
+        planner_next_actions=(),
+        uncertainty_flags=(),
+        semantic_alignment_risks=(),
+        residual_interpretations=(),
+        feedback_summary={},
+        realization_coverage_witness={"realization_coverage_complete": True},
+        primitive_evidence_matrix_witness={
+            "matrix_accounting_complete": False,
+            "matrix_unaccounted_primitives": ["rank_uniformity"],
+        },
+        omitted_cost_hint_primitives=(),
+        formal_gap_boundary_obligations=(),
+        quality_control_obligations_pending=False,
+    )
+
+    assert status == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    assert blockers == ("primitive_evidence_matrix_incomplete",)
 
 
 def test_route_adoption_taxonomy_publishes_blocker_trigger_fields() -> None:

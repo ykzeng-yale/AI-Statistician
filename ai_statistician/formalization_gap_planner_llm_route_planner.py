@@ -130,6 +130,9 @@ ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE = (
 )
 ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN = "feedback_loop_replan_required"
 ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE = "realization_coverage_incomplete"
+ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX = (
+    "primitive_evidence_matrix_incomplete"
+)
 ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES = (
     "omitted_cost_hint_primitives_require_review"
 )
@@ -176,6 +179,7 @@ ROUTE_ADOPTION_BLOCKER_VALUES = (
     ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE,
     ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
+    ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
     ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES,
     ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
@@ -314,6 +318,11 @@ ROUTE_ADOPTION_BLOCKER_DEFINITIONS = {
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE: (
         "The formal-realization coverage witness is incomplete."
     ),
+    ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX: (
+        "The selected route does not account for all request-side primitive "
+        "evidence-matrix rows, or it selects a primitive with no corresponding "
+        "matrix row."
+    ),
     ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES: (
         "The selected route omits one or more primitives from the request-bound "
         "minimal-delta cost-hint baseline and needs review before standalone "
@@ -369,6 +378,10 @@ ROUTE_ADOPTION_BLOCKER_TRIGGER_FIELDS = {
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE: (
         "rows[].realization_coverage_witness.realization_coverage_complete",
         "context_packet.feedback_loop_summary.realization_coverage.complete",
+    ),
+    ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX: (
+        "rows[].primitive_evidence_matrix_witness.matrix_accounting_complete",
+        "context_packet.route_planning_brief.primitive_evidence_matrix",
     ),
     ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES: (
         "rows[].realization_coverage_witness.omitted_cost_hint_primitives",
@@ -951,6 +964,7 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     source_refs: tuple[str, ...]
     source_snippets: tuple[dict[str, object], ...]
     realization_coverage_witness: dict[str, object]
+    primitive_evidence_matrix_witness: dict[str, object]
     quality_control_obligations: dict[str, object]
     feedback_loop_summary: dict[str, object]
     target_theorem_context_packet: dict[str, object]
@@ -2484,6 +2498,12 @@ def export_formalization_gap_planner_llm_route_planner(
             if ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE
             in row.route_adoption_blockers
         ),
+        "n_route_adoption_pending_primitive_evidence_matrix_blockers": sum(
+            1
+            for row in rows
+            if ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX
+            in row.route_adoption_blockers
+        ),
         "n_route_adoption_pending_omitted_cost_hint_primitive_blockers": sum(
             1
             for row in rows
@@ -2539,6 +2559,62 @@ def export_formalization_gap_planner_llm_route_planner(
                     False,
                 )
             )
+        ),
+        "n_rows_with_primitive_evidence_matrix_witness": sum(
+            1 for row in rows if row.primitive_evidence_matrix_witness
+        ),
+        "n_rows_with_complete_primitive_evidence_matrix_accounting": sum(
+            1
+            for row in rows
+            if bool(
+                row.primitive_evidence_matrix_witness.get(
+                    "matrix_accounting_complete",
+                    False,
+                )
+            )
+        ),
+        "n_primitive_evidence_matrix_witness_rows": sum(
+            int(
+                row.primitive_evidence_matrix_witness.get(
+                    "matrix_row_count",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
+        "n_primitive_evidence_matrix_accounted_primitives": sum(
+            len(
+                _str_tuple(
+                    row.primitive_evidence_matrix_witness.get(
+                        "matrix_accounted_primitives",
+                        [],
+                    )
+                )
+            )
+            for row in rows
+        ),
+        "n_primitive_evidence_matrix_unaccounted_primitives": sum(
+            len(
+                _str_tuple(
+                    row.primitive_evidence_matrix_witness.get(
+                        "matrix_unaccounted_primitives",
+                        [],
+                    )
+                )
+            )
+            for row in rows
+        ),
+        "n_selected_primitives_without_primitive_evidence_matrix_row": sum(
+            len(
+                _str_tuple(
+                    row.primitive_evidence_matrix_witness.get(
+                        "selected_primitives_without_matrix_row",
+                        [],
+                    )
+                )
+            )
+            for row in rows
         ),
         "n_selected_primitives_missing_formal_realization": sum(
             len(
@@ -3549,6 +3625,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "route_adoption_blocker_counts",
             "by_route_adoption_status",
             "by_route_adoption_blocker",
+            "n_route_adoption_pending_primitive_evidence_matrix_blockers",
             "n_route_adoption_pending_formal_gap_boundary_blockers",
             "n_route_adoption_pending_source_grounding_blockers",
             "n_route_adoption_pending_quality_control_blockers",
@@ -3556,6 +3633,12 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_formal_realization_dag_nodes",
             "n_lean_realization_dag_nodes",
             "n_route_alignment_edges",
+            "n_rows_with_primitive_evidence_matrix_witness",
+            "n_rows_with_complete_primitive_evidence_matrix_accounting",
+            "n_primitive_evidence_matrix_witness_rows",
+            "n_primitive_evidence_matrix_accounted_primitives",
+            "n_primitive_evidence_matrix_unaccounted_primitives",
+            "n_selected_primitives_without_primitive_evidence_matrix_row",
             "n_delta_action_witness_required_primitives",
             "n_delta_action_witness_missing_primitives",
             "n_rows_with_delta_action_witness_obligations",
@@ -3867,6 +3950,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "route_adoption_blocker_counts": {"type": "object"},
             "by_route_adoption_status": {"type": "object"},
             "by_route_adoption_blocker": {"type": "object"},
+            "n_route_adoption_pending_primitive_evidence_matrix_blockers": (
+                nonnegative_integer
+            ),
             "n_route_adoption_pending_formal_gap_boundary_blockers": (
                 nonnegative_integer
             ),
@@ -3881,6 +3967,18 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_formal_realization_dag_nodes": nonnegative_integer,
             "n_lean_realization_dag_nodes": nonnegative_integer,
             "n_route_alignment_edges": nonnegative_integer,
+            "n_rows_with_primitive_evidence_matrix_witness": nonnegative_integer,
+            "n_rows_with_complete_primitive_evidence_matrix_accounting": (
+                nonnegative_integer
+            ),
+            "n_primitive_evidence_matrix_witness_rows": nonnegative_integer,
+            "n_primitive_evidence_matrix_accounted_primitives": nonnegative_integer,
+            "n_primitive_evidence_matrix_unaccounted_primitives": (
+                nonnegative_integer
+            ),
+            "n_selected_primitives_without_primitive_evidence_matrix_row": (
+                nonnegative_integer
+            ),
             "n_delta_action_witness_required_primitives": nonnegative_integer,
             "n_delta_action_witness_missing_primitives": nonnegative_integer,
             "n_rows_with_delta_action_witness_obligations": nonnegative_integer,
@@ -4053,6 +4151,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "source_refs",
             "source_snippets",
             "realization_coverage_witness",
+            "primitive_evidence_matrix_witness",
             "quality_control_obligations",
             "feedback_loop_summary",
             "target_theorem_context_packet",
@@ -4110,6 +4209,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "realization_coverage_witness": {
                 "$ref": "#/$defs/realization_coverage_witness"
             },
+            "primitive_evidence_matrix_witness": {"type": "object"},
             "quality_control_obligations": {"type": "object"},
             "feedback_loop_summary": {"type": "object"},
             "target_theorem_context_packet": {"type": "object"},
@@ -4509,6 +4609,107 @@ def validate_llm_route_planner_manifest(
     ) != n_row_route_adoption_precondition_known_blockers:
         errors.append(
             "n_row_route_adoption_precondition_known_blockers must match rows"
+        )
+    n_rows_with_matrix_witness = sum(
+        1
+        for row in manifest_rows
+        if _dict_value(row, "primitive_evidence_matrix_witness")
+    )
+    if int(
+        manifest.get("n_rows_with_primitive_evidence_matrix_witness", 0) or 0
+    ) != n_rows_with_matrix_witness:
+        errors.append(
+            "n_rows_with_primitive_evidence_matrix_witness must match rows"
+        )
+    n_rows_with_complete_matrix_witness = sum(
+        1
+        for row in manifest_rows
+        if bool(
+            _dict_value(row, "primitive_evidence_matrix_witness").get(
+                "matrix_accounting_complete",
+                False,
+            )
+        )
+    )
+    if int(
+        manifest.get(
+            "n_rows_with_complete_primitive_evidence_matrix_accounting",
+            0,
+        )
+        or 0
+    ) != n_rows_with_complete_matrix_witness:
+        errors.append(
+            "n_rows_with_complete_primitive_evidence_matrix_accounting must match rows"
+        )
+    matrix_witness_rows = sum(
+        int(
+            _dict_value(row, "primitive_evidence_matrix_witness").get(
+                "matrix_row_count",
+                0,
+            )
+            or 0
+        )
+        for row in manifest_rows
+    )
+    if int(
+        manifest.get("n_primitive_evidence_matrix_witness_rows", 0) or 0
+    ) != matrix_witness_rows:
+        errors.append("n_primitive_evidence_matrix_witness_rows must match rows")
+    matrix_accounted_primitives = sum(
+        len(
+            _str_tuple(
+                _dict_value(row, "primitive_evidence_matrix_witness").get(
+                    "matrix_accounted_primitives",
+                    [],
+                )
+            )
+        )
+        for row in manifest_rows
+    )
+    if int(
+        manifest.get("n_primitive_evidence_matrix_accounted_primitives", 0) or 0
+    ) != matrix_accounted_primitives:
+        errors.append(
+            "n_primitive_evidence_matrix_accounted_primitives must match rows"
+        )
+    matrix_unaccounted_primitives = sum(
+        len(
+            _str_tuple(
+                _dict_value(row, "primitive_evidence_matrix_witness").get(
+                    "matrix_unaccounted_primitives",
+                    [],
+                )
+            )
+        )
+        for row in manifest_rows
+    )
+    if int(
+        manifest.get("n_primitive_evidence_matrix_unaccounted_primitives", 0)
+        or 0
+    ) != matrix_unaccounted_primitives:
+        errors.append(
+            "n_primitive_evidence_matrix_unaccounted_primitives must match rows"
+        )
+    selected_without_matrix = sum(
+        len(
+            _str_tuple(
+                _dict_value(row, "primitive_evidence_matrix_witness").get(
+                    "selected_primitives_without_matrix_row",
+                    [],
+                )
+            )
+        )
+        for row in manifest_rows
+    )
+    if int(
+        manifest.get(
+            "n_selected_primitives_without_primitive_evidence_matrix_row",
+            0,
+        )
+        or 0
+    ) != selected_without_matrix:
+        errors.append(
+            "n_selected_primitives_without_primitive_evidence_matrix_row must match rows"
         )
     if int(manifest.get("n_row_schema_valid", 0) or 0) + int(
         manifest.get("n_row_schema_invalid", 0) or 0
@@ -5887,6 +6088,49 @@ def validate_llm_route_planner_row(
         ):
             errors.append(
                 "target_theorem_context_packet.target_prover_family must match row target_prover_family"
+            )
+    primitive_matrix_witness = _dict_value(row, "primitive_evidence_matrix_witness")
+    route_planning_brief = _dict_value(row, "route_planning_brief")
+    matrix_rows = _dict_tuple(route_planning_brief.get("primitive_evidence_matrix", []))
+    if primitive_matrix_witness:
+        if primitive_matrix_witness.get("witness_kind") != (
+            "formalization_gap_planner_primitive_evidence_matrix_witness"
+        ):
+            errors.append(
+                "primitive_evidence_matrix_witness.witness_kind must equal "
+                "formalization_gap_planner_primitive_evidence_matrix_witness"
+            )
+        if int(primitive_matrix_witness.get("matrix_row_count", 0) or 0) != len(
+            matrix_rows
+        ):
+            errors.append(
+                "primitive_evidence_matrix_witness.matrix_row_count must match "
+                "route_planning_brief.primitive_evidence_matrix"
+            )
+        selected_primitives = _str_tuple(
+            _dict_value(row, "minimal_delta_plan").get("selected_primitives", [])
+        )
+        if _str_tuple(
+            primitive_matrix_witness.get("selected_primitives", [])
+        ) != selected_primitives:
+            errors.append(
+                "primitive_evidence_matrix_witness.selected_primitives must match "
+                "minimal_delta_plan.selected_primitives"
+            )
+        matrix_complete = not _str_tuple(
+            primitive_matrix_witness.get("matrix_unaccounted_primitives", [])
+        ) and not _str_tuple(
+            primitive_matrix_witness.get(
+                "selected_primitives_without_matrix_row",
+                [],
+            )
+        )
+        if bool(
+            primitive_matrix_witness.get("matrix_accounting_complete", False)
+        ) != matrix_complete:
+            errors.append(
+                "primitive_evidence_matrix_witness.matrix_accounting_complete "
+                "must match missing primitive lists"
             )
     if row.get("provider_failure"):
         if not _str_tuple(row.get("generation_errors", [])):
@@ -11559,6 +11803,19 @@ def _row_for_request(
         formal_nodes=formal_nodes,
         alignment_edges=route_alignment_edges,
     )
+    primitive_evidence_matrix_witness = _primitive_evidence_matrix_witness(
+        request=request,
+        minimal_delta=minimal_delta_plan,
+        standalone_route=standalone_route,
+        formal_nodes=formal_nodes,
+        alignment_edges=route_alignment_edges,
+        residual_interpretations=_dict_tuple(
+            payload.get("residual_interpretations", [])
+        ),
+        search_requests=_dict_tuple(payload.get("search_requests", [])),
+        planner_next_actions=_dict_tuple(payload.get("planner_next_actions", [])),
+        source_snippets=_route_source_snippets(payload),
+    )
     route_adoption_status, route_adoption_blockers = _route_adoption_readiness(
         request_errors=tuple(request_errors),
         response_present=response_present,
@@ -11575,6 +11832,7 @@ def _row_for_request(
         ),
         feedback_summary=feedback_summary,
         realization_coverage_witness=realization_coverage_witness,
+        primitive_evidence_matrix_witness=primitive_evidence_matrix_witness,
         omitted_cost_hint_primitives=_omitted_cost_hint_primitives(
             minimal_delta_plan,
             request,
@@ -11640,6 +11898,7 @@ def _row_for_request(
         source_refs=_route_source_refs(payload),
         source_snippets=_route_source_snippets(payload),
         realization_coverage_witness=realization_coverage_witness,
+        primitive_evidence_matrix_witness=primitive_evidence_matrix_witness,
         quality_control_obligations=dict(quality_control_obligations),
         feedback_loop_summary=dict(feedback_summary),
         target_theorem_context_packet=dict(
@@ -11691,6 +11950,7 @@ def _route_adoption_readiness(
     residual_interpretations: tuple[dict[str, object], ...],
     feedback_summary: Mapping[str, object],
     realization_coverage_witness: Mapping[str, object],
+    primitive_evidence_matrix_witness: Mapping[str, object] | None = None,
     omitted_cost_hint_primitives: tuple[str, ...],
     formal_gap_boundary_obligations: tuple[str, ...],
     quality_control_obligations_pending: bool,
@@ -11744,6 +12004,13 @@ def _route_adoption_readiness(
         or realization_coverage_witness.get("realization_coverage_complete") is False
     ):
         blockers.append(ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE)
+    if (
+        _dict_from_optional_mapping(primitive_evidence_matrix_witness).get(
+            "matrix_accounting_complete"
+        )
+        is False
+    ):
+        blockers.append(ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX)
     if omitted_cost_hint_primitives:
         blockers.append(ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES)
     if formal_gap_boundary_obligations:
@@ -18091,6 +18358,275 @@ def _realization_coverage_witness(
     }
 
 
+def _primitive_evidence_matrix_witness(
+    *,
+    request: Mapping[str, Any],
+    minimal_delta: Mapping[str, Any],
+    standalone_route: Mapping[str, Any],
+    formal_nodes: tuple[dict[str, object], ...],
+    alignment_edges: tuple[dict[str, object], ...],
+    residual_interpretations: tuple[dict[str, object], ...],
+    search_requests: tuple[dict[str, object], ...],
+    planner_next_actions: tuple[dict[str, object], ...],
+    source_snippets: tuple[dict[str, object], ...],
+) -> dict[str, object]:
+    context_packet = _dict_value(request, "context_packet")
+    route_planning_brief = _dict_value(context_packet, "route_planning_brief")
+    matrix_rows = _dict_tuple(route_planning_brief.get("primitive_evidence_matrix", []))
+    matrix_order = tuple(
+        dict.fromkeys(
+            primitive
+            for primitive in (
+                _primitive_key(row.get("primitive", "")) for row in matrix_rows
+            )
+            if primitive
+        )
+    )
+    selected_order = tuple(
+        dict.fromkeys(
+            primitive
+            for primitive in (
+                _primitive_key(value)
+                for value in _str_tuple(minimal_delta.get("selected_primitives", []))
+            )
+            if primitive
+        )
+    )
+    selected = set(selected_order)
+    standalone = {
+        primitive
+        for primitive in (
+            _primitive_key(row.get("primitive", ""))
+            for row in _dict_tuple(standalone_route.get("primitives", []))
+        )
+        if primitive
+    }
+    formal = {
+        primitive
+        for primitive in (_primitive_key(row.get("primitive", "")) for row in formal_nodes)
+        if primitive
+    }
+    aligned = _alignment_primitive_keys(alignment_edges, formal_nodes)
+    residual_targets = _primitive_targets_from_rows(residual_interpretations)
+    search_targets = _primitive_targets_from_rows(search_requests)
+    action_targets = _primitive_targets_from_rows(planner_next_actions)
+    source_snippet_targets = {
+        primitive
+        for matrix_primitive in matrix_order
+        for primitive in (
+            (matrix_primitive,)
+            if any(
+                _source_snippet_supports_primitive(snippet, matrix_primitive)
+                for snippet in source_snippets
+            )
+            else tuple()
+        )
+    }
+    route_option_primitives = _minimal_delta_route_option_primitive_keys(minimal_delta)
+    delta_primitives = _minimal_delta_primitives(minimal_delta, selected)
+    accounted_by_primitive: dict[str, list[str]] = {}
+    for primitive in matrix_order:
+        accounted_by: list[str] = []
+        if primitive in selected:
+            accounted_by.append("minimal_delta.selected_primitives")
+        if primitive in route_option_primitives:
+            accounted_by.append("minimal_delta.and_or_cost_graph.route_options")
+        if primitive in standalone:
+            accounted_by.append("standalone_route.primitives")
+        if primitive in formal:
+            accounted_by.append("formal_realization_dag_nodes")
+        if primitive in aligned:
+            accounted_by.append("route_alignment_edges")
+        if primitive in delta_primitives:
+            accounted_by.append("minimal_delta.delta_action")
+        if primitive in residual_targets:
+            accounted_by.append("residual_interpretations")
+        if primitive in search_targets:
+            accounted_by.append("search_requests")
+        if primitive in action_targets:
+            accounted_by.append("planner_next_actions")
+        if primitive in source_snippet_targets:
+            accounted_by.append("source_snippets")
+        accounted_by_primitive[primitive] = accounted_by
+
+    matrix_primitives = set(matrix_order)
+    accounted = {
+        primitive
+        for primitive, accounted_by in accounted_by_primitive.items()
+        if accounted_by
+    }
+    unaccounted = tuple(
+        primitive for primitive in matrix_order if primitive not in accounted
+    )
+    selected_without_matrix = tuple(
+        primitive for primitive in selected_order if primitive not in matrix_primitives
+    )
+    formal_declarations_by_primitive = _formal_declarations_by_primitive(formal_nodes)
+    source_backed_primitives: list[str] = []
+    source_backed_accounted: list[str] = []
+    source_backed_missing: list[str] = []
+    formal_supported_primitives: list[str] = []
+    formal_supported_reused: list[str] = []
+    formal_supported_missing_reuse: list[str] = []
+    delta_needed_primitives: list[str] = []
+    delta_needed_accounted: list[str] = []
+    matrix_row_summaries: list[dict[str, object]] = []
+    for matrix_row in matrix_rows:
+        primitive = _primitive_key(matrix_row.get("primitive", ""))
+        if not primitive:
+            continue
+        source_status = str(matrix_row.get("source_support_status", "") or "")
+        formal_status = str(matrix_row.get("formal_support_status", "") or "")
+        delta_class = str(matrix_row.get("library_delta_class", "") or "")
+        if source_status == "source_backed":
+            source_backed_primitives.append(primitive)
+            if primitive in source_snippet_targets:
+                source_backed_accounted.append(primitive)
+            else:
+                source_backed_missing.append(primitive)
+        if formal_status in {
+            "existing_library_reuse_ready",
+            "target_compatible_candidate_available",
+        }:
+            formal_supported_primitives.append(primitive)
+            request_declarations = {
+                _formal_declaration_key(declaration)
+                for declaration in _str_tuple(
+                    matrix_row.get("target_compatible_declarations", [])
+                )
+                if _formal_declaration_key(declaration)
+            }
+            response_declarations = formal_declarations_by_primitive.get(
+                primitive,
+                set(),
+            )
+            if request_declarations and request_declarations & response_declarations:
+                formal_supported_reused.append(primitive)
+            else:
+                formal_supported_missing_reuse.append(primitive)
+        if delta_class in {
+            "bridge",
+            "source_port",
+            "new_definition",
+            "new_theory",
+            "unknown",
+        }:
+            delta_needed_primitives.append(primitive)
+            if primitive in delta_primitives or primitive in action_targets:
+                delta_needed_accounted.append(primitive)
+        matrix_row_summaries.append(
+            {
+                "primitive": primitive,
+                "source_support_status": source_status,
+                "formal_support_status": formal_status,
+                "library_delta_class": delta_class,
+                "accounted_by": accounted_by_primitive.get(primitive, []),
+                "accounted": bool(accounted_by_primitive.get(primitive, [])),
+            }
+        )
+
+    return {
+        "witness_kind": "formalization_gap_planner_primitive_evidence_matrix_witness",
+        "matrix_row_count": len(matrix_rows),
+        "matrix_primitives": list(matrix_order),
+        "selected_primitives": list(selected_order),
+        "matrix_accounted_primitives": [
+            primitive for primitive in matrix_order if primitive in accounted
+        ],
+        "matrix_unaccounted_primitives": list(unaccounted),
+        "selected_primitives_without_matrix_row": list(selected_without_matrix),
+        "source_backed_matrix_primitives": list(
+            dict.fromkeys(source_backed_primitives)
+        ),
+        "source_backed_matrix_primitives_with_response_source_snippet": list(
+            dict.fromkeys(source_backed_accounted)
+        ),
+        "source_backed_matrix_primitives_missing_response_source_snippet": list(
+            dict.fromkeys(source_backed_missing)
+        ),
+        "formal_supported_matrix_primitives": list(
+            dict.fromkeys(formal_supported_primitives)
+        ),
+        "formal_supported_matrix_primitives_reused": list(
+            dict.fromkeys(formal_supported_reused)
+        ),
+        "formal_supported_matrix_primitives_missing_reuse": list(
+            dict.fromkeys(formal_supported_missing_reuse)
+        ),
+        "delta_needed_matrix_primitives": list(dict.fromkeys(delta_needed_primitives)),
+        "delta_needed_matrix_primitives_accounted": list(
+            dict.fromkeys(delta_needed_accounted)
+        ),
+        "accounted_by_primitive": {
+            primitive: list(accounted_by)
+            for primitive, accounted_by in accounted_by_primitive.items()
+        },
+        "matrix_row_summaries": matrix_row_summaries,
+        "matrix_accounting_complete": (
+            not unaccounted and not selected_without_matrix
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _primitive_targets_from_rows(
+    rows: tuple[dict[str, object], ...],
+) -> set[str]:
+    primitives: set[str] = set()
+    for row in rows:
+        for field_name in (
+            "target_primitive",
+            "target_primitives",
+            "primitive",
+            "primitives",
+            "selected_primitives",
+        ):
+            primitives.update(
+                primitive
+                for primitive in (
+                    _primitive_key(value)
+                    for value in _primitive_values(row.get(field_name, []))
+                )
+                if primitive
+            )
+    primitives.discard("")
+    return primitives
+
+
+def _formal_declarations_by_primitive(
+    formal_nodes: tuple[dict[str, object], ...],
+) -> dict[str, set[str]]:
+    declarations_by_primitive: dict[str, set[str]] = {}
+    for node in formal_nodes:
+        primitive = _primitive_key(node.get("primitive", ""))
+        if not primitive:
+            continue
+        declarations = set()
+        declarations.update(
+            _formal_declaration_key(value)
+            for value in _formal_declaration_values(node.get("candidate_declarations", []))
+            if _formal_declaration_key(value)
+        )
+        declarations.update(
+            _formal_declaration_key(row.get("declaration", ""))
+            for row in _dict_tuple(node.get("candidate_declaration_rows", []))
+            if _formal_declaration_key(row.get("declaration", ""))
+        )
+        declarations.update(
+            _formal_declaration_key(value)
+            for value in _formal_declaration_values(node.get("uses_declarations", []))
+            if _formal_declaration_key(value)
+        )
+        declarations.update(
+            _formal_declaration_key(value)
+            for value in _formal_declaration_values(node.get("formal_declarations", []))
+            if _formal_declaration_key(value)
+        )
+        declarations_by_primitive.setdefault(primitive, set()).update(declarations)
+    return declarations_by_primitive
+
+
 def _alignment_primitive_keys(
     alignment_edges: tuple[dict[str, object], ...],
     formal_nodes: tuple[dict[str, object], ...],
@@ -21932,6 +22468,7 @@ def _fallback_route_for_seed(
     target_context_packet = dict(row.target_theorem_context_packet)
     route_planning_brief = dict(row.route_planning_brief)
     route_adoption_preconditions = dict(row.route_adoption_preconditions)
+    primitive_evidence_matrix_witness = dict(row.primitive_evidence_matrix_witness)
     metadata = _dict_value(fallback, "replan_metadata")
     metadata = {
         **metadata,
@@ -21966,6 +22503,9 @@ def _fallback_route_for_seed(
         "target_theorem_context_packet": target_context_packet,
         "llm_route_planner_target_theorem_context_packet": target_context_packet,
         "llm_route_planner_route_planning_brief": route_planning_brief,
+        "llm_route_planner_primitive_evidence_matrix_witness": (
+            primitive_evidence_matrix_witness
+        ),
         "llm_route_planner_route_adoption_preconditions": route_adoption_preconditions,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
@@ -21974,6 +22514,10 @@ def _fallback_route_for_seed(
     fallback["target_theorem_context_packet"] = target_context_packet
     if route_planning_brief:
         fallback["llm_route_planner_route_planning_brief"] = route_planning_brief
+    if primitive_evidence_matrix_witness:
+        fallback["llm_route_planner_primitive_evidence_matrix_witness"] = (
+            primitive_evidence_matrix_witness
+        )
     if route_adoption_preconditions:
         fallback["llm_route_planner_route_adoption_preconditions"] = (
             route_adoption_preconditions
@@ -21995,10 +22539,15 @@ def _accepted_route_for_seed(
     target_context_packet = dict(row.target_theorem_context_packet)
     route_planning_brief = dict(row.route_planning_brief)
     route_adoption_preconditions = dict(row.route_adoption_preconditions)
+    primitive_evidence_matrix_witness = dict(row.primitive_evidence_matrix_witness)
     route["target_prover_family"] = row.target_prover_family
     route["target_theorem_context_packet"] = target_context_packet
     if route_planning_brief:
         route["llm_route_planner_route_planning_brief"] = route_planning_brief
+    if primitive_evidence_matrix_witness:
+        route["llm_route_planner_primitive_evidence_matrix_witness"] = (
+            primitive_evidence_matrix_witness
+        )
     if route_adoption_preconditions:
         route["llm_route_planner_route_adoption_preconditions"] = (
             route_adoption_preconditions
@@ -22128,6 +22677,13 @@ def _accepted_route_for_seed(
         ),
         key_fields=("hook_kind", "queries", "acceptance_record"),
     )
+    llm_refinement_hooks = _merge_dict_rows(
+        llm_refinement_hooks,
+        _llm_refinement_hooks_for_primitive_evidence_matrix_witness(
+            row.primitive_evidence_matrix_witness,
+        ),
+        key_fields=("hook_kind", "queries", "acceptance_record"),
+    )
     llm_route_revision_triggers = _llm_route_revision_triggers_for_search_requests(
         row.search_requests,
         target_prover_family=row.target_prover_family,
@@ -22190,6 +22746,13 @@ def _accepted_route_for_seed(
         ),
         key_fields=("trigger_kind", "condition", "next_action"),
     )
+    llm_route_revision_triggers = _merge_dict_rows(
+        llm_route_revision_triggers,
+        _llm_route_revision_triggers_for_primitive_evidence_matrix_witness(
+            row.primitive_evidence_matrix_witness,
+        ),
+        key_fields=("trigger_kind", "condition", "next_action"),
+    )
     route_refinement_hooks = _merge_dict_rows(
         _dict_tuple(route.get("interactive_refinement_hooks", [])),
         llm_refinement_hooks,
@@ -22241,6 +22804,9 @@ def _accepted_route_for_seed(
         ],
         "llm_route_planner_minimal_delta_plan": dict(row.minimal_delta_plan),
         "llm_route_planner_realization_coverage_witness": realization_coverage_witness,
+        "llm_route_planner_primitive_evidence_matrix_witness": (
+            primitive_evidence_matrix_witness
+        ),
         "llm_route_planner_quality_control_obligations": dict(
             row.quality_control_obligations
         ),
@@ -23538,6 +24104,114 @@ def _llm_route_revision_triggers_for_realization_coverage_witness(
     )
 
 
+def _llm_refinement_hooks_for_primitive_evidence_matrix_witness(
+    witness: Mapping[str, object],
+) -> tuple[dict[str, object], ...]:
+    hooks: list[dict[str, object]] = []
+    for index, action in enumerate(
+        _primitive_evidence_matrix_feedback_next_actions(witness)
+    ):
+        query = str(action.get("query", "")).strip()
+        if not query:
+            continue
+        hooks.append(
+            {
+                "hook_kind": "route_revision",
+                "recommended_tools": list(
+                    _recommended_tools_for_llm_hook("route_revision")
+                ),
+                "queries": [query],
+                "target_primitives": list(
+                    _str_tuple(action.get("target_primitives", []))
+                ),
+                "acceptance_record": (
+                    "revise selected route so every primitive evidence-matrix "
+                    "row is accounted before standalone adoption"
+                ),
+                "llm_route_planner_primitive_evidence_matrix_action_index": index,
+                "llm_route_planner_primitive_evidence_matrix_action": dict(action),
+                "llm_route_planner_primitive_evidence_matrix_witness": dict(witness),
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    return _merge_dict_rows(
+        tuple(hooks),
+        tuple(),
+        key_fields=("hook_kind", "queries", "acceptance_record"),
+    )
+
+
+def _llm_route_revision_triggers_for_primitive_evidence_matrix_witness(
+    witness: Mapping[str, object],
+) -> tuple[dict[str, object], ...]:
+    triggers: list[dict[str, object]] = []
+    for index, action in enumerate(
+        _primitive_evidence_matrix_feedback_next_actions(witness)
+    ):
+        query = str(action.get("query", "")).strip()
+        if not query:
+            continue
+        triggers.append(
+            {
+                "trigger_kind": "primitive_evidence_matrix_repair",
+                "condition": query,
+                "next_action": _next_action_for_llm_hook(
+                    "route_revision",
+                    query=query,
+                ),
+                "target_primitives": list(
+                    _str_tuple(action.get("target_primitives", []))
+                ),
+                "llm_route_planner_primitive_evidence_matrix_action_index": index,
+                "llm_route_planner_primitive_evidence_matrix_action": dict(action),
+                "llm_route_planner_primitive_evidence_matrix_witness": dict(witness),
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+            }
+        )
+    return _merge_dict_rows(
+        tuple(triggers),
+        tuple(),
+        key_fields=("trigger_kind", "condition", "next_action"),
+    )
+
+
+def _primitive_evidence_matrix_feedback_next_actions(
+    witness: Mapping[str, object],
+) -> tuple[dict[str, object], ...]:
+    if bool(witness.get("matrix_accounting_complete", True)):
+        return tuple()
+    actions: list[dict[str, object]] = []
+    unaccounted = _str_tuple(witness.get("matrix_unaccounted_primitives", []))
+    if unaccounted:
+        actions.append(
+            {
+                "action": "account_for_unaccounted_primitive_evidence_matrix_rows",
+                "query": (
+                    "revise route to account for primitive evidence-matrix rows: "
+                    + ", ".join(unaccounted[:8])
+                ),
+                "target_primitives": list(unaccounted[:12]),
+            }
+        )
+    selected_without = _str_tuple(
+        witness.get("selected_primitives_without_matrix_row", [])
+    )
+    if selected_without:
+        actions.append(
+            {
+                "action": "justify_or_remove_selected_primitives_without_matrix_rows",
+                "query": (
+                    "selected route primitive lacks request primitive-evidence "
+                    "matrix row: "
+                    + ", ".join(selected_without[:8])
+                ),
+                "target_primitives": list(selected_without[:12]),
+            }
+        )
+    return tuple(actions)
+
+
 def _realization_coverage_summary_for_witness(
     realization_coverage_witness: Mapping[str, object],
 ) -> dict[str, object]:
@@ -24803,6 +25477,10 @@ def _merge_dict_rows(
 
 def _dict_value(row: Mapping[str, Any], key: str) -> dict[str, Any]:
     value = row.get(key, {})
+    return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _dict_from_optional_mapping(value: Mapping[str, Any] | None) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
 

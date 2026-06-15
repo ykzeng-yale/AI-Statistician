@@ -760,8 +760,14 @@ planner next actions, quality-control evidence, or uncertainty review. Only
 `READY_FOR_STANDALONE_REPLAY` means the route has no unresolved LLM-planner
 handoff blockers under the current evidence bound. The readiness gate is
 computed from both the current row's structured `realization_coverage_witness`
-and any upstream feedback-loop realization summary, so a stale or missing
-feedback summary cannot make an incomplete current response adoption-ready.
+the current row's `primitive_evidence_matrix_witness`, and any upstream
+feedback-loop realization summary, so a stale or missing feedback summary
+cannot make an incomplete current response adoption-ready. The matrix witness
+checks that every request-side primitive evidence row is accounted by the
+selected route, standalone route, formal realization, route alignment, residual
+interpretation, search request, planner action, or reused source snippet, and
+it blocks standalone adoption when the response selects a primitive with no
+request-side matrix row.
 Each request context also carries `route_adoption_preconditions`, a pre-response
 forecast of blockers already implied by residual goals, feedback-loop repair
 requirements, pending source-grounding rows, pending quality controls, resource
@@ -961,7 +967,9 @@ informal DAG nodes, revised formal-realization DAG nodes, the legacy
 `revised_lean_realization_dag_nodes` alias, and exact revised route-alignment
 edges in each route and in its `replan_metadata`. It also carries the
 `llm_route_planner_route_planning_brief` in each route and its
-`replan_metadata` when an LLM route-planner seed produced the handoff, and the
+`replan_metadata`, plus the derived
+`llm_route_planner_primitive_evidence_matrix_witness`, when an LLM
+route-planner seed produced the handoff, and the
 sidecar standalone-input schema publishes those optional route and metadata
 fields for external validators. The publication-bundle audit reports
 seed-alignment, seed-DAG, and route-planning-brief preservation counters. It
@@ -1996,7 +2004,11 @@ The current implementation composes four existing AI Statistician artifacts:
    generation. Its public row schema defines a structured
    `realization_coverage_witness`, so bundle consumers can validate selected,
    delta, introduced, aligned, cost-hint baseline, and omitted cost-hint
-   primitive coverage without relying on free-form row text. If a component-resource registry directory is supplied, request
+   primitive coverage without relying on free-form row text. It also defines
+   `primitive_evidence_matrix_witness`, which cross-checks the accepted route
+   against the request-side primitive matrix and publishes unaccounted matrix
+   primitives or selected primitives without matrix rows as explicit
+   route-repair targets. If a component-resource registry directory is supplied, request
    packets also include a bounded `component_resource_registry_context` with
    compatible resources, execution plans, and response contracts. That context
    is planner guidance only; it cannot justify source-backed claims, formal
