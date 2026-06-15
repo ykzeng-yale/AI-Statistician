@@ -241,7 +241,11 @@ free-text rationale. Source-theorem and proof-body feedback rows are included
 in those counts; semantic-primitive gaps, exact proof-body execution failures,
 and formal-environment blockers are explicit Sonnet auto-tier triggers because
 they require route repair rather than cheap bounded triage. In
-addition, the planner writes
+addition, unresolved interactive-session route-adoption preconditions and their
+known pre-response blockers are counted in request-scoped tier-decision
+evidence and force Sonnet under `--model-tier auto`, so cost-saving Haiku calls
+are still used only for bounded routes that are not waiting on route-repair
+obligations. The planner also writes
 `formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl`
 plus its schema. Each row binds the request tier, effective response tier,
 resolved model, decision basis, Sonnet triggers, source-feedback counts,

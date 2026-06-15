@@ -10453,6 +10453,8 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         "no_resource_request_playbooks": True,
         "no_interactive_resource_requests": True,
         "no_interactive_dispatch_summaries": True,
+        "no_unresolved_interactive_route_adoption_preconditions": True,
+        "no_interactive_route_adoption_blockers": True,
         "no_source_theorem_feedback": True,
     }
     row = payload["rows"][0]
@@ -10656,6 +10658,108 @@ def test_llm_route_planner_auto_uses_sonnet_for_light_route_interactive_dispatch
         "interactive dispatch summary" in trigger
         for trigger in evidence["sonnet_triggers"]
     )
+
+
+def test_llm_route_planner_auto_uses_sonnet_for_light_route_interactive_preconditions() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_light_route_interactive_preconditions"
+    )
+    out_dir = root / "llm_route_planner"
+    interactive_session_dir = root / "interactive_session"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    interactive_session_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    (
+        interactive_session_dir
+        / "formalization_gap_planner_interactive_session_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_interactive_session",
+                "rows": [
+                    {
+                        "interactive_session_row_id": "session:rank_route_light",
+                        "goal_plan_id": "goal:rank_route_light",
+                        "route_id": "rank_route_light",
+                        "display_name": "distribution_free_rank_bound_light",
+                        "session_state": "AWAITING_REFINEMENT_RESPONSES",
+                        "route_adoption_preconditions": {
+                            "precondition_kind": (
+                                "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+                            ),
+                            "status": "PENDING_CONTEXT_OBLIGATIONS",
+                            "blocked_before_response": True,
+                            "known_pre_response_blockers": [
+                                ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING
+                            ],
+                            "n_known_pre_response_blockers": 1,
+                            "response_required_fields": [
+                                "search_requests",
+                                "planner_next_actions",
+                            ],
+                            "n_response_required_fields": 2,
+                        },
+                        "route_adoption_precondition_present": True,
+                        "route_adoption_precondition_blocked_before_response": True,
+                        "route_adoption_precondition_unresolved": True,
+                        "route_adoption_precondition_known_blockers": [
+                            ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING
+                        ],
+                        "route_adoption_precondition_required_response_fields": [
+                            "search_requests",
+                            "planner_next_actions",
+                        ],
+                        "route_adoption_precondition_known_blocker_count": 1,
+                        "route_adoption_precondition_required_response_field_count": 2,
+                    }
+                ],
+                "decision_policy_rows": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 0
+    packet = payload["request_packets"][0]
+    evidence = packet["model_tier_decision_evidence"]
+    assert packet["model"] == "claude-sonnet-4-6"
+    assert evidence["decision_basis"] == "auto_sonnet_triggers"
+    assert any(
+        "interactive route-adoption precondition" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
+    assert any(
+        "interactive route-adoption blocker" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
+    assert evidence["route_signal_counts"][
+        "interactive_unresolved_route_adoption_precondition_count"
+    ] == 1
+    assert evidence["route_signal_counts"][
+        "interactive_route_adoption_precondition_known_blocker_count"
+    ] == 1
+    assert evidence["interactive_route_adoption_precondition_counts"][
+        "required_response_field_count"
+    ] == 2
+    context = packet["context_packet"]
+    assert context["feedback_loop_summary"][
+        "interactive_route_adoption_preconditions"
+    ]["unresolved_count"] == 1
+    assert context["context_packet_inventory"][
+        "interactive_unresolved_route_adoption_precondition_count"
+    ] == 1
 
 
 def test_llm_route_planner_escalates_failed_haiku_repair_to_sonnet() -> None:

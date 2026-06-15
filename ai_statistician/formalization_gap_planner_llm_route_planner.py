@@ -634,6 +634,7 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
         "Use haiku for small routes whose primitives are already-exists, exact, near, wrapper, or different-formulation coverage and have no residual goals or pending resource dispatch.",
         "Use sonnet when prover residual goals, feedback-loop replan signals, or incomplete realization-coverage witnesses are present.",
         "Use sonnet when resource-request queue rows, resource-request playbooks, or interactive-session resource dispatch bindings are present.",
+        "Use sonnet when interactive-session route-adoption preconditions remain unresolved or carry known pre-response blockers.",
         "Use sonnet when target-intake rows expose missing proof sources, library-search requirements, proof-state probes, complex theorem shape, or large normalized theorem context.",
         "Use sonnet when the seed route itself carries uncertainty flags, semantic alignment risks, source-search-pending markers, or substantive formal-gap boundaries.",
         "Use sonnet when any primitive needs a bridge, source port, new definition, new theory, or has unknown/missing/unresolved coverage or alignment status.",
@@ -9805,6 +9806,12 @@ def _llm_route_planner_model_tier_decision(
         context_packet,
         feedback_summary=feedback_summary,
     )
+    interactive_precondition_counts = (
+        _context_interactive_route_adoption_precondition_counts(
+            context_packet,
+            feedback_summary=feedback_summary,
+        )
+    )
     base_evidence = _model_tier_decision_evidence_base(
         route=route,
         requested_model_tier=requested,
@@ -9816,6 +9823,7 @@ def _llm_route_planner_model_tier_decision(
         hard_markers=hard_markers,
         resource_dispatch_counts=resource_dispatch_counts,
         source_theorem_feedback_counts=source_theorem_feedback_counts,
+        interactive_precondition_counts=interactive_precondition_counts,
     )
     if requested in {"haiku", "sonnet", "opus"}:
         evidence = dict(base_evidence)
@@ -9845,6 +9853,16 @@ def _llm_route_planner_model_tier_decision(
         sonnet_reasons.append("omitted cost-hint primitive(s) require route review")
     if bool(feedback_summary.get("replan_required", False)):
         sonnet_reasons.append("feedback-loop summary requires route repair")
+    if interactive_precondition_counts["unresolved_count"]:
+        sonnet_reasons.append(
+            f"{interactive_precondition_counts['unresolved_count']} unresolved "
+            "interactive route-adoption precondition(s)"
+        )
+    if interactive_precondition_counts["known_blocker_count"]:
+        sonnet_reasons.append(
+            f"{interactive_precondition_counts['known_blocker_count']} interactive "
+            "route-adoption blocker(s)"
+        )
     sonnet_reasons.extend(
         _source_theorem_feedback_sonnet_reasons(source_theorem_feedback_counts)
     )
@@ -9923,6 +9941,12 @@ def _llm_route_planner_model_tier_decision(
             ]
             == 0
         ),
+        "no_unresolved_interactive_route_adoption_preconditions": (
+            interactive_precondition_counts["unresolved_count"] == 0
+        ),
+        "no_interactive_route_adoption_blockers": (
+            interactive_precondition_counts["known_blocker_count"] == 0
+        ),
         "no_source_theorem_feedback": (
             source_theorem_feedback_counts["total_count"] == 0
         ),
@@ -9998,6 +10022,34 @@ def _context_resource_dispatch_counts(
         ),
         "interactive_session_resource_request_execution_command_count": int(
             interactive_resource_requests.get("execution_command_count", 0) or 0
+        ),
+    }
+
+
+def _context_interactive_route_adoption_precondition_counts(
+    context_packet: Mapping[str, Any],
+    *,
+    feedback_summary: Mapping[str, Any],
+) -> dict[str, int]:
+    summary = _dict_value(
+        feedback_summary,
+        "interactive_route_adoption_preconditions",
+    )
+    if not summary:
+        summary = _interactive_route_adoption_precondition_summary(
+            _dict_tuple(context_packet.get("interactive_session_rows", []))
+        )
+    return {
+        "total_count": int(summary.get("total_count", 0) or 0),
+        "blocked_before_response_count": int(
+            summary.get("blocked_before_response_count", 0) or 0
+        ),
+        "unresolved_count": int(summary.get("unresolved_count", 0) or 0),
+        "known_blocker_count": int(
+            summary.get("n_known_pre_response_blockers", 0) or 0
+        ),
+        "required_response_field_count": int(
+            summary.get("n_response_required_fields", 0) or 0
         ),
     }
 
@@ -10123,6 +10175,7 @@ def _model_tier_decision_evidence_base(
     hard_markers: list[str],
     resource_dispatch_counts: Mapping[str, int],
     source_theorem_feedback_counts: Mapping[str, int | bool],
+    interactive_precondition_counts: Mapping[str, int],
 ) -> dict[str, object]:
     return {
         "evidence_kind": "formalization_gap_planner_llm_route_planner_model_tier_decision",
@@ -10163,6 +10216,22 @@ def _model_tier_decision_evidence_base(
             "interactive_session_resource_request_execution_command_count": int(
                 resource_dispatch_counts.get(
                     "interactive_session_resource_request_execution_command_count",
+                    0,
+                )
+                or 0
+            ),
+            "interactive_route_adoption_precondition_count": int(
+                interactive_precondition_counts.get("total_count", 0) or 0
+            ),
+            "interactive_unresolved_route_adoption_precondition_count": int(
+                interactive_precondition_counts.get("unresolved_count", 0) or 0
+            ),
+            "interactive_route_adoption_precondition_known_blocker_count": int(
+                interactive_precondition_counts.get("known_blocker_count", 0) or 0
+            ),
+            "interactive_route_adoption_precondition_required_response_field_count": int(
+                interactive_precondition_counts.get(
+                    "required_response_field_count",
                     0,
                 )
                 or 0
@@ -10221,6 +10290,9 @@ def _model_tier_decision_evidence_base(
             ),
         },
         "context_resource_dispatch_counts": dict(resource_dispatch_counts),
+        "interactive_route_adoption_precondition_counts": dict(
+            interactive_precondition_counts
+        ),
         "source_theorem_feedback_counts": dict(source_theorem_feedback_counts),
         "coverage_action_markers": sorted(route_markers),
         "complex_coverage_action_markers": list(hard_markers),
