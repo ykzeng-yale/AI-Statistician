@@ -148,6 +148,12 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_request_model_tier_sonnet",
         "n_request_model_tier_opus",
         "n_request_model_tier_mismatches",
+        "n_rows_with_provider_usage",
+        "total_provider_input_tokens",
+        "total_provider_output_tokens",
+        "total_provider_cache_creation_input_tokens",
+        "total_provider_cache_read_input_tokens",
+        "total_provider_total_tokens",
         "n_routes",
         "n_request_packets",
         "n_requests_with_context_packet_inventory",
@@ -219,6 +225,12 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_request_model_tier_sonnet",
         "n_request_model_tier_opus",
         "n_request_model_tier_mismatches",
+        "n_rows_with_provider_usage",
+        "total_provider_input_tokens",
+        "total_provider_output_tokens",
+        "total_provider_cache_creation_input_tokens",
+        "total_provider_cache_read_input_tokens",
+        "total_provider_total_tokens",
         "n_routes",
         "n_request_packets",
         "n_requests_with_context_packet_inventory",
@@ -1641,6 +1653,26 @@ def run_formalization_gap_planner_reuse_smoke(
         )
         else {}
     )
+    llm_route_planner_provider_usage_summary = _llm_provider_usage_summary(
+        llm_route_planner_payload
+    )
+    feedback_llm_route_planner_provider_usage_summary = _llm_provider_usage_summary(
+        feedback_llm_route_planner_payload
+    )
+    combined_llm_route_planner_provider_usage_summary = (
+        _combined_llm_provider_usage_summary(
+            (
+                (
+                    "primary_llm_route_planner",
+                    llm_route_planner_provider_usage_summary,
+                ),
+                (
+                    "feedback_llm_route_planner",
+                    feedback_llm_route_planner_provider_usage_summary,
+                ),
+            )
+        )
+    )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_REUSE_SMOKE_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1825,6 +1857,35 @@ def run_formalization_gap_planner_reuse_smoke(
                 invoke_provider=llm_route_planner_invoke_provider,
             )
         ),
+        "llm_route_planner_provider_usage_summary": (
+            llm_route_planner_provider_usage_summary
+        ),
+        "n_llm_route_planner_rows_with_provider_usage": int(
+            llm_route_planner_provider_usage_summary.get("row_count", 0) or 0
+        ),
+        "total_llm_route_planner_provider_input_tokens": int(
+            llm_route_planner_provider_usage_summary.get("input_tokens", 0) or 0
+        ),
+        "total_llm_route_planner_provider_output_tokens": int(
+            llm_route_planner_provider_usage_summary.get("output_tokens", 0) or 0
+        ),
+        "total_llm_route_planner_provider_cache_creation_input_tokens": int(
+            llm_route_planner_provider_usage_summary.get(
+                "cache_creation_input_tokens",
+                0,
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_cache_read_input_tokens": int(
+            llm_route_planner_provider_usage_summary.get(
+                "cache_read_input_tokens",
+                0,
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_total_tokens": int(
+            llm_route_planner_provider_usage_summary.get("total_tokens", 0) or 0
+        ),
         "feedback_llm_route_planner_provider": feedback_llm_route_planner_provider,
         "feedback_llm_route_planner_model": str(
             feedback_llm_route_planner_payload.get("model", "")
@@ -1844,6 +1905,39 @@ def run_formalization_gap_planner_reuse_smoke(
                 provider_name=feedback_llm_route_planner_provider,
                 invoke_provider=feedback_llm_route_planner_invoke_provider,
             )
+        ),
+        "feedback_llm_route_planner_provider_usage_summary": (
+            feedback_llm_route_planner_provider_usage_summary
+        ),
+        "n_feedback_llm_route_planner_rows_with_provider_usage": int(
+            feedback_llm_route_planner_provider_usage_summary.get("row_count", 0)
+            or 0
+        ),
+        "total_feedback_llm_route_planner_provider_input_tokens": int(
+            feedback_llm_route_planner_provider_usage_summary.get("input_tokens", 0)
+            or 0
+        ),
+        "total_feedback_llm_route_planner_provider_output_tokens": int(
+            feedback_llm_route_planner_provider_usage_summary.get("output_tokens", 0)
+            or 0
+        ),
+        "total_feedback_llm_route_planner_provider_cache_creation_input_tokens": int(
+            feedback_llm_route_planner_provider_usage_summary.get(
+                "cache_creation_input_tokens",
+                0,
+            )
+            or 0
+        ),
+        "total_feedback_llm_route_planner_provider_cache_read_input_tokens": int(
+            feedback_llm_route_planner_provider_usage_summary.get(
+                "cache_read_input_tokens",
+                0,
+            )
+            or 0
+        ),
+        "total_feedback_llm_route_planner_provider_total_tokens": int(
+            feedback_llm_route_planner_provider_usage_summary.get("total_tokens", 0)
+            or 0
         ),
         "has_llm_route_planner_response_payload_validation": (
             llm_response_payload_validation_payload is not None
@@ -1973,6 +2067,39 @@ def run_formalization_gap_planner_reuse_smoke(
                 provider_name=feedback_llm_route_planner_provider,
                 invoke_provider=feedback_llm_route_planner_invoke_provider,
             )
+        ),
+        "combined_llm_route_planner_provider_usage_summary": (
+            combined_llm_route_planner_provider_usage_summary
+        ),
+        "n_combined_llm_route_planner_rows_with_provider_usage": int(
+            combined_llm_route_planner_provider_usage_summary.get("row_count", 0)
+            or 0
+        ),
+        "total_combined_llm_route_planner_provider_input_tokens": int(
+            combined_llm_route_planner_provider_usage_summary.get("input_tokens", 0)
+            or 0
+        ),
+        "total_combined_llm_route_planner_provider_output_tokens": int(
+            combined_llm_route_planner_provider_usage_summary.get("output_tokens", 0)
+            or 0
+        ),
+        "total_combined_llm_route_planner_provider_cache_creation_input_tokens": int(
+            combined_llm_route_planner_provider_usage_summary.get(
+                "cache_creation_input_tokens",
+                0,
+            )
+            or 0
+        ),
+        "total_combined_llm_route_planner_provider_cache_read_input_tokens": int(
+            combined_llm_route_planner_provider_usage_summary.get(
+                "cache_read_input_tokens",
+                0,
+            )
+            or 0
+        ),
+        "total_combined_llm_route_planner_provider_total_tokens": int(
+            combined_llm_route_planner_provider_usage_summary.get("total_tokens", 0)
+            or 0
         ),
         "n_stages": len(stages),
         "n_ok": sum(1 for stage in stages if stage.ok),
@@ -2219,6 +2346,48 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_llm_route_planner_summary_response_contract_ok": (
             publication_bundle_llm_route_planner_summary.get(
                 "n_response_contract_ok",
+                0,
+            )
+        ),
+        "publication_bundle_llm_route_planner_summary_provider_usage_summary": (
+            publication_bundle_llm_route_planner_summary.get(
+                "provider_usage_summary",
+                {},
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_rows_with_provider_usage": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_rows_with_provider_usage",
+                0,
+            )
+        ),
+        "total_publication_bundle_llm_route_planner_summary_provider_input_tokens": (
+            publication_bundle_llm_route_planner_summary.get(
+                "total_provider_input_tokens",
+                0,
+            )
+        ),
+        "total_publication_bundle_llm_route_planner_summary_provider_output_tokens": (
+            publication_bundle_llm_route_planner_summary.get(
+                "total_provider_output_tokens",
+                0,
+            )
+        ),
+        "total_publication_bundle_llm_route_planner_summary_provider_cache_creation_input_tokens": (
+            publication_bundle_llm_route_planner_summary.get(
+                "total_provider_cache_creation_input_tokens",
+                0,
+            )
+        ),
+        "total_publication_bundle_llm_route_planner_summary_provider_cache_read_input_tokens": (
+            publication_bundle_llm_route_planner_summary.get(
+                "total_provider_cache_read_input_tokens",
+                0,
+            )
+        ),
+        "total_publication_bundle_llm_route_planner_summary_provider_total_tokens": (
+            publication_bundle_llm_route_planner_summary.get(
+                "total_provider_total_tokens",
                 0,
             )
         ),
@@ -2662,6 +2831,48 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_feedback_llm_route_planner_summary_response_contract_ok": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_response_contract_ok",
+                0,
+            )
+        ),
+        "publication_bundle_feedback_llm_route_planner_summary_provider_usage_summary": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "provider_usage_summary",
+                {},
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_rows_with_provider_usage": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_rows_with_provider_usage",
+                0,
+            )
+        ),
+        "total_publication_bundle_feedback_llm_route_planner_summary_provider_input_tokens": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "total_provider_input_tokens",
+                0,
+            )
+        ),
+        "total_publication_bundle_feedback_llm_route_planner_summary_provider_output_tokens": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "total_provider_output_tokens",
+                0,
+            )
+        ),
+        "total_publication_bundle_feedback_llm_route_planner_summary_provider_cache_creation_input_tokens": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "total_provider_cache_creation_input_tokens",
+                0,
+            )
+        ),
+        "total_publication_bundle_feedback_llm_route_planner_summary_provider_cache_read_input_tokens": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "total_provider_cache_read_input_tokens",
+                0,
+            )
+        ),
+        "total_publication_bundle_feedback_llm_route_planner_summary_provider_total_tokens": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "total_provider_total_tokens",
                 0,
             )
         ),
@@ -6804,6 +7015,173 @@ def _optional_dict(payload: dict[str, object] | None, key: str) -> dict[str, obj
     return dict(value)
 
 
+def _nonnegative_int(value: object) -> int:
+    try:
+        parsed = int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, parsed)
+
+
+def _llm_provider_usage_summary(payload: dict[str, Any]) -> dict[str, object]:
+    raw_summary = payload.get("provider_usage_summary", {})
+    summary = dict(raw_summary) if isinstance(raw_summary, dict) else {}
+    row_count = _nonnegative_int(
+        payload.get(
+            "n_rows_with_provider_usage",
+            summary.get("row_count", 0),
+        )
+    )
+    return {
+        "summary_kind": "formalization_gap_planner_reuse_smoke_llm_provider_usage_summary",
+        "row_count": row_count,
+        "input_tokens": _nonnegative_int(
+            payload.get(
+                "total_provider_input_tokens",
+                summary.get("input_tokens", 0),
+            )
+        ),
+        "output_tokens": _nonnegative_int(
+            payload.get(
+                "total_provider_output_tokens",
+                summary.get("output_tokens", 0),
+            )
+        ),
+        "cache_creation_input_tokens": _nonnegative_int(
+            payload.get(
+                "total_provider_cache_creation_input_tokens",
+                summary.get("cache_creation_input_tokens", 0),
+            )
+        ),
+        "cache_read_input_tokens": _nonnegative_int(
+            payload.get(
+                "total_provider_cache_read_input_tokens",
+                summary.get("cache_read_input_tokens", 0),
+            )
+        ),
+        "total_tokens": _nonnegative_int(
+            payload.get(
+                "total_provider_total_tokens",
+                summary.get("total_tokens", 0),
+            )
+        ),
+        "by_provider": _usage_bucket_map(summary.get("by_provider", {})),
+        "by_model_tier": _usage_bucket_map(summary.get("by_model_tier", {})),
+        "by_model": _usage_bucket_map(summary.get("by_model", {})),
+        "usage_boundary": (
+            "Provider token usage is runtime/cost accounting metadata for "
+            "Claude/OpenAI routing, not mathematical or theorem proof evidence."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _combined_llm_provider_usage_summary(
+    summaries_by_run: tuple[tuple[str, dict[str, object]], ...],
+) -> dict[str, object]:
+    totals = _empty_usage_bucket()
+    by_provider: dict[str, dict[str, int]] = {}
+    by_model_tier: dict[str, dict[str, int]] = {}
+    by_model: dict[str, dict[str, int]] = {}
+    by_planner_run: dict[str, dict[str, object]] = {}
+    runs_with_usage = 0
+    for run_name, summary in summaries_by_run:
+        normalized = dict(summary)
+        by_planner_run[run_name] = normalized
+        if _nonnegative_int(normalized.get("row_count", 0)) > 0:
+            runs_with_usage += 1
+        _add_usage_summary_to_bucket(totals, normalized)
+        _merge_usage_bucket_maps(by_provider, normalized.get("by_provider", {}))
+        _merge_usage_bucket_maps(by_model_tier, normalized.get("by_model_tier", {}))
+        _merge_usage_bucket_maps(by_model, normalized.get("by_model", {}))
+    return {
+        "summary_kind": (
+            "formalization_gap_planner_reuse_smoke_combined_llm_provider_usage_summary"
+        ),
+        "n_planner_runs": len(summaries_by_run),
+        "n_planner_runs_with_provider_usage": runs_with_usage,
+        "row_count": totals["n_rows"],
+        "input_tokens": totals["input_tokens"],
+        "output_tokens": totals["output_tokens"],
+        "cache_creation_input_tokens": totals["cache_creation_input_tokens"],
+        "cache_read_input_tokens": totals["cache_read_input_tokens"],
+        "total_tokens": totals["total_tokens"],
+        "by_provider": dict(sorted(by_provider.items())),
+        "by_model_tier": dict(sorted(by_model_tier.items())),
+        "by_model": dict(sorted(by_model.items())),
+        "by_planner_run": dict(sorted(by_planner_run.items())),
+        "usage_boundary": (
+            "Combined provider token usage covers primary and feedback LLM "
+            "route-planner calls; it is cost accounting metadata, not proof "
+            "evidence."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _usage_bucket_map(value: object) -> dict[str, dict[str, int]]:
+    if not isinstance(value, dict):
+        return {}
+    buckets: dict[str, dict[str, int]] = {}
+    for raw_key, raw_bucket in value.items():
+        if not isinstance(raw_bucket, dict):
+            continue
+        bucket = _empty_usage_bucket()
+        bucket["n_rows"] = _nonnegative_int(
+            raw_bucket.get("n_rows", raw_bucket.get("row_count", 0))
+        )
+        for key in (
+            "input_tokens",
+            "output_tokens",
+            "cache_creation_input_tokens",
+            "cache_read_input_tokens",
+            "total_tokens",
+        ):
+            bucket[key] = _nonnegative_int(raw_bucket.get(key, 0))
+        buckets[str(raw_key)] = bucket
+    return dict(sorted(buckets.items()))
+
+
+def _empty_usage_bucket() -> dict[str, int]:
+    return {
+        "n_rows": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "total_tokens": 0,
+    }
+
+
+def _add_usage_summary_to_bucket(
+    bucket: dict[str, int],
+    summary: dict[str, object],
+) -> None:
+    bucket["n_rows"] += _nonnegative_int(summary.get("row_count", 0))
+    for key in (
+        "input_tokens",
+        "output_tokens",
+        "cache_creation_input_tokens",
+        "cache_read_input_tokens",
+        "total_tokens",
+    ):
+        bucket[key] += _nonnegative_int(summary.get(key, 0))
+
+
+def _merge_usage_bucket_maps(
+    target: dict[str, dict[str, int]],
+    source: object,
+) -> None:
+    for key, source_bucket in _usage_bucket_map(source).items():
+        target_bucket = target.setdefault(key, _empty_usage_bucket())
+        for bucket_key, value in source_bucket.items():
+            target_bucket[bucket_key] = (
+                target_bucket.get(bucket_key, 0) + _nonnegative_int(value)
+            )
+
+
 def _evaluation_ground_truth_path(
     plan_payload: dict[str, Any],
     out_dir: Path,
@@ -7899,6 +8277,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"generator_metadata_rows={payload.get('n_llm_route_planner_rows_with_generator_metadata')}"
         ),
         (
+            f"- LLM route planner provider usage rows/input/output/total: "
+            f"{payload.get('n_llm_route_planner_rows_with_provider_usage')}/"
+            f"{payload.get('total_llm_route_planner_provider_input_tokens')}/"
+            f"{payload.get('total_llm_route_planner_provider_output_tokens')}/"
+            f"{payload.get('total_llm_route_planner_provider_total_tokens')}"
+        ),
+        (
             f"- LLM route planner adoption ready/pending/search-blockers/action-blockers: "
             f"{payload.get('n_llm_route_planner_route_adoption_ready')}/"
             f"{payload.get('n_llm_route_planner_route_adoption_pending_refinement')}/"
@@ -8114,6 +8499,20 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"generator_metadata_rows={payload.get('n_feedback_llm_route_planner_rows_with_generator_metadata')} "
             f"accepted={payload.get('n_feedback_llm_route_planner_accepted_route_plans')} "
             f"residual_goals={payload.get('n_feedback_llm_route_planner_request_residual_goals')}"
+        ),
+        (
+            f"- Feedback LLM route planner provider usage rows/input/output/total: "
+            f"{payload.get('n_feedback_llm_route_planner_rows_with_provider_usage')}/"
+            f"{payload.get('total_feedback_llm_route_planner_provider_input_tokens')}/"
+            f"{payload.get('total_feedback_llm_route_planner_provider_output_tokens')}/"
+            f"{payload.get('total_feedback_llm_route_planner_provider_total_tokens')}"
+        ),
+        (
+            f"- Combined LLM route planner provider usage rows/input/output/total: "
+            f"{payload.get('n_combined_llm_route_planner_rows_with_provider_usage')}/"
+            f"{payload.get('total_combined_llm_route_planner_provider_input_tokens')}/"
+            f"{payload.get('total_combined_llm_route_planner_provider_output_tokens')}/"
+            f"{payload.get('total_combined_llm_route_planner_provider_total_tokens')}"
         ),
         (
             f"- Feedback LLM route planner adoption ready/pending/search-blockers/action-blockers: "

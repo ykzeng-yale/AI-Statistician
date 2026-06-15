@@ -228,7 +228,11 @@ without storing full provider objects. The LLM route-planner manifest also
 derives `provider_usage_rows`, `provider_usage_summary`, and total
 input/output/cache/overall token counters from that metadata, grouped by
 provider, model, and model tier. Those fields are cost-accounting evidence for
-Haiku/Sonnet switching, not proof evidence. In addition to the manifest-level
+Haiku/Sonnet switching, not proof evidence. Reuse-smoke and publication-bundle
+summaries now preserve the same provider-usage summary for both the primary and
+feedback LLM route-planner passes, plus a combined input/output/cache/total
+token rollup, so system-level evaluations can audit Claude tier cost without
+replaying provider calls. In addition to the manifest-level
 policy, every LLM route-planner request packet
 now carries a request-scoped `llm_generation_policy` snapshot with the selected
 provider, resolved model, selected/requested tier, Claude pinned model policy,

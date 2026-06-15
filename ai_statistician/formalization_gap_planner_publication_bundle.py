@@ -2348,6 +2348,13 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_rows",
             "n_response_present",
             "n_response_contract_ok",
+            "provider_usage_summary",
+            "n_rows_with_provider_usage",
+            "total_provider_input_tokens",
+            "total_provider_output_tokens",
+            "total_provider_cache_creation_input_tokens",
+            "total_provider_cache_read_input_tokens",
+            "total_provider_total_tokens",
             "n_generated_responses_model_tier_escalated",
             "n_generated_responses_haiku_to_sonnet_escalated",
             "n_repair_attempt_ledger_model_tier_escalations",
@@ -2527,6 +2534,13 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_response_present": nonnegative_integer,
             "n_response_contract_ok": nonnegative_integer,
             "n_provider_failures": nonnegative_integer,
+            "provider_usage_summary": {"type": "object"},
+            "n_rows_with_provider_usage": nonnegative_integer,
+            "total_provider_input_tokens": nonnegative_integer,
+            "total_provider_output_tokens": nonnegative_integer,
+            "total_provider_cache_creation_input_tokens": nonnegative_integer,
+            "total_provider_cache_read_input_tokens": nonnegative_integer,
+            "total_provider_total_tokens": nonnegative_integer,
             "n_generated_responses_model_tier_escalated": nonnegative_integer,
             "n_generated_responses_haiku_to_sonnet_escalated": (
                 nonnegative_integer
@@ -4816,6 +4830,13 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_response_present": 0,
         "n_response_contract_ok": 0,
         "n_provider_failures": 0,
+        "provider_usage_summary": {},
+        "n_rows_with_provider_usage": 0,
+        "total_provider_input_tokens": 0,
+        "total_provider_output_tokens": 0,
+        "total_provider_cache_creation_input_tokens": 0,
+        "total_provider_cache_read_input_tokens": 0,
+        "total_provider_total_tokens": 0,
         "n_generated_responses_model_tier_escalated": 0,
         "n_generated_responses_haiku_to_sonnet_escalated": 0,
         "n_repair_attempt_ledger_model_tier_escalations": 0,
@@ -5213,6 +5234,64 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             payload.get(
                 "n_provider_failures",
                 sum(1 for row in rows if bool(row.get("provider_failure", False))),
+            )
+            or 0
+        ),
+        "provider_usage_summary": _dict_value(payload, "provider_usage_summary"),
+        "n_rows_with_provider_usage": int(
+            payload.get(
+                "n_rows_with_provider_usage",
+                len(_dict_tuple(payload.get("provider_usage_rows", []))),
+            )
+            or 0
+        ),
+        "total_provider_input_tokens": int(
+            payload.get(
+                "total_provider_input_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "input_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_output_tokens": int(
+            payload.get(
+                "total_provider_output_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "output_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_cache_creation_input_tokens": int(
+            payload.get(
+                "total_provider_cache_creation_input_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "cache_creation_input_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_cache_read_input_tokens": int(
+            payload.get(
+                "total_provider_cache_read_input_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "cache_read_input_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_total_tokens": int(
+            payload.get(
+                "total_provider_total_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "total_tokens",
+                    0,
+                ),
             )
             or 0
         ),
@@ -6303,6 +6382,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"blockers={payload.get('llm_route_planner_summary', {}).get('standalone_replay_gate_blockers')}"
         ),
         (
+            f"- LLM route planner provider usage rows/input/output/total: "
+            f"{payload.get('llm_route_planner_summary', {}).get('n_rows_with_provider_usage')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('total_provider_input_tokens')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('total_provider_output_tokens')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('total_provider_total_tokens')}"
+        ),
+        (
             f"- Feedback LLM route planner ready/pending/blockers: "
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_ready')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_pending_refinement')}/"
@@ -6319,6 +6405,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"adoptable={payload.get('feedback_llm_route_planner_summary', {}).get('n_standalone_replay_adoptable_route_candidates')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_standalone_replay_route_candidates')} "
             f"blockers={payload.get('feedback_llm_route_planner_summary', {}).get('standalone_replay_gate_blockers')}"
+        ),
+        (
+            f"- Feedback LLM route planner provider usage rows/input/output/total: "
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_rows_with_provider_usage')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('total_provider_input_tokens')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('total_provider_output_tokens')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('total_provider_total_tokens')}"
         ),
         (
             f"- LLM registry resources in prompt: "

@@ -562,7 +562,10 @@ For live-provider runs, the LLM route-planner manifest reports
 `provider_usage_rows` plus aggregate input/output/cache/total token counters by
 provider, model, and model tier. Evaluation should treat these as cost-control
 metadata for Haiku/Sonnet routing, separate from source, library, prover, and
-kernel evidence.
+kernel evidence. Reuse-smoke and publication-bundle summaries lift the same
+provider-usage totals for the primary and feedback route-planner passes, and
+add a combined provider-usage rollup so benchmark tables can compare route
+quality and Claude tier cost from one reusable artifact.
 The `formalization-gap-planner-portable-plan-audit` gate validates the plan
 contract before any scoring or target-prover mapping: schema identity, library
 snapshot consistency, two-DAG and AND/OR structure, work-packet gates,

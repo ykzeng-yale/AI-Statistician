@@ -3212,6 +3212,64 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "provider_usage_summary": _dict_value(payload, "provider_usage_summary"),
+        "n_rows_with_provider_usage": int(
+            payload.get(
+                "n_rows_with_provider_usage",
+                len(_dict_tuple(payload.get("provider_usage_rows", []))),
+            )
+            or 0
+        ),
+        "total_provider_input_tokens": int(
+            payload.get(
+                "total_provider_input_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "input_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_output_tokens": int(
+            payload.get(
+                "total_provider_output_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "output_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_cache_creation_input_tokens": int(
+            payload.get(
+                "total_provider_cache_creation_input_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "cache_creation_input_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_cache_read_input_tokens": int(
+            payload.get(
+                "total_provider_cache_read_input_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "cache_read_input_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
+        "total_provider_total_tokens": int(
+            payload.get(
+                "total_provider_total_tokens",
+                _dict_value(payload, "provider_usage_summary").get(
+                    "total_tokens",
+                    0,
+                ),
+            )
+            or 0
+        ),
         "n_generated_responses_model_tier_escalated": int(
             payload.get(
                 "n_generated_responses_model_tier_escalated",

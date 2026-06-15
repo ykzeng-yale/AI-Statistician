@@ -515,6 +515,21 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == "staged_live_provider_prompt_no_api_call"
     )
     assert payload["n_llm_route_planner_live_provider_calls_requested"] == 0
+    assert payload["n_llm_route_planner_rows_with_provider_usage"] == 0
+    assert payload["total_llm_route_planner_provider_input_tokens"] == 0
+    assert payload["total_llm_route_planner_provider_output_tokens"] == 0
+    assert (
+        payload[
+            "total_llm_route_planner_provider_cache_creation_input_tokens"
+        ]
+        == 0
+    )
+    assert payload["total_llm_route_planner_provider_cache_read_input_tokens"] == 0
+    assert payload["total_llm_route_planner_provider_total_tokens"] == 0
+    assert payload["llm_route_planner_provider_usage_summary"]["row_count"] == 0
+    assert payload["llm_route_planner_provider_usage_summary"][
+        "proof_evidence_status"
+    ]
     assert payload["llm_route_planner_max_repair_attempts"] == 1
     assert payload["llm_route_planner_by_request_model_tier"]
     assert (
@@ -730,6 +745,11 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     ).read_text(encoding="utf-8")
     assert "Source prover targets: `lean4` families=1 by={'lean4': 1}" in report_text
     assert "cost-hint-incomplete" in report_text
+    assert "LLM route planner provider usage rows/input/output/total" in report_text
+    assert (
+        "Combined LLM route planner provider usage rows/input/output/total"
+        in report_text
+    )
 
     assert (
         payload["n_llm_route_planner_rows_with_realization_coverage_witness"]
@@ -856,6 +876,44 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_feedback_llm_route_planner_live_provider_calls_requested"] == 0
     assert payload["n_total_llm_route_planner_live_provider_calls_requested"] == 0
+    assert payload["n_feedback_llm_route_planner_rows_with_provider_usage"] == 0
+    assert payload["total_feedback_llm_route_planner_provider_input_tokens"] == 0
+    assert payload["total_feedback_llm_route_planner_provider_output_tokens"] == 0
+    assert (
+        payload[
+            "total_feedback_llm_route_planner_provider_cache_creation_input_tokens"
+        ]
+        == 0
+    )
+    assert (
+        payload["total_feedback_llm_route_planner_provider_cache_read_input_tokens"]
+        == 0
+    )
+    assert payload["total_feedback_llm_route_planner_provider_total_tokens"] == 0
+    assert (
+        payload["feedback_llm_route_planner_provider_usage_summary"]["row_count"]
+        == 0
+    )
+    assert payload["n_combined_llm_route_planner_rows_with_provider_usage"] == 0
+    assert payload["total_combined_llm_route_planner_provider_input_tokens"] == 0
+    assert payload["total_combined_llm_route_planner_provider_output_tokens"] == 0
+    assert (
+        payload[
+            "total_combined_llm_route_planner_provider_cache_creation_input_tokens"
+        ]
+        == 0
+    )
+    assert (
+        payload["total_combined_llm_route_planner_provider_cache_read_input_tokens"]
+        == 0
+    )
+    assert payload["total_combined_llm_route_planner_provider_total_tokens"] == 0
+    assert (
+        payload["combined_llm_route_planner_provider_usage_summary"][
+            "n_planner_runs"
+        ]
+        == 2
+    )
     assert payload["feedback_llm_route_planner_max_repair_attempts"] == 1
     assert payload["feedback_llm_route_planner_by_request_model_tier"]
     assert (
