@@ -518,7 +518,10 @@ readiness, feedback-loop readiness, and LLM cost-tier decision traces. The
 evaluation rows expose model-tier decision basis, Sonnet trigger counts, and
 source-theorem/proof-body feedback counts, so benchmarks can separate cheap
 bounded Haiku triage from Sonnet calls justified by semantic primitive gaps,
-proof-body execution failures, or formal-environment blockers. Route-truth files may provide
+proof-body execution failures, or formal-environment blockers. LLM planner
+request packets also expose resource-feedback readiness counters, so evaluation
+can check whether feedback-driven replans preserve low-delta reuse priorities
+instead of expanding into avoidable source ports or new theory. Route-truth files may provide
 `expected_residual_primitives` and `expected_residual_goals` so proof-state
 feedback can be scored as a bounded oracle signal rather than treated as a
 binary success flag. It publishes an evaluation-row JSON Schema and row

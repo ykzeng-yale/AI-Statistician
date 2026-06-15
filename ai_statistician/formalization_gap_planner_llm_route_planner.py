@@ -1624,6 +1624,37 @@ def export_formalization_gap_planner_llm_route_planner(
                 )
             )
         ),
+        "n_requests_with_resource_feedback_readiness_summary": sum(
+            1
+            for packet in request_packets
+            if int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "resource_feedback_readiness_summary",
+                ).get("total_count", 0)
+                or 0
+            )
+        ),
+        "n_request_resource_feedback_readiness_rows": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "resource_feedback_readiness_summary",
+                ).get("total_count", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_resource_feedback_reuse_ready_rows": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "resource_feedback_readiness_summary",
+                ).get("reuse_ready_count", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
         "n_requests_with_resource_request_queue_rows": sum(
             1
             for packet in request_packets
@@ -3624,6 +3655,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_pending_source_grounding_obligation_inventory",
             "n_request_source_grounding_unresolved_rows",
             "n_request_residual_source_grounding_unresolved_rows",
+            "n_requests_with_resource_feedback_readiness_summary",
+            "n_request_resource_feedback_readiness_rows",
+            "n_request_resource_feedback_reuse_ready_rows",
             "n_requests_with_quality_control_obligation_inventory",
             "n_requests_with_pending_quality_control_obligation_inventory",
             "n_request_quality_control_obligation_fields",
@@ -3930,6 +3964,11 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_residual_source_grounding_unresolved_rows": (
                 nonnegative_integer
             ),
+            "n_requests_with_resource_feedback_readiness_summary": (
+                nonnegative_integer
+            ),
+            "n_request_resource_feedback_readiness_rows": nonnegative_integer,
+            "n_request_resource_feedback_reuse_ready_rows": nonnegative_integer,
             "n_requests_with_quality_control_obligation_inventory": nonnegative_integer,
             "n_requests_with_pending_quality_control_obligation_inventory": (
                 nonnegative_integer
@@ -6437,6 +6476,9 @@ def _request_packet(
     context_packet["source_grounding_obligations"] = (
         _source_grounding_obligation_summary(context_packet)
     )
+    context_packet["resource_feedback_readiness_summary"] = (
+        _resource_feedback_readiness_summary(context_packet)
+    )
     context_packet["target_theorem_context_packet"] = (
         _target_theorem_context_packet(
             route_id=route_id,
@@ -7082,6 +7124,10 @@ def _route_planning_brief(
         context_packet,
         "route_adoption_preconditions",
     )
+    resource_feedback_readiness = _dict_value(
+        context_packet,
+        "resource_feedback_readiness_summary",
+    )
     target_theorem_context = _dict_value(
         context_packet,
         "target_theorem_context_packet",
@@ -7259,6 +7305,34 @@ def _route_planning_brief(
             required_output_fields=(
                 "minimal_delta_plan",
                 "minimal_delta_plan.and_or_cost_graph",
+            ),
+        )
+    if int(resource_feedback_readiness.get("total_count", 0) or 0):
+        high_priority_rows = _dict_tuple(
+            resource_feedback_readiness.get("high_priority_rows", [])
+        )
+        add_focus(
+            "preserve_resource_feedback_minimal_delta_priority",
+            priority=2,
+            action=(
+                "carry resource-feedback minimal-delta/readiness priorities "
+                "into revised primitive costs and follow-up actions"
+            ),
+            reason=(
+                "accepted resource-response or handoff traces include queued "
+                "minimal-delta cost, reuse readiness, evidence readiness, and "
+                "priority rationale"
+            ),
+            evidence_fields=(
+                "context_packet.resource_feedback_readiness_summary",
+                "context_packet.feedback_loop_summary.resource_feedback_readiness_summary",
+            ),
+            required_output_fields=(
+                "minimal_delta_plan.primitive_costs",
+                "planner_next_actions",
+            ),
+            target_primitives=_str_tuple(
+                [row.get("primitive", "") for row in high_priority_rows]
             ),
         )
     if alignment_summary:
@@ -7489,6 +7563,28 @@ def _route_planning_brief(
         ),
         "source_theorem_feedback_formal_environment_blocker_count": int(
             source_theorem_feedback.get("formal_environment_blocker_count", 0)
+            or 0
+        ),
+        "resource_feedback_readiness_row_count": int(
+            resource_feedback_readiness.get("total_count", 0) or 0
+        ),
+        "resource_feedback_reuse_ready_count": int(
+            resource_feedback_readiness.get("reuse_ready_count", 0) or 0
+        ),
+        "resource_feedback_light_bridge_or_wrapper_count": int(
+            resource_feedback_readiness.get("light_bridge_or_wrapper_count", 0)
+            or 0
+        ),
+        "resource_feedback_source_or_new_theory_count": int(
+            resource_feedback_readiness.get("source_or_new_theory_count", 0)
+            or 0
+        ),
+        "resource_feedback_average_reuse_readiness_score": int(
+            resource_feedback_readiness.get("average_reuse_readiness_score", 0)
+            or 0
+        ),
+        "resource_feedback_average_evidence_readiness_score": int(
+            resource_feedback_readiness.get("average_evidence_readiness_score", 0)
             or 0
         ),
         "feedback_replan_required": bool(feedback_summary.get("replan_required", False)),
@@ -8071,6 +8167,10 @@ def _context_packet_inventory(
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
     cost_hints = _dict_value(context_packet, "minimal_delta_cost_hints")
     alignment_summary = _dict_value(context_packet, "library_alignment_summary")
+    resource_feedback_readiness = _dict_value(
+        context_packet,
+        "resource_feedback_readiness_summary",
+    )
     route_adoption_preconditions = _dict_value(
         context_packet,
         "route_adoption_preconditions",
@@ -8219,6 +8319,15 @@ def _context_packet_inventory(
         "library_alignment_target_compatible_reuse_declaration_count": int(
             alignment_summary.get("n_target_compatible_reuse_declarations", 0)
             or 0
+        ),
+        "resource_feedback_readiness_summary_present": bool(
+            resource_feedback_readiness
+        ),
+        "resource_feedback_readiness_row_count": int(
+            resource_feedback_readiness.get("total_count", 0) or 0
+        ),
+        "resource_feedback_readiness_reuse_ready_count": int(
+            resource_feedback_readiness.get("reuse_ready_count", 0) or 0
         ),
         "route_adoption_precondition_present": bool(
             route_adoption_preconditions
@@ -8382,6 +8491,10 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             + CONTEXT_PACKET_INVENTORY_KIND
         )
     row_counts = _dict_value(inventory, "row_counts")
+    resource_feedback_readiness = _dict_value(
+        context_packet,
+        "resource_feedback_readiness_summary",
+    )
     total_context_rows = 0
     for field_name in CONTEXT_PACKET_ROW_FIELDS:
         expected_count = len(_dict_tuple(context_packet.get(field_name, [])))
@@ -8431,6 +8544,14 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             len(_dict_tuple(context_packet.get("resource_request_playbooks", []))),
         ),
         (
+            "resource_feedback_readiness_row_count",
+            int(resource_feedback_readiness.get("total_count", 0) or 0),
+        ),
+        (
+            "resource_feedback_readiness_reuse_ready_count",
+            int(resource_feedback_readiness.get("reuse_ready_count", 0) or 0),
+        ),
+        (
             "interactive_session_resource_request_count",
             int(
                 _interactive_session_resource_request_summary(
@@ -8476,6 +8597,13 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                 "context_packet.context_packet_inventory."
                 f"{field_name} must match context_packet"
             )
+    if bool(
+        inventory.get("resource_feedback_readiness_summary_present", False)
+    ) != bool(resource_feedback_readiness):
+        errors.append(
+            "context_packet.context_packet_inventory."
+            "resource_feedback_readiness_summary_present must match context_packet"
+        )
     target_theorem_context = _dict_value(
         context_packet,
         "target_theorem_context_packet",
@@ -8903,6 +9031,54 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                         ),
                         "source_theorem_feedback",
                     ).get("formal_environment_blocker_count", 0)
+                    or 0
+                ),
+            ),
+            (
+                "resource_feedback_readiness_row_count",
+                int(resource_feedback_readiness.get("total_count", 0) or 0),
+            ),
+            (
+                "resource_feedback_reuse_ready_count",
+                int(resource_feedback_readiness.get("reuse_ready_count", 0) or 0),
+            ),
+            (
+                "resource_feedback_light_bridge_or_wrapper_count",
+                int(
+                    resource_feedback_readiness.get(
+                        "light_bridge_or_wrapper_count",
+                        0,
+                    )
+                    or 0
+                ),
+            ),
+            (
+                "resource_feedback_source_or_new_theory_count",
+                int(
+                    resource_feedback_readiness.get(
+                        "source_or_new_theory_count",
+                        0,
+                    )
+                    or 0
+                ),
+            ),
+            (
+                "resource_feedback_average_reuse_readiness_score",
+                int(
+                    resource_feedback_readiness.get(
+                        "average_reuse_readiness_score",
+                        0,
+                    )
+                    or 0
+                ),
+            ),
+            (
+                "resource_feedback_average_evidence_readiness_score",
+                int(
+                    resource_feedback_readiness.get(
+                        "average_evidence_readiness_score",
+                        0,
+                    )
                     or 0
                 ),
             ),
@@ -20142,6 +20318,121 @@ def _request_library_alignment_summary(
     return dict(summary) if isinstance(summary, Mapping) else {}
 
 
+def _resource_feedback_readiness_summary(
+    context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    rows = _resource_feedback_readiness_rows(context_packet)
+    if not rows:
+        return {}
+    costs = [
+        _bounded_score(row.get("minimal_delta_cost_score", 100), default=100)
+        for row in rows
+    ]
+    reuse_scores = [_bounded_score(row.get("reuse_readiness_score", 0)) for row in rows]
+    evidence_scores = [
+        _bounded_score(row.get("evidence_readiness_score", 0)) for row in rows
+    ]
+    high_priority_rows = sorted(
+        rows,
+        key=lambda row: (
+            -_bounded_score(row.get("priority_score", 0)),
+            _bounded_score(row.get("minimal_delta_cost_score", 100), default=100),
+            str(row.get("primitive", "")),
+            str(row.get("resource_request_id", "")),
+        ),
+    )[:8]
+    return {
+        "summary_kind": (
+            "formalization_gap_planner_llm_route_planner_"
+            "resource_feedback_readiness_summary"
+        ),
+        "total_count": len(rows),
+        "reuse_ready_count": sum(1 for cost in costs if cost <= 15),
+        "light_bridge_or_wrapper_count": sum(1 for cost in costs if 15 < cost <= 45),
+        "source_or_new_theory_count": sum(1 for cost in costs if 45 < cost < 100),
+        "alignment_blocked_count": sum(1 for cost in costs if cost >= 100),
+        "average_minimal_delta_cost_score": _mean_int(costs),
+        "average_reuse_readiness_score": _mean_int(reuse_scores),
+        "average_evidence_readiness_score": _mean_int(evidence_scores),
+        "high_priority_rows": [dict(row) for row in high_priority_rows],
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _resource_feedback_readiness_rows(
+    context_packet: Mapping[str, Any],
+) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    seen: set[str] = set()
+
+    def add_readiness_row(source_field: str, row: Mapping[str, object]) -> None:
+        readiness_row = _resource_feedback_readiness_row(source_field, row)
+        if not readiness_row:
+            return
+        key = stable_hash(
+            [
+                readiness_row.get("resource_response_ledger_id", ""),
+                readiness_row.get("resource_request_id", ""),
+                readiness_row.get("primitive", ""),
+                readiness_row.get("minimal_delta_cost_score", 100),
+                readiness_row.get("reuse_readiness_score", 0),
+                readiness_row.get("evidence_readiness_score", 0),
+            ]
+        )
+        if key in seen:
+            return
+        seen.add(key)
+        rows.append(readiness_row)
+
+    for row in _dict_tuple(context_packet.get("resource_response_ledger_rows", [])):
+        if _resource_response_row_is_admissible_feedback(row):
+            add_readiness_row("resource_response_ledger_rows", row)
+    for field_name in (
+        "route_revision_overlay_rows",
+        "route_replan_handoff_rows",
+    ):
+        for row in _dict_tuple(context_packet.get(field_name, [])):
+            for trace in _dict_tuple(row.get("applied_resource_response_traces", [])):
+                add_readiness_row(
+                    f"{field_name}.applied_resource_response_traces",
+                    trace,
+                )
+    return tuple(rows)
+
+
+def _resource_feedback_readiness_row(
+    source_field: str,
+    row: Mapping[str, object],
+) -> dict[str, object]:
+    if "minimal_delta_cost_score" not in row:
+        return {}
+    target_primitives = _str_tuple(row.get("target_primitives", []))
+    primitive = _primitive_key(row.get("primitive", ""))
+    if not primitive and target_primitives:
+        primitive = _primitive_key(target_primitives[0])
+    return {
+        "source_field": source_field,
+        "resource_response_ledger_id": str(
+            row.get("resource_response_ledger_id", "")
+        ).strip(),
+        "resource_request_id": str(row.get("resource_request_id", "")).strip(),
+        "resource_id": str(row.get("resource_id", "")).strip(),
+        "primitive": primitive,
+        "target_primitives": list(target_primitives),
+        "priority_score": _bounded_score(row.get("priority_score", 0)),
+        "minimal_delta_cost_score": _bounded_score(
+            row.get("minimal_delta_cost_score", 100),
+            default=100,
+        ),
+        "reuse_readiness_score": _bounded_score(row.get("reuse_readiness_score", 0)),
+        "evidence_readiness_score": _bounded_score(
+            row.get("evidence_readiness_score", 0)
+        ),
+        "priority_rationale": list(_str_tuple(row.get("priority_rationale", []))),
+    }
+
+
 def _feedback_loop_summary(
     context_packet: Mapping[str, Any],
     *,
@@ -20270,6 +20561,10 @@ def _feedback_loop_summary(
         recommended_next_actions=recommended_next_actions,
         include_feedback_summary=False,
     )
+    resource_feedback_readiness = _dict_value(
+        context_packet,
+        "resource_feedback_readiness_summary",
+    ) or _resource_feedback_readiness_summary(context_packet)
     interactive_route_adoption_preconditions = (
         _interactive_route_adoption_precondition_summary(
             rows_by_field.get("interactive_session_rows", ())
@@ -20372,6 +20667,8 @@ def _feedback_loop_summary(
         summary["realization_coverage"] = realization_coverage
     if source_theorem_feedback:
         summary["source_theorem_feedback"] = source_theorem_feedback
+    if resource_feedback_readiness:
+        summary["resource_feedback_readiness_summary"] = resource_feedback_readiness
     if quality_control_obligations.get("present"):
         summary["quality_control_obligations"] = quality_control_obligations
     if replan_metadata:
@@ -21344,6 +21641,20 @@ def _feedback_next_actions(
                 "action": "route_revision_recommended",
                 "resource_request_id": str(row.get("resource_request_id", "")).strip(),
                 "acceptance_status": str(row.get("acceptance_status", "")).strip(),
+                "priority_score": _bounded_score(row.get("priority_score", 0)),
+                "minimal_delta_cost_score": _bounded_score(
+                    row.get("minimal_delta_cost_score", 100),
+                    default=100,
+                ),
+                "reuse_readiness_score": _bounded_score(
+                    row.get("reuse_readiness_score", 0)
+                ),
+                "evidence_readiness_score": _bounded_score(
+                    row.get("evidence_readiness_score", 0)
+                ),
+                "priority_rationale": list(
+                    _str_tuple(row.get("priority_rationale", []))[:8]
+                ),
                 "reasons": list(_str_tuple(row.get("route_revision_reasons", []))[:8]),
                 "response_summary": str(row.get("response_summary", "")).strip(),
             }
@@ -21376,31 +21687,33 @@ def _feedback_next_actions(
             or _str_tuple(row.get("applied_refinement_evidence_ids", []))
         ):
             continue
-        actions.append(
-            {
-                "source": "route_replan_handoff",
-                "owner": "route_planner",
-                "action": "continue_from_route_replan_handoff",
-                "route_replan_handoff_id": str(
-                    row.get("route_replan_handoff_id", "")
-                ).strip(),
-                "route_revision_overlay_id": str(
-                    row.get("route_revision_overlay_id", "")
-                ).strip(),
-                "applied_refinement_evidence_ids": list(
-                    _str_tuple(row.get("applied_refinement_evidence_ids", []))[:12]
-                ),
-                "residual_goals": list(
-                    _str_tuple(row.get("residual_goals", []))[:12]
-                ),
-                "residual_goal_contexts": [
-                    dict(context)
-                    for context in _residual_goal_contexts_for_route(row)[:6]
-                ],
-                "quality_controls": _dict_value(row, "quality_controls"),
-                "commands": list(_str_tuple(row.get("next_commands", []))[:8]),
-            }
+        action = {
+            "source": "route_replan_handoff",
+            "owner": "route_planner",
+            "action": "continue_from_route_replan_handoff",
+            "route_replan_handoff_id": str(
+                row.get("route_replan_handoff_id", "")
+            ).strip(),
+            "route_revision_overlay_id": str(
+                row.get("route_revision_overlay_id", "")
+            ).strip(),
+            "applied_refinement_evidence_ids": list(
+                _str_tuple(row.get("applied_refinement_evidence_ids", []))[:12]
+            ),
+            "residual_goals": list(_str_tuple(row.get("residual_goals", []))[:12]),
+            "residual_goal_contexts": [
+                dict(context)
+                for context in _residual_goal_contexts_for_route(row)[:6]
+            ],
+            "quality_controls": _dict_value(row, "quality_controls"),
+            "commands": list(_str_tuple(row.get("next_commands", []))[:8]),
+        }
+        readiness_summary = _resource_feedback_readiness_summary(
+            {"route_replan_handoff_rows": [row]}
         )
+        if readiness_summary:
+            action["resource_feedback_readiness_summary"] = readiness_summary
+        actions.append(action)
     if not actions and residual_goals:
         actions.append(
             {
@@ -21649,6 +21962,26 @@ def _truthy(value: object) -> bool:
     }
 
 
+def _bounded_score(value: object, *, default: int = 0) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default
+    return max(0, min(100, parsed))
+
+
+def _mean_int(values: Iterable[object]) -> int:
+    parsed: list[int] = []
+    for value in values:
+        try:
+            parsed.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    if not parsed:
+        return 0
+    return round(sum(parsed) / len(parsed))
+
+
 def _resource_targets_match(row: Mapping[str, Any], target_prover_family: str) -> bool:
     targets = {value.lower() for value in _str_tuple(row.get("target_prover_families", []))}
     if not targets:
@@ -21755,6 +22088,11 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "response_artifacts",
         "coverage_bucket",
         "coverage_status",
+        "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+        "priority_rationale",
         "candidate_declarations",
         "candidate_declaration_rows",
         "source_refs",

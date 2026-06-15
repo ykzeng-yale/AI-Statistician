@@ -1028,6 +1028,16 @@ def _write_resource_response_ledger(root: Path) -> Path:
                         "target_primitives": ["rank_uniformity"],
                         "resource_id": "paperclip_mcp",
                         "expected_response_artifact": "source_evidence",
+                        "priority_score": 88,
+                        "minimal_delta_cost_score": 40,
+                        "reuse_readiness_score": 70,
+                        "evidence_readiness_score": 90,
+                        "priority_rationale": [
+                            "coverage_status=bridge_needed",
+                            "minimal_delta_cost_score=40",
+                            "reuse_readiness_score=70",
+                            "evidence_readiness_score=90",
+                        ],
                         "acceptance_gate": "source evidence must satisfy queued contract fields",
                         "response_present": True,
                         "response_contract_minimum_met": True,
@@ -3445,6 +3455,9 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     assert payload["n_feedback_loop_summary_replan_required"] == 1
     assert payload["n_feedback_loop_summary_resource_response_admissible"] == 1
     assert payload["n_feedback_loop_summary_resource_response_status_only"] == 0
+    assert payload["n_requests_with_resource_feedback_readiness_summary"] == 1
+    assert payload["n_request_resource_feedback_readiness_rows"] == 1
+    assert payload["n_request_resource_feedback_reuse_ready_rows"] == 0
     assert payload["n_feedback_loop_summary_source_snippets"] == 1
     assert payload["n_requests_with_available_source_snippets"] == 1
     assert payload["n_request_available_source_snippets"] >= 2
@@ -3457,6 +3470,15 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     ledger_row = context["resource_response_ledger_rows"][0]
     assert ledger_row["response_present"] is True
     assert ledger_row["response_contract_ok"] is True
+    assert ledger_row["minimal_delta_cost_score"] == 40
+    assert ledger_row["reuse_readiness_score"] == 70
+    assert ledger_row["evidence_readiness_score"] == 90
+    assert ledger_row["priority_rationale"] == [
+        "coverage_status=bridge_needed",
+        "minimal_delta_cost_score=40",
+        "reuse_readiness_score=70",
+        "evidence_readiness_score=90",
+    ]
     assert ledger_row["formal_declaration_hits"] == [
         {
             "declaration": "Probability.rankUniformityBridge",
@@ -3481,6 +3503,15 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     )
     summary = context["feedback_loop_summary"]
     assert summary["summary_kind"] == "formalization_gap_planner_feedback_loop_summary"
+    readiness_summary = context["resource_feedback_readiness_summary"]
+    assert readiness_summary["total_count"] == 1
+    assert readiness_summary["light_bridge_or_wrapper_count"] == 1
+    assert readiness_summary["average_reuse_readiness_score"] == 70
+    assert readiness_summary["average_evidence_readiness_score"] == 90
+    assert readiness_summary["high_priority_rows"][0]["resource_request_id"] == (
+        "resource-request:rank_route"
+    )
+    assert summary["resource_feedback_readiness_summary"] == readiness_summary
     assert summary["residual_goals"] == ["rank_uniformity: deterministic tie handling"]
     assert summary["evidence_counts"]["resource_response_ledger_rows"] == 1
     assert summary["resource_response_admissibility"] == {
@@ -3515,6 +3546,22 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     assert summary["recommended_next_actions"][0]["acceptance_status"] == (
         "ACCEPTED_WITH_ROUTE_REVISION"
     )
+    assert summary["recommended_next_actions"][0]["minimal_delta_cost_score"] == 40
+    assert summary["recommended_next_actions"][0]["reuse_readiness_score"] == 70
+    route_brief = context["route_planning_brief"]
+    assert route_brief["evidence_summary"]["resource_feedback_readiness_row_count"] == 1
+    assert route_brief["evidence_summary"][
+        "resource_feedback_light_bridge_or_wrapper_count"
+    ] == 1
+    assert route_brief["evidence_summary"][
+        "resource_feedback_average_evidence_readiness_score"
+    ] == 90
+    assert {
+        focus["focus_id"] for focus in route_brief["planner_focus"]
+    } >= {"preserve_resource_feedback_minimal_delta_priority"}
+    assert inventory["resource_feedback_readiness_summary_present"] is True
+    assert inventory["resource_feedback_readiness_row_count"] == 1
+    assert inventory["resource_feedback_readiness_reuse_ready_count"] == 0
     assert summary["admissible_source_refs"] == ["conformal_prediction_textbook"]
     assert summary["admissible_source_snippets"][0]["source_ref"] == (
         "conformal_prediction_textbook"
@@ -3523,6 +3570,7 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
         "admissible_source_snippets"
     ][0]["claim"]
     assert "feedback_loop_summary" in request["prompt_messages"]["user"]
+    assert "resource_feedback_readiness_summary" in request["prompt_messages"]["user"]
     assert "status-only; do not use them as residual-goal" in request[
         "prompt_messages"
     ]["user"]
@@ -5651,6 +5699,36 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
         standalone_route["replan_metadata"]["quality_controls"]["stop_conditions"]
     ) == ("residual interpreted or source search requested",)
     assert not validate_standalone_input_payload(handoff_payload["standalone_seed"])
+    handoff_manifest_path = (
+        handoff_dir
+        / "formalization_gap_planner_route_replan_handoff_manifest.json"
+    )
+    handoff_manifest = json.loads(handoff_manifest_path.read_text(encoding="utf-8"))
+    handoff_manifest["rows"][0]["applied_resource_response_traces"] = [
+        {
+            "resource_response_ledger_id": "ledger:rank_uniformity",
+            "resource_request_id": "request:rank_uniformity",
+            "resource_id": "lean_lsp_mcp",
+            "primitive": "rank_uniformity",
+            "target_primitives": ["rank_uniformity"],
+            "priority_score": 91,
+            "minimal_delta_cost_score": 10,
+            "reuse_readiness_score": 95,
+            "evidence_readiness_score": 80,
+            "priority_rationale": [
+                "coverage_status=exact_exists",
+                "minimal_delta_cost_score=10",
+                "reuse_readiness_score=95",
+                "evidence_readiness_score=80",
+            ],
+            "acceptance_status": "ACCEPTED_WITH_ROUTE_REVISION",
+            "proof_evidence_boundary": "not theorem proof evidence",
+        }
+    ]
+    handoff_manifest_path.write_text(
+        json.dumps(handoff_manifest, indent=2),
+        encoding="utf-8",
+    )
 
     replan_response = _llm_response_payload()
     replan_response["source_snippets"] = []
@@ -5753,6 +5831,30 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
         handoff_row["route_revision_overlay_id"]
     )
     assert handoff_rows[0]["next_commands"]
+    assert handoff_rows[0]["applied_resource_response_traces"][0][
+        "minimal_delta_cost_score"
+    ] == 10
+    assert replan_payload["n_requests_with_resource_feedback_readiness_summary"] == 1
+    assert replan_payload["n_request_resource_feedback_readiness_rows"] == 1
+    assert replan_payload["n_request_resource_feedback_reuse_ready_rows"] == 1
+    replan_readiness_summary = replan_context[
+        "resource_feedback_readiness_summary"
+    ]
+    assert replan_readiness_summary["reuse_ready_count"] == 1
+    assert replan_readiness_summary["average_reuse_readiness_score"] == 95
+    assert replan_context["feedback_loop_summary"][
+        "resource_feedback_readiness_summary"
+    ] == replan_readiness_summary
+    assert replan_context["route_planning_brief"]["evidence_summary"][
+        "resource_feedback_reuse_ready_count"
+    ] == 1
+    assert {
+        focus["focus_id"]
+        for focus in replan_context["route_planning_brief"]["planner_focus"]
+    } >= {"preserve_resource_feedback_minimal_delta_priority"}
+    assert replan_context["context_packet_inventory"][
+        "resource_feedback_readiness_reuse_ready_count"
+    ] == 1
     assert replan_context["feedback_loop_summary"]["residual_goal_count"] == 1
     assert replan_context["feedback_loop_summary"]["evidence_counts"][
         "route_replan_handoff_rows"
@@ -5776,6 +5878,9 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
     assert "route_replan_handoff_rows" in replan_payload["request_packets"][0][
         "prompt_messages"
     ]["user"]
+    assert "resource_feedback_readiness_summary" in replan_payload[
+        "request_packets"
+    ][0]["prompt_messages"]["user"]
     assert "residual_goal_contexts" in replan_payload["request_packets"][0][
         "prompt_messages"
     ]["user"]

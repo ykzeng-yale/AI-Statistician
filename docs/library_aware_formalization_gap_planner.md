@@ -413,6 +413,13 @@ hidden inside opaque metadata. Its compact
 `applied_llm_route_planner_hook_traces`, so a feedback-driven route repair
 prompt can see which earlier LLM search/action request produced the residual or
 resource-response evidence it is repairing.
+Accepted resource-response rows and handoff `applied_resource_response_traces`
+also feed a compact `context_packet.resource_feedback_readiness_summary` into
+the LLM request. That summary lists high-priority primitives with their queued
+`minimal_delta_cost_score`, `reuse_readiness_score`,
+`evidence_readiness_score`, and `priority_rationale`, and the route-planning
+brief adds a focus row requiring the LLM to preserve those priorities in the
+next `minimal_delta_plan` and follow-up actions.
 Publication-bundle LLM route-planner summaries and the reuse-smoke top-level
 manifest expose the matching prior-hook-trace counters, and the bundle audit
 recomputes them from the packaged planner manifest so summary drift is rejected.
@@ -683,7 +690,7 @@ packet and raw context. It records the target theorem identity, target-intake
 claims and shapes, admissible evidence counts, prioritized planner focus rows,
 an auditable `primitive_evidence_matrix`, and explicit evidence gaps such as
 missing source grounding, missing formal-library grounding, residual repair,
-or pending quality controls. The matrix joins each candidate primitive to its
+resource-feedback readiness priorities, or pending quality controls. The matrix joins each candidate primitive to its
 primitive-scoped source snippets, target-compatible formal declarations,
 minimal-delta coverage bucket, residual-goal context, and recommended planner
 actions, so the LLM does not have to reconstruct the source/formal/residual
@@ -1981,7 +1988,10 @@ The current implementation composes four existing AI Statistician artifacts:
    source snippets or payload excerpts, response artifacts, contract status,
    route-evidence nodes, coverage updates, and residual goals, so a feedback
    LLM pass can revise from actual literature/tool evidence rather than only
-   audit counters. The request packet also exposes `available_source_refs` and
+   audit counters. Their queued minimal-delta/readiness priority fields are
+   compacted into `resource_feedback_readiness_summary`, which is also reflected
+   in `route_planning_brief.evidence_summary` and planner-focus rows. The
+   request packet also exposes `available_source_refs` and
    `available_formal_declarations`, and accepted LLM responses may cite only
    those source refs and formal declarations. If a needed source or declaration
    is missing from the evidence packet, the LLM must emit a bounded literature
