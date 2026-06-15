@@ -1431,6 +1431,18 @@ def _fixture_action_resource_plan_row() -> dict[str, object]:
         "primitive": "rank_uniformity",
         "coverage_bucket": "bridge_needed",
         "queue_action_kind": "prove_bridge_lemma",
+        "priority_score": 70,
+        "minimal_delta_cost_score": 40,
+        "reuse_readiness_score": 75,
+        "evidence_readiness_score": 100,
+        "priority_rationale": [
+            "primitive=rank_uniformity",
+            "coverage_bucket=bridge_needed",
+            "minimal_delta_cost_score=40",
+            "reuse_readiness_score=75",
+            "evidence_readiness_score=100",
+            "focused bridge lemma is a bounded formalization delta",
+        ],
         "target_prover_family": "lean4",
         "library_snapshot_ref": "mathlib4:fixture",
         "candidate_declaration_rows": [

@@ -1075,7 +1075,9 @@ component-resource registry and writes
 the planner components, local-first resources, frontier escalation tools,
 adapter ids, aggregate resource contracts, per-resource request/response
 contract maps, escalation triggers, stop conditions, and reproduction commands
-needed for that primitive action.
+needed for that primitive action. The same minimal-delta cost and
+reuse/evidence readiness scores are preserved here so tool selection can still
+prefer low-delta reuse after resource binding.
 This makes tool choice auditable for other prover ecosystems without turning
 resource routing metadata into proof evidence. The resource-request-queue
 command expands those rows into one dispatch packet per local-first or frontier
@@ -1085,7 +1087,8 @@ packet carries the primitive id, route id, component ids, resource id, request
 phase, the resource-specific contract id and request/response fields, evidence
 inputs, expected outputs, acceptance gate, stop conditions, an execution hint,
 the first-class `target_primitives` scope, the propagated
-`actionable_work_items` from minimal-delta/action planning, and the explicit
+`actionable_work_items` from minimal-delta/action planning, the propagated
+minimal-delta cost/readiness scores and rationale, and the explicit
 proof boundary. It
 is the executable interface for literature search, formal-source search, Lean-library lookup,
 Lean/LSP/Lake/LeanDojo-style prover feedback, and cross-prover/publication
@@ -2111,17 +2114,21 @@ The current implementation composes four existing AI Statistician artifacts:
    joins primitive action-queue rows to those component resources and contracts,
    producing one local-first/frontier-escalation resource plan per primitive
    action under
-   `formalization_gap_planner_action_resource_plan_row.schema.json`.
+   `formalization_gap_planner_action_resource_plan_row.schema.json`. The row
+   preserves the action queue's minimal-delta cost score, reuse/evidence
+   readiness scores, and priority rationale.
 
 12. `formalization_gap_planner_resource_request_queue`
    Expands each action-resource plan into per-resource dispatch packets for
    local-first and frontier resources. Rows carry the primitive id, route id,
    resource id, phase, first-class `target_primitives`, the exact contract id
    and request/response fields for that resource, execution hint, structured
-   `dispatch_spec`, acceptance gate, stop conditions, and proof-boundary text. The nested `request_payload` is
+   `dispatch_spec`, minimal-delta cost/readiness scores, acceptance gate, stop
+   conditions, and proof-boundary text. The nested `request_payload` is
    self-contained: it includes the generated `resource_request_id`, request
    rank, expected response artifact, response-contract fields, and dispatch
-   spec an external MCP/CLI adapter needs to emit a valid response row. They
+   spec an external MCP/CLI adapter needs to emit a valid response row, plus
+   the same priority rationale used by the planner. They
    are adapter work packets, not
    theorem proof evidence. Publication-bundle audit rows also verify that each
    request resolves to a bundled action-resource plan and matches that plan's

@@ -20,10 +20,10 @@ from .formalization_gap_planner_action_resource_plan import (
 from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
-FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_SCHEMA_VERSION = 5
+FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_SCHEMA_VERSION = 6
 RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
-    "formalization-gap-planner-resource-request-queue-row:5"
+    "formalization-gap-planner-resource-request-queue-row:6"
 )
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_RESOURCE_REQUEST_QUEUE_NOT_PROOF_EVIDENCE"
@@ -53,6 +53,11 @@ class FormalizationGapPlannerResourceRequestQueueRow:
     actionable_work_items: tuple[str, ...]
     coverage_bucket: str
     queue_action_kind: str
+    priority_score: int
+    minimal_delta_cost_score: int
+    reuse_readiness_score: int
+    evidence_readiness_score: int
+    priority_rationale: tuple[str, ...]
     target_prover_family: str
     library_snapshot_ref: str
     candidate_declaration_rows: tuple[dict[str, object], ...]
@@ -281,6 +286,24 @@ def export_formalization_gap_planner_resource_request_queue(
             1 for row in rows if row.actionable_work_items
         ),
         "n_actionable_work_items": sum(len(row.actionable_work_items) for row in rows),
+        "n_minimal_delta_reuse_ready": sum(
+            1 for row in rows if row.minimal_delta_cost_score <= 15
+        ),
+        "n_minimal_delta_light_bridge_or_wrapper": sum(
+            1 for row in rows if 15 < row.minimal_delta_cost_score <= 45
+        ),
+        "n_minimal_delta_source_or_new_theory": sum(
+            1 for row in rows if 45 < row.minimal_delta_cost_score < 100
+        ),
+        "n_minimal_delta_alignment_blocked": sum(
+            1 for row in rows if row.minimal_delta_cost_score >= 100
+        ),
+        "average_reuse_readiness_score": _average_int(
+            row.reuse_readiness_score for row in rows
+        ),
+        "average_evidence_readiness_score": _average_int(
+            row.evidence_readiness_score for row in rows
+        ),
         "n_dispatch_spec_identity_valid": n_dispatch_spec_identity_valid,
         "n_dispatch_spec_identity_mismatches": len(rows)
         - n_dispatch_spec_identity_valid,
@@ -369,6 +392,11 @@ def resource_request_queue_row_json_schema() -> dict[str, object]:
         "actionable_work_items",
         "coverage_bucket",
         "queue_action_kind",
+        "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+        "priority_rationale",
         "target_prover_family",
         "library_snapshot_ref",
         "candidate_declaration_rows",
@@ -423,6 +451,11 @@ def resource_request_queue_row_json_schema() -> dict[str, object]:
             "actionable_work_items": string_array,
             "coverage_bucket": {"type": "string", "minLength": 1},
             "queue_action_kind": {"type": "string", "minLength": 1},
+            "priority_score": {"type": "integer"},
+            "minimal_delta_cost_score": {"type": "integer"},
+            "reuse_readiness_score": {"type": "integer"},
+            "evidence_readiness_score": {"type": "integer"},
+            "priority_rationale": string_array,
             "target_prover_family": {"type": "string", "minLength": 1},
             "library_snapshot_ref": {"type": "string", "minLength": 1},
             "candidate_declaration_rows": {
@@ -517,6 +550,11 @@ def validate_resource_request_queue_row(
             "target_primitives",
             "actionable_work_items",
             "queue_action_kind",
+            "priority_score",
+            "minimal_delta_cost_score",
+            "reuse_readiness_score",
+            "evidence_readiness_score",
+            "priority_rationale",
             "target_prover_family",
             "library_snapshot_ref",
             "candidate_declaration_rows",
@@ -540,6 +578,16 @@ def validate_resource_request_queue_row(
         errors.extend(_request_payload_identity_errors(row))
         errors.extend(_dispatch_spec_identity_errors(row))
     errors.extend(_request_playbook_identity_errors(row))
+    for field_name in (
+        "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+    ):
+        value = row.get(field_name)
+        if isinstance(value, int) and not isinstance(value, bool):
+            if value < 0 or value > 100:
+                errors.append(f"{field_name} must be between 0 and 100")
     if "not theorem proof evidence" not in str(
         row.get("proof_evidence_boundary", "")
     ).lower():
@@ -724,6 +772,15 @@ def _llm_route_planner_action_row(
         ),
         "coverage_bucket": "llm_route_planner_pending_evidence",
         "queue_action_kind": _llm_queue_action_kind(hook_kind),
+        "priority_score": 80,
+        "minimal_delta_cost_score": 60,
+        "reuse_readiness_score": 25,
+        "evidence_readiness_score": 60 if queries else 35,
+        "priority_rationale": (
+            f"llm_route_planner_source_kind={source_kind}",
+            f"llm_route_planner_hook_kind={hook_kind}",
+            "planner follow-up request preserves route-revision context",
+        ),
         "target_prover_family": target_prover_family,
         "library_snapshot_ref": library_snapshot_ref,
         "candidate_declaration_rows": _llm_candidate_declaration_rows(
@@ -815,6 +872,11 @@ def _action_resource_plan_projection(action_row: dict[str, Any]) -> dict[str, An
             "actionable_work_items",
             "coverage_bucket",
             "queue_action_kind",
+            "priority_score",
+            "minimal_delta_cost_score",
+            "reuse_readiness_score",
+            "evidence_readiness_score",
+            "priority_rationale",
             "target_prover_family",
             "library_snapshot_ref",
             "candidate_declaration_rows",
@@ -1535,6 +1597,17 @@ def _resource_request_rows(
                 actionable_work_items=actionable_work_items,
                 coverage_bucket=str(action_row.get("coverage_bucket", "")),
                 queue_action_kind=str(action_row.get("queue_action_kind", "")),
+                priority_score=_bounded_int(action_row.get("priority_score", 0)),
+                minimal_delta_cost_score=_bounded_int(
+                    action_row.get("minimal_delta_cost_score", 100)
+                ),
+                reuse_readiness_score=_bounded_int(
+                    action_row.get("reuse_readiness_score", 0)
+                ),
+                evidence_readiness_score=_bounded_int(
+                    action_row.get("evidence_readiness_score", 0)
+                ),
+                priority_rationale=_str_tuple(action_row.get("priority_rationale", [])),
                 target_prover_family=str(action_row.get("target_prover_family", "")),
                 library_snapshot_ref=str(action_row.get("library_snapshot_ref", "")),
                 candidate_declaration_rows=_candidate_declaration_rows(
@@ -1612,6 +1685,15 @@ def _request_payload(
         ),
         "coverage_bucket": str(action_row.get("coverage_bucket", "")),
         "queue_action_kind": str(action_row.get("queue_action_kind", "")),
+        "priority_score": _bounded_int(action_row.get("priority_score", 0)),
+        "minimal_delta_cost_score": _bounded_int(
+            action_row.get("minimal_delta_cost_score", 100)
+        ),
+        "reuse_readiness_score": _bounded_int(action_row.get("reuse_readiness_score", 0)),
+        "evidence_readiness_score": _bounded_int(
+            action_row.get("evidence_readiness_score", 0)
+        ),
+        "priority_rationale": _str_tuple(action_row.get("priority_rationale", [])),
         "target_prover_family": str(action_row.get("target_prover_family", "")),
         "library_snapshot_ref": str(action_row.get("library_snapshot_ref", "")),
         "candidate_declaration_rows": _candidate_declaration_rows(
@@ -1788,6 +1870,11 @@ def _request_payload_identity_errors(row: dict[str, Any]) -> list[str]:
         "actionable_work_items",
         "coverage_bucket",
         "queue_action_kind",
+        "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+        "priority_rationale",
         "target_prover_family",
         "library_snapshot_ref",
         "resource_id",
@@ -2235,6 +2322,21 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     return tuple(str(value) for value in values if str(value))
 
 
+def _bounded_int(value: Any, *, lower: int = 0, upper: int = 100) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = lower
+    return max(lower, min(upper, parsed))
+
+
+def _average_int(values: Any) -> int:
+    items = [int(value) for value in values]
+    if not items:
+        return 0
+    return round(sum(items) / len(items))
+
+
 def _candidate_declaration_rows(values: object) -> tuple[dict[str, object], ...]:
     rows: list[dict[str, object]] = []
     for item in _dict_tuple(values):
@@ -2363,6 +2465,24 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_resource_request_rows')}"
         ),
         f"- Actionable work items: {payload.get('n_actionable_work_items')}",
+        f"- Minimal-delta reuse ready: {payload.get('n_minimal_delta_reuse_ready')}",
+        (
+            "- Minimal-delta light bridge/wrapper: "
+            f"{payload.get('n_minimal_delta_light_bridge_or_wrapper')}"
+        ),
+        (
+            "- Minimal-delta source/new-theory: "
+            f"{payload.get('n_minimal_delta_source_or_new_theory')}"
+        ),
+        (
+            "- Minimal-delta alignment blocked: "
+            f"{payload.get('n_minimal_delta_alignment_blocked')}"
+        ),
+        (
+            "- Average reuse/evidence readiness: "
+            f"{payload.get('average_reuse_readiness_score')}/"
+            f"{payload.get('average_evidence_readiness_score')}"
+        ),
         (
             f"- Row schema valid: {payload.get('n_row_schema_valid')}/"
             f"{payload.get('n_resource_request_rows')}"

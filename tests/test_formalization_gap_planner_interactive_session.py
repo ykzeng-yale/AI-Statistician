@@ -383,7 +383,7 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
             {
                 "component_name": "formalization_gap_planner_resource_request_queue",
                 "resource_request_queue_row_schema": {
-                    "$id": "urn:ai-statistician:schemas:formalization-gap-planner-resource-request-queue-row:5"
+                    "$id": "urn:ai-statistician:schemas:formalization-gap-planner-resource-request-queue-row:6"
                 },
                 "rows": resource_request_rows,
             },

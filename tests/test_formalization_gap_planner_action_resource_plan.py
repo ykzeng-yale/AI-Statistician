@@ -119,11 +119,29 @@ def test_action_resource_plan_joins_actions_to_frontier_resources() -> None:
     assert payload["n_candidate_declaration_rows"] == 1
     assert payload["n_with_actionable_work_items"] == 2
     assert payload["n_actionable_work_items"] == 2
+    assert payload["n_minimal_delta_reuse_ready"] == 1
+    assert payload["n_minimal_delta_light_bridge_or_wrapper"] == 1
+    assert payload["n_minimal_delta_source_or_new_theory"] == 1
+    assert payload["n_minimal_delta_alignment_blocked"] == 0
+    assert payload["average_reuse_readiness_score"] == 68
+    assert payload["average_evidence_readiness_score"] == 72
     assert (
         payload["action_resource_plan_row_schema"]["$id"]
         == ACTION_RESOURCE_PLAN_ROW_SCHEMA_ID
     )
     assert "actionable_work_items" in payload[
+        "action_resource_plan_row_schema"
+    ]["required"]
+    assert "minimal_delta_cost_score" in payload[
+        "action_resource_plan_row_schema"
+    ]["required"]
+    assert "reuse_readiness_score" in payload[
+        "action_resource_plan_row_schema"
+    ]["required"]
+    assert "evidence_readiness_score" in payload[
+        "action_resource_plan_row_schema"
+    ]["required"]
+    assert "priority_rationale" in payload[
         "action_resource_plan_row_schema"
     ]["required"]
     assert (
@@ -133,6 +151,13 @@ def test_action_resource_plan_joins_actions_to_frontier_resources() -> None:
     assert payload["n_with_resource_contracts"] == payload["n_resource_plan_rows"]
     by_primitive = {row["primitive"]: row for row in payload["rows"]}
     exact_row = by_primitive["exchangeability"]
+    assert exact_row["minimal_delta_cost_score"] == 0
+    assert exact_row["reuse_readiness_score"] == 100
+    assert exact_row["evidence_readiness_score"] == 75
+    assert (
+        "prefer exact current-library reuse before adding declarations"
+        in exact_row["priority_rationale"]
+    )
     assert exact_row["candidate_declaration_rows"] == (
         {
             "declaration": "Probability.exchangeable",
@@ -142,6 +167,9 @@ def test_action_resource_plan_joins_actions_to_frontier_resources() -> None:
     )
     bridge_row = by_primitive["rank_uniformity"]
     assert bridge_row["queue_action_kind"] == "prove_bridge_lemma"
+    assert bridge_row["minimal_delta_cost_score"] == 40
+    assert bridge_row["reuse_readiness_score"] == 70
+    assert bridge_row["evidence_readiness_score"] == 75
     assert "formal_library_coverage_mapping" in bridge_row["component_ids"]
     assert "minimal_delta_and_or_planning" in bridge_row["component_ids"]
     assert "prover_feedback_refinement" in bridge_row["component_ids"]
@@ -173,6 +201,9 @@ def test_action_resource_plan_joins_actions_to_frontier_resources() -> None:
     assert "bridge lemma statement" in bridge_row["expected_outputs"]
     source_row = by_primitive["coverage_inequality"]
     assert source_row["queue_action_kind"] == "source_port"
+    assert source_row["minimal_delta_cost_score"] == 60
+    assert source_row["reuse_readiness_score"] == 35
+    assert source_row["evidence_readiness_score"] == 65
     assert "literature_grounded_route_synthesis" in source_row["component_ids"]
     assert "paperclip_cli_mcp" in source_row["frontier_escalation_resource_ids"]
     assert "local_literature_corpus" in source_row["local_first_resource_ids"]

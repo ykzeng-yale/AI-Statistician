@@ -141,6 +141,12 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     ]
     assert payload["n_with_actionable_work_items"] > 0
     assert payload["n_actionable_work_items"] > 0
+    assert payload["n_minimal_delta_reuse_ready"] > 0
+    assert payload["n_minimal_delta_light_bridge_or_wrapper"] > 0
+    assert payload["n_minimal_delta_source_or_new_theory"] > 0
+    assert payload["n_minimal_delta_alignment_blocked"] == 0
+    assert payload["average_reuse_readiness_score"] > 0
+    assert payload["average_evidence_readiness_score"] > 0
     assert payload["n_row_schema_valid"] == payload["n_resource_request_rows"]
     assert payload["n_row_schema_invalid"] == 0
     assert (
@@ -150,6 +156,18 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     assert "actionable_work_items" in payload[
         "resource_request_queue_row_schema"
     ]["required"]
+    assert "minimal_delta_cost_score" in payload[
+        "resource_request_queue_row_schema"
+    ]["required"]
+    assert "reuse_readiness_score" in payload[
+        "resource_request_queue_row_schema"
+    ]["required"]
+    assert "evidence_readiness_score" in payload[
+        "resource_request_queue_row_schema"
+    ]["required"]
+    assert "priority_rationale" in payload[
+        "resource_request_queue_row_schema"
+    ]["required"]
     rows = payload["rows"]
     assert rows
     exact_rows = [
@@ -157,6 +175,25 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     ]
     assert exact_rows
     exact_row = exact_rows[0]
+    assert exact_row["minimal_delta_cost_score"] == 0
+    assert exact_row["reuse_readiness_score"] == 100
+    assert exact_row["evidence_readiness_score"] == 75
+    assert (
+        exact_row["request_payload"]["minimal_delta_cost_score"]
+        == exact_row["minimal_delta_cost_score"]
+    )
+    assert (
+        exact_row["request_payload"]["reuse_readiness_score"]
+        == exact_row["reuse_readiness_score"]
+    )
+    assert (
+        exact_row["request_payload"]["evidence_readiness_score"]
+        == exact_row["evidence_readiness_score"]
+    )
+    assert (
+        tuple(exact_row["request_payload"]["priority_rationale"])
+        == tuple(exact_row["priority_rationale"])
+    )
     assert exact_row["candidate_declaration_rows"] == (
         {
             "declaration": "Probability.exchangeable",
@@ -181,8 +218,18 @@ def test_resource_request_queue_expands_action_resources_to_dispatch_packets() -
     bridge_rows = [
         row for row in rows if row["queue_action_kind"] == "prove_bridge_lemma"
     ]
+    assert payload["n_minimal_delta_reuse_ready"] == len(exact_rows)
+    assert payload["n_minimal_delta_light_bridge_or_wrapper"] == len(bridge_rows)
+    assert payload["n_minimal_delta_source_or_new_theory"] == len(source_rows)
     lean_lsp_row = next(
         row for row in bridge_rows if row["resource_id"] == "lean_lsp_mcp"
+    )
+    assert lean_lsp_row["minimal_delta_cost_score"] == 40
+    assert lean_lsp_row["reuse_readiness_score"] == 70
+    assert lean_lsp_row["evidence_readiness_score"] == 75
+    assert (
+        lean_lsp_row["request_payload"]["minimal_delta_cost_score"]
+        == lean_lsp_row["minimal_delta_cost_score"]
     )
     assert lean_lsp_row["request_phase"] == "frontier_escalation"
     assert (
