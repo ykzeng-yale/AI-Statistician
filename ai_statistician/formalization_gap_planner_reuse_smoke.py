@@ -5029,6 +5029,42 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_evaluation_rows_with_llm_route_planner_route_adoption_preconditions": (
+            evaluation_payload.get(
+                "n_rows_with_llm_route_planner_route_adoption_preconditions",
+                0,
+            )
+        ),
+        "n_evaluation_rows_with_llm_route_planner_blocking_route_adoption_preconditions": (
+            evaluation_payload.get(
+                "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_route_adoption_precondition_known_blockers": (
+            evaluation_payload.get(
+                "n_llm_route_planner_route_adoption_precondition_known_blockers",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_route_adoption_precondition_required_response_fields": (
+            evaluation_payload.get(
+                "n_llm_route_planner_route_adoption_precondition_required_response_fields",
+                0,
+            )
+        ),
+        "evaluation_llm_route_planner_route_adoption_precondition_known_blockers": (
+            evaluation_payload.get(
+                "llm_route_planner_route_adoption_precondition_known_blockers",
+                (),
+            )
+        ),
+        "evaluation_llm_route_planner_route_adoption_precondition_required_response_fields": (
+            evaluation_payload.get(
+                "llm_route_planner_route_adoption_precondition_required_response_fields",
+                (),
+            )
+        ),
         "evaluation_llm_route_adoption_blockers": evaluation_payload.get(
             "llm_route_adoption_blockers",
             (),
@@ -8084,6 +8120,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_evaluation_rows_ready_for_route_adoption')}/"
             f"{payload.get('n_evaluation_rows_pending_refinement_before_route_adoption')}/"
             f"{payload.get('n_evaluation_llm_route_adoption_blockers')} "
+            f"preconditions={payload.get('n_evaluation_rows_with_llm_route_planner_route_adoption_preconditions')}/"
+            f"{payload.get('n_evaluation_rows_with_llm_route_planner_blocking_route_adoption_preconditions')} "
+            f"precondition_blockers={payload.get('n_evaluation_llm_route_planner_route_adoption_precondition_known_blockers')} "
+            f"required_fields={payload.get('n_evaluation_llm_route_planner_route_adoption_precondition_required_response_fields')} "
             f"source_grounding={payload.get('n_evaluation_llm_route_adoption_pending_source_grounding_blockers')} "
             f"quality_controls={payload.get('n_evaluation_llm_route_adoption_pending_quality_control_blockers')} "
             f"statuses={payload.get('evaluation_by_llm_route_adoption_status')}"

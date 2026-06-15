@@ -297,6 +297,22 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         "response_validation_signals": ["residual_goals_or_diagnostics_present"],
         "stop_conditions": ["residual interpreted or source search requested"],
     }
+    route_adoption_preconditions = {
+        "precondition_kind": (
+            "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+        ),
+        "blocked_before_response": True,
+        "known_pre_response_blockers": [
+            "quality_control_obligations_pending",
+            "source_grounding_obligations_pending",
+        ],
+        "n_known_pre_response_blockers": 2,
+        "response_required_fields": [
+            "search_requests",
+            "planner_next_actions",
+        ],
+        "n_response_required_fields": 2,
+    }
     expected_quality_controls = {
         field_name: tuple(values)
         for field_name, values in {
@@ -331,6 +347,9 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
                                 "source_grounding_obligations_pending",
                                 "search_requests_pending_evidence",
                             ],
+                            "llm_route_planner_route_adoption_preconditions": (
+                                route_adoption_preconditions
+                            ),
                             "llm_route_planner_acceptance_status": (
                                 "ACCEPTED_SOURCE_GROUNDED_ROUTE_PLAN"
                             ),
@@ -469,6 +488,39 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert payload["n_llm_route_adoption_blockers"] == 3
     assert payload["n_llm_route_adoption_pending_quality_control_blockers"] == 1
     assert payload["n_llm_route_adoption_pending_source_grounding_blockers"] == 1
+    assert (
+        payload["n_rows_with_llm_route_planner_route_adoption_preconditions"] == 1
+    )
+    assert (
+        payload[
+            "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_adoption_precondition_required_response_fields"
+        ]
+        == 2
+    )
+    assert payload[
+        "llm_route_planner_route_adoption_precondition_known_blockers"
+    ] == (
+        "quality_control_obligations_pending",
+        "source_grounding_obligations_pending",
+    )
+    assert payload[
+        "llm_route_planner_route_adoption_precondition_required_response_fields"
+    ] == (
+        "planner_next_actions",
+        "search_requests",
+    )
     assert payload["llm_route_adoption_blockers"] == (
         "quality_control_obligations_pending",
         "search_requests_pending_evidence",
@@ -644,6 +696,41 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         "quality_control_obligations_pending",
         "search_requests_pending_evidence",
         "source_grounding_obligations_pending",
+    )
+    assert (
+        row["llm_route_planner_route_adoption_preconditions"]
+        == route_adoption_preconditions
+    )
+    assert row["llm_route_planner_route_adoption_precondition_present"] is True
+    assert (
+        row[
+            "llm_route_planner_route_adoption_precondition_blocked_before_response"
+        ]
+        is True
+    )
+    assert row[
+        "llm_route_planner_route_adoption_precondition_known_blockers"
+    ] == (
+        "quality_control_obligations_pending",
+        "source_grounding_obligations_pending",
+    )
+    assert row[
+        "llm_route_planner_route_adoption_precondition_required_response_fields"
+    ] == (
+        "planner_next_actions",
+        "search_requests",
+    )
+    assert (
+        row[
+            "llm_route_planner_route_adoption_precondition_known_blocker_count"
+        ]
+        == 2
+    )
+    assert (
+        row[
+            "llm_route_planner_route_adoption_precondition_required_response_field_count"
+        ]
+        == 2
     )
     assert row["llm_route_planner_has_generator_metadata"] is True
     assert row["llm_route_planner_generator_metadata_keys"] == (

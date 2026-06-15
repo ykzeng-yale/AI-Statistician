@@ -3455,6 +3455,53 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert payload["n_evaluation_llm_route_adoption_blockers"] == 6
     assert (
         payload[
+            "n_evaluation_rows_with_llm_route_planner_route_adoption_preconditions"
+        ]
+        == payload["n_llm_route_planner_rows_with_route_adoption_preconditions"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_evaluation_rows_with_llm_route_planner_blocking_route_adoption_preconditions"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+        == payload[
+            "n_llm_route_planner_row_route_adoption_precondition_known_blockers"
+        ]
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_route_adoption_precondition_required_response_fields"
+        ]
+        >= 0
+    )
+    assert (
+        len(
+            payload[
+                "evaluation_llm_route_planner_route_adoption_precondition_known_blockers"
+            ]
+        )
+        == payload[
+            "n_evaluation_llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+    )
+    assert (
+        len(
+            payload[
+                "evaluation_llm_route_planner_route_adoption_precondition_required_response_fields"
+            ]
+        )
+        == payload[
+            "n_evaluation_llm_route_planner_route_adoption_precondition_required_response_fields"
+        ]
+    )
+    assert (
+        payload[
             "n_evaluation_llm_route_adoption_pending_quality_control_blockers"
         ]
         == 0

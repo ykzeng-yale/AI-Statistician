@@ -1127,6 +1127,22 @@ def _fixture_cross_prover_target_summary(
 
 
 def _fixture_evaluation_row() -> dict[str, object]:
+    route_adoption_preconditions = {
+        "precondition_kind": (
+            "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+        ),
+        "blocked_before_response": True,
+        "known_pre_response_blockers": [
+            "search_requests_pending_evidence",
+            "uncertainty_flags_require_review",
+        ],
+        "n_known_pre_response_blockers": 2,
+        "response_required_fields": [
+            "planner_next_actions",
+            "search_requests",
+        ],
+        "n_response_required_fields": 2,
+    }
     return {
         "schema_version": 1,
         "evaluation_id": "evaluation:fixture",
@@ -1203,6 +1219,21 @@ def _fixture_evaluation_row() -> dict[str, object]:
             "search_requests_pending_evidence",
             "uncertainty_flags_require_review",
         ],
+        "llm_route_planner_route_adoption_preconditions": (
+            route_adoption_preconditions
+        ),
+        "llm_route_planner_route_adoption_precondition_present": True,
+        "llm_route_planner_route_adoption_precondition_blocked_before_response": True,
+        "llm_route_planner_route_adoption_precondition_known_blockers": [
+            "search_requests_pending_evidence",
+            "uncertainty_flags_require_review",
+        ],
+        "llm_route_planner_route_adoption_precondition_required_response_fields": [
+            "planner_next_actions",
+            "search_requests",
+        ],
+        "llm_route_planner_route_adoption_precondition_known_blocker_count": 2,
+        "llm_route_planner_route_adoption_precondition_required_response_field_count": 2,
         "llm_route_planner_acceptance_status": (
             "ACCEPTED_SOURCE_GROUNDED_ROUTE_PLAN"
         ),
@@ -2104,6 +2135,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_llm_route_adoption_blockers": 2,
                 "n_llm_route_adoption_pending_quality_control_blockers": 0,
                 "n_llm_route_adoption_pending_source_grounding_blockers": 0,
+                "n_rows_with_llm_route_planner_route_adoption_preconditions": 1,
+                "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions": 1,
+                "n_llm_route_planner_route_adoption_precondition_known_blockers": 2,
+                "n_llm_route_planner_route_adoption_precondition_required_response_fields": 2,
+                "llm_route_planner_route_adoption_precondition_known_blockers": [
+                    "search_requests_pending_evidence",
+                    "uncertainty_flags_require_review",
+                ],
+                "llm_route_planner_route_adoption_precondition_required_response_fields": [
+                    "planner_next_actions",
+                    "search_requests",
+                ],
                 "llm_route_adoption_blockers": [
                     "search_requests_pending_evidence",
                     "uncertainty_flags_require_review",
@@ -3654,6 +3697,42 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "search_requests_pending_evidence",
         "uncertainty_flags_require_review",
     )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_rows_with_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_rows_with_blocking_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_adoption_precondition_known_blockers"
+        ]
+        == 2
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_adoption_precondition_required_response_fields"
+        ]
+        == 2
+    )
+    assert audit_payload[
+        "optional_evaluation_route_adoption_precondition_known_blockers"
+    ] == (
+        "search_requests_pending_evidence",
+        "uncertainty_flags_require_review",
+    )
+    assert audit_payload[
+        "optional_evaluation_route_adoption_precondition_required_response_fields"
+    ] == (
+        "planner_next_actions",
+        "search_requests",
+    )
     assert audit_payload["n_optional_evaluation_rows_with_quality_controls"] == 1
     assert audit_payload["n_optional_evaluation_quality_control_fields"] == 4
     assert audit_payload["optional_evaluation_quality_control_fields"] == (
@@ -5117,6 +5196,24 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "n_rows_pending_refinement_before_route_adoption"
     ] = 0
     corrupted_route_adoption_manifest["n_llm_route_adoption_blockers"] = 0
+    corrupted_route_adoption_manifest[
+        "n_rows_with_llm_route_planner_route_adoption_preconditions"
+    ] = 0
+    corrupted_route_adoption_manifest[
+        "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions"
+    ] = 0
+    corrupted_route_adoption_manifest[
+        "n_llm_route_planner_route_adoption_precondition_known_blockers"
+    ] = 0
+    corrupted_route_adoption_manifest[
+        "n_llm_route_planner_route_adoption_precondition_required_response_fields"
+    ] = 0
+    corrupted_route_adoption_manifest[
+        "llm_route_planner_route_adoption_precondition_known_blockers"
+    ] = []
+    corrupted_route_adoption_manifest[
+        "llm_route_planner_route_adoption_precondition_required_response_fields"
+    ] = []
     corrupted_route_adoption_manifest["llm_route_adoption_blockers"] = []
     corrupted_route_adoption_manifest["llm_route_adoption_blocker_counts"] = {}
     corrupted_route_adoption_manifest["evaluation_by_llm_route_adoption_status"] = {}
@@ -5146,6 +5243,15 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "n_optional_evaluation_route_adoption_manifest_valid"
         ]
         == 0
+    )
+    route_adoption_manifest_check = next(
+        row
+        for row in rejected_route_adoption_evaluation_payload["checks"]
+        if row["check_name"] == "optional_evaluation_route_adoption_manifest"
+    )
+    assert any(
+        "n_rows_with_llm_route_planner_route_adoption_preconditions" in error
+        for error in route_adoption_manifest_check["errors"]
     )
     evaluation_manifest_path.write_text(
         json.dumps(evaluation_manifest_payload, indent=2),

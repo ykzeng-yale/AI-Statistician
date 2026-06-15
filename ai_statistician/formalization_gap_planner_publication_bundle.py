@@ -2209,6 +2209,12 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_llm_route_adoption_blockers",
             "n_llm_route_adoption_pending_quality_control_blockers",
             "n_llm_route_adoption_pending_source_grounding_blockers",
+            "n_rows_with_llm_route_planner_route_adoption_preconditions",
+            "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions",
+            "n_llm_route_planner_route_adoption_precondition_known_blockers",
+            "n_llm_route_planner_route_adoption_precondition_required_response_fields",
+            "llm_route_planner_route_adoption_precondition_known_blockers",
+            "llm_route_planner_route_adoption_precondition_required_response_fields",
             "llm_route_adoption_blockers",
             "llm_route_adoption_blocker_counts",
             "llm_route_adoption_status_counts",
@@ -2258,6 +2264,24 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             ),
             "n_llm_route_adoption_pending_source_grounding_blockers": (
                 nonnegative_integer
+            ),
+            "n_rows_with_llm_route_planner_route_adoption_preconditions": (
+                nonnegative_integer
+            ),
+            "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_route_adoption_precondition_known_blockers": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_route_adoption_precondition_required_response_fields": (
+                nonnegative_integer
+            ),
+            "llm_route_planner_route_adoption_precondition_known_blockers": (
+                string_array
+            ),
+            "llm_route_planner_route_adoption_precondition_required_response_fields": (
+                string_array
             ),
             "llm_route_adoption_blockers": string_array,
             "llm_route_adoption_blocker_counts": {
@@ -4379,6 +4403,12 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         "n_llm_route_adoption_blockers": 0,
         "n_llm_route_adoption_pending_quality_control_blockers": 0,
         "n_llm_route_adoption_pending_source_grounding_blockers": 0,
+        "n_rows_with_llm_route_planner_route_adoption_preconditions": 0,
+        "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions": 0,
+        "n_llm_route_planner_route_adoption_precondition_known_blockers": 0,
+        "n_llm_route_planner_route_adoption_precondition_required_response_fields": 0,
+        "llm_route_planner_route_adoption_precondition_known_blockers": (),
+        "llm_route_planner_route_adoption_precondition_required_response_fields": (),
         "llm_route_adoption_blockers": (),
         "llm_route_adoption_blocker_counts": {},
         "llm_route_adoption_status_counts": {},
@@ -4621,6 +4651,64 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
                 ),
             )
             or 0
+        ),
+        "n_rows_with_llm_route_planner_route_adoption_preconditions": int(
+            payload.get(
+                "n_rows_with_llm_route_planner_route_adoption_preconditions",
+                sum(
+                    1
+                    for row in rows
+                    if row.get(
+                        "llm_route_planner_route_adoption_precondition_present"
+                    )
+                    is True
+                ),
+            )
+            or 0
+        ),
+        "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions": int(
+            payload.get(
+                "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions",
+                sum(
+                    1
+                    for row in rows
+                    if row.get(
+                        "llm_route_planner_route_adoption_precondition_blocked_before_response"
+                    )
+                    is True
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_route_adoption_precondition_known_blockers": (
+            _manifest_count_or_rows(
+                payload,
+                rows,
+                "n_llm_route_planner_route_adoption_precondition_known_blockers",
+                "llm_route_planner_route_adoption_precondition_known_blockers",
+            )
+        ),
+        "n_llm_route_planner_route_adoption_precondition_required_response_fields": (
+            _manifest_count_or_rows(
+                payload,
+                rows,
+                "n_llm_route_planner_route_adoption_precondition_required_response_fields",
+                "llm_route_planner_route_adoption_precondition_required_response_fields",
+            )
+        ),
+        "llm_route_planner_route_adoption_precondition_known_blockers": (
+            _manifest_values_or_rows(
+                payload,
+                rows,
+                "llm_route_planner_route_adoption_precondition_known_blockers",
+            )
+        ),
+        "llm_route_planner_route_adoption_precondition_required_response_fields": (
+            _manifest_values_or_rows(
+                payload,
+                rows,
+                "llm_route_planner_route_adoption_precondition_required_response_fields",
+            )
         ),
         "llm_route_adoption_blockers": _manifest_values_or_row_field(
             payload,

@@ -774,6 +774,56 @@ def audit_formalization_gap_planner_publication_bundle(
         "optional_evaluation_route_adoption_blockers": (
             optional_evaluation_route_adoption_blockers
         ),
+        "n_optional_evaluation_rows_with_route_adoption_preconditions": sum(
+            1
+            for row in optional_evaluation_rows
+            if row.get(
+                "llm_route_planner_route_adoption_precondition_present"
+            )
+            is True
+        ),
+        "n_optional_evaluation_rows_with_blocking_route_adoption_preconditions": sum(
+            1
+            for row in optional_evaluation_rows
+            if row.get(
+                "llm_route_planner_route_adoption_precondition_blocked_before_response"
+            )
+            is True
+        ),
+        "n_optional_evaluation_route_adoption_precondition_known_blockers": sum(
+            len(
+                _str_tuple(
+                    row.get(
+                        "llm_route_planner_route_adoption_precondition_known_blockers",
+                        [],
+                    )
+                )
+            )
+            for row in optional_evaluation_rows
+        ),
+        "n_optional_evaluation_route_adoption_precondition_required_response_fields": sum(
+            len(
+                _str_tuple(
+                    row.get(
+                        "llm_route_planner_route_adoption_precondition_required_response_fields",
+                        [],
+                    )
+                )
+            )
+            for row in optional_evaluation_rows
+        ),
+        "optional_evaluation_route_adoption_precondition_known_blockers": (
+            _evaluation_route_adoption_precondition_values_from_rows(
+                optional_evaluation_rows,
+                "llm_route_planner_route_adoption_precondition_known_blockers",
+            )
+        ),
+        "optional_evaluation_route_adoption_precondition_required_response_fields": (
+            _evaluation_route_adoption_precondition_values_from_rows(
+                optional_evaluation_rows,
+                "llm_route_planner_route_adoption_precondition_required_response_fields",
+            )
+        ),
         "n_optional_evaluation_rows_with_quality_controls": sum(
             1
             for row in optional_evaluation_rows
@@ -3696,6 +3746,56 @@ def _expected_bundle_evaluation_summary(bundle_dir: Path) -> dict[str, object]:
         "n_llm_route_adoption_blockers": sum(
             len(_str_tuple(row.get("llm_route_planner_route_adoption_blockers", [])))
             for row in rows
+        ),
+        "n_rows_with_llm_route_planner_route_adoption_preconditions": sum(
+            1
+            for row in rows
+            if row.get(
+                "llm_route_planner_route_adoption_precondition_present"
+            )
+            is True
+        ),
+        "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions": sum(
+            1
+            for row in rows
+            if row.get(
+                "llm_route_planner_route_adoption_precondition_blocked_before_response"
+            )
+            is True
+        ),
+        "n_llm_route_planner_route_adoption_precondition_known_blockers": sum(
+            len(
+                _str_tuple(
+                    row.get(
+                        "llm_route_planner_route_adoption_precondition_known_blockers",
+                        [],
+                    )
+                )
+            )
+            for row in rows
+        ),
+        "n_llm_route_planner_route_adoption_precondition_required_response_fields": sum(
+            len(
+                _str_tuple(
+                    row.get(
+                        "llm_route_planner_route_adoption_precondition_required_response_fields",
+                        [],
+                    )
+                )
+            )
+            for row in rows
+        ),
+        "llm_route_planner_route_adoption_precondition_known_blockers": (
+            _evaluation_route_adoption_precondition_values_from_rows(
+                rows,
+                "llm_route_planner_route_adoption_precondition_known_blockers",
+            )
+        ),
+        "llm_route_planner_route_adoption_precondition_required_response_fields": (
+            _evaluation_route_adoption_precondition_values_from_rows(
+                rows,
+                "llm_route_planner_route_adoption_precondition_required_response_fields",
+            )
         ),
         "llm_route_adoption_blockers": _evaluation_route_adoption_blockers_from_rows(
             rows
@@ -16543,6 +16643,53 @@ def _evaluation_route_adoption_manifest_errors(
     expected_blockers = set(_evaluation_route_adoption_blockers_from_rows(rows))
     expected_blocker_counts = _evaluation_route_adoption_blocker_counts_from_rows(rows)
     expected_by_blocker = _evaluation_route_adoption_blocker_summary_from_rows(rows)
+    expected_precondition_rows = sum(
+        1
+        for row in _dict_tuple(rows)
+        if row.get("llm_route_planner_route_adoption_precondition_present") is True
+    )
+    expected_blocking_precondition_rows = sum(
+        1
+        for row in _dict_tuple(rows)
+        if row.get(
+            "llm_route_planner_route_adoption_precondition_blocked_before_response"
+        )
+        is True
+    )
+    expected_precondition_known_blockers = sum(
+        len(
+            _str_tuple(
+                row.get(
+                    "llm_route_planner_route_adoption_precondition_known_blockers",
+                    [],
+                )
+            )
+        )
+        for row in _dict_tuple(rows)
+    )
+    expected_precondition_required_fields = sum(
+        len(
+            _str_tuple(
+                row.get(
+                    "llm_route_planner_route_adoption_precondition_required_response_fields",
+                    [],
+                )
+            )
+        )
+        for row in _dict_tuple(rows)
+    )
+    expected_precondition_blocker_values = set(
+        _evaluation_route_adoption_precondition_values_from_rows(
+            rows,
+            "llm_route_planner_route_adoption_precondition_known_blockers",
+        )
+    )
+    expected_precondition_required_field_values = set(
+        _evaluation_route_adoption_precondition_values_from_rows(
+            rows,
+            "llm_route_planner_route_adoption_precondition_required_response_fields",
+        )
+    )
     observed_status_count = int(
         manifest.get("n_rows_with_llm_route_planner_route_adoption_status", -1) or 0
     )
@@ -16570,6 +16717,50 @@ def _evaluation_route_adoption_manifest_errors(
         or 0
     )
     observed_blockers = set(_str_tuple(manifest.get("llm_route_adoption_blockers", [])))
+    observed_precondition_rows = int(
+        manifest.get(
+            "n_rows_with_llm_route_planner_route_adoption_preconditions",
+            -1,
+        )
+        or 0
+    )
+    observed_blocking_precondition_rows = int(
+        manifest.get(
+            "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions",
+            -1,
+        )
+        or 0
+    )
+    observed_precondition_known_blockers = int(
+        manifest.get(
+            "n_llm_route_planner_route_adoption_precondition_known_blockers",
+            -1,
+        )
+        or 0
+    )
+    observed_precondition_required_fields = int(
+        manifest.get(
+            "n_llm_route_planner_route_adoption_precondition_required_response_fields",
+            -1,
+        )
+        or 0
+    )
+    observed_precondition_blocker_values = set(
+        _str_tuple(
+            manifest.get(
+                "llm_route_planner_route_adoption_precondition_known_blockers",
+                [],
+            )
+        )
+    )
+    observed_precondition_required_field_values = set(
+        _str_tuple(
+            manifest.get(
+                "llm_route_planner_route_adoption_precondition_required_response_fields",
+                [],
+            )
+        )
+    )
     observed_blocker_counts = _int_mapping(
         manifest.get("llm_route_adoption_blocker_counts", {})
     )
@@ -16635,6 +16826,45 @@ def _evaluation_route_adoption_manifest_errors(
         errors.append(
             "llm_route_adoption_blockers mismatch: "
             f"observed={sorted(observed_blockers)} expected={sorted(expected_blockers)}"
+        )
+    if observed_precondition_rows != expected_precondition_rows:
+        errors.append(
+            "n_rows_with_llm_route_planner_route_adoption_preconditions mismatch: "
+            f"observed={observed_precondition_rows} "
+            f"expected={expected_precondition_rows}"
+        )
+    if observed_blocking_precondition_rows != expected_blocking_precondition_rows:
+        errors.append(
+            "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions mismatch: "
+            f"observed={observed_blocking_precondition_rows} "
+            f"expected={expected_blocking_precondition_rows}"
+        )
+    if observed_precondition_known_blockers != expected_precondition_known_blockers:
+        errors.append(
+            "n_llm_route_planner_route_adoption_precondition_known_blockers mismatch: "
+            f"observed={observed_precondition_known_blockers} "
+            f"expected={expected_precondition_known_blockers}"
+        )
+    if observed_precondition_required_fields != expected_precondition_required_fields:
+        errors.append(
+            "n_llm_route_planner_route_adoption_precondition_required_response_fields mismatch: "
+            f"observed={observed_precondition_required_fields} "
+            f"expected={expected_precondition_required_fields}"
+        )
+    if observed_precondition_blocker_values != expected_precondition_blocker_values:
+        errors.append(
+            "llm_route_planner_route_adoption_precondition_known_blockers mismatch: "
+            f"observed={sorted(observed_precondition_blocker_values)} "
+            f"expected={sorted(expected_precondition_blocker_values)}"
+        )
+    if (
+        observed_precondition_required_field_values
+        != expected_precondition_required_field_values
+    ):
+        errors.append(
+            "llm_route_planner_route_adoption_precondition_required_response_fields mismatch: "
+            f"observed={sorted(observed_precondition_required_field_values)} "
+            f"expected={sorted(expected_precondition_required_field_values)}"
         )
     if observed_blocker_counts != expected_blocker_counts:
         errors.append(
@@ -16829,6 +17059,16 @@ def _evaluation_route_adoption_blocker_counts_from_rows(rows: Any) -> dict[str, 
             _str_tuple(row.get("llm_route_planner_route_adoption_blockers", []))
         )
     return dict(sorted(counts.items()))
+
+
+def _evaluation_route_adoption_precondition_values_from_rows(
+    rows: Any,
+    field_name: str,
+) -> tuple[str, ...]:
+    values: list[str] = []
+    for row in _dict_tuple(rows):
+        values.extend(_str_tuple(row.get(field_name, [])))
+    return tuple(dict.fromkeys(values))
 
 
 def _evaluation_route_adoption_blocker_summary_from_rows(

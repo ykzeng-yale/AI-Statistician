@@ -1265,6 +1265,10 @@ feedback-loop readiness, and the proof-boundary check. It writes
 `formalization_gap_planner_evaluation_ground_truth.json`, and row schema-valid
 counts for those diagnostics. These scores are
 benchmark evidence about planning quality, not theorem proof evidence.
+Evaluation rows and publication/reuse summaries also preserve the LLM route
+planner's pre-response `route_adoption_preconditions`, including blocker and
+required-response-field counts, so adoption-readiness metrics can be stratified
+by obligations known before the planner response was accepted or rejected.
 
 The ablation study compares the observed planner with counterfactual
 `no_literature_evidence`, `no_formal_grounding`, `no_proof_state_feedback`, and

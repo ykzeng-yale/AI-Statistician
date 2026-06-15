@@ -1586,6 +1586,13 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "llm_route_planner_source_feedback_formal_environment_blocker_count": 0,
         "llm_route_planner_route_adoption_status": "",
         "llm_route_planner_route_adoption_blockers": [],
+        "llm_route_planner_route_adoption_preconditions": {},
+        "llm_route_planner_route_adoption_precondition_present": False,
+        "llm_route_planner_route_adoption_precondition_blocked_before_response": False,
+        "llm_route_planner_route_adoption_precondition_known_blockers": [],
+        "llm_route_planner_route_adoption_precondition_required_response_fields": [],
+        "llm_route_planner_route_adoption_precondition_known_blocker_count": 0,
+        "llm_route_planner_route_adoption_precondition_required_response_field_count": 0,
         "llm_route_planner_acceptance_status": "",
         "llm_route_planner_model_selection_rationale": "",
         "llm_route_planner_has_generator_metadata": False,
@@ -2482,6 +2489,42 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         == 0
     )
     assert payload["evaluation_summary"]["n_llm_route_adoption_blockers"] == 0
+    assert (
+        payload["evaluation_summary"][
+            "n_rows_with_llm_route_planner_route_adoption_preconditions"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_llm_route_planner_route_adoption_precondition_required_response_fields"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+        == ()
+    )
+    assert (
+        payload["evaluation_summary"][
+            "llm_route_planner_route_adoption_precondition_required_response_fields"
+        ]
+        == ()
+    )
     assert payload["evaluation_summary"]["llm_route_adoption_blockers"] == ()
     assert payload["evaluation_summary"]["llm_route_adoption_blocker_counts"] == {}
     assert payload["evaluation_summary"]["llm_route_adoption_status_counts"] == {}
