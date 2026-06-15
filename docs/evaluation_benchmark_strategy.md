@@ -558,6 +558,11 @@ nodes, informal-to-formal alignment rationales, minimal-delta rationale,
 bounded search requests or uncertainty flags when evidence is weak, and an
 explicit `not theorem proof evidence` boundary. Any `kernel_verified=true`
 claim is rejected before the response can become a standalone route seed.
+For live-provider runs, the LLM route-planner manifest reports
+`provider_usage_rows` plus aggregate input/output/cache/total token counters by
+provider, model, and model tier. Evaluation should treat these as cost-control
+metadata for Haiku/Sonnet routing, separate from source, library, prover, and
+kernel evidence.
 The `formalization-gap-planner-portable-plan-audit` gate validates the plan
 contract before any scoring or target-prover mapping: schema identity, library
 snapshot consistency, two-DAG and AND/OR structure, work-packet gates,

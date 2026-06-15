@@ -6770,6 +6770,11 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "n_repair_attempt_ledger_rows" in manifest_schema["required"]
     assert "model_tier_decision_ledger" in manifest_schema["required"]
     assert "n_model_tier_decision_ledger_rows" in manifest_schema["required"]
+    assert "provider_usage_rows" in manifest_schema["required"]
+    assert "provider_usage_summary" in manifest_schema["required"]
+    assert "n_rows_with_provider_usage" in manifest_schema["required"]
+    assert "total_provider_input_tokens" in manifest_schema["required"]
+    assert "total_provider_output_tokens" in manifest_schema["required"]
     assert (
         "n_model_tier_decision_ledger_rows_with_escalation"
         in manifest_schema["required"]
@@ -6805,6 +6810,12 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["n_model_tier_decision_ledger_rows"] == 1
     assert payload["n_model_tier_decision_ledger_rows_with_escalation"] == 0
     assert payload["n_model_tier_decision_ledger_provider_failure_rows"] == 0
+    assert payload["n_rows_with_provider_usage"] == 0
+    assert payload["provider_usage_rows"] == []
+    assert payload["provider_usage_summary"]["row_count"] == 0
+    assert payload["total_provider_input_tokens"] == 0
+    assert payload["total_provider_output_tokens"] == 0
+    assert payload["total_provider_total_tokens"] == 0
     assert (
         manifest_schema["properties"]["legacy_context_field_aliases"][
             "properties"
@@ -6883,6 +6894,15 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "model_tier_decision_ledger must match request_packets and rows"
         in validate_llm_route_planner_manifest(
             drifted_tier_ledger_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_provider_usage_manifest = deepcopy(payload)
+    drifted_provider_usage_manifest["total_provider_input_tokens"] = 99
+    assert (
+        "total_provider_input_tokens must match provider_usage_summary"
+        in validate_llm_route_planner_manifest(
+            drifted_provider_usage_manifest,
             manifest_schema,
         )
     )
@@ -10645,6 +10665,11 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
                     "tools_available": False,
                     "schema_supplied": request.schema is not None,
                     "retry_count": 1,
+                    "provider_usage": {
+                        "input_tokens": 123,
+                        "output_tokens": 45,
+                        "cache_read_input_tokens": 7,
+                    },
                 },
             )
 
@@ -10673,6 +10698,25 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert payload["n_response_present"] == 1
     assert payload["n_provider_failures"] == 0
     assert payload["n_rows_with_generator_metadata"] == 1
+    assert payload["n_rows_with_provider_usage"] == 1
+    assert payload["total_provider_input_tokens"] == 123
+    assert payload["total_provider_output_tokens"] == 45
+    assert payload["total_provider_cache_read_input_tokens"] == 7
+    assert payload["total_provider_total_tokens"] == 175
+    assert payload["provider_usage_summary"]["row_count"] == 1
+    assert payload["provider_usage_summary"]["by_model_tier"]["sonnet"][
+        "input_tokens"
+    ] == 123
+    assert payload["provider_usage_summary"]["by_provider"]["anthropic"][
+        "output_tokens"
+    ] == 45
+    usage_row = payload["provider_usage_rows"][0]
+    assert usage_row["provider_name"] == "anthropic"
+    assert usage_row["model_tier"] == "sonnet"
+    assert usage_row["input_tokens"] == 123
+    assert usage_row["output_tokens"] == 45
+    assert usage_row["cache_read_input_tokens"] == 7
+    assert usage_row["total_tokens"] == 175
     assert payload["n_response_contract_ok"] == 1
     assert payload["n_accepted_route_plans"] == 1
     row = payload["rows"][0]
@@ -10684,6 +10728,7 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert row["generator_metadata"]["tools_available"] is False
     assert row["generator_metadata"]["schema_supplied"] is True
     assert row["generator_metadata"]["retry_count"] == 1
+    assert row["generator_metadata"]["provider_usage"]["input_tokens"] == 123
     assert "bridge_needed" in row["model_selection_rationale"]
     assert row["model_tier_decision_evidence"]["selected_model_tier"] == "sonnet"
     assert row["model_tier_decision_evidence"]["effective_model_tier"] == "sonnet"
@@ -10753,8 +10798,12 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
         "schema_supplied"
     ] is True
     assert seed_metadata["llm_route_planner_generator_metadata"]["retry_count"] == 1
+    assert seed_metadata["llm_route_planner_generator_metadata"][
+        "provider_usage"
+    ]["output_tokens"] == 45
     assert set(seed_metadata["llm_route_planner_generator_metadata_keys"]) >= {
         "generator_only",
+        "provider_usage",
         "retry_count",
         "schema_supplied",
         "tools_available",

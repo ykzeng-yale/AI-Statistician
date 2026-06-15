@@ -224,8 +224,12 @@ Opus response model. Live generator backends surface both `requested_model` and
 when the provider response object exposes one. They also compact provider
 diagnostics such as stop reason, incomplete-response details, and token usage
 into generator metadata, so live-call truncation and repair causes are auditable
-without storing full provider objects. In addition to the manifest-level policy,
-every LLM route-planner request packet
+without storing full provider objects. The LLM route-planner manifest also
+derives `provider_usage_rows`, `provider_usage_summary`, and total
+input/output/cache/overall token counters from that metadata, grouped by
+provider, model, and model tier. Those fields are cost-accounting evidence for
+Haiku/Sonnet switching, not proof evidence. In addition to the manifest-level
+policy, every LLM route-planner request packet
 now carries a request-scoped `llm_generation_policy` snapshot with the selected
 provider, resolved model, selected/requested tier, Claude pinned model policy,
 auto-tier rules, and explicit `codex`/`codex_exec` exclusion. This lets an

@@ -1195,6 +1195,8 @@ def export_formalization_gap_planner_llm_route_planner(
         for request, request_errors in zip(request_packets, request_schema_errors)
     )
     row_dicts = [asdict(row) for row in rows]
+    provider_usage_rows = _provider_usage_rows(row_dicts)
+    provider_usage_summary = _provider_usage_summary(provider_usage_rows)
     model_tier_decision_ledger = tuple(
         _model_tier_decision_ledger_row(request, row)
         for request, row in zip(request_packets, row_dicts)
@@ -2441,6 +2443,24 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_rows_with_generator_metadata": sum(
             1 for row in rows if row.generator_metadata
         ),
+        "provider_usage_rows": [dict(row) for row in provider_usage_rows],
+        "provider_usage_summary": provider_usage_summary,
+        "n_rows_with_provider_usage": len(provider_usage_rows),
+        "total_provider_input_tokens": int(
+            provider_usage_summary.get("input_tokens", 0) or 0
+        ),
+        "total_provider_output_tokens": int(
+            provider_usage_summary.get("output_tokens", 0) or 0
+        ),
+        "total_provider_cache_creation_input_tokens": int(
+            provider_usage_summary.get("cache_creation_input_tokens", 0) or 0
+        ),
+        "total_provider_cache_read_input_tokens": int(
+            provider_usage_summary.get("cache_read_input_tokens", 0) or 0
+        ),
+        "total_provider_total_tokens": int(
+            provider_usage_summary.get("total_tokens", 0) or 0
+        ),
         "n_rows_with_model_tier_escalation": sum(
             1
             for row in rows
@@ -3681,6 +3701,16 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_response_schema_invalid",
             "n_rows",
             "n_response_present",
+            "n_provider_failures",
+            "n_rows_with_generator_metadata",
+            "provider_usage_rows",
+            "provider_usage_summary",
+            "n_rows_with_provider_usage",
+            "total_provider_input_tokens",
+            "total_provider_output_tokens",
+            "total_provider_cache_creation_input_tokens",
+            "total_provider_cache_read_input_tokens",
+            "total_provider_total_tokens",
             "n_response_contract_ok",
             "n_accepted_route_plans",
             "n_route_adoption_ready",
@@ -4009,6 +4039,14 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_response_present": nonnegative_integer,
             "n_provider_failures": nonnegative_integer,
             "n_rows_with_generator_metadata": nonnegative_integer,
+            "provider_usage_rows": object_array,
+            "provider_usage_summary": {"type": "object"},
+            "n_rows_with_provider_usage": nonnegative_integer,
+            "total_provider_input_tokens": nonnegative_integer,
+            "total_provider_output_tokens": nonnegative_integer,
+            "total_provider_cache_creation_input_tokens": nonnegative_integer,
+            "total_provider_cache_read_input_tokens": nonnegative_integer,
+            "total_provider_total_tokens": nonnegative_integer,
             "n_rows_with_model_tier_escalation": nonnegative_integer,
             "n_rows_with_generation_errors": nonnegative_integer,
             "n_response_contract_ok": nonnegative_integer,
@@ -5617,6 +5655,39 @@ def validate_llm_route_planner_manifest(
         errors.append(
             "n_model_tier_decision_ledger_provider_failure_rows must match model_tier_decision_ledger"
         )
+    provider_usage_rows = _dict_tuple(manifest.get("provider_usage_rows", []))
+    expected_provider_usage_rows = _provider_usage_rows(manifest_rows)
+    if tuple(provider_usage_rows) != expected_provider_usage_rows:
+        errors.append("provider_usage_rows must match row generator_metadata")
+    expected_provider_usage_summary = _provider_usage_summary(provider_usage_rows)
+    if _dict_value(manifest, "provider_usage_summary") != expected_provider_usage_summary:
+        errors.append("provider_usage_summary must match provider_usage_rows")
+    provider_usage_count_checks = (
+        ("n_rows_with_provider_usage", len(provider_usage_rows)),
+        (
+            "total_provider_input_tokens",
+            expected_provider_usage_summary.get("input_tokens", 0),
+        ),
+        (
+            "total_provider_output_tokens",
+            expected_provider_usage_summary.get("output_tokens", 0),
+        ),
+        (
+            "total_provider_cache_creation_input_tokens",
+            expected_provider_usage_summary.get("cache_creation_input_tokens", 0),
+        ),
+        (
+            "total_provider_cache_read_input_tokens",
+            expected_provider_usage_summary.get("cache_read_input_tokens", 0),
+        ),
+        (
+            "total_provider_total_tokens",
+            expected_provider_usage_summary.get("total_tokens", 0),
+        ),
+    )
+    for field_name, expected_value in provider_usage_count_checks:
+        if int(manifest.get(field_name, 0) or 0) != int(expected_value or 0):
+            errors.append(f"{field_name} must match provider_usage_summary")
     expected_standalone_replay_gate = _standalone_replay_gate(
         manifest_rows,
         _dict_value(manifest, "standalone_seed"),
@@ -11655,6 +11726,173 @@ def _nonnegative_int(value: object, *, default: int = 0) -> int:
     except (TypeError, ValueError):
         return default
     return max(0, parsed)
+
+
+def _provider_usage_rows(
+    rows: Iterable[Mapping[str, object]],
+) -> tuple[dict[str, object], ...]:
+    usage_rows: list[dict[str, object]] = []
+    for row in rows:
+        generator_metadata = _dict_value(row, "generator_metadata")
+        usage = _provider_usage_from_metadata(generator_metadata)
+        if not usage:
+            continue
+        request_id = str(row.get("request_id", "") or "")
+        route_id = str(row.get("route_id", "") or "")
+        provider_name = str(row.get("provider_name", "") or "")
+        model = str(row.get("model", "") or "")
+        model_tier = str(row.get("model_tier", "") or "")
+        usage_rows.append(
+            {
+                "usage_row_id": (
+                    "formalization_gap_planner_llm_route_planner_provider_usage:"
+                    + stable_hash(
+                        [
+                            request_id,
+                            route_id,
+                            provider_name,
+                            model,
+                            model_tier,
+                            usage,
+                        ]
+                    )[:20]
+                ),
+                "request_id": request_id,
+                "route_id": route_id,
+                "llm_route_planner_row_id": str(
+                    row.get("llm_route_planner_row_id", "") or ""
+                ),
+                "provider_name": provider_name,
+                "model": model,
+                "model_tier": model_tier,
+                "response_present": bool(row.get("response_present", False)),
+                "provider_failure": bool(row.get("provider_failure", False)),
+                "acceptance_status": str(row.get("acceptance_status", "") or ""),
+                "route_adoption_status": str(
+                    row.get("route_adoption_status", "") or ""
+                ),
+                "provider_usage": _dict_value(generator_metadata, "provider_usage"),
+                "input_tokens": usage["input_tokens"],
+                "output_tokens": usage["output_tokens"],
+                "cache_creation_input_tokens": usage[
+                    "cache_creation_input_tokens"
+                ],
+                "cache_read_input_tokens": usage["cache_read_input_tokens"],
+                "total_tokens": usage["total_tokens"],
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    return tuple(usage_rows)
+
+
+def _provider_usage_from_metadata(
+    generator_metadata: Mapping[str, object],
+) -> dict[str, int]:
+    usage = _dict_value(generator_metadata, "provider_usage")
+    if not usage:
+        return {}
+    input_tokens = _nonnegative_int(
+        usage.get("input_tokens", usage.get("prompt_tokens", 0))
+    )
+    output_tokens = _nonnegative_int(
+        usage.get("output_tokens", usage.get("completion_tokens", 0))
+    )
+    cache_creation_tokens = _nonnegative_int(
+        usage.get("cache_creation_input_tokens", 0)
+    )
+    cache_read_tokens = _nonnegative_int(usage.get("cache_read_input_tokens", 0))
+    total_tokens = _nonnegative_int(usage.get("total_tokens", 0))
+    if total_tokens == 0:
+        total_tokens = (
+            input_tokens
+            + output_tokens
+            + cache_creation_tokens
+            + cache_read_tokens
+        )
+    parsed = {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cache_creation_input_tokens": cache_creation_tokens,
+        "cache_read_input_tokens": cache_read_tokens,
+        "total_tokens": total_tokens,
+    }
+    if not any(parsed.values()):
+        return {}
+    return parsed
+
+
+def _provider_usage_summary(
+    usage_rows: Iterable[Mapping[str, object]],
+) -> dict[str, object]:
+    rows = tuple(dict(row) for row in usage_rows)
+    by_provider: dict[str, dict[str, int]] = {}
+    by_model_tier: dict[str, dict[str, int]] = {}
+    by_model: dict[str, dict[str, int]] = {}
+    totals = _empty_provider_usage_bucket()
+    for row in rows:
+        _add_provider_usage_to_bucket(totals, row)
+        _add_provider_usage_to_bucket(
+            by_provider.setdefault(
+                str(row.get("provider_name", "") or "unknown"),
+                _empty_provider_usage_bucket(),
+            ),
+            row,
+        )
+        _add_provider_usage_to_bucket(
+            by_model_tier.setdefault(
+                str(row.get("model_tier", "") or "unknown"),
+                _empty_provider_usage_bucket(),
+            ),
+            row,
+        )
+        _add_provider_usage_to_bucket(
+            by_model.setdefault(
+                str(row.get("model", "") or "unknown"),
+                _empty_provider_usage_bucket(),
+            ),
+            row,
+        )
+    return {
+        "summary_kind": "formalization_gap_planner_llm_route_planner_provider_usage_summary",
+        "row_count": len(rows),
+        **totals,
+        "by_provider": dict(sorted(by_provider.items())),
+        "by_model_tier": dict(sorted(by_model_tier.items())),
+        "by_model": dict(sorted(by_model.items())),
+        "usage_boundary": (
+            "Provider token usage is runtime/cost accounting metadata, not "
+            "mathematical or theorem proof evidence."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _empty_provider_usage_bucket() -> dict[str, int]:
+    return {
+        "n_rows": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "total_tokens": 0,
+    }
+
+
+def _add_provider_usage_to_bucket(
+    bucket: dict[str, int],
+    row: Mapping[str, object],
+) -> None:
+    bucket["n_rows"] = int(bucket.get("n_rows", 0) or 0) + 1
+    for key in (
+        "input_tokens",
+        "output_tokens",
+        "cache_creation_input_tokens",
+        "cache_read_input_tokens",
+        "total_tokens",
+    ):
+        bucket[key] = int(bucket.get(key, 0) or 0) + _nonnegative_int(row.get(key))
 
 
 def _model_tier_decision_ledger_row(
@@ -26231,6 +26469,8 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Responses present: {payload.get('n_response_present')}",
         f"- Provider failures: {payload.get('n_provider_failures')}",
         f"- Rows with generator metadata: {payload.get('n_rows_with_generator_metadata')}",
+        f"- Rows with provider usage: {payload.get('n_rows_with_provider_usage')}",
+        f"- Provider tokens input/output/total: {payload.get('total_provider_input_tokens')}/{payload.get('total_provider_output_tokens')}/{payload.get('total_provider_total_tokens')}",
         f"- Accepted route plans: {payload.get('n_accepted_route_plans')}",
         f"- Route adoption ready: {payload.get('n_route_adoption_ready')}",
         f"- Route adoption pending refinement: {payload.get('n_route_adoption_pending_refinement')}",
