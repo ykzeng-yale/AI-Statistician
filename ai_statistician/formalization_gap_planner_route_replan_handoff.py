@@ -289,6 +289,24 @@ def export_formalization_gap_planner_route_replan_handoff(
         "n_applied_resource_response_traces": sum(
             len(row.applied_resource_response_traces) for row in rows
         ),
+        "n_applied_resource_response_traces_with_minimal_delta_priority": sum(
+            1
+            for row in rows
+            for trace in row.applied_resource_response_traces
+            if "minimal_delta_cost_score" in trace
+        ),
+        "average_applied_resource_response_reuse_readiness_score": _average_int(
+            trace.get("reuse_readiness_score", 0)
+            for row in rows
+            for trace in row.applied_resource_response_traces
+            if "reuse_readiness_score" in trace
+        ),
+        "average_applied_resource_response_evidence_readiness_score": _average_int(
+            trace.get("evidence_readiness_score", 0)
+            for row in rows
+            for trace in row.applied_resource_response_traces
+            if "evidence_readiness_score" in trace
+        ),
         "n_applied_llm_route_planner_hook_traces": sum(
             len(row.applied_llm_route_planner_hook_traces) for row in rows
         ),
@@ -1962,6 +1980,18 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     return tuple(result)
 
 
+def _average_int(values: Any) -> int:
+    items: list[int] = []
+    for value in values:
+        try:
+            items.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    if not items:
+        return 0
+    return round(sum(items) / len(items))
+
+
 def _markdown_report(payload: dict[str, object]) -> str:
     lines = [
         "# Formalization Gap Planner Route-Replan Handoff",
@@ -1980,6 +2010,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Source snippets: {payload.get('n_source_snippets')}",
         f"- Resource-ledger feedback routes: {payload.get('n_routes_with_resource_response_ledger_feedback')}",
         f"- Applied resource-response traces: {payload.get('n_applied_resource_response_traces')}",
+        (
+            "- Applied resource-response traces with minimal-delta priority: "
+            f"{payload.get('n_applied_resource_response_traces_with_minimal_delta_priority')}"
+        ),
+        (
+            "- Applied resource-response reuse/evidence readiness: "
+            f"{payload.get('average_applied_resource_response_reuse_readiness_score')}/"
+            f"{payload.get('average_applied_resource_response_evidence_readiness_score')}"
+        ),
         f"- Applied LLM route-planner hook traces: {payload.get('n_applied_llm_route_planner_hook_traces')}",
         f"- Applied hook kinds: {payload.get('by_applied_hook_kind')}",
         f"- Row schema valid: {payload.get('n_row_schema_valid')}/{payload.get('n_handoff_rows')}",

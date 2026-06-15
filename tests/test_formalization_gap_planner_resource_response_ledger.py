@@ -987,6 +987,34 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert payload["n_target_primitives"] == payload["n_ledger_rows"]
     assert payload["n_rows_with_actionable_work_items"] == payload["n_ledger_rows"]
     assert payload["n_actionable_work_items"] == payload["n_ledger_rows"]
+    assert payload["n_minimal_delta_reuse_ready"] == sum(
+        1
+        for row in request_payload["rows"]
+        if int(row["minimal_delta_cost_score"]) <= 15
+    )
+    assert payload["n_minimal_delta_light_bridge_or_wrapper"] == sum(
+        1
+        for row in request_payload["rows"]
+        if 15 < int(row["minimal_delta_cost_score"]) <= 45
+    )
+    assert payload["n_minimal_delta_source_or_new_theory"] == sum(
+        1
+        for row in request_payload["rows"]
+        if 45 < int(row["minimal_delta_cost_score"]) < 100
+    )
+    assert payload["n_minimal_delta_alignment_blocked"] == sum(
+        1
+        for row in request_payload["rows"]
+        if int(row["minimal_delta_cost_score"]) >= 100
+    )
+    assert payload["average_reuse_readiness_score"] == round(
+        sum(int(row["reuse_readiness_score"]) for row in request_payload["rows"])
+        / len(request_payload["rows"])
+    )
+    assert payload["average_evidence_readiness_score"] == round(
+        sum(int(row["evidence_readiness_score"]) for row in request_payload["rows"])
+        / len(request_payload["rows"])
+    )
     assert payload["n_rows_with_formal_declaration_hits"] == 1
     assert payload["n_formal_declaration_hits"] == 1
     assert payload["n_rows_with_legacy_lean_declaration_hits"] == 1
@@ -1004,6 +1032,16 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert "actionable_work_items" in payload[
         "resource_response_ledger_row_schema"
     ]["required"]
+    for priority_field in (
+        "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+        "priority_rationale",
+    ):
+        assert priority_field in payload["resource_response_ledger_row_schema"][
+            "required"
+        ]
     source_ledger = next(
         row
         for row in payload["rows"]
@@ -1021,6 +1059,19 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert source_ledger["response_playbook_grounding_terms"]
     assert source_ledger["acceptance_gate"] == source_request["acceptance_gate"]
     assert source_ledger["response_contract_fields"] == source_request["response_contract_fields"]
+    assert source_ledger["priority_score"] == source_request["priority_score"]
+    assert source_ledger["minimal_delta_cost_score"] == source_request[
+        "minimal_delta_cost_score"
+    ]
+    assert source_ledger["reuse_readiness_score"] == source_request[
+        "reuse_readiness_score"
+    ]
+    assert source_ledger["evidence_readiness_score"] == source_request[
+        "evidence_readiness_score"
+    ]
+    assert tuple(source_ledger["priority_rationale"]) == tuple(
+        source_request["priority_rationale"]
+    )
     assert source_ledger["response_contract_minimum_met"]
     assert "source_refs" in source_ledger["matched_response_contract_fields"]
     assert source_ledger["dispatch_spec"] == source_request["dispatch_spec"]
@@ -1064,6 +1115,19 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert proof_ledger["quality_controls"]["resource_contract_ids"] == proof_request[
         "resource_contract_ids"
     ]
+    assert proof_ledger["priority_score"] == proof_request["priority_score"]
+    assert proof_ledger["minimal_delta_cost_score"] == proof_request[
+        "minimal_delta_cost_score"
+    ]
+    assert proof_ledger["reuse_readiness_score"] == proof_request[
+        "reuse_readiness_score"
+    ]
+    assert proof_ledger["evidence_readiness_score"] == proof_request[
+        "evidence_readiness_score"
+    ]
+    assert tuple(proof_ledger["priority_rationale"]) == tuple(
+        proof_request["priority_rationale"]
+    )
     assert set(proof_request["stop_conditions"]).issubset(
         set(proof_ledger["quality_controls"]["stop_conditions"])
     )
@@ -1089,6 +1153,14 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
         proof_ledger,
         resource_response_ledger_row_json_schema(),
     ) == []
+    malformed_score = dict(proof_ledger)
+    malformed_score["minimal_delta_cost_score"] = 101
+    assert "minimal_delta_cost_score must be between 0 and 100" in (
+        validate_resource_response_ledger_row(
+            malformed_score,
+            resource_response_ledger_row_json_schema(),
+        )
+    )
     malformed = dict(proof_ledger)
     malformed.pop("resource_id")
     assert "resource_id required" in validate_resource_response_ledger_row(

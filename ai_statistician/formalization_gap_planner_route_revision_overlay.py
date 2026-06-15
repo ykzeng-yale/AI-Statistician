@@ -249,6 +249,24 @@ def export_formalization_gap_planner_route_revision_overlay(
         "n_applied_resource_response_traces": sum(
             len(row.applied_resource_response_traces) for row in rows
         ),
+        "n_applied_resource_response_traces_with_minimal_delta_priority": sum(
+            1
+            for row in rows
+            for trace in row.applied_resource_response_traces
+            if "minimal_delta_cost_score" in trace
+        ),
+        "average_applied_resource_response_reuse_readiness_score": _average_int(
+            trace.get("reuse_readiness_score", 0)
+            for row in rows
+            for trace in row.applied_resource_response_traces
+            if "reuse_readiness_score" in trace
+        ),
+        "average_applied_resource_response_evidence_readiness_score": _average_int(
+            trace.get("evidence_readiness_score", 0)
+            for row in rows
+            for trace in row.applied_resource_response_traces
+            if "evidence_readiness_score" in trace
+        ),
         "n_applied_llm_route_planner_hook_traces": sum(
             len(row.applied_llm_route_planner_hook_traces) for row in rows
         ),
@@ -1231,6 +1249,20 @@ def _resource_response_trace(row: dict[str, Any]) -> dict[str, object]:
         "primitive": str(row.get("primitive", "")),
         "target_primitives": _str_tuple(row.get("target_primitives", [])),
         "actionable_work_items": _str_tuple(row.get("actionable_work_items", [])),
+        "priority_score": _int_value(row.get("priority_score", 0), default=0),
+        "minimal_delta_cost_score": _int_value(
+            row.get("minimal_delta_cost_score", 100),
+            default=100,
+        ),
+        "reuse_readiness_score": _int_value(
+            row.get("reuse_readiness_score", 0),
+            default=0,
+        ),
+        "evidence_readiness_score": _int_value(
+            row.get("evidence_readiness_score", 0),
+            default=0,
+        ),
+        "priority_rationale": _str_tuple(row.get("priority_rationale", [])),
         "resource_id": str(row.get("resource_id", "")),
         "request_phase": str(row.get("request_phase", "")),
         "expected_response_artifact": str(row.get("expected_response_artifact", "")),
@@ -1322,6 +1354,20 @@ def _resource_response_llm_route_planner_trace(
         "goal_plan_id": str(row.get("goal_plan_id", "")),
         "target_primitives": _str_tuple(row.get("target_primitives", [])),
         "actionable_work_items": _str_tuple(row.get("actionable_work_items", [])),
+        "priority_score": _int_value(row.get("priority_score", 0), default=0),
+        "minimal_delta_cost_score": _int_value(
+            row.get("minimal_delta_cost_score", 100),
+            default=100,
+        ),
+        "reuse_readiness_score": _int_value(
+            row.get("reuse_readiness_score", 0),
+            default=0,
+        ),
+        "evidence_readiness_score": _int_value(
+            row.get("evidence_readiness_score", 0),
+            default=0,
+        ),
+        "priority_rationale": _str_tuple(row.get("priority_rationale", [])),
         "resource_id": str(row.get("resource_id", "")),
         "acceptance_status": str(row.get("acceptance_status", "")),
         "llm_route_planner_row_id": str(row.get("llm_route_planner_row_id", "")),
@@ -2093,6 +2139,18 @@ def _int_value(value: Any, *, default: int = -1) -> int:
         return default
 
 
+def _average_int(values: Any) -> int:
+    items: list[int] = []
+    for value in values:
+        try:
+            items.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    if not items:
+        return 0
+    return round(sum(items) / len(items))
+
+
 def _prover_attempt_class(attempt_status: str) -> str:
     return {
         "local_lean_scaffold_accepted": "target_prover_scaffold_accepted",
@@ -2140,6 +2198,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Refinement evidence proposals status-only: {payload.get('n_refinement_evidence_route_revision_proposals_status_only')}",
         f"- Resource-response ledger proposals: {payload.get('n_resource_response_ledger_route_revision_proposals')}",
         f"- Applied resource-response traces: {payload.get('n_applied_resource_response_traces')}",
+        (
+            "- Applied resource-response traces with minimal-delta priority: "
+            f"{payload.get('n_applied_resource_response_traces_with_minimal_delta_priority')}"
+        ),
+        (
+            "- Applied resource-response reuse/evidence readiness: "
+            f"{payload.get('average_applied_resource_response_reuse_readiness_score')}/"
+            f"{payload.get('average_applied_resource_response_evidence_readiness_score')}"
+        ),
         f"- Applied LLM route-planner hook traces: {payload.get('n_applied_llm_route_planner_hook_traces')}",
         f"- Source snippets: {payload.get('n_source_snippets')}",
         f"- Resource-response status rows: {payload.get('n_resource_response_ledger_status_rows')}",

@@ -16,7 +16,7 @@ from .formalization_gap_planner_resource_request_queue import (
 from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
-FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 10
+FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION = 11
 QUALITY_CONTROL_FIELDS = (
     "resource_contract_ids",
     "required_quality_signals",
@@ -30,7 +30,7 @@ RESOURCE_RESPONSE_SCHEMA_ID = (
 )
 RESOURCE_RESPONSE_LEDGER_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
-    "formalization-gap-planner-resource-response-ledger-row:10"
+    "formalization-gap-planner-resource-response-ledger-row:11"
 )
 PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_NOT_PROOF_EVIDENCE"
@@ -59,6 +59,11 @@ class FormalizationGapPlannerResourceResponseLedgerRow:
     actionable_work_items: tuple[str, ...]
     coverage_bucket: str
     queue_action_kind: str
+    priority_score: int
+    minimal_delta_cost_score: int
+    reuse_readiness_score: int
+    evidence_readiness_score: int
+    priority_rationale: tuple[str, ...]
     target_prover_family: str
     library_snapshot_ref: str
     candidate_declaration_rows: tuple[dict[str, object], ...]
@@ -320,6 +325,24 @@ def export_formalization_gap_planner_resource_response_ledger(
         "n_actionable_work_items": sum(
             len(row.actionable_work_items) for row in rows
         ),
+        "n_minimal_delta_reuse_ready": sum(
+            1 for row in rows if row.minimal_delta_cost_score <= 15
+        ),
+        "n_minimal_delta_light_bridge_or_wrapper": sum(
+            1 for row in rows if 15 < row.minimal_delta_cost_score <= 45
+        ),
+        "n_minimal_delta_source_or_new_theory": sum(
+            1 for row in rows if 45 < row.minimal_delta_cost_score < 100
+        ),
+        "n_minimal_delta_alignment_blocked": sum(
+            1 for row in rows if row.minimal_delta_cost_score >= 100
+        ),
+        "average_reuse_readiness_score": _average_int(
+            row.reuse_readiness_score for row in rows
+        ),
+        "average_evidence_readiness_score": _average_int(
+            row.evidence_readiness_score for row in rows
+        ),
         "n_route_revision_recommended": sum(
             1 for row in rows if row.route_revision_recommended
         ),
@@ -491,6 +514,11 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
         "actionable_work_items",
         "coverage_bucket",
         "queue_action_kind",
+        "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+        "priority_rationale",
         "target_prover_family",
         "library_snapshot_ref",
         "candidate_declaration_rows",
@@ -574,6 +602,27 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
             "actionable_work_items": string_array,
             "coverage_bucket": {"type": "string", "minLength": 1},
             "queue_action_kind": {"type": "string", "minLength": 1},
+            "priority_score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+            },
+            "minimal_delta_cost_score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+            },
+            "reuse_readiness_score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+            },
+            "evidence_readiness_score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+            },
+            "priority_rationale": string_array,
             "target_prover_family": {"type": "string", "minLength": 1},
             "library_snapshot_ref": {"type": "string", "minLength": 1},
             "candidate_declaration_rows": {
@@ -711,6 +760,16 @@ def validate_resource_response_ledger_row(
             "lean_declaration_hits is a Lean-only legacy alias; non-Lean "
             "resource response rows must use formal_declaration_hits only"
         )
+    for field_name in (
+        "priority_score",
+        "minimal_delta_cost_score",
+        "reuse_readiness_score",
+        "evidence_readiness_score",
+    ):
+        value = row.get(field_name)
+        if isinstance(value, int) and not isinstance(value, bool):
+            if value < 0 or value > 100:
+                errors.append(f"{field_name} must be between 0 and 100")
     if "not theorem proof evidence" not in str(
         row.get("proof_evidence_boundary", "")
     ).lower():
@@ -951,6 +1010,17 @@ def _ledger_row(
         actionable_work_items=actionable_work_items,
         coverage_bucket=str(request_row.get("coverage_bucket", "")),
         queue_action_kind=str(request_row.get("queue_action_kind", "")),
+        priority_score=_bounded_int(request_row.get("priority_score", 0)),
+        minimal_delta_cost_score=_bounded_int(
+            request_row.get("minimal_delta_cost_score", 100)
+        ),
+        reuse_readiness_score=_bounded_int(
+            request_row.get("reuse_readiness_score", 0)
+        ),
+        evidence_readiness_score=_bounded_int(
+            request_row.get("evidence_readiness_score", 0)
+        ),
+        priority_rationale=_str_tuple(request_row.get("priority_rationale", [])),
         target_prover_family=target_prover_family,
         library_snapshot_ref=str(request_row.get("library_snapshot_ref", "")),
         candidate_declaration_rows=_candidate_declaration_rows(
@@ -1681,6 +1751,26 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     return tuple(str(value) for value in values if str(value))
 
 
+def _bounded_int(value: Any, *, lower: int = 0, upper: int = 100) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = lower
+    return max(lower, min(upper, parsed))
+
+
+def _average_int(values: Any) -> int:
+    items: list[int] = []
+    for value in values:
+        try:
+            items.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    if not items:
+        return 0
+    return round(sum(items) / len(items))
+
+
 def _dict_tuple(values: Any) -> tuple[dict[str, object], ...]:
     if isinstance(values, dict):
         return (values,)
@@ -1840,6 +1930,24 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_ledger_rows')}"
         ),
         f"- Actionable work items: {payload.get('n_actionable_work_items')}",
+        f"- Minimal-delta reuse ready: {payload.get('n_minimal_delta_reuse_ready')}",
+        (
+            "- Minimal-delta light bridge/wrapper: "
+            f"{payload.get('n_minimal_delta_light_bridge_or_wrapper')}"
+        ),
+        (
+            "- Minimal-delta source/new-theory: "
+            f"{payload.get('n_minimal_delta_source_or_new_theory')}"
+        ),
+        (
+            "- Minimal-delta alignment blocked: "
+            f"{payload.get('n_minimal_delta_alignment_blocked')}"
+        ),
+        (
+            "- Average reuse/evidence readiness: "
+            f"{payload.get('average_reuse_readiness_score')}/"
+            f"{payload.get('average_evidence_readiness_score')}"
+        ),
         f"- Contract minimum met: {payload.get('n_response_contract_minimum_met')}",
         f"- Contract OK: {payload.get('n_response_contract_ok')}",
         (

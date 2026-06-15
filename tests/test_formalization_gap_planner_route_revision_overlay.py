@@ -606,7 +606,7 @@ def test_route_revision_overlay_keeps_rocq_resource_hits_portable() -> None:
                 "component_name": "formalization_gap_planner_resource_response_ledger",
                 "rows": [
                     {
-                        "schema_version": 10,
+                        "schema_version": 11,
                         "resource_response_ledger_id": "ledger:rocq_exchangeability",
                         "resource_request_id": "request:rocq_exchangeability",
                         "goal_plan_id": "goal:rocq_ledger",
@@ -884,7 +884,7 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                 "component_name": "formalization_gap_planner_resource_response_ledger",
                 "rows": [
                     {
-                        "schema_version": 10,
+                        "schema_version": 11,
                         "resource_response_ledger_id": "ledger:rank_uniformity",
                         "resource_request_id": "request:rank_uniformity",
                         "action_resource_plan_id": "action-resource-plan:rank_uniformity",
@@ -900,6 +900,16 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                         ],
                         "coverage_bucket": "bridge_needed",
                         "queue_action_kind": "prove_bridge_lemma",
+                        "priority_score": 82,
+                        "minimal_delta_cost_score": 40,
+                        "reuse_readiness_score": 70,
+                        "evidence_readiness_score": 75,
+                        "priority_rationale": [
+                            "coverage_status=bridge_needed",
+                            "minimal_delta_cost_score=40",
+                            "reuse_readiness_score=70",
+                            "evidence_readiness_score=75",
+                        ],
                         "target_prover_family": "lean4",
                         "library_snapshot_ref": "snapshot:test",
                         "candidate_declaration_rows": [
@@ -1056,6 +1066,24 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert overlay_payload["n_resource_response_ledger_status_rows"] == 1
     assert overlay_payload["n_resource_response_ledger_awaiting"] == 0
     assert overlay_payload["n_resource_response_ledger_rejected"] == 0
+    assert (
+        overlay_payload[
+            "n_applied_resource_response_traces_with_minimal_delta_priority"
+        ]
+        == 1
+    )
+    assert (
+        overlay_payload[
+            "average_applied_resource_response_reuse_readiness_score"
+        ]
+        == 70
+    )
+    assert (
+        overlay_payload[
+            "average_applied_resource_response_evidence_readiness_score"
+        ]
+        == 75
+    )
     assert overlay_payload["n_route_revision_proposals"] == 1
     assert overlay_payload["n_routes_with_revision"] == 1
     assert overlay_payload["n_source_snippets"] == 1
@@ -1086,6 +1114,16 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert trace["actionable_work_items"] == (
         "rank_uniformity: prove finite rank uniformity from exchangeability",
     )
+    assert trace["priority_score"] == 82
+    assert trace["minimal_delta_cost_score"] == 40
+    assert trace["reuse_readiness_score"] == 70
+    assert trace["evidence_readiness_score"] == 75
+    assert set(trace["priority_rationale"]) == {
+        "coverage_status=bridge_needed",
+        "minimal_delta_cost_score=40",
+        "reuse_readiness_score=70",
+        "evidence_readiness_score=75",
+    }
     assert trace["quality_controls"]["resource_contract_ids"] == (
         "lean_lsp:proof_state_feedback",
     )
@@ -1126,6 +1164,10 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert llm_trace["actionable_work_items"] == (
         "rank_uniformity: prove finite rank uniformity from exchangeability",
     )
+    assert llm_trace["minimal_delta_cost_score"] == 40
+    assert llm_trace["reuse_readiness_score"] == 70
+    assert llm_trace["evidence_readiness_score"] == 75
+    assert llm_trace["priority_rationale"] == trace["priority_rationale"]
     assert llm_trace["llm_route_planner_row_id"] == "llm_route_row:rank"
     assert llm_trace["llm_route_planner_request_id"] == "llm_route_request:rank"
     assert llm_trace["llm_route_planner_source_kind"] == "planner_next_action"

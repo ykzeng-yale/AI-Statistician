@@ -604,13 +604,17 @@ recommendations under
 responses are `AWAITING_RESOURCE_RESPONSE`, not a failed gate, while malformed
 responses and `kernel_verified=true` claims are rejected in this non-proof
 layer. Ledger rows retain the request `dispatch_spec`, so downstream feedback
-can still be audited against the exact adapter surface that was requested.
+can still be audited against the exact adapter surface that was requested. They
+also retain queued minimal-delta cost, reuse/evidence readiness, and priority
+rationale fields, so route repair remains accountable to the original
+library-reuse preference after resource responses arrive asynchronously.
 Responses that echo a different resource, expected artifact, or dispatch spec
 are rejected as request mismatches rather than accepted as planner feedback.
 Accepted ledger rows with source, library, coverage, residual-goal, or
 diagnostic feedback are consumed by `formalization-gap-planner-route-revision-overlay`
 as conservative non-proof proposals. The overlay also records compact
-`applied_resource_response_traces`, including that dispatch context, so the
+`applied_resource_response_traces`, including that dispatch and readiness
+context, so the
 accepted response row can be audited after it becomes route-revision state,
 while missing and rejected responses remain explicit capacity or contract gaps
 through per-route resource-response status summaries.
@@ -915,7 +919,8 @@ artifacts are bundled with the ledger, audits also verify that
 `resource_response_ledger:*` overlay evidence ids resolve only to accepted,
 response-present, contract-valid ledger rows and that
 `applied_resource_response_traces` match those ledger rows, including compact
-dispatch context, without carrying the full response payload. Overlay rows also
+dispatch and minimal-delta readiness context, without carrying the full response
+payload. Overlay rows also
 expose compact awaiting/rejected resource-response status counts for the
 route-stability audit; bundle audits recompute those summaries and
 awaiting/rejected request-id lists from the bundled ledger rows before

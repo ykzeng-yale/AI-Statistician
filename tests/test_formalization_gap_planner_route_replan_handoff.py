@@ -140,6 +140,16 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         "route_id": plan_row["route_id"],
         "primitive": "conditional_rank_argument",
         "target_primitives": ["conditional_rank_argument"],
+        "priority_score": 77,
+        "minimal_delta_cost_score": 60,
+        "reuse_readiness_score": 35,
+        "evidence_readiness_score": 90,
+        "priority_rationale": [
+            "coverage_status=source_port_needed",
+            "minimal_delta_cost_score=60",
+            "reuse_readiness_score=35",
+            "evidence_readiness_score=90",
+        ],
         "resource_id": "lean_lsp_mcp",
         "request_phase": "frontier_escalation",
         "expected_response_artifact": "proof_state_or_prover_feedback_response",
@@ -157,6 +167,16 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         "route_id": plan_row["route_id"],
         "goal_plan_id": plan_row["goal_plan_id"],
         "target_primitives": ["conditional_rank_argument"],
+        "priority_score": 77,
+        "minimal_delta_cost_score": 60,
+        "reuse_readiness_score": 35,
+        "evidence_readiness_score": 90,
+        "priority_rationale": [
+            "coverage_status=source_port_needed",
+            "minimal_delta_cost_score=60",
+            "reuse_readiness_score=35",
+            "evidence_readiness_score=90",
+        ],
         "resource_id": "lean_lsp_mcp",
         "acceptance_status": "ACCEPTED_WITH_ROUTE_REVISION",
         "llm_route_planner_row_id": "llm_route_row:conditional_rank",
@@ -325,6 +345,24 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert payload["n_resource_response_awaiting_request_ids"] == 1
     assert payload["n_resource_response_rejected_request_ids"] == 1
     assert payload["n_applied_llm_route_planner_hook_traces"] == 1
+    assert (
+        payload[
+            "n_applied_resource_response_traces_with_minimal_delta_priority"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "average_applied_resource_response_reuse_readiness_score"
+        ]
+        == 35
+    )
+    assert (
+        payload[
+            "average_applied_resource_response_evidence_readiness_score"
+        ]
+        == 90
+    )
     assert payload["n_routes_with_llm_route_planner_hook_trace"] == 1
     assert payload["n_residual_goal_contexts"] == 1
     assert payload["n_routes_with_residual_goal_contexts"] == 1
@@ -381,6 +419,22 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     )
     assert row["applied_resource_response_traces"][0]["resource_request_id"] == (
         "request:conditional_rank_argument"
+    )
+    assert row["applied_resource_response_traces"][0]["priority_score"] == 77
+    assert row["applied_resource_response_traces"][0][
+        "minimal_delta_cost_score"
+    ] == 60
+    assert row["applied_resource_response_traces"][0][
+        "reuse_readiness_score"
+    ] == 35
+    assert row["applied_resource_response_traces"][0][
+        "evidence_readiness_score"
+    ] == 90
+    assert tuple(row["applied_resource_response_traces"][0]["priority_rationale"]) == (
+        "coverage_status=source_port_needed",
+        "minimal_delta_cost_score=60",
+        "reuse_readiness_score=35",
+        "evidence_readiness_score=90",
     )
     assert row["applied_llm_route_planner_hook_traces"][0][
         "llm_route_planner_row_id"
@@ -694,9 +748,15 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert trace["applied_resource_response_traces"][0]["resource_request_id"] == (
         "request:conditional_rank_argument"
     )
+    assert trace["applied_resource_response_traces"][0][
+        "minimal_delta_cost_score"
+    ] == 60
     assert trace["applied_llm_route_planner_hook_traces"][0][
         "llm_route_planner_request_id"
     ] == "llm_route_request:conditional_rank"
+    assert trace["applied_llm_route_planner_hook_traces"][0][
+        "minimal_delta_cost_score"
+    ] == 60
     assert trace["applied_llm_route_planner_hook_traces"][0][
         "llm_route_planner_queries"
     ] == ["ask Lean LSP for conditional_rank_argument residual goals"]

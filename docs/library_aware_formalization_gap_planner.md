@@ -1179,6 +1179,10 @@ the original request packet has been consumed. They also retain the queued
 `resource_contract_ids`, `stop_conditions`, and compact `quality_controls`, so
 downstream route-revision overlays can preserve bounded tool policy from
 asynchronous resource feedback without reopening the original request queue.
+They also carry forward the queued `minimal_delta_cost_score`,
+`reuse_readiness_score`, `evidence_readiness_score`, and `priority_rationale`,
+so feedback-loop route repair keeps the same preference for cheap library reuse
+over source ports or new theory.
 Present responses that echo the
 wrong resource, expected artifact, dispatch spec, or declaration provenance are
 rejected before they can become accepted planner feedback. When supplied to the
@@ -1188,7 +1192,8 @@ do not change the route. When both artifacts are bundled, the publication
 audit checks each overlay `resource_response_ledger:*` evidence reference
 against an accepted, response-present, contract-valid ledger row and verifies
 that the overlay's compact `applied_resource_response_traces` match the
-bundled ledger rows, including dispatch and declaration-provenance context. The
+bundled ledger rows, including dispatch, declaration-provenance, and
+minimal-delta readiness context. The
 minimal-delta audit checks structural cost accounting, selected-cut
 consistency, `do_not_formalize_now` exclusions, work-packet scope, and obvious
 same-target dominated route alternatives; it also writes
@@ -2204,7 +2209,8 @@ The current implementation composes four existing AI Statistician artifacts:
    realization node are rejected before handoff. Publication bundles that
    include the resource-response ledger also validate overlay evidence ids
    against accepted ledger rows and validate the compact
-   `applied_resource_response_traces` copied from those ledger rows.
+   `applied_resource_response_traces` copied from those ledger rows, including
+   minimal-delta/readiness priority fields.
 
 22. `formalization_gap_planner_route_stability_audit`
    Decides whether each route has stabilized under the current evidence bound
