@@ -19,6 +19,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY,
+    ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
     TARGET_THEOREM_CONTEXT_PACKET_KIND,
@@ -3945,7 +3946,11 @@ def test_llm_route_planner_materializes_bare_feedback_replan_required() -> None:
     row_payload = payload["rows"][0]
     assert row_payload["route_adoption_blockers"] == (
         "feedback_loop_replan_required",
+        ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
     )
+    assert row_payload["primitive_evidence_matrix_witness"][
+        "formal_supported_matrix_primitives_missing_reuse"
+    ] == ["rank_uniformity"]
     summary = payload["request_packets"][0]["context_packet"]["feedback_loop_summary"]
     assert summary["replan_required"] is True
     assert summary["recommended_next_actions"] == []
@@ -6606,6 +6611,18 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         in manifest_schema["required"]
     )
     assert (
+        "n_primitive_evidence_matrix_source_backed_missing_response_source_snippets"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_primitive_evidence_matrix_formal_supported_missing_reuse"
+        in manifest_schema["required"]
+    )
+    assert (
+        "n_primitive_evidence_matrix_delta_needed_missing_accounting"
+        in manifest_schema["required"]
+    )
+    assert (
         "n_request_llm_generation_policy_current_claude_tier_source"
         in manifest_schema["required"]
     )
@@ -6617,6 +6634,20 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["n_primitive_evidence_matrix_witness_rows"] == 2
     assert payload["n_primitive_evidence_matrix_accounted_primitives"] == 2
     assert payload["n_primitive_evidence_matrix_unaccounted_primitives"] == 0
+    assert (
+        payload[
+            "n_primitive_evidence_matrix_source_backed_missing_response_source_snippets"
+        ]
+        == 0
+    )
+    assert (
+        payload["n_primitive_evidence_matrix_formal_supported_missing_reuse"]
+        == 0
+    )
+    assert (
+        payload["n_primitive_evidence_matrix_delta_needed_missing_accounting"]
+        == 0
+    )
     assert (
         payload["n_selected_primitives_without_primitive_evidence_matrix_row"]
         == 0
@@ -6929,9 +6960,21 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert matrix_witness[
         "source_backed_matrix_primitives_with_response_source_snippet"
     ] == ["rank_uniformity"]
+    assert (
+        matrix_witness[
+            "source_backed_matrix_primitives_missing_response_source_snippet"
+        ]
+        == []
+    )
     assert matrix_witness["formal_supported_matrix_primitives_reused"] == [
         "exchangeability"
     ]
+    assert matrix_witness["formal_supported_matrix_primitives_missing_reuse"] == []
+    assert matrix_witness["delta_needed_matrix_primitives"] == ["rank_uniformity"]
+    assert matrix_witness["delta_needed_matrix_primitives_accounted"] == [
+        "rank_uniformity"
+    ]
+    assert matrix_witness["delta_needed_matrix_primitives_missing_accounting"] == []
     assert "minimal_delta.selected_primitives" in set(
         matrix_witness["accounted_by_primitive"]["rank_uniformity"]
     )
@@ -7400,6 +7443,52 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert trace["minimal_delta_route_option_count"] == 2
     assert trace["minimal_delta_selected_route_cost"] == 4
     assert plan_row["minimal_cut_summary"]["add_bridge_lemmas"] == ["rank_uniformity"]
+
+
+def test_llm_route_planner_blocks_matrix_accounted_route_missing_source_snippet() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_matrix_source_gap")
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response_payload = _drop_source_snippets(_llm_response_payload())
+    response_json.write_text(json.dumps(response_payload, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["n_rows"] == 1
+    row = payload["rows"][0]
+    assert row["response_contract_ok"] is True
+    matrix_witness = row["primitive_evidence_matrix_witness"]
+    assert matrix_witness["matrix_accounted_primitives"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert matrix_witness["matrix_unaccounted_primitives"] == []
+    assert matrix_witness[
+        "source_backed_matrix_primitives_missing_response_source_snippet"
+    ] == ["rank_uniformity"]
+    assert matrix_witness["matrix_accounting_complete"] is False
+    assert (
+        payload[
+            "n_primitive_evidence_matrix_source_backed_missing_response_source_snippets"
+        ]
+        == 1
+    )
+    assert (
+        payload["n_route_adoption_pending_primitive_evidence_matrix_blockers"]
+        == 1
+    )
+    assert ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX in row[
+        "route_adoption_blockers"
+    ]
+    assert validate_llm_route_planner_manifest(payload) == []
 
 
 def test_llm_route_planner_rejects_payload_missing_schema_level_cost_graph() -> None:
@@ -13509,8 +13598,12 @@ def test_llm_route_planner_blocks_route_adoption_when_cost_hint_primitive_omitte
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
     assert set(row["route_adoption_blockers"]) == {
-        "omitted_cost_hint_primitives_require_review"
+        ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
+        "omitted_cost_hint_primitives_require_review",
     }
+    assert row["primitive_evidence_matrix_witness"][
+        "delta_needed_matrix_primitives_missing_accounting"
+    ] == ["rank_uniformity"]
     witness = row["realization_coverage_witness"]
     assert witness["selected_primitives"] == ["exchangeability"]
     assert witness["cost_hint_baseline_primitives"] == [
@@ -13528,7 +13621,7 @@ def test_llm_route_planner_blocks_route_adoption_when_cost_hint_primitive_omitte
     )
     assert seed_route["replan_metadata"][
         "llm_route_planner_route_adoption_blockers"
-    ] == ["omitted_cost_hint_primitives_require_review"]
+    ] == list(row["route_adoption_blockers"])
     assert seed_route["replan_metadata"][
         "llm_route_planner_realization_coverage_witness"
     ]["omitted_cost_hint_primitives"] == ["rank_uniformity"]

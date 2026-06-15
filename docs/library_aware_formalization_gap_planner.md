@@ -767,7 +767,11 @@ checks that every request-side primitive evidence row is accounted by the
 selected route, standalone route, formal realization, route alignment, residual
 interpretation, search request, planner action, or reused source snippet, and
 it blocks standalone adoption when the response selects a primitive with no
-request-side matrix row.
+request-side matrix row. Complete matrix accounting also requires source-backed
+matrix primitives to be cited by response source snippets, formally supported
+matrix primitives to reuse a target-compatible declaration rather than
+silently adding new work, and delta-needed matrix primitives to have an
+explicit delta action or planner action.
 Each request context also carries `route_adoption_preconditions`, a pre-response
 forecast of blockers already implied by residual goals, feedback-loop repair
 requirements, pending source-grounding rows, pending quality controls, resource
@@ -2007,7 +2011,9 @@ The current implementation composes four existing AI Statistician artifacts:
    primitive coverage without relying on free-form row text. It also defines
    `primitive_evidence_matrix_witness`, which cross-checks the accepted route
    against the request-side primitive matrix and publishes unaccounted matrix
-   primitives or selected primitives without matrix rows as explicit
+   primitives, selected primitives without matrix rows, source-backed rows
+   missing response snippets, formal-supported rows missing declaration reuse,
+   and delta-needed rows missing delta/action accounting as explicit
    route-repair targets. If a component-resource registry directory is supplied, request
    packets also include a bounded `component_resource_registry_context` with
    compatible resources, execution plans, and response contracts. That context

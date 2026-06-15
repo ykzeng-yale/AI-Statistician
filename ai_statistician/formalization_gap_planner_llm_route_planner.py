@@ -2605,6 +2605,39 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for row in rows
         ),
+        "n_primitive_evidence_matrix_source_backed_missing_response_source_snippets": sum(
+            len(
+                _str_tuple(
+                    row.primitive_evidence_matrix_witness.get(
+                        "source_backed_matrix_primitives_missing_response_source_snippet",
+                        [],
+                    )
+                )
+            )
+            for row in rows
+        ),
+        "n_primitive_evidence_matrix_formal_supported_missing_reuse": sum(
+            len(
+                _str_tuple(
+                    row.primitive_evidence_matrix_witness.get(
+                        "formal_supported_matrix_primitives_missing_reuse",
+                        [],
+                    )
+                )
+            )
+            for row in rows
+        ),
+        "n_primitive_evidence_matrix_delta_needed_missing_accounting": sum(
+            len(
+                _str_tuple(
+                    row.primitive_evidence_matrix_witness.get(
+                        "delta_needed_matrix_primitives_missing_accounting",
+                        [],
+                    )
+                )
+            )
+            for row in rows
+        ),
         "n_selected_primitives_without_primitive_evidence_matrix_row": sum(
             len(
                 _str_tuple(
@@ -3638,6 +3671,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_primitive_evidence_matrix_witness_rows",
             "n_primitive_evidence_matrix_accounted_primitives",
             "n_primitive_evidence_matrix_unaccounted_primitives",
+            "n_primitive_evidence_matrix_source_backed_missing_response_source_snippets",
+            "n_primitive_evidence_matrix_formal_supported_missing_reuse",
+            "n_primitive_evidence_matrix_delta_needed_missing_accounting",
             "n_selected_primitives_without_primitive_evidence_matrix_row",
             "n_delta_action_witness_required_primitives",
             "n_delta_action_witness_missing_primitives",
@@ -3974,6 +4010,15 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_primitive_evidence_matrix_witness_rows": nonnegative_integer,
             "n_primitive_evidence_matrix_accounted_primitives": nonnegative_integer,
             "n_primitive_evidence_matrix_unaccounted_primitives": (
+                nonnegative_integer
+            ),
+            "n_primitive_evidence_matrix_source_backed_missing_response_source_snippets": (
+                nonnegative_integer
+            ),
+            "n_primitive_evidence_matrix_formal_supported_missing_reuse": (
+                nonnegative_integer
+            ),
+            "n_primitive_evidence_matrix_delta_needed_missing_accounting": (
                 nonnegative_integer
             ),
             "n_selected_primitives_without_primitive_evidence_matrix_row": (
@@ -4689,6 +4734,69 @@ def validate_llm_route_planner_manifest(
     ) != matrix_unaccounted_primitives:
         errors.append(
             "n_primitive_evidence_matrix_unaccounted_primitives must match rows"
+        )
+    source_backed_missing_snippets = sum(
+        len(
+            _str_tuple(
+                _dict_value(row, "primitive_evidence_matrix_witness").get(
+                    "source_backed_matrix_primitives_missing_response_source_snippet",
+                    [],
+                )
+            )
+        )
+        for row in manifest_rows
+    )
+    if int(
+        manifest.get(
+            "n_primitive_evidence_matrix_source_backed_missing_response_source_snippets",
+            0,
+        )
+        or 0
+    ) != source_backed_missing_snippets:
+        errors.append(
+            "n_primitive_evidence_matrix_source_backed_missing_response_source_snippets must match rows"
+        )
+    formal_supported_missing_reuse = sum(
+        len(
+            _str_tuple(
+                _dict_value(row, "primitive_evidence_matrix_witness").get(
+                    "formal_supported_matrix_primitives_missing_reuse",
+                    [],
+                )
+            )
+        )
+        for row in manifest_rows
+    )
+    if int(
+        manifest.get(
+            "n_primitive_evidence_matrix_formal_supported_missing_reuse",
+            0,
+        )
+        or 0
+    ) != formal_supported_missing_reuse:
+        errors.append(
+            "n_primitive_evidence_matrix_formal_supported_missing_reuse must match rows"
+        )
+    delta_needed_missing_accounting = sum(
+        len(
+            _str_tuple(
+                _dict_value(row, "primitive_evidence_matrix_witness").get(
+                    "delta_needed_matrix_primitives_missing_accounting",
+                    [],
+                )
+            )
+        )
+        for row in manifest_rows
+    )
+    if int(
+        manifest.get(
+            "n_primitive_evidence_matrix_delta_needed_missing_accounting",
+            0,
+        )
+        or 0
+    ) != delta_needed_missing_accounting:
+        errors.append(
+            "n_primitive_evidence_matrix_delta_needed_missing_accounting must match rows"
         )
     selected_without_matrix = sum(
         len(
@@ -6122,6 +6230,21 @@ def validate_llm_route_planner_row(
         ) and not _str_tuple(
             primitive_matrix_witness.get(
                 "selected_primitives_without_matrix_row",
+                [],
+            )
+        ) and not _str_tuple(
+            primitive_matrix_witness.get(
+                "source_backed_matrix_primitives_missing_response_source_snippet",
+                [],
+            )
+        ) and not _str_tuple(
+            primitive_matrix_witness.get(
+                "formal_supported_matrix_primitives_missing_reuse",
+                [],
+            )
+        ) and not _str_tuple(
+            primitive_matrix_witness.get(
+                "delta_needed_matrix_primitives_missing_accounting",
                 [],
             )
         )
@@ -18470,6 +18593,7 @@ def _primitive_evidence_matrix_witness(
     formal_supported_missing_reuse: list[str] = []
     delta_needed_primitives: list[str] = []
     delta_needed_accounted: list[str] = []
+    delta_needed_missing: list[str] = []
     matrix_row_summaries: list[dict[str, object]] = []
     for matrix_row in matrix_rows:
         primitive = _primitive_key(matrix_row.get("primitive", ""))
@@ -18514,6 +18638,8 @@ def _primitive_evidence_matrix_witness(
             delta_needed_primitives.append(primitive)
             if primitive in delta_primitives or primitive in action_targets:
                 delta_needed_accounted.append(primitive)
+            else:
+                delta_needed_missing.append(primitive)
         matrix_row_summaries.append(
             {
                 "primitive": primitive,
@@ -18522,6 +18648,28 @@ def _primitive_evidence_matrix_witness(
                 "library_delta_class": delta_class,
                 "accounted_by": accounted_by_primitive.get(primitive, []),
                 "accounted": bool(accounted_by_primitive.get(primitive, [])),
+                "source_backed_response_source_snippet_present": (
+                    source_status != "source_backed" or primitive in source_snippet_targets
+                ),
+                "formal_supported_reuse_present": (
+                    formal_status
+                    not in {
+                        "existing_library_reuse_ready",
+                        "target_compatible_candidate_available",
+                    }
+                    or primitive in formal_supported_reused
+                ),
+                "delta_needed_accounted": (
+                    delta_class
+                    not in {
+                        "bridge",
+                        "source_port",
+                        "new_definition",
+                        "new_theory",
+                        "unknown",
+                    }
+                    or primitive in delta_needed_accounted
+                ),
             }
         )
 
@@ -18557,6 +18705,9 @@ def _primitive_evidence_matrix_witness(
         "delta_needed_matrix_primitives_accounted": list(
             dict.fromkeys(delta_needed_accounted)
         ),
+        "delta_needed_matrix_primitives_missing_accounting": list(
+            dict.fromkeys(delta_needed_missing)
+        ),
         "accounted_by_primitive": {
             primitive: list(accounted_by)
             for primitive, accounted_by in accounted_by_primitive.items()
@@ -18564,6 +18715,9 @@ def _primitive_evidence_matrix_witness(
         "matrix_row_summaries": matrix_row_summaries,
         "matrix_accounting_complete": (
             not unaccounted and not selected_without_matrix
+            and not source_backed_missing
+            and not formal_supported_missing_reuse
+            and not delta_needed_missing
         ),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
@@ -24207,6 +24361,54 @@ def _primitive_evidence_matrix_feedback_next_actions(
                     + ", ".join(selected_without[:8])
                 ),
                 "target_primitives": list(selected_without[:12]),
+            }
+        )
+    source_backed_missing = _str_tuple(
+        witness.get(
+            "source_backed_matrix_primitives_missing_response_source_snippet",
+            [],
+        )
+    )
+    if source_backed_missing:
+        actions.append(
+            {
+                "action": "cite_source_snippets_for_source_backed_matrix_primitives",
+                "query": (
+                    "add response source_snippets/source_refs for source-backed "
+                    "primitive evidence-matrix rows: "
+                    + ", ".join(source_backed_missing[:8])
+                ),
+                "target_primitives": list(source_backed_missing[:12]),
+            }
+        )
+    formal_missing = _str_tuple(
+        witness.get("formal_supported_matrix_primitives_missing_reuse", [])
+    )
+    if formal_missing:
+        actions.append(
+            {
+                "action": "reuse_target_compatible_declarations_or_change_route",
+                "query": (
+                    "reuse target-compatible formal declarations or revise the "
+                    "route for formal-supported primitive evidence-matrix rows: "
+                    + ", ".join(formal_missing[:8])
+                ),
+                "target_primitives": list(formal_missing[:12]),
+            }
+        )
+    delta_missing = _str_tuple(
+        witness.get("delta_needed_matrix_primitives_missing_accounting", [])
+    )
+    if delta_missing:
+        actions.append(
+            {
+                "action": "add_delta_or_planner_action_for_delta_needed_primitives",
+                "query": (
+                    "add minimal_delta delta actions or planner_next_actions for "
+                    "delta-needed primitive evidence-matrix rows: "
+                    + ", ".join(delta_missing[:8])
+                ),
+                "target_primitives": list(delta_missing[:12]),
             }
         )
     return tuple(actions)
