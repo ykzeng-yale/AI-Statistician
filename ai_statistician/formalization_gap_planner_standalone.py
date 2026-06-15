@@ -284,6 +284,31 @@ def export_formalization_gap_planner_standalone_plan(
                 "has_llm_route_planner_route_planning_brief"
             )
         ),
+        "n_standalone_input_traces_with_llm_route_adoption_preconditions": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "has_llm_route_planner_route_adoption_preconditions"
+            )
+        ),
+        "n_standalone_input_trace_llm_route_adoption_precondition_blockers": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_adoption_precondition_blocker_count",
+                    0,
+                )
+            )
+            for row in rows
+        ),
+        "n_standalone_input_trace_llm_route_adoption_precondition_required_response_fields": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_adoption_precondition_required_response_field_count",
+                    0,
+                )
+            )
+            for row in rows
+        ),
         "n_standalone_input_trace_target_theorem_context_target_mismatches": sum(
             1
             for row in rows
@@ -678,6 +703,22 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
             errors.append(
                 f"routes[{idx}].target_theorem_context_packet must match "
                 f"routes[{idx}].replan_metadata.target_theorem_context_packet"
+            )
+        route_adoption_preconditions = _dict_value(
+            route.get("llm_route_planner_route_adoption_preconditions", {})
+        )
+        metadata_route_adoption_preconditions = _dict_value(
+            metadata.get("llm_route_planner_route_adoption_preconditions", {})
+        )
+        if (
+            route_adoption_preconditions
+            and metadata_route_adoption_preconditions
+            and route_adoption_preconditions != metadata_route_adoption_preconditions
+        ):
+            errors.append(
+                f"routes[{idx}].llm_route_planner_route_adoption_preconditions "
+                f"must match routes[{idx}].replan_metadata."
+                "llm_route_planner_route_adoption_preconditions"
             )
         errors.extend(
             _legacy_lean_declaration_hit_input_errors(
@@ -1157,6 +1198,9 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "theorem_skeleton": {"type": "string"},
                     "target_theorem_context_packet": {"type": "object"},
                     "llm_route_planner_route_planning_brief": {"type": "object"},
+                    "llm_route_planner_route_adoption_preconditions": {
+                        "type": "object"
+                    },
                     "route_class": {"type": "string"},
                     "recommended_action": {"type": "string"},
                     "source_refs": string_array,
@@ -1360,6 +1404,9 @@ def standalone_input_json_schema() -> dict[str, object]:
                         "type": "object"
                     },
                     "llm_route_planner_route_planning_brief": {"type": "object"},
+                    "llm_route_planner_route_adoption_preconditions": {
+                        "type": "object"
+                    },
                     **seed_route_selection_trace_properties,
                     "alignment_edge_primitives": string_array,
                     "proof_evidence_status": {"type": "string"},
@@ -1933,6 +1980,12 @@ def _standalone_input_trace(
             raw_route.get("llm_route_planner_route_planning_brief", {}),
         )
     )
+    llm_route_adoption_preconditions = _dict_value(
+        metadata.get(
+            "llm_route_planner_route_adoption_preconditions",
+            raw_route.get("llm_route_planner_route_adoption_preconditions", {}),
+        )
+    )
     trace_target_prover_family = str(
         raw_route.get("target_prover_family", "")
         or metadata.get("target_prover_family", "")
@@ -1960,6 +2013,28 @@ def _standalone_input_trace(
         "llm_route_planner_route_planning_brief": dict(llm_route_planning_brief),
         "has_llm_route_planner_route_planning_brief": bool(
             llm_route_planning_brief
+        ),
+        "llm_route_planner_route_adoption_preconditions": dict(
+            llm_route_adoption_preconditions
+        ),
+        "has_llm_route_planner_route_adoption_preconditions": bool(
+            llm_route_adoption_preconditions
+        ),
+        "llm_route_adoption_precondition_blocker_count": len(
+            _str_tuple(
+                llm_route_adoption_preconditions.get(
+                    "known_pre_response_blockers",
+                    [],
+                )
+            )
+        ),
+        "llm_route_adoption_precondition_required_response_field_count": len(
+            _str_tuple(
+                llm_route_adoption_preconditions.get(
+                    "response_required_fields",
+                    [],
+                )
+            )
         ),
         "llm_route_planning_brief_focus_count": len(
             _dict_list(llm_route_planning_brief.get("planner_focus", []))

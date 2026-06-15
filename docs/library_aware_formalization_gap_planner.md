@@ -2120,6 +2120,10 @@ The current implementation composes four existing AI Statistician artifacts:
    seed `replan_metadata` preserve it too, so the next LLM route-planner call
    keeps the compact planner-focus and evidence-gap checklist instead of
    reconstructing route intent from raw prompts.
+   If the prior trace carries
+   `llm_route_planner_route_adoption_preconditions`, the handoff row, seed
+   route, and seed `replan_metadata` preserve it too, so the next LLM
+   route-planner call retains the pre-response blocker forecast.
    They also preserve applied proposal ids, evidence ids, hook kinds,
    compact resource-response traces, pending or rejected resource-response
    request ids, prover-attempt statuses, diagnostic signatures, residual

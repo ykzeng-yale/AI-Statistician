@@ -18642,6 +18642,7 @@ def _feedback_loop_summary(
                 "alignment_edge_primitives",
                 "llm_route_planner_realization_coverage_witness",
                 "realization_coverage_witness",
+                "llm_route_planner_route_adoption_preconditions",
             )
             if key in replan_metadata
         }
@@ -20762,6 +20763,7 @@ def _fallback_route_for_seed(
     fallback = dict(route)
     target_context_packet = dict(row.target_theorem_context_packet)
     route_planning_brief = dict(row.route_planning_brief)
+    route_adoption_preconditions = dict(row.route_adoption_preconditions)
     metadata = _dict_value(fallback, "replan_metadata")
     metadata = {
         **metadata,
@@ -20796,6 +20798,7 @@ def _fallback_route_for_seed(
         "target_theorem_context_packet": target_context_packet,
         "llm_route_planner_target_theorem_context_packet": target_context_packet,
         "llm_route_planner_route_planning_brief": route_planning_brief,
+        "llm_route_planner_route_adoption_preconditions": route_adoption_preconditions,
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
@@ -20803,6 +20806,10 @@ def _fallback_route_for_seed(
     fallback["target_theorem_context_packet"] = target_context_packet
     if route_planning_brief:
         fallback["llm_route_planner_route_planning_brief"] = route_planning_brief
+    if route_adoption_preconditions:
+        fallback["llm_route_planner_route_adoption_preconditions"] = (
+            route_adoption_preconditions
+        )
     fallback["replan_metadata"] = metadata
     fallback["llm_route_planner_row_id"] = row.llm_route_planner_row_id
     fallback["llm_route_planner_acceptance_status"] = row.acceptance_status
@@ -20819,10 +20826,15 @@ def _accepted_route_for_seed(
     route = dict(row.standalone_route)
     target_context_packet = dict(row.target_theorem_context_packet)
     route_planning_brief = dict(row.route_planning_brief)
+    route_adoption_preconditions = dict(row.route_adoption_preconditions)
     route["target_prover_family"] = row.target_prover_family
     route["target_theorem_context_packet"] = target_context_packet
     if route_planning_brief:
         route["llm_route_planner_route_planning_brief"] = route_planning_brief
+    if route_adoption_preconditions:
+        route["llm_route_planner_route_adoption_preconditions"] = (
+            route_adoption_preconditions
+        )
     source_refs = tuple(
         dict.fromkeys(
             [
@@ -21068,6 +21080,7 @@ def _accepted_route_for_seed(
         "target_theorem_context_packet": target_context_packet,
         "llm_route_planner_target_theorem_context_packet": target_context_packet,
         "llm_route_planner_route_planning_brief": route_planning_brief,
+        "llm_route_planner_route_adoption_preconditions": route_adoption_preconditions,
         "llm_route_planner_errors": list(row.errors),
         "llm_route_planner_generation_errors": list(row.generation_errors),
         "llm_route_planner_request_contract_blocked": (

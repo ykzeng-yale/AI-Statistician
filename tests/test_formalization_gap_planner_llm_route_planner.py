@@ -6851,6 +6851,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert seed_route["llm_route_planner_route_planning_brief"] == row[
         "route_planning_brief"
     ]
+    assert seed_route["llm_route_planner_route_adoption_preconditions"] == row[
+        "route_adoption_preconditions"
+    ]
     assert metadata["target_theorem_context_packet"] == row[
         "target_theorem_context_packet"
     ]
@@ -6859,6 +6862,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     ]
     assert metadata["llm_route_planner_route_planning_brief"] == row[
         "route_planning_brief"
+    ]
+    assert metadata["llm_route_planner_route_adoption_preconditions"] == row[
+        "route_adoption_preconditions"
     ]
     assert seed_route["source_snippets"][0]["source_ref"] == (
         "conformal_prediction_textbook"
@@ -6953,6 +6959,12 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     )
     assert (
         plan_payload[
+            "n_standalone_input_traces_with_llm_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
             "n_standalone_input_trace_target_theorem_context_target_mismatches"
         ]
         == 0
@@ -7021,9 +7033,16 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert trace["llm_route_planner_route_planning_brief"] == row[
         "route_planning_brief"
     ]
+    assert trace["llm_route_planner_route_adoption_preconditions"] == row[
+        "route_adoption_preconditions"
+    ]
     assert trace["has_target_theorem_context_packet"] is True
     assert trace["has_llm_route_planner_target_theorem_context_packet"] is True
     assert trace["has_llm_route_planner_route_planning_brief"] is True
+    assert trace["has_llm_route_planner_route_adoption_preconditions"] is True
+    assert trace["llm_route_adoption_precondition_blocker_count"] == len(
+        row["route_adoption_preconditions"]["known_pre_response_blockers"]
+    )
     assert trace["llm_route_planning_brief_focus_count"] == len(
         row["route_planning_brief"]["planner_focus"]
     )
@@ -8543,6 +8562,12 @@ def test_llm_route_planner_blocks_route_adoption_on_unresolved_source_grounding(
         "route_adoption_blocker_values"
     ]
     seed_route = payload["standalone_seed"]["routes"][0]
+    assert seed_route["llm_route_planner_route_adoption_preconditions"] == (
+        preconditions
+    )
+    assert seed_route["replan_metadata"][
+        "llm_route_planner_route_adoption_preconditions"
+    ] == preconditions
     assert set(
         seed_route["replan_metadata"]["llm_route_planner_route_adoption_blockers"]
     ) >= {
@@ -8741,6 +8766,12 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
         == ["quality_control_obligations_pending"]
     )
     seed_route = pending_payload["standalone_seed"]["routes"][0]
+    assert seed_route["llm_route_planner_route_adoption_preconditions"] == (
+        pending_preconditions
+    )
+    assert seed_route["replan_metadata"][
+        "llm_route_planner_route_adoption_preconditions"
+    ] == pending_preconditions
     assert seed_route["replan_metadata"]["quality_controls"] == quality_controls
     assert seed_route["replan_metadata"][
         "llm_route_planner_quality_control_obligations"
