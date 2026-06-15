@@ -171,7 +171,10 @@ The publication-bundle audit checks those counters against JSONL rows
 when the optional validator artifact is packaged, and the publication-bundle
 manifest lifts the same validation target-count and route-precondition-count
 summary into
-`llm_route_planner_response_payload_validation_summary`. The public planner path
+`llm_route_planner_response_payload_validation_summary`. The bundle audit also
+recomputes that lifted summary from the packaged validator manifest, so a bundle
+cannot report different public validation counts than the copied artifact. The
+public planner path
 records `*_provider_execution_mode`, live-call counters, and generation
 preflight block counts/errors so staged packets are distinguishable from paid
 provider calls and schema/model-tier-invalid requests are visible before any

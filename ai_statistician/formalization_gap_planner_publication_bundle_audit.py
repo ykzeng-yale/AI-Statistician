@@ -521,6 +521,19 @@ def audit_formalization_gap_planner_publication_bundle(
             == "bundle_feedback_llm_route_planner_summary_consistent"
             and check.ok
         ),
+        "n_bundle_llm_route_planner_response_payload_validation_summary_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_llm_route_planner_response_payload_validation_summary_consistent"
+        ),
+        "n_bundle_llm_route_planner_response_payload_validation_summary_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_llm_route_planner_response_payload_validation_summary_consistent"
+            and check.ok
+        ),
         "n_component_execution_plan_schema_checked": sum(
             1
             for check in checks
@@ -1403,6 +1416,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name
             == "optional_llm_route_planner_response_payload_validation_request_bound_coverage"
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_route_precondition_accounting_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_route_precondition_accounting"
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_route_precondition_accounting_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_route_precondition_accounting"
             and check.ok
         ),
         "n_optional_llm_route_planner_response_payload_validation_row_schema_checked": sum(
@@ -2421,6 +2447,12 @@ def _manifest_checks(
             artifact_name="formalization_gap_planner_feedback_llm_route_planner",
         )
     )
+    response_payload_validation_summary_errors = (
+        _bundle_llm_route_planner_response_payload_validation_summary_errors(
+            bundle_dir,
+            manifest,
+        )
+    )
     checks = [
         _check(
             "bundle_manifest_exists",
@@ -2502,6 +2534,18 @@ def _manifest_checks(
             ),
             not feedback_llm_route_planner_summary_errors,
             errors=feedback_llm_route_planner_summary_errors,
+        ),
+        _check(
+            "bundle_llm_route_planner_response_payload_validation_summary_consistent",
+            "manifest",
+            "llm_route_planner_response_payload_validation_summary matches packaged response-payload validation artifacts",
+            (
+                "ok"
+                if not response_payload_validation_summary_errors
+                else "; ".join(response_payload_validation_summary_errors[:3])
+            ),
+            not response_payload_validation_summary_errors,
+            errors=response_payload_validation_summary_errors,
         ),
         _check(
             "bundle_root_is_directory",
@@ -2643,6 +2687,146 @@ def _bundle_llm_route_planner_summary_errors(
                 f"observed={observed_value} expected={expected_value}"
             )
     return tuple(errors)
+
+
+def _bundle_llm_route_planner_response_payload_validation_summary_errors(
+    bundle_dir: Path,
+    manifest: dict[str, Any],
+) -> tuple[str, ...]:
+    summary_field = "llm_route_planner_response_payload_validation_summary"
+    observed = manifest.get(summary_field, {})
+    if not isinstance(observed, dict):
+        return (f"{summary_field} missing or not an object",)
+    expected = _expected_bundle_llm_route_planner_response_payload_validation_summary(
+        bundle_dir
+    )
+    errors: list[str] = []
+    for field_name, expected_value in expected.items():
+        if field_name not in observed:
+            errors.append(f"{summary_field}.{field_name} missing")
+            continue
+        observed_value = observed.get(field_name)
+        if isinstance(expected_value, bool):
+            if bool(observed_value) != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, int):
+            if int(observed_value or 0) != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, dict):
+            observed_dict = observed_value if isinstance(observed_value, dict) else {}
+            if _int_mapping(observed_dict) != _int_mapping(expected_value):
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={_int_mapping(observed_dict)} "
+                    f"expected={_int_mapping(expected_value)}"
+                )
+        elif str(observed_value) != str(expected_value):
+            errors.append(
+                f"{summary_field}.{field_name} mismatch: "
+                f"observed={observed_value} expected={expected_value}"
+            )
+    return tuple(errors)
+
+
+def _expected_bundle_llm_route_planner_response_payload_validation_summary(
+    bundle_dir: Path,
+) -> dict[str, object]:
+    artifact_dir = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation"
+    )
+    manifest_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+    )
+    payload = _read_json_no_error(manifest_path)
+    by_payload_target = payload.get("by_payload_target_prover_family", {})
+    by_request_target = payload.get("by_request_context_target_prover_family", {})
+    return {
+        "requested": artifact_dir.exists(),
+        "n_payloads": int(payload.get("n_payloads", 0) or 0),
+        "n_valid_payloads": int(payload.get("n_valid_payloads", 0) or 0),
+        "n_invalid_payloads": int(payload.get("n_invalid_payloads", 0) or 0),
+        "n_request_context_packets": int(
+            payload.get("n_request_context_packets", 0) or 0
+        ),
+        "n_request_contexts_with_context_packet_inventory": int(
+            payload.get("n_request_contexts_with_context_packet_inventory", 0) or 0
+        ),
+        "n_request_context_inventory_total_rows": int(
+            payload.get("n_request_context_inventory_total_rows", 0) or 0
+        ),
+        "n_request_bound_payloads": int(
+            payload.get("n_request_bound_payloads", 0) or 0
+        ),
+        "n_request_bound_payloads_with_context_packet_inventory": int(
+            payload.get(
+                "n_request_bound_payloads_with_context_packet_inventory",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payload_context_inventory_total_rows": int(
+            payload.get("n_request_bound_payload_context_inventory_total_rows", 0)
+            or 0
+        ),
+        "n_request_bound_payloads_with_route_adoption_preconditions": int(
+            payload.get(
+                "n_request_bound_payloads_with_route_adoption_preconditions",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payloads_with_blocking_route_adoption_preconditions": int(
+            payload.get(
+                "n_request_bound_payloads_with_blocking_route_adoption_preconditions",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payload_route_adoption_precondition_known_blockers": int(
+            payload.get(
+                "n_request_bound_payload_route_adoption_precondition_known_blockers",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payload_route_adoption_precondition_required_response_fields": int(
+            payload.get(
+                "n_request_bound_payload_route_adoption_precondition_required_response_fields",
+                0,
+            )
+            or 0
+        ),
+        "n_payloads_with_declared_target_prover_family": int(
+            payload.get("n_payloads_with_declared_target_prover_family", 0) or 0
+        ),
+        "n_request_bound_payloads_with_target_prover_family_mismatch": int(
+            payload.get(
+                "n_request_bound_payloads_with_target_prover_family_mismatch",
+                0,
+            )
+            or 0
+        ),
+        "by_payload_target_prover_family": (
+            dict(by_payload_target) if isinstance(by_payload_target, dict) else {}
+        ),
+        "by_request_context_target_prover_family": (
+            dict(by_request_target) if isinstance(by_request_target, dict) else {}
+        ),
+        "n_schema_errors": int(payload.get("n_schema_errors", 0) or 0),
+        "n_request_context_errors": int(
+            payload.get("n_request_context_errors", 0) or 0
+        ),
+        "all_ok": bool(payload.get("all_ok", False)),
+    }
 
 
 def _expected_bundle_llm_route_planner_summary(
@@ -7222,6 +7406,34 @@ def _llm_route_planner_response_payload_validation_optional_checks(
         )
         or 0
     )
+    manifest_request_bound_payloads_with_preconditions = int(
+        manifest.get(
+            "n_request_bound_payloads_with_route_adoption_preconditions",
+            0,
+        )
+        or 0
+    )
+    manifest_request_bound_payloads_with_blocking_preconditions = int(
+        manifest.get(
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions",
+            0,
+        )
+        or 0
+    )
+    manifest_request_bound_precondition_known_blockers = int(
+        manifest.get(
+            "n_request_bound_payload_route_adoption_precondition_known_blockers",
+            0,
+        )
+        or 0
+    )
+    manifest_request_bound_precondition_required_fields = int(
+        manifest.get(
+            "n_request_bound_payload_route_adoption_precondition_required_response_fields",
+            0,
+        )
+        or 0
+    )
     row_request_bound_payloads = sum(
         1
         for row in rows
@@ -7237,6 +7449,49 @@ def _llm_route_planner_response_payload_validation_optional_checks(
     )
     row_request_bound_context_inventory_total_rows = sum(
         int(row.get("request_context_inventory_total_rows", 0) or 0)
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+    )
+    row_request_bound_payloads_with_preconditions = sum(
+        1
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+        and bool(row.get("request_context_route_adoption_precondition_present", False))
+    )
+    row_request_bound_payloads_with_blocking_preconditions = sum(
+        1
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+        and bool(
+            row.get(
+                "request_context_route_adoption_precondition_blocked_before_response",
+                False,
+            )
+        )
+    )
+    row_request_bound_precondition_known_blockers = sum(
+        int(
+            row.get(
+                "request_context_route_adoption_precondition_known_blocker_count",
+                0,
+            )
+            or 0
+        )
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+    )
+    row_request_bound_precondition_required_fields = sum(
+        int(
+            row.get(
+                "request_context_route_adoption_precondition_required_response_field_count",
+                0,
+            )
+            or 0
+        )
         for row in rows
         if str(row.get("request_context_validation_mode", ""))
         == "request_bound"
@@ -7273,6 +7528,39 @@ def _llm_route_planner_response_payload_validation_optional_checks(
         request_bound_accounting_errors.append(
             "JSONL request-bound inventory total rows must match manifest "
             "n_request_bound_payload_context_inventory_total_rows"
+        )
+    route_precondition_accounting_errors: list[str] = []
+    if (
+        row_request_bound_payloads_with_preconditions
+        != manifest_request_bound_payloads_with_preconditions
+    ):
+        route_precondition_accounting_errors.append(
+            "JSONL route-adoption precondition rows must match manifest "
+            "n_request_bound_payloads_with_route_adoption_preconditions"
+        )
+    if (
+        row_request_bound_payloads_with_blocking_preconditions
+        != manifest_request_bound_payloads_with_blocking_preconditions
+    ):
+        route_precondition_accounting_errors.append(
+            "JSONL blocking route-adoption precondition rows must match manifest "
+            "n_request_bound_payloads_with_blocking_route_adoption_preconditions"
+        )
+    if (
+        row_request_bound_precondition_known_blockers
+        != manifest_request_bound_precondition_known_blockers
+    ):
+        route_precondition_accounting_errors.append(
+            "JSONL route-adoption precondition blocker totals must match manifest "
+            "n_request_bound_payload_route_adoption_precondition_known_blockers"
+        )
+    if (
+        row_request_bound_precondition_required_fields
+        != manifest_request_bound_precondition_required_fields
+    ):
+        route_precondition_accounting_errors.append(
+            "JSONL route-adoption precondition required-field totals must match "
+            "manifest n_request_bound_payload_route_adoption_precondition_required_response_fields"
         )
     request_context_path_present = bool(
         str(manifest.get("request_context_path", "")).strip()
@@ -7435,6 +7723,23 @@ def _llm_route_planner_response_payload_validation_optional_checks(
             ),
             not request_bound_coverage_errors,
             errors=tuple(request_bound_coverage_errors),
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_route_precondition_accounting",
+            "optional_artifacts",
+            "route-adoption precondition counters match JSONL rows",
+            (
+                f"preconditions={row_request_bound_payloads_with_preconditions}/"
+                f"{manifest_request_bound_payloads_with_preconditions} "
+                f"blocked={row_request_bound_payloads_with_blocking_preconditions}/"
+                f"{manifest_request_bound_payloads_with_blocking_preconditions} "
+                f"blockers={row_request_bound_precondition_known_blockers}/"
+                f"{manifest_request_bound_precondition_known_blockers} "
+                f"required_fields={row_request_bound_precondition_required_fields}/"
+                f"{manifest_request_bound_precondition_required_fields}"
+            ),
+            not route_precondition_accounting_errors,
+            errors=tuple(route_precondition_accounting_errors),
         ),
     ]
     for idx, row in enumerate(rows):
