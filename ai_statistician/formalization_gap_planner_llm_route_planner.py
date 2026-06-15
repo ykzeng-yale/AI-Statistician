@@ -270,6 +270,9 @@ ROUTE_ADOPTION_BLOCKER_TAXONOMY_COMPONENT = (
 STANDALONE_REPLAY_GATE_KIND = (
     "formalization_gap_planner_llm_route_planner_standalone_replay_gate"
 )
+ROUTE_ADOPTION_PRECONDITION_KIND = (
+    "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+)
 ROUTE_ADOPTION_BLOCKER_DEFINITIONS = {
     ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED: (
         "The LLM route-planner response was rejected or failed response "
@@ -951,6 +954,7 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     feedback_loop_summary: dict[str, object]
     target_theorem_context_packet: dict[str, object]
     route_planning_brief: dict[str, object]
+    route_adoption_preconditions: dict[str, object]
     context_packet_inventory: dict[str, object]
     residual_goal_contexts: tuple[dict[str, object], ...]
     raw_response_text: str
@@ -1266,6 +1270,35 @@ def export_formalization_gap_planner_llm_route_planner(
                         _dict_value(packet, "context_packet"),
                         "route_planning_brief",
                     ).get("evidence_gaps", [])
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_route_adoption_preconditions": sum(
+            1
+            for packet in request_packets
+            if _dict_value(
+                _dict_value(packet, "context_packet"),
+                "route_adoption_preconditions",
+            )
+        ),
+        "n_request_route_adoption_precondition_known_blockers": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "route_adoption_preconditions",
+                ).get("n_known_pre_response_blockers", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_route_adoption_precondition_required_response_fields": sum(
+            len(
+                _str_tuple(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "route_adoption_preconditions",
+                    ).get("response_required_fields", [])
                 )
             )
             for packet in request_packets
@@ -2543,6 +2576,19 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_rows_with_context_packet_inventory": sum(
             1 for row in rows if row.context_packet_inventory
         ),
+        "n_rows_with_route_adoption_preconditions": sum(
+            1 for row in rows if row.route_adoption_preconditions
+        ),
+        "n_row_route_adoption_precondition_known_blockers": sum(
+            int(
+                row.route_adoption_preconditions.get(
+                    "n_known_pre_response_blockers",
+                    0,
+                )
+                or 0
+            )
+            for row in rows
+        ),
         "n_rows_with_residual_goal_contexts": sum(
             1 for row in rows if row.residual_goal_contexts
         ),
@@ -2925,6 +2971,7 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
                     "library_alignment_summary": {
                         "$ref": "#/$defs/library_alignment_summary"
                     },
+                    "route_adoption_preconditions": {"type": "object"},
                     "residual_goal_contexts": object_array,
                 },
             },
@@ -3239,6 +3286,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_route_planning_brief",
             "n_request_route_planning_focus_rows",
             "n_request_route_planning_evidence_gaps",
+            "n_requests_with_route_adoption_preconditions",
+            "n_request_route_adoption_precondition_known_blockers",
+            "n_request_route_adoption_precondition_required_response_fields",
             "n_requests_with_library_alignment_summary",
             "n_request_library_alignment_primitives",
             "n_request_library_alignment_reuse_ready_primitives",
@@ -3355,6 +3405,8 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_rows_with_route_option_action_witness_obligations",
             "n_rows_with_complete_route_option_action_witness",
             "n_rows_with_context_packet_inventory",
+            "n_rows_with_route_adoption_preconditions",
+            "n_row_route_adoption_precondition_known_blockers",
             "n_row_schema_valid",
             "n_row_schema_invalid",
             "request_schema",
@@ -3417,6 +3469,13 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_route_planning_brief": nonnegative_integer,
             "n_request_route_planning_focus_rows": nonnegative_integer,
             "n_request_route_planning_evidence_gaps": nonnegative_integer,
+            "n_requests_with_route_adoption_preconditions": nonnegative_integer,
+            "n_request_route_adoption_precondition_known_blockers": (
+                nonnegative_integer
+            ),
+            "n_request_route_adoption_precondition_required_response_fields": (
+                nonnegative_integer
+            ),
             "n_requests_with_library_alignment_summary": nonnegative_integer,
             "n_request_library_alignment_primitives": nonnegative_integer,
             "n_request_library_alignment_reuse_ready_primitives": nonnegative_integer,
@@ -3650,6 +3709,8 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_rows_with_route_option_action_witness_obligations": nonnegative_integer,
             "n_rows_with_complete_route_option_action_witness": nonnegative_integer,
             "n_rows_with_context_packet_inventory": nonnegative_integer,
+            "n_rows_with_route_adoption_preconditions": nonnegative_integer,
+            "n_row_route_adoption_precondition_known_blockers": nonnegative_integer,
             "n_row_schema_valid": nonnegative_integer,
             "n_row_schema_invalid": nonnegative_integer,
             "request_schema": {
@@ -3815,6 +3876,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "feedback_loop_summary",
             "target_theorem_context_packet",
             "route_planning_brief",
+            "route_adoption_preconditions",
             "context_packet_inventory",
             "residual_goal_contexts",
             "raw_response_text",
@@ -3871,6 +3933,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "feedback_loop_summary": {"type": "object"},
             "target_theorem_context_packet": {"type": "object"},
             "route_planning_brief": {"type": "object"},
+            "route_adoption_preconditions": {"type": "object"},
             "context_packet_inventory": {"type": "object"},
             "residual_goal_contexts": object_array,
             "raw_response_text": {"type": "string"},
@@ -4237,6 +4300,35 @@ def validate_llm_route_planner_manifest(
         errors.append("n_request_packets must match request_packets length")
     if int(manifest.get("n_rows", 0) or 0) != len(manifest_rows):
         errors.append("n_rows must match rows length")
+    n_rows_with_route_adoption_preconditions = sum(
+        1 for row in manifest_rows if _dict_value(row, "route_adoption_preconditions")
+    )
+    if int(
+        manifest.get("n_rows_with_route_adoption_preconditions", 0) or 0
+    ) != n_rows_with_route_adoption_preconditions:
+        errors.append(
+            "n_rows_with_route_adoption_preconditions must match rows"
+        )
+    n_row_route_adoption_precondition_known_blockers = sum(
+        int(
+            _dict_value(row, "route_adoption_preconditions").get(
+                "n_known_pre_response_blockers",
+                0,
+            )
+            or 0
+        )
+        for row in manifest_rows
+    )
+    if int(
+        manifest.get(
+            "n_row_route_adoption_precondition_known_blockers",
+            0,
+        )
+        or 0
+    ) != n_row_route_adoption_precondition_known_blockers:
+        errors.append(
+            "n_row_route_adoption_precondition_known_blockers must match rows"
+        )
     if int(manifest.get("n_row_schema_valid", 0) or 0) + int(
         manifest.get("n_row_schema_invalid", 0) or 0
     ) != int(manifest.get("n_rows", 0) or 0):
@@ -4323,6 +4415,62 @@ def validate_llm_route_planner_manifest(
     ) != n_route_planning_evidence_gaps:
         errors.append(
             "n_request_route_planning_evidence_gaps must match request_packets"
+        )
+    n_requests_with_route_adoption_preconditions = sum(
+        1
+        for packet in request_packets
+        if _dict_value(
+            _dict_value(packet, "context_packet"),
+            "route_adoption_preconditions",
+        )
+    )
+    if int(
+        manifest.get("n_requests_with_route_adoption_preconditions", 0) or 0
+    ) != n_requests_with_route_adoption_preconditions:
+        errors.append(
+            "n_requests_with_route_adoption_preconditions must match request_packets"
+        )
+    n_request_route_adoption_precondition_known_blockers = sum(
+        int(
+            _dict_value(
+                _dict_value(packet, "context_packet"),
+                "route_adoption_preconditions",
+            ).get("n_known_pre_response_blockers", 0)
+            or 0
+        )
+        for packet in request_packets
+    )
+    if int(
+        manifest.get(
+            "n_request_route_adoption_precondition_known_blockers",
+            0,
+        )
+        or 0
+    ) != n_request_route_adoption_precondition_known_blockers:
+        errors.append(
+            "n_request_route_adoption_precondition_known_blockers must match request_packets"
+        )
+    n_request_route_adoption_precondition_required_response_fields = sum(
+        len(
+            _str_tuple(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "route_adoption_preconditions",
+                ).get("response_required_fields", [])
+            )
+        )
+        for packet in request_packets
+    )
+    if int(
+        manifest.get(
+            "n_request_route_adoption_precondition_required_response_fields",
+            0,
+        )
+        or 0
+    ) != n_request_route_adoption_precondition_required_response_fields:
+        errors.append(
+            "n_request_route_adoption_precondition_required_response_fields "
+            "must match request_packets"
         )
     component_resource_count_checks = (
         (
@@ -5593,6 +5741,12 @@ def _request_packet(
         context_packet,
         residual_goals=residual_goals,
     )
+    context_packet["route_adoption_preconditions"] = (
+        _route_adoption_preconditions(
+            context_packet,
+            residual_goals=residual_goals,
+        )
+    )
     context_packet["route_planning_brief"] = _route_planning_brief(
         route_id=route_id,
         display_name=display_name,
@@ -6212,6 +6366,10 @@ def _route_planning_brief(
     source_grounding_obligations = _source_grounding_obligation_summary(
         context_packet
     )
+    route_adoption_preconditions = _dict_value(
+        context_packet,
+        "route_adoption_preconditions",
+    )
     target_theorem_context = _dict_value(
         context_packet,
         "target_theorem_context_packet",
@@ -6529,6 +6687,45 @@ def _route_planning_brief(
             ),
             evidence_fields=("context_packet.source_grounding_obligations",),
         )
+    precondition_blockers = _str_tuple(
+        route_adoption_preconditions.get("known_pre_response_blockers", [])
+    )
+    if precondition_blockers:
+        add_focus(
+            "resolve_route_adoption_preconditions",
+            priority=1,
+            action=(
+                "preserve and discharge known route-adoption preconditions "
+                "before marking the route replay-ready"
+            ),
+            reason=(
+                "context_packet.route_adoption_preconditions forecasts "
+                "adoption blockers that are already known before generation"
+            ),
+            evidence_fields=("context_packet.route_adoption_preconditions",),
+            required_output_fields=tuple(
+                _str_tuple(
+                    route_adoption_preconditions.get(
+                        "response_required_fields",
+                        [],
+                    )
+                )
+            )
+            or ("planner_next_actions", "search_requests"),
+        )
+        add_gap(
+            "known_route_adoption_preconditions",
+            gap_kind="route_adoption",
+            reason=(
+                "known pre-response route-adoption blockers: "
+                + ", ".join(precondition_blockers[:8])
+            ),
+            recommended_action=(
+                "emit bounded response fields or next actions that preserve "
+                "the blocker-specific route repair path"
+            ),
+            evidence_fields=("context_packet.route_adoption_preconditions",),
+        )
 
     target_context = dict(target_theorem_context)
     target_context.update(
@@ -6589,6 +6786,13 @@ def _route_planning_brief(
                 0,
             )
             or 0
+        ),
+        "route_adoption_precondition_known_blocker_count": int(
+            route_adoption_preconditions.get("n_known_pre_response_blockers", 0)
+            or 0
+        ),
+        "route_adoption_precondition_required_response_field_count": len(
+            _str_tuple(route_adoption_preconditions.get("response_required_fields", []))
         ),
     }
     return {
@@ -6733,6 +6937,10 @@ def _context_packet_inventory(
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
     cost_hints = _dict_value(context_packet, "minimal_delta_cost_hints")
     alignment_summary = _dict_value(context_packet, "library_alignment_summary")
+    route_adoption_preconditions = _dict_value(
+        context_packet,
+        "route_adoption_preconditions",
+    )
     registry_context = _dict_value(
         context_packet,
         "component_resource_registry_context",
@@ -6851,6 +7059,19 @@ def _context_packet_inventory(
         "library_alignment_target_compatible_reuse_declaration_count": int(
             alignment_summary.get("n_target_compatible_reuse_declarations", 0)
             or 0
+        ),
+        "route_adoption_precondition_present": bool(
+            route_adoption_preconditions
+        ),
+        "route_adoption_precondition_pending": bool(
+            route_adoption_preconditions.get("blocked_before_response", False)
+        ),
+        "route_adoption_precondition_known_blocker_count": int(
+            route_adoption_preconditions.get("n_known_pre_response_blockers", 0)
+            or 0
+        ),
+        "route_adoption_precondition_required_response_field_count": len(
+            _str_tuple(route_adoption_preconditions.get("response_required_fields", []))
         ),
         "component_resource_count": len(
             _dict_tuple(registry_context.get("resource_rows", []))
@@ -7244,6 +7465,91 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                     f"{inventory_field} must match "
                     "context_packet.library_alignment_summary"
                 )
+    route_adoption_preconditions = _dict_value(
+        context_packet,
+        "route_adoption_preconditions",
+    )
+    if bool(inventory.get("route_adoption_precondition_present", False)) != bool(
+        route_adoption_preconditions
+    ):
+        errors.append(
+            "context_packet.context_packet_inventory."
+            "route_adoption_precondition_present must match "
+            "context_packet.route_adoption_preconditions"
+        )
+    if route_adoption_preconditions:
+        expected_preconditions = _route_adoption_preconditions(
+            context_packet,
+            residual_goals=_str_tuple(context_packet.get("residual_goals", [])),
+        )
+        for field_name in (
+            "precondition_kind",
+            "route_adoption_blocker_taxonomy_id",
+            "status",
+            "blocked_before_response",
+            "known_pre_response_blockers",
+            "n_known_pre_response_blockers",
+            "response_required_fields",
+            "n_response_required_fields",
+        ):
+            if route_adoption_preconditions.get(field_name) != expected_preconditions.get(
+                field_name
+            ):
+                errors.append(
+                    "context_packet.route_adoption_preconditions."
+                    f"{field_name} must match context-derived obligations"
+                )
+        for blocker in _str_tuple(
+            route_adoption_preconditions.get("known_pre_response_blockers", [])
+        ):
+            if blocker not in ROUTE_ADOPTION_BLOCKER_VALUES:
+                errors.append(
+                    "context_packet.route_adoption_preconditions."
+                    "known_pre_response_blockers must use route adoption "
+                    "blocker taxonomy values"
+                )
+                break
+    precondition_count_checks = (
+        (
+            "route_adoption_precondition_pending",
+            bool(route_adoption_preconditions.get("blocked_before_response", False)),
+        ),
+        (
+            "route_adoption_precondition_known_blocker_count",
+            int(
+                route_adoption_preconditions.get(
+                    "n_known_pre_response_blockers",
+                    0,
+                )
+                or 0
+            ),
+        ),
+        (
+            "route_adoption_precondition_required_response_field_count",
+            len(
+                _str_tuple(
+                    route_adoption_preconditions.get(
+                        "response_required_fields",
+                        [],
+                    )
+                )
+            ),
+        ),
+    )
+    for field_name, expected_value in precondition_count_checks:
+        actual_value = inventory.get(
+            field_name,
+            False if isinstance(expected_value, bool) else 0,
+        )
+        if isinstance(expected_value, bool):
+            matches = bool(actual_value) == expected_value
+        else:
+            matches = int(actual_value or 0) == expected_value
+        if not matches:
+            errors.append(
+                "context_packet.context_packet_inventory."
+                f"{field_name} must match route_adoption_preconditions"
+            )
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
     if bool(inventory.get("feedback_loop_summary_present", False)) != bool(
         feedback_summary
@@ -7443,6 +7749,27 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                         0,
                     )
                     or 0
+                ),
+            ),
+            (
+                "route_adoption_precondition_known_blocker_count",
+                int(
+                    _dict_value(
+                        context_packet,
+                        "route_adoption_preconditions",
+                    ).get("n_known_pre_response_blockers", 0)
+                    or 0
+                ),
+            ),
+            (
+                "route_adoption_precondition_required_response_field_count",
+                len(
+                    _str_tuple(
+                        _dict_value(
+                            context_packet,
+                            "route_adoption_preconditions",
+                        ).get("response_required_fields", [])
+                    )
                 ),
             ),
         )
@@ -7684,6 +8011,7 @@ def _user_prompt(
             "Every planner_next_actions row must include owner and action, and the row must resolve to a supported literature/formal-library/proof-state/route-revision hook family.",
             "planner_next_actions.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
             "Use context_packet.context_packet_inventory as the compact inventory of available evidence and feedback rows; raw context_packet rows remain the source of truth if a count is surprising.",
+            "Use context_packet.route_adoption_preconditions as the pre-response forecast of known route-adoption blockers; if known_pre_response_blockers is nonempty, preserve blocker-specific residual interpretations, search_requests, or planner_next_actions instead of presenting the route as replay-ready.",
             "Use context_packet.legacy_context_field_aliases only as a compatibility map; prefer portable fields such as formal_library_grounding_queries and formal_declaration_hits in new route output.",
             "Use context_packet.component_resource_registry_context only to choose bounded search/prover next actions; registry rows are not evidence that a tool was called.",
             "Use context_packet.source_theorem_semantic_primitive_rows, context_packet.proof_body_semantic_primitive_work_order_rows, context_packet.source_theorem_formal_environment_rows, and context_packet.source_theorem_proof_body_execution_result_rows as ProofEngineer/proof-body feedback for route repair and minimal-delta planning; these rows are not theorem proof evidence and do not by themselves source-ground new mathematical side conditions.",
@@ -10344,6 +10672,9 @@ def _row_for_request(
         route_planning_brief=dict(
             _dict_value(context_packet, "route_planning_brief")
         ),
+        route_adoption_preconditions=dict(
+            _dict_value(context_packet, "route_adoption_preconditions")
+        ),
         context_packet_inventory=dict(context_packet_inventory),
         residual_goal_contexts=_dict_tuple(
             context_packet.get("residual_goal_contexts", [])
@@ -10449,6 +10780,76 @@ def _route_adoption_readiness(
     if blockers:
         return (ROUTE_ADOPTION_PENDING_STATUS, tuple(blockers))
     return (ROUTE_ADOPTION_READY_STATUS, tuple())
+
+
+def _route_adoption_preconditions(
+    context_packet: Mapping[str, Any],
+    *,
+    residual_goals: tuple[str, ...],
+) -> dict[str, object]:
+    feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    feedback_actions = _dict_tuple(feedback_summary.get("recommended_next_actions", []))
+    quality_control_obligations = _quality_control_obligation_summary(context_packet)
+    source_grounding_obligations = _source_grounding_obligation_summary(
+        context_packet
+    )
+    realization_coverage = _dict_value(feedback_summary, "realization_coverage")
+
+    blockers: list[str] = []
+    response_required_fields: list[str] = []
+    if residual_goals:
+        blockers.append(ROUTE_ADOPTION_BLOCKER_RESIDUAL_INTERPRETATIONS)
+        response_required_fields.append("residual_interpretations")
+    if feedback_actions:
+        blockers.append(ROUTE_ADOPTION_BLOCKER_FEEDBACK_ACTIONS)
+    if any(
+        str(action.get("action", "")).strip()
+        == "redispatch_resource_response_with_request_playbook"
+        for action in feedback_actions
+    ):
+        blockers.append(ROUTE_ADOPTION_BLOCKER_RESOURCE_PLAYBOOK_REDISPATCH)
+    if any(
+        str(action.get("source", "")).strip() == "resource_request_queue"
+        for action in feedback_actions
+    ):
+        blockers.append(ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE)
+    if _truthy(feedback_summary.get("replan_required")):
+        blockers.append(ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN)
+    if (
+        realization_coverage.get("complete") is False
+        or realization_coverage.get("cost_hint_baseline_coverage_complete") is False
+    ):
+        blockers.append(ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE)
+    if bool(source_grounding_obligations.get("pending", False)):
+        blockers.append(ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING)
+        response_required_fields.extend(["search_requests", "planner_next_actions"])
+    if bool(quality_control_obligations.get("pending", False)):
+        blockers.append(ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS)
+        response_required_fields.extend(["search_requests", "planner_next_actions"])
+
+    blockers = list(dict.fromkeys(blockers))
+    response_required_fields = list(dict.fromkeys(response_required_fields))
+    blocked_before_response = bool(blockers)
+    return {
+        "precondition_kind": ROUTE_ADOPTION_PRECONDITION_KIND,
+        "route_adoption_blocker_taxonomy_id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID,
+        "status": (
+            "PENDING_CONTEXT_OBLIGATIONS"
+            if blocked_before_response
+            else "NO_KNOWN_PRE_RESPONSE_BLOCKERS"
+        ),
+        "blocked_before_response": blocked_before_response,
+        "known_pre_response_blockers": blockers,
+        "n_known_pre_response_blockers": len(blockers),
+        "response_required_fields": response_required_fields,
+        "n_response_required_fields": len(response_required_fields),
+        "blocker_trigger_fields": {
+            blocker: list(ROUTE_ADOPTION_BLOCKER_TRIGGER_FIELDS.get(blocker, ()))
+            for blocker in blockers
+        },
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
 
 
 def _quality_control_obligations_pending(

@@ -8485,6 +8485,12 @@ def test_llm_route_planner_blocks_route_adoption_on_unresolved_source_grounding(
     )
     assert payload["n_request_source_grounding_unresolved_rows"] == 1
     assert payload["n_request_residual_source_grounding_unresolved_rows"] == 1
+    assert payload["n_requests_with_route_adoption_preconditions"] == 1
+    assert payload["n_request_route_adoption_precondition_known_blockers"] >= 2
+    assert (
+        payload["n_request_route_adoption_precondition_required_response_fields"]
+        >= 3
+    )
     assert payload["n_route_adoption_ready"] == 0
     assert payload["n_route_adoption_pending_refinement"] == 1
     assert payload["n_route_adoption_pending_residual_repair_blockers"] == 1
@@ -8507,9 +8513,32 @@ def test_llm_route_planner_blocks_route_adoption_on_unresolved_source_grounding(
     assert obligations["pending"] is True
     assert obligations["n_unresolved_rows"] == 1
     assert obligations["n_residual_unresolved_rows"] == 1
+    preconditions = context["route_adoption_preconditions"]
+    assert preconditions["precondition_kind"] == (
+        "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+    )
+    assert preconditions["blocked_before_response"] is True
+    assert set(preconditions["known_pre_response_blockers"]) >= {
+        "residual_interpretations_require_route_replay",
+        ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
+    }
+    assert set(preconditions["response_required_fields"]) >= {
+        "residual_interpretations",
+        "search_requests",
+        "planner_next_actions",
+    }
+    assert (
+        row["route_adoption_preconditions"]
+        == context["route_adoption_preconditions"]
+    )
     inventory = context["context_packet_inventory"]
     assert inventory["source_grounding_obligation_pending"] is True
     assert inventory["residual_source_grounding_unresolved_count"] == 1
+    assert inventory["route_adoption_precondition_pending"] is True
+    assert inventory["route_adoption_precondition_known_blocker_count"] == (
+        preconditions["n_known_pre_response_blockers"]
+    )
+    assert "route_adoption_preconditions" in request["prompt_messages"]["user"]
     assert ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING in payload[
         "route_adoption_blocker_values"
     ]
@@ -8639,6 +8668,17 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     assert pending_payload["n_request_pending_quality_control_values"] == 5
     assert pending_payload["n_request_discharged_quality_control_fields"] == 0
     assert pending_payload["n_request_discharged_quality_control_values"] == 0
+    assert pending_payload["n_requests_with_route_adoption_preconditions"] == 1
+    assert (
+        pending_payload["n_request_route_adoption_precondition_known_blockers"]
+        == 1
+    )
+    assert (
+        pending_payload[
+            "n_request_route_adoption_precondition_required_response_fields"
+        ]
+        == 2
+    )
     pending_row = pending_payload["rows"][0]
     assert pending_row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
     assert pending_row["route_adoption_status"] == (
@@ -8657,6 +8697,23 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     pending_inventory = pending_payload["request_packets"][0]["context_packet"][
         "context_packet_inventory"
     ]
+    pending_preconditions = pending_payload["request_packets"][0]["context_packet"][
+        "route_adoption_preconditions"
+    ]
+    assert pending_preconditions["blocked_before_response"] is True
+    assert pending_preconditions["known_pre_response_blockers"] == [
+        "quality_control_obligations_pending"
+    ]
+    assert pending_preconditions["response_required_fields"] == [
+        "search_requests",
+        "planner_next_actions",
+    ]
+    assert pending_row["route_adoption_preconditions"] == pending_preconditions
+    assert pending_payload["n_rows_with_route_adoption_preconditions"] == 1
+    assert (
+        pending_payload["n_row_route_adoption_precondition_known_blockers"]
+        == 1
+    )
     assert pending_inventory["quality_control_obligation_present"] is True
     assert pending_inventory["quality_control_obligation_pending"] is True
     assert pending_inventory["quality_control_obligation_discharged"] is False
@@ -8666,6 +8723,8 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     assert pending_inventory["pending_quality_control_value_count"] == 5
     assert pending_inventory["discharged_quality_control_field_count"] == 0
     assert pending_inventory["discharged_quality_control_value_count"] == 0
+    assert pending_inventory["route_adoption_precondition_pending"] is True
+    assert pending_inventory["route_adoption_precondition_known_blocker_count"] == 1
     drifted_pending_request = deepcopy(pending_payload["request_packets"][0])
     drifted_pending_request["context_packet"]["context_packet_inventory"][
         "pending_quality_control_value_count"
