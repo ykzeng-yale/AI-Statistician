@@ -56,7 +56,11 @@ class SequentialGeneratorBackend:
             text=text,
             provider=self.provider_name,
             model=request.model,
-            metadata={"generator_only": True, "tools_available": False},
+            metadata={
+                "generator_only": True,
+                "tools_available": False,
+                "provider_stop_reason": "end_turn",
+            },
         )
 
 
@@ -237,6 +241,52 @@ def test_llm_theory_developer_repairs_invalid_json_packet_before_accepting() -> 
     assert "required_output_contract" in provider.requests[1].user_prompt
     assert "Keep all fields concise" in provider.requests[1].user_prompt
     assert provider.requests[1].user_prompt.count("x") < 2500
+
+
+def test_llm_theory_developer_default_repair_budget_allows_two_repairs() -> None:
+    provider = SequentialGeneratorBackend(
+        [
+            '{"problem_card": {"observed_data": "broken"',
+            {"problem_card": {"observed_data": "still missing required fields"}},
+            _sample_response(),
+        ]
+    )
+    developer = LLMTheoryDeveloperAgent(
+        provider=provider,
+        config=ResearchArchitectConfig(
+            provider_name="sequential_test",
+            model="repair-test-model",
+        ),
+    )
+
+    packet = developer.derive(
+        OpenResearchQuestion(
+            id="repair_budget",
+            title="Repair budget",
+            description="Allow two compact repairs before failing.",
+            tags=("repair",),
+        )
+    )
+
+    assert packet["ok"] is True
+    assert packet["llm_json_repair_attempts"] == 2
+    assert len(packet["llm_json_repair_history"]) == 3
+    assert [row["ok"] for row in packet["llm_json_repair_history"]] == [
+        False,
+        False,
+        True,
+    ]
+    assert len(provider.requests) == 3
+    assert provider.requests[1].metadata["json_repair_max_attempts"] == 2
+    assert provider.requests[2].metadata["json_repair_attempt"] == 2
+    assert all(
+        row["response_text_chars"] > 0
+        for row in packet["llm_json_repair_history"]
+    )
+    assert all(
+        row["response_metadata"]["provider_stop_reason"] == "end_turn"
+        for row in packet["llm_json_repair_history"]
+    )
 
 
 def test_llm_theory_developer_resolves_model_tier_at_request_time(
@@ -528,7 +578,9 @@ def test_theory_developer_prompt_compacts_runtime_retrieval_context() -> None:
 
     assert "full retrieval artifacts remain" in prompt.lower()
     assert "concise_output_budget" in prompt
-    assert '"max_derivation_steps":3' in prompt
+    assert '"max_derivation_steps":2' in prompt
+    assert '"max_next_actions":1' in prompt
+    assert "minimal first-pass discovery packet" in prompt
     assert "Probability.coverage" in prompt
     assert "signature_omitted" in prompt
     assert long_signature not in prompt

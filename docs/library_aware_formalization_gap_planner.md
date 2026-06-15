@@ -221,9 +221,11 @@ Anthropic model drift, so a
 Haiku-selected request cannot be accepted if the backend reports a Sonnet or
 Opus response model. Live generator backends surface both `requested_model` and
 `provider_reported_model`, and downstream row validation uses the reported model
-when the provider response object exposes one. In addition to the manifest-level
-policy, every LLM
-route-planner request packet
+when the provider response object exposes one. They also compact provider
+diagnostics such as stop reason, incomplete-response details, and token usage
+into generator metadata, so live-call truncation and repair causes are auditable
+without storing full provider objects. In addition to the manifest-level policy,
+every LLM route-planner request packet
 now carries a request-scoped `llm_generation_policy` snapshot with the selected
 provider, resolved model, selected/requested tier, Claude pinned model policy,
 auto-tier rules, and explicit `codex`/`codex_exec` exclusion. This lets an

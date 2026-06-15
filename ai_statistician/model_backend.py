@@ -504,6 +504,7 @@ class AnthropicGeneratorBackend:
                 "retry_count": retry_count,
                 "requested_model": request.model,
                 "provider_reported_model": response_model,
+                **_provider_response_diagnostics(response),
                 **_claude_generator_model_tier_metadata(
                     request_model=request.model,
                     response_model=response_model,
@@ -574,6 +575,7 @@ class OpenAIResponsesGeneratorBackend:
                 "timeout_seconds": timeout_s,
                 "requested_model": request.model,
                 "provider_reported_model": response_model,
+                **_provider_response_diagnostics(response),
             },
         )
 
@@ -718,6 +720,53 @@ def _response_model(response: Any, *, fallback: str) -> str:
     if model:
         return str(model)
     return str(fallback)
+
+
+def _provider_response_diagnostics(response: Any) -> dict[str, object]:
+    metadata: dict[str, object] = {}
+    for attr in ("stop_reason", "stop_sequence", "status"):
+        value = getattr(response, attr, None)
+        if value not in (None, "", [], {}):
+            metadata[f"provider_{attr}"] = str(value)
+    incomplete = getattr(response, "incomplete_details", None)
+    if incomplete not in (None, "", [], {}):
+        metadata["provider_incomplete_details"] = _compact_provider_value(incomplete)
+    usage = getattr(response, "usage", None)
+    if usage not in (None, "", [], {}):
+        metadata["provider_usage"] = _compact_provider_value(usage)
+    return metadata
+
+
+def _compact_provider_value(value: Any) -> object:
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, Mapping):
+        return {
+            str(key): _compact_provider_value(child)
+            for key, child in list(value.items())[:12]
+            if child not in (None, "", [], {})
+        }
+    if hasattr(value, "model_dump"):
+        try:
+            dumped = value.model_dump()
+            if isinstance(dumped, Mapping):
+                return _compact_provider_value(dumped)
+        except Exception:
+            pass
+    attrs: dict[str, object] = {}
+    for attr in (
+        "input_tokens",
+        "output_tokens",
+        "cache_creation_input_tokens",
+        "cache_read_input_tokens",
+        "total_tokens",
+    ):
+        child = getattr(value, attr, None)
+        if child not in (None, "", [], {}):
+            attrs[attr] = child
+    if attrs:
+        return attrs
+    return str(value)[:400]
 
 
 def _claude_generator_model_tier_metadata(

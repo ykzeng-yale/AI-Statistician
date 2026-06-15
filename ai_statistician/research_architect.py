@@ -83,7 +83,7 @@ class ResearchArchitectConfig:
     max_tokens: int = 4500
     temperature: float = 0.2
     provider_name: str = "anthropic"
-    max_repair_attempts: int = 1
+    max_repair_attempts: int = 2
 
 
 @dataclass(frozen=True)
@@ -295,17 +295,22 @@ def build_theory_developer_prompt(
         "architect_context": _compact_architect_context_for_prompt(architect_context),
         "required_output_contract": THEORY_DEVELOPER_OUTPUT_CONTRACT,
         "concise_output_budget": {
-            "max_derivation_steps": 3,
+            "max_derivation_steps": 2,
             "max_candidate_procedures": 1,
-            "max_theorem_goals": 2,
-            "max_formal_obligations_per_theorem": 3,
-            "max_simulation_predictions": 3,
-            "max_next_actions": 3,
-            "max_string_chars": 280,
+            "max_theorem_goals": 1,
+            "max_lemma_cards": 1,
+            "max_formalization_requests": 1,
+            "max_critic_findings": 1,
+            "max_simulation_predictions": 1,
+            "max_next_actions": 1,
+            "max_string_chars": 180,
             "instruction": (
-                "Return a complete valid JSON object within this budget. Produce a "
-                "minimal first-pass theory packet: one primary procedure, one or two "
-                "theorem goals, short equation strings, and no essay."
+                "Return a complete valid JSON object within this budget. Use exactly "
+                "one item in estimator_specs, theorem_cards, lemma_cards, "
+                "formalization_requests, critic_findings, and next_actions. Use at "
+                "most two derivation_steps. Keep every string one sentence or one "
+                "equation fragment. Do not include essays, tables, Markdown, or long "
+                "simulation instructions."
             ),
         },
         "proof_boundary": KERNEL_PROOF_BOUNDARY,
@@ -314,9 +319,11 @@ def build_theory_developer_prompt(
         "Derive statistical theory artifacts for the Architect loop. Return ONLY "
         "JSON matching required_output_contract. Do not classify and stop. Do not "
         "claim Lean/kernel proof evidence. Be explicit about assumptions, equations, "
-        "proof dependencies, simulation implications, and rejected alternatives. Keep "
-        "the packet concise enough to finish as one valid JSON object; do not trade "
-        "JSON completeness for detail.\n\n"
+        "proof dependencies, simulation implications, and rejected alternatives. This "
+        "is a minimal first-pass discovery packet: exactly one primary procedure, one "
+        "theorem card, one lemma card, one formalization request, one critic finding, "
+        "and one next action. Keep the packet concise enough to finish as one valid "
+        "JSON object; do not trade JSON completeness for detail.\n\n"
         + json.dumps(payload, separators=(",", ":"), default=str)
     )
 
@@ -608,8 +615,92 @@ def _compact_learning_memory_row(row: Any) -> dict[str, Any]:
         "question_id": _truncate_text(row.get("question_id", ""), 120),
         "target_behavior": _truncate_text(row.get("target_behavior", ""), 360),
         "acceptance_gate": _truncate_text(row.get("acceptance_gate", ""), 240),
-        "input_summary": row.get("input_summary", {}) if isinstance(row.get("input_summary", {}), Mapping) else {},
+        "input_summary": _compact_learning_memory_input_summary(
+            row.get("input_summary", {})
+        ),
     }
+
+
+def _compact_learning_memory_input_summary(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    keep_keys = (
+        "trigger",
+        "owner_subsystem",
+        "agenda_id",
+        "work_order_id",
+        "semantic_primitive_id",
+        "target_theorem_name",
+        "placeholder_symbol",
+        "runtime_queue_status",
+        "verification_status",
+        "execution_status",
+        "failure_classification",
+        "source_theorem_kernel_verified",
+        "artifact_kernel_verified",
+        "local_lean_checked",
+        "local_lean_compiled",
+        "proof_body_attempted",
+        "proof_body_attempt_success",
+        "target_ids",
+        "target_theorem_goal_ids",
+        "kernel_verified_proof_obligation_ids",
+        "kernel_verified_source_theorem_semantic_primitive_ids",
+        "kernel_verified_source_theorem_semantic_support_obligation_ids",
+        "source_theorem_semantic_primitive_work_order_ids",
+        "semantic_primitive_ids",
+        "formal_environment_placeholder_symbols",
+        "missing_formal_symbols",
+        "formal_environment_typeclass_blockers",
+        "typeclass_blockers",
+        "formal_gap_target_ids",
+        "recommended_proof_obligation_ids",
+        "diagnostics",
+        "proof_body_goal_excerpt",
+        "proof_body_attempt_summaries",
+        "formalization_counts",
+        "retrieval_counts",
+    )
+    compact: dict[str, Any] = {}
+    for key in keep_keys:
+        if key not in value or value[key] in (None, "", [], {}):
+            continue
+        child = value[key]
+        if isinstance(child, list):
+            limit = (
+                4
+                if key
+                in {"diagnostics", "proof_body_goal_excerpt", "proof_body_attempt_summaries"}
+                else 8
+            )
+            compact[key] = [
+                _compact_learning_memory_value(item) for item in child[:limit]
+            ]
+        elif isinstance(child, Mapping):
+            compact[key] = {
+                str(child_key): _compact_learning_memory_value(child_value)
+                for child_key, child_value in list(child.items())[:8]
+                if child_value not in (None, "", [], {})
+            }
+        else:
+            compact[key] = _compact_learning_memory_value(child)
+    return compact
+
+
+def _compact_learning_memory_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return _truncate_text(value, 320)
+    if isinstance(value, (int, float, bool)) or value is None:
+        return value
+    if isinstance(value, list):
+        return [_compact_learning_memory_value(item) for item in value[:6]]
+    if isinstance(value, Mapping):
+        return {
+            str(key): _compact_learning_memory_value(child)
+            for key, child in list(value.items())[:6]
+            if child not in (None, "", [], {})
+        }
+    return _truncate_text(value, 320)
 
 
 def _compact_feedback_row(row: Any) -> dict[str, Any]:

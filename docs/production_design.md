@@ -68,7 +68,10 @@ ledger. The planner also writes a model-tier decision ledger JSONL that binds
 each request to selected/effective tier, resolved model, decision basis,
 source-feedback counts, provider-failure status, and Haiku-to-Sonnet repair
 escalation evidence, so cost-control claims can be evaluated without parsing
-raw model completions. Interactive route-replan rows now also surface the LLM
+raw model completions. Shared generator metadata also preserves compact provider
+stop reasons, incomplete-response details, and token usage, so failed live JSON
+packets can be repaired and benchmarked without treating provider internals as
+proof evidence. Interactive route-replan rows now also surface the LLM
 route-planner request/response/decision-ledger schemas plus prompt-only and
 explicit live Anthropic `--model-tier auto` commands even when a handoff
 manifest is older or manually authored. That makes prover residual feedback

@@ -63,6 +63,8 @@ def test_anthropic_generator_backend_calls_messages_api_without_tools(
             captured["kwargs"] = kwargs
             return SimpleNamespace(
                 content=[SimpleNamespace(text='{"ok": true}')],
+                stop_reason="end_turn",
+                usage=SimpleNamespace(input_tokens=11, output_tokens=5),
             )
 
     class FakeAnthropicClient:
@@ -106,6 +108,11 @@ def test_anthropic_generator_backend_calls_messages_api_without_tools(
     assert response.metadata["json_prompt_hint_used"] is True
     assert response.metadata["timeout_seconds"] == 120.0
     assert response.metadata["retry_count"] == 0
+    assert response.metadata["provider_stop_reason"] == "end_turn"
+    assert response.metadata["provider_usage"] == {
+        "input_tokens": 11,
+        "output_tokens": 5,
+    }
 
 
 def test_anthropic_generator_backend_surfaces_provider_reported_model(
