@@ -1692,6 +1692,28 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         >= payload["n_resource_request_llm_route_planner_residual_interpretations"]
     )
     assert (
+        payload[
+            "n_resource_request_llm_route_planner_rows_with_route_adoption_preconditions"
+        ]
+        == payload["n_llm_route_planner_rows_with_route_adoption_preconditions"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_resource_request_llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+        == payload[
+            "n_llm_route_planner_row_route_adoption_precondition_known_blockers"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_resource_request_llm_route_planner_resource_request_rows_with_route_adoption_preconditions"
+        ]
+        >= 0
+    )
+    assert (
         payload["n_resource_request_self_contained_payloads"]
         == payload["n_resource_request_rows"]
     )

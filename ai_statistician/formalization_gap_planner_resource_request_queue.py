@@ -220,7 +220,27 @@ def export_formalization_gap_planner_resource_request_queue(
             len(_dict_tuple(row.get("residual_interpretations", [])))
             for row in llm_route_planner_rows
         ),
+        "n_llm_route_planner_rows_with_route_adoption_preconditions": sum(
+            1 for row in llm_route_planner_rows if _llm_route_adoption_preconditions(row)
+        ),
+        "n_llm_route_planner_route_adoption_precondition_known_blockers": sum(
+            _route_adoption_precondition_known_blocker_count(
+                _llm_route_adoption_preconditions(row)
+            )
+            for row in llm_route_planner_rows
+        ),
+        "n_llm_route_planner_route_adoption_precondition_required_response_fields": sum(
+            _route_adoption_precondition_required_response_field_count(
+                _llm_route_adoption_preconditions(row)
+            )
+            for row in llm_route_planner_rows
+        ),
         "n_llm_route_planner_resource_request_rows": len(llm_resource_request_rows),
+        "n_llm_route_planner_resource_request_rows_with_route_adoption_preconditions": sum(
+            1
+            for row in llm_resource_request_rows
+            if _llm_request_payload_route_adoption_preconditions(row.request_payload)
+        ),
         "n_llm_route_planner_search_request_rows": sum(
             1
             for row in llm_resource_request_rows
@@ -623,6 +643,18 @@ def _llm_route_planner_action_row(
         )
         for resource_id in resource_ids
     }
+    route_adoption_preconditions = _llm_route_adoption_preconditions(planner_row)
+    precondition_request_fields = (
+        ("llm_route_planner_route_adoption_preconditions",)
+        if route_adoption_preconditions
+        else tuple()
+    )
+    request_contracts = {
+        resource_id: tuple(
+            dict.fromkeys((*fields, *precondition_request_fields))
+        )
+        for resource_id, fields in request_contracts.items()
+    }
     target_primitives = _llm_target_primitives(
         planner_row,
         source_item,
@@ -828,6 +860,7 @@ def _with_llm_route_planner_trace(
     request_payload = dict(row.request_payload)
     request_playbook = dict(row.request_playbook)
     input_summary = dict(request_playbook.get("input_summary", {}))
+    route_adoption_preconditions = _llm_route_adoption_preconditions(planner_row)
     input_summary.update(
         {
             "llm_route_planner_row_id": planner_row_id,
@@ -842,6 +875,10 @@ def _with_llm_route_planner_trace(
         source_item,
         source_kind=source_kind,
     )
+    if route_adoption_preconditions:
+        input_summary["llm_route_planner_route_adoption_preconditions"] = (
+            route_adoption_preconditions
+        )
     if residual_goal_context:
         input_summary["residual_goal_context"] = residual_goal_context
     request_playbook.update(
@@ -855,6 +892,22 @@ def _with_llm_route_planner_trace(
             "llm_route_planner_source_item": dict(source_item),
         }
     )
+    if route_adoption_preconditions:
+        request_playbook["llm_route_planner_route_adoption_preconditions"] = (
+            route_adoption_preconditions
+        )
+        request_playbook["acceptance_checklist"] = tuple(
+            dict.fromkeys(
+                (
+                    *_str_tuple(request_playbook.get("acceptance_checklist", [])),
+                    (
+                        "response addresses "
+                        "llm_route_planner_route_adoption_preconditions before "
+                        "route adoption"
+                    ),
+                )
+            )
+        )
     if residual_goal_context:
         request_playbook["residual_goal_context"] = residual_goal_context
     request_payload.update(
@@ -869,6 +922,10 @@ def _with_llm_route_planner_trace(
             "request_playbook": request_playbook,
         }
     )
+    if route_adoption_preconditions:
+        request_payload["llm_route_planner_route_adoption_preconditions"] = (
+            route_adoption_preconditions
+        )
     if residual_goal_context:
         request_payload["residual_goal_context"] = residual_goal_context
     return replace(
@@ -1135,6 +1192,43 @@ def _llm_response_contract_fields_for_hook(
         "revised_formal_realization_dag_nodes",
         "minimal_delta_plan",
     )
+
+
+def _llm_route_adoption_preconditions(planner_row: dict[str, Any]) -> dict[str, object]:
+    preconditions = _dict_value(planner_row, "route_adoption_preconditions")
+    if not preconditions:
+        preconditions = _dict_value(
+            planner_row,
+            "llm_route_planner_route_adoption_preconditions",
+        )
+    return preconditions
+
+
+def _llm_request_payload_route_adoption_preconditions(
+    request_payload: dict[str, object],
+) -> dict[str, object]:
+    return _dict_value(
+        request_payload,
+        "llm_route_planner_route_adoption_preconditions",
+    )
+
+
+def _route_adoption_precondition_known_blocker_count(
+    preconditions: dict[str, object],
+) -> int:
+    return int(
+        preconditions.get(
+            "n_known_pre_response_blockers",
+            len(_str_tuple(preconditions.get("known_pre_response_blockers", []))),
+        )
+        or 0
+    )
+
+
+def _route_adoption_precondition_required_response_field_count(
+    preconditions: dict[str, object],
+) -> int:
+    return len(_str_tuple(preconditions.get("response_required_fields", [])))
 
 
 def _llm_target_primitives(
@@ -2194,6 +2288,11 @@ def _dict_tuple(values: Any) -> tuple[dict[str, object], ...]:
     return tuple(value for value in values if isinstance(value, dict))
 
 
+def _dict_value(mapping: Any, key: str) -> dict[str, object]:
+    value = mapping.get(key, {}) if isinstance(mapping, dict) else {}
+    return dict(value) if isinstance(value, dict) else {}
+
+
 def _formal_declaration_key(value: object) -> str:
     return re.sub(r"\s+", " ", str(value).strip()).lower()
 
@@ -2245,6 +2344,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
         (
             f"- LLM residual interpretations: "
             f"{payload.get('n_llm_route_planner_residual_interpretations')}"
+        ),
+        (
+            f"- LLM route-adoption preconditions rows/blockers/required-fields/request-packets: "
+            f"{payload.get('n_llm_route_planner_rows_with_route_adoption_preconditions')}/"
+            f"{payload.get('n_llm_route_planner_route_adoption_precondition_known_blockers')}/"
+            f"{payload.get('n_llm_route_planner_route_adoption_precondition_required_response_fields')}/"
+            f"{payload.get('n_llm_route_planner_resource_request_rows_with_route_adoption_preconditions')}"
         ),
         f"- Target prover family: {payload.get('target_prover_family')}",
         f"- Target prover families: {payload.get('n_target_prover_families')}",

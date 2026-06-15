@@ -520,6 +520,22 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
                                 "rank_uniformity",
                             ]
                         },
+                        "route_adoption_preconditions": {
+                            "blocked_before_response": True,
+                            "known_pre_response_blockers": [
+                                "search_requests_pending_evidence",
+                                "planner_next_actions_pending_evidence",
+                            ],
+                            "n_known_pre_response_blockers": 2,
+                            "response_required_fields": [
+                                "search_requests",
+                                "planner_next_actions",
+                            ],
+                            "n_response_required_fields": 2,
+                            "proof_evidence_status": (
+                                "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+                            ),
+                        },
                         "search_requests": [
                             {
                                 "request_kind": "literature_discovery",
@@ -602,10 +618,29 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
     assert payload["n_llm_route_planner_search_requests"] == 1
     assert payload["n_llm_route_planner_planner_next_actions"] == 1
     assert payload["n_llm_route_planner_residual_interpretations"] == 1
+    assert payload["n_llm_route_planner_rows_with_route_adoption_preconditions"] == 1
+    assert (
+        payload[
+            "n_llm_route_planner_route_adoption_precondition_known_blockers"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_adoption_precondition_required_response_fields"
+        ]
+        == 2
+    )
     assert payload["n_llm_route_planner_search_request_rows"] == 3
     assert payload["n_llm_route_planner_planner_next_action_rows"] == 3
     assert payload["n_llm_route_planner_residual_interpretation_rows"] == 2
     assert payload["n_llm_route_planner_resource_request_rows"] == 8
+    assert (
+        payload[
+            "n_llm_route_planner_resource_request_rows_with_route_adoption_preconditions"
+        ]
+        == payload["n_llm_route_planner_resource_request_rows"]
+    )
     assert (
         payload["n_resource_request_rows"]
         == payload["n_action_resource_plan_resource_request_rows"]
@@ -662,6 +697,31 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
             "request_kind"
         ]
         == "literature_discovery"
+    )
+    assert (
+        paperclip_row["request_payload"][
+            "llm_route_planner_route_adoption_preconditions"
+        ]["n_known_pre_response_blockers"]
+        == 2
+    )
+    assert (
+        "llm_route_planner_route_adoption_preconditions"
+        in paperclip_row["request_contract_fields"]
+    )
+    assert (
+        paperclip_row["request_payload"][
+            "llm_route_planner_route_adoption_preconditions"
+        ]
+        == paperclip_row["request_playbook"][
+            "llm_route_planner_route_adoption_preconditions"
+        ]
+        == paperclip_row["request_playbook"]["input_summary"][
+            "llm_route_planner_route_adoption_preconditions"
+        ]
+    )
+    assert any(
+        "route_adoption_preconditions" in item
+        for item in paperclip_row["request_playbook"]["acceptance_checklist"]
     )
     lean_lsp_row = next(
         row for row in llm_rows if row["resource_id"] == "lean_lsp_mcp"
