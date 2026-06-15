@@ -131,6 +131,12 @@ class FormalizationGapPlannerEvaluationRow:
     llm_route_planner_model_selection_rationale: str
     llm_route_planner_has_generator_metadata: bool
     llm_route_planner_generator_metadata_keys: tuple[str, ...]
+    llm_route_planner_has_provider_usage: bool
+    llm_route_planner_provider_input_tokens: int
+    llm_route_planner_provider_output_tokens: int
+    llm_route_planner_provider_cache_creation_input_tokens: int
+    llm_route_planner_provider_cache_read_input_tokens: int
+    llm_route_planner_provider_total_tokens: int
     llm_route_planner_request_contract_blocked: bool
     llm_route_planner_errors: tuple[str, ...]
     llm_route_planner_generation_errors: tuple[str, ...]
@@ -205,6 +211,12 @@ def evaluate_formalization_gap_planner(
     by_llm_model_tier = _llm_model_tier_summary(evaluation_rows)
     by_llm_model_tier_decision_basis = (
         _llm_model_tier_decision_basis_summary(evaluation_rows)
+    )
+    llm_route_planner_provider_usage_rows = _llm_provider_usage_rows(
+        evaluation_rows
+    )
+    llm_route_planner_provider_usage_summary = _llm_provider_usage_summary(
+        llm_route_planner_provider_usage_rows
     )
     by_llm_route_adoption_status = _llm_route_adoption_status_summary(evaluation_rows)
     by_llm_route_adoption_blocker = _llm_route_adoption_blocker_summary(
@@ -465,6 +477,38 @@ def evaluate_formalization_gap_planner(
             1
             for row in evaluation_rows
             if row.llm_route_planner_has_generator_metadata
+        ),
+        "llm_route_planner_provider_usage_rows": (
+            llm_route_planner_provider_usage_rows
+        ),
+        "llm_route_planner_provider_usage_summary": (
+            llm_route_planner_provider_usage_summary
+        ),
+        "n_rows_with_llm_route_planner_provider_usage": int(
+            llm_route_planner_provider_usage_summary.get("row_count", 0) or 0
+        ),
+        "total_llm_route_planner_provider_input_tokens": int(
+            llm_route_planner_provider_usage_summary.get("input_tokens", 0) or 0
+        ),
+        "total_llm_route_planner_provider_output_tokens": int(
+            llm_route_planner_provider_usage_summary.get("output_tokens", 0) or 0
+        ),
+        "total_llm_route_planner_provider_cache_creation_input_tokens": int(
+            llm_route_planner_provider_usage_summary.get(
+                "cache_creation_input_tokens",
+                0,
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_cache_read_input_tokens": int(
+            llm_route_planner_provider_usage_summary.get(
+                "cache_read_input_tokens",
+                0,
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_total_tokens": int(
+            llm_route_planner_provider_usage_summary.get("total_tokens", 0) or 0
         ),
         "n_rows_with_llm_route_planner_request_contract_blocked": sum(
             1
@@ -884,6 +928,27 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "llm_route_planner_model_selection_rationale": {"type": "string"},
             "llm_route_planner_has_generator_metadata": {"type": "boolean"},
             "llm_route_planner_generator_metadata_keys": string_array,
+            "llm_route_planner_has_provider_usage": {"type": "boolean"},
+            "llm_route_planner_provider_input_tokens": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_provider_output_tokens": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_provider_cache_creation_input_tokens": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_provider_cache_read_input_tokens": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_provider_total_tokens": {
+                "type": "integer",
+                "minimum": 0,
+            },
             "llm_route_planner_request_contract_blocked": {"type": "boolean"},
             "llm_route_planner_errors": string_array,
             "llm_route_planner_generation_errors": string_array,
@@ -1184,6 +1249,24 @@ def _evaluate_row(
         ),
         llm_route_planner_generator_metadata_keys=_str_tuple(
             llm_trace["generator_metadata_keys"]
+        ),
+        llm_route_planner_has_provider_usage=bool(
+            llm_trace["has_provider_usage"]
+        ),
+        llm_route_planner_provider_input_tokens=int(
+            llm_trace["provider_input_tokens"]
+        ),
+        llm_route_planner_provider_output_tokens=int(
+            llm_trace["provider_output_tokens"]
+        ),
+        llm_route_planner_provider_cache_creation_input_tokens=int(
+            llm_trace["provider_cache_creation_input_tokens"]
+        ),
+        llm_route_planner_provider_cache_read_input_tokens=int(
+            llm_trace["provider_cache_read_input_tokens"]
+        ),
+        llm_route_planner_provider_total_tokens=int(
+            llm_trace["provider_total_tokens"]
         ),
         llm_route_planner_request_contract_blocked=bool(
             llm_trace["request_contract_blocked"]
@@ -1593,6 +1676,7 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
     )
     if not generator_keys:
         generator_keys = tuple(sorted(str(key) for key in generator_metadata))
+    provider_usage = _llm_provider_usage_from_trace(trace, generator_metadata)
     row_id = str(trace.get("llm_route_planner_row_id", "")).strip()
     provider = str(trace.get("llm_route_planner_provider", "")).strip()
     model = str(trace.get("llm_route_planner_model", "")).strip()
@@ -1734,6 +1818,7 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
             or model_tier
             or route_adoption_status
             or route_adoption_preconditions
+            or provider_usage
         ),
         "row_id": row_id,
         "provider": provider,
@@ -1858,6 +1943,18 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
             or generator_metadata
         ),
         "generator_metadata_keys": generator_keys,
+        "has_provider_usage": bool(provider_usage),
+        "provider_input_tokens": provider_usage.get("input_tokens", 0),
+        "provider_output_tokens": provider_usage.get("output_tokens", 0),
+        "provider_cache_creation_input_tokens": provider_usage.get(
+            "cache_creation_input_tokens",
+            0,
+        ),
+        "provider_cache_read_input_tokens": provider_usage.get(
+            "cache_read_input_tokens",
+            0,
+        ),
+        "provider_total_tokens": provider_usage.get("total_tokens", 0),
         "request_contract_blocked": bool(
             trace.get("llm_route_planner_request_contract_blocked", False)
         ),
@@ -1866,6 +1963,198 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
             trace.get("llm_route_planner_generation_errors", [])
         ),
     }
+
+
+def _llm_provider_usage_from_trace(
+    trace: dict[str, Any],
+    generator_metadata: dict[str, Any],
+) -> dict[str, int]:
+    usage = _dict_value(trace, "llm_route_planner_provider_usage")
+    if not usage:
+        usage = _dict_value(trace, "provider_usage")
+    if not usage:
+        usage = _dict_value(generator_metadata, "provider_usage")
+    if not usage:
+        usage = {
+            "input_tokens": trace.get(
+                "llm_route_planner_provider_input_tokens",
+                trace.get("provider_input_tokens", 0),
+            ),
+            "output_tokens": trace.get(
+                "llm_route_planner_provider_output_tokens",
+                trace.get("provider_output_tokens", 0),
+            ),
+            "cache_creation_input_tokens": trace.get(
+                "llm_route_planner_provider_cache_creation_input_tokens",
+                trace.get("provider_cache_creation_input_tokens", 0),
+            ),
+            "cache_read_input_tokens": trace.get(
+                "llm_route_planner_provider_cache_read_input_tokens",
+                trace.get("provider_cache_read_input_tokens", 0),
+            ),
+            "total_tokens": trace.get(
+                "llm_route_planner_provider_total_tokens",
+                trace.get("provider_total_tokens", 0),
+            ),
+        }
+    return _llm_provider_usage_from_mapping(usage)
+
+
+def _llm_provider_usage_from_mapping(usage: dict[str, Any]) -> dict[str, int]:
+    input_tokens = _nonnegative_int(
+        usage.get("input_tokens", usage.get("prompt_tokens", 0))
+    )
+    output_tokens = _nonnegative_int(
+        usage.get("output_tokens", usage.get("completion_tokens", 0))
+    )
+    cache_creation_tokens = _nonnegative_int(
+        usage.get("cache_creation_input_tokens", 0)
+    )
+    cache_read_tokens = _nonnegative_int(usage.get("cache_read_input_tokens", 0))
+    total_tokens = _nonnegative_int(usage.get("total_tokens", 0))
+    if total_tokens == 0:
+        total_tokens = (
+            input_tokens
+            + output_tokens
+            + cache_creation_tokens
+            + cache_read_tokens
+        )
+    parsed = {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cache_creation_input_tokens": cache_creation_tokens,
+        "cache_read_input_tokens": cache_read_tokens,
+        "total_tokens": total_tokens,
+    }
+    if not any(parsed.values()):
+        return {}
+    return parsed
+
+
+def _llm_provider_usage_rows(
+    rows: list[FormalizationGapPlannerEvaluationRow],
+) -> tuple[dict[str, object], ...]:
+    usage_rows: list[dict[str, object]] = []
+    for row in rows:
+        if not row.llm_route_planner_has_provider_usage:
+            continue
+        usage_row = {
+            "usage_row_id": (
+                "formalization_gap_planner_evaluation_llm_provider_usage:"
+                + stable_hash(
+                    [
+                        row.evaluation_id,
+                        row.goal_plan_id,
+                        row.route_id,
+                        row.llm_route_planner_row_id,
+                        row.llm_route_planner_provider,
+                        row.llm_route_planner_model,
+                        row.llm_route_planner_model_tier,
+                        row.llm_route_planner_provider_total_tokens,
+                    ]
+                )[:20]
+            ),
+            "evaluation_id": row.evaluation_id,
+            "goal_plan_id": row.goal_plan_id,
+            "route_id": row.route_id,
+            "display_name": row.display_name,
+            "llm_route_planner_row_id": row.llm_route_planner_row_id,
+            "provider_name": row.llm_route_planner_provider,
+            "model": row.llm_route_planner_model,
+            "model_tier": row.llm_route_planner_model_tier,
+            "matched_ground_truth": row.matched_ground_truth,
+            "ok": row.ok,
+            "route_recall": row.route_recall,
+            "delta_precision": row.delta_precision,
+            "route_adoption_status": row.llm_route_planner_route_adoption_status,
+            "input_tokens": row.llm_route_planner_provider_input_tokens,
+            "output_tokens": row.llm_route_planner_provider_output_tokens,
+            "cache_creation_input_tokens": (
+                row.llm_route_planner_provider_cache_creation_input_tokens
+            ),
+            "cache_read_input_tokens": (
+                row.llm_route_planner_provider_cache_read_input_tokens
+            ),
+            "total_tokens": row.llm_route_planner_provider_total_tokens,
+            "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        }
+        usage_rows.append(usage_row)
+    return tuple(usage_rows)
+
+
+def _llm_provider_usage_summary(
+    usage_rows: tuple[dict[str, object], ...],
+) -> dict[str, object]:
+    by_provider: dict[str, dict[str, int]] = {}
+    by_model_tier: dict[str, dict[str, int]] = {}
+    by_model: dict[str, dict[str, int]] = {}
+    totals = _empty_provider_usage_bucket()
+    for row in usage_rows:
+        _add_provider_usage_to_bucket(totals, row)
+        _add_provider_usage_to_bucket(
+            by_provider.setdefault(
+                str(row.get("provider_name", "") or "unknown"),
+                _empty_provider_usage_bucket(),
+            ),
+            row,
+        )
+        _add_provider_usage_to_bucket(
+            by_model_tier.setdefault(
+                str(row.get("model_tier", "") or "unknown"),
+                _empty_provider_usage_bucket(),
+            ),
+            row,
+        )
+        _add_provider_usage_to_bucket(
+            by_model.setdefault(
+                str(row.get("model", "") or "unknown"),
+                _empty_provider_usage_bucket(),
+            ),
+            row,
+        )
+    return {
+        "summary_kind": (
+            "formalization_gap_planner_evaluation_llm_provider_usage_summary"
+        ),
+        "row_count": len(usage_rows),
+        **totals,
+        "by_provider": dict(sorted(by_provider.items())),
+        "by_model_tier": dict(sorted(by_model_tier.items())),
+        "by_model": dict(sorted(by_model.items())),
+        "usage_boundary": (
+            "Provider token usage is runtime/cost accounting metadata, not "
+            "mathematical or theorem proof evidence."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _empty_provider_usage_bucket() -> dict[str, int]:
+    return {
+        "n_rows": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "total_tokens": 0,
+    }
+
+
+def _add_provider_usage_to_bucket(
+    bucket: dict[str, int],
+    row: dict[str, object],
+) -> None:
+    bucket["n_rows"] = int(bucket.get("n_rows", 0) or 0) + 1
+    for key in (
+        "input_tokens",
+        "output_tokens",
+        "cache_creation_input_tokens",
+        "cache_read_input_tokens",
+        "total_tokens",
+    ):
+        bucket[key] = int(bucket.get(key, 0) or 0) + _nonnegative_int(row.get(key))
 
 
 def _llm_route_adoption_status_summary(
@@ -1989,6 +2278,26 @@ def _llm_model_tier_summary(
             "n_rows_with_generator_metadata": sum(
                 1 for row in tier_rows if row.llm_route_planner_has_generator_metadata
             ),
+            "n_rows_with_provider_usage": sum(
+                1 for row in tier_rows if row.llm_route_planner_has_provider_usage
+            ),
+            "provider_input_tokens": sum(
+                row.llm_route_planner_provider_input_tokens for row in tier_rows
+            ),
+            "provider_output_tokens": sum(
+                row.llm_route_planner_provider_output_tokens for row in tier_rows
+            ),
+            "provider_cache_creation_input_tokens": sum(
+                row.llm_route_planner_provider_cache_creation_input_tokens
+                for row in tier_rows
+            ),
+            "provider_cache_read_input_tokens": sum(
+                row.llm_route_planner_provider_cache_read_input_tokens
+                for row in tier_rows
+            ),
+            "provider_total_tokens": sum(
+                row.llm_route_planner_provider_total_tokens for row in tier_rows
+            ),
             "n_rows_with_request_contract_blocked": sum(
                 1
                 for row in tier_rows
@@ -2060,6 +2369,26 @@ def _llm_model_tier_decision_basis_summary(
             "n_source_feedback_formal_environment_blockers": sum(
                 row.llm_route_planner_source_feedback_formal_environment_blocker_count
                 for row in basis_rows
+            ),
+            "n_rows_with_provider_usage": sum(
+                1 for row in basis_rows if row.llm_route_planner_has_provider_usage
+            ),
+            "provider_input_tokens": sum(
+                row.llm_route_planner_provider_input_tokens for row in basis_rows
+            ),
+            "provider_output_tokens": sum(
+                row.llm_route_planner_provider_output_tokens for row in basis_rows
+            ),
+            "provider_cache_creation_input_tokens": sum(
+                row.llm_route_planner_provider_cache_creation_input_tokens
+                for row in basis_rows
+            ),
+            "provider_cache_read_input_tokens": sum(
+                row.llm_route_planner_provider_cache_read_input_tokens
+                for row in basis_rows
+            ),
+            "provider_total_tokens": sum(
+                row.llm_route_planner_provider_total_tokens for row in basis_rows
             ),
             "mean_route_recall": _mean(
                 row.route_recall for row in basis_rows if row.matched_ground_truth
@@ -2341,6 +2670,10 @@ def _int_value(value: Any) -> int:
         return 0
 
 
+def _nonnegative_int(value: Any) -> int:
+    return max(0, _int_value(value))
+
+
 def _ratio(numerator: int, denominator: int, *, empty_value: float) -> float:
     if denominator == 0:
         return empty_value
@@ -2448,6 +2781,14 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Rows with LLM route-planner trace: {payload.get('n_rows_with_llm_route_planner_trace')}",
         f"- Rows with LLM request-contract blocks: {payload.get('n_rows_with_llm_route_planner_request_contract_blocked')}",
         f"- LLM route-planner errors: {payload.get('n_llm_route_planner_errors')}",
+        (
+            f"- LLM provider usage rows/input/output/cache-read/total: "
+            f"{payload.get('n_rows_with_llm_route_planner_provider_usage')}/"
+            f"{payload.get('total_llm_route_planner_provider_input_tokens')}/"
+            f"{payload.get('total_llm_route_planner_provider_output_tokens')}/"
+            f"{payload.get('total_llm_route_planner_provider_cache_read_input_tokens')}/"
+            f"{payload.get('total_llm_route_planner_provider_total_tokens')}"
+        ),
         f"- Evaluation by LLM model tier: {payload.get('evaluation_by_llm_model_tier')}",
         f"- Evaluation by LLM model-tier decision basis: {payload.get('evaluation_by_llm_model_tier_decision_basis')}",
         f"- LLM source-feedback tier rows: {payload.get('n_llm_route_planner_source_feedback_rows')}",

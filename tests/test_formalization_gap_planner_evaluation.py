@@ -386,10 +386,17 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
                             },
                             "llm_route_planner_generator_metadata": {
                                 "generator_only": True,
+                                "provider_usage": {
+                                    "input_tokens": 120,
+                                    "output_tokens": 34,
+                                    "cache_creation_input_tokens": 5,
+                                    "cache_read_input_tokens": 6,
+                                },
                                 "retry_count": 0,
                             },
                             "llm_route_planner_generator_metadata_keys": [
                                 "generator_only",
+                                "provider_usage",
                                 "retry_count",
                             ],
                             "minimal_delta_and_or_cost_graph": cost_graph,
@@ -568,6 +575,27 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         "mean_delta_precision": 1.0,
     }
     assert payload["n_rows_with_llm_route_planner_generator_metadata"] == 1
+    assert payload["n_rows_with_llm_route_planner_provider_usage"] == 1
+    assert payload["total_llm_route_planner_provider_input_tokens"] == 120
+    assert payload["total_llm_route_planner_provider_output_tokens"] == 34
+    assert payload[
+        "total_llm_route_planner_provider_cache_creation_input_tokens"
+    ] == 5
+    assert payload["total_llm_route_planner_provider_cache_read_input_tokens"] == 6
+    assert payload["total_llm_route_planner_provider_total_tokens"] == 165
+    assert payload["llm_route_planner_provider_usage_summary"]["row_count"] == 1
+    assert payload["llm_route_planner_provider_usage_summary"]["by_provider"][
+        "anthropic"
+    ]["total_tokens"] == 165
+    assert payload["llm_route_planner_provider_usage_summary"]["by_model_tier"][
+        "sonnet"
+    ]["input_tokens"] == 120
+    assert payload["llm_route_planner_provider_usage_summary"]["by_model"][
+        "claude-sonnet-4-6"
+    ]["output_tokens"] == 34
+    assert payload["llm_route_planner_provider_usage_rows"][0][
+        "proof_evidence_status"
+    ] == "FORMALIZATION_GAP_PLANNER_EVALUATION_NOT_PROOF_EVIDENCE"
     assert payload["n_rows_with_llm_route_planner_request_contract_blocked"] == 0
     assert payload["n_rows_with_llm_route_planner_errors"] == 0
     assert payload["n_llm_route_planner_errors"] == 0
@@ -581,6 +609,12 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "mean_delta_precision": 1.0,
             "mean_alignment_coverage": 1.0,
             "n_rows_with_generator_metadata": 1,
+            "n_rows_with_provider_usage": 1,
+            "provider_input_tokens": 120,
+            "provider_output_tokens": 34,
+            "provider_cache_creation_input_tokens": 5,
+            "provider_cache_read_input_tokens": 6,
+            "provider_total_tokens": 165,
             "n_rows_with_request_contract_blocked": 0,
             "n_rows_with_errors": 0,
             "n_sonnet_triggers": 2,
@@ -599,6 +633,12 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "n_source_feedback_rows": 4,
             "n_source_feedback_proof_body_execution_failures": 1,
             "n_source_feedback_formal_environment_blockers": 3,
+            "n_rows_with_provider_usage": 1,
+            "provider_input_tokens": 120,
+            "provider_output_tokens": 34,
+            "provider_cache_creation_input_tokens": 5,
+            "provider_cache_read_input_tokens": 6,
+            "provider_total_tokens": 165,
             "mean_route_recall": 1.0,
             "mean_delta_precision": 1.0,
         }
@@ -735,8 +775,15 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert row["llm_route_planner_has_generator_metadata"] is True
     assert row["llm_route_planner_generator_metadata_keys"] == (
         "generator_only",
+        "provider_usage",
         "retry_count",
     )
+    assert row["llm_route_planner_has_provider_usage"] is True
+    assert row["llm_route_planner_provider_input_tokens"] == 120
+    assert row["llm_route_planner_provider_output_tokens"] == 34
+    assert row["llm_route_planner_provider_cache_creation_input_tokens"] == 5
+    assert row["llm_route_planner_provider_cache_read_input_tokens"] == 6
+    assert row["llm_route_planner_provider_total_tokens"] == 165
     assert row["llm_route_planner_request_contract_blocked"] is False
     assert row["llm_route_planner_errors"] == ()
     assert row["llm_route_planner_generation_errors"] == ()

@@ -560,7 +560,8 @@ explicit `not theorem proof evidence` boundary. Any `kernel_verified=true`
 claim is rejected before the response can become a standalone route seed.
 For live-provider runs, the LLM route-planner manifest reports
 `provider_usage_rows` plus aggregate input/output/cache/total token counters by
-provider, model, and model tier. Evaluation should treat these as cost-control
+provider, model, and model tier. Evaluation rows and summaries preserve these
+as cost-control
 metadata for Haiku/Sonnet routing, separate from source, library, prover, and
 kernel evidence. Reuse-smoke and publication-bundle summaries lift the same
 provider-usage totals for the primary and feedback route-planner passes, and
