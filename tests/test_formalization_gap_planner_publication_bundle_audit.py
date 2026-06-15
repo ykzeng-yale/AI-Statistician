@@ -6836,6 +6836,199 @@ def test_publication_bundle_audit_rejects_stale_interactive_resource_status() ->
     assert "next_commands missing resource_request_id=" in consistency_errors
 
 
+def test_publication_bundle_audit_rejects_stale_interactive_route_preconditions() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_audit_interactive_route_preconditions"
+    )
+    plan_dir = root / "plan"
+    stability_dir = root / "route_stability"
+    interactive_session_dir = root / "interactive_session"
+    bundle_dir = root / "bundle"
+    audit_dir = root / "audit"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    stability_dir.mkdir(parents=True, exist_ok=True)
+
+    route_adoption_preconditions = {
+        "precondition_kind": (
+            "formalization_gap_planner_llm_route_planner_route_adoption_preconditions"
+        ),
+        "status": "PENDING_CONTEXT_OBLIGATIONS",
+        "blocked_before_response": True,
+        "known_pre_response_blockers": [
+            "source_grounding_obligations_pending"
+        ],
+        "n_known_pre_response_blockers": 1,
+        "response_required_fields": ["search_requests", "planner_next_actions"],
+        "n_response_required_fields": 2,
+    }
+    plan_row = {
+        "goal_plan_id": "goal:precondition",
+        "route_id": "route:precondition",
+        "display_name": "route precondition fixture",
+        "selected_primitives": ["rank_uniformity"],
+    }
+    stability_row = {
+        "schema_version": 1,
+        "route_stability_audit_id": "stability:precondition",
+        "goal_plan_id": "goal:precondition",
+        "route_id": "route:precondition",
+        "display_name": "route precondition fixture",
+        "stability_decision": "AWAITING_REFINEMENT_RESPONSES",
+        "stable_under_current_evidence_bound": False,
+        "needs_more_literature": False,
+        "needs_more_formal_grounding": False,
+        "needs_more_lean_grounding": False,
+        "needs_more_proof_state_feedback": False,
+        "needs_route_replanning": False,
+        "response_summary_by_hook": {},
+        "awaiting_hook_kinds": [],
+        "rejected_hook_kinds": [],
+        "responded_hook_kinds": ["literature_discovery"],
+        "resource_response_awaiting_request_ids": [],
+        "resource_response_rejected_request_ids": [],
+        "llm_route_planner_route_adoption_status": (
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+        ),
+        "route_adoption_preconditions": route_adoption_preconditions,
+        "route_adoption_precondition_present": True,
+        "route_adoption_precondition_blocked_before_response": True,
+        "route_adoption_precondition_unresolved": True,
+        "route_adoption_precondition_known_blockers": [
+            "source_grounding_obligations_pending"
+        ],
+        "route_adoption_precondition_required_response_fields": [
+            "search_requests",
+            "planner_next_actions",
+        ],
+        "route_adoption_precondition_known_blocker_count": 1,
+        "route_adoption_precondition_required_response_field_count": 2,
+        "revision_status": "NO_ROUTE_REVISION_PROPOSAL",
+        "original_selected_primitives": ["rank_uniformity"],
+        "revised_selected_primitives": ["rank_uniformity"],
+        "added_primitives": [],
+        "removed_primitives": [],
+        "original_delta_primitives": ["rank_uniformity"],
+        "revised_delta_primitives": ["rank_uniformity"],
+        "added_delta_primitives": [],
+        "new_primitives_since_plan": [],
+        "source_refs": [],
+        "formal_declaration_hits": [],
+        "lean_declaration_hits": [],
+        "residual_goals": [],
+        "prover_attempt_statuses": [],
+        "prover_attempt_classes": [],
+        "target_prover_families": [],
+        "route_revision_reasons": [],
+        "stopping_rule_evidence": [
+            "route_adoption_preconditions remain unresolved"
+        ],
+        "next_actions": [
+            "resolve LLM route-adoption precondition blockers"
+        ],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_ROUTE_STABILITY_AUDIT_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": "not theorem proof evidence",
+        "ok": True,
+        "errors": [],
+    }
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": "library_aware_formalization_gap_planner",
+                "portable_schema_id": "urn:ai-statistician:schemas:library-aware-formalization-gap-plan:1",
+                "rows": [plan_row],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        stability_dir
+        / "formalization_gap_planner_route_stability_audit_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_route_stability_audit",
+                "n_stability_rows": 1,
+                "n_row_schema_valid": 1,
+                "n_row_schema_invalid": 0,
+                "rows": [stability_row],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        stability_dir / "formalization_gap_planner_route_stability_audit.jsonl"
+    ).write_text(json.dumps(stability_row, sort_keys=True) + "\n", encoding="utf-8")
+    (
+        stability_dir
+        / "formalization_gap_planner_route_stability_audit_row.schema.json"
+    ).write_text(
+        json.dumps(route_stability_audit_row_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (
+        stability_dir / "formalization_gap_planner_route_stability_audit.md"
+    ).write_text("# fixture\n", encoding="utf-8")
+    export_formalization_gap_planner_interactive_session(
+        plan_dir,
+        interactive_session_dir,
+        formalization_gap_planner_route_stability_audit_dir=stability_dir,
+    )
+    export_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        formalization_gap_planner_route_stability_audit_dir=stability_dir,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+    interactive_jsonl = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_interactive_session"
+        / "formalization_gap_planner_interactive_session.jsonl"
+    )
+    rows = [
+        json.loads(line)
+        for line in interactive_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    rows[0]["route_adoption_precondition_unresolved"] = False
+    rows[0]["next_interaction_kind"] = "build_refinement_queue"
+    rows[0]["next_tools"] = []
+    rows[0]["next_commands"] = []
+    interactive_jsonl.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = audit_formalization_gap_planner_publication_bundle(bundle_dir, audit_dir)
+
+    failed_names = {row["check_name"] for row in payload["checks"] if not row["ok"]}
+    assert not payload["all_ok"]
+    assert payload["n_optional_interactive_session_route_precondition_checked"] == 1
+    assert payload["n_optional_interactive_session_route_precondition_valid"] == 0
+    assert (
+        "optional_interactive_session_row_0_route_precondition_consistency"
+        in failed_names
+    )
+    consistency_check = next(
+        row
+        for row in payload["checks"]
+        if row["check_name"]
+        == "optional_interactive_session_row_0_route_precondition_consistency"
+    )
+    consistency_errors = "; ".join(consistency_check["errors"])
+    assert "route_adoption_precondition_unresolved mismatch" in consistency_errors
+    assert "await_refinement_response next interaction" in consistency_errors
+    assert "next_tools missing resource_response_ledger" in consistency_errors
+    assert "next_commands missing route-adoption precondition guidance" in (
+        consistency_errors
+    )
+
+
 def test_publication_bundle_audit_validates_interactive_policy_resource_links() -> None:
     root = Path("runs/test_formalization_gap_planner_publication_bundle_audit_interactive_links")
     bundle_dir = root / "bundle"

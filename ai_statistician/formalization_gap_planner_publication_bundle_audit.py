@@ -956,6 +956,19 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_generic_prover_fields")
             and check.ok
         ),
+        "n_optional_interactive_session_route_precondition_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_session_row_")
+            and check.check_name.endswith("_route_precondition_consistency")
+        ),
+        "n_optional_interactive_session_route_precondition_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_session_row_")
+            and check.check_name.endswith("_route_precondition_consistency")
+            and check.ok
+        ),
         "n_optional_refinement_evidence_row_schema_checked": sum(
             1
             for check in checks
@@ -15152,6 +15165,36 @@ def _interactive_session_row_has_resource_status(row: dict[str, Any]) -> bool:
     )
 
 
+def _interactive_session_rows_have_route_preconditions(
+    rows: list[dict[str, Any]],
+) -> bool:
+    return any(_interactive_session_row_has_route_preconditions(row) for row in rows)
+
+
+def _interactive_session_row_has_route_preconditions(row: dict[str, Any]) -> bool:
+    return bool(
+        row.get("route_adoption_precondition_present", False)
+        or row.get("route_adoption_precondition_unresolved", False)
+        or _dict_value(row, "route_adoption_preconditions")
+        or _str_tuple(row.get("route_adoption_precondition_known_blockers", []))
+        or _str_tuple(
+            row.get("route_adoption_precondition_required_response_fields", [])
+        )
+    )
+
+
+def _route_stability_row_has_route_preconditions(row: dict[str, Any]) -> bool:
+    return bool(
+        row.get("route_adoption_precondition_present", False)
+        or row.get("route_adoption_precondition_unresolved", False)
+        or _dict_value(row, "route_adoption_preconditions")
+        or _str_tuple(row.get("route_adoption_precondition_known_blockers", []))
+        or _str_tuple(
+            row.get("route_adoption_precondition_required_response_fields", [])
+        )
+    )
+
+
 def _interactive_session_resource_response_status_errors(
     session_row: dict[str, Any],
     stability_row: dict[str, Any] | None,
@@ -15194,6 +15237,59 @@ def _interactive_session_resource_response_status_errors(
         for request_id in (*stability_awaiting, *stability_rejected):
             if not any(f"resource_request_id={request_id}" in command for command in commands):
                 errors.append(f"next_commands missing resource_request_id={request_id}")
+    return tuple(errors)
+
+
+def _interactive_session_route_precondition_errors(
+    session_row: dict[str, Any],
+    stability_row: dict[str, Any] | None,
+) -> tuple[str, ...]:
+    if stability_row is None:
+        if _interactive_session_row_has_route_preconditions(session_row):
+            return ("interactive-session row has no matching route-stability row",)
+        return tuple()
+    if not _route_stability_row_has_route_preconditions(stability_row):
+        return tuple()
+    errors: list[str] = []
+    for field_name in (
+        "llm_route_planner_route_adoption_status",
+        "route_adoption_precondition_present",
+        "route_adoption_precondition_blocked_before_response",
+        "route_adoption_precondition_unresolved",
+        "route_adoption_precondition_known_blocker_count",
+        "route_adoption_precondition_required_response_field_count",
+    ):
+        if session_row.get(field_name) != stability_row.get(field_name):
+            errors.append(f"{field_name} mismatch")
+    if _dict_value(session_row, "route_adoption_preconditions") != _dict_value(
+        stability_row,
+        "route_adoption_preconditions",
+    ):
+        errors.append("route_adoption_preconditions mismatch")
+    for field_name in (
+        "route_adoption_precondition_known_blockers",
+        "route_adoption_precondition_required_response_fields",
+    ):
+        if _str_tuple(session_row.get(field_name, [])) != _str_tuple(
+            stability_row.get(field_name, [])
+        ):
+            errors.append(f"{field_name} mismatch")
+    if bool(stability_row.get("route_adoption_precondition_unresolved", False)):
+        if str(session_row.get("session_state", "")) != "AWAITING_REFINEMENT_RESPONSES":
+            errors.append(
+                "unresolved route-adoption preconditions require "
+                "AWAITING_REFINEMENT_RESPONSES session state"
+            )
+        if str(session_row.get("next_interaction_kind", "")) != "await_refinement_response":
+            errors.append(
+                "unresolved route-adoption preconditions require "
+                "await_refinement_response next interaction"
+            )
+        if "resource_response_ledger" not in _str_tuple(session_row.get("next_tools", [])):
+            errors.append("next_tools missing resource_response_ledger")
+        commands = tuple(str(command) for command in session_row.get("next_commands", []))
+        if not any("route-adoption precondition" in command for command in commands):
+            errors.append("next_commands missing route-adoption precondition guidance")
     return tuple(errors)
 
 
@@ -15819,8 +15915,9 @@ def _interactive_session_optional_checks(
                 ),
             ]
         )
-    if session_artifact_present and _interactive_session_rows_have_resource_status(
-        session_rows
+    if session_artifact_present and (
+        _interactive_session_rows_have_resource_status(session_rows)
+        or _interactive_session_rows_have_route_preconditions(session_rows)
     ):
         checks.append(
             _check(
@@ -15842,6 +15939,9 @@ def _interactive_session_optional_checks(
         status_errors = _interactive_session_resource_response_status_errors(
             row,
             stability_row,
+        )
+        route_precondition_errors = (
+            _interactive_session_route_precondition_errors(row, stability_row)
         )
         generic_prover_errors = _interactive_session_generic_prover_field_errors(row)
         checks.append(
@@ -15877,6 +15977,24 @@ def _interactive_session_optional_checks(
                     "; ".join(status_errors) if status_errors else "ok",
                     not status_errors,
                     errors=status_errors,
+                )
+            )
+        if _interactive_session_row_has_route_preconditions(row) or (
+            stability_row is not None
+            and _route_stability_row_has_route_preconditions(stability_row)
+        ):
+            checks.append(
+                _check(
+                    f"optional_interactive_session_row_{idx}_route_precondition_consistency",
+                    "optional_artifacts",
+                    "interactive-session route-adoption preconditions match route-stability rows",
+                    (
+                        "; ".join(route_precondition_errors)
+                        if route_precondition_errors
+                        else "ok"
+                    ),
+                    not route_precondition_errors,
+                    errors=route_precondition_errors,
                 )
             )
     for idx, row in enumerate(rows):
@@ -19881,6 +19999,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional feedback LLM route-planner blocker summary valid: {payload.get('n_optional_feedback_llm_route_planner_route_adoption_blocker_summary_valid')}/{payload.get('n_optional_feedback_llm_route_planner_route_adoption_blocker_summary_checked')}",
         f"- Optional interactive-session schema valid: {payload.get('n_optional_interactive_session_row_schema_valid')}/{payload.get('n_optional_interactive_session_row_schema_checked')}",
         f"- Optional interactive-session resource-response status consistent: {payload.get('n_optional_interactive_session_resource_response_status_valid')}/{payload.get('n_optional_interactive_session_resource_response_status_checked')}",
+        f"- Optional interactive-session route-precondition status consistent: {payload.get('n_optional_interactive_session_route_precondition_valid')}/{payload.get('n_optional_interactive_session_route_precondition_checked')}",
         f"- Optional interactive-session generic prover fields valid: {payload.get('n_optional_interactive_session_generic_prover_fields_valid')}/{payload.get('n_optional_interactive_session_generic_prover_fields_checked')}",
         f"- Optional interactive decision-policy schema valid: {payload.get('n_optional_interactive_decision_policy_row_schema_valid')}/{payload.get('n_optional_interactive_decision_policy_row_schema_checked')}",
         f"- Optional refinement-evidence schema valid: {payload.get('n_optional_refinement_evidence_row_schema_valid')}/{payload.get('n_optional_refinement_evidence_row_schema_checked')}",

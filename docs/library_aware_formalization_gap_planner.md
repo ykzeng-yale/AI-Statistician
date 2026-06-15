@@ -1596,6 +1596,14 @@ response-validation signals, stop conditions, and fallbacks explaining why that
 next action is bounded and appropriate. If no component-resource registry is
 provided, the decision-policy rows still validate but leave the concrete
 resource and quality-gate fields empty.
+When route stability reports unresolved LLM `route_adoption_preconditions`, the
+interactive-session row now keeps the route in
+`AWAITING_REFINEMENT_RESPONSES` even if no hook is explicitly awaiting. The row
+copies the precondition object, blocker counts, required-response-field counts,
+and `route_adoption_precondition_unresolved`, adds the signal to decision-policy
+trigger/evidence fields, and emits next commands to materialize the missing
+precondition responses before rerunning the resource queue, response ledger, and
+stability audit.
 Those session and decision-policy rows can be passed back into
 `formalization_gap_planner_llm_route_planner`, so the next LLM route-planning
 packet sees the current bounded interaction state, selected tools, quality

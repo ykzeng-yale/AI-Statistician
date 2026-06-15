@@ -6320,6 +6320,30 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_rows_with_resource_requests",
             0,
         ),
+        "n_interactive_session_rows_with_route_adoption_preconditions": (
+            interactive_session_payload.get(
+                "n_rows_with_route_adoption_preconditions",
+                0,
+            )
+        ),
+        "n_interactive_session_rows_with_unresolved_route_adoption_preconditions": (
+            interactive_session_payload.get(
+                "n_rows_with_unresolved_route_adoption_preconditions",
+                0,
+            )
+        ),
+        "n_interactive_session_route_adoption_precondition_known_blockers": (
+            interactive_session_payload.get(
+                "n_route_adoption_precondition_known_blockers",
+                0,
+            )
+        ),
+        "n_interactive_session_route_adoption_precondition_required_response_fields": (
+            interactive_session_payload.get(
+                "n_route_adoption_precondition_required_response_fields",
+                0,
+            )
+        ),
         "n_interactive_session_resource_requests_linked": interactive_session_payload.get(
             "n_resource_requests_linked",
             0,
@@ -8255,6 +8279,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Interactive session rows requiring replan: {payload.get('n_interactive_session_rows_requiring_replan')}",
         f"- Interactive session replay-ready: {payload.get('n_interactive_session_replay')}",
         f"- Interactive session rows with resource requests: {payload.get('n_interactive_session_rows_with_resource_requests')}",
+        f"- Interactive session unresolved route-adoption preconditions: {payload.get('n_interactive_session_rows_with_unresolved_route_adoption_preconditions')}/{payload.get('n_interactive_session_rows_with_route_adoption_preconditions')}",
         f"- Interactive session linked resource requests: {payload.get('n_interactive_session_resource_requests_linked')}",
         f"- Ablation variants valid: {payload.get('n_ablation_row_schema_valid')}/{payload.get('n_ablation_variants')}",
         f"- Ablation largest route-recall drop: {payload.get('ablation_largest_route_recall_drop_variant')}",

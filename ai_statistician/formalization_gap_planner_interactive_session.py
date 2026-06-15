@@ -100,6 +100,15 @@ class FormalizationGapPlannerInteractiveSessionRow:
     responded_hook_kinds: tuple[str, ...]
     resource_response_awaiting_request_ids: tuple[str, ...]
     resource_response_rejected_request_ids: tuple[str, ...]
+    llm_route_planner_route_adoption_status: str
+    route_adoption_preconditions: dict[str, object]
+    route_adoption_precondition_present: bool
+    route_adoption_precondition_blocked_before_response: bool
+    route_adoption_precondition_unresolved: bool
+    route_adoption_precondition_known_blockers: tuple[str, ...]
+    route_adoption_precondition_required_response_fields: tuple[str, ...]
+    route_adoption_precondition_known_blocker_count: int
+    route_adoption_precondition_required_response_field_count: int
     resource_request_ids: tuple[str, ...]
     resource_request_resource_ids: tuple[str, ...]
     resource_request_queue_action_kinds: tuple[str, ...]
@@ -326,6 +335,24 @@ def export_formalization_gap_planner_interactive_session(
         "n_rows_with_resource_requests": sum(
             1 for row in rows if row.resource_request_ids
         ),
+        "n_rows_with_route_adoption_preconditions": sum(
+            1 for row in rows if row.route_adoption_precondition_present
+        ),
+        "n_rows_with_blocking_route_adoption_preconditions": sum(
+            1
+            for row in rows
+            if row.route_adoption_precondition_blocked_before_response
+        ),
+        "n_rows_with_unresolved_route_adoption_preconditions": sum(
+            1 for row in rows if row.route_adoption_precondition_unresolved
+        ),
+        "n_route_adoption_precondition_known_blockers": sum(
+            row.route_adoption_precondition_known_blocker_count for row in rows
+        ),
+        "n_route_adoption_precondition_required_response_fields": sum(
+            row.route_adoption_precondition_required_response_field_count
+            for row in rows
+        ),
         "n_resource_requests_linked": sum(
             len(row.resource_request_ids) for row in rows
         ),
@@ -506,6 +533,19 @@ def interactive_session_row_json_schema() -> dict[str, object]:
             "responded_hook_kinds": string_array,
             "resource_response_awaiting_request_ids": string_array,
             "resource_response_rejected_request_ids": string_array,
+            "llm_route_planner_route_adoption_status": {"type": "string"},
+            "route_adoption_preconditions": {"type": "object"},
+            "route_adoption_precondition_present": {"type": "boolean"},
+            "route_adoption_precondition_blocked_before_response": {
+                "type": "boolean"
+            },
+            "route_adoption_precondition_unresolved": {"type": "boolean"},
+            "route_adoption_precondition_known_blockers": string_array,
+            "route_adoption_precondition_required_response_fields": string_array,
+            "route_adoption_precondition_known_blocker_count": {"type": "integer"},
+            "route_adoption_precondition_required_response_field_count": {
+                "type": "integer"
+            },
             "resource_request_ids": string_array,
             "resource_request_resource_ids": string_array,
             "resource_request_queue_action_kinds": string_array,
@@ -1052,6 +1092,12 @@ def _decision_trigger_signals(
         signals.append("awaiting_resource_response_requests")
     if row.resource_response_rejected_request_ids:
         signals.append("rejected_resource_response_requests")
+    if row.route_adoption_precondition_unresolved:
+        signals.append("route_adoption_precondition_unresolved")
+    if row.route_adoption_precondition_known_blockers:
+        signals.append("route_adoption_precondition_known_blockers")
+    if row.route_adoption_precondition_required_response_fields:
+        signals.append("route_adoption_precondition_required_response_fields")
     if row.resource_request_ids:
         signals.append("resource_requests_ready")
     if row.resource_request_dispatch_summaries:
@@ -1086,6 +1132,8 @@ def _decision_evidence_inputs(
         or row.resource_response_rejected_request_ids
     ):
         inputs.append("resource_response_ledger_request_status")
+    if row.route_adoption_precondition_present:
+        inputs.append("route_adoption_preconditions")
     if row.resource_request_ids:
         inputs.append("resource_request_queue_dispatch_specs")
     if row.source_refs:
@@ -1424,6 +1472,55 @@ def _session_row(
         resource_response_awaiting_request_ids
         or resource_response_rejected_request_ids
     )
+    route_adoption_status = _route_adoption_status_for_session(
+        stability_row,
+        plan_row,
+    )
+    route_adoption_preconditions = _route_adoption_preconditions_for_session(
+        stability_row,
+        plan_row,
+    )
+    route_adoption_precondition_known_blockers = _str_tuple(
+        stability_row.get(
+            "route_adoption_precondition_known_blockers",
+            route_adoption_preconditions.get("known_pre_response_blockers", []),
+        )
+    )
+    route_adoption_precondition_required_response_fields = _str_tuple(
+        stability_row.get(
+            "route_adoption_precondition_required_response_fields",
+            route_adoption_preconditions.get("response_required_fields", []),
+        )
+    )
+    route_adoption_precondition_known_blocker_count = _nonnegative_int(
+        stability_row.get("route_adoption_precondition_known_blocker_count"),
+        len(route_adoption_precondition_known_blockers),
+    )
+    route_adoption_precondition_required_response_field_count = _nonnegative_int(
+        stability_row.get(
+            "route_adoption_precondition_required_response_field_count"
+        ),
+        len(route_adoption_precondition_required_response_fields),
+    )
+    route_adoption_precondition_blocked = bool(
+        stability_row.get(
+            "route_adoption_precondition_blocked_before_response",
+            route_adoption_preconditions.get("blocked_before_response", False),
+        )
+    )
+    route_adoption_precondition_unresolved = bool(
+        stability_row.get(
+            "route_adoption_precondition_unresolved",
+            _route_adoption_precondition_unresolved(
+                route_adoption_status=route_adoption_status,
+                blocked_before_response=route_adoption_precondition_blocked,
+                known_blockers=route_adoption_precondition_known_blockers,
+                required_response_fields=(
+                    route_adoption_precondition_required_response_fields
+                ),
+            ),
+        )
+    )
 
     session_state = _session_state(
         stability_decision=stability_decision,
@@ -1436,6 +1533,9 @@ def _session_row(
         awaiting=awaiting,
         rejected=rejected,
         has_resource_response_status=has_resource_response_status,
+        route_adoption_precondition_unresolved=(
+            route_adoption_precondition_unresolved
+        ),
         queue_rows=queue_rows,
         evidence_rows=evidence_rows,
     )
@@ -1450,6 +1550,9 @@ def _session_row(
         awaiting=awaiting,
         rejected=rejected,
         has_resource_response_status=has_resource_response_status,
+        route_adoption_precondition_unresolved=(
+            route_adoption_precondition_unresolved
+        ),
     )
     selected_queue_rows = _queue_rows_for_next(queue_rows, next_kind)
     selected_resource_request_rows = _resource_request_rows_for_next(
@@ -1490,7 +1593,13 @@ def _session_row(
                 if (
                     resource_response_awaiting_request_ids
                     or resource_response_rejected_request_ids
+                    or route_adoption_precondition_unresolved
                 )
+                else []
+            ),
+            *(
+                ["formalization_gap_planner_resource_request_queue"]
+                if route_adoption_precondition_unresolved
                 else []
             ),
             *[
@@ -1517,6 +1626,15 @@ def _session_row(
                 for row in selected_resource_request_rows
                 for query in _resource_request_queries(row)
             ],
+            *(
+                [
+                    "resolve LLM route-adoption precondition blockers: "
+                    + ", ".join(route_adoption_precondition_known_blockers)
+                ]
+                if route_adoption_precondition_unresolved
+                and route_adoption_precondition_known_blockers
+                else []
+            ),
         ]
     )
     next_commands = _next_commands(
@@ -1527,6 +1645,15 @@ def _session_row(
         next_kind=next_kind,
         resource_response_awaiting_request_ids=resource_response_awaiting_request_ids,
         resource_response_rejected_request_ids=resource_response_rejected_request_ids,
+        route_adoption_precondition_unresolved=(
+            route_adoption_precondition_unresolved
+        ),
+        route_adoption_precondition_known_blockers=(
+            route_adoption_precondition_known_blockers
+        ),
+        route_adoption_precondition_required_response_fields=(
+            route_adoption_precondition_required_response_fields
+        ),
     )
     user_checkpoint = _user_checkpoint(next_kind, session_state)
 
@@ -1578,6 +1705,15 @@ def _session_row(
             "resource_response_rejected_requests": len(
                 resource_response_rejected_request_ids
             ),
+            "route_adoption_precondition_known_blockers": (
+                route_adoption_precondition_known_blocker_count
+            ),
+            "route_adoption_precondition_required_response_fields": (
+                route_adoption_precondition_required_response_field_count
+            ),
+            "route_adoption_precondition_unresolved": int(
+                route_adoption_precondition_unresolved
+            ),
         },
         coverage_summary=coverage_summary,
         stability_decision=stability_decision,
@@ -1595,6 +1731,25 @@ def _session_row(
         ),
         resource_response_rejected_request_ids=(
             resource_response_rejected_request_ids
+        ),
+        llm_route_planner_route_adoption_status=route_adoption_status,
+        route_adoption_preconditions=route_adoption_preconditions,
+        route_adoption_precondition_present=bool(route_adoption_preconditions),
+        route_adoption_precondition_blocked_before_response=(
+            route_adoption_precondition_blocked
+        ),
+        route_adoption_precondition_unresolved=route_adoption_precondition_unresolved,
+        route_adoption_precondition_known_blockers=(
+            route_adoption_precondition_known_blockers
+        ),
+        route_adoption_precondition_required_response_fields=(
+            route_adoption_precondition_required_response_fields
+        ),
+        route_adoption_precondition_known_blocker_count=(
+            route_adoption_precondition_known_blocker_count
+        ),
+        route_adoption_precondition_required_response_field_count=(
+            route_adoption_precondition_required_response_field_count
         ),
         resource_request_ids=resource_request_ids,
         resource_request_resource_ids=resource_request_resource_ids,
@@ -1633,10 +1788,16 @@ def _session_state(
     awaiting: tuple[str, ...],
     rejected: tuple[str, ...],
     has_resource_response_status: bool,
+    route_adoption_precondition_unresolved: bool,
     queue_rows: list[dict[str, Any]],
     evidence_rows: list[dict[str, Any]],
 ) -> str:
-    if awaiting or rejected or has_resource_response_status:
+    if (
+        awaiting
+        or rejected
+        or has_resource_response_status
+        or route_adoption_precondition_unresolved
+    ):
         return "AWAITING_REFINEMENT_RESPONSES"
     if replan_required:
         return "ROUTE_REPLAN_REQUIRED"
@@ -1671,8 +1832,14 @@ def _next_interaction_kind(
     awaiting: tuple[str, ...],
     rejected: tuple[str, ...],
     has_resource_response_status: bool,
+    route_adoption_precondition_unresolved: bool,
 ) -> str:
-    if awaiting or rejected or has_resource_response_status:
+    if (
+        awaiting
+        or rejected
+        or has_resource_response_status
+        or route_adoption_precondition_unresolved
+    ):
         return "await_refinement_response"
     if replan_required:
         return "route_replan"
@@ -1815,6 +1982,9 @@ def _next_commands(
     next_kind: str,
     resource_response_awaiting_request_ids: tuple[str, ...] = (),
     resource_response_rejected_request_ids: tuple[str, ...] = (),
+    route_adoption_precondition_unresolved: bool = False,
+    route_adoption_precondition_known_blockers: tuple[str, ...] = (),
+    route_adoption_precondition_required_response_fields: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
     commands: list[str] = []
     if next_kind == "route_replan":
@@ -1829,6 +1999,13 @@ def _next_commands(
                 resource_response_rejected_request_ids,
             )
         )
+        if route_adoption_precondition_unresolved:
+            commands.extend(
+                _route_adoption_precondition_commands(
+                    route_adoption_precondition_known_blockers,
+                    route_adoption_precondition_required_response_fields,
+                )
+            )
     for row in queue_rows:
         commands.extend(_str_tuple(row.get("execution_commands", [])))
     commands.extend(_resource_request_execution_commands(resource_request_rows))
@@ -1962,6 +2139,28 @@ def _resource_response_status_commands(
     return _str_tuple(commands)
 
 
+def _route_adoption_precondition_commands(
+    known_blockers: tuple[str, ...],
+    required_response_fields: tuple[str, ...],
+) -> tuple[str, ...]:
+    blockers = ", ".join(known_blockers) if known_blockers else "unresolved blockers"
+    required_fields = (
+        ", ".join(required_response_fields)
+        if required_response_fields
+        else "required response fields"
+    )
+    return (
+        "materialize LLM route-adoption precondition responses for "
+        f"{blockers}; required fields: {required_fields}",
+        (
+            "rerun formalization-gap-planner-resource-request-queue, "
+            "formalization-gap-planner-resource-response-ledger, and "
+            "formalization-gap-planner-route-stability-audit after "
+            "precondition responses are recorded"
+        ),
+    )
+
+
 def _user_checkpoint(next_kind: str, session_state: str) -> str:
     return {
         "build_refinement_queue": "materialize the refinement queue before calling live tools",
@@ -2028,6 +2227,70 @@ def _all_node_dicts(plan_row: dict[str, Any]) -> list[dict[str, Any]]:
     return nodes
 
 
+def _route_adoption_status_for_session(
+    stability_row: dict[str, Any],
+    plan_row: dict[str, Any],
+) -> str:
+    for container in _route_adoption_trace_containers(stability_row, plan_row):
+        status = str(
+            container.get("llm_route_planner_route_adoption_status", "")
+            or container.get("route_adoption_status", "")
+        ).strip()
+        if status:
+            return status
+    return ""
+
+
+def _route_adoption_preconditions_for_session(
+    stability_row: dict[str, Any],
+    plan_row: dict[str, Any],
+) -> dict[str, object]:
+    for container in _route_adoption_trace_containers(stability_row, plan_row):
+        preconditions = _dict_value(container, "route_adoption_preconditions")
+        if not preconditions:
+            preconditions = _dict_value(
+                container,
+                "llm_route_planner_route_adoption_preconditions",
+            )
+        if preconditions:
+            return preconditions
+    return {}
+
+
+def _route_adoption_trace_containers(
+    stability_row: dict[str, Any],
+    plan_row: dict[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    containers: list[dict[str, Any]] = [stability_row, plan_row]
+    for row in (stability_row, plan_row):
+        for field_name in (
+            "standalone_input_trace",
+            "replan_metadata",
+            "route_summary",
+            "standalone_seed_metadata",
+        ):
+            value = row.get(field_name, {})
+            if isinstance(value, dict):
+                containers.append(value)
+    return tuple(containers)
+
+
+def _route_adoption_precondition_unresolved(
+    *,
+    route_adoption_status: str,
+    blocked_before_response: bool,
+    known_blockers: tuple[str, ...],
+    required_response_fields: tuple[str, ...],
+) -> bool:
+    if not blocked_before_response:
+        return False
+    if route_adoption_status == "READY_FOR_STANDALONE_REPLAY":
+        return False
+    if route_adoption_status:
+        return route_adoption_status != "READY_FOR_STANDALONE_REPLAY"
+    return bool(known_blockers or required_response_fields)
+
+
 def _optional_manifest(
     root: Path | None,
     filename: str,
@@ -2046,6 +2309,11 @@ def _read_json(path: Path, errors: list[str]) -> dict[str, Any]:
     except json.JSONDecodeError as exc:
         errors.append(f"invalid json: {path}: {exc}")
     return {}
+
+
+def _dict_value(row: dict[str, Any] | dict[str, object], field_name: str) -> dict[str, object]:
+    value = row.get(field_name, {})
+    return dict(value) if isinstance(value, dict) else {}
 
 
 def _row_index(rows: object) -> dict[tuple[str, str], list[dict[str, Any]]]:
@@ -2347,6 +2615,17 @@ def _int(value: object) -> int:
         return 9999
 
 
+def _nonnegative_int(value: object, fallback: int = 0) -> int:
+    if isinstance(value, bool):
+        return fallback
+    if isinstance(value, int):
+        return max(value, 0)
+    try:
+        return max(int(str(value)), 0)
+    except (TypeError, ValueError):
+        return fallback
+
+
 def _markdown_report(payload: dict[str, object]) -> str:
     lines = [
         "# Formalization Gap Planner Interactive Session",
@@ -2360,6 +2639,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Decision policy quality gates: {payload.get('n_decision_policy_rows_with_quality_gates')}/{payload.get('n_decision_policy_rows')}",
         f"- Decision policy response-validation signals: {payload.get('n_decision_policy_rows_with_response_validation_signals')}/{payload.get('n_decision_policy_rows')}",
         f"- Rows with resource requests: {payload.get('n_rows_with_resource_requests')}",
+        f"- Rows with unresolved route-adoption preconditions: {payload.get('n_rows_with_unresolved_route_adoption_preconditions')}/{payload.get('n_rows_with_route_adoption_preconditions')}",
         f"- Linked resource requests: {payload.get('n_resource_requests_linked')}",
         f"- Resource request execution commands: {payload.get('n_resource_request_execution_commands')}",
         f"- All OK: {payload.get('all_ok')}",
