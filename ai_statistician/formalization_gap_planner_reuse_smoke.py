@@ -1963,6 +1963,24 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_publication_bundle_llm_route_planner_summary_requests_with_route_adoption_preconditions": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_requests_with_route_adoption_preconditions",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_route_adoption_precondition_known_blockers": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_route_adoption_precondition_known_blockers",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_route_adoption_precondition_required_response_fields": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_route_adoption_precondition_required_response_fields",
+                0,
+            )
+        ),
         "n_publication_bundle_llm_route_planner_summary_quality_control_obligation_inventories": (
             publication_bundle_llm_route_planner_summary.get(
                 "n_requests_with_quality_control_obligation_inventory",
@@ -2179,6 +2197,18 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_publication_bundle_llm_route_planner_summary_rows_with_route_adoption_preconditions": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_rows_with_route_adoption_preconditions",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_row_route_adoption_precondition_known_blockers": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_row_route_adoption_precondition_known_blockers",
+                0,
+            )
+        ),
         "publication_bundle_llm_route_planner_summary_route_adoption_blocker_counts": (
             publication_bundle_llm_route_planner_summary.get(
                 "route_adoption_blocker_counts",
@@ -2370,6 +2400,24 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_feedback_llm_route_planner_summary_rows_with_context_packet_inventory": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_rows_with_context_packet_inventory",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_route_adoption_preconditions": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_requests_with_route_adoption_preconditions",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_route_adoption_precondition_known_blockers": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_route_adoption_precondition_known_blockers",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_route_adoption_precondition_required_response_fields": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_route_adoption_precondition_required_response_fields",
                 0,
             )
         ),
@@ -2592,6 +2640,18 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_rows_with_route_adoption_preconditions": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_rows_with_route_adoption_preconditions",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_row_route_adoption_precondition_known_blockers": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_row_route_adoption_precondition_known_blockers",
+                0,
+            )
+        ),
         "publication_bundle_feedback_llm_route_planner_summary_route_adoption_blocker_counts": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "route_adoption_blocker_counts",
@@ -2786,6 +2846,26 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_llm_route_planner_rows_with_context_packet_inventory": llm_route_planner_payload.get(
             "n_rows_with_context_packet_inventory",
+            0,
+        ),
+        "n_llm_route_planner_requests_with_route_adoption_preconditions": llm_route_planner_payload.get(
+            "n_requests_with_route_adoption_preconditions",
+            0,
+        ),
+        "n_llm_route_planner_request_route_adoption_precondition_known_blockers": llm_route_planner_payload.get(
+            "n_request_route_adoption_precondition_known_blockers",
+            0,
+        ),
+        "n_llm_route_planner_request_route_adoption_precondition_required_response_fields": llm_route_planner_payload.get(
+            "n_request_route_adoption_precondition_required_response_fields",
+            0,
+        ),
+        "n_llm_route_planner_rows_with_route_adoption_preconditions": llm_route_planner_payload.get(
+            "n_rows_with_route_adoption_preconditions",
+            0,
+        ),
+        "n_llm_route_planner_row_route_adoption_precondition_known_blockers": llm_route_planner_payload.get(
+            "n_row_route_adoption_precondition_known_blockers",
             0,
         ),
         "n_llm_route_planner_request_residual_goal_contexts": llm_route_planner_payload.get(
@@ -3422,6 +3502,36 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_rows_with_context_packet_inventory": (
             feedback_llm_route_planner_payload.get(
                 "n_rows_with_context_packet_inventory",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_requests_with_route_adoption_preconditions": (
+            feedback_llm_route_planner_payload.get(
+                "n_requests_with_route_adoption_preconditions",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_route_adoption_precondition_known_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_route_adoption_precondition_known_blockers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_route_adoption_precondition_required_response_fields": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_route_adoption_precondition_required_response_fields",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_rows_with_route_adoption_preconditions": (
+            feedback_llm_route_planner_payload.get(
+                "n_rows_with_route_adoption_preconditions",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_row_route_adoption_precondition_known_blockers": (
+            feedback_llm_route_planner_payload.get(
+                "n_row_route_adoption_precondition_known_blockers",
                 0,
             )
         ),
@@ -7552,7 +7662,21 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"feedback_ready_pending_blockers="
             f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_route_adoption_ready')}/"
             f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_route_adoption_pending_refinement')}/"
-            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_route_adoption_blockers')}"
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_route_adoption_blockers')} "
+            f"primary_preconditions="
+            f"{payload.get('n_publication_bundle_llm_route_planner_summary_requests_with_route_adoption_preconditions')}/"
+            f"{payload.get('n_publication_bundle_llm_route_planner_summary_request_route_adoption_precondition_known_blockers')}/"
+            f"{payload.get('n_publication_bundle_llm_route_planner_summary_request_route_adoption_precondition_required_response_fields')} "
+            f"primary_row_preconditions="
+            f"{payload.get('n_publication_bundle_llm_route_planner_summary_rows_with_route_adoption_preconditions')}/"
+            f"{payload.get('n_publication_bundle_llm_route_planner_summary_row_route_adoption_precondition_known_blockers')} "
+            f"feedback_preconditions="
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_requests_with_route_adoption_preconditions')}/"
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_request_route_adoption_precondition_known_blockers')}/"
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_request_route_adoption_precondition_required_response_fields')} "
+            f"feedback_row_preconditions="
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_rows_with_route_adoption_preconditions')}/"
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_row_route_adoption_precondition_known_blockers')}"
         ),
         (
             f"- Bundle LLM route planner registry resource summaries: "

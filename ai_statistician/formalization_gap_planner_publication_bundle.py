@@ -2290,6 +2290,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_context_packet_inventory",
             "n_request_context_inventory_total_rows",
             "n_rows_with_context_packet_inventory",
+            "n_requests_with_route_adoption_preconditions",
+            "n_request_route_adoption_precondition_known_blockers",
+            "n_request_route_adoption_precondition_required_response_fields",
             "n_requests_with_quality_control_obligation_inventory",
             "n_requests_with_pending_quality_control_obligation_inventory",
             "n_request_quality_control_obligation_fields",
@@ -2362,6 +2365,8 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_delta_action_witness_missing_primitives",
             "n_rows_with_delta_action_witness_obligations",
             "n_rows_with_complete_delta_action_witness",
+            "n_rows_with_route_adoption_preconditions",
+            "n_row_route_adoption_precondition_known_blockers",
             "n_accepted_route_plans",
             "n_route_adoption_ready",
             "n_route_adoption_pending_refinement",
@@ -2391,6 +2396,13 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_context_packet_inventory": nonnegative_integer,
             "n_request_context_inventory_total_rows": nonnegative_integer,
             "n_rows_with_context_packet_inventory": nonnegative_integer,
+            "n_requests_with_route_adoption_preconditions": nonnegative_integer,
+            "n_request_route_adoption_precondition_known_blockers": (
+                nonnegative_integer
+            ),
+            "n_request_route_adoption_precondition_required_response_fields": (
+                nonnegative_integer
+            ),
             "n_requests_with_quality_control_obligation_inventory": (
                 nonnegative_integer
             ),
@@ -2569,6 +2581,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_delta_action_witness_missing_primitives": nonnegative_integer,
             "n_rows_with_delta_action_witness_obligations": nonnegative_integer,
             "n_rows_with_complete_delta_action_witness": nonnegative_integer,
+            "n_rows_with_route_adoption_preconditions": nonnegative_integer,
+            "n_row_route_adoption_precondition_known_blockers": (
+                nonnegative_integer
+            ),
             "n_accepted_route_plans": nonnegative_integer,
             "n_route_adoption_ready": nonnegative_integer,
             "n_route_adoption_pending_refinement": nonnegative_integer,
@@ -4653,6 +4669,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_requests_with_context_packet_inventory": 0,
         "n_request_context_inventory_total_rows": 0,
         "n_rows_with_context_packet_inventory": 0,
+        "n_requests_with_route_adoption_preconditions": 0,
+        "n_request_route_adoption_precondition_known_blockers": 0,
+        "n_request_route_adoption_precondition_required_response_fields": 0,
         "n_requests_with_quality_control_obligation_inventory": 0,
         "n_requests_with_pending_quality_control_obligation_inventory": 0,
         "n_request_quality_control_obligation_fields": 0,
@@ -4734,6 +4753,8 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_delta_action_witness_missing_primitives": 0,
         "n_rows_with_delta_action_witness_obligations": 0,
         "n_rows_with_complete_delta_action_witness": 0,
+        "n_rows_with_route_adoption_preconditions": 0,
+        "n_row_route_adoption_precondition_known_blockers": 0,
         "n_accepted_route_plans": 0,
         "n_route_adoption_ready": 0,
         "n_route_adoption_pending_refinement": 0,
@@ -4763,6 +4784,16 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
     rows = _read_jsonl_dict_rows_no_error(rows_path)
     request_packets = _dict_tuple(payload.get("request_packets", []))
     decision_basis_counts = _llm_route_planner_decision_basis_counts(request_packets)
+    request_route_adoption_preconditions = tuple(
+        _dict_value(
+            _dict_value(packet, "context_packet"),
+            "route_adoption_preconditions",
+        )
+        for packet in request_packets
+    )
+    row_route_adoption_preconditions = tuple(
+        _dict_value(row, "route_adoption_preconditions") for row in rows
+    )
     library_alignment_summaries = tuple(
         _dict_value(_dict_value(packet, "context_packet"), "library_alignment_summary")
         for packet in request_packets
@@ -4809,6 +4840,39 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             payload.get(
                 "n_rows_with_context_packet_inventory",
                 sum(1 for row in rows if row.get("context_packet_inventory")),
+            )
+            or 0
+        ),
+        "n_requests_with_route_adoption_preconditions": int(
+            payload.get(
+                "n_requests_with_route_adoption_preconditions",
+                sum(1 for value in request_route_adoption_preconditions if value),
+            )
+            or 0
+        ),
+        "n_request_route_adoption_precondition_known_blockers": int(
+            payload.get(
+                "n_request_route_adoption_precondition_known_blockers",
+                sum(
+                    int(
+                        value.get(
+                            "n_known_pre_response_blockers",
+                            len(_str_tuple(value.get("known_pre_response_blockers", []))),
+                        )
+                        or 0
+                    )
+                    for value in request_route_adoption_preconditions
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_adoption_precondition_required_response_fields": int(
+            payload.get(
+                "n_request_route_adoption_precondition_required_response_fields",
+                sum(
+                    len(_str_tuple(value.get("response_required_fields", [])))
+                    for value in request_route_adoption_preconditions
+                ),
             )
             or 0
         ),
@@ -5423,6 +5487,29 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                             "realization_coverage_witness",
                         ).get("delta_action_witness_complete", False)
                     )
+                ),
+            )
+            or 0
+        ),
+        "n_rows_with_route_adoption_preconditions": int(
+            payload.get(
+                "n_rows_with_route_adoption_preconditions",
+                sum(1 for value in row_route_adoption_preconditions if value),
+            )
+            or 0
+        ),
+        "n_row_route_adoption_precondition_known_blockers": int(
+            payload.get(
+                "n_row_route_adoption_precondition_known_blockers",
+                sum(
+                    int(
+                        value.get(
+                            "n_known_pre_response_blockers",
+                            len(_str_tuple(value.get("known_pre_response_blockers", []))),
+                        )
+                        or 0
+                    )
+                    for value in row_route_adoption_preconditions
                 ),
             )
             or 0
@@ -6065,7 +6152,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- LLM route planner ready/pending/blockers: "
             f"{payload.get('llm_route_planner_summary', {}).get('n_route_adoption_ready')}/"
             f"{payload.get('llm_route_planner_summary', {}).get('n_route_adoption_pending_refinement')}/"
-            f"{payload.get('llm_route_planner_summary', {}).get('n_route_adoption_blockers')}"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_route_adoption_blockers')} "
+            f"preconditions={payload.get('llm_route_planner_summary', {}).get('n_requests_with_route_adoption_preconditions')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_known_blockers')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_required_response_fields')} "
+            f"row_preconditions={payload.get('llm_route_planner_summary', {}).get('n_rows_with_route_adoption_preconditions')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_row_route_adoption_precondition_known_blockers')}"
         ),
         (
             f"- LLM standalone replay gate: "
@@ -6078,7 +6170,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Feedback LLM route planner ready/pending/blockers: "
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_ready')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_pending_refinement')}/"
-            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_blockers')}"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_blockers')} "
+            f"preconditions={payload.get('feedback_llm_route_planner_summary', {}).get('n_requests_with_route_adoption_preconditions')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_known_blockers')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_required_response_fields')} "
+            f"row_preconditions={payload.get('feedback_llm_route_planner_summary', {}).get('n_rows_with_route_adoption_preconditions')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_row_route_adoption_precondition_known_blockers')}"
         ),
         (
             f"- Feedback LLM standalone replay gate: "

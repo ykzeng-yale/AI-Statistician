@@ -571,6 +571,10 @@ counts, so a public bundle shows whether packaged primary and feedback
 route-planner prompts carried the compact `context_packet_inventory` needed for
 evidence-bounded LLM route repair, and whether the planner JSONL rows preserved
 that same request-context snapshot for standalone reuse. They also expose
+request-side and row-side `route_adoption_preconditions` counts, including
+known pre-response blockers and required LLM response fields, so replay users
+can tell whether a packaged route was blocked by source-backed obligations
+already known before any model response. They also expose
 request-inventory quality-control obligation counts, including pending and
 discharged field/value totals, so public bundles show whether route-planner
 prompts still require prover/resource evidence before adoption. They also

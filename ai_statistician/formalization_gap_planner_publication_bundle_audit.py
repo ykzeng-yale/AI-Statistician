@@ -2657,6 +2657,16 @@ def _expected_bundle_llm_route_planner_summary(
     payload = _read_json_no_error(manifest_path)
     rows, _row_errors = _read_jsonl_dict_rows_no_error(rows_path)
     request_packets = _dict_tuple(payload.get("request_packets", []))
+    request_route_adoption_preconditions = tuple(
+        _dict_value(
+            _dict_value(packet, "context_packet"),
+            "route_adoption_preconditions",
+        )
+        for packet in request_packets
+    )
+    row_route_adoption_preconditions = tuple(
+        _dict_value(row, "route_adoption_preconditions") for row in rows
+    )
     model_tier_decision_ledger = _dict_tuple(
         payload.get("model_tier_decision_ledger", [])
     )
@@ -2683,6 +2693,39 @@ def _expected_bundle_llm_route_planner_summary(
             payload.get(
                 "n_rows_with_context_packet_inventory",
                 sum(1 for row in rows if row.get("context_packet_inventory")),
+            )
+            or 0
+        ),
+        "n_requests_with_route_adoption_preconditions": int(
+            payload.get(
+                "n_requests_with_route_adoption_preconditions",
+                sum(1 for value in request_route_adoption_preconditions if value),
+            )
+            or 0
+        ),
+        "n_request_route_adoption_precondition_known_blockers": int(
+            payload.get(
+                "n_request_route_adoption_precondition_known_blockers",
+                sum(
+                    int(
+                        value.get(
+                            "n_known_pre_response_blockers",
+                            len(_str_tuple(value.get("known_pre_response_blockers", []))),
+                        )
+                        or 0
+                    )
+                    for value in request_route_adoption_preconditions
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_adoption_precondition_required_response_fields": int(
+            payload.get(
+                "n_request_route_adoption_precondition_required_response_fields",
+                sum(
+                    len(_str_tuple(value.get("response_required_fields", [])))
+                    for value in request_route_adoption_preconditions
+                ),
             )
             or 0
         ),
@@ -3147,6 +3190,29 @@ def _expected_bundle_llm_route_planner_summary(
                             "realization_coverage_witness",
                         ).get("delta_action_witness_complete", False)
                     )
+                ),
+            )
+            or 0
+        ),
+        "n_rows_with_route_adoption_preconditions": int(
+            payload.get(
+                "n_rows_with_route_adoption_preconditions",
+                sum(1 for value in row_route_adoption_preconditions if value),
+            )
+            or 0
+        ),
+        "n_row_route_adoption_precondition_known_blockers": int(
+            payload.get(
+                "n_row_route_adoption_precondition_known_blockers",
+                sum(
+                    int(
+                        value.get(
+                            "n_known_pre_response_blockers",
+                            len(_str_tuple(value.get("known_pre_response_blockers", []))),
+                        )
+                        or 0
+                    )
+                    for value in row_route_adoption_preconditions
                 ),
             )
             or 0
