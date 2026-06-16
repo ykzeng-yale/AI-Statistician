@@ -6500,6 +6500,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('llm_route_planner_summary', {}).get('total_provider_total_tokens')}"
         ),
         (
+            f"- LLM route planner model-tier ledger rows/escalations/provider-failures: "
+            f"{payload.get('llm_route_planner_summary', {}).get('n_model_tier_decision_ledger_rows')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_model_tier_decision_ledger_rows_with_escalation')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_model_tier_decision_ledger_provider_failure_rows')}"
+        ),
+        (
             f"- Feedback LLM route planner ready/pending/blockers: "
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_ready')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_pending_refinement')}/"
@@ -6523,6 +6529,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('total_provider_input_tokens')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('total_provider_output_tokens')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('total_provider_total_tokens')}"
+        ),
+        (
+            f"- Feedback LLM route planner model-tier ledger rows/escalations/provider-failures: "
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_model_tier_decision_ledger_rows')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_model_tier_decision_ledger_rows_with_escalation')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_model_tier_decision_ledger_provider_failure_rows')}"
         ),
         (
             f"- LLM registry resources in prompt: "

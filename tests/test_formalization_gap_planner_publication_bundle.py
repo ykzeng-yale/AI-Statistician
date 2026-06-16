@@ -920,6 +920,24 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     )
     assert (
         manifest["llm_route_planner_summary"][
+            "n_model_tier_decision_ledger_rows"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_model_tier_decision_ledger_rows_with_escalation"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
             "n_requests_with_quality_control_obligation_inventory"
         ]
         == 0
@@ -1155,6 +1173,35 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
             "row_count"
         ]
         == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_model_tier_decision_ledger_rows"
+        ]
+        == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_model_tier_decision_ledger_rows_with_escalation"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 0
+    )
+    report = (
+        out_dir / "formalization_gap_planner_publication_bundle.md"
+    ).read_text(encoding="utf-8")
+    assert (
+        "LLM route planner model-tier ledger rows/escalations/provider-failures: 1/0/0"
+        in report
+    )
+    assert (
+        "Feedback LLM route planner model-tier ledger rows/escalations/provider-failures: 1/0/0"
+        in report
     )
     assert (
         manifest["feedback_llm_route_planner_summary"][
