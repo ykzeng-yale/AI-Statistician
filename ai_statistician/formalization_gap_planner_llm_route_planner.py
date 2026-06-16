@@ -13124,6 +13124,13 @@ def _response_contract_errors(
                 "route_alignment_edges"
                 f"[{index}].alignment_status unsupported: {_primitive_key(status)}"
             )
+    errors.extend(
+        _response_alignment_preserves_dag_dependency_errors(
+            informal_edges=informal_edges,
+            formal_edges=formal_edges,
+            alignment_edges=alignment_edges,
+        )
+    )
     minimal_delta = _dict_value(payload, "minimal_delta_plan")
     selected_primitives = _str_tuple(minimal_delta.get("selected_primitives", []))
     if not selected_primitives:
@@ -13318,6 +13325,90 @@ def _first_dag_cycle(adjacency: Mapping[str, list[str]]) -> tuple[str, ...]:
         if cycle:
             return cycle
     return tuple()
+
+
+def _response_alignment_preserves_dag_dependency_errors(
+    *,
+    informal_edges: tuple[dict[str, object], ...],
+    formal_edges: tuple[dict[str, object], ...],
+    alignment_edges: tuple[dict[str, object], ...],
+) -> list[str]:
+    formal_by_informal: dict[str, set[str]] = {}
+    for edge in alignment_edges:
+        if not _route_alignment_edge_is_resolved(edge):
+            continue
+        informal_node_id = str(
+            edge.get("informal_node_id") or edge.get("source") or ""
+        ).strip()
+        formal_node_id = str(
+            edge.get("formal_node_id") or edge.get("target") or ""
+        ).strip()
+        if informal_node_id and formal_node_id:
+            formal_by_informal.setdefault(informal_node_id, set()).add(
+                formal_node_id
+            )
+
+    formal_adjacency: dict[str, list[str]] = {}
+    for edge in formal_edges:
+        source = str(edge.get("source_node_id", "")).strip()
+        target = str(edge.get("target_node_id", "")).strip()
+        if source and target and source != target:
+            formal_adjacency.setdefault(source, []).append(target)
+
+    errors: list[str] = []
+    for index, edge in enumerate(informal_edges):
+        informal_source = str(edge.get("source_node_id", "")).strip()
+        informal_target = str(edge.get("target_node_id", "")).strip()
+        if not informal_source or not informal_target:
+            continue
+        source_formal_nodes = formal_by_informal.get(informal_source, set())
+        target_formal_nodes = formal_by_informal.get(informal_target, set())
+        if not source_formal_nodes or not target_formal_nodes:
+            continue
+        if any(
+            source_formal == target_formal
+            or _dag_path_exists(
+                formal_adjacency,
+                source=source_formal,
+                target=target_formal,
+            )
+            for source_formal in source_formal_nodes
+            for target_formal in target_formal_nodes
+        ):
+            continue
+        errors.append(
+            "route_alignment_edges must preserve informal DAG dependencies in "
+            "formal_realization_dag_edges; informal_knowledge_dag_edges"
+            f"[{index}] {informal_source} -> {informal_target} maps to formal "
+            "node(s) without a dependency path from "
+            + ", ".join(sorted(source_formal_nodes)[:8])
+            + " to "
+            + ", ".join(sorted(target_formal_nodes)[:8])
+        )
+    return errors
+
+
+def _dag_path_exists(
+    adjacency: Mapping[str, list[str]],
+    *,
+    source: str,
+    target: str,
+) -> bool:
+    if source == target:
+        return True
+    visited: set[str] = set()
+    stack = [source]
+    while stack:
+        node = stack.pop()
+        if node in visited:
+            continue
+        visited.add(node)
+        for child in adjacency.get(node, []):
+            if child == target:
+                return True
+            if child not in visited:
+                stack.append(child)
+    return False
 
 
 def _kernel_proof_claim_errors(value: Any, *, location: str) -> list[str]:

@@ -292,7 +292,10 @@ payload. Multi-node DAGs cannot omit their edge set. Route-relevant
 `route_alignment_edges` endpoints must also participate in the matching
 informal or formal DAG edge set when that DAG has multiple nodes; otherwise the
 response is only a disconnected collection of claims and realization candidates,
-not an executable dependency route. Minimality rationales are validated as
+not an executable dependency route. Resolved alignment edges must preserve
+informal dependency order: when an informal DAG edge maps two proof steps to
+distinct formal realization nodes, the formal realization DAG must contain a
+dependency path in the same direction. Minimality rationales are validated as
 evidence-anchored text: they
 must mention selected primitives, the selected route option, coverage/cost
 buckets, route-cost comparisons, or concrete delta work, and placeholder
@@ -1877,7 +1880,9 @@ dependency route. The realization witness also records
 `route_relevant_*_missing_dag_edge_endpoint` and
 `route_relevant_dag_endpoint_complete`, so a route-aligned informal or formal
 node that is isolated from the DAG keeps the row pending or rejected instead of
-being treated as usable planner evidence.
+being treated as usable planner evidence. The LLM response contract also
+rejects a formal realization DAG that reverses an aligned informal proof
+dependency, even if the formal DAG is still acyclic.
 
 - `route_alignment_edges`
   Explicit links from informal semantic atoms to formal realization candidates.
