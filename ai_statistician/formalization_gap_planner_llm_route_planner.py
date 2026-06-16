@@ -9634,7 +9634,7 @@ def _user_prompt(
             "Residual interpretations may cover only residual_goals listed in the request packet.",
             "If request residual_goals are present, every residual goal must have an interpretation and a route_repair or repair_action.",
             "Every residual_interpretations row that proposes route repair must have source_refs/source_snippets, a matching literature/source search_request, or a formal_gap_boundary; prover residuals alone are not source evidence for new mathematical side conditions.",
-            "Every alignment edge must include an alignment_rationale.",
+            "Every alignment edge must include a substantive alignment_rationale that names the mapped informal claim, formal primitive, declaration, coverage/action, or source-backed route anchor; placeholder text such as ok/aligned is rejected.",
             "Every alignment edge informal_node_id/formal_node_id must reference nodes present in the returned informal and formal DAGs.",
             "Every alignment edge must connect a formal node primitive to an informal node whose explicit primitive scope supports that same primitive; scoped informal nodes cannot justify unrelated formal primitives.",
             formal_realization_requirement,
@@ -17655,7 +17655,7 @@ def _response_primitive_coherence_errors(
         | _available_primitive_keys_for_request(request)
     )
     resolved_alignment_edges_by_primitive: dict[str, list[dict[str, object]]] = {}
-    for edge in alignment_edges:
+    for edge_index, edge in enumerate(alignment_edges):
         informal_node_id = str(
             edge.get("informal_node_id") or edge.get("source") or ""
         ).strip()
@@ -17691,6 +17691,18 @@ def _response_primitive_coherence_errors(
                     informal_node=informal_by_node_id[informal_node_id],
                     formal_node_primitive=formal_node_primitive,
                     primitive_scope_universe=primitive_scope_universe,
+                )
+            )
+        if (
+            informal_node_id in informal_by_node_id
+            and formal_node_id in formal_by_node_id
+        ):
+            errors.extend(
+                _route_alignment_rationale_errors(
+                    edge_index=edge_index,
+                    edge=edge,
+                    informal_node=informal_by_node_id[informal_node_id],
+                    formal_node=formal_by_node_id[formal_node_id],
                 )
             )
         primitive = formal_node_primitive or edge_primitive
@@ -17820,6 +17832,119 @@ def _response_primitive_coherence_errors(
         )
     )
     return errors
+
+
+def _route_alignment_rationale_errors(
+    *,
+    edge_index: int,
+    edge: Mapping[str, Any],
+    informal_node: Mapping[str, Any],
+    formal_node: Mapping[str, Any],
+) -> list[str]:
+    rationale = str(edge.get("alignment_rationale", "") or "").strip()
+    if not rationale:
+        return []
+    tokens = _route_alignment_rationale_tokens(rationale)
+    if len(tokens) < 2:
+        return [
+            f"route_alignment_edges[{edge_index}].alignment_rationale must be "
+            "substantive, not a placeholder"
+        ]
+    anchors = _route_alignment_rationale_anchor_tokens(
+        edge=edge,
+        informal_node=informal_node,
+        formal_node=formal_node,
+    )
+    if anchors and not (tokens & anchors):
+        return [
+            f"route_alignment_edges[{edge_index}].alignment_rationale must mention "
+            "an informal claim, formal primitive, declaration, coverage/action, "
+            "or source-backed route anchor"
+        ]
+    return []
+
+
+def _route_alignment_rationale_anchor_tokens(
+    *,
+    edge: Mapping[str, Any],
+    informal_node: Mapping[str, Any],
+    formal_node: Mapping[str, Any],
+) -> set[str]:
+    values: list[object] = []
+    for row in (edge, informal_node, formal_node):
+        for field_name in (
+            "node_id",
+            "informal_node_id",
+            "formal_node_id",
+            "primitive",
+            "target_primitive",
+            "target_primitives",
+            "claim",
+            "semantic_role",
+            "alignment_status",
+            "coverage_bucket",
+            "coverage_status",
+            "formalization_action",
+            "candidate_declarations",
+            "source_refs",
+        ):
+            values.extend(_str_tuple(row.get(field_name, [])))
+        for snippet in _dict_tuple(row.get("source_snippets", [])):
+            values.extend(_str_tuple(snippet.get("claim", "")))
+            values.extend(_str_tuple(snippet.get("target_primitives", [])))
+            values.extend(_str_tuple(snippet.get("source_ref", "")))
+    return _route_alignment_rationale_tokens(" ".join(str(value) for value in values))
+
+
+def _route_alignment_rationale_tokens(text: object) -> set[str]:
+    stopwords = FORMAL_GAP_BOUNDARY_TEXT_STOPWORDS | {
+        "align",
+        "aligned",
+        "aligning",
+        "alignment",
+        "already",
+        "also",
+        "and",
+        "any",
+        "because",
+        "but",
+        "can",
+        "claim",
+        "context",
+        "edge",
+        "for",
+        "formal",
+        "from",
+        "has",
+        "have",
+        "informal",
+        "into",
+        "map",
+        "mapped",
+        "mapping",
+        "must",
+        "node",
+        "okay",
+        "onto",
+        "placeholder",
+        "proof",
+        "request",
+        "route",
+        "same",
+        "source",
+        "target",
+        "the",
+        "this",
+        "under",
+        "use",
+        "uses",
+        "with",
+    }
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", str(text or "").lower().replace("_", " "))
+        if len(token) >= 3 and token not in stopwords
+    }
 
 
 def _alignment_informal_node_primitive_scope_errors(

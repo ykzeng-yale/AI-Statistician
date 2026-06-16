@@ -349,7 +349,11 @@ silently swap its own public contracts. That payload schema is
 structured around informal DAG nodes, formal realization nodes or the legacy
 Lean realization alias, route-alignment edges, the AND/OR minimal-delta cost
 graph, residual interpretations, search requests, planner next actions, source
-snippets, and standalone-route primitives. Evaluation rows preserve the
+snippets, and standalone-route primitives. Route-alignment rationales are
+validated as substantive, evidence-anchored text: a placeholder like `ok` or an
+unanchored explanation that does not mention the mapped informal claim, formal
+primitive, declaration, coverage/action, or source-backed route anchor rejects
+the response. Evaluation rows preserve the
 LLM route-adoption readiness status and blockers, so an accepted but
 search-pending/refinement-pending Claude route is not reported as ready for
 standalone replay. This is still planning evidence, not proof evidence. The
@@ -1857,7 +1861,10 @@ The current manifest therefore exports two separate DAG views:
   Explicit links from informal semantic atoms to formal realization candidates.
   Each selected primitive should have one of these edges before the route is
   handed to a prover adapter; the portable-plan audit checks the edge source
-  and target nodes and rejects missing selected-primitive alignments. The
+  and target nodes and rejects missing selected-primitive alignments. Each edge
+  rationale must be substantive and anchored to the mapped claim, primitive,
+  declaration, coverage/action, or source evidence; placeholder rationales are
+  rejected by the LLM route-planner response contract. The
   standalone planner and portable-plan audit also write
   `formalization_gap_planner_route_alignment_edge.schema.json`, so external
   prover adapters can validate these links independently of the full plan
