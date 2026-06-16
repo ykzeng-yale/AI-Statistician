@@ -8011,6 +8011,79 @@ def test_llm_route_planner_rejects_missing_informal_dag_edges() -> None:
     )
 
 
+def test_llm_route_planner_rejects_informal_depends_on_missing_edge() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_depends_on_missing_edge"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["informal_knowledge_dag_nodes"].append(
+        {
+            "node_id": "informal:tie_breaking",
+            "claim": "The rank route also needs a deterministic tie-breaking step.",
+            "depends_on": ["informal:rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "source_search_status": "SOURCE_BACKED",
+            "semantic_role": "side_condition",
+        }
+    )
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "informal_knowledge_dag_nodes[2].depends_on informal:rank_uniformity "
+        "missing matching informal_knowledge_dag_edges edge "
+        "informal:rank_uniformity -> informal:tie_breaking" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_informal_edge_missing_depends_on() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_edge_missing_depends_on"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["informal_knowledge_dag_nodes"][1]["depends_on"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "informal_knowledge_dag_edges[0] informal:exchangeability -> "
+        "informal:rank_uniformity missing matching informal_knowledge_dag_nodes "
+        "target depends_on entry" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_cyclic_formal_dag_edges() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_cyclic_formal_edges")
     out_dir = root / "llm_route_planner"

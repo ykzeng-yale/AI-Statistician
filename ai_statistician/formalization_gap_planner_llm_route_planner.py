@@ -9682,6 +9682,7 @@ def _user_prompt(
             "Every residual_interpretations row that proposes route repair must have source_refs/source_snippets, a matching literature/source search_request, or a formal_gap_boundary; prover residuals alone are not source evidence for new mathematical side conditions.",
             "Every alignment edge must include a substantive alignment_rationale that names the mapped informal claim, formal primitive, declaration, coverage/action, or source-backed route anchor; placeholder text such as ok/aligned is rejected.",
             "Return informal_knowledge_dag_edges and formal_realization_dag_edges as explicit acyclic DAG dependency edges; when a DAG has multiple nodes, it must have at least one edge, and every edge source_node_id/target_node_id must reference returned nodes.",
+            "For informal_knowledge_dag_nodes, each depends_on entry must have a matching informal_knowledge_dag_edges source_node_id -> target_node_id edge, and every informal DAG edge must appear in the target node depends_on list.",
             "Every alignment edge informal_node_id/formal_node_id must reference nodes present in the returned informal and formal DAGs.",
             "Every alignment edge must connect a formal node primitive to an informal node whose explicit primitive scope supports that same primitive; scoped informal nodes cannot justify unrelated formal primitives.",
             formal_realization_requirement,
@@ -13077,6 +13078,12 @@ def _response_contract_errors(
             node_ids=_node_ids(informal_nodes),
         )
     )
+    errors.extend(
+        _response_informal_depends_on_edge_errors(
+            nodes=informal_nodes,
+            edges=informal_edges,
+        )
+    )
     errors.extend(_response_source_search_status_errors(payload))
     errors.extend(_response_formal_gap_boundary_errors(payload, request))
     errors.extend(_response_source_ref_grounding_errors(payload, request))
@@ -13292,6 +13299,80 @@ def _response_dag_edge_errors(
         errors.append(
             f"{collection_name} must be acyclic; cycle: " + " -> ".join(cycle)
         )
+    return errors
+
+
+def _response_informal_depends_on_edge_errors(
+    *,
+    nodes: tuple[dict[str, object], ...],
+    edges: tuple[dict[str, object], ...],
+) -> list[str]:
+    node_ids = _node_ids(nodes)
+    edge_pairs = {
+        (
+            str(edge.get("source_node_id", "")).strip(),
+            str(edge.get("target_node_id", "")).strip(),
+        )
+        for edge in edges
+        if str(edge.get("source_node_id", "")).strip()
+        and str(edge.get("target_node_id", "")).strip()
+    }
+    depends_by_target: dict[str, set[str]] = {}
+    errors: list[str] = []
+    for index, node in enumerate(nodes):
+        node_id = str(node.get("node_id", "")).strip()
+        depends_on = tuple(
+            dependency.strip()
+            for dependency in _str_tuple(node.get("depends_on", []))
+            if dependency.strip()
+        )
+        duplicate_dependencies = sorted(
+            dependency
+            for dependency, count in Counter(depends_on).items()
+            if count > 1
+        )
+        if duplicate_dependencies:
+            errors.append(
+                "informal_knowledge_dag_nodes"
+                f"[{index}].depends_on must not contain duplicates: "
+                + ", ".join(duplicate_dependencies[:8])
+            )
+        depends_by_target[node_id] = set(depends_on)
+        for dependency in depends_on:
+            if dependency not in node_ids:
+                errors.append(
+                    "informal_knowledge_dag_nodes"
+                    f"[{index}].depends_on references unknown "
+                    f"informal_knowledge_dag_nodes node: {dependency}"
+                )
+                continue
+            if dependency == node_id:
+                errors.append(
+                    "informal_knowledge_dag_nodes"
+                    f"[{index}].depends_on must not reference itself: {dependency}"
+                )
+                continue
+            if (dependency, node_id) not in edge_pairs:
+                errors.append(
+                    "informal_knowledge_dag_nodes"
+                    f"[{index}].depends_on {dependency} missing matching "
+                    "informal_knowledge_dag_edges edge "
+                    f"{dependency} -> {node_id}"
+                )
+
+    for edge_index, edge in enumerate(edges):
+        source = str(edge.get("source_node_id", "")).strip()
+        target = str(edge.get("target_node_id", "")).strip()
+        if not source or not target or source not in node_ids or target not in node_ids:
+            continue
+        if source == target:
+            continue
+        if source not in depends_by_target.get(target, set()):
+            errors.append(
+                "informal_knowledge_dag_edges"
+                f"[{edge_index}] {source} -> {target} missing matching "
+                "informal_knowledge_dag_nodes target depends_on entry"
+            )
     return errors
 
 

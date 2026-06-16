@@ -288,7 +288,10 @@ rationales, a minimality rationale, a versioned minimal-delta cost witness, and
 an explicit proof-evidence boundary; `kernel_verified=true` claims are
 rejected. Every DAG edge must carry a source node id, target node id, edge kind,
 and rationale, and the endpoints must reference nodes returned in the same LLM
-payload. Multi-node DAGs cannot omit their edge set. Route-relevant
+payload. Multi-node DAGs cannot omit their edge set. Informal node-level
+`depends_on` lists must match `informal_knowledge_dag_edges` in both directions:
+each dependency needs a corresponding edge, and each edge needs a corresponding
+target-node dependency entry. Route-relevant
 `route_alignment_edges` endpoints must also participate in the matching
 informal or formal DAG edge set when that DAG has multiple nodes; otherwise the
 response is only a disconnected collection of claims and realization candidates,
@@ -1876,7 +1879,10 @@ Both DAG edge arrays are part of the accepted-response contract. If either DAG
 has more than one returned node, its edge array must be nonempty, acyclic, and
 must reference only node ids from that same DAG. This keeps the route planner
 from returning disconnected proof-step bags while claiming to synthesize a
-dependency route. The realization witness also records
+dependency route. The informal DAG also has an internal consistency check:
+`informal_knowledge_dag_nodes[].depends_on` must be exactly represented by
+`informal_knowledge_dag_edges`, so source-facing route explanations and machine
+edge data cannot drift apart. The realization witness also records
 `route_relevant_*_missing_dag_edge_endpoint` and
 `route_relevant_dag_endpoint_complete`, so a route-aligned informal or formal
 node that is isolated from the DAG keeps the row pending or rejected instead of
