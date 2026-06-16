@@ -970,6 +970,8 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     target_theorem_context_packet: dict[str, object]
     route_planning_brief: dict[str, object]
     route_adoption_preconditions: dict[str, object]
+    source_grounding_rows: tuple[dict[str, object], ...]
+    source_grounding_obligations: dict[str, object]
     context_packet_inventory: dict[str, object]
     residual_goal_contexts: tuple[dict[str, object], ...]
     raw_response_text: str
@@ -4337,6 +4339,8 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "target_theorem_context_packet": {"type": "object"},
             "route_planning_brief": {"type": "object"},
             "route_adoption_preconditions": {"type": "object"},
+            "source_grounding_rows": object_array,
+            "source_grounding_obligations": {"type": "object"},
             "context_packet_inventory": {"type": "object"},
             "residual_goal_contexts": object_array,
             "raw_response_text": {"type": "string"},
@@ -12569,6 +12573,10 @@ def _row_for_request(
         route_adoption_preconditions=dict(
             _dict_value(context_packet, "route_adoption_preconditions")
         ),
+        source_grounding_rows=_dict_tuple(
+            context_packet.get("source_grounding_rows", [])
+        ),
+        source_grounding_obligations=dict(source_grounding_obligations),
         context_packet_inventory=dict(context_packet_inventory),
         residual_goal_contexts=_dict_tuple(
             context_packet.get("residual_goal_contexts", [])
@@ -23349,6 +23357,7 @@ def _fallback_route_for_seed(
     target_context_packet = dict(row.target_theorem_context_packet)
     route_planning_brief = dict(row.route_planning_brief)
     route_adoption_preconditions = dict(row.route_adoption_preconditions)
+    source_grounding_obligations = dict(row.source_grounding_obligations)
     primitive_evidence_matrix_witness = dict(row.primitive_evidence_matrix_witness)
     metadata = _dict_value(fallback, "replan_metadata")
     metadata = {
@@ -23388,6 +23397,12 @@ def _fallback_route_for_seed(
             primitive_evidence_matrix_witness
         ),
         "llm_route_planner_route_adoption_preconditions": route_adoption_preconditions,
+        "llm_route_planner_source_grounding_rows": [
+            dict(item) for item in row.source_grounding_rows
+        ],
+        "llm_route_planner_source_grounding_obligations": (
+            source_grounding_obligations
+        ),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
@@ -23402,6 +23417,14 @@ def _fallback_route_for_seed(
     if route_adoption_preconditions:
         fallback["llm_route_planner_route_adoption_preconditions"] = (
             route_adoption_preconditions
+        )
+    if row.source_grounding_rows:
+        fallback["llm_route_planner_source_grounding_rows"] = [
+            dict(item) for item in row.source_grounding_rows
+        ]
+    if source_grounding_obligations:
+        fallback["llm_route_planner_source_grounding_obligations"] = (
+            source_grounding_obligations
         )
     fallback["replan_metadata"] = metadata
     fallback["llm_route_planner_row_id"] = row.llm_route_planner_row_id
@@ -23420,6 +23443,7 @@ def _accepted_route_for_seed(
     target_context_packet = dict(row.target_theorem_context_packet)
     route_planning_brief = dict(row.route_planning_brief)
     route_adoption_preconditions = dict(row.route_adoption_preconditions)
+    source_grounding_obligations = dict(row.source_grounding_obligations)
     primitive_evidence_matrix_witness = dict(row.primitive_evidence_matrix_witness)
     route["target_prover_family"] = row.target_prover_family
     route["target_theorem_context_packet"] = target_context_packet
@@ -23432,6 +23456,14 @@ def _accepted_route_for_seed(
     if route_adoption_preconditions:
         route["llm_route_planner_route_adoption_preconditions"] = (
             route_adoption_preconditions
+        )
+    if row.source_grounding_rows:
+        route["llm_route_planner_source_grounding_rows"] = [
+            dict(item) for item in row.source_grounding_rows
+        ]
+    if source_grounding_obligations:
+        route["llm_route_planner_source_grounding_obligations"] = (
+            source_grounding_obligations
         )
     source_refs = tuple(
         dict.fromkeys(
@@ -23696,6 +23728,12 @@ def _accepted_route_for_seed(
         "llm_route_planner_target_theorem_context_packet": target_context_packet,
         "llm_route_planner_route_planning_brief": route_planning_brief,
         "llm_route_planner_route_adoption_preconditions": route_adoption_preconditions,
+        "llm_route_planner_source_grounding_rows": [
+            dict(item) for item in row.source_grounding_rows
+        ],
+        "llm_route_planner_source_grounding_obligations": (
+            source_grounding_obligations
+        ),
         "llm_route_planner_errors": list(row.errors),
         "llm_route_planner_generation_errors": list(row.generation_errors),
         "llm_route_planner_request_contract_blocked": (

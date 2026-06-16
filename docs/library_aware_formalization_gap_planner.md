@@ -836,7 +836,10 @@ one of those carried residual contexts lacks source refs, a bounded source-searc
 hook, and a substantive formal boundary, the request packet synthesizes a
 pending `source_grounding_rows` entry and source-grounding obligation before
 the LLM answers, even when the standalone source-grounding audit has not been
-run yet. The
+run yet. Accepted LLM rows and their standalone seed routes preserve those
+inline source-grounding rows and obligation summaries in `replan_metadata`, so
+publication and replay consumers can recover the exact blocker without
+recomputing the original request packet. The
 route-planner manifest also exposes `standalone_replay_gate`,
 `standalone_replay_gate_ok`,
 `n_standalone_replay_adoptable_route_candidates`,

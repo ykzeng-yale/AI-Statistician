@@ -6091,6 +6091,8 @@ def test_llm_route_planner_flags_unsourced_seed_residual_context() -> None:
         "planner_next_actions",
     }
     row = payload["rows"][0]
+    assert row["source_grounding_rows"] == (dict(source_rows[0]),)
+    assert row["source_grounding_obligations"] == obligations
     assert row["acceptance_status"] == "ACCEPTED_WITH_SEARCH_REQUESTS"
     assert row["response_contract_ok"] is True
     assert set(row["route_adoption_blockers"]) >= {
@@ -6098,6 +6100,17 @@ def test_llm_route_planner_flags_unsourced_seed_residual_context() -> None:
         "residual_interpretations_require_route_replay",
         ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
     }
+    seed_route = payload["standalone_seed"]["routes"][0]
+    assert seed_route["llm_route_planner_source_grounding_rows"] == [
+        dict(source_rows[0])
+    ]
+    assert seed_route["llm_route_planner_source_grounding_obligations"] == obligations
+    assert seed_route["replan_metadata"][
+        "llm_route_planner_source_grounding_rows"
+    ] == [dict(source_rows[0])]
+    assert seed_route["replan_metadata"][
+        "llm_route_planner_source_grounding_obligations"
+    ] == obligations
 
 
 def test_llm_route_planner_rejects_ungrounded_quality_controls() -> None:
