@@ -8145,7 +8145,10 @@ def _residual_goal_context_target_primitives(
 def _source_grounding_obligation_summary(
     context_packet: Mapping[str, Any],
 ) -> dict[str, object]:
-    rows = _dict_tuple(context_packet.get("source_grounding_rows", []))
+    rows = (
+        *_dict_tuple(context_packet.get("source_grounding_rows", [])),
+        *_unresolved_residual_context_source_grounding_rows(context_packet),
+    )
     statuses = tuple(_source_grounding_status(row) for row in rows)
     unresolved_rows = tuple(
         row for row in rows if _source_grounding_row_unresolved(row)
@@ -8166,6 +8169,12 @@ def _source_grounding_obligation_summary(
         "n_residual_rows": len(residual_rows),
         "n_unresolved_rows": len(unresolved_rows),
         "n_residual_unresolved_rows": len(residual_unresolved_rows),
+        "n_inline_residual_context_rows": sum(
+            1
+            for row in rows
+            if str(row.get("node_source", ""))
+            == "llm_route_planner_residual_goal_context"
+        ),
         "by_grounding_status": _value_counts(statuses),
         "unresolved_grounding_statuses": sorted(
             {
@@ -8184,6 +8193,100 @@ def _source_grounding_obligation_summary(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _unresolved_residual_context_source_grounding_rows(
+    context_packet: Mapping[str, Any],
+) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    for index, context in enumerate(
+        _dict_tuple(context_packet.get("residual_goal_contexts", []))
+    ):
+        residual_goal = str(context.get("residual_goal", "") or "").strip()
+        route_repair = str(
+            context.get("route_repair", "") or context.get("repair_action", "") or ""
+        ).strip()
+        if not residual_goal and not route_repair:
+            continue
+        status = _residual_context_source_grounding_status(context)
+        if status not in SOURCE_GROUNDING_UNRESOLVED_STATUSES:
+            continue
+        rows.append(
+            {
+                "source_grounding_id": "inline_residual_context_source_grounding:"
+                + stable_hash([index, context])[:20],
+                "node_source": "llm_route_planner_residual_goal_context",
+                "node_id": "residual_context:" + stable_hash(context)[:16],
+                "node_kind": "prover_residual_goal",
+                "node_label": residual_goal or route_repair,
+                "grounding_status": status,
+                "ok": status != "unaccounted",
+                "residual_goals": [residual_goal] if residual_goal else [],
+                "residual_primitives": list(
+                    _residual_context_declared_primitives(context)
+                ),
+                "required_next_action": (
+                    "run bounded literature/source discovery for carried residual context"
+                    if status == "source_search_pending"
+                    else "add source refs, a bounded source-search hook, or a formal boundary before route promotion"
+                ),
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    return tuple(rows)
+
+
+def _residual_context_source_grounding_status(
+    context: Mapping[str, object],
+) -> str:
+    if _residual_context_source_refs(context):
+        return "source_backed"
+    status_key = _source_ref_key(context.get("source_search_status", ""))
+    if _source_search_status_is_formal_boundary(status_key):
+        return "formal_boundary_declared"
+    if _formal_gap_boundary_is_substantive(
+        str(context.get("formal_gap_boundary", "") or "")
+    ):
+        return "formal_boundary_declared"
+    if _residual_context_literature_queries(context):
+        return "source_search_pending"
+    if _source_search_status_requires_request(status_key):
+        return "source_search_pending"
+    return "unaccounted"
+
+
+def _residual_context_source_refs(
+    context: Mapping[str, object],
+) -> tuple[str, ...]:
+    return _str_tuple(
+        [
+            *_str_tuple(context.get("source_refs", [])),
+            *_source_refs_from_snippets(context.get("source_snippets", [])),
+        ]
+    )
+
+
+def _residual_context_literature_queries(
+    context: Mapping[str, object],
+) -> tuple[str, ...]:
+    queries: list[str] = []
+    for field_name in ("queries", "literature_queries", "source_search_queries"):
+        queries.extend(_str_tuple(context.get(field_name, [])))
+    return tuple(dict.fromkeys(query for query in queries if query))
+
+
+def _residual_context_declared_primitives(
+    context: Mapping[str, object],
+) -> tuple[str, ...]:
+    primitives: list[str] = []
+    primitives.extend(_str_tuple(context.get("target_primitives", [])))
+    primitives.extend(_str_tuple(context.get("residual_primitives", [])))
+    residual_goal = str(context.get("residual_goal", "") or "").strip()
+    prefixed = _residual_goal_prefixed_primitive_key_from_text(residual_goal)
+    if prefixed:
+        primitives.append(prefixed)
+    return tuple(dict.fromkeys(primitive for primitive in primitives if primitive))
 
 
 def _source_grounding_status(row: Mapping[str, object]) -> str:
