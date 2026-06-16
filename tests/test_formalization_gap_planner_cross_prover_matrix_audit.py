@@ -201,6 +201,13 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         == 0
     )
     assert payload["by_total_packet_llm_route_adoption_status"] == {}
+    assert payload["n_total_packets_with_formal_attempt_dependency"] == 0
+    assert payload["n_total_packets_formal_attempt_initial_ready"] == 0
+    assert payload["n_total_packets_formal_attempt_waiting"] == 0
+    assert payload["n_total_packets_formal_attempt_missing_prerequisites"] == 0
+    assert payload["by_total_packet_formal_attempt_dependency_status"] == {
+        "not_formal_attempt_queue_item": payload["n_total_packets"],
+    }
     assert payload["n_awaiting_adapter_mapping"] == payload["n_total_packets"]
     assert payload["n_unmatched_adapter_responses"] == 0
     assert payload["n_rejected"] == 0
@@ -291,6 +298,19 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
     assert payload["target_summary"][
         "by_total_packet_llm_route_adoption_status"
     ] == {}
+    assert (
+        payload["target_summary"]["n_total_packets_with_formal_attempt_dependency"]
+        == 0
+    )
+    assert (
+        payload["target_summary"]["n_total_packets_formal_attempt_waiting"]
+        == 0
+    )
+    assert payload["target_summary"][
+        "by_total_packet_formal_attempt_dependency_status"
+    ] == {
+        "not_formal_attempt_queue_item": payload["n_total_packets"],
+    }
     assert all(
         row["n_packets_with_alignment"] == row["n_packets"]
         and row["n_packet_schema_valid"] == row["n_packets"]
@@ -322,6 +342,12 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
             "n_packet_llm_route_adoption_pending_quality_control_blockers"
         ]
         == 0
+        and row["n_packets_with_formal_attempt_dependency"] == 0
+        and row["n_packets_formal_attempt_initial_ready"] == 0
+        and row["n_packets_formal_attempt_waiting"] == 0
+        and row["n_packets_formal_attempt_missing_prerequisites"] == 0
+        and row["by_packet_formal_attempt_dependency_status"]
+        == {"not_formal_attempt_queue_item": row["n_packets"]}
         and row["n_unmatched_adapter_responses"] == 0
         for row in payload["matrix_rows"]
     )
@@ -347,6 +373,8 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
             "response_validation_signals",
             "stop_conditions",
         ]
+        and packet["formal_attempt_dependency_status"]
+        == "not_formal_attempt_queue_item"
         for packet in payload["packet_rows"]
     )
     assert "not theorem proof evidence" in payload["proof_evidence_boundary"]
@@ -452,6 +480,36 @@ def test_cross_prover_matrix_counts_quality_control_route_adoption_blockers() ->
                                 "proof_evidence_boundary": "not theorem proof evidence",
                             }
                         ],
+                        "interactive_refinement_hooks": [
+                            {
+                                "hook_kind": "proof_state_feedback",
+                                "queries": ["formal_node_id: formal:exchangeability"],
+                                "target_primitives": ["exchangeability"],
+                                "llm_route_planner_formal_attempt_queue_index": 0,
+                                "formal_node_id": "formal:exchangeability",
+                                "formal_attempt_id": "attempt:exchangeability",
+                                "formal_attempt_kind": "reuse_check",
+                                "prerequisite_formal_node_ids": [],
+                                "expected_feedback": [
+                                    "closed_by_existing_declaration"
+                                ],
+                            },
+                            {
+                                "hook_kind": "proof_state_feedback",
+                                "queries": [
+                                    "formal_node_id: formal:rank_uniformity_bridge"
+                                ],
+                                "target_primitives": ["rank_uniformity"],
+                                "llm_route_planner_formal_attempt_queue_index": 1,
+                                "formal_node_id": "formal:rank_uniformity_bridge",
+                                "formal_attempt_id": "attempt:rank_uniformity",
+                                "formal_attempt_kind": "bridge_proof",
+                                "prerequisite_formal_node_ids": [
+                                    "formal:exchangeability"
+                                ],
+                                "expected_feedback": ["residual_goals"],
+                            },
+                        ],
                         "portable_work_packets": [
                             {
                                 "primitive": "rank_uniformity",
@@ -493,6 +551,13 @@ def test_cross_prover_matrix_counts_quality_control_route_adoption_blockers() ->
     assert payload["by_total_packet_llm_route_adoption_status"] == {
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 2
     }
+    assert payload["n_total_packets_with_formal_attempt_dependency"] == 2
+    assert payload["n_total_packets_formal_attempt_initial_ready"] == 0
+    assert payload["n_total_packets_formal_attempt_waiting"] == 2
+    assert payload["n_total_packets_formal_attempt_missing_prerequisites"] == 0
+    assert payload["by_total_packet_formal_attempt_dependency_status"] == {
+        "waiting_for_formal_prerequisite_attempts": 2
+    }
     assert (
         payload["target_summary"][
             "n_total_packet_llm_route_adoption_pending_quality_control_blockers"
@@ -505,6 +570,18 @@ def test_cross_prover_matrix_counts_quality_control_route_adoption_blockers() ->
         ]
         == 2
     )
+    assert (
+        payload["target_summary"]["n_total_packets_with_formal_attempt_dependency"]
+        == 2
+    )
+    assert (
+        payload["target_summary"]["n_total_packets_formal_attempt_waiting"] == 2
+    )
+    assert payload["target_summary"][
+        "by_total_packet_formal_attempt_dependency_status"
+    ] == {
+        "waiting_for_formal_prerequisite_attempts": 2
+    }
     assert all(
         row["n_packet_llm_route_adoption_pending_quality_control_blockers"]
         == 1
@@ -513,6 +590,13 @@ def test_cross_prover_matrix_counts_quality_control_route_adoption_blockers() ->
     assert all(
         row["n_packet_llm_route_adoption_pending_source_grounding_blockers"]
         == 1
+        for row in payload["matrix_rows"]
+    )
+    assert all(
+        row["n_packets_with_formal_attempt_dependency"] == 1
+        and row["n_packets_formal_attempt_waiting"] == 1
+        and row["by_packet_formal_attempt_dependency_status"]
+        == {"waiting_for_formal_prerequisite_attempts": 1}
         for row in payload["matrix_rows"]
     )
     assert all(
@@ -523,5 +607,12 @@ def test_cross_prover_matrix_counts_quality_control_route_adoption_blockers() ->
     assert all(
         row["n_packet_llm_route_adoption_pending_source_grounding_blockers"]
         == 1
+        for row in payload["target_summary"]["target_rows"]
+    )
+    assert all(
+        row["n_packets_with_formal_attempt_dependency"] == 1
+        and row["n_packets_formal_attempt_waiting"] == 1
+        and row["by_packet_formal_attempt_dependency_status"]
+        == {"waiting_for_formal_prerequisite_attempts": 1}
         for row in payload["target_summary"]["target_rows"]
     )

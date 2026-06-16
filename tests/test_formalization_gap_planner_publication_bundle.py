@@ -82,6 +82,7 @@ from ai_statistician.formalization_gap_planner_proof_state_triage import (
     proof_state_triage_row_json_schema,
 )
 from ai_statistician.formalization_gap_planner_prover_adapter_contract import (
+    FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
     prover_adapter_packet_json_schema,
     prover_adapter_response_json_schema,
     prover_adapter_response_validation_row_json_schema,
@@ -386,6 +387,14 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
             "residual_goal_context_count": 1,
             "residual_context_source_kinds": ["proof_state_feedback"],
             "applied_hook_kinds": ["resource_response_ledger"],
+            "formal_attempt_queue_index": -1,
+            "formal_attempt_initial_ready": False,
+            "formal_attempt_dependency_status": "not_formal_attempt_queue_item",
+            "formal_attempt_prerequisite_formal_node_ids": [],
+            "formal_attempt_prerequisite_refinement_item_ids": [],
+            "formal_attempt_blocking_prerequisite_formal_node_ids": [],
+            "formal_attempt_missing_prerequisite_formal_node_ids": [],
+            "formal_attempt_dependency_protocol": FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
         },
         "residual_goal_contexts": [residual_context],
         "n_residual_goal_contexts": 1,
@@ -399,6 +408,14 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
             "search_requests_pending_evidence",
             "uncertainty_flags_require_review",
         ],
+        "formal_attempt_queue_index": -1,
+        "formal_attempt_initial_ready": False,
+        "formal_attempt_dependency_status": "not_formal_attempt_queue_item",
+        "formal_attempt_prerequisite_formal_node_ids": [],
+        "formal_attempt_prerequisite_refinement_item_ids": [],
+        "formal_attempt_blocking_prerequisite_formal_node_ids": [],
+        "formal_attempt_missing_prerequisite_formal_node_ids": [],
+        "formal_attempt_dependency_protocol": FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
         "route_alignment_edge": {
             "source": "informal:rank_uniformity",
             "target": "formal:rank_uniformity",
@@ -455,6 +472,9 @@ def _fixture_prover_adapter_response_validation_row(
         "library_snapshot_ref": "",
         "semantic_alignment_notes": "",
         "residual_translation_gaps": [],
+        "formal_attempt_dependency_status": "not_formal_attempt_queue_item",
+        "prerequisite_feedback_satisfied": False,
+        "prerequisite_response_ids": [],
         "kernel_verified_claimed": False,
         "acceptance_status": "AWAITING_PROVER_ADAPTER_MAPPING",
         "proof_evidence_status": "AWAITING_RESPONSE_NOT_PROOF_EVIDENCE",
@@ -545,6 +565,13 @@ def _fixture_cross_prover_matrix_row(
         "by_packet_llm_route_adoption_status": {
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
         },
+        "n_packets_with_formal_attempt_dependency": 0,
+        "n_packets_formal_attempt_initial_ready": 0,
+        "n_packets_formal_attempt_waiting": 0,
+        "n_packets_formal_attempt_missing_prerequisites": 0,
+        "by_packet_formal_attempt_dependency_status": {
+            "not_formal_attempt_queue_item": 1
+        },
         "n_response_present": 0,
         "n_awaiting_adapter_mapping": 1,
         "n_response_contract_ok": 0,
@@ -632,6 +659,13 @@ def _fixture_cross_prover_target_summary(
         "by_total_packet_llm_route_adoption_status": {
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
         },
+        "n_total_packets_with_formal_attempt_dependency": 0,
+        "n_total_packets_formal_attempt_initial_ready": 0,
+        "n_total_packets_formal_attempt_waiting": 0,
+        "n_total_packets_formal_attempt_missing_prerequisites": 0,
+        "by_total_packet_formal_attempt_dependency_status": {
+            "not_formal_attempt_queue_item": 1
+        },
         "target_rows": [
             {
                 "target_prover_family": target,
@@ -702,6 +736,13 @@ def _fixture_cross_prover_target_summary(
                 "n_packet_llm_route_adoption_pending_source_grounding_blockers": 0,
                 "by_packet_llm_route_adoption_status": {
                     "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+                },
+                "n_packets_with_formal_attempt_dependency": 0,
+                "n_packets_formal_attempt_initial_ready": 0,
+                "n_packets_formal_attempt_waiting": 0,
+                "n_packets_formal_attempt_missing_prerequisites": 0,
+                "by_packet_formal_attempt_dependency_status": {
+                    "not_formal_attempt_queue_item": 1
                 },
                 "n_response_validation_rows": 1,
                 "aggregate_packet_jsonl_path": (

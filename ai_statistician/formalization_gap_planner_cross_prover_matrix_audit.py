@@ -86,6 +86,11 @@ class FormalizationGapPlannerCrossProverMatrixRow:
     n_packet_llm_route_adoption_pending_quality_control_blockers: int
     n_packet_llm_route_adoption_pending_source_grounding_blockers: int
     by_packet_llm_route_adoption_status: dict[str, int]
+    n_packets_with_formal_attempt_dependency: int
+    n_packets_formal_attempt_initial_ready: int
+    n_packets_formal_attempt_waiting: int
+    n_packets_formal_attempt_missing_prerequisites: int
+    by_packet_formal_attempt_dependency_status: dict[str, int]
     n_response_present: int
     n_awaiting_adapter_mapping: int
     n_response_contract_ok: int
@@ -165,6 +170,12 @@ def audit_formalization_gap_planner_cross_prover_matrix(
         status
         for row in rows
         for status, count in row.by_packet_llm_route_adoption_status.items()
+        for _ in range(count)
+    )
+    formal_attempt_dependency_status_counts = Counter(
+        status
+        for row in rows
+        for status, count in row.by_packet_formal_attempt_dependency_status.items()
         for _ in range(count)
     )
     matrix_row_dicts = [asdict(row) for row in rows]
@@ -336,6 +347,21 @@ def audit_formalization_gap_planner_cross_prover_matrix(
         ),
         "by_total_packet_llm_route_adoption_status": dict(
             sorted(route_adoption_status_counts.items())
+        ),
+        "n_total_packets_with_formal_attempt_dependency": sum(
+            row.n_packets_with_formal_attempt_dependency for row in rows
+        ),
+        "n_total_packets_formal_attempt_initial_ready": sum(
+            row.n_packets_formal_attempt_initial_ready for row in rows
+        ),
+        "n_total_packets_formal_attempt_waiting": sum(
+            row.n_packets_formal_attempt_waiting for row in rows
+        ),
+        "n_total_packets_formal_attempt_missing_prerequisites": sum(
+            row.n_packets_formal_attempt_missing_prerequisites for row in rows
+        ),
+        "by_total_packet_formal_attempt_dependency_status": dict(
+            sorted(formal_attempt_dependency_status_counts.items())
         ),
         "n_response_present": sum(row.n_response_present for row in rows),
         "n_awaiting_adapter_mapping": sum(
@@ -557,6 +583,11 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
             "n_total_packet_llm_route_adoption_pending_quality_control_blockers",
             "n_total_packet_llm_route_adoption_pending_source_grounding_blockers",
             "by_total_packet_llm_route_adoption_status",
+            "n_total_packets_with_formal_attempt_dependency",
+            "n_total_packets_formal_attempt_initial_ready",
+            "n_total_packets_formal_attempt_waiting",
+            "n_total_packets_formal_attempt_missing_prerequisites",
+            "by_total_packet_formal_attempt_dependency_status",
             "proof_evidence_status",
             "proof_evidence_boundary",
             "all_ok",
@@ -614,6 +645,13 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                 "type": "integer"
             },
             "by_total_packet_llm_route_adoption_status": {"type": "object"},
+            "n_total_packets_with_formal_attempt_dependency": {"type": "integer"},
+            "n_total_packets_formal_attempt_initial_ready": {"type": "integer"},
+            "n_total_packets_formal_attempt_waiting": {"type": "integer"},
+            "n_total_packets_formal_attempt_missing_prerequisites": {
+                "type": "integer"
+            },
+            "by_total_packet_formal_attempt_dependency_status": {"type": "object"},
             "n_unmatched_adapter_responses": {"type": "integer"},
             "target_rows": {
                 "type": "array",
@@ -663,6 +701,11 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                     "n_packet_llm_route_adoption_pending_quality_control_blockers",
                     "n_packet_llm_route_adoption_pending_source_grounding_blockers",
                     "by_packet_llm_route_adoption_status",
+                    "n_packets_with_formal_attempt_dependency",
+                    "n_packets_formal_attempt_initial_ready",
+                    "n_packets_formal_attempt_waiting",
+                    "n_packets_formal_attempt_missing_prerequisites",
+                    "by_packet_formal_attempt_dependency_status",
                     "aggregate_packet_jsonl_path",
                     "aggregate_response_validation_jsonl_path",
                     "packet_filter_field",
@@ -719,6 +762,15 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                         "type": "integer"
                     },
                     "by_packet_llm_route_adoption_status": {"type": "object"},
+                    "n_packets_with_formal_attempt_dependency": {"type": "integer"},
+                    "n_packets_formal_attempt_initial_ready": {"type": "integer"},
+                    "n_packets_formal_attempt_waiting": {"type": "integer"},
+                    "n_packets_formal_attempt_missing_prerequisites": {
+                        "type": "integer"
+                    },
+                    "by_packet_formal_attempt_dependency_status": {
+                        "type": "object"
+                    },
                     "n_response_validation_rows": {"type": "integer"},
                     "n_unmatched_adapter_responses": {"type": "integer"},
                     "aggregate_packet_jsonl_path": {
@@ -1042,6 +1094,45 @@ def validate_cross_prover_target_summary_payload(
         errors.append(
             "by_total_packet_llm_route_adoption_status must equal target status counts"
         )
+    if payload.get("n_total_packets_with_formal_attempt_dependency") != sum(
+        _int(row.get("n_packets_with_formal_attempt_dependency")) for row in rows
+    ):
+        errors.append(
+            "n_total_packets_with_formal_attempt_dependency must equal target formal-attempt dependency total"
+        )
+    if payload.get("n_total_packets_formal_attempt_initial_ready") != sum(
+        _int(row.get("n_packets_formal_attempt_initial_ready")) for row in rows
+    ):
+        errors.append(
+            "n_total_packets_formal_attempt_initial_ready must equal target formal-attempt ready total"
+        )
+    if payload.get("n_total_packets_formal_attempt_waiting") != sum(
+        _int(row.get("n_packets_formal_attempt_waiting")) for row in rows
+    ):
+        errors.append(
+            "n_total_packets_formal_attempt_waiting must equal target formal-attempt waiting total"
+        )
+    if payload.get("n_total_packets_formal_attempt_missing_prerequisites") != sum(
+        _int(row.get("n_packets_formal_attempt_missing_prerequisites"))
+        for row in rows
+    ):
+        errors.append(
+            "n_total_packets_formal_attempt_missing_prerequisites must equal target formal-attempt missing-prerequisite total"
+        )
+    expected_attempt_counts = _sum_formal_attempt_dependency_status_counts(rows)
+    raw_attempt_counts = payload.get(
+        "by_total_packet_formal_attempt_dependency_status",
+        {},
+    )
+    observed_attempt_counts = (
+        {str(status): _int(count) for status, count in raw_attempt_counts.items()}
+        if isinstance(raw_attempt_counts, dict)
+        else {}
+    )
+    if observed_attempt_counts != expected_attempt_counts:
+        errors.append(
+            "by_total_packet_formal_attempt_dependency_status must equal target formal-attempt dependency status counts"
+        )
     if "n_unmatched_adapter_responses" in payload and payload.get(
         "n_unmatched_adapter_responses"
     ) != sum(_int(row.get("n_unmatched_adapter_responses")) for row in rows):
@@ -1135,6 +1226,11 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
             "n_packet_llm_route_adoption_pending_quality_control_blockers",
             "n_packet_llm_route_adoption_pending_source_grounding_blockers",
             "by_packet_llm_route_adoption_status",
+            "n_packets_with_formal_attempt_dependency",
+            "n_packets_formal_attempt_initial_ready",
+            "n_packets_formal_attempt_waiting",
+            "n_packets_formal_attempt_missing_prerequisites",
+            "by_packet_formal_attempt_dependency_status",
             "n_response_present",
             "n_awaiting_adapter_mapping",
             "n_response_contract_ok",
@@ -1199,6 +1295,11 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
                 "type": "integer"
             },
             "by_packet_llm_route_adoption_status": {"type": "object"},
+            "n_packets_with_formal_attempt_dependency": {"type": "integer"},
+            "n_packets_formal_attempt_initial_ready": {"type": "integer"},
+            "n_packets_formal_attempt_waiting": {"type": "integer"},
+            "n_packets_formal_attempt_missing_prerequisites": {"type": "integer"},
+            "by_packet_formal_attempt_dependency_status": {"type": "object"},
             "n_response_present": {"type": "integer"},
             "n_awaiting_adapter_mapping": {"type": "integer"},
             "n_response_contract_ok": {"type": "integer"},
@@ -1395,6 +1496,28 @@ def _matrix_row(
                 or {}
             ).items()
         },
+        n_packets_with_formal_attempt_dependency=_int(
+            contract_payload.get("n_packets_with_formal_attempt_dependency")
+        ),
+        n_packets_formal_attempt_initial_ready=_int(
+            contract_payload.get("n_packets_formal_attempt_initial_ready")
+        ),
+        n_packets_formal_attempt_waiting=_int(
+            contract_payload.get("n_packets_formal_attempt_waiting")
+        ),
+        n_packets_formal_attempt_missing_prerequisites=_int(
+            contract_payload.get("n_packets_formal_attempt_missing_prerequisites")
+        ),
+        by_packet_formal_attempt_dependency_status={
+            str(status): _int(count)
+            for status, count in dict(
+                contract_payload.get(
+                    "by_packet_formal_attempt_dependency_status",
+                    {},
+                )
+                or {}
+            ).items()
+        },
         n_response_present=_int(contract_payload.get("n_response_present")),
         n_awaiting_adapter_mapping=_int(
             contract_payload.get("n_awaiting_adapter_mapping")
@@ -1486,6 +1609,11 @@ def _target_summary_payload(
             str(packet.get("llm_route_planner_route_adoption_status", ""))
             for packet in target_packet_rows
             if str(packet.get("llm_route_planner_route_adoption_status", ""))
+        )
+        formal_attempt_dependency_status_counts = Counter(
+            str(packet.get("formal_attempt_dependency_status", ""))
+            for packet in target_packet_rows
+            if str(packet.get("formal_attempt_dependency_status", ""))
         )
         n_route_adoption_quality_control_blockers = sum(
             1
@@ -1622,6 +1750,33 @@ def _target_summary_payload(
                 "by_packet_llm_route_adoption_status": dict(
                     sorted(route_adoption_status_counts.items())
                 ),
+                "n_packets_with_formal_attempt_dependency": sum(
+                    1
+                    for packet in target_packet_rows
+                    if str(packet.get("formal_attempt_dependency_status", ""))
+                    != "not_formal_attempt_queue_item"
+                ),
+                "n_packets_formal_attempt_initial_ready": (
+                    formal_attempt_dependency_status_counts.get(
+                        "ready_no_formal_prerequisites",
+                        0,
+                    )
+                ),
+                "n_packets_formal_attempt_waiting": (
+                    formal_attempt_dependency_status_counts.get(
+                        "waiting_for_formal_prerequisite_attempts",
+                        0,
+                    )
+                ),
+                "n_packets_formal_attempt_missing_prerequisites": (
+                    formal_attempt_dependency_status_counts.get(
+                        "missing_formal_prerequisite_attempts",
+                        0,
+                    )
+                ),
+                "by_packet_formal_attempt_dependency_status": dict(
+                    sorted(formal_attempt_dependency_status_counts.items())
+                ),
                 "n_response_validation_rows": len(target_response_rows),
                 "n_unmatched_adapter_responses": row.n_unmatched_adapter_responses,
                 "aggregate_packet_jsonl_path": (
@@ -1646,6 +1801,16 @@ def _target_summary_payload(
             and n_packets_with_residual_goal_contexts
             == row.n_packets_with_residual_goal_contexts
             and len(residual_goal_contexts) == row.n_packet_residual_goal_contexts
+            and target_rows[-1]["n_packets_with_formal_attempt_dependency"]
+            == row.n_packets_with_formal_attempt_dependency
+            and target_rows[-1]["n_packets_formal_attempt_initial_ready"]
+            == row.n_packets_formal_attempt_initial_ready
+            and target_rows[-1]["n_packets_formal_attempt_waiting"]
+            == row.n_packets_formal_attempt_waiting
+            and target_rows[-1][
+                "n_packets_formal_attempt_missing_prerequisites"
+            ]
+            == row.n_packets_formal_attempt_missing_prerequisites
         )
         if (
             n_packets_with_residual_goal_contexts
@@ -1657,6 +1822,28 @@ def _target_summary_payload(
         if len(residual_goal_contexts) != row.n_packet_residual_goal_contexts:
             target_rows[-1]["errors"].append(
                 "residual-context total mismatch between contract manifest and packet rows"
+            )
+        if (
+            target_rows[-1]["n_packets_with_formal_attempt_dependency"]
+            != row.n_packets_with_formal_attempt_dependency
+            or target_rows[-1]["n_packets_formal_attempt_initial_ready"]
+            != row.n_packets_formal_attempt_initial_ready
+            or target_rows[-1]["n_packets_formal_attempt_waiting"]
+            != row.n_packets_formal_attempt_waiting
+            or target_rows[-1][
+                "n_packets_formal_attempt_missing_prerequisites"
+            ]
+            != row.n_packets_formal_attempt_missing_prerequisites
+        ):
+            target_rows[-1]["errors"].append(
+                "formal-attempt dependency count mismatch between contract manifest and packet rows"
+            )
+        if (
+            target_rows[-1]["by_packet_formal_attempt_dependency_status"]
+            != row.by_packet_formal_attempt_dependency_status
+        ):
+            target_rows[-1]["errors"].append(
+                "formal-attempt dependency status mismatch between contract manifest and packet rows"
             )
     summary_errors = [
         f"{target_row['target_prover_family']}: " + "; ".join(
@@ -1791,6 +1978,24 @@ def _target_summary_payload(
         "by_total_packet_llm_route_adoption_status": (
             _sum_route_adoption_status_counts(target_rows)
         ),
+        "n_total_packets_with_formal_attempt_dependency": sum(
+            _int(row["n_packets_with_formal_attempt_dependency"])
+            for row in target_rows
+        ),
+        "n_total_packets_formal_attempt_initial_ready": sum(
+            _int(row["n_packets_formal_attempt_initial_ready"])
+            for row in target_rows
+        ),
+        "n_total_packets_formal_attempt_waiting": sum(
+            _int(row["n_packets_formal_attempt_waiting"]) for row in target_rows
+        ),
+        "n_total_packets_formal_attempt_missing_prerequisites": sum(
+            _int(row["n_packets_formal_attempt_missing_prerequisites"])
+            for row in target_rows
+        ),
+        "by_total_packet_formal_attempt_dependency_status": (
+            _sum_formal_attempt_dependency_status_counts(target_rows)
+        ),
         "n_unmatched_adapter_responses": sum(
             _int(row.get("n_unmatched_adapter_responses")) for row in target_rows
         ),
@@ -1852,6 +2057,21 @@ def _sum_route_adoption_status_counts(
     counts: Counter[str] = Counter()
     for row in rows:
         raw_counts = row.get("by_packet_llm_route_adoption_status", {})
+        if not isinstance(raw_counts, dict):
+            continue
+        for status, count in raw_counts.items():
+            status_text = str(status)
+            if status_text:
+                counts[status_text] += _int(count)
+    return dict(sorted(counts.items()))
+
+
+def _sum_formal_attempt_dependency_status_counts(
+    rows: list[dict[str, Any]],
+) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for row in rows:
+        raw_counts = row.get("by_packet_formal_attempt_dependency_status", {})
         if not isinstance(raw_counts, dict):
             continue
         for status, count in raw_counts.items():
@@ -2323,6 +2543,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"{payload.get('n_total_packet_llm_route_adoption_pending_quality_control_blockers')}",
         "- LLM route-adoption pending source-grounding blockers: "
         f"{payload.get('n_total_packet_llm_route_adoption_pending_source_grounding_blockers')}",
+        f"- Packets with formal-attempt dependency: {payload.get('n_total_packets_with_formal_attempt_dependency')}/{payload.get('n_total_packets')}",
+        f"- Formal-attempt initially ready packets: {payload.get('n_total_packets_formal_attempt_initial_ready')}",
+        f"- Formal-attempt waiting packets: {payload.get('n_total_packets_formal_attempt_waiting')}",
+        f"- Formal-attempt missing-prerequisite packets: {payload.get('n_total_packets_formal_attempt_missing_prerequisites')}",
         f"- Awaiting adapter mappings: {payload.get('n_awaiting_adapter_mapping')}",
         f"- Rejected mappings: {payload.get('n_rejected')}",
         f"- Packet count consistent: {payload.get('packet_count_consistent')}",
@@ -2351,6 +2575,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"residual_contexts={row.get('n_packets_with_residual_goal_contexts')}/{row.get('n_packets')} "
             f"quality_controls={row.get('n_packets_with_quality_controls')}/{row.get('n_packets')} "
             f"llm_status={row.get('n_packets_with_llm_route_adoption_status')} "
+            f"formal_attempt_waiting={row.get('n_packets_formal_attempt_waiting')} "
             f"awaiting={row.get('n_awaiting_adapter_mapping')} "
             f"ok={row.get('ok')}"
         )

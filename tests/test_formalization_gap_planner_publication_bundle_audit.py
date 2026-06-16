@@ -87,6 +87,7 @@ from ai_statistician.formalization_gap_planner_portable_plan_audit import (
     portable_plan_audit_row_json_schema,
 )
 from ai_statistician.formalization_gap_planner_prover_adapter_contract import (
+    FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
     prover_adapter_packet_json_schema,
     prover_adapter_response_validation_row_json_schema,
 )
@@ -401,6 +402,14 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
                 "response_validation_signals",
                 "stop_conditions",
             ],
+            "formal_attempt_queue_index": -1,
+            "formal_attempt_initial_ready": False,
+            "formal_attempt_dependency_status": "not_formal_attempt_queue_item",
+            "formal_attempt_prerequisite_formal_node_ids": [],
+            "formal_attempt_prerequisite_refinement_item_ids": [],
+            "formal_attempt_blocking_prerequisite_formal_node_ids": [],
+            "formal_attempt_missing_prerequisite_formal_node_ids": [],
+            "formal_attempt_dependency_protocol": FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
         },
         "residual_goal_contexts": [residual_context],
         "n_residual_goal_contexts": 1,
@@ -414,6 +423,14 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
             "search_requests_pending_evidence",
             "uncertainty_flags_require_review",
         ],
+        "formal_attempt_queue_index": -1,
+        "formal_attempt_initial_ready": False,
+        "formal_attempt_dependency_status": "not_formal_attempt_queue_item",
+        "formal_attempt_prerequisite_formal_node_ids": [],
+        "formal_attempt_prerequisite_refinement_item_ids": [],
+        "formal_attempt_blocking_prerequisite_formal_node_ids": [],
+        "formal_attempt_missing_prerequisite_formal_node_ids": [],
+        "formal_attempt_dependency_protocol": FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
         "route_alignment_edge": {
             "source": "informal:rank_uniformity",
             "target": "formal:rank_uniformity",
@@ -470,6 +487,9 @@ def _fixture_prover_adapter_response_validation_row(
         "library_snapshot_ref": "",
         "semantic_alignment_notes": "",
         "residual_translation_gaps": [],
+        "formal_attempt_dependency_status": "not_formal_attempt_queue_item",
+        "prerequisite_feedback_satisfied": False,
+        "prerequisite_response_ids": [],
         "kernel_verified_claimed": False,
         "acceptance_status": "AWAITING_PROVER_ADAPTER_MAPPING",
         "proof_evidence_status": "AWAITING_RESPONSE_NOT_PROOF_EVIDENCE",
@@ -557,6 +577,17 @@ def _write_accepted_llm_route_planner_artifact(
                         "source_refs": ["fixture_source"],
                         "source_search_status": "SOURCE_BACKED",
                         "semantic_role": "lemma",
+                    },
+                    {
+                        "node_id": "informal:rank_route_conclusion",
+                        "claim": (
+                            "The rank-uniformity bridge supports the requested "
+                            "distribution-free route."
+                        ),
+                        "depends_on": ["informal:rank_uniformity"],
+                        "source_refs": ["fixture_source"],
+                        "source_search_status": "SOURCE_BACKED",
+                        "semantic_role": "main_route_step",
                     }
                 ],
                 "lean_realization_dag_nodes": [
@@ -584,6 +615,28 @@ def _write_accepted_llm_route_planner_artifact(
                         "formalization_action": "define_new",
                     },
                 ],
+                "informal_knowledge_dag_edges": [
+                    {
+                        "source_node_id": "informal:rank_uniformity",
+                        "target_node_id": "informal:rank_route_conclusion",
+                        "edge_kind": "supports",
+                        "rationale": (
+                            "The source-backed rank-uniformity lemma is the "
+                            "informal dependency for the route conclusion."
+                        ),
+                    }
+                ],
+                "formal_realization_dag_edges": [
+                    {
+                        "source_node_id": "formal:rank_uniformity_bridge",
+                        "target_node_id": "formal:baseline_rank_route_statement",
+                        "edge_kind": "supports_statement",
+                        "rationale": (
+                            "The bridge lemma is the formal dependency for the "
+                            "route statement candidate."
+                        ),
+                    }
+                ],
                 "route_alignment_edges": [
                     {
                         "informal_node_id": "informal:rank_uniformity",
@@ -593,6 +646,20 @@ def _write_accepted_llm_route_planner_artifact(
                             "The source-backed finite-rank statement should be "
                             "realized by one bridge lemma."
                         ),
+                    }
+                ],
+                "formal_attempt_queue": [
+                    {
+                        "attempt_id": "attempt:rank_uniformity_bridge",
+                        "formal_node_id": "formal:rank_uniformity_bridge",
+                        "primitive": "rank_uniformity",
+                        "target_prover_family": "lean4",
+                        "owner": "lean_lsp",
+                        "action": "attempt the rank-uniformity bridge lemma",
+                        "attempt_kind": "bridge_proof",
+                        "prerequisite_formal_node_ids": [],
+                        "expected_feedback": ["residual_goals"],
+                        "target_primitives": ["rank_uniformity"],
                     }
                 ],
                 "minimal_delta_plan": {
@@ -991,6 +1058,13 @@ def _fixture_cross_prover_matrix_row(
         "by_packet_llm_route_adoption_status": {
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
         },
+        "n_packets_with_formal_attempt_dependency": 0,
+        "n_packets_formal_attempt_initial_ready": 0,
+        "n_packets_formal_attempt_waiting": 0,
+        "n_packets_formal_attempt_missing_prerequisites": 0,
+        "by_packet_formal_attempt_dependency_status": {
+            "not_formal_attempt_queue_item": 1
+        },
         "n_response_present": 0,
         "n_awaiting_adapter_mapping": 1,
         "n_response_contract_ok": 0,
@@ -1078,6 +1152,13 @@ def _fixture_cross_prover_target_summary(
         "by_total_packet_llm_route_adoption_status": {
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
         },
+        "n_total_packets_with_formal_attempt_dependency": 0,
+        "n_total_packets_formal_attempt_initial_ready": 0,
+        "n_total_packets_formal_attempt_waiting": 0,
+        "n_total_packets_formal_attempt_missing_prerequisites": 0,
+        "by_total_packet_formal_attempt_dependency_status": {
+            "not_formal_attempt_queue_item": 1
+        },
         "target_rows": [
             {
                 "target_prover_family": target,
@@ -1148,6 +1229,13 @@ def _fixture_cross_prover_target_summary(
                 "n_packet_llm_route_adoption_pending_source_grounding_blockers": 0,
                 "by_packet_llm_route_adoption_status": {
                     "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
+                },
+                "n_packets_with_formal_attempt_dependency": 0,
+                "n_packets_formal_attempt_initial_ready": 0,
+                "n_packets_formal_attempt_waiting": 0,
+                "n_packets_formal_attempt_missing_prerequisites": 0,
+                "by_packet_formal_attempt_dependency_status": {
+                    "not_formal_attempt_queue_item": 1
                 },
                 "n_response_validation_rows": 1,
                 "aggregate_packet_jsonl_path": (

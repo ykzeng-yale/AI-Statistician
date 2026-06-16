@@ -626,6 +626,10 @@ be marked `ready_for_kernel_attempt` unless the adapter response sets
 `prerequisite_feedback_satisfied=true` and names the prior
 `prerequisite_response_ids`; packets with missing prerequisite attempts must
 request route repair rather than kernel replay.
+The cross-prover matrix and target summary also roll these fields up as
+formal-attempt dependency readiness counters and status histograms, so
+Rocq/Isabelle/Agda adapters can identify initially ready, waiting, and
+missing-prerequisite packet queues before opening individual packet rows.
 The publication-bundle manifest itself includes an `evaluation_summary` with
 the same realization, cost-hint, route-adoption, and quality-control counters,
 plus minimal-delta route-option totals, selected-route cost means,
@@ -1786,8 +1790,9 @@ reuse targets, currently Lean4, Rocq, Isabelle, Agda, HOL4, HOL Light, Mizar,
 and Metamath, checks packet-count consistency, verifies that every target packet
 still carries both route alignment and `standalone_input_trace` provenance,
 aggregates target-specific packet JSONL, rolls up quality-control-bearing
-packet counts and field/value summaries across every target, and preserves the
-same proof-boundary discipline. It also publishes and validates the matrix-row
+packet counts and field/value summaries across every target, rolls up
+formal-attempt dependency readiness and status counts across every target, and
+preserves the same proof-boundary discipline. It also publishes and validates the matrix-row
 schema, the aggregated prover-adapter
 packet schema, and the aggregated response-validation row schema beside the
 cross-prover JSONL files.
@@ -2511,7 +2516,8 @@ The current implementation composes four existing AI Statistician artifacts:
    prover adapters. The target summary records the target families, packet
    counts, standalone-trace counts, replan-metadata trace counts,
    target-library snapshot trace counts and mismatch counts, quality-control
-   field summaries, and per-target filter values needed to
+   field summaries, formal-attempt dependency readiness/status counters, and
+   per-target filter values needed to
    consume the aggregate JSONL files from a publication
    bundle. It also writes
    `formalization_gap_planner_cross_prover_target_summary.schema.json`, and the
