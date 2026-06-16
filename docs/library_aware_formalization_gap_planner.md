@@ -616,6 +616,16 @@ coverage, and formal-gap-boundary counts in the adapter contract and
 cross-prover target summary. This makes Lean/LSP residual repair evidence
 portable to Rocq/Coq, Isabelle, Agda, or other adapters without forcing those
 workers to parse opaque standalone trace blobs.
+Adapter packets now also publish the formal-attempt dependency protocol:
+`formal_attempt_queue_index`, `formal_attempt_initial_ready`,
+`formal_attempt_dependency_status`, prerequisite formal-node ids, prerequisite
+refinement item ids when available, blocking/missing prerequisite ids, and the
+human-readable unlock rule. This lets non-Lean workers preserve the same
+bottom-up route order as the Lean proof-state adapter. A waiting packet cannot
+be marked `ready_for_kernel_attempt` unless the adapter response sets
+`prerequisite_feedback_satisfied=true` and names the prior
+`prerequisite_response_ids`; packets with missing prerequisite attempts must
+request route repair rather than kernel replay.
 The publication-bundle manifest itself includes an `evaluation_summary` with
 the same realization, cost-hint, route-adoption, and quality-control counters,
 plus minimal-delta route-option totals, selected-route cost means,
@@ -1763,6 +1773,14 @@ claims in the mapping layer. It publishes both
 `formalization_gap_planner_prover_adapter_response_validation_row.schema.json`
 with schema-valid counts, so downstream prover adapters can validate requested
 work packets and replay-response validation rows without importing this repo.
+Those packet schemas also expose the `formal_attempt_queue` dependency/readiness
+state that the refinement queue computes locally. Cross-prover adapters should
+attempt `ready_no_formal_prerequisites` packets first, then unlock
+`waiting_for_formal_prerequisite_attempts` packets only after prior non-waiting
+prover-feedback rows have been recorded and referenced by
+`prerequisite_response_ids`. The validator rejects a premature
+`ready_for_kernel_attempt` response for a waiting packet, and it rejects kernel
+readiness for a packet whose prerequisite formal attempts are missing.
 The cross-prover matrix audit reruns that packet export for the declared public
 reuse targets, currently Lean4, Rocq, Isabelle, Agda, HOL4, HOL Light, Mizar,
 and Metamath, checks packet-count consistency, verifies that every target packet

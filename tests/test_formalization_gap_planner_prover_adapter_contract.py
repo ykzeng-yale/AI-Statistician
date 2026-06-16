@@ -192,6 +192,13 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
         ]
         == 0
     )
+    assert payload["n_packets_with_formal_attempt_dependency"] == 0
+    assert payload["n_packets_formal_attempt_initial_ready"] == 0
+    assert payload["n_packets_formal_attempt_waiting"] == 0
+    assert payload["n_packets_formal_attempt_missing_prerequisites"] == 0
+    assert payload["by_packet_formal_attempt_dependency_status"] == {
+        "not_formal_attempt_queue_item": 1
+    }
     assert payload["n_packet_schema_valid"] == payload["n_packets"]
     assert payload["n_response_present"] == 1
     assert payload["n_response_contract_ok"] == 1
@@ -239,6 +246,10 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
     assert payload["packets"][0]["residual_goal_contexts"][0][
         "source_refs"
     ] == ("paper:demo#measurability",)
+    assert payload["packets"][0]["formal_attempt_dependency_status"] == (
+        "not_formal_attempt_queue_item"
+    )
+    assert payload["packets"][0]["formal_attempt_queue_index"] == -1
     assert payload["packets"][0]["standalone_input_trace"][
         "has_residual_goal_contexts"
     ]
@@ -378,6 +389,175 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
     assert (
         out_dir / "formalization_gap_planner_prover_adapter_packets.jsonl"
     ).exists()
+
+
+def test_prover_adapter_contract_gates_waiting_formal_attempt_dependency() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_prover_adapter_contract_formal_attempt_gate"
+    )
+    plan_dir = root / "plan"
+    out_dir = root / "contract"
+    unlocked_out_dir = root / "contract_unlocked"
+    response_jsonl = root / "adapter_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    plan_row = {
+        "schema_version": 1,
+        "goal_plan_id": "goal:formal-attempt",
+        "route_id": "route:formal-attempt",
+        "display_name": "formal attempt dependency gate",
+        "target_prover_family": "lean4",
+        "standalone_input_trace": {
+            "source_route_id": "route:formal-attempt",
+        },
+        "route_alignment_edges": [
+            {
+                "source": "informal:rank_uniformity",
+                "target": "formal:rank_uniformity_bridge",
+                "kind": "aligned_to_formal_realization_candidate",
+                "edge_type": "informal_to_formal_alignment",
+                "primitive": "rank_uniformity",
+                "action_class": "bridge_lemma",
+                "alignment_status": "bridge_delta",
+                "proof_evidence_status": (
+                    "GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": "not theorem proof evidence",
+            }
+        ],
+        "interactive_refinement_hooks": [
+            {
+                "hook_kind": "proof_state_feedback",
+                "queries": ["formal_node_id: formal:exchangeability"],
+                "target_primitives": ["exchangeability"],
+                "llm_route_planner_formal_attempt_queue_index": 0,
+                "formal_node_id": "formal:exchangeability",
+                "formal_attempt_id": "attempt:exchangeability",
+                "formal_attempt_kind": "reuse_check",
+                "prerequisite_formal_node_ids": [],
+                "expected_feedback": ["closed_by_existing_declaration"],
+            },
+            {
+                "hook_kind": "proof_state_feedback",
+                "queries": ["formal_node_id: formal:rank_uniformity_bridge"],
+                "target_primitives": ["rank_uniformity"],
+                "llm_route_planner_formal_attempt_queue_index": 1,
+                "formal_node_id": "formal:rank_uniformity_bridge",
+                "formal_attempt_id": "attempt:rank_uniformity",
+                "formal_attempt_kind": "bridge_proof",
+                "prerequisite_formal_node_ids": ["formal:exchangeability"],
+                "expected_feedback": ["residual_goals"],
+            },
+        ],
+        "portable_work_packets": [
+            {
+                "primitive": "rank_uniformity",
+                "action_class": "bridge_lemma",
+                "expected_cost": "medium",
+                "worker_packet_kind": "prove_bridge_lemma",
+                "required_gate": "target prover kernel verification",
+            }
+        ],
+    }
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
+                "portable_schema_id": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+                "library_snapshot_ref": "lean_fixture_snapshot",
+                "rows": [plan_row],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    blocked_response = {
+        "goal_plan_id": "goal:formal-attempt",
+        "route_id": "route:formal-attempt",
+        "primitive": "rank_uniformity",
+        "target_prover_family": "rocq",
+        "mapping_status": "ready_for_kernel_attempt",
+        "translated_statement": "Theorem rank_uniformity : True.",
+        "translated_imports": ["Coq.Init.Logic"],
+        "verifier_command": "coqc RankUniformity.v",
+        "library_snapshot_ref": "rocq_fixture_snapshot",
+        "semantic_alignment_notes": "Maps the dependent bridge after route alignment.",
+        "kernel_verified": False,
+    }
+    response_jsonl.write_text(
+        json.dumps(blocked_response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    blocked_payload = export_formalization_gap_planner_prover_adapter_contract(
+        plan_dir,
+        out_dir,
+        target_prover_family="rocq",
+        library_snapshot_ref="rocq_fixture_snapshot",
+        adapter_response_jsonl=response_jsonl,
+    )
+
+    assert not blocked_payload["all_ok"]
+    assert blocked_payload["n_packets_with_formal_attempt_dependency"] == 1
+    assert blocked_payload["n_packets_formal_attempt_waiting"] == 1
+    assert blocked_payload["n_rejected_formal_attempt_dependency_gate"] == 1
+    packet = blocked_payload["packets"][0]
+    assert packet["formal_attempt_queue_index"] == 1
+    assert packet["formal_attempt_initial_ready"] is False
+    assert packet["formal_attempt_dependency_status"] == (
+        "waiting_for_formal_prerequisite_attempts"
+    )
+    assert tuple(packet["formal_attempt_prerequisite_formal_node_ids"]) == (
+        "formal:exchangeability",
+    )
+    assert tuple(packet["formal_attempt_blocking_prerequisite_formal_node_ids"]) == (
+        "formal:exchangeability",
+    )
+    assert packet["standalone_input_trace"]["formal_attempt_dependency_status"] == (
+        "waiting_for_formal_prerequisite_attempts"
+    )
+    assert "prerequisite_feedback_satisfied" in packet[
+        "required_adapter_response_fields"
+    ]
+    assert "prerequisite_response_ids" in packet["required_adapter_response_fields"]
+    assert "prerequisite_feedback_satisfied=true" in packet["acceptance_gate"]
+    validation = blocked_payload["response_validation_rows"][0]
+    assert validation["formal_attempt_dependency_status"] == (
+        "waiting_for_formal_prerequisite_attempts"
+    )
+    assert validation["prerequisite_feedback_satisfied"] is False
+    assert any(
+        "prerequisite_feedback_satisfied=true" in error
+        for error in validation["errors"]
+    )
+    assert any(
+        "prerequisite_response_ids" in error for error in validation["errors"]
+    )
+
+    unlocked_response = {
+        **blocked_response,
+        "prerequisite_feedback_satisfied": True,
+        "prerequisite_response_ids": ["prover_feedback:exchangeability"],
+    }
+    response_jsonl.write_text(
+        json.dumps(unlocked_response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    unlocked_payload = export_formalization_gap_planner_prover_adapter_contract(
+        plan_dir,
+        unlocked_out_dir,
+        target_prover_family="rocq",
+        library_snapshot_ref="rocq_fixture_snapshot",
+        adapter_response_jsonl=response_jsonl,
+    )
+
+    assert unlocked_payload["all_ok"]
+    assert unlocked_payload["n_response_prerequisite_feedback_satisfied"] == 1
+    assert unlocked_payload["n_responses_with_prerequisite_response_ids"] == 1
+    assert unlocked_payload["response_validation_rows"][0][
+        "prerequisite_response_ids"
+    ] == ("prover_feedback:exchangeability",)
+    assert not validate_prover_adapter_packet_row(unlocked_payload["packets"][0])
 
 
 def test_prover_adapter_contract_rejects_kernel_ready_mapping_for_pending_llm_route() -> None:

@@ -206,11 +206,22 @@ def _write_llm_response_payload_validation_artifact(root: Path) -> Path:
                         "depends_on": [],
                         "source_refs": ["fixture_source"],
                         "source_search_status": "SOURCE_BACKED",
-                    }
-                ],
-                "lean_realization_dag_nodes": [
-                    {
-                        "node_id": "formal:rank_uniformity_bridge",
+                        }
+                    ],
+                    "informal_knowledge_dag_edges": [],
+                    "formal_realization_dag_nodes": [
+                        {
+                            "node_id": "formal:rank_uniformity_bridge",
+                            "primitive": "rank_uniformity",
+                            "coverage_bucket": "bridge_needed",
+                            "formalization_action": "prove_bridge",
+                            "target_prover_family": "lean4",
+                        }
+                    ],
+                    "formal_realization_dag_edges": [],
+                    "lean_realization_dag_nodes": [
+                        {
+                            "node_id": "formal:rank_uniformity_bridge",
                         "primitive": "rank_uniformity",
                         "coverage_bucket": "bridge_needed",
                         "formalization_action": "prove_bridge",
@@ -222,9 +233,23 @@ def _write_llm_response_payload_validation_artifact(root: Path) -> Path:
                         "formal_node_id": "formal:rank_uniformity_bridge",
                         "alignment_status": "bridge_needed",
                         "alignment_rationale": "One bridge lemma is enough.",
-                    }
-                ],
-                "minimal_delta_plan": {
+                        }
+                    ],
+                    "formal_attempt_queue": [
+                        {
+                            "attempt_id": "attempt:rank_uniformity_bridge",
+                            "formal_node_id": "formal:rank_uniformity_bridge",
+                            "primitive": "rank_uniformity",
+                            "target_prover_family": "lean4",
+                            "owner": "lean_lsp",
+                            "action": "attempt the rank-uniformity bridge lemma",
+                            "attempt_kind": "bridge_proof",
+                            "prerequisite_formal_node_ids": [],
+                            "expected_feedback": ["residual_goals"],
+                            "target_primitives": ["rank_uniformity"],
+                        }
+                    ],
+                    "minimal_delta_plan": {
                     "selected_primitives": ["rank_uniformity"],
                     "cost_model_version": "formalization_gap_planner_minimal_delta_cost_policy:1",
                     "route_cost": 4,
@@ -1411,14 +1436,14 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         == 0
     )
-    assert validation_summary["n_payloads_with_declared_target_prover_family"] == 0
+    assert validation_summary["n_payloads_with_declared_target_prover_family"] == 1
     assert (
         validation_summary[
             "n_request_bound_payloads_with_target_prover_family_mismatch"
         ]
         == 0
     )
-    assert validation_summary["by_payload_target_prover_family"] == {}
+    assert validation_summary["by_payload_target_prover_family"] == {"lean4": 1}
     assert validation_summary["by_request_context_target_prover_family"] == {}
     assert (
         out_dir
