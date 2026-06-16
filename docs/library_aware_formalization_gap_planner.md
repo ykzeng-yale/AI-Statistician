@@ -1929,6 +1929,12 @@ respect this gate: waiting rows emit `waiting_for_formal_prerequisite_attempts`
 diagnostics instead of running a prover attempt, and those waiting diagnostics
 are recorded as audit feedback rather than residual-driven route-revision
 proposals.
+For iterative local Lean runs, pass the prior
+`formalization_gap_planner_local_proof_state_adapter_responses.jsonl` as
+`--base-response-jsonl`; once every
+`formal_attempt_prerequisite_refinement_item_ids` entry has non-waiting
+`prover_feedback`, the adapter unlocks the dependent row and attempts its
+theorem skeleton.
 
 - `route_alignment_edges`
   Explicit links from informal semantic atoms to formal realization candidates.

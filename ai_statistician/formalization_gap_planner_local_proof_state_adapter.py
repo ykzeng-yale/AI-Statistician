@@ -75,6 +75,7 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
             lean_command=lean_command,
             lean_project=lean_project,
             lean_timeout=max(1, int(lean_timeout)),
+            prior_responses_by_item=base_by_item,
         )
         for row in target_proof_rows
     ]
@@ -107,6 +108,14 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
     by_attempt_status = Counter(str(row.get("attempt_status", "")) for row in responses)
     by_attempt_class = Counter(
         str(row.get("prover_attempt_class", "")) for row in responses
+    )
+    n_formal_attempt_dependency_unlocked = sum(
+        1
+        for row in responses
+        if str(row.get("formal_attempt_dependency_status", ""))
+        == "waiting_for_formal_prerequisite_attempts"
+        and str(row.get("attempt_status", ""))
+        != "waiting_for_formal_prerequisite_attempts"
     )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_LOCAL_PROOF_STATE_ADAPTER_SCHEMA_VERSION,
@@ -168,6 +177,7 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
             "missing_formal_prerequisite_attempts",
             0,
         ),
+        "n_formal_attempt_dependency_unlocked": n_formal_attempt_dependency_unlocked,
         "n_non_lean_skeleton": by_attempt_status.get("non_lean_skeleton", 0),
         "n_missing_skeleton": by_attempt_status.get("missing_theorem_skeleton", 0),
         "all_ok": not errors
@@ -265,8 +275,12 @@ def _proof_state_response(
     lean_command: tuple[str, ...],
     lean_project: Path | None,
     lean_timeout: int,
+    prior_responses_by_item: dict[str, dict[str, Any]],
 ) -> dict[str, object]:
-    dependency_response = _formal_attempt_dependency_response(queue_row)
+    dependency_response = _formal_attempt_dependency_response(
+        queue_row,
+        prior_responses_by_item=prior_responses_by_item,
+    )
     if dependency_response:
         return dependency_response
     skeleton = str(queue_row.get("theorem_skeleton", "")).strip()
@@ -351,12 +365,23 @@ def _proof_state_response(
     return response
 
 
-def _formal_attempt_dependency_response(queue_row: dict[str, Any]) -> dict[str, object]:
+def _formal_attempt_dependency_response(
+    queue_row: dict[str, Any],
+    *,
+    prior_responses_by_item: dict[str, dict[str, Any]],
+) -> dict[str, object]:
     dependency_status = str(queue_row.get("formal_attempt_dependency_status", ""))
     if dependency_status not in {
         "waiting_for_formal_prerequisite_attempts",
         "missing_formal_prerequisite_attempts",
     }:
+        return {}
+    if dependency_status == "waiting_for_formal_prerequisite_attempts" and (
+        _formal_attempt_prerequisites_have_feedback(
+            queue_row,
+            prior_responses_by_item=prior_responses_by_item,
+        )
+    ):
         return {}
     blockers = _str_tuple(
         queue_row.get("formal_attempt_blocking_prerequisite_formal_node_ids", [])
@@ -409,6 +434,31 @@ def _formal_attempt_dependency_response(queue_row: dict[str, Any]) -> dict[str, 
         response["llm_route_planner_hook_trace"] = trace
     _attach_formal_attempt_dependency_fields(response, queue_row)
     return response
+
+
+def _formal_attempt_prerequisites_have_feedback(
+    queue_row: dict[str, Any],
+    *,
+    prior_responses_by_item: dict[str, dict[str, Any]],
+) -> bool:
+    prerequisite_item_ids = _str_tuple(
+        queue_row.get("formal_attempt_prerequisite_refinement_item_ids", [])
+    )
+    if not prerequisite_item_ids:
+        return False
+    for item_id in prerequisite_item_ids:
+        response = prior_responses_by_item.get(item_id, {})
+        if not isinstance(response, dict) or not response:
+            return False
+        attempt_status = str(response.get("attempt_status", ""))
+        if attempt_status in {
+            "waiting_for_formal_prerequisite_attempts",
+            "missing_formal_prerequisite_attempts",
+        }:
+            return False
+        if str(response.get("evidence_kind", "")) != "prover_feedback":
+            return False
+    return True
 
 
 def _attach_formal_attempt_dependency_fields(
@@ -636,6 +686,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal-gap scaffold blocked: {payload.get('n_formal_gap_scaffold_blocked')}",
         f"- Formal attempts waiting on prerequisites: {payload.get('n_formal_attempt_dependency_waiting')}",
         f"- Formal attempts missing prerequisites: {payload.get('n_formal_attempt_dependency_missing_prerequisites')}",
+        f"- Formal attempts unlocked by prior feedback: {payload.get('n_formal_attempt_dependency_unlocked')}",
         f"- Non-Lean skeleton: {payload.get('n_non_lean_skeleton')}",
         f"- All OK: {payload.get('all_ok')}",
         "",

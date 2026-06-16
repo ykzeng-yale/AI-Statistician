@@ -316,6 +316,7 @@ def test_local_proof_state_adapter_defers_formal_attempt_prerequisites(
     assert payload["n_local_proof_state_responses"] == 2
     assert payload["n_kernel_scaffold_accepted"] == 1
     assert payload["n_formal_attempt_dependency_waiting"] == 1
+    assert payload["n_formal_attempt_dependency_unlocked"] == 0
     by_item = {row["refinement_item_id"]: row for row in payload["responses"]}
     assert by_item["refinement:exchangeability"]["attempt_status"] == (
         "local_lean_scaffold_accepted"
@@ -339,6 +340,41 @@ def test_local_proof_state_adapter_defers_formal_attempt_prerequisites(
         proposal["refinement_item_id"] == "refinement:rank_bridge"
         for proposal in evidence_payload["route_revision_proposals"]
     )
+
+    unlocked_adapter_dir = root / "adapter_unlocked"
+    unlocked_payload = export_formalization_gap_planner_local_proof_state_adapter_responses(
+        queue_dir,
+        unlocked_adapter_dir,
+        base_response_jsonl=adapter_dir
+        / "formalization_gap_planner_local_proof_state_adapter_responses.jsonl",
+        lean_timeout=5,
+    )
+    assert unlocked_payload["all_ok"]
+    assert unlocked_payload["n_formal_attempt_dependency_waiting"] == 0
+    assert unlocked_payload["n_formal_attempt_dependency_unlocked"] == 1
+    assert unlocked_payload["n_kernel_scaffold_accepted"] == 2
+    unlocked_by_item = {
+        row["refinement_item_id"]: row for row in unlocked_payload["responses"]
+    }
+    unlocked_rank = unlocked_by_item["refinement:rank_bridge"]
+    assert unlocked_rank["attempt_status"] == "local_lean_scaffold_accepted"
+    assert unlocked_rank["formal_attempt_dependency_status"] == (
+        "waiting_for_formal_prerequisite_attempts"
+    )
+
+    unlocked_evidence_payload = export_formalization_gap_planner_refinement_evidence(
+        queue_dir,
+        root / "evidence_unlocked",
+        response_jsonl=unlocked_adapter_dir
+        / "formalization_gap_planner_refinement_evidence_responses.jsonl",
+    )
+    assert unlocked_evidence_payload["all_ok"]
+    unlocked_evidence_by_item = {
+        row["refinement_item_id"]: row for row in unlocked_evidence_payload["rows"]
+    }
+    assert unlocked_evidence_by_item["refinement:rank_bridge"][
+        "prover_attempt_status"
+    ] == "local_lean_scaffold_accepted"
 
 
 def test_local_proof_state_adapter_skips_non_lean_targets() -> None:
