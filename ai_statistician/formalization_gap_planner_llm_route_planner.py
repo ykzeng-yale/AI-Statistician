@@ -726,6 +726,14 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
             "semantic_role": "definition|assumption|lemma|side_condition|main_step",
         }
     ],
+    "informal_knowledge_dag_edges": [
+        {
+            "source_node_id": "informal predecessor node id",
+            "target_node_id": "informal successor node id",
+            "edge_kind": "uses|specializes|reduces_to|requires",
+            "rationale": "why the target proof step depends on the source step",
+        }
+    ],
     "source_snippets": [
         {
             "source_ref": "paper/book/local source id",
@@ -747,6 +755,14 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
                 }
             ],
             "formalization_action": "reuse|compose|write_wrapper|prove_bridge|source_port|define_new",
+        }
+    ],
+    "formal_realization_dag_edges": [
+        {
+            "source_node_id": "formal prerequisite node id",
+            "target_node_id": "formal dependent node id",
+            "edge_kind": "imports|uses|wraps|bridges|ports",
+            "rationale": "why the target formal artifact depends on the source artifact",
         }
     ],
     "lean_realization_dag_nodes": "legacy alias accepted for Lean-only clients; prefer formal_realization_dag_nodes",
@@ -951,7 +967,9 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     response_present: bool
     response_contract_ok: bool
     informal_knowledge_dag_nodes: tuple[dict[str, object], ...]
+    informal_knowledge_dag_edges: tuple[dict[str, object], ...]
     formal_realization_dag_nodes: tuple[dict[str, object], ...]
+    formal_realization_dag_edges: tuple[dict[str, object], ...]
     lean_realization_dag_nodes: tuple[dict[str, object], ...]
     route_alignment_edges: tuple[dict[str, object], ...]
     minimal_delta_plan: dict[str, object]
@@ -2593,8 +2611,14 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_informal_knowledge_dag_nodes": sum(
             len(row.informal_knowledge_dag_nodes) for row in rows
         ),
+        "n_informal_knowledge_dag_edges": sum(
+            len(row.informal_knowledge_dag_edges) for row in rows
+        ),
         "n_formal_realization_dag_nodes": sum(
             len(row.formal_realization_dag_nodes) for row in rows
+        ),
+        "n_formal_realization_dag_edges": sum(
+            len(row.formal_realization_dag_edges) for row in rows
         ),
         "n_lean_realization_dag_nodes": sum(
             len(row.lean_realization_dag_nodes) for row in rows
@@ -3729,7 +3753,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_route_adoption_pending_source_grounding_blockers",
             "n_route_adoption_pending_quality_control_blockers",
             "n_informal_knowledge_dag_nodes",
+            "n_informal_knowledge_dag_edges",
             "n_formal_realization_dag_nodes",
+            "n_formal_realization_dag_edges",
             "n_lean_realization_dag_nodes",
             "n_route_alignment_edges",
             "n_rows_with_primitive_evidence_matrix_witness",
@@ -4079,7 +4105,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             ),
             "n_route_adoption_omitted_cost_hint_primitives": nonnegative_integer,
             "n_informal_knowledge_dag_nodes": nonnegative_integer,
+            "n_informal_knowledge_dag_edges": nonnegative_integer,
             "n_formal_realization_dag_nodes": nonnegative_integer,
+            "n_formal_realization_dag_edges": nonnegative_integer,
             "n_lean_realization_dag_nodes": nonnegative_integer,
             "n_route_alignment_edges": nonnegative_integer,
             "n_rows_with_primitive_evidence_matrix_witness": nonnegative_integer,
@@ -4263,7 +4291,9 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "response_present",
             "response_contract_ok",
             "informal_knowledge_dag_nodes",
+            "informal_knowledge_dag_edges",
             "formal_realization_dag_nodes",
+            "formal_realization_dag_edges",
             "route_alignment_edges",
             "minimal_delta_plan",
             "residual_interpretations",
@@ -4318,7 +4348,9 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "response_present": {"type": "boolean"},
             "response_contract_ok": {"type": "boolean"},
             "informal_knowledge_dag_nodes": object_array,
+            "informal_knowledge_dag_edges": object_array,
             "formal_realization_dag_nodes": object_array,
+            "formal_realization_dag_edges": object_array,
             "lean_realization_dag_nodes": object_array,
             "route_alignment_edges": object_array,
             "minimal_delta_plan": {"type": "object"},
@@ -9635,6 +9667,7 @@ def _user_prompt(
             "If request residual_goals are present, every residual goal must have an interpretation and a route_repair or repair_action.",
             "Every residual_interpretations row that proposes route repair must have source_refs/source_snippets, a matching literature/source search_request, or a formal_gap_boundary; prover residuals alone are not source evidence for new mathematical side conditions.",
             "Every alignment edge must include a substantive alignment_rationale that names the mapped informal claim, formal primitive, declaration, coverage/action, or source-backed route anchor; placeholder text such as ok/aligned is rejected.",
+            "Return informal_knowledge_dag_edges and formal_realization_dag_edges as explicit acyclic DAG dependency edges; when a DAG has multiple nodes, it must have at least one edge, and every edge source_node_id/target_node_id must reference returned nodes.",
             "Every alignment edge informal_node_id/formal_node_id must reference nodes present in the returned informal and formal DAGs.",
             "Every alignment edge must connect a formal node primitive to an informal node whose explicit primitive scope supports that same primitive; scoped informal nodes cannot justify unrelated formal primitives.",
             formal_realization_requirement,
@@ -10218,6 +10251,22 @@ def llm_route_planner_response_payload_schema(
             "source_field": {"type": "string", "minLength": 1},
         },
     }
+    dag_edge = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "source_node_id",
+            "target_node_id",
+            "edge_kind",
+            "rationale",
+        ],
+        "properties": {
+            "source_node_id": {"type": "string", "minLength": 1},
+            "target_node_id": {"type": "string", "minLength": 1},
+            "edge_kind": {"type": "string", "minLength": 1},
+            "rationale": {"type": "string", "minLength": 1},
+        },
+    }
     formal_realization_node = {
         "type": "object",
         "additionalProperties": True,
@@ -10400,6 +10449,8 @@ def llm_route_planner_response_payload_schema(
         "additionalProperties": True,
         "required": [
             "informal_knowledge_dag_nodes",
+            "informal_knowledge_dag_edges",
+            "formal_realization_dag_edges",
             "route_alignment_edges",
             "minimal_delta_plan",
             "standalone_route",
@@ -10438,10 +10489,18 @@ def llm_route_planner_response_payload_schema(
                     },
                 },
             },
+            "informal_knowledge_dag_edges": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/dag_edge"},
+            },
             "formal_realization_dag_nodes": {
                 "type": "array",
                 "minItems": 1,
                 "items": {"$ref": "#/$defs/formal_realization_node"},
+            },
+            "formal_realization_dag_edges": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/dag_edge"},
             },
             "lean_realization_dag_nodes": {
                 "type": "array",
@@ -10576,6 +10635,7 @@ def llm_route_planner_response_payload_schema(
         "$defs": {
             "source_snippet": source_snippet,
             "candidate_declaration_row": candidate_declaration_row,
+            "dag_edge": dag_edge,
             "formal_realization_node": formal_realization_node,
             "primitive_cost": primitive_cost,
             "route_option": route_option,
@@ -12545,7 +12605,13 @@ def _row_for_request(
         informal_knowledge_dag_nodes=_dict_tuple(
             payload.get("informal_knowledge_dag_nodes", [])
         ),
+        informal_knowledge_dag_edges=_dict_tuple(
+            payload.get("informal_knowledge_dag_edges", [])
+        ),
         formal_realization_dag_nodes=formal_nodes,
+        formal_realization_dag_edges=_dict_tuple(
+            payload.get("formal_realization_dag_edges", [])
+        ),
         lean_realization_dag_nodes=lean_legacy_nodes,
         route_alignment_edges=route_alignment_edges,
         minimal_delta_plan=minimal_delta_plan,
@@ -12955,10 +13021,12 @@ def _response_contract_errors(
         errors.append("response_payload.proof_evidence_boundary must say not theorem proof evidence")
     target_prover_family = str(request.get("target_prover_family", ""))
     informal_nodes = _dict_tuple(payload.get("informal_knowledge_dag_nodes", []))
+    informal_edges = _dict_tuple(payload.get("informal_knowledge_dag_edges", []))
     formal_nodes = _formal_realization_nodes_from_payload(
         payload,
         target_prover_family=target_prover_family,
     )
+    formal_edges = _dict_tuple(payload.get("formal_realization_dag_edges", []))
     alignment_edges = _dict_tuple(payload.get("route_alignment_edges", []))
     if not informal_nodes:
         errors.append("informal_knowledge_dag_nodes must be non-empty")
@@ -12982,6 +13050,14 @@ def _response_contract_errors(
                 "informal_knowledge_dag_nodes"
                 f"[{index}] needs source_refs, source_search_status, or formal_gap_boundary"
             )
+    errors.extend(
+        _response_dag_edge_errors(
+            collection_name="informal_knowledge_dag_edges",
+            node_collection_name="informal_knowledge_dag_nodes",
+            edges=informal_edges,
+            node_ids=_node_ids(informal_nodes),
+        )
+    )
     errors.extend(_response_source_search_status_errors(payload))
     errors.extend(_response_formal_gap_boundary_errors(payload, request))
     errors.extend(_response_source_ref_grounding_errors(payload, request))
@@ -13002,6 +13078,14 @@ def _response_contract_errors(
             errors.append(f"formal_realization_dag_nodes[{index}].node_id missing")
         if not str(node.get("primitive", "")).strip():
             errors.append(f"formal_realization_dag_nodes[{index}].primitive missing")
+    errors.extend(
+        _response_dag_edge_errors(
+            collection_name="formal_realization_dag_edges",
+            node_collection_name="formal_realization_dag_nodes",
+            edges=formal_edges,
+            node_ids=_node_ids(formal_nodes),
+        )
+    )
     errors.extend(_response_formal_marker_contract_errors(payload, request))
     errors.extend(_response_formal_declaration_grounding_errors(payload, request))
     errors.extend(_response_formal_search_obligation_errors(payload))
@@ -13114,6 +13198,105 @@ def _response_route_adoption_precondition_errors(
             "search_requests or planner_next_actions row"
         )
     return errors
+
+
+def _node_ids(nodes: tuple[dict[str, object], ...]) -> set[str]:
+    return {
+        node_id
+        for node in nodes
+        if (node_id := str(node.get("node_id", "")).strip())
+    }
+
+
+def _response_dag_edge_errors(
+    *,
+    collection_name: str,
+    node_collection_name: str,
+    edges: tuple[dict[str, object], ...],
+    node_ids: set[str],
+) -> list[str]:
+    errors: list[str] = []
+    if len(node_ids) > 1 and not edges:
+        errors.append(
+            f"{collection_name} must be non-empty when "
+            f"{node_collection_name} has multiple nodes"
+        )
+        return errors
+    seen_pairs: set[tuple[str, str]] = set()
+    adjacency: dict[str, list[str]] = {}
+    for index, edge in enumerate(edges):
+        source = str(edge.get("source_node_id", "")).strip()
+        target = str(edge.get("target_node_id", "")).strip()
+        if not source:
+            errors.append(f"{collection_name}[{index}].source_node_id missing")
+        elif source not in node_ids:
+            errors.append(
+                f"{collection_name}[{index}].source_node_id references unknown "
+                f"{node_collection_name} node: {source}"
+            )
+        if not target:
+            errors.append(f"{collection_name}[{index}].target_node_id missing")
+        elif target not in node_ids:
+            errors.append(
+                f"{collection_name}[{index}].target_node_id references unknown "
+                f"{node_collection_name} node: {target}"
+            )
+        if source and target and source == target:
+            errors.append(
+                f"{collection_name}[{index}] must not be a self-loop: {source}"
+            )
+        if not str(edge.get("edge_kind", "")).strip():
+            errors.append(f"{collection_name}[{index}].edge_kind missing")
+        if not str(edge.get("rationale", "")).strip():
+            errors.append(f"{collection_name}[{index}].rationale missing")
+        if source and target:
+            pair = (source, target)
+            if pair in seen_pairs:
+                errors.append(
+                    f"{collection_name}[{index}] duplicates edge "
+                    f"{source} -> {target}"
+                )
+            seen_pairs.add(pair)
+            if source in node_ids and target in node_ids and source != target:
+                adjacency.setdefault(source, []).append(target)
+    cycle = _first_dag_cycle(adjacency)
+    if cycle:
+        errors.append(
+            f"{collection_name} must be acyclic; cycle: " + " -> ".join(cycle)
+        )
+    return errors
+
+
+def _first_dag_cycle(adjacency: Mapping[str, list[str]]) -> tuple[str, ...]:
+    visiting: set[str] = set()
+    visited: set[str] = set()
+    stack: list[str] = []
+
+    def visit(node: str) -> tuple[str, ...]:
+        if node in visiting:
+            try:
+                start = stack.index(node)
+            except ValueError:
+                return (node, node)
+            return tuple([*stack[start:], node])
+        if node in visited:
+            return tuple()
+        visiting.add(node)
+        stack.append(node)
+        for child in adjacency.get(node, []):
+            cycle = visit(child)
+            if cycle:
+                return cycle
+        stack.pop()
+        visiting.remove(node)
+        visited.add(node)
+        return tuple()
+
+    for node in sorted(adjacency):
+        cycle = visit(node)
+        if cycle:
+            return cycle
+    return tuple()
 
 
 def _kernel_proof_claim_errors(value: Any, *, location: str) -> list[str]:
@@ -23751,8 +23934,14 @@ def _accepted_route_for_seed(
     revised_informal_nodes = tuple(
         _llm_informal_node_for_seed(node) for node in row.informal_knowledge_dag_nodes
     )
+    revised_informal_edges = tuple(
+        _llm_dag_edge_for_seed(edge) for edge in row.informal_knowledge_dag_edges
+    )
     revised_formal_nodes = tuple(
         _llm_formal_node_for_seed(node) for node in row.formal_realization_dag_nodes
+    )
+    revised_formal_edges = tuple(
+        _llm_dag_edge_for_seed(edge) for edge in row.formal_realization_dag_edges
     )
     revised_lean_nodes = tuple(
         _llm_formal_node_for_seed(node) for node in row.lean_realization_dag_nodes
@@ -24013,7 +24202,9 @@ def _accepted_route_for_seed(
         "source_refs": list(source_refs),
         "source_snippets": [dict(snippet) for snippet in source_snippets],
         "revised_informal_knowledge_dag_nodes": [dict(node) for node in revised_informal_nodes],
+        "revised_informal_knowledge_dag_edges": [dict(edge) for edge in revised_informal_edges],
         "revised_formal_realization_dag_nodes": [dict(node) for node in revised_formal_nodes],
+        "revised_formal_realization_dag_edges": [dict(edge) for edge in revised_formal_edges],
         "revised_route_alignment_edges": [dict(edge) for edge in revised_alignment_edges],
         "alignment_edge_primitives": list(
             dict.fromkeys(
@@ -24056,8 +24247,14 @@ def _accepted_route_for_seed(
     route["revised_informal_knowledge_dag_nodes"] = [
         dict(node) for node in revised_informal_nodes
     ]
+    route["revised_informal_knowledge_dag_edges"] = [
+        dict(edge) for edge in revised_informal_edges
+    ]
     route["revised_formal_realization_dag_nodes"] = [
         dict(node) for node in revised_formal_nodes
+    ]
+    route["revised_formal_realization_dag_edges"] = [
+        dict(edge) for edge in revised_formal_edges
     ]
     if revised_lean_nodes:
         route["revised_lean_realization_dag_nodes"] = [
@@ -24105,6 +24302,21 @@ def _llm_formal_node_for_seed(node: Mapping[str, Any]) -> dict[str, object]:
         "primitive": primitive,
         "kind": str(node.get("kind") or "llm_formal_realization_node"),
         "node_type": str(node.get("node_type") or "llm_formal_realization_node"),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+    }
+
+
+def _llm_dag_edge_for_seed(edge: Mapping[str, Any]) -> dict[str, object]:
+    source = str(edge.get("source_node_id", "")).strip()
+    target = str(edge.get("target_node_id", "")).strip()
+    edge_kind = str(edge.get("edge_kind", "")).strip()
+    return {
+        **dict(edge),
+        "source_node_id": source,
+        "target_node_id": target,
+        "edge_kind": edge_kind,
+        "kind": str(edge.get("kind") or edge_kind or "llm_route_dag_edge"),
+        "node_type": str(edge.get("node_type") or "llm_route_dag_edge"),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
     }
 
@@ -26938,7 +27150,9 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Rejected: {payload.get('n_rejected')}",
         f"- Request residual-goal contexts: {payload.get('n_request_residual_goal_contexts')} rows={payload.get('n_row_residual_goal_contexts')}",
         f"- Informal DAG nodes: {payload.get('n_informal_knowledge_dag_nodes')}",
+        f"- Informal DAG edges: {payload.get('n_informal_knowledge_dag_edges')}",
         f"- Formal realization nodes: {payload.get('n_formal_realization_dag_nodes')}",
+        f"- Formal realization edges: {payload.get('n_formal_realization_dag_edges')}",
         f"- Alignment edges: {payload.get('n_route_alignment_edges')}",
         f"- Delta action witness required/missing: {payload.get('n_delta_action_witness_required_primitives')}/{payload.get('n_delta_action_witness_missing_primitives')}",
         f"- Route-option action witness required/missing: {payload.get('n_route_option_action_witness_required_primitives')}/{payload.get('n_route_option_action_witness_missing_primitives')}",

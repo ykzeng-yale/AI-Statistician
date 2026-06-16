@@ -282,10 +282,14 @@ proof sources, library-search-required review flags, proof-state probes, complex
 theorem shapes, many `formal_library_grounding_queries`, or large normalized
 theorem context upgrade a superficially small route from Haiku triage to Sonnet
 route synthesis. Accepted LLM rows must include
-source-grounded informal DAG nodes, formal-realization DAG nodes, alignment
+source-grounded informal DAG nodes, acyclic informal DAG edges,
+formal-realization DAG nodes, acyclic formal-realization DAG edges, alignment
 rationales, a minimality rationale, a versioned minimal-delta cost witness, and
 an explicit proof-evidence boundary; `kernel_verified=true` claims are
-rejected. Minimality rationales are validated as evidence-anchored text: they
+rejected. Every DAG edge must carry a source node id, target node id, edge kind,
+and rationale, and the endpoints must reference nodes returned in the same LLM
+payload. Multi-node DAGs cannot omit their edge set. Minimality rationales are
+validated as evidence-anchored text: they
 must mention selected primitives, the selected route option, coverage/cost
 buckets, route-cost comparisons, or concrete delta work, and placeholder
 claims such as "minimal" or "cheapest" are rejected. When a selected primitive
@@ -1860,6 +1864,12 @@ The current manifest therefore exports two separate DAG views:
   should prefer the `formal_*` field names, and portable-plan audit rejects
   non-Lean rows with nonempty Lean realization aliases even when the generic
   DAG fields are present.
+
+Both DAG edge arrays are part of the accepted-response contract. If either DAG
+has more than one returned node, its edge array must be nonempty, acyclic, and
+must reference only node ids from that same DAG. This keeps the route planner
+from returning disconnected proof-step bags while claiming to synthesize a
+dependency route.
 
 - `route_alignment_edges`
   Explicit links from informal semantic atoms to formal realization candidates.

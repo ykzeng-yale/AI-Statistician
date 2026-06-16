@@ -18,6 +18,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    PROOF_EVIDENCE_STATUS,
     PROOF_EVIDENCE_BOUNDARY,
     ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
@@ -221,6 +222,17 @@ def _llm_response_payload() -> dict[str, object]:
                 "semantic_role": "lemma",
             },
         ],
+        "informal_knowledge_dag_edges": [
+            {
+                "source_node_id": "informal:exchangeability",
+                "target_node_id": "informal:rank_uniformity",
+                "edge_kind": "uses",
+                "rationale": (
+                    "The rank-uniformity lemma uses the exchangeability "
+                    "assumption as its source-backed premise."
+                ),
+            }
+        ],
         "lean_realization_dag_nodes": [
             {
                 "node_id": "formal:exchangeability",
@@ -236,6 +248,17 @@ def _llm_response_payload() -> dict[str, object]:
                 "candidate_declarations": [],
                 "formalization_action": "prove_bridge",
             },
+        ],
+        "formal_realization_dag_edges": [
+            {
+                "source_node_id": "formal:exchangeability",
+                "target_node_id": "formal:rank_uniformity_bridge",
+                "edge_kind": "bridges",
+                "rationale": (
+                    "The rank-uniformity bridge is proved from the reused "
+                    "exchangeability formal primitive."
+                ),
+            }
         ],
         "route_alignment_edges": [
             {
@@ -657,9 +680,11 @@ def _make_rank_uniformity_omitted_response(
     response["informal_knowledge_dag_nodes"] = [
         response["informal_knowledge_dag_nodes"][0]
     ]
+    response["informal_knowledge_dag_edges"] = []
     response["lean_realization_dag_nodes"] = [
         response["lean_realization_dag_nodes"][0]
     ]
+    response["formal_realization_dag_edges"] = []
     if include_baseline_route_option:
         response["lean_realization_dag_nodes"].append(
             {
@@ -670,6 +695,17 @@ def _make_rank_uniformity_omitted_response(
                 "formalization_action": "prove_bridge",
             }
         )
+        response["formal_realization_dag_edges"] = [
+            {
+                "source_node_id": "formal:exchangeability",
+                "target_node_id": "formal:rank_uniformity_bridge",
+                "edge_kind": "bridges",
+                "rationale": (
+                    "The baseline rank-uniformity bridge depends on the "
+                    "exchangeability formal primitive."
+                ),
+            }
+        ]
     response["route_alignment_edges"] = [
         {
             "informal_node_id": "informal:exchangeability",
@@ -7251,7 +7287,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_provider_failures": 0,
     }
     assert payload["n_informal_knowledge_dag_nodes"] == 2
+    assert payload["n_informal_knowledge_dag_edges"] == 1
     assert payload["n_lean_realization_dag_nodes"] == 2
+    assert payload["n_formal_realization_dag_edges"] == 1
     assert (
         payload["legacy_response_field_aliases"]
         == LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES
@@ -7327,6 +7365,12 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert row["target_theorem_context_packet"] == payload["request_packets"][0][
         "context_packet"
     ]["target_theorem_context_packet"]
+    assert row["informal_knowledge_dag_edges"][0]["source_node_id"] == (
+        "informal:exchangeability"
+    )
+    assert row["formal_realization_dag_edges"][0]["target_node_id"] == (
+        "formal:rank_uniformity_bridge"
+    )
     assert row["context_packet_inventory"]["inventory_kind"] == (
         "formalization_gap_planner_llm_route_planner_context_packet_inventory"
     )
@@ -7336,6 +7380,8 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     ) == []
     row_schema = llm_route_planner_row_json_schema()
     assert "formal_realization_dag_nodes" in row_schema["required"]
+    assert "informal_knowledge_dag_edges" in row_schema["required"]
+    assert "formal_realization_dag_edges" in row_schema["required"]
     assert "lean_realization_dag_nodes" not in row_schema["required"]
     assert "source_snippets" in row_schema["required"]
     assert "realization_coverage_witness" in row_schema["required"]
@@ -7598,6 +7644,18 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert metadata["revised_informal_knowledge_dag_nodes"][0]["node_source"] == (
         "llm_route_planner_revised_informal_dag"
     )
+    assert seed_route["revised_informal_knowledge_dag_edges"][0][
+        "source_node_id"
+    ] == row["informal_knowledge_dag_edges"][0]["source_node_id"]
+    assert seed_route["revised_formal_realization_dag_edges"][0][
+        "target_node_id"
+    ] == row["formal_realization_dag_edges"][0]["target_node_id"]
+    assert metadata["revised_informal_knowledge_dag_edges"][0][
+        "proof_evidence_status"
+    ] == PROOF_EVIDENCE_STATUS
+    assert metadata["revised_formal_realization_dag_edges"][0][
+        "proof_evidence_status"
+    ] == PROOF_EVIDENCE_STATUS
 
     assert (
         metadata["llm_route_planner_minimal_delta_plan"]["minimality_rationale"]
@@ -7907,6 +7965,72 @@ def test_llm_route_planner_rejects_payload_missing_schema_level_cost_graph() -> 
     assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
     assert any(
         "response_payload.minimal_delta_plan.and_or_cost_graph required" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_missing_informal_dag_edges() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_missing_informal_edges")
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["informal_knowledge_dag_edges"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "informal_knowledge_dag_edges must be non-empty" in error
+        and "informal_knowledge_dag_nodes has multiple nodes" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_cyclic_formal_dag_edges() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_cyclic_formal_edges")
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["formal_realization_dag_edges"].append(
+        {
+            "source_node_id": "formal:rank_uniformity_bridge",
+            "target_node_id": "formal:exchangeability",
+            "edge_kind": "uses",
+            "rationale": "Bad fixture creates a reverse dependency cycle.",
+        }
+    )
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "formal_realization_dag_edges must be acyclic" in error
+        and "formal:exchangeability" in error
+        and "formal:rank_uniformity_bridge" in error
         for error in row["errors"]
     )
 
@@ -10161,6 +10285,17 @@ def test_llm_route_planner_accepts_introduced_reuse_with_candidate_declaration_r
             "semantic_role": "lemma",
         }
     )
+    response["informal_knowledge_dag_edges"].append(
+        {
+            "source_node_id": "informal:rank_uniformity",
+            "target_node_id": "informal:rank_order_statistic",
+            "edge_kind": "uses",
+            "rationale": (
+                "The helper lemma refines the source-backed rank-uniformity "
+                "argument."
+            ),
+        }
+    )
     response["lean_realization_dag_nodes"].append(
         {
             "node_id": "formal:rank_order_statistic",
@@ -10168,6 +10303,17 @@ def test_llm_route_planner_accepts_introduced_reuse_with_candidate_declaration_r
             "coverage_bucket": "already_exists",
             "candidate_declaration_rows": [helper_declaration_row],
             "formalization_action": "reuse",
+        }
+    )
+    response["formal_realization_dag_edges"].append(
+        {
+            "source_node_id": "formal:rank_uniformity_bridge",
+            "target_node_id": "formal:rank_order_statistic",
+            "edge_kind": "uses",
+            "rationale": (
+                "The reused order-statistic helper supports the formal "
+                "rank-uniformity bridge route."
+            ),
         }
     )
     response["route_alignment_edges"].append(
@@ -10992,6 +11138,8 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert "required_output_contract" in request.user_prompt
     assert request.schema["required"] == [
         "informal_knowledge_dag_nodes",
+        "informal_knowledge_dag_edges",
+        "formal_realization_dag_edges",
         "route_alignment_edges",
         "minimal_delta_plan",
         "standalone_route",
