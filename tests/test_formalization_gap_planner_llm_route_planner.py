@@ -3404,18 +3404,50 @@ def test_llm_route_planner_materializes_formal_attempt_queue_hooks() -> None:
         is not None
     ]
     assert len(queue_rows) == 2
+    assert queue_payload["n_formal_attempt_dependency_rows"] == 2
+    assert queue_payload["n_formal_attempt_dependency_initial_ready"] == 1
+    assert queue_payload["n_formal_attempt_dependency_waiting"] == 1
+    assert queue_payload["n_formal_attempt_dependency_missing_prerequisites"] == 0
+    exchangeability_attempt_row = next(
+        row
+        for row in queue_rows
+        if row["llm_route_planner_hook_trace"]["formal_node_id"]
+        == "formal:exchangeability"
+    )
     rank_attempt_row = next(
         row
         for row in queue_rows
         if row["llm_route_planner_hook_trace"]["formal_node_id"]
         == "formal:rank_uniformity_bridge"
     )
+    assert exchangeability_attempt_row["formal_attempt_initial_ready"] is True
+    assert (
+        exchangeability_attempt_row["formal_attempt_dependency_status"]
+        == "ready_no_formal_prerequisites"
+    )
+    assert exchangeability_attempt_row["formal_attempt_queue_index"] == 0
+    assert exchangeability_attempt_row["rank"] < rank_attempt_row["rank"]
     assert rank_attempt_row["hook_kind"] == "proof_state_feedback"
     assert tuple(rank_attempt_row["target_primitives"]) == ("rank_uniformity",)
     assert "lean_lsp_mcp" in rank_attempt_row["resource_ids"]
+    assert rank_attempt_row["formal_attempt_queue_index"] == 1
+    assert rank_attempt_row["formal_attempt_initial_ready"] is False
+    assert (
+        rank_attempt_row["formal_attempt_dependency_status"]
+        == "waiting_for_formal_prerequisite_attempts"
+    )
     assert rank_attempt_row["llm_route_planner_hook_trace"][
         "prerequisite_formal_node_ids"
     ] == ["formal:exchangeability"]
+    assert tuple(rank_attempt_row["formal_attempt_prerequisite_formal_node_ids"]) == (
+        "formal:exchangeability",
+    )
+    assert tuple(rank_attempt_row["formal_attempt_prerequisite_refinement_item_ids"]) == (
+        exchangeability_attempt_row["refinement_item_id"],
+    )
+    assert tuple(
+        rank_attempt_row["formal_attempt_blocking_prerequisite_formal_node_ids"]
+    ) == ("formal:exchangeability",)
     assert "expected_feedback: residual_goals" in " ".join(
         rank_attempt_row["queries"]
     )

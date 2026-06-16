@@ -1917,6 +1917,13 @@ node id, attempt kind, prerequisites, expected feedback, target primitives, and
 resource bindings in `llm_route_planner_hook_trace`, so proof-state adapters can
 consume the LLM schedule directly and later feedback can be traced back to the
 specific formal DAG attempt that caused a route repair.
+The queue exporter also computes dependency-readiness metadata:
+`formal_attempt_initial_ready`, `formal_attempt_dependency_status`,
+`formal_attempt_prerequisite_refinement_item_ids`, and
+`formal_attempt_blocking_prerequisite_formal_node_ids`. External prover workers
+should execute `ready_no_formal_prerequisites` rows first, record their
+proof-state feedback, and only then unlock dependent rows such as bridge lemmas
+whose prerequisites have produced usable declarations or residual diagnostics.
 
 - `route_alignment_edges`
   Explicit links from informal semantic atoms to formal realization candidates.

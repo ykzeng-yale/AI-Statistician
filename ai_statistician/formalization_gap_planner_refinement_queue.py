@@ -40,6 +40,12 @@ REFINEMENT_QUEUE_STATUSES = (
     "READY_FOR_INTERACTIVE_REFINEMENT",
     "BLOCKED_INTERACTIVE_REFINEMENT_INPUT",
 )
+FORMAL_ATTEMPT_DEPENDENCY_STATUSES = (
+    "not_formal_attempt_queue_item",
+    "ready_no_formal_prerequisites",
+    "waiting_for_formal_prerequisite_attempts",
+    "missing_formal_prerequisite_attempts",
+)
 
 
 @dataclass(frozen=True)
@@ -69,6 +75,13 @@ class FormalizationGapPlannerRefinementQueueRow:
     resource_request_bindings: tuple[dict[str, object], ...]
     quality_controls: dict[str, tuple[str, ...]]
     llm_route_planner_hook_trace: dict[str, object]
+    formal_attempt_queue_index: int
+    formal_attempt_initial_ready: bool
+    formal_attempt_dependency_status: str
+    formal_attempt_prerequisite_formal_node_ids: tuple[str, ...]
+    formal_attempt_prerequisite_refinement_item_ids: tuple[str, ...]
+    formal_attempt_blocking_prerequisite_formal_node_ids: tuple[str, ...]
+    formal_attempt_missing_prerequisite_formal_node_ids: tuple[str, ...]
     evaluation_signal: str
     evaluation_route_missing_primitives: tuple[str, ...]
     evaluation_delta_missing_primitives: tuple[str, ...]
@@ -157,7 +170,8 @@ def export_formalization_gap_planner_refinement_queue(
                 )
             )
 
-    ranked_rows = _rank_rows(raw_rows)
+    dependency_annotated_rows = _annotate_formal_attempt_dependencies(raw_rows)
+    ranked_rows = _rank_rows(dependency_annotated_rows)
     if max_items > 0:
         rows = ranked_rows[:max_items]
     else:
@@ -175,6 +189,9 @@ def export_formalization_gap_planner_refinement_queue(
     by_owner = Counter(row.owner_agent for row in rows)
     by_target = Counter(row.target_prover_family for row in rows)
     by_status = Counter(row.status for row in rows)
+    by_formal_attempt_dependency_status = Counter(
+        row.formal_attempt_dependency_status for row in rows
+    )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_REFINEMENT_QUEUE_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -233,6 +250,26 @@ def export_formalization_gap_planner_refinement_queue(
             if _is_failed_prover_feedback(row.prover_feedback_status)
         ),
         "n_with_quality_controls": sum(1 for row in rows if row.quality_controls),
+        "n_formal_attempt_dependency_rows": sum(
+            1
+            for row in rows
+            if row.formal_attempt_dependency_status != "not_formal_attempt_queue_item"
+        ),
+        "n_formal_attempt_dependency_initial_ready": (
+            by_formal_attempt_dependency_status.get("ready_no_formal_prerequisites", 0)
+        ),
+        "n_formal_attempt_dependency_waiting": (
+            by_formal_attempt_dependency_status.get(
+                "waiting_for_formal_prerequisite_attempts",
+                0,
+            )
+        ),
+        "n_formal_attempt_dependency_missing_prerequisites": (
+            by_formal_attempt_dependency_status.get(
+                "missing_formal_prerequisite_attempts",
+                0,
+            )
+        ),
         "n_item_schema_valid": n_item_schema_valid,
         "n_item_schema_invalid": n_item_schema_invalid,
         "refinement_work_item_schema": work_item_schema,
@@ -249,6 +286,9 @@ def export_formalization_gap_planner_refinement_queue(
         "by_owner_agent": dict(sorted(by_owner.items())),
         "by_target_prover_family": dict(sorted(by_target.items())),
         "by_status": dict(sorted(by_status.items())),
+        "by_formal_attempt_dependency_status": dict(
+            sorted(by_formal_attempt_dependency_status.items())
+        ),
         "rows": row_dicts,
         "refinement_queue_fingerprint": stable_hash(row_dicts),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
@@ -353,6 +393,15 @@ def refinement_work_item_json_schema() -> dict[str, object]:
             "resource_request_bindings": object_array,
             "quality_controls": quality_controls,
             "llm_route_planner_hook_trace": {"type": "object"},
+            "formal_attempt_queue_index": {"type": "integer"},
+            "formal_attempt_initial_ready": {"type": "boolean"},
+            "formal_attempt_dependency_status": {
+                "enum": list(FORMAL_ATTEMPT_DEPENDENCY_STATUSES),
+            },
+            "formal_attempt_prerequisite_formal_node_ids": string_array,
+            "formal_attempt_prerequisite_refinement_item_ids": string_array,
+            "formal_attempt_blocking_prerequisite_formal_node_ids": string_array,
+            "formal_attempt_missing_prerequisite_formal_node_ids": string_array,
             "evaluation_signal": {"type": "string"},
             "evaluation_route_missing_primitives": string_array,
             "evaluation_delta_missing_primitives": string_array,
@@ -571,6 +620,13 @@ def _refinement_row(
         resource_request_bindings=resource_request_bindings,
         quality_controls=quality_controls,
         llm_route_planner_hook_trace=llm_route_planner_hook_trace,
+        formal_attempt_queue_index=-1,
+        formal_attempt_initial_ready=False,
+        formal_attempt_dependency_status="not_formal_attempt_queue_item",
+        formal_attempt_prerequisite_formal_node_ids=(),
+        formal_attempt_prerequisite_refinement_item_ids=(),
+        formal_attempt_blocking_prerequisite_formal_node_ids=(),
+        formal_attempt_missing_prerequisite_formal_node_ids=(),
         evaluation_signal=evaluation_signal,
         evaluation_route_missing_primitives=_str_tuple(
             evaluation_row.get("route_missing_primitives", [])
@@ -602,6 +658,82 @@ def _refinement_row(
         ok=not errors,
         errors=tuple(errors),
     )
+
+
+def _annotate_formal_attempt_dependencies(
+    rows: list[FormalizationGapPlannerRefinementQueueRow],
+) -> list[FormalizationGapPlannerRefinementQueueRow]:
+    formal_node_to_item_id: dict[str, str] = {}
+    for row in rows:
+        trace = row.llm_route_planner_hook_trace
+        if _formal_attempt_queue_index(trace) < 0:
+            continue
+        formal_node_id = str(trace.get("formal_node_id", "")).strip()
+        if formal_node_id:
+            formal_node_to_item_id[formal_node_id] = row.refinement_item_id
+
+    annotated: list[FormalizationGapPlannerRefinementQueueRow] = []
+    for row in rows:
+        trace = row.llm_route_planner_hook_trace
+        queue_index = _formal_attempt_queue_index(trace)
+        if queue_index < 0:
+            annotated.append(row)
+            continue
+
+        prerequisites = _str_tuple(trace.get("prerequisite_formal_node_ids", []))
+        missing = tuple(
+            prerequisite
+            for prerequisite in prerequisites
+            if prerequisite not in formal_node_to_item_id
+        )
+        prerequisite_item_ids = tuple(
+            formal_node_to_item_id[prerequisite]
+            for prerequisite in prerequisites
+            if prerequisite in formal_node_to_item_id
+        )
+        if missing:
+            dependency_status = "missing_formal_prerequisite_attempts"
+            initial_ready = False
+            blockers = missing
+        elif prerequisites:
+            dependency_status = "waiting_for_formal_prerequisite_attempts"
+            initial_ready = False
+            blockers = prerequisites
+        else:
+            dependency_status = "ready_no_formal_prerequisites"
+            initial_ready = True
+            blockers = ()
+        annotated.append(
+            FormalizationGapPlannerRefinementQueueRow(
+                **{
+                    **asdict(row),
+                    "formal_attempt_queue_index": queue_index,
+                    "formal_attempt_initial_ready": initial_ready,
+                    "formal_attempt_dependency_status": dependency_status,
+                    "formal_attempt_prerequisite_formal_node_ids": prerequisites,
+                    "formal_attempt_prerequisite_refinement_item_ids": (
+                        prerequisite_item_ids
+                    ),
+                    "formal_attempt_blocking_prerequisite_formal_node_ids": (
+                        blockers
+                    ),
+                    "formal_attempt_missing_prerequisite_formal_node_ids": missing,
+                }
+            )
+        )
+    return annotated
+
+
+def _formal_attempt_queue_index(trace: dict[str, object]) -> int:
+    raw_value = trace.get("llm_route_planner_formal_attempt_queue_index")
+    if isinstance(raw_value, bool):
+        return -1
+    if isinstance(raw_value, int):
+        return raw_value
+    try:
+        return int(str(raw_value))
+    except (TypeError, ValueError):
+        return -1
 
 
 def _hooks_for_plan_row(
@@ -1339,6 +1471,7 @@ def _rank_rows(
         key=lambda row: (
             -row.priority_score,
             row.display_name,
+            _formal_attempt_rank_bucket(row),
             row.hook_kind,
             row.refinement_item_id,
         ),
@@ -1347,6 +1480,16 @@ def _rank_rows(
         FormalizationGapPlannerRefinementQueueRow(**{**asdict(row), "rank": index})
         for index, row in enumerate(ranked, start=1)
     ]
+
+
+def _formal_attempt_rank_bucket(
+    row: FormalizationGapPlannerRefinementQueueRow,
+) -> tuple[int, int, int]:
+    queue_index = row.formal_attempt_queue_index
+    if queue_index < 0:
+        return (1, 1, 1_000_000)
+    readiness_bucket = 0 if row.formal_attempt_initial_ready else 1
+    return (0, readiness_bucket, queue_index)
 
 
 def _diagnostic_index(rows: Any) -> dict[str, dict[str, Any]]:
@@ -1434,6 +1577,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Lean library grounding: {payload.get('n_lean_library_grounding_items')}",
         f"- Proof-state feedback: {payload.get('n_proof_state_feedback_items')}",
         f"- Route revision: {payload.get('n_route_revision_items')}",
+        f"- Formal attempt dependency rows: {payload.get('n_formal_attempt_dependency_rows')}",
+        f"- Formal attempts initially ready: {payload.get('n_formal_attempt_dependency_initial_ready')}",
+        f"- Formal attempts waiting on prerequisites: {payload.get('n_formal_attempt_dependency_waiting')}",
         f"- Target prover families: {payload.get('by_target_prover_family')}",
         f"- Evaluation signals: {payload.get('n_with_evaluation_signal')}",
         f"- Prover feedback signals: {payload.get('n_with_prover_feedback')}",
@@ -1461,6 +1607,25 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 "  target primitives: "
                 + ", ".join(str(item) for item in row.get("target_primitives", [])[:8])
             )
+        if row.get("formal_attempt_dependency_status") not in {
+            "",
+            "not_formal_attempt_queue_item",
+        }:
+            lines.append(
+                "  formal attempt dependency: "
+                + str(row.get("formal_attempt_dependency_status"))
+            )
+            if row.get("formal_attempt_blocking_prerequisite_formal_node_ids"):
+                lines.append(
+                    "  blocking formal prerequisites: "
+                    + ", ".join(
+                        str(item)
+                        for item in row.get(
+                            "formal_attempt_blocking_prerequisite_formal_node_ids",
+                            [],
+                        )
+                    )
+                )
         if row.get("evaluation_signal") != "no_evaluation_signal":
             lines.append(f"  evaluation signal: {row.get('evaluation_signal')}")
         if row.get("prover_feedback_status") not in {
