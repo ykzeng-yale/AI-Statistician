@@ -2219,6 +2219,13 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "llm_route_adoption_blocker_counts",
             "llm_route_adoption_status_counts",
             "evaluation_by_llm_route_adoption_blocker",
+            "llm_route_planner_provider_usage_summary",
+            "n_rows_with_llm_route_planner_provider_usage",
+            "total_llm_route_planner_provider_input_tokens",
+            "total_llm_route_planner_provider_output_tokens",
+            "total_llm_route_planner_provider_cache_creation_input_tokens",
+            "total_llm_route_planner_provider_cache_read_input_tokens",
+            "total_llm_route_planner_provider_total_tokens",
             "n_rows_with_quality_controls",
             "n_quality_control_fields",
             "quality_control_fields",
@@ -2296,6 +2303,20 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 "type": "object",
                 "additionalProperties": {"type": "object"},
             },
+            "llm_route_planner_provider_usage_summary": {
+                "type": "object",
+                "additionalProperties": True,
+            },
+            "n_rows_with_llm_route_planner_provider_usage": nonnegative_integer,
+            "total_llm_route_planner_provider_input_tokens": nonnegative_integer,
+            "total_llm_route_planner_provider_output_tokens": nonnegative_integer,
+            "total_llm_route_planner_provider_cache_creation_input_tokens": (
+                nonnegative_integer
+            ),
+            "total_llm_route_planner_provider_cache_read_input_tokens": (
+                nonnegative_integer
+            ),
+            "total_llm_route_planner_provider_total_tokens": nonnegative_integer,
             "n_rows_with_quality_controls": nonnegative_integer,
             "n_quality_control_fields": nonnegative_integer,
             "quality_control_fields": string_array,
@@ -4427,6 +4448,13 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         "llm_route_adoption_blocker_counts": {},
         "llm_route_adoption_status_counts": {},
         "evaluation_by_llm_route_adoption_blocker": {},
+        "llm_route_planner_provider_usage_summary": {},
+        "n_rows_with_llm_route_planner_provider_usage": 0,
+        "total_llm_route_planner_provider_input_tokens": 0,
+        "total_llm_route_planner_provider_output_tokens": 0,
+        "total_llm_route_planner_provider_cache_creation_input_tokens": 0,
+        "total_llm_route_planner_provider_cache_read_input_tokens": 0,
+        "total_llm_route_planner_provider_total_tokens": 0,
         "n_rows_with_quality_controls": 0,
         "n_quality_control_fields": 0,
         "quality_control_fields": (),
@@ -4740,6 +4768,82 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         ),
         "evaluation_by_llm_route_adoption_blocker": (
             _llm_route_adoption_blocker_summary(payload, rows)
+        ),
+        "llm_route_planner_provider_usage_summary": (
+            _dict_value(payload, "llm_route_planner_provider_usage_summary")
+        ),
+        "n_rows_with_llm_route_planner_provider_usage": int(
+            payload.get(
+                "n_rows_with_llm_route_planner_provider_usage",
+                sum(
+                    1
+                    for row in rows
+                    if row.get("llm_route_planner_has_provider_usage") is True
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_input_tokens": int(
+            payload.get(
+                "total_llm_route_planner_provider_input_tokens",
+                sum(
+                    int(row.get("llm_route_planner_provider_input_tokens", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_output_tokens": int(
+            payload.get(
+                "total_llm_route_planner_provider_output_tokens",
+                sum(
+                    int(row.get("llm_route_planner_provider_output_tokens", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_cache_creation_input_tokens": int(
+            payload.get(
+                "total_llm_route_planner_provider_cache_creation_input_tokens",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_provider_cache_creation_input_tokens",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_cache_read_input_tokens": int(
+            payload.get(
+                "total_llm_route_planner_provider_cache_read_input_tokens",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_provider_cache_read_input_tokens",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_total_tokens": int(
+            payload.get(
+                "total_llm_route_planner_provider_total_tokens",
+                sum(
+                    int(row.get("llm_route_planner_provider_total_tokens", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
         ),
         "n_rows_with_quality_controls": int(
             payload.get(
@@ -6357,6 +6461,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('evaluation_summary', {}).get('n_llm_route_adoption_blockers')} "
             f"source_grounding={payload.get('evaluation_summary', {}).get('n_llm_route_adoption_pending_source_grounding_blockers')} "
             f"quality_controls={payload.get('evaluation_summary', {}).get('n_llm_route_adoption_pending_quality_control_blockers')}"
+        ),
+        (
+            f"- Evaluation LLM provider usage rows/input/output/total: "
+            f"{payload.get('evaluation_summary', {}).get('n_rows_with_llm_route_planner_provider_usage')}/"
+            f"{payload.get('evaluation_summary', {}).get('total_llm_route_planner_provider_input_tokens')}/"
+            f"{payload.get('evaluation_summary', {}).get('total_llm_route_planner_provider_output_tokens')}/"
+            f"{payload.get('evaluation_summary', {}).get('total_llm_route_planner_provider_total_tokens')}"
         ),
         (
             f"- Evaluation quality controls: "

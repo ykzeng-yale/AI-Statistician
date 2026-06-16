@@ -585,11 +585,11 @@ workers to parse opaque standalone trace blobs.
 The publication-bundle manifest itself includes an `evaluation_summary` with
 the same realization, cost-hint, route-adoption, and quality-control counters,
 plus minimal-delta route-option totals, selected-route cost means,
-kernel-verified ground-truth counts, and mean alignment coverage. Public bundles
-therefore expose semantic route weakening, minimal-delta quality, and readiness
-blockers before a consumer runs the separate audit command; the audit also
-recomputes and checks this top-level summary against the packaged evaluation
-artifacts.
+kernel-verified ground-truth counts, mean alignment coverage, and evaluation
+LLM provider-usage totals. Public bundles therefore expose semantic route
+weakening, minimal-delta quality, readiness blockers, and Claude tier cost
+before a consumer runs the separate audit command; the audit also recomputes
+and checks this top-level summary against the packaged evaluation artifacts.
 The bundle audit also validates the packaged LLM model policy against official
 Anthropic source URLs and the pinned-snapshot/not-evergreen Claude model-ID
 versioning claim, so Haiku/Sonnet/Opus routing evidence is source-attributed in

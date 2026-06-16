@@ -1242,6 +1242,12 @@ def _fixture_evaluation_row() -> dict[str, object]:
         ),
         "llm_route_planner_has_generator_metadata": True,
         "llm_route_planner_generator_metadata_keys": ["retry_count"],
+        "llm_route_planner_has_provider_usage": True,
+        "llm_route_planner_provider_input_tokens": 11,
+        "llm_route_planner_provider_output_tokens": 5,
+        "llm_route_planner_provider_cache_creation_input_tokens": 0,
+        "llm_route_planner_provider_cache_read_input_tokens": 2,
+        "llm_route_planner_provider_total_tokens": 18,
         "llm_route_planner_request_contract_blocked": False,
         "llm_route_planner_errors": [],
         "llm_route_planner_generation_errors": [],
@@ -2207,6 +2213,55 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                         },
                     },
                 },
+                "llm_route_planner_provider_usage_summary": {
+                    "row_count": 1,
+                    "n_rows": 1,
+                    "input_tokens": 11,
+                    "output_tokens": 5,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 2,
+                    "total_tokens": 18,
+                    "by_provider": {
+                        "anthropic": {
+                            "n_rows": 1,
+                            "input_tokens": 11,
+                            "output_tokens": 5,
+                            "cache_creation_input_tokens": 0,
+                            "cache_read_input_tokens": 2,
+                            "total_tokens": 18,
+                        }
+                    },
+                    "by_model_tier": {
+                        "sonnet": {
+                            "n_rows": 1,
+                            "input_tokens": 11,
+                            "output_tokens": 5,
+                            "cache_creation_input_tokens": 0,
+                            "cache_read_input_tokens": 2,
+                            "total_tokens": 18,
+                        }
+                    },
+                    "by_model": {
+                        "claude-sonnet-4-6": {
+                            "n_rows": 1,
+                            "input_tokens": 11,
+                            "output_tokens": 5,
+                            "cache_creation_input_tokens": 0,
+                            "cache_read_input_tokens": 2,
+                            "total_tokens": 18,
+                        }
+                    },
+                    "proof_evidence_status": (
+                        "FORMALIZATION_GAP_PLANNER_EVALUATION_NOT_PROOF_EVIDENCE"
+                    ),
+                    "proof_evidence_boundary": "not theorem proof evidence",
+                },
+                "n_rows_with_llm_route_planner_provider_usage": 1,
+                "total_llm_route_planner_provider_input_tokens": 11,
+                "total_llm_route_planner_provider_output_tokens": 5,
+                "total_llm_route_planner_provider_cache_creation_input_tokens": 0,
+                "total_llm_route_planner_provider_cache_read_input_tokens": 2,
+                "total_llm_route_planner_provider_total_tokens": 18,
                 "n_rows_with_llm_route_planner_request_contract_blocked": 0,
                 "n_rows_with_llm_route_planner_errors": 0,
                 "n_llm_route_planner_errors": 0,
@@ -5132,6 +5187,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         bundle_manifest_payload["evaluation_summary"]["mean_alignment_coverage"]
         == 1.0
     )
+    assert (
+        bundle_manifest_payload["evaluation_summary"][
+            "n_rows_with_llm_route_planner_provider_usage"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest_payload["evaluation_summary"][
+            "total_llm_route_planner_provider_total_tokens"
+        ]
+        == 18
+    )
     corrupted_bundle_manifest = json.loads(json.dumps(bundle_manifest_payload))
     corrupted_bundle_manifest["evaluation_summary"][
         "n_realization_omitted_cost_hint_primitives"
@@ -5143,6 +5210,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "n_kernel_verification_witnesses"
     ] = 1
     corrupted_bundle_manifest["evaluation_summary"]["mean_alignment_coverage"] = 0.0
+    corrupted_bundle_manifest["evaluation_summary"][
+        "total_llm_route_planner_provider_total_tokens"
+    ] = 1
     bundle_manifest_path.write_text(
         json.dumps(corrupted_bundle_manifest, indent=2),
         encoding="utf-8",
@@ -5165,6 +5235,10 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert any(
         "mean_alignment_coverage" in error
+        for error in rejected_bundle_summary_check.get("errors", [])
+    )
+    assert any(
+        "total_llm_route_planner_provider_total_tokens" in error
         for error in rejected_bundle_summary_check.get("errors", [])
     )
     bundle_manifest_path.write_text(

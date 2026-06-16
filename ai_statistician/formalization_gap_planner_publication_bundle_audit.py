@@ -3874,6 +3874,83 @@ def _expected_bundle_evaluation_summary(bundle_dir: Path) -> dict[str, object]:
         "llm_route_adoption_blocker_counts": dict(route_adoption_blocker_counts),
         "llm_route_adoption_status_counts": dict(route_adoption_counts),
         "evaluation_by_llm_route_adoption_blocker": route_adoption_blocker_summary,
+        "llm_route_planner_provider_usage_summary": _dict_value(
+            evaluation_manifest,
+            "llm_route_planner_provider_usage_summary",
+        ),
+        "n_rows_with_llm_route_planner_provider_usage": int(
+            evaluation_manifest.get(
+                "n_rows_with_llm_route_planner_provider_usage",
+                sum(
+                    1
+                    for row in rows
+                    if row.get("llm_route_planner_has_provider_usage") is True
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_input_tokens": int(
+            evaluation_manifest.get(
+                "total_llm_route_planner_provider_input_tokens",
+                sum(
+                    int(row.get("llm_route_planner_provider_input_tokens", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_output_tokens": int(
+            evaluation_manifest.get(
+                "total_llm_route_planner_provider_output_tokens",
+                sum(
+                    int(row.get("llm_route_planner_provider_output_tokens", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_cache_creation_input_tokens": int(
+            evaluation_manifest.get(
+                "total_llm_route_planner_provider_cache_creation_input_tokens",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_provider_cache_creation_input_tokens",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_cache_read_input_tokens": int(
+            evaluation_manifest.get(
+                "total_llm_route_planner_provider_cache_read_input_tokens",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_provider_cache_read_input_tokens",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "total_llm_route_planner_provider_total_tokens": int(
+            evaluation_manifest.get(
+                "total_llm_route_planner_provider_total_tokens",
+                sum(
+                    int(row.get("llm_route_planner_provider_total_tokens", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
         "n_rows_with_quality_controls": sum(
             1 for row in rows if _quality_controls_from_evaluation_row(row)
         ),

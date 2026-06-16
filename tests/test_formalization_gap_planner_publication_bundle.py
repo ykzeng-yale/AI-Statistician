@@ -2572,6 +2572,46 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         payload["evaluation_summary"]["evaluation_by_llm_route_adoption_blocker"]
         == {}
     )
+    assert (
+        payload["evaluation_summary"]["llm_route_planner_provider_usage_summary"]
+        == {}
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_rows_with_llm_route_planner_provider_usage"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "total_llm_route_planner_provider_input_tokens"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "total_llm_route_planner_provider_output_tokens"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "total_llm_route_planner_provider_cache_creation_input_tokens"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "total_llm_route_planner_provider_cache_read_input_tokens"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "total_llm_route_planner_provider_total_tokens"
+        ]
+        == 0
+    )
     assert payload["evaluation_summary"]["n_rows_with_quality_controls"] == 0
     assert payload["evaluation_summary"]["n_quality_control_fields"] == 0
     assert payload["evaluation_summary"]["quality_control_fields"] == ()
