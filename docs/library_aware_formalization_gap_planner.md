@@ -824,7 +824,11 @@ action stored in the refinement-queue trace. The
 standalone seed and each
 standalone-plan `standalone_input_trace` preserve the same fields, so a public
 consumer can filter adoption-ready route plans without reopening raw LLM
-responses. The route-planner manifest also exposes `standalone_replay_gate`,
+responses. The source-grounding audit reads preserved
+`llm_route_planner_residual_interpretations` directly from that trace, so a
+route repair suggested by the LLM must be source-backed, search-pending, or
+explicitly declared as a formal boundary after standalone conversion. The
+route-planner manifest also exposes `standalone_replay_gate`,
 `standalone_replay_gate_ok`,
 `n_standalone_replay_adoptable_route_candidates`,
 `route_adoption_blocker_counts`, and `by_route_adoption_blocker`, so downstream
