@@ -827,7 +827,11 @@ consumer can filter adoption-ready route plans without reopening raw LLM
 responses. The source-grounding audit reads preserved
 `llm_route_planner_residual_interpretations` directly from that trace, so a
 route repair suggested by the LLM must be source-backed, search-pending, or
-explicitly declared as a formal boundary after standalone conversion. The
+explicitly declared as a formal boundary after standalone conversion. The next
+LLM route-planner request also promotes those preserved interpretations into
+`residual_goal_contexts`, so their residual goal, route-repair text, source
+refs, diagnostics, and evidence ids remain visible to the prompt packet and
+auto Haiku/Sonnet tier decision instead of being treated as inert metadata. The
 route-planner manifest also exposes `standalone_replay_gate`,
 `standalone_replay_gate_ok`,
 `n_standalone_replay_adoptable_route_candidates`,

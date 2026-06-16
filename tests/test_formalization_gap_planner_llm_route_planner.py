@@ -5896,6 +5896,100 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
     ]
 
 
+def test_llm_route_planner_promotes_seed_residual_interpretations_to_context() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_seed_residual_context"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    residual_context = {
+        "residual_goal": "rank_uniformity: missing finite tie-breaking side condition",
+        "interpretation": (
+            "The previous LLM route repair identified a finite tie-breaking "
+            "side condition that still needs replay."
+        ),
+        "route_repair": (
+            "Carry the finite tie-breaking side condition into the next "
+            "rank_uniformity route before claiming adoption readiness."
+        ),
+        "target_primitives": ["rank_uniformity"],
+        "source_refs": ["conformal_prediction_textbook"],
+        "residual_attempt_status": "local_lean_failed",
+        "residual_diagnostic_signature": "prover_diagnostic_signature:tie",
+        "evidence_ids": ["evidence:llm-residual-tie"],
+    }
+    input_payload["routes"][0]["replan_metadata"] = {
+        "llm_route_planner_residual_interpretations": [dict(residual_context)]
+    }
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    response = _llm_response_payload()
+    response["residual_interpretations"] = [dict(residual_context)]
+    response["search_requests"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["planner_next_actions"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_request_residual_goals"] == 1
+    assert payload["n_requests_with_residual_goal_contexts"] == 1
+    assert payload["n_request_residual_goal_contexts"] == 1
+    assert payload["n_request_context_residual_goal_contexts"] == 1
+    assert payload["n_request_inventory_residual_goal_contexts"] == 1
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    request = payload["request_packets"][0]
+    assert request["model_tier"] == "sonnet"
+    assert "1 prover residual goal(s)" in request[
+        "model_tier_decision_evidence"
+    ]["sonnet_triggers"]
+    assert tuple(request["residual_goals"]) == (
+        "rank_uniformity: missing finite tie-breaking side condition",
+    )
+    context_packet = request["context_packet"]
+    assert tuple(context_packet["residual_goals"]) == (
+        "rank_uniformity: missing finite tie-breaking side condition",
+    )
+    contexts = context_packet["residual_goal_contexts"]
+    assert len(contexts) == 1
+    context = contexts[0]
+    assert context["source_kind"] == "llm_route_planner_residual_interpretation"
+    assert context["residual_goal"] == (
+        "rank_uniformity: missing finite tie-breaking side condition"
+    )
+    assert context["route_repair"].startswith("Carry the finite tie-breaking")
+    assert context["source_refs"] == ("conformal_prediction_textbook",)
+    assert context["target_primitives"] == ("rank_uniformity",)
+    assert context["evidence_ids"] == ("evidence:llm-residual-tie",)
+    target_context = context_packet["target_theorem_context_packet"]
+    assert target_context["residual_goal_context_count"] == 1
+    assert target_context["residual_goal_contexts"] == [dict(context)]
+    route_brief = context_packet["route_planning_brief"]
+    assert route_brief["evidence_summary"]["residual_goal_context_count"] == 1
+    assert {
+        focus["focus_id"] for focus in route_brief["planner_focus"]
+    } >= {"repair_from_residual_goal_contexts"}
+    assert "residual_goal_contexts" in request["prompt_messages"]["user"]
+    row = payload["rows"][0]
+    assert row["residual_goal_contexts"] == (dict(context),)
+    assert row["route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert "residual_interpretations_require_route_replay" in row[
+        "route_adoption_blockers"
+    ]
+
+
 def test_llm_route_planner_rejects_ungrounded_quality_controls() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_bad_quality_controls"

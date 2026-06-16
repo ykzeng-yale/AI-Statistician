@@ -22579,8 +22579,10 @@ def _residual_goals_for_route(
     )
     residuals.extend(
         _str_tuple(
-            context.get("residual_goal", "")
-            for context in _residual_goal_contexts_for_route(route)
+            [
+                context.get("residual_goal", "")
+                for context in _residual_goal_contexts_for_route(route)
+            ]
         )
     )
     for source_name in (
@@ -22605,8 +22607,10 @@ def _residual_goals_for_route(
             residuals.extend(_str_tuple(row.get("residual_goals", [])))
             residuals.extend(
                 _str_tuple(
-                    context.get("residual_goal", "")
-                    for context in _residual_goal_contexts_for_route(row)
+                    [
+                        context.get("residual_goal", "")
+                        for context in _residual_goal_contexts_for_route(row)
+                    ]
                 )
             )
     return _unique_strings(residuals)
@@ -22660,6 +22664,17 @@ def _residual_goal_contexts_for_route(route: Mapping[str, Any]) -> tuple[dict[st
         context = _residual_goal_context_value(source)
         if context:
             contexts.append(context)
+    for source in (
+        *_dict_tuple(route.get("llm_route_planner_residual_interpretations", [])),
+        *_dict_tuple(metadata.get("llm_route_planner_residual_interpretations", [])),
+    ):
+        context = _residual_goal_context_value(source)
+        if context:
+            context.setdefault(
+                "source_kind",
+                "llm_route_planner_residual_interpretation",
+            )
+            contexts.append(context)
     for trace_field in (
         "applied_resource_response_traces",
         "applied_llm_route_planner_hook_traces",
@@ -22708,9 +22723,23 @@ def _residual_goal_context_value(value: Any) -> dict[str, object]:
         "repair_action",
         "source_search_status",
         "formal_gap_boundary",
+        "residual_attempt_status",
+        "residual_diagnostic_signature",
+        "provider_attempt_status",
+        "provider_diagnostic_signature",
+        "prover_attempt_status",
+        "prover_diagnostic_signature",
     ):
         if field_name in context:
             context[field_name] = str(context.get(field_name, "") or "")
+    for field_name in (
+        "evidence_ids",
+        "residual_evidence_ids",
+        "refinement_evidence_ids",
+        "prover_attempt_ids",
+    ):
+        if field_name in context:
+            context[field_name] = _str_tuple(context.get(field_name, []))
     return context
 
 
