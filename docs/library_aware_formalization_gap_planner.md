@@ -285,7 +285,11 @@ route synthesis. Accepted LLM rows must include
 source-grounded informal DAG nodes, formal-realization DAG nodes, alignment
 rationales, a minimality rationale, a versioned minimal-delta cost witness, and
 an explicit proof-evidence boundary; `kernel_verified=true` claims are
-rejected. When a selected primitive is priced or marked as a wrapper, bridge
+rejected. Minimality rationales are validated as evidence-anchored text: they
+must mention selected primitives, the selected route option, coverage/cost
+buckets, route-cost comparisons, or concrete delta work, and placeholder
+claims such as "minimal" or "cheapest" are rejected. When a selected primitive
+is priced or marked as a wrapper, bridge
 lemma, source port, new definition, or new theory fragment, the same
 `minimal_delta_plan` must also list that primitive in the matching concrete
 action bucket such as `wrapper_lemmas`, `bridge_lemmas`,

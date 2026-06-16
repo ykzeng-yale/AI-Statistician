@@ -14153,6 +14153,69 @@ def test_llm_route_planner_rejects_route_cost_not_matching_primitive_totals() ->
     )
 
 
+def test_llm_route_planner_rejects_placeholder_minimality_rationale() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_placeholder_minimality_rationale"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["minimal_delta_plan"]["minimality_rationale"] = "minimal"
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "minimal_delta_plan.minimality_rationale must be substantive"
+        in error
+        and "placeholder" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_unanchored_minimality_rationale() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_unanchored_minimality_rationale"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    bad_response["minimal_delta_plan"]["minimality_rationale"] = (
+        "This route keeps the proof small while saving effort."
+    )
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "minimal_delta_plan.minimality_rationale must mention selected primitives"
+        in error
+        and "selected route option" in error
+        and "actionable delta evidence" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_route_option_cost_without_witness() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_route_option_cost_without_witness"

@@ -9639,6 +9639,7 @@ def _user_prompt(
             "Every alignment edge must connect a formal node primitive to an informal node whose explicit primitive scope supports that same primitive; scoped informal nodes cannot justify unrelated formal primitives.",
             formal_realization_requirement,
             "Minimal delta must include duplicate-free selected_primitives, cost_model_version, route_cost, primitive_costs, and_or_cost_graph, and minimality_rationale.",
+            "minimal_delta_plan.minimality_rationale must be substantive and evidence-anchored: name selected primitives, the selected route option, coverage/cost buckets, route-cost comparison, or actionable delta evidence; placeholders such as minimal/cheapest/ok are rejected.",
             "Use minimal_delta_cost_policy as the AND/OR graph cost surface; pick the route with the lowest current formalization delta cost.",
             "When context_packet.minimal_delta_cost_hints is present, use primitive_cost_hints as lower-bound coverage evidence and do not choose route options cheaper than their minimum_route_base_cost.",
             "If the selected route omits any primitive from context_packet.minimal_delta_cost_hints.route_option_hints, and_or_cost_graph.route_options must still enumerate that baseline primitive set with route_cost at least minimum_route_base_cost.",
@@ -13032,6 +13033,8 @@ def _response_contract_errors(
         )
     if not str(minimal_delta.get("minimality_rationale", "")).strip():
         errors.append("minimal_delta_plan.minimality_rationale missing")
+    else:
+        errors.extend(_minimal_delta_rationale_errors(minimal_delta))
     errors.extend(
         _minimal_delta_cost_witness_errors(
             minimal_delta,
@@ -13470,6 +13473,145 @@ def _minimal_delta_route_option_primitive_keys(
             if primitive
         )
     return primitives
+
+
+def _minimal_delta_rationale_errors(
+    minimal_delta: Mapping[str, Any],
+) -> list[str]:
+    rationale = str(minimal_delta.get("minimality_rationale", "") or "").strip()
+    if not rationale:
+        return []
+    tokens = _minimal_delta_rationale_tokens(rationale)
+    if len(tokens) < 2:
+        return [
+            "minimal_delta_plan.minimality_rationale must be substantive, "
+            "not a placeholder"
+        ]
+    anchors = _minimal_delta_rationale_anchor_tokens(minimal_delta)
+    if anchors and not (tokens & anchors):
+        return [
+            "minimal_delta_plan.minimality_rationale must mention selected "
+            "primitives, selected route option, coverage/cost bucket, route "
+            "cost, or actionable delta evidence"
+        ]
+    return []
+
+
+def _minimal_delta_rationale_anchor_tokens(
+    minimal_delta: Mapping[str, Any],
+) -> set[str]:
+    values: list[object] = []
+    values.extend(_str_tuple(minimal_delta.get("selected_primitives", [])))
+    if _is_nonnegative_number(minimal_delta.get("route_cost")):
+        values.append(str(minimal_delta.get("route_cost")))
+    for field_name in (
+        "new_definitions",
+        "wrapper_lemmas",
+        "bridge_lemmas",
+        "source_port_lemmas",
+        "new_theory_primitives",
+        "first_principles_primitives",
+        "do_not_formalize_now",
+    ):
+        values.extend(_str_tuple(minimal_delta.get(field_name, [])))
+    for row in _dict_tuple(minimal_delta.get("primitive_costs", [])):
+        for field_name in (
+            "primitive",
+            "coverage_bucket",
+            "cost_rationale",
+        ):
+            values.extend(_str_tuple(row.get(field_name, [])))
+    graph = _dict_value(minimal_delta, "and_or_cost_graph")
+    values.extend(_str_tuple(graph.get("selected_route_option_id", "")))
+    for option in _dict_tuple(graph.get("route_options", [])):
+        for field_name in (
+            "route_option_id",
+            "selected_primitives",
+            "cost_rationale",
+            "new_definitions",
+            "wrapper_lemmas",
+            "bridge_lemmas",
+            "source_port_lemmas",
+            "new_theory_primitives",
+            "first_principles_primitives",
+            "do_not_formalize_now",
+        ):
+            values.extend(_str_tuple(option.get(field_name, [])))
+        if _is_nonnegative_number(option.get("route_cost")):
+            values.append(str(option.get("route_cost")))
+        for row in _dict_tuple(option.get("primitive_costs", [])):
+            for field_name in (
+                "primitive",
+                "coverage_bucket",
+                "cost_rationale",
+            ):
+                values.extend(_str_tuple(row.get(field_name, [])))
+    for node in _dict_tuple(graph.get("or_nodes", [])):
+        for field_name in ("node_id", "choices", "selection_rationale"):
+            values.extend(_str_tuple(node.get(field_name, [])))
+    for edge in _dict_tuple(graph.get("and_edges", [])):
+        for field_name in ("route_option_id", "requires"):
+            values.extend(_str_tuple(edge.get(field_name, [])))
+    return _minimal_delta_rationale_tokens(
+        " ".join(str(value) for value in values)
+    )
+
+
+def _minimal_delta_rationale_tokens(text: object) -> set[str]:
+    stopwords = FORMAL_GAP_BOUNDARY_TEXT_STOPWORDS | {
+        "add",
+        "adds",
+        "all",
+        "also",
+        "and",
+        "any",
+        "because",
+        "best",
+        "can",
+        "candidate",
+        "cheapest",
+        "choose",
+        "chosen",
+        "cost",
+        "costs",
+        "current",
+        "delta",
+        "effort",
+        "for",
+        "from",
+        "graph",
+        "has",
+        "have",
+        "least",
+        "lower",
+        "lowest",
+        "minimal",
+        "minimality",
+        "minimum",
+        "must",
+        "new",
+        "only",
+        "option",
+        "plan",
+        "planner",
+        "primitive",
+        "primitives",
+        "proof",
+        "route",
+        "selected",
+        "the",
+        "this",
+        "use",
+        "uses",
+        "using",
+        "work",
+        "with",
+    }
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", str(text or "").lower().replace("_", " "))
+        if (len(token) >= 3 or token.isdigit()) and token not in stopwords
+    }
 
 
 def _primitive_cost_base_cost_policy_error(
