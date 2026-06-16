@@ -24691,6 +24691,16 @@ def _accepted_route_for_seed(
     )
     llm_refinement_hooks = _merge_dict_rows(
         llm_refinement_hooks,
+        _llm_refinement_hooks_for_formal_attempt_queue(
+            row.formal_attempt_queue,
+            selected_primitives=selected_primitives,
+            theorem_statement=str(route.get("theorem_statement", "")),
+            target_prover_family=row.target_prover_family,
+        ),
+        key_fields=("hook_kind", "queries", "acceptance_record"),
+    )
+    llm_refinement_hooks = _merge_dict_rows(
+        llm_refinement_hooks,
         _llm_refinement_hooks_for_residual_interpretations(
             row.residual_interpretations,
             selected_primitives=selected_primitives,
@@ -24759,6 +24769,14 @@ def _accepted_route_for_seed(
         llm_route_revision_triggers,
         _llm_route_revision_triggers_for_planner_next_actions(
             row.planner_next_actions,
+            target_prover_family=row.target_prover_family,
+        ),
+        key_fields=("trigger_kind", "condition", "next_action"),
+    )
+    llm_route_revision_triggers = _merge_dict_rows(
+        llm_route_revision_triggers,
+        _llm_route_revision_triggers_for_formal_attempt_queue(
+            row.formal_attempt_queue,
             target_prover_family=row.target_prover_family,
         ),
         key_fields=("trigger_kind", "condition", "next_action"),
@@ -25233,6 +25251,161 @@ def _llm_route_revision_triggers_for_planner_next_actions(
         tuple(triggers),
         tuple(),
         key_fields=("trigger_kind", "condition", "next_action"),
+    )
+
+
+def _llm_refinement_hooks_for_formal_attempt_queue(
+    formal_attempt_queue: tuple[dict[str, object], ...],
+    *,
+    selected_primitives: tuple[str, ...],
+    theorem_statement: str,
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    hooks: list[dict[str, object]] = []
+    for index, attempt in enumerate(formal_attempt_queue):
+        hook_kind = _target_scoped_llm_hook_kind(
+            "proof_state_feedback",
+            target_prover_family=target_prover_family,
+        )
+        queries = _str_tuple(
+            [
+                *_formal_attempt_queue_queries(attempt),
+                theorem_statement,
+            ]
+        )
+        if not queries:
+            continue
+        resource_binding_summary = _llm_resource_binding_summary(
+            attempt,
+            primary_source_label=f"formal_attempt_queue[{index}]",
+        )
+        hooks.append(
+            {
+                "hook_kind": hook_kind,
+                "recommended_tools": list(
+                    _recommended_tools_for_llm_hook(
+                        hook_kind,
+                        target_prover_family=target_prover_family,
+                    )
+                ),
+                "queries": list(queries),
+                "target_primitives": list(
+                    _target_primitives_for_llm_search_request(
+                        attempt,
+                        selected_primitives=selected_primitives,
+                    )
+                ),
+                "acceptance_record": _acceptance_record_for_llm_hook(hook_kind),
+                "llm_route_planner_formal_attempt_queue_index": index,
+                "llm_route_planner_formal_attempt": dict(attempt),
+                "formal_attempt_id": str(attempt.get("attempt_id", "")).strip(),
+                "formal_node_id": str(attempt.get("formal_node_id", "")).strip(),
+                "formal_attempt_kind": str(attempt.get("attempt_kind", "")).strip(),
+                "prerequisite_formal_node_ids": list(
+                    _str_tuple(attempt.get("prerequisite_formal_node_ids", []))
+                ),
+                "expected_feedback": list(
+                    _str_tuple(attempt.get("expected_feedback", []))
+                ),
+                "quality_controls": _quality_control_payload_for_row(attempt),
+                "resource_request_ids": list(
+                    resource_binding_summary["resource_request_ids"]
+                ),
+                "resource_ids": list(resource_binding_summary["resource_ids"]),
+                "resource_request_bindings": [
+                    dict(item)
+                    for item in resource_binding_summary["resource_request_bindings"]
+                ],
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    return _merge_dict_rows(
+        tuple(hooks),
+        tuple(),
+        key_fields=("hook_kind", "queries", "acceptance_record"),
+    )
+
+
+def _llm_route_revision_triggers_for_formal_attempt_queue(
+    formal_attempt_queue: tuple[dict[str, object], ...],
+    *,
+    target_prover_family: str,
+) -> tuple[dict[str, object], ...]:
+    triggers: list[dict[str, object]] = []
+    for index, attempt in enumerate(formal_attempt_queue):
+        hook_kind = _target_scoped_llm_hook_kind(
+            "proof_state_feedback",
+            target_prover_family=target_prover_family,
+        )
+        query = "; ".join(_formal_attempt_queue_queries(attempt))
+        if not query:
+            continue
+        resource_binding_summary = _llm_resource_binding_summary(
+            attempt,
+            primary_source_label=f"formal_attempt_queue[{index}]",
+        )
+        triggers.append(
+            {
+                "trigger_kind": _trigger_kind_for_llm_hook(hook_kind),
+                "condition": query,
+                "next_action": _next_action_for_llm_hook(hook_kind, query=query),
+                "llm_route_planner_formal_attempt_queue_index": index,
+                "llm_route_planner_formal_attempt": dict(attempt),
+                "formal_attempt_id": str(attempt.get("attempt_id", "")).strip(),
+                "formal_node_id": str(attempt.get("formal_node_id", "")).strip(),
+                "formal_attempt_kind": str(attempt.get("attempt_kind", "")).strip(),
+                "prerequisite_formal_node_ids": list(
+                    _str_tuple(attempt.get("prerequisite_formal_node_ids", []))
+                ),
+                "expected_feedback": list(
+                    _str_tuple(attempt.get("expected_feedback", []))
+                ),
+                "quality_controls": _quality_control_payload_for_row(attempt),
+                "resource_request_ids": list(
+                    resource_binding_summary["resource_request_ids"]
+                ),
+                "resource_ids": list(resource_binding_summary["resource_ids"]),
+                "resource_request_bindings": [
+                    dict(item)
+                    for item in resource_binding_summary["resource_request_bindings"]
+                ],
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+            }
+        )
+    return _merge_dict_rows(
+        tuple(triggers),
+        tuple(),
+        key_fields=("trigger_kind", "condition", "next_action"),
+    )
+
+
+def _formal_attempt_queue_queries(
+    attempt: Mapping[str, object],
+) -> tuple[str, ...]:
+    prerequisites = _str_tuple(attempt.get("prerequisite_formal_node_ids", []))
+    expected_feedback = _str_tuple(attempt.get("expected_feedback", []))
+    return _str_tuple(
+        [
+            attempt.get("action", ""),
+            attempt.get("query", ""),
+            attempt.get("reason", ""),
+            attempt.get("rationale", ""),
+            f"formal_node_id: {attempt.get('formal_node_id', '')}",
+            f"primitive: {attempt.get('primitive', '')}",
+            f"attempt_kind: {attempt.get('attempt_kind', '')}",
+            (
+                "prerequisite_formal_node_ids: "
+                + ", ".join(prerequisites)
+                if prerequisites
+                else "prerequisite_formal_node_ids: none"
+            ),
+            (
+                "expected_feedback: " + ", ".join(expected_feedback)
+                if expected_feedback
+                else ""
+            ),
+        ]
     )
 
 
@@ -26442,8 +26615,9 @@ def _llm_resource_binding_summary(
     search_request: Mapping[str, object],
     *,
     planner_next_actions: tuple[dict[str, object], ...] = (),
+    primary_source_label: str = "search_request",
 ) -> dict[str, tuple[object, ...]]:
-    rows = [("search_request", search_request)]
+    rows = [(primary_source_label, search_request)]
     rows.extend((f"planner_next_actions[{index}]", row) for index, row in enumerate(planner_next_actions))
     resource_request_ids: list[str] = []
     resource_ids: list[str] = []

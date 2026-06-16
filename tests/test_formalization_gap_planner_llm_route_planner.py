@@ -3200,6 +3200,10 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
         for row in queue_payload["rows"]
         if row.get("hook_kind") == "proof_state_feedback"
         and "lean_lsp_mcp" in row.get("resource_ids", ())
+        and row["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_planner_next_action_index"
+        )
+        == 0
     )
     assert "residual goals after exchangeability reuse" in " ".join(queue_row["queries"])
     assert tuple(queue_row["target_primitives"]) == ("rank_uniformity",)
@@ -3217,7 +3221,7 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
     adapter_response = next(
         response
         for response in adapter_payload["responses"]
-        if response.get("llm_route_planner_hook_trace")
+        if response.get("llm_route_planner_hook_trace") == hook_trace
     )
     assert tuple(adapter_response["target_primitives"]) == ("rank_uniformity",)
     assert adapter_response["llm_route_planner_hook_trace"] == hook_trace
@@ -3232,14 +3236,14 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
     evidence_row = next(
         row
         for row in evidence_payload["rows"]
-        if row.get("llm_route_planner_hook_trace")
+        if row.get("llm_route_planner_hook_trace") == hook_trace
     )
     assert tuple(evidence_row["target_primitives"]) == ("rank_uniformity",)
     assert evidence_row["llm_route_planner_hook_trace"] == hook_trace
     proposal = next(
         row
         for row in evidence_payload["route_revision_proposals"]
-        if row.get("llm_route_planner_hook_trace")
+        if row.get("llm_route_planner_hook_trace") == hook_trace
     )
     assert tuple(proposal["target_primitives"]) == ("rank_uniformity",)
     assert proposal["llm_route_planner_hook_trace"] == hook_trace
@@ -3250,13 +3254,18 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
         overlay_dir,
     )
     assert overlay_payload["all_ok"]
-    assert overlay_payload["n_applied_llm_route_planner_hook_traces"] == 1
+    assert overlay_payload["n_applied_llm_route_planner_hook_traces"] >= 1
     overlay_row = next(
         row
         for row in overlay_payload["rows"]
         if row.get("applied_llm_route_planner_hook_traces")
     )
-    assert list(overlay_row["applied_llm_route_planner_hook_traces"]) == [hook_trace]
+    applied_hook_traces = list(overlay_row["applied_llm_route_planner_hook_traces"])
+    assert hook_trace in applied_hook_traces
+    assert (
+        overlay_payload["n_applied_llm_route_planner_hook_traces"]
+        == len(applied_hook_traces)
+    )
     handoff_dir = root / "route_replan_handoff_from_action_only_llm_seed"
     handoff_payload = export_formalization_gap_planner_route_replan_handoff(
         plan_dir,
@@ -3264,17 +3273,19 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
         handoff_dir,
     )
     assert handoff_payload["all_ok"]
-    assert handoff_payload["n_applied_llm_route_planner_hook_traces"] == 1
+    assert handoff_payload["n_applied_llm_route_planner_hook_traces"] == len(
+        applied_hook_traces
+    )
     handoff_row = next(
         row
         for row in handoff_payload["rows"]
         if row.get("applied_llm_route_planner_hook_traces")
     )
-    assert list(handoff_row["applied_llm_route_planner_hook_traces"]) == [hook_trace]
+    assert list(handoff_row["applied_llm_route_planner_hook_traces"]) == applied_hook_traces
     handoff_seed_route = handoff_payload["standalone_seed"]["routes"][0]
     assert handoff_seed_route["replan_metadata"][
         "applied_llm_route_planner_hook_traces"
-    ] == [hook_trace]
+    ] == applied_hook_traces
     replan_prompt_dir = root / "llm_route_planner_from_action_only_handoff"
     replan_prompt_payload = export_formalization_gap_planner_llm_route_planner(
         handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json",
@@ -3287,7 +3298,7 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
         replan_prompt_payload[
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces"
         ]
-        == 1
+        == len(applied_hook_traces)
     )
     assert (
         replan_prompt_payload[
@@ -3304,14 +3315,109 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
         replan_inventory[
             "feedback_loop_summary_prior_llm_route_planner_hook_trace_count"
         ]
-        == 1
+        == len(applied_hook_traces)
     )
     assert replan_feedback_summary["prior_replan_metadata"][
         "applied_llm_route_planner_hook_traces"
-    ] == [hook_trace]
+    ] == applied_hook_traces
     assert (
         "applied_llm_route_planner_hook_traces"
         in replan_request["prompt_messages"]["user"]
+    )
+
+
+def test_llm_route_planner_materializes_formal_attempt_queue_hooks() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_formal_attempt_queue_hooks"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_formal_attempt_queue_items"] == 2
+    seed_route = payload["standalone_seed"]["routes"][0]
+    queue_hooks = [
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if "llm_route_planner_formal_attempt_queue_index" in hook
+    ]
+    assert [
+        hook["llm_route_planner_formal_attempt_queue_index"]
+        for hook in queue_hooks
+    ] == [0, 1]
+    assert [hook["formal_node_id"] for hook in queue_hooks] == [
+        "formal:exchangeability",
+        "formal:rank_uniformity_bridge",
+    ]
+    assert queue_hooks[1]["prerequisite_formal_node_ids"] == [
+        "formal:exchangeability"
+    ]
+    assert "residual_goals" in queue_hooks[1]["expected_feedback"]
+    queue_triggers = [
+        trigger
+        for trigger in seed_route["route_revision_triggers"]
+        if "llm_route_planner_formal_attempt_queue_index" in trigger
+    ]
+    assert [
+        trigger["llm_route_planner_formal_attempt_queue_index"]
+        for trigger in queue_triggers
+    ] == [0, 1]
+    assert all(
+        trigger["trigger_kind"] == "blocked_by_formal_side_condition"
+        for trigger in queue_triggers
+    )
+
+    plan_dir = root / "standalone_plan_from_formal_attempt_queue_seed"
+    refinement_queue_dir = root / "refinement_queue_from_formal_attempt_queue_seed"
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    queue_payload = export_formalization_gap_planner_refinement_queue(
+        plan_dir,
+        refinement_queue_dir,
+    )
+    assert queue_payload["all_ok"]
+    queue_rows = [
+        row
+        for row in queue_payload["rows"]
+        if row["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_formal_attempt_queue_index"
+        )
+        is not None
+    ]
+    assert len(queue_rows) == 2
+    rank_attempt_row = next(
+        row
+        for row in queue_rows
+        if row["llm_route_planner_hook_trace"]["formal_node_id"]
+        == "formal:rank_uniformity_bridge"
+    )
+    assert rank_attempt_row["hook_kind"] == "proof_state_feedback"
+    assert tuple(rank_attempt_row["target_primitives"]) == ("rank_uniformity",)
+    assert "lean_lsp_mcp" in rank_attempt_row["resource_ids"]
+    assert rank_attempt_row["llm_route_planner_hook_trace"][
+        "prerequisite_formal_node_ids"
+    ] == ["formal:exchangeability"]
+    assert "expected_feedback: residual_goals" in " ".join(
+        rank_attempt_row["queries"]
     )
 
 

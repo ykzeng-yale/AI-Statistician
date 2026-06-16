@@ -1910,6 +1910,14 @@ the queue. Queue rows carry `target_prover_family`, `owner`, `action`,
 adapters can run the next bottom-up attempt and return residual goals without
 guessing the route order.
 
+Accepted queue rows are also materialized into `proof_state_feedback`
+interactive refinement hooks and `blocked_by_formal_side_condition` route
+revision triggers. The refinement queue preserves each row's attempt id, formal
+node id, attempt kind, prerequisites, expected feedback, target primitives, and
+resource bindings in `llm_route_planner_hook_trace`, so proof-state adapters can
+consume the LLM schedule directly and later feedback can be traced back to the
+specific formal DAG attempt that caused a route repair.
+
 - `route_alignment_edges`
   Explicit links from informal semantic atoms to formal realization candidates.
   Each selected primitive should have one of these edges before the route is
