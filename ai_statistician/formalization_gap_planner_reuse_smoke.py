@@ -6950,6 +6950,26 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_total_packets_with_replan_metadata_trace",
             0,
         ),
+        "n_cross_prover_total_packets_with_formal_attempt_dependency": cross_prover_matrix_payload.get(
+            "n_total_packets_with_formal_attempt_dependency",
+            0,
+        ),
+        "n_cross_prover_total_packets_formal_attempt_initial_ready": cross_prover_matrix_payload.get(
+            "n_total_packets_formal_attempt_initial_ready",
+            0,
+        ),
+        "n_cross_prover_total_packets_formal_attempt_waiting": cross_prover_matrix_payload.get(
+            "n_total_packets_formal_attempt_waiting",
+            0,
+        ),
+        "n_cross_prover_total_packets_formal_attempt_missing_prerequisites": cross_prover_matrix_payload.get(
+            "n_total_packets_formal_attempt_missing_prerequisites",
+            0,
+        ),
+        "by_cross_prover_packet_formal_attempt_dependency_status": cross_prover_matrix_payload.get(
+            "by_total_packet_formal_attempt_dependency_status",
+            {},
+        ),
         "n_cross_prover_target_summary_rows": (
             cross_prover_matrix_payload.get("target_summary", {}).get(
                 "n_target_rows",
@@ -9166,6 +9186,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Cross-prover response-validation row schema valid: {payload.get('n_cross_prover_response_validation_row_schema_valid')}/{payload.get('n_cross_prover_total_packets')}",
         f"- Cross-prover packets with standalone trace: {payload.get('n_cross_prover_total_packets_with_standalone_input_trace')}/{payload.get('n_cross_prover_total_packets')}",
         f"- Cross-prover packets with replan metadata trace: {payload.get('n_cross_prover_total_packets_with_replan_metadata_trace')}/{payload.get('n_cross_prover_total_packets')}",
+        f"- Cross-prover packets with formal-attempt dependency: {payload.get('n_cross_prover_total_packets_with_formal_attempt_dependency')}/{payload.get('n_cross_prover_total_packets')}",
+        f"- Cross-prover formal-attempt initially ready packets: {payload.get('n_cross_prover_total_packets_formal_attempt_initial_ready')}",
+        f"- Cross-prover formal-attempt waiting packets: {payload.get('n_cross_prover_total_packets_formal_attempt_waiting')}",
+        f"- Cross-prover formal-attempt missing-prerequisite packets: {payload.get('n_cross_prover_total_packets_formal_attempt_missing_prerequisites')}",
         f"- Publication bundle cross-prover packet trace valid: {payload.get('n_publication_bundle_optional_cross_prover_packet_trace_valid')}/{payload.get('n_publication_bundle_optional_cross_prover_packet_trace_checked')}",
         f"- All OK: {payload.get('all_ok')}",
         "",

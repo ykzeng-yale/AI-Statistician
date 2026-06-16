@@ -2546,6 +2546,25 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["n_cross_prover_packets_missing_standalone_input_trace"] == 0
     assert payload["n_cross_prover_total_packets_with_replan_metadata_trace"] >= 0
+    formal_attempt_status_counts = payload[
+        "by_cross_prover_packet_formal_attempt_dependency_status"
+    ]
+    assert isinstance(formal_attempt_status_counts, dict)
+    assert sum(formal_attempt_status_counts.values()) == payload[
+        "n_cross_prover_total_packets"
+    ]
+    assert (
+        payload["n_cross_prover_total_packets_with_formal_attempt_dependency"]
+        == payload["n_cross_prover_total_packets_formal_attempt_initial_ready"]
+        + payload["n_cross_prover_total_packets_formal_attempt_waiting"]
+        + payload[
+            "n_cross_prover_total_packets_formal_attempt_missing_prerequisites"
+        ]
+    )
+    assert (
+        payload["n_cross_prover_total_packets_with_formal_attempt_dependency"]
+        <= payload["n_cross_prover_total_packets"]
+    )
     assert payload["n_cross_prover_rejected"] == 0
     assert payload["cross_prover_packet_count_consistent"]
     assert payload["cross_prover_alignment_packet_count_consistent"]
