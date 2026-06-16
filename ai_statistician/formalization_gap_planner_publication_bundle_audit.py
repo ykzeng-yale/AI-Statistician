@@ -1185,6 +1185,19 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_seed_model_provenance")
             and check.ok
         ),
+        "n_optional_llm_route_planner_seed_source_grounding_provenance_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_source_grounding_provenance")
+        ),
+        "n_optional_llm_route_planner_seed_source_grounding_provenance_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_source_grounding_provenance")
+            and check.ok
+        ),
         "n_optional_llm_route_planner_seed_realization_witness_checked": sum(
             1
             for check in checks
@@ -1574,6 +1587,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
             and check.check_name.endswith("_seed_model_provenance")
+            and check.ok
+        ),
+        "n_optional_feedback_llm_route_planner_seed_source_grounding_provenance_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_source_grounding_provenance")
+        ),
+        "n_optional_feedback_llm_route_planner_seed_source_grounding_provenance_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_feedback_llm_route_planner_row_")
+            and check.check_name.endswith("_seed_source_grounding_provenance")
             and check.ok
         ),
         "n_optional_feedback_llm_route_planner_seed_realization_witness_checked": sum(
@@ -8543,6 +8569,19 @@ def _llm_route_planner_optional_checks(
                     errors=model_provenance_errors,
                 )
             )
+            source_grounding_errors = (
+                _llm_seed_source_grounding_provenance_errors(row, seed_route)
+            )
+            checks.append(
+                _check(
+                    f"{check_prefix}_row_{idx}_seed_source_grounding_provenance",
+                    "optional_artifacts",
+                    "accepted LLM row source-grounding rows and obligations are preserved in standalone seed route metadata",
+                    _llm_seed_source_grounding_provenance_observed(row, seed_route),
+                    not source_grounding_errors,
+                    errors=source_grounding_errors,
+                )
+            )
             witness_errors = _llm_seed_realization_witness_errors(row, seed_route)
             checks.append(
                 _check(
@@ -12224,6 +12263,80 @@ def _llm_seed_model_provenance_observed(
         f"seed_model_tier={metadata.get('llm_route_planner_model_tier', '')}; "
         f"generator_metadata_keys={len(set(row_keys).intersection(seed_keys))}/{len(row_keys)}; "
         f"generator_metadata_preserved={_object_hashes([row_generator_metadata]) == _object_hashes([seed_generator_metadata])}"
+    )
+
+
+def _llm_seed_source_grounding_provenance_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    row_rows = _dict_tuple(row.get("source_grounding_rows", []))
+    route_rows = _dict_tuple(
+        seed_route.get("llm_route_planner_source_grounding_rows", [])
+    )
+    metadata_rows = _dict_tuple(
+        metadata.get("llm_route_planner_source_grounding_rows", [])
+    )
+    row_row_hashes = _object_hashes(row_rows)
+    if row_row_hashes != _object_hashes(route_rows):
+        errors.append("seed route llm_route_planner_source_grounding_rows mismatch")
+    if row_row_hashes != _object_hashes(metadata_rows):
+        errors.append("seed metadata llm_route_planner_source_grounding_rows mismatch")
+    row_obligations = _as_dict(row.get("source_grounding_obligations", {}))
+    route_obligations = _as_dict(
+        seed_route.get("llm_route_planner_source_grounding_obligations", {})
+    )
+    metadata_obligations = _as_dict(
+        metadata.get("llm_route_planner_source_grounding_obligations", {})
+    )
+    if row_obligations != route_obligations:
+        errors.append(
+            "seed route llm_route_planner_source_grounding_obligations mismatch"
+        )
+    if row_obligations != metadata_obligations:
+        errors.append(
+            "seed metadata llm_route_planner_source_grounding_obligations mismatch"
+        )
+    return tuple(errors)
+
+
+def _llm_seed_source_grounding_provenance_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    row_rows = _dict_tuple(row.get("source_grounding_rows", []))
+    route_rows = _dict_tuple(
+        seed_route.get("llm_route_planner_source_grounding_rows", [])
+    )
+    metadata_rows = _dict_tuple(
+        metadata.get("llm_route_planner_source_grounding_rows", [])
+    )
+    row_row_hashes = _object_hashes(row_rows)
+    route_row_hashes = _object_hashes(route_rows)
+    metadata_row_hashes = _object_hashes(metadata_rows)
+    row_obligations = _as_dict(row.get("source_grounding_obligations", {}))
+    route_obligations = _as_dict(
+        seed_route.get("llm_route_planner_source_grounding_obligations", {})
+    )
+    metadata_obligations = _as_dict(
+        metadata.get("llm_route_planner_source_grounding_obligations", {})
+    )
+    return (
+        f"row_rows={len(row_rows)}; "
+        f"seed_route_rows={len(row_row_hashes.intersection(route_row_hashes))}/{len(row_row_hashes)}; "
+        f"metadata_rows={len(row_row_hashes.intersection(metadata_row_hashes))}/{len(row_row_hashes)}; "
+        f"row_pending={bool(row_obligations.get('pending', False))}; "
+        f"route_obligations_preserved={row_obligations == route_obligations}; "
+        f"metadata_obligations_preserved={row_obligations == metadata_obligations}"
     )
 
 
@@ -20095,6 +20208,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional LLM route-planner requests valid: {payload.get('n_optional_llm_route_planner_request_schema_valid')}/{payload.get('n_optional_llm_route_planner_request_schema_checked')}",
         f"- Optional LLM route-planner rows valid: {payload.get('n_optional_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_llm_route_planner_row_schema_checked')}",
         f"- Optional LLM route-planner seed provenance preserved: {payload.get('n_optional_llm_route_planner_seed_provenance_valid')}/{payload.get('n_optional_llm_route_planner_seed_provenance_checked')}",
+        f"- Optional LLM route-planner seed source-grounding provenance preserved: {payload.get('n_optional_llm_route_planner_seed_source_grounding_provenance_valid')}/{payload.get('n_optional_llm_route_planner_seed_source_grounding_provenance_checked')}",
         f"- Optional LLM route-planner seed realization witness preserved: {payload.get('n_optional_llm_route_planner_seed_realization_witness_valid')}/{payload.get('n_optional_llm_route_planner_seed_realization_witness_checked')}",
         f"- Optional LLM route-planner seed alignment preserved: {payload.get('n_optional_llm_route_planner_seed_alignment_valid')}/{payload.get('n_optional_llm_route_planner_seed_alignment_checked')}",
         f"- Optional LLM route-planner seed DAG preserved: {payload.get('n_optional_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_llm_route_planner_seed_dag_checked')}",
@@ -20115,6 +20229,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional feedback LLM route-planner requests valid: {payload.get('n_optional_feedback_llm_route_planner_request_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_request_schema_checked')}",
         f"- Optional feedback LLM route-planner rows valid: {payload.get('n_optional_feedback_llm_route_planner_row_schema_valid')}/{payload.get('n_optional_feedback_llm_route_planner_row_schema_checked')}",
         f"- Optional feedback LLM route-planner seed provenance preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_provenance_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_provenance_checked')}",
+        f"- Optional feedback LLM route-planner seed source-grounding provenance preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_source_grounding_provenance_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_source_grounding_provenance_checked')}",
         f"- Optional feedback LLM route-planner seed realization witness preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_realization_witness_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_realization_witness_checked')}",
         f"- Optional feedback LLM route-planner seed alignment preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_alignment_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_alignment_checked')}",
         f"- Optional feedback LLM route-planner seed DAG preserved: {payload.get('n_optional_feedback_llm_route_planner_seed_dag_valid')}/{payload.get('n_optional_feedback_llm_route_planner_seed_dag_checked')}",

@@ -839,7 +839,10 @@ the LLM answers, even when the standalone source-grounding audit has not been
 run yet. Accepted LLM rows and their standalone seed routes preserve those
 inline source-grounding rows and obligation summaries in `replan_metadata`, so
 publication and replay consumers can recover the exact blocker without
-recomputing the original request packet. The
+recomputing the original request packet. Publication-bundle audit treats these
+row, seed-route, and seed-metadata copies as provenance-bearing fields and
+rejects bundles where the source-grounding rows or obligation summary drift.
+The
 route-planner manifest also exposes `standalone_replay_gate`,
 `standalone_replay_gate_ok`,
 `n_standalone_replay_adoptable_route_candidates`,

@@ -479,7 +479,11 @@ def _fixture_prover_adapter_response_validation_row(
     }
 
 
-def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
+def _write_accepted_llm_route_planner_artifact(
+    root: Path,
+    *,
+    include_unsourced_residual_context: bool = False,
+) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     target_intake_dir = root / "target_intake"
     raw_target_json = root / "target_intake_request.json"
@@ -516,6 +520,31 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
         target_intake_dir
         / "formalization_gap_planner_target_intake_standalone_seed.json"
     )
+    residual_context: dict[str, object] | None = None
+    if include_unsourced_residual_context:
+        residual_context = {
+            "residual_goal": (
+                "rank_uniformity: missing finite tie-breaking side condition"
+            ),
+            "interpretation": (
+                "A prior prover residual indicated a finite tie-breaking side "
+                "condition, but no source grounding was attached."
+            ),
+            "route_repair": (
+                "Search the source literature before promoting this side "
+                "condition into the rank_uniformity route."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "residual_attempt_status": "local_lean_failed",
+            "residual_diagnostic_signature": "prover_diagnostic_signature:tie",
+        }
+        input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+        input_payload["routes"][0]["replan_metadata"] = {
+            "llm_route_planner_residual_interpretations": [
+                dict(residual_context)
+            ]
+        }
+        input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
     response_json = root / "llm_response.json"
     response_json.write_text(
         json.dumps(
@@ -779,6 +808,27 @@ def _write_accepted_llm_route_planner_artifact(root: Path) -> Path:
         ),
         encoding="utf-8",
     )
+    if residual_context is not None:
+        response_payload = json.loads(response_json.read_text(encoding="utf-8"))
+        response_payload["residual_interpretations"] = [dict(residual_context)]
+        response_payload["search_requests"].append(
+            {
+                "request_kind": "literature",
+                "query": (
+                    "finite tie-breaking side condition rank_uniformity "
+                    "exchangeability source"
+                ),
+                "reason": (
+                    "The carried residual context is unaccounted and needs "
+                    "bounded source grounding before route promotion."
+                ),
+                "target_primitives": ["rank_uniformity"],
+            }
+        )
+        response_json.write_text(
+            json.dumps(response_payload, indent=2),
+            encoding="utf-8",
+        )
     out_dir = root / "llm_route_planner"
     component_resource_registry_dir = root / "component_resource_registry"
     export_formalization_gap_planner_component_resource_registry(
@@ -7609,6 +7659,136 @@ def test_publication_bundle_audit_rejects_stale_generic_prover_fields() -> None:
     assert "optional_route_stability_audit_row_0_generic_prover_fields" in failed_names
     assert "optional_proof_state_triage_row_0_generic_prover_fields" in failed_names
     assert "optional_interactive_session_row_0_generic_prover_fields" in failed_names
+
+
+def test_publication_bundle_audit_checks_llm_seed_source_grounding_provenance() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_audit_llm_seed_source_grounding"
+    )
+    bundle_dir = root / "bundle"
+    shutil.rmtree(root, ignore_errors=True)
+    llm_dir = _write_accepted_llm_route_planner_artifact(
+        root / "llm",
+        include_unsourced_residual_context=True,
+    )
+    export_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        formalization_gap_planner_llm_route_planner_dir=llm_dir,
+    )
+
+    audit_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit",
+    )
+
+    assert audit_payload["all_ok"]
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_seed_source_grounding_provenance_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_seed_source_grounding_provenance_valid"
+        ]
+        == 1
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_row_0_seed_source_grounding_provenance"
+        and row["ok"]
+        and "row_rows=1" in row["observed"]
+        and "row_pending=True" in row["observed"]
+        for row in audit_payload["checks"]
+    )
+
+    llm_artifact_dir = (
+        bundle_dir / "artifacts" / "formalization_gap_planner_llm_route_planner"
+    )
+    rows_path = llm_artifact_dir / "formalization_gap_planner_llm_route_planner.jsonl"
+    seed_path = (
+        llm_artifact_dir
+        / "formalization_gap_planner_llm_route_planner_standalone_seed.json"
+    )
+    rows = [
+        json.loads(line)
+        for line in rows_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    original_seed = json.loads(seed_path.read_text(encoding="utf-8"))
+    assert len(rows[0]["source_grounding_rows"]) == 1
+    assert rows[0]["source_grounding_obligations"]["pending"] is True
+
+    row_corrupted_seed = json.loads(json.dumps(original_seed))
+    row_corrupted_seed["routes"][0]["llm_route_planner_source_grounding_rows"][0][
+        "grounding_status"
+    ] = "source_backed"
+    seed_path.write_text(
+        json.dumps(row_corrupted_seed, indent=2),
+        encoding="utf-8",
+    )
+    rejected_row_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_seed_source_grounding_row_drift",
+    )
+    row_checks = [
+        row
+        for row in rejected_row_payload["checks"]
+        if row["check_name"]
+        == "optional_llm_route_planner_row_0_seed_source_grounding_provenance"
+    ]
+    assert row_checks
+    assert not row_checks[0]["ok"]
+    assert any(
+        "seed route llm_route_planner_source_grounding_rows mismatch" in error
+        for error in row_checks[0]["errors"]
+    )
+    assert (
+        rejected_row_payload[
+            "n_optional_llm_route_planner_seed_source_grounding_provenance_valid"
+        ]
+        == 0
+    )
+    assert not rejected_row_payload["all_ok"]
+    seed_path.write_text(json.dumps(original_seed, indent=2), encoding="utf-8")
+
+    obligation_corrupted_seed = json.loads(json.dumps(original_seed))
+    seed_route = obligation_corrupted_seed["routes"][0]
+    seed_route["llm_route_planner_source_grounding_obligations"][
+        "pending"
+    ] = False
+    seed_route["replan_metadata"]["llm_route_planner_source_grounding_obligations"][
+        "pending"
+    ] = False
+    seed_path.write_text(
+        json.dumps(obligation_corrupted_seed, indent=2),
+        encoding="utf-8",
+    )
+    rejected_obligation_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_seed_source_grounding_obligation_drift",
+    )
+    obligation_checks = [
+        row
+        for row in rejected_obligation_payload["checks"]
+        if row["check_name"]
+        == "optional_llm_route_planner_row_0_seed_source_grounding_provenance"
+    ]
+    assert obligation_checks
+    assert not obligation_checks[0]["ok"]
+    assert any(
+        "seed route llm_route_planner_source_grounding_obligations mismatch"
+        in error
+        for error in obligation_checks[0]["errors"]
+    )
+    assert any(
+        "seed metadata llm_route_planner_source_grounding_obligations mismatch"
+        in error
+        for error in obligation_checks[0]["errors"]
+    )
+    assert not rejected_obligation_payload["all_ok"]
+    seed_path.write_text(json.dumps(original_seed, indent=2), encoding="utf-8")
 
 
 def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
