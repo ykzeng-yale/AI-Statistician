@@ -2346,6 +2346,12 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_pending_quality_control_values",
             "n_request_discharged_quality_control_fields",
             "n_request_discharged_quality_control_values",
+            "n_requests_with_source_grounding_rows",
+            "n_request_source_grounding_rows",
+            "n_requests_with_source_grounding_obligation_inventory",
+            "n_requests_with_pending_source_grounding_obligation_inventory",
+            "n_request_source_grounding_unresolved_rows",
+            "n_request_residual_source_grounding_unresolved_rows",
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_feedback_loop_summary_interactive_resource_requests",
@@ -2467,6 +2473,18 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_pending_quality_control_values": nonnegative_integer,
             "n_request_discharged_quality_control_fields": nonnegative_integer,
             "n_request_discharged_quality_control_values": nonnegative_integer,
+            "n_requests_with_source_grounding_rows": nonnegative_integer,
+            "n_request_source_grounding_rows": nonnegative_integer,
+            "n_requests_with_source_grounding_obligation_inventory": (
+                nonnegative_integer
+            ),
+            "n_requests_with_pending_source_grounding_obligation_inventory": (
+                nonnegative_integer
+            ),
+            "n_request_source_grounding_unresolved_rows": nonnegative_integer,
+            "n_request_residual_source_grounding_unresolved_rows": (
+                nonnegative_integer
+            ),
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": (
                 nonnegative_integer
             ),
@@ -4902,6 +4920,12 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_pending_quality_control_values": 0,
         "n_request_discharged_quality_control_fields": 0,
         "n_request_discharged_quality_control_values": 0,
+        "n_requests_with_source_grounding_rows": 0,
+        "n_request_source_grounding_rows": 0,
+        "n_requests_with_source_grounding_obligation_inventory": 0,
+        "n_requests_with_pending_source_grounding_obligation_inventory": 0,
+        "n_request_source_grounding_unresolved_rows": 0,
+        "n_request_residual_source_grounding_unresolved_rows": 0,
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_feedback_loop_summary_interactive_resource_requests": 0,
@@ -5136,6 +5160,36 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         ),
         "n_request_discharged_quality_control_values": int(
             payload.get("n_request_discharged_quality_control_values", 0) or 0
+        ),
+        "n_requests_with_source_grounding_rows": int(
+            payload.get("n_requests_with_source_grounding_rows", 0) or 0
+        ),
+        "n_request_source_grounding_rows": int(
+            payload.get("n_request_source_grounding_rows", 0) or 0
+        ),
+        "n_requests_with_source_grounding_obligation_inventory": int(
+            payload.get(
+                "n_requests_with_source_grounding_obligation_inventory",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_pending_source_grounding_obligation_inventory": int(
+            payload.get(
+                "n_requests_with_pending_source_grounding_obligation_inventory",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_grounding_unresolved_rows": int(
+            payload.get("n_request_source_grounding_unresolved_rows", 0) or 0
+        ),
+        "n_request_residual_source_grounding_unresolved_rows": int(
+            payload.get(
+                "n_request_residual_source_grounding_unresolved_rows",
+                0,
+            )
+            or 0
         ),
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": int(
             payload.get(
@@ -6491,6 +6545,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"adoptable={payload.get('llm_route_planner_summary', {}).get('n_standalone_replay_adoptable_route_candidates')}/"
             f"{payload.get('llm_route_planner_summary', {}).get('n_standalone_replay_route_candidates')} "
             f"blockers={payload.get('llm_route_planner_summary', {}).get('standalone_replay_gate_blockers')}"
+        ),
+        (
+            f"- LLM route planner source-grounding rows/pending/residual-unresolved: "
+            f"{payload.get('llm_route_planner_summary', {}).get('n_request_source_grounding_rows')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_requests_with_pending_source_grounding_obligation_inventory')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_request_residual_source_grounding_unresolved_rows')} "
+            f"feedback={payload.get('feedback_llm_route_planner_summary', {}).get('n_request_source_grounding_rows')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_requests_with_pending_source_grounding_obligation_inventory')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_request_residual_source_grounding_unresolved_rows')}"
         ),
         (
             f"- LLM route planner provider usage rows/input/output/total: "

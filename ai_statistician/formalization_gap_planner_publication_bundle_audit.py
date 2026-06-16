@@ -3034,6 +3034,36 @@ def _expected_bundle_llm_route_planner_summary(
         "n_request_discharged_quality_control_values": int(
             payload.get("n_request_discharged_quality_control_values", 0) or 0
         ),
+        "n_requests_with_source_grounding_rows": int(
+            payload.get("n_requests_with_source_grounding_rows", 0) or 0
+        ),
+        "n_request_source_grounding_rows": int(
+            payload.get("n_request_source_grounding_rows", 0) or 0
+        ),
+        "n_requests_with_source_grounding_obligation_inventory": int(
+            payload.get(
+                "n_requests_with_source_grounding_obligation_inventory",
+                0,
+            )
+            or 0
+        ),
+        "n_requests_with_pending_source_grounding_obligation_inventory": int(
+            payload.get(
+                "n_requests_with_pending_source_grounding_obligation_inventory",
+                0,
+            )
+            or 0
+        ),
+        "n_request_source_grounding_unresolved_rows": int(
+            payload.get("n_request_source_grounding_unresolved_rows", 0) or 0
+        ),
+        "n_request_residual_source_grounding_unresolved_rows": int(
+            payload.get(
+                "n_request_residual_source_grounding_unresolved_rows",
+                0,
+            )
+            or 0
+        ),
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": int(
             payload.get(
                 "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",

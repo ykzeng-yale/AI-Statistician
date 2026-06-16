@@ -866,6 +866,12 @@ Reuse-smoke also forwards the publication-bundle audit counters for
 LLM seed source-grounding provenance, separately for the primary and feedback
 route-planner passes, so one-command public runs expose whether residual/source
 obligations survived row, seed-route, and seed-metadata preservation.
+Publication-bundle LLM route-planner summaries also lift request-side
+source-grounding rows, pending obligation inventories, unresolved rows, and
+residual-unresolved row counts from the packaged primary and feedback planner
+manifests. The bundle audit recomputes those fields from the copied planner
+artifacts, so a public manifest cannot silently under-report residual
+source-grounding work.
 Publication and reuse-smoke LLM-route summaries also surface
 `n_route_adoption_pending_formal_gap_boundary_blockers`, keeping declared
 formal-boundary gaps visible beside source-grounding, quality-control,

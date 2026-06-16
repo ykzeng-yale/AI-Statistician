@@ -7675,6 +7675,28 @@ def test_publication_bundle_audit_checks_llm_seed_source_grounding_provenance() 
         bundle_dir,
         formalization_gap_planner_llm_route_planner_dir=llm_dir,
     )
+    bundle_manifest_path = (
+        bundle_dir / "formalization_gap_planner_publication_bundle_manifest.json"
+    )
+    bundle_manifest = json.loads(bundle_manifest_path.read_text(encoding="utf-8"))
+    llm_summary = bundle_manifest["llm_route_planner_summary"]
+    assert llm_summary["n_requests_with_source_grounding_rows"] == 1
+    assert llm_summary["n_request_source_grounding_rows"] == 1
+    assert (
+        llm_summary["n_requests_with_source_grounding_obligation_inventory"]
+        == 1
+    )
+    assert (
+        llm_summary[
+            "n_requests_with_pending_source_grounding_obligation_inventory"
+        ]
+        == 1
+    )
+    assert llm_summary["n_request_source_grounding_unresolved_rows"] == 1
+    assert (
+        llm_summary["n_request_residual_source_grounding_unresolved_rows"]
+        == 1
+    )
 
     audit_payload = audit_formalization_gap_planner_publication_bundle(
         bundle_dir,
@@ -7701,6 +7723,35 @@ def test_publication_bundle_audit_checks_llm_seed_source_grounding_provenance() 
         and "row_rows=1" in row["observed"]
         and "row_pending=True" in row["observed"]
         for row in audit_payload["checks"]
+    )
+
+    stale_summary_manifest = json.loads(json.dumps(bundle_manifest))
+    stale_summary_manifest["llm_route_planner_summary"][
+        "n_request_source_grounding_rows"
+    ] = 0
+    bundle_manifest_path.write_text(
+        json.dumps(stale_summary_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_summary_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_source_grounding_summary_drift",
+    )
+    summary_checks = [
+        row
+        for row in rejected_summary_payload["checks"]
+        if row["check_name"] == "bundle_llm_route_planner_summary_consistent"
+    ]
+    assert summary_checks
+    assert not summary_checks[0]["ok"]
+    assert any(
+        "n_request_source_grounding_rows mismatch" in error
+        for error in summary_checks[0]["errors"]
+    )
+    assert not rejected_summary_payload["all_ok"]
+    bundle_manifest_path.write_text(
+        json.dumps(bundle_manifest, indent=2),
+        encoding="utf-8",
     )
 
     llm_artifact_dir = (
