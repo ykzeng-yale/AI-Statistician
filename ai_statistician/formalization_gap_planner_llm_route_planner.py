@@ -6544,6 +6544,9 @@ def _request_packet(
         target_prover_family=target_prover_family,
         library_snapshot_ref=library_snapshot_ref,
     )
+    context_packet["source_grounding_rows"] = [
+        dict(row) for row in _source_grounding_rows_with_inline(context_packet)
+    ]
     context_packet["source_grounding_obligations"] = (
         _source_grounding_obligation_summary(context_packet)
     )
@@ -8145,10 +8148,7 @@ def _residual_goal_context_target_primitives(
 def _source_grounding_obligation_summary(
     context_packet: Mapping[str, Any],
 ) -> dict[str, object]:
-    rows = (
-        *_dict_tuple(context_packet.get("source_grounding_rows", [])),
-        *_unresolved_residual_context_source_grounding_rows(context_packet),
-    )
+    rows = _source_grounding_rows_with_inline(context_packet)
     statuses = tuple(_source_grounding_status(row) for row in rows)
     unresolved_rows = tuple(
         row for row in rows if _source_grounding_row_unresolved(row)
@@ -8193,6 +8193,25 @@ def _source_grounding_obligation_summary(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _source_grounding_rows_with_inline(
+    context_packet: Mapping[str, Any],
+) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = [
+        dict(row) for row in _dict_tuple(context_packet.get("source_grounding_rows", []))
+    ]
+    seen = {
+        _source_grounding_row_id(row) or stable_hash(row)
+        for row in rows
+    }
+    for row in _unresolved_residual_context_source_grounding_rows(context_packet):
+        row_key = _source_grounding_row_id(row) or stable_hash(row)
+        if row_key in seen:
+            continue
+        seen.add(row_key)
+        rows.append(dict(row))
+    return tuple(rows)
 
 
 def _unresolved_residual_context_source_grounding_rows(

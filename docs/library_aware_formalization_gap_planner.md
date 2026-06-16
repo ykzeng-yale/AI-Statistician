@@ -834,8 +834,9 @@ refs, diagnostics, and evidence ids remain visible to the prompt packet and
 auto Haiku/Sonnet tier decision instead of being treated as inert metadata. If
 one of those carried residual contexts lacks source refs, a bounded source-search
 hook, and a substantive formal boundary, the request packet synthesizes a
-pending source-grounding obligation before the LLM answers, even when the
-standalone source-grounding audit has not been run yet. The
+pending `source_grounding_rows` entry and source-grounding obligation before
+the LLM answers, even when the standalone source-grounding audit has not been
+run yet. The
 route-planner manifest also exposes `standalone_replay_gate`,
 `standalone_replay_gate_ok`,
 `n_standalone_replay_adoptable_route_candidates`,

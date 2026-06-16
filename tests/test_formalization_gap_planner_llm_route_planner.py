@@ -6048,6 +6048,8 @@ def test_llm_route_planner_flags_unsourced_seed_residual_context() -> None:
 
     assert payload["all_ok"]
     assert payload["n_request_residual_goals"] == 1
+    assert payload["n_requests_with_source_grounding_rows"] == 1
+    assert payload["n_request_source_grounding_rows"] == 1
     assert payload["n_requests_with_source_grounding_obligation_inventory"] == 1
     assert (
         payload["n_requests_with_pending_source_grounding_obligation_inventory"]
@@ -6057,6 +6059,15 @@ def test_llm_route_planner_flags_unsourced_seed_residual_context() -> None:
     assert payload["n_request_residual_source_grounding_unresolved_rows"] == 1
     request = payload["request_packets"][0]
     context_packet = request["context_packet"]
+    source_rows = context_packet["source_grounding_rows"]
+    assert len(source_rows) == 1
+    assert source_rows[0]["node_source"] == "llm_route_planner_residual_goal_context"
+    assert source_rows[0]["grounding_status"] == "unaccounted"
+    assert source_rows[0]["ok"] is False
+    assert source_rows[0]["residual_goals"] == [
+        "rank_uniformity: missing finite tie-breaking side condition"
+    ]
+    assert source_rows[0]["residual_primitives"] == ["rank_uniformity"]
     obligations = context_packet["source_grounding_obligations"]
     assert obligations["present"] is True
     assert obligations["pending"] is True
@@ -6067,6 +6078,7 @@ def test_llm_route_planner_flags_unsourced_seed_residual_context() -> None:
         "inline_residual_context_source_grounding:"
     )
     inventory = context_packet["context_packet_inventory"]
+    assert inventory["row_counts"]["source_grounding_rows"] == 1
     assert inventory["source_grounding_obligation_pending"] is True
     assert inventory["residual_source_grounding_unresolved_count"] == 1
     preconditions = context_packet["route_adoption_preconditions"]
