@@ -288,8 +288,12 @@ rationales, a minimality rationale, a versioned minimal-delta cost witness, and
 an explicit proof-evidence boundary; `kernel_verified=true` claims are
 rejected. Every DAG edge must carry a source node id, target node id, edge kind,
 and rationale, and the endpoints must reference nodes returned in the same LLM
-payload. Multi-node DAGs cannot omit their edge set. Minimality rationales are
-validated as evidence-anchored text: they
+payload. Multi-node DAGs cannot omit their edge set. Route-relevant
+`route_alignment_edges` endpoints must also participate in the matching
+informal or formal DAG edge set when that DAG has multiple nodes; otherwise the
+response is only a disconnected collection of claims and realization candidates,
+not an executable dependency route. Minimality rationales are validated as
+evidence-anchored text: they
 must mention selected primitives, the selected route option, coverage/cost
 buckets, route-cost comparisons, or concrete delta work, and placeholder
 claims such as "minimal" or "cheapest" are rejected. When a selected primitive
@@ -1869,7 +1873,11 @@ Both DAG edge arrays are part of the accepted-response contract. If either DAG
 has more than one returned node, its edge array must be nonempty, acyclic, and
 must reference only node ids from that same DAG. This keeps the route planner
 from returning disconnected proof-step bags while claiming to synthesize a
-dependency route.
+dependency route. The realization witness also records
+`route_relevant_*_missing_dag_edge_endpoint` and
+`route_relevant_dag_endpoint_complete`, so a route-aligned informal or formal
+node that is isolated from the DAG keeps the row pending or rejected instead of
+being treated as usable planner evidence.
 
 - `route_alignment_edges`
   Explicit links from informal semantic atoms to formal realization candidates.

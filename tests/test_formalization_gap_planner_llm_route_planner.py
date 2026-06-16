@@ -7406,6 +7406,11 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "delta_action_witness_required_primitives" in witness_schema["required"]
     assert "delta_action_witness_complete" in witness_schema["required"]
     assert "delta_primitives_missing_route_alignment_edge" in witness_schema["required"]
+    assert "route_relevant_dag_endpoint_complete" in witness_schema["required"]
+    assert (
+        "route_relevant_formal_nodes_missing_dag_edge_endpoint"
+        in witness_schema["required"]
+    )
     manifest_schema = llm_route_planner_manifest_json_schema()
     assert "legacy_response_field_aliases" in manifest_schema["required"]
     assert (
@@ -7456,6 +7461,14 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert witness["delta_action_witness_rows"][0]["matched_action_fields"] == [
         "bridge_lemmas"
     ]
+    assert witness["route_relevant_alignment_primitives"] == [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    assert witness["route_relevant_informal_nodes_missing_dag_edge_endpoint"] == []
+    assert witness["route_relevant_formal_nodes_missing_dag_edge_endpoint"] == []
+    assert witness["route_relevant_dag_endpoint_complete"] is True
+    assert witness["route_option_alignment_complete"] is True
     assert witness["realization_coverage_complete"] is True
     assert row["source_snippets"][0]["source_ref"] == (
         "conformal_prediction_textbook"
@@ -8031,6 +8044,74 @@ def test_llm_route_planner_rejects_cyclic_formal_dag_edges() -> None:
         "formal_realization_dag_edges must be acyclic" in error
         and "formal:exchangeability" in error
         and "formal:rank_uniformity_bridge" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_route_aligned_nodes_disconnected_from_dag_edges() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_disconnected_aligned_nodes"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["informal_knowledge_dag_nodes"].append(
+        {
+            "node_id": "informal:rank_uniformity_isolated",
+            "claim": "An isolated duplicate rank-uniformity informal step.",
+            "source_refs": ["conformal_prediction_textbook"],
+            "source_search_status": "SOURCE_BACKED",
+            "semantic_role": "lemma",
+            "supported_target_primitives": ["rank_uniformity"],
+        }
+    )
+    response["lean_realization_dag_nodes"].append(
+        {
+            "node_id": "formal:rank_uniformity_isolated",
+            "primitive": "rank_uniformity",
+            "coverage_bucket": "bridge",
+            "candidate_declarations": [],
+            "formalization_action": "prove_bridge",
+        }
+    )
+    response["route_alignment_edges"][0]["informal_node_id"] = (
+        "informal:rank_uniformity_isolated"
+    )
+    response["route_alignment_edges"][0]["formal_node_id"] = (
+        "formal:rank_uniformity_isolated"
+    )
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    witness = row["realization_coverage_witness"]
+    assert witness["route_relevant_dag_endpoint_complete"] is False
+    assert witness["route_relevant_informal_nodes_missing_dag_edge_endpoint"] == [
+        "informal:rank_uniformity_isolated"
+    ]
+    assert witness["route_relevant_formal_nodes_missing_dag_edge_endpoint"] == [
+        "formal:rank_uniformity_isolated"
+    ]
+    assert any(
+        "informal_knowledge_dag_edges do not connect route-relevant" in error
+        and "informal:rank_uniformity_isolated" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "formal_realization_dag_edges do not connect route-relevant" in error
+        and "formal:rank_uniformity_isolated" in error
         for error in row["errors"]
     )
 
@@ -14652,6 +14733,17 @@ def test_llm_route_planner_accepts_aligned_route_option_primitive() -> None:
             "semantic_role": "lemma",
         }
     )
+    response["informal_knowledge_dag_edges"].append(
+        {
+            "source_node_id": "informal:rank_uniformity",
+            "target_node_id": "informal:rank_order_statistic",
+            "edge_kind": "uses",
+            "rationale": (
+                "The rank-order statistic bridge refines the source-backed "
+                "rank-uniformity route."
+            ),
+        }
+    )
     response["lean_realization_dag_nodes"].append(
         {
             "node_id": "formal:rank_order_statistic_bridge",
@@ -14659,6 +14751,17 @@ def test_llm_route_planner_accepts_aligned_route_option_primitive() -> None:
             "coverage_bucket": "bridge",
             "candidate_declarations": [],
             "formalization_action": "prove_bridge",
+        }
+    )
+    response["formal_realization_dag_edges"].append(
+        {
+            "source_node_id": "formal:rank_uniformity_bridge",
+            "target_node_id": "formal:rank_order_statistic_bridge",
+            "edge_kind": "bridges",
+            "rationale": (
+                "The rank-order statistic bridge is downstream of the "
+                "rank-uniformity formal bridge."
+            ),
         }
     )
     response["route_alignment_edges"].append(
@@ -15889,6 +15992,17 @@ def test_llm_route_planner_accepts_introduced_source_backed_bridge_primitive() -
             "semantic_role": "side_condition",
         }
     )
+    response["informal_knowledge_dag_edges"].append(
+        {
+            "source_node_id": "informal:rank_uniformity",
+            "target_node_id": "informal:deterministic_tie_breaking",
+            "edge_kind": "requires",
+            "rationale": (
+                "The deterministic tie-breaking side condition specializes "
+                "the source-backed rank-uniformity route."
+            ),
+        }
+    )
     response["lean_realization_dag_nodes"].append(
         {
             "node_id": "formal:deterministic_tie_breaking_bridge",
@@ -15896,6 +16010,17 @@ def test_llm_route_planner_accepts_introduced_source_backed_bridge_primitive() -
             "coverage_bucket": "bridge",
             "candidate_declarations": [],
             "formalization_action": "prove_bridge",
+        }
+    )
+    response["formal_realization_dag_edges"].append(
+        {
+            "source_node_id": "formal:rank_uniformity_bridge",
+            "target_node_id": "formal:deterministic_tie_breaking_bridge",
+            "edge_kind": "bridges",
+            "rationale": (
+                "The deterministic tie-breaking bridge is a downstream "
+                "side-condition bridge for the rank-uniformity route."
+            ),
         }
     )
     response["route_alignment_edges"].append(

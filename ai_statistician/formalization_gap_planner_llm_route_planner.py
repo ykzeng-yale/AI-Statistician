@@ -4426,6 +4426,12 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                     "delta_primitives_missing_route_alignment_edge",
                     "introduced_primitives_with_route_alignment_edge",
                     "introduced_primitives_missing_route_alignment_edge",
+                    "route_relevant_alignment_primitives",
+                    "route_relevant_informal_nodes_with_dag_edge_endpoint",
+                    "route_relevant_informal_nodes_missing_dag_edge_endpoint",
+                    "route_relevant_formal_nodes_with_dag_edge_endpoint",
+                    "route_relevant_formal_nodes_missing_dag_edge_endpoint",
+                    "route_relevant_dag_endpoint_complete",
                     "delta_action_witness_required_primitives",
                     "delta_action_witnessed_primitives",
                     "delta_action_witness_missing_primitives",
@@ -4441,6 +4447,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                     "route_option_formal_coverage_complete",
                     "delta_alignment_complete",
                     "introduced_alignment_complete",
+                    "route_option_alignment_complete",
                     "realization_coverage_complete",
                 ],
                 "properties": {
@@ -4463,6 +4470,12 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                     "delta_primitives_missing_route_alignment_edge": witness_array,
                     "introduced_primitives_with_route_alignment_edge": witness_array,
                     "introduced_primitives_missing_route_alignment_edge": witness_array,
+                    "route_relevant_alignment_primitives": witness_array,
+                    "route_relevant_informal_nodes_with_dag_edge_endpoint": witness_array,
+                    "route_relevant_informal_nodes_missing_dag_edge_endpoint": witness_array,
+                    "route_relevant_formal_nodes_with_dag_edge_endpoint": witness_array,
+                    "route_relevant_formal_nodes_missing_dag_edge_endpoint": witness_array,
+                    "route_relevant_dag_endpoint_complete": {"type": "boolean"},
                     "delta_action_witness_required_primitives": witness_array,
                     "delta_action_witnessed_primitives": witness_array,
                     "delta_action_witness_missing_primitives": witness_array,
@@ -4482,6 +4495,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
                     "route_option_formal_coverage_complete": {"type": "boolean"},
                     "delta_alignment_complete": {"type": "boolean"},
                     "introduced_alignment_complete": {"type": "boolean"},
+                    "route_option_alignment_complete": {"type": "boolean"},
                     "realization_coverage_complete": {"type": "boolean"},
                 },
             }
@@ -12510,6 +12524,8 @@ def _row_for_request(
     )
     minimal_delta_plan = _dict_value(payload, "minimal_delta_plan")
     route_alignment_edges = _dict_tuple(payload.get("route_alignment_edges", []))
+    informal_dag_edges = _dict_tuple(payload.get("informal_knowledge_dag_edges", []))
+    formal_dag_edges = _dict_tuple(payload.get("formal_realization_dag_edges", []))
     context_packet = _dict_value(request, "context_packet")
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
     context_packet_inventory = _dict_value(
@@ -12526,6 +12542,9 @@ def _row_for_request(
         standalone_route=standalone_route,
         formal_nodes=formal_nodes,
         alignment_edges=route_alignment_edges,
+        informal_nodes=_dict_tuple(payload.get("informal_knowledge_dag_nodes", [])),
+        informal_edges=informal_dag_edges,
+        formal_edges=formal_dag_edges,
     )
     primitive_evidence_matrix_witness = _primitive_evidence_matrix_witness(
         request=request,
@@ -13141,7 +13160,9 @@ def _response_contract_errors(
             selected_primitives=selected_primitives,
             standalone_primitives=standalone_primitives,
             informal_nodes=informal_nodes,
+            informal_edges=informal_edges,
             formal_nodes=formal_nodes,
+            formal_edges=formal_edges,
             alignment_edges=alignment_edges,
             minimal_delta=minimal_delta,
             search_requests=_dict_tuple(payload.get("search_requests", [])),
@@ -17935,12 +17956,130 @@ def _resource_owner_looks_like_tool(value: str) -> bool:
     )
 
 
+def _dag_edge_endpoint_ids(edges: tuple[dict[str, object], ...]) -> set[str]:
+    endpoint_ids: set[str] = set()
+    for edge in edges:
+        for field_name in ("source_node_id", "target_node_id"):
+            node_id = str(edge.get(field_name, "")).strip()
+            if node_id:
+                endpoint_ids.add(node_id)
+    return endpoint_ids
+
+
+def _route_relevant_alignment_dag_endpoint_witness(
+    *,
+    selected: set[str],
+    route_option_primitives: set[str],
+    delta_primitives: set[str],
+    omitted_cost_hint_primitives: set[str],
+    informal_nodes: tuple[dict[str, object], ...],
+    informal_edges: tuple[dict[str, object], ...],
+    formal_nodes: tuple[dict[str, object], ...],
+    formal_edges: tuple[dict[str, object], ...],
+    alignment_edges: tuple[dict[str, object], ...],
+) -> dict[str, object]:
+    informal_node_ids = _node_ids(informal_nodes)
+    formal_node_ids = _node_ids(formal_nodes)
+    informal_endpoint_ids = _dag_edge_endpoint_ids(informal_edges)
+    formal_endpoint_ids = _dag_edge_endpoint_ids(formal_edges)
+    informal_endpoint_required = len(informal_node_ids) > 1
+    formal_endpoint_required = len(formal_node_ids) > 1
+    required_primitives = (
+        selected
+        | delta_primitives
+        | (route_option_primitives - omitted_cost_hint_primitives)
+    )
+    formal_primitive_by_node_id = {
+        str(node.get("node_id", "")).strip(): _primitive_key(node.get("primitive", ""))
+        for node in formal_nodes
+        if str(node.get("node_id", "")).strip()
+    }
+    relevant_primitives: list[str] = []
+    informal_with_endpoint: list[str] = []
+    informal_missing_endpoint: list[str] = []
+    formal_with_endpoint: list[str] = []
+    formal_missing_endpoint: list[str] = []
+    for edge in alignment_edges:
+        if not _route_alignment_edge_is_resolved(edge):
+            continue
+        informal_node_id = str(
+            edge.get("informal_node_id") or edge.get("source") or ""
+        ).strip()
+        formal_node_id = str(
+            edge.get("formal_node_id") or edge.get("target") or ""
+        ).strip()
+        primitive = (
+            formal_primitive_by_node_id.get(formal_node_id, "")
+            or _primitive_key(edge.get("primitive", ""))
+        )
+        if not primitive or primitive not in required_primitives:
+            continue
+        relevant_primitives.append(primitive)
+        if informal_endpoint_required and informal_node_id in informal_node_ids:
+            if informal_node_id in informal_endpoint_ids:
+                informal_with_endpoint.append(informal_node_id)
+            else:
+                informal_missing_endpoint.append(informal_node_id)
+        if formal_endpoint_required and formal_node_id in formal_node_ids:
+            if formal_node_id in formal_endpoint_ids:
+                formal_with_endpoint.append(formal_node_id)
+            else:
+                formal_missing_endpoint.append(formal_node_id)
+    return {
+        "route_relevant_alignment_primitives": sorted(
+            dict.fromkeys(relevant_primitives)
+        ),
+        "route_relevant_informal_nodes_with_dag_edge_endpoint": sorted(
+            dict.fromkeys(informal_with_endpoint)
+        ),
+        "route_relevant_informal_nodes_missing_dag_edge_endpoint": sorted(
+            dict.fromkeys(informal_missing_endpoint)
+        ),
+        "route_relevant_formal_nodes_with_dag_edge_endpoint": sorted(
+            dict.fromkeys(formal_with_endpoint)
+        ),
+        "route_relevant_formal_nodes_missing_dag_edge_endpoint": sorted(
+            dict.fromkeys(formal_missing_endpoint)
+        ),
+        "route_relevant_dag_endpoint_complete": not (
+            informal_missing_endpoint or formal_missing_endpoint
+        ),
+    }
+
+
+def _route_relevant_alignment_dag_endpoint_errors(
+    witness: Mapping[str, object],
+) -> list[str]:
+    errors: list[str] = []
+    missing_informal = _str_tuple(
+        witness.get("route_relevant_informal_nodes_missing_dag_edge_endpoint", [])
+    )
+    if missing_informal:
+        errors.append(
+            "informal_knowledge_dag_edges do not connect route-relevant "
+            "route_alignment_edges informal_node_id values: "
+            + ", ".join(missing_informal[:8])
+        )
+    missing_formal = _str_tuple(
+        witness.get("route_relevant_formal_nodes_missing_dag_edge_endpoint", [])
+    )
+    if missing_formal:
+        errors.append(
+            "formal_realization_dag_edges do not connect route-relevant "
+            "route_alignment_edges formal_node_id values: "
+            + ", ".join(missing_formal[:8])
+        )
+    return errors
+
+
 def _response_primitive_coherence_errors(
     *,
     selected_primitives: tuple[str, ...],
     standalone_primitives: tuple[dict[str, object], ...],
     informal_nodes: tuple[dict[str, object], ...],
+    informal_edges: tuple[dict[str, object], ...],
     formal_nodes: tuple[dict[str, object], ...],
+    formal_edges: tuple[dict[str, object], ...],
     alignment_edges: tuple[dict[str, object], ...],
     minimal_delta: Mapping[str, Any],
     search_requests: tuple[dict[str, object], ...],
@@ -18132,6 +18271,20 @@ def _response_primitive_coherence_errors(
             "introduced selected primitives require route_alignment_edges: "
             + ", ".join(introduced_selected_missing_alignment)
         )
+    endpoint_witness = _route_relevant_alignment_dag_endpoint_witness(
+        selected=selected,
+        route_option_primitives=route_option_primitives,
+        delta_primitives=delta_primitives,
+        omitted_cost_hint_primitives=omitted_cost_hint_primitives,
+        informal_nodes=informal_nodes,
+        informal_edges=informal_edges,
+        formal_nodes=formal_nodes,
+        formal_edges=formal_edges,
+        alignment_edges=alignment_edges,
+    )
+    errors.extend(
+        _route_relevant_alignment_dag_endpoint_errors(endpoint_witness)
+    )
     errors.extend(
         _introduced_primitive_evidence_errors(
             introduced_primitives=tuple(introduced),
@@ -19334,7 +19487,10 @@ def _realization_coverage_witness(
     request: Mapping[str, Any],
     minimal_delta: Mapping[str, Any],
     standalone_route: Mapping[str, Any],
+    informal_nodes: tuple[dict[str, object], ...],
+    informal_edges: tuple[dict[str, object], ...],
     formal_nodes: tuple[dict[str, object], ...],
+    formal_edges: tuple[dict[str, object], ...],
     alignment_edges: tuple[dict[str, object], ...],
 ) -> dict[str, object]:
     selected_order = tuple(
@@ -19391,6 +19547,20 @@ def _realization_coverage_witness(
     )
     introduced_missing_alignment = tuple(
         primitive for primitive in sorted(introduced) if primitive not in aligned
+    )
+    route_option_alignment_required = (
+        set(route_option_primitives) - set(omitted_cost_hint)
+    )
+    endpoint_witness = _route_relevant_alignment_dag_endpoint_witness(
+        selected=selected,
+        route_option_primitives=set(route_option_primitives),
+        delta_primitives=delta_primitives,
+        omitted_cost_hint_primitives=set(omitted_cost_hint),
+        informal_nodes=informal_nodes,
+        informal_edges=informal_edges,
+        formal_nodes=formal_nodes,
+        formal_edges=formal_edges,
+        alignment_edges=alignment_edges,
     )
     action_witness = _minimal_delta_action_witness_status(
         minimal_delta=minimal_delta,
@@ -19452,6 +19622,7 @@ def _realization_coverage_witness(
         "introduced_primitives_missing_route_alignment_edge": list(
             introduced_missing_alignment
         ),
+        **endpoint_witness,
         **action_witness,
         **route_option_action_witness,
         "cost_hint_baseline_coverage_complete": not omitted_cost_hint,
@@ -19463,6 +19634,7 @@ def _realization_coverage_witness(
         "route_option_formal_coverage_complete": not route_option_missing_formal,
         "delta_alignment_complete": not delta_missing_alignment,
         "introduced_alignment_complete": not introduced_missing_alignment,
+        "route_option_alignment_complete": route_option_alignment_required <= aligned,
         "realization_coverage_complete": bool(selected_order)
         and not selected_missing_route
         and not selected_missing_formal
@@ -19470,6 +19642,8 @@ def _realization_coverage_witness(
         and not route_option_missing_formal
         and not delta_missing_alignment
         and not introduced_missing_alignment
+        and route_option_alignment_required <= aligned
+        and bool(endpoint_witness.get("route_relevant_dag_endpoint_complete", False))
         and action_witness_complete
         and route_option_action_witness_complete,
     }
@@ -21898,6 +22072,9 @@ def _compact_realization_witness(value: object) -> dict[str, object]:
         "selected_primitives_missing_formal_realization_node",
         "delta_primitives_missing_route_alignment_edge",
         "introduced_primitives_missing_route_alignment_edge",
+        "route_relevant_alignment_primitives",
+        "route_relevant_informal_nodes_missing_dag_edge_endpoint",
+        "route_relevant_formal_nodes_missing_dag_edge_endpoint",
         "delta_action_witness_required_primitives",
         "delta_action_witnessed_primitives",
         "delta_action_witness_missing_primitives",
@@ -21913,6 +22090,14 @@ def _compact_realization_witness(value: object) -> dict[str, object]:
     compact["realization_coverage_complete"] = bool(
         witness.get("realization_coverage_complete", False)
     )
+    if "route_relevant_dag_endpoint_complete" in witness:
+        compact["route_relevant_dag_endpoint_complete"] = bool(
+            witness.get("route_relevant_dag_endpoint_complete", False)
+        )
+    if "route_option_alignment_complete" in witness:
+        compact["route_option_alignment_complete"] = bool(
+            witness.get("route_option_alignment_complete", False)
+        )
     if (
         "delta_action_witness_complete" in witness
         or _str_tuple(witness.get("delta_action_witness_required_primitives", []))
