@@ -3452,6 +3452,49 @@ def test_llm_route_planner_materializes_formal_attempt_queue_hooks() -> None:
         rank_attempt_row["queries"]
     )
 
+    adapter_dir = root / "adapter_responses_from_formal_attempt_queue_seed"
+    evidence_dir = root / "refinement_evidence_from_formal_attempt_queue_seed"
+    adapter_payload = export_formalization_gap_planner_refinement_adapter_responses(
+        refinement_queue_dir,
+        adapter_dir,
+    )
+    assert adapter_payload["all_ok"]
+    assert adapter_payload["n_formal_attempt_dependency_waiting_responses"] == 1
+    adapter_responses_by_item = {
+        response["refinement_item_id"]: response
+        for response in adapter_payload["responses"]
+    }
+    exchangeability_response = adapter_responses_by_item[
+        exchangeability_attempt_row["refinement_item_id"]
+    ]
+    rank_response = adapter_responses_by_item[rank_attempt_row["refinement_item_id"]]
+    assert exchangeability_response["formal_attempt_queue_index"] == 0
+    assert rank_response["attempt_status"] == "waiting_for_formal_prerequisite_attempts"
+    assert rank_response["prover_attempt_class"] == "formal_attempt_dependency_waiting"
+    assert rank_response["route_revision_recommended"] is False
+    assert tuple(rank_response["formal_attempt_blocking_prerequisite_formal_node_ids"]) == (
+        "formal:exchangeability",
+    )
+
+    evidence_payload = export_formalization_gap_planner_refinement_evidence(
+        refinement_queue_dir,
+        evidence_dir,
+        response_jsonl=adapter_dir
+        / "formalization_gap_planner_refinement_evidence_responses.jsonl",
+    )
+    assert evidence_payload["all_ok"]
+    evidence_by_item = {
+        row["refinement_item_id"]: row for row in evidence_payload["rows"]
+    }
+    rank_evidence = evidence_by_item[rank_attempt_row["refinement_item_id"]]
+    assert rank_evidence["prover_attempt_status"] == (
+        "waiting_for_formal_prerequisite_attempts"
+    )
+    assert not any(
+        proposal["refinement_item_id"] == rank_attempt_row["refinement_item_id"]
+        for proposal in evidence_payload["route_revision_proposals"]
+    )
+
 
 def test_llm_route_planner_materializes_explicit_search_target_primitives() -> None:
     root = Path(

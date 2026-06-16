@@ -1924,6 +1924,11 @@ The queue exporter also computes dependency-readiness metadata:
 should execute `ready_no_formal_prerequisites` rows first, record their
 proof-state feedback, and only then unlock dependent rows such as bridge lemmas
 whose prerequisites have produced usable declarations or residual diagnostics.
+The deterministic refinement adapter and local Lean proof-state adapter both
+respect this gate: waiting rows emit `waiting_for_formal_prerequisite_attempts`
+diagnostics instead of running a prover attempt, and those waiting diagnostics
+are recorded as audit feedback rather than residual-driven route-revision
+proposals.
 
 - `route_alignment_edges`
   Explicit links from informal semantic atoms to formal realization candidates.

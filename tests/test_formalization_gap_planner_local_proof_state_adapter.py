@@ -240,6 +240,107 @@ def test_local_proof_state_adapter_emits_prover_feedback(
     ).exists()
 
 
+def test_local_proof_state_adapter_defers_formal_attempt_prerequisites(
+    monkeypatch,
+) -> None:
+    root = Path("runs/test_formalization_gap_planner_local_proof_state_dependency_gate")
+    queue_dir = root / "queue"
+    adapter_dir = root / "adapter"
+    evidence_dir = root / "evidence"
+    bin_dir = root / "bin"
+    shutil.rmtree(root, ignore_errors=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    fake_lean = bin_dir / "lean"
+    fake_lean.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_lean.chmod(0o755)
+    monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ.get("PATH", ""))
+    queue_rows = [
+        {
+            "refinement_item_id": "refinement:exchangeability",
+            "goal_plan_id": "goal:test",
+            "route_id": "route:test",
+            "display_name": "rank_route",
+            "hook_kind": "proof_state_feedback",
+            "refinement_stage": "proof",
+            "owner_agent": "proof",
+            "target_prover_family": "lean4",
+            "target_primitives": ["exchangeability"],
+            "theorem_skeleton": "theorem exchangeability_probe : True := by trivial",
+            "queries": ["exchangeability proof-state"],
+            "formal_attempt_queue_index": 0,
+            "formal_attempt_initial_ready": True,
+            "formal_attempt_dependency_status": "ready_no_formal_prerequisites",
+        },
+        {
+            "refinement_item_id": "refinement:rank_bridge",
+            "goal_plan_id": "goal:test",
+            "route_id": "route:test",
+            "display_name": "rank_route",
+            "hook_kind": "proof_state_feedback",
+            "refinement_stage": "proof",
+            "owner_agent": "proof",
+            "target_prover_family": "lean4",
+            "target_primitives": ["rank_uniformity"],
+            "theorem_skeleton": "theorem rank_bridge_probe : True := by trivial",
+            "queries": ["rank bridge proof-state"],
+            "formal_attempt_queue_index": 1,
+            "formal_attempt_initial_ready": False,
+            "formal_attempt_dependency_status": (
+                "waiting_for_formal_prerequisite_attempts"
+            ),
+            "formal_attempt_prerequisite_formal_node_ids": [
+                "formal:exchangeability"
+            ],
+            "formal_attempt_prerequisite_refinement_item_ids": [
+                "refinement:exchangeability"
+            ],
+            "formal_attempt_blocking_prerequisite_formal_node_ids": [
+                "formal:exchangeability"
+            ],
+        },
+    ]
+    (queue_dir / "formalization_gap_planner_refinement_queue_manifest.json").write_text(
+        json.dumps({"rows": queue_rows}, indent=2),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_local_proof_state_adapter_responses(
+        queue_dir,
+        adapter_dir,
+        lean_timeout=5,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_target_proof_state_feedback_rows"] == 2
+    assert payload["n_local_proof_state_responses"] == 2
+    assert payload["n_kernel_scaffold_accepted"] == 1
+    assert payload["n_formal_attempt_dependency_waiting"] == 1
+    by_item = {row["refinement_item_id"]: row for row in payload["responses"]}
+    assert by_item["refinement:exchangeability"]["attempt_status"] == (
+        "local_lean_scaffold_accepted"
+    )
+    waiting = by_item["refinement:rank_bridge"]
+    assert waiting["attempt_status"] == "waiting_for_formal_prerequisite_attempts"
+    assert waiting["prover_attempt_class"] == "formal_attempt_dependency_waiting"
+    assert waiting["route_revision_recommended"] is False
+    assert tuple(waiting["formal_attempt_blocking_prerequisite_formal_node_ids"]) == (
+        "formal:exchangeability",
+    )
+
+    evidence_payload = export_formalization_gap_planner_refinement_evidence(
+        queue_dir,
+        evidence_dir,
+        response_jsonl=adapter_dir
+        / "formalization_gap_planner_refinement_evidence_responses.jsonl",
+    )
+    assert evidence_payload["all_ok"]
+    assert not any(
+        proposal["refinement_item_id"] == "refinement:rank_bridge"
+        for proposal in evidence_payload["route_revision_proposals"]
+    )
+
+
 def test_local_proof_state_adapter_skips_non_lean_targets() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_local_proof_state_adapter_non_lean"

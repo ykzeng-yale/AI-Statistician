@@ -160,6 +160,14 @@ def export_formalization_gap_planner_local_proof_state_adapter_responses(
         "n_formal_gap_scaffold_blocked": by_attempt_status.get(
             "formal_gap_scaffold_blocked", 0
         ),
+        "n_formal_attempt_dependency_waiting": by_attempt_status.get(
+            "waiting_for_formal_prerequisite_attempts",
+            0,
+        ),
+        "n_formal_attempt_dependency_missing_prerequisites": by_attempt_status.get(
+            "missing_formal_prerequisite_attempts",
+            0,
+        ),
         "n_non_lean_skeleton": by_attempt_status.get("non_lean_skeleton", 0),
         "n_missing_skeleton": by_attempt_status.get("missing_theorem_skeleton", 0),
         "all_ok": not errors
@@ -258,6 +266,9 @@ def _proof_state_response(
     lean_project: Path | None,
     lean_timeout: int,
 ) -> dict[str, object]:
+    dependency_response = _formal_attempt_dependency_response(queue_row)
+    if dependency_response:
+        return dependency_response
     skeleton = str(queue_row.get("theorem_skeleton", "")).strip()
     target_primitives = _str_tuple(queue_row.get("target_primitives", []))
     diagnostics: list[str] = []
@@ -319,7 +330,7 @@ def _proof_state_response(
         "non_lean_skeleton",
     }
     prover_attempt_class = _prover_attempt_class(attempt_status)
-    return {
+    response = {
         "refinement_item_id": str(queue_row.get("refinement_item_id", "")),
         "route_id": str(queue_row.get("route_id", "")),
         "display_name": str(queue_row.get("display_name", "")),
@@ -336,6 +347,86 @@ def _proof_state_response(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+    _attach_formal_attempt_dependency_fields(response, queue_row)
+    return response
+
+
+def _formal_attempt_dependency_response(queue_row: dict[str, Any]) -> dict[str, object]:
+    dependency_status = str(queue_row.get("formal_attempt_dependency_status", ""))
+    if dependency_status not in {
+        "waiting_for_formal_prerequisite_attempts",
+        "missing_formal_prerequisite_attempts",
+    }:
+        return {}
+    blockers = _str_tuple(
+        queue_row.get("formal_attempt_blocking_prerequisite_formal_node_ids", [])
+    )
+    missing = _str_tuple(
+        queue_row.get("formal_attempt_missing_prerequisite_formal_node_ids", [])
+    )
+    diagnostics = [
+        (
+            "Formal attempt not run because prerequisite formal DAG attempts "
+            "must produce feedback first."
+        )
+    ]
+    if blockers:
+        diagnostics.append("blocking prerequisite formal nodes: " + ", ".join(blockers))
+    route_revision_recommended = dependency_status == "missing_formal_prerequisite_attempts"
+    response: dict[str, object] = {
+        "refinement_item_id": str(queue_row.get("refinement_item_id", "")),
+        "route_id": str(queue_row.get("route_id", "")),
+        "display_name": str(queue_row.get("display_name", "")),
+        "evidence_kind": "prover_feedback",
+        "tool_name": ADAPTER_TOOL_NAME,
+        "target_prover_family": TARGET_PROVER_FAMILY,
+        "prover_adapter_id": ADAPTER_TOOL_NAME,
+        "attempt_status": dependency_status,
+        "prover_attempt_class": "formal_attempt_dependency_waiting"
+        if not route_revision_recommended
+        else "formal_attempt_dependency_missing",
+        "prover_diagnostics": tuple(diagnostics),
+        "residual_goals": tuple(
+            f"{node_id}: missing prerequisite attempt" for node_id in missing
+        ),
+        "route_revision_recommended": route_revision_recommended,
+        "route_revision_reasons": (
+            (
+                "formal attempt queue references missing prerequisite attempts; "
+                "regenerate the formal attempt queue"
+            ),
+        )
+        if route_revision_recommended
+        else (),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+    target_primitives = _str_tuple(queue_row.get("target_primitives", []))
+    if target_primitives:
+        response["target_primitives"] = target_primitives
+    trace = queue_row.get("llm_route_planner_hook_trace", {})
+    if isinstance(trace, dict) and trace:
+        response["llm_route_planner_hook_trace"] = trace
+    _attach_formal_attempt_dependency_fields(response, queue_row)
+    return response
+
+
+def _attach_formal_attempt_dependency_fields(
+    response: dict[str, object],
+    queue_row: dict[str, Any],
+) -> None:
+    for field_name in (
+        "formal_attempt_queue_index",
+        "formal_attempt_initial_ready",
+        "formal_attempt_dependency_status",
+        "formal_attempt_prerequisite_formal_node_ids",
+        "formal_attempt_prerequisite_refinement_item_ids",
+        "formal_attempt_blocking_prerequisite_formal_node_ids",
+        "formal_attempt_missing_prerequisite_formal_node_ids",
+    ):
+        value = queue_row.get(field_name, [])
+        if value or isinstance(value, (bool, int)):
+            response[field_name] = value
 
 
 def _row_targets_local_lean(row: dict[str, Any]) -> bool:
@@ -464,6 +555,8 @@ def _prover_attempt_class(attempt_status: str) -> str:
         "placeholder_blocked": "placeholder_blocked",
         "formal_gap_scaffold_blocked": "formal_gap_scaffold_blocked",
         "missing_theorem_skeleton": "missing_theorem_skeleton",
+        "waiting_for_formal_prerequisite_attempts": "formal_attempt_dependency_waiting",
+        "missing_formal_prerequisite_attempts": "formal_attempt_dependency_missing",
     }.get(attempt_status, attempt_status or "unknown_prover_attempt")
 
 
@@ -541,6 +634,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Local Lean unavailable: {payload.get('n_local_lean_unavailable')}",
         f"- Placeholder blocked: {payload.get('n_placeholder_blocked')}",
         f"- Formal-gap scaffold blocked: {payload.get('n_formal_gap_scaffold_blocked')}",
+        f"- Formal attempts waiting on prerequisites: {payload.get('n_formal_attempt_dependency_waiting')}",
+        f"- Formal attempts missing prerequisites: {payload.get('n_formal_attempt_dependency_missing_prerequisites')}",
         f"- Non-Lean skeleton: {payload.get('n_non_lean_skeleton')}",
         f"- All OK: {payload.get('all_ok')}",
         "",

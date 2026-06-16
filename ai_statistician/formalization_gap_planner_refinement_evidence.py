@@ -141,9 +141,7 @@ def export_formalization_gap_planner_refinement_evidence(
     route_revision_proposals = [
         _route_revision_proposal(row)
         for row in rows
-        if row.route_revision_recommended
-        or row.hook_kind == "route_revision"
-        or row.prover_attempt_status
+        if _should_emit_route_revision_proposal(row)
     ]
     declaration_hit_target_error_counts = tuple(
         len(
@@ -356,6 +354,13 @@ def refinement_tool_response_json_schema() -> dict[str, object]:
             "resource_request_bindings": object_array,
             "quality_controls": quality_controls,
             "llm_route_planner_hook_trace": {"type": "object"},
+            "formal_attempt_queue_index": {"type": "integer"},
+            "formal_attempt_initial_ready": {"type": "boolean"},
+            "formal_attempt_dependency_status": {"type": "string"},
+            "formal_attempt_prerequisite_formal_node_ids": string_array,
+            "formal_attempt_prerequisite_refinement_item_ids": string_array,
+            "formal_attempt_blocking_prerequisite_formal_node_ids": string_array,
+            "formal_attempt_missing_prerequisite_formal_node_ids": string_array,
             "target_primitives": string_array,
             "source_refs": string_array,
             "source_snippets": object_array,
@@ -988,6 +993,18 @@ def _route_revision_proposal(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _should_emit_route_revision_proposal(
+    row: FormalizationGapPlannerRefinementEvidenceRow,
+) -> bool:
+    if row.prover_attempt_status == "waiting_for_formal_prerequisite_attempts":
+        return False
+    return (
+        row.route_revision_recommended
+        or row.hook_kind == "route_revision"
+        or bool(row.prover_attempt_status)
+    )
 
 
 def _residual_goal_context_value(value: Any) -> dict[str, object]:
