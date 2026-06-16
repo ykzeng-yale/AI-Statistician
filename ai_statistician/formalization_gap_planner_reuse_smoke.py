@@ -4738,6 +4738,14 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_optional_llm_route_planner_seed_model_provenance_valid",
             0,
         ),
+        "n_publication_bundle_optional_llm_route_planner_seed_source_grounding_provenance_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_seed_source_grounding_provenance_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_seed_source_grounding_provenance_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_seed_source_grounding_provenance_valid",
+            0,
+        ),
         "n_publication_bundle_optional_llm_route_planner_seed_route_adoption_readiness_checked": publication_bundle_audit_payload.get(
             "n_optional_llm_route_planner_seed_route_adoption_readiness_checked",
             0,
@@ -4864,6 +4872,14 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_publication_bundle_optional_feedback_llm_route_planner_seed_model_provenance_valid": publication_bundle_audit_payload.get(
             "n_optional_feedback_llm_route_planner_seed_model_provenance_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_feedback_llm_route_planner_seed_source_grounding_provenance_checked": publication_bundle_audit_payload.get(
+            "n_optional_feedback_llm_route_planner_seed_source_grounding_provenance_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_feedback_llm_route_planner_seed_source_grounding_provenance_valid": publication_bundle_audit_payload.get(
+            "n_optional_feedback_llm_route_planner_seed_source_grounding_provenance_valid",
             0,
         ),
         "n_publication_bundle_optional_feedback_llm_route_planner_seed_route_adoption_readiness_checked": publication_bundle_audit_payload.get(
@@ -8665,6 +8681,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_optional_llm_route_planner_seed_model_provenance_checked')} "
             f"feedback={payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_model_provenance_valid')}/"
             f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_model_provenance_checked')}"
+        ),
+        (
+            f"- Bundle LLM route planner seed source-grounding provenance preserved: "
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_seed_source_grounding_provenance_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_llm_route_planner_seed_source_grounding_provenance_checked')} "
+            f"feedback={payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_source_grounding_provenance_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_feedback_llm_route_planner_seed_source_grounding_provenance_checked')}"
         ),
         (
             f"- Bundle LLM route planner seed route-adoption readiness preserved: "

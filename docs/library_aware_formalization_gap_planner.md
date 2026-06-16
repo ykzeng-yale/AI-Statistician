@@ -862,6 +862,10 @@ Publication-bundle audits and reuse-smoke reports lift the same seed-selection
 counts as first-class fields, including candidate count, adoptable candidates,
 selected-adoptable, and selected-not-adoptable, so external consumers can gate
 route adoption without opening nested seed artifacts.
+Reuse-smoke also forwards the publication-bundle audit counters for
+LLM seed source-grounding provenance, separately for the primary and feedback
+route-planner passes, so one-command public runs expose whether residual/source
+obligations survived row, seed-route, and seed-metadata preservation.
 Publication and reuse-smoke LLM-route summaries also surface
 `n_route_adoption_pending_formal_gap_boundary_blockers`, keeping declared
 formal-boundary gaps visible beside source-grounding, quality-control,

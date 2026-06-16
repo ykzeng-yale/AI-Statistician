@@ -1545,6 +1545,15 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_source_grounding_provenance_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_source_grounding_provenance_checked"
+        ]
+        == 0
+    )
+    assert (
+        payload[
             "n_publication_bundle_optional_llm_route_planner_seed_route_selection_summary_valid"
         ]
         == payload[
@@ -1663,6 +1672,15 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == payload[
             "n_publication_bundle_optional_feedback_llm_route_planner_seed_model_provenance_checked"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_source_grounding_provenance_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_source_grounding_provenance_checked"
         ]
         == 0
     )
@@ -4056,7 +4074,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         payload[
             "n_feedback_llm_route_planner_route_adoption_pending_source_grounding_blockers"
         ]
-        == 0
+        == 1
     )
     assert (
         payload[
@@ -4980,6 +4998,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_source_grounding_provenance_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_seed_source_grounding_provenance_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_publication_bundle_optional_llm_route_planner_seed_route_adoption_readiness_valid"
         ]
         == payload[
@@ -5094,6 +5121,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload[
             "n_publication_bundle_optional_feedback_llm_route_planner_seed_model_provenance_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_source_grounding_provenance_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_feedback_llm_route_planner_seed_source_grounding_provenance_checked"
         ]
         == 1
     )
