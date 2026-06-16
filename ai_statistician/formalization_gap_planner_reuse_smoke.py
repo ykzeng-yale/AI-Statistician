@@ -154,6 +154,9 @@ SUMMARY_KEYS_BY_STAGE = {
         "total_provider_cache_creation_input_tokens",
         "total_provider_cache_read_input_tokens",
         "total_provider_total_tokens",
+        "n_model_tier_decision_ledger_rows",
+        "n_model_tier_decision_ledger_rows_with_escalation",
+        "n_model_tier_decision_ledger_provider_failure_rows",
         "n_routes",
         "n_request_packets",
         "n_requests_with_context_packet_inventory",
@@ -231,6 +234,9 @@ SUMMARY_KEYS_BY_STAGE = {
         "total_provider_cache_creation_input_tokens",
         "total_provider_cache_read_input_tokens",
         "total_provider_total_tokens",
+        "n_model_tier_decision_ledger_rows",
+        "n_model_tier_decision_ledger_rows_with_escalation",
+        "n_model_tier_decision_ledger_provider_failure_rows",
         "n_routes",
         "n_request_packets",
         "n_requests_with_context_packet_inventory",
@@ -1659,6 +1665,12 @@ def run_formalization_gap_planner_reuse_smoke(
     feedback_llm_route_planner_provider_usage_summary = _llm_provider_usage_summary(
         feedback_llm_route_planner_payload
     )
+    llm_route_planner_model_tier_decision_ledger_summary = (
+        _llm_model_tier_decision_ledger_summary(llm_route_planner_payload)
+    )
+    feedback_llm_route_planner_model_tier_decision_ledger_summary = (
+        _llm_model_tier_decision_ledger_summary(feedback_llm_route_planner_payload)
+    )
     combined_llm_route_planner_provider_usage_summary = (
         _combined_llm_provider_usage_summary(
             (
@@ -1669,6 +1681,20 @@ def run_formalization_gap_planner_reuse_smoke(
                 (
                     "feedback_llm_route_planner",
                     feedback_llm_route_planner_provider_usage_summary,
+                ),
+            )
+        )
+    )
+    combined_llm_route_planner_model_tier_decision_ledger_summary = (
+        _combined_llm_model_tier_decision_ledger_summary(
+            (
+                (
+                    "primary_llm_route_planner",
+                    llm_route_planner_model_tier_decision_ledger_summary,
+                ),
+                (
+                    "feedback_llm_route_planner",
+                    feedback_llm_route_planner_model_tier_decision_ledger_summary,
                 ),
             )
         )
@@ -1886,6 +1912,30 @@ def run_formalization_gap_planner_reuse_smoke(
         "total_llm_route_planner_provider_total_tokens": int(
             llm_route_planner_provider_usage_summary.get("total_tokens", 0) or 0
         ),
+        "llm_route_planner_model_tier_decision_ledger_summary": (
+            llm_route_planner_model_tier_decision_ledger_summary
+        ),
+        "n_llm_route_planner_model_tier_decision_ledger_rows": int(
+            llm_route_planner_model_tier_decision_ledger_summary.get(
+                "row_count",
+                0,
+            )
+            or 0
+        ),
+        "n_llm_route_planner_model_tier_decision_ledger_rows_with_escalation": int(
+            llm_route_planner_model_tier_decision_ledger_summary.get(
+                "rows_with_escalation",
+                0,
+            )
+            or 0
+        ),
+        "n_llm_route_planner_model_tier_decision_ledger_provider_failure_rows": int(
+            llm_route_planner_model_tier_decision_ledger_summary.get(
+                "provider_failure_rows",
+                0,
+            )
+            or 0
+        ),
         "feedback_llm_route_planner_provider": feedback_llm_route_planner_provider,
         "feedback_llm_route_planner_model": str(
             feedback_llm_route_planner_payload.get("model", "")
@@ -1937,6 +1987,30 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "total_feedback_llm_route_planner_provider_total_tokens": int(
             feedback_llm_route_planner_provider_usage_summary.get("total_tokens", 0)
+            or 0
+        ),
+        "feedback_llm_route_planner_model_tier_decision_ledger_summary": (
+            feedback_llm_route_planner_model_tier_decision_ledger_summary
+        ),
+        "n_feedback_llm_route_planner_model_tier_decision_ledger_rows": int(
+            feedback_llm_route_planner_model_tier_decision_ledger_summary.get(
+                "row_count",
+                0,
+            )
+            or 0
+        ),
+        "n_feedback_llm_route_planner_model_tier_decision_ledger_rows_with_escalation": int(
+            feedback_llm_route_planner_model_tier_decision_ledger_summary.get(
+                "rows_with_escalation",
+                0,
+            )
+            or 0
+        ),
+        "n_feedback_llm_route_planner_model_tier_decision_ledger_provider_failure_rows": int(
+            feedback_llm_route_planner_model_tier_decision_ledger_summary.get(
+                "provider_failure_rows",
+                0,
+            )
             or 0
         ),
         "has_llm_route_planner_response_payload_validation": (
@@ -2099,6 +2173,30 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "total_combined_llm_route_planner_provider_total_tokens": int(
             combined_llm_route_planner_provider_usage_summary.get("total_tokens", 0)
+            or 0
+        ),
+        "combined_llm_route_planner_model_tier_decision_ledger_summary": (
+            combined_llm_route_planner_model_tier_decision_ledger_summary
+        ),
+        "n_combined_llm_route_planner_model_tier_decision_ledger_rows": int(
+            combined_llm_route_planner_model_tier_decision_ledger_summary.get(
+                "row_count",
+                0,
+            )
+            or 0
+        ),
+        "n_combined_llm_route_planner_model_tier_decision_ledger_rows_with_escalation": int(
+            combined_llm_route_planner_model_tier_decision_ledger_summary.get(
+                "rows_with_escalation",
+                0,
+            )
+            or 0
+        ),
+        "n_combined_llm_route_planner_model_tier_decision_ledger_provider_failure_rows": int(
+            combined_llm_route_planner_model_tier_decision_ledger_summary.get(
+                "provider_failure_rows",
+                0,
+            )
             or 0
         ),
         "n_stages": len(stages),
@@ -7163,6 +7261,123 @@ def _combined_llm_provider_usage_summary(
     }
 
 
+def _model_tier_decision_ledger_rows(payload: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+    rows = payload.get("model_tier_decision_ledger", [])
+    if not isinstance(rows, list):
+        return ()
+    return tuple(row for row in rows if isinstance(row, dict))
+
+
+def _llm_model_tier_decision_ledger_summary(payload: dict[str, Any]) -> dict[str, object]:
+    rows = _model_tier_decision_ledger_rows(payload)
+    by_selected_tier: dict[str, int] = {}
+    by_effective_tier: dict[str, int] = {}
+    by_decision_basis: dict[str, int] = {}
+    for row in rows:
+        selected_tier = str(row.get("selected_model_tier", "") or "unknown")
+        effective_tier = str(row.get("effective_model_tier", "") or "unknown")
+        decision_basis = str(row.get("decision_basis", "") or "unknown")
+        by_selected_tier[selected_tier] = by_selected_tier.get(selected_tier, 0) + 1
+        by_effective_tier[effective_tier] = (
+            by_effective_tier.get(effective_tier, 0) + 1
+        )
+        by_decision_basis[decision_basis] = (
+            by_decision_basis.get(decision_basis, 0) + 1
+        )
+
+    row_count = _nonnegative_int(
+        payload.get("n_model_tier_decision_ledger_rows", len(rows))
+    )
+    escalation_count = _nonnegative_int(
+        payload.get(
+            "n_model_tier_decision_ledger_rows_with_escalation",
+            sum(1 for row in rows if bool(row.get("model_tier_escalated"))),
+        )
+    )
+    provider_failure_count = _nonnegative_int(
+        payload.get(
+            "n_model_tier_decision_ledger_provider_failure_rows",
+            sum(1 for row in rows if bool(row.get("provider_failure"))),
+        )
+    )
+    return {
+        "summary_kind": (
+            "formalization_gap_planner_reuse_smoke_llm_model_tier_decision_ledger_summary"
+        ),
+        "row_count": row_count,
+        "rows_with_escalation": escalation_count,
+        "provider_failure_rows": provider_failure_count,
+        "by_selected_model_tier": dict(sorted(by_selected_tier.items())),
+        "by_effective_model_tier": dict(sorted(by_effective_tier.items())),
+        "by_decision_basis": dict(sorted(by_decision_basis.items())),
+        "usage_boundary": (
+            "Model-tier decision ledger rows explain Claude Haiku/Sonnet/Opus "
+            "routing choices for cost control; they are not mathematical or "
+            "theorem proof evidence."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _combined_llm_model_tier_decision_ledger_summary(
+    summaries_by_run: tuple[tuple[str, dict[str, object]], ...],
+) -> dict[str, object]:
+    by_selected_tier: dict[str, int] = {}
+    by_effective_tier: dict[str, int] = {}
+    by_decision_basis: dict[str, int] = {}
+    by_planner_run: dict[str, dict[str, object]] = {}
+    row_count = 0
+    escalation_count = 0
+    provider_failure_count = 0
+    runs_with_rows = 0
+    for run_name, summary in summaries_by_run:
+        normalized = dict(summary)
+        by_planner_run[run_name] = normalized
+        run_rows = _nonnegative_int(normalized.get("row_count", 0))
+        if run_rows > 0:
+            runs_with_rows += 1
+        row_count += run_rows
+        escalation_count += _nonnegative_int(
+            normalized.get("rows_with_escalation", 0)
+        )
+        provider_failure_count += _nonnegative_int(
+            normalized.get("provider_failure_rows", 0)
+        )
+        _merge_count_map(by_selected_tier, normalized.get("by_selected_model_tier", {}))
+        _merge_count_map(by_effective_tier, normalized.get("by_effective_model_tier", {}))
+        _merge_count_map(by_decision_basis, normalized.get("by_decision_basis", {}))
+    return {
+        "summary_kind": (
+            "formalization_gap_planner_reuse_smoke_combined_llm_model_tier_decision_ledger_summary"
+        ),
+        "n_planner_runs": len(summaries_by_run),
+        "n_planner_runs_with_model_tier_decision_ledger": runs_with_rows,
+        "row_count": row_count,
+        "rows_with_escalation": escalation_count,
+        "provider_failure_rows": provider_failure_count,
+        "by_selected_model_tier": dict(sorted(by_selected_tier.items())),
+        "by_effective_model_tier": dict(sorted(by_effective_tier.items())),
+        "by_decision_basis": dict(sorted(by_decision_basis.items())),
+        "by_planner_run": dict(sorted(by_planner_run.items())),
+        "usage_boundary": (
+            "Combined model-tier decision ledger rows cover primary and "
+            "feedback LLM route-planner calls and explain cost-routing choices; "
+            "they are not proof evidence."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _merge_count_map(target: dict[str, int], value: object) -> None:
+    if not isinstance(value, dict):
+        return
+    for raw_key, raw_count in value.items():
+        key = str(raw_key)
+        target[key] = target.get(key, 0) + _nonnegative_int(raw_count)
+
+
 def _usage_bucket_map(value: object) -> dict[str, dict[str, int]]:
     if not isinstance(value, dict):
         return {}
@@ -8326,6 +8541,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('total_llm_route_planner_provider_total_tokens')}"
         ),
         (
+            f"- LLM route planner model-tier ledger rows/escalations/provider-failures: "
+            f"{payload.get('n_llm_route_planner_model_tier_decision_ledger_rows')}/"
+            f"{payload.get('n_llm_route_planner_model_tier_decision_ledger_rows_with_escalation')}/"
+            f"{payload.get('n_llm_route_planner_model_tier_decision_ledger_provider_failure_rows')}"
+        ),
+        (
             f"- LLM route planner adoption ready/pending/search-blockers/action-blockers: "
             f"{payload.get('n_llm_route_planner_route_adoption_ready')}/"
             f"{payload.get('n_llm_route_planner_route_adoption_pending_refinement')}/"
@@ -8550,11 +8771,23 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('total_feedback_llm_route_planner_provider_total_tokens')}"
         ),
         (
+            f"- Feedback LLM route planner model-tier ledger rows/escalations/provider-failures: "
+            f"{payload.get('n_feedback_llm_route_planner_model_tier_decision_ledger_rows')}/"
+            f"{payload.get('n_feedback_llm_route_planner_model_tier_decision_ledger_rows_with_escalation')}/"
+            f"{payload.get('n_feedback_llm_route_planner_model_tier_decision_ledger_provider_failure_rows')}"
+        ),
+        (
             f"- Combined LLM route planner provider usage rows/input/output/total: "
             f"{payload.get('n_combined_llm_route_planner_rows_with_provider_usage')}/"
             f"{payload.get('total_combined_llm_route_planner_provider_input_tokens')}/"
             f"{payload.get('total_combined_llm_route_planner_provider_output_tokens')}/"
             f"{payload.get('total_combined_llm_route_planner_provider_total_tokens')}"
+        ),
+        (
+            f"- Combined LLM route planner model-tier ledger rows/escalations/provider-failures: "
+            f"{payload.get('n_combined_llm_route_planner_model_tier_decision_ledger_rows')}/"
+            f"{payload.get('n_combined_llm_route_planner_model_tier_decision_ledger_rows_with_escalation')}/"
+            f"{payload.get('n_combined_llm_route_planner_model_tier_decision_ledger_provider_failure_rows')}"
         ),
         (
             f"- Feedback LLM route planner adoption ready/pending/search-blockers/action-blockers: "

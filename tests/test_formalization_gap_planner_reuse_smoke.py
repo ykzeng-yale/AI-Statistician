@@ -530,6 +530,27 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["llm_route_planner_provider_usage_summary"][
         "proof_evidence_status"
     ]
+    assert (
+        payload["n_llm_route_planner_model_tier_decision_ledger_rows"]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_model_tier_decision_ledger_rows_with_escalation"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 0
+    )
+    assert (
+        payload["llm_route_planner_model_tier_decision_ledger_summary"][
+            "proof_evidence_status"
+        ]
+    )
     assert payload["llm_route_planner_max_repair_attempts"] == 1
     assert payload["llm_route_planner_by_request_model_tier"]
     assert (
@@ -911,6 +932,39 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["total_combined_llm_route_planner_provider_total_tokens"] == 0
     assert (
         payload["combined_llm_route_planner_provider_usage_summary"][
+            "n_planner_runs"
+        ]
+        == 2
+    )
+    assert (
+        payload["n_feedback_llm_route_planner_model_tier_decision_ledger_rows"]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_model_tier_decision_ledger_rows_with_escalation"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 0
+    )
+    assert (
+        payload["n_combined_llm_route_planner_model_tier_decision_ledger_rows"]
+        == payload["n_llm_route_planner_model_tier_decision_ledger_rows"]
+        + payload["n_feedback_llm_route_planner_model_tier_decision_ledger_rows"]
+    )
+    assert (
+        payload[
+            "n_combined_llm_route_planner_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 0
+    )
+    assert (
+        payload["combined_llm_route_planner_model_tier_decision_ledger_summary"][
             "n_planner_runs"
         ]
         == 2
@@ -5452,12 +5506,37 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
     assert payload["total_llm_route_planner_provider_output_tokens"] == 0
     assert payload["total_llm_route_planner_provider_cache_read_input_tokens"] == 3
     assert payload["total_llm_route_planner_provider_total_tokens"] == 83
+    assert payload["n_llm_route_planner_model_tier_decision_ledger_rows"] == 1
+    assert (
+        payload[
+            "n_llm_route_planner_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload["llm_route_planner_model_tier_decision_ledger_summary"][
+            "provider_failure_rows"
+        ]
+        == 1
+    )
     assert payload["n_llm_route_planner_rows_with_generation_errors"] == 1
     assert payload["n_llm_route_planner_awaiting"] == 0
     assert payload["n_llm_route_planner_accepted_route_plans"] == 0
     assert payload["n_llm_route_planner_row_schema_valid"] == 1
     assert payload["n_llm_route_planner_row_schema_invalid"] == 0
     assert payload["n_feedback_llm_route_planner_provider_failures"] == 0
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_combined_llm_route_planner_model_tier_decision_ledger_provider_failure_rows"
+        ]
+        == 1
+    )
     assert payload["n_feedback_llm_route_planner_rows_with_generation_errors"] == 0
     assert (
         payload["n_feedback_llm_route_planner_awaiting"]
@@ -5484,3 +5563,7 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
         out_dir / "formalization_gap_planner_reuse_smoke.md"
     ).read_text(encoding="utf-8")
     assert "provider_failures=1" in report
+    assert (
+        "LLM route planner model-tier ledger rows/escalations/provider-failures: 1/0/1"
+        in report
+    )
