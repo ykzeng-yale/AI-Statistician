@@ -298,7 +298,13 @@ response is only a disconnected collection of claims and realization candidates,
 not an executable dependency route. Resolved alignment edges must preserve
 informal dependency order: when an informal DAG edge maps two proof steps to
 distinct formal realization nodes, the formal realization DAG must contain a
-dependency path in the same direction. Minimality rationales are validated as
+dependency path in the same direction. Accepted LLM rows must also include
+`formal_attempt_queue`, a bottom-up prover-feedback schedule over the selected
+formal realization DAG. Each queued row names an existing formal node, target
+prover family, owner/action, attempt kind, expected feedback, target
+primitives, and immediate formal-node prerequisites; validation rejects queues
+that omit selected-route formal nodes or order attempts contrary to
+`formal_realization_dag_edges`. Minimality rationales are validated as
 evidence-anchored text: they
 must mention selected primitives, the selected route option, coverage/cost
 buckets, route-cost comparisons, or concrete delta work, and placeholder
@@ -367,7 +373,11 @@ silently swap its own public contracts. That payload schema is
 structured around informal DAG nodes, formal realization nodes or the legacy
 Lean realization alias, route-alignment edges, the AND/OR minimal-delta cost
 graph, residual interpretations, search requests, planner next actions, source
-snippets, and standalone-route primitives. Route-alignment rationales are
+snippets, formal attempt queues, and standalone-route primitives.
+`formal_attempt_queue` turns the static route alignment into a replayable
+worklist for Lean LSP, Rocq, Isabelle, Agda, or another target prover adapter;
+adapter residuals from those attempts are fed back as route-repair evidence,
+not proof evidence. Route-alignment rationales are
 validated as substantive, evidence-anchored text: a placeholder like `ok` or an
 unanchored explanation that does not mention the mapped informal claim, formal
 primitive, declaration, coverage/action, or source-backed route anchor rejects
@@ -1889,6 +1899,16 @@ node that is isolated from the DAG keeps the row pending or rejected instead of
 being treated as usable planner evidence. The LLM response contract also
 rejects a formal realization DAG that reverses an aligned informal proof
 dependency, even if the formal DAG is still acyclic.
+
+The same accepted-response contract exports `formal_attempt_queue` as the
+prover-neutral topological queue over the selected formal realization DAG. Each
+selected-route formal node, plus any formal DAG ancestor needed to reach it,
+must appear exactly once; immediate formal predecessors must be listed as
+`prerequisite_formal_node_ids`; and prerequisite attempts must occur earlier in
+the queue. Queue rows carry `target_prover_family`, `owner`, `action`,
+`attempt_kind`, `expected_feedback`, and `target_primitives`, so prover
+adapters can run the next bottom-up attempt and return residual goals without
+guessing the route order.
 
 - `route_alignment_edges`
   Explicit links from informal semantic atoms to formal realization candidates.

@@ -418,7 +418,44 @@ def _llm_response_payload() -> dict[str, object]:
             {
                 "owner": "lean_lsp_mcp",
                 "action": "attempt the rank_uniformity bridge lemma",
+                "target_primitives": ["rank_uniformity"],
             }
+        ],
+        "formal_attempt_queue": [
+            {
+                "attempt_id": "attempt:exchangeability_reuse",
+                "formal_node_id": "formal:exchangeability",
+                "primitive": "exchangeability",
+                "target_prover_family": "lean4",
+                "owner": "lean_lsp_mcp",
+                "action": (
+                    "lean_lsp proof-state reuse check for "
+                    "Probability.exchangeable"
+                ),
+                "attempt_kind": "reuse_check",
+                "prerequisite_formal_node_ids": [],
+                "expected_feedback": ["closed_by_existing_declaration"],
+                "target_primitives": ["exchangeability"],
+            },
+            {
+                "attempt_id": "attempt:rank_uniformity_bridge",
+                "formal_node_id": "formal:rank_uniformity_bridge",
+                "primitive": "rank_uniformity",
+                "target_prover_family": "lean4",
+                "owner": "lean_lsp_mcp",
+                "action": (
+                    "lean_lsp proof-state attempt for the rank_uniformity bridge "
+                    "lemma after exchangeability reuse"
+                ),
+                "attempt_kind": "bridge_proof",
+                "prerequisite_formal_node_ids": ["formal:exchangeability"],
+                "expected_feedback": [
+                    "residual_goals",
+                    "missing_side_conditions",
+                    "closed_by_existing_declaration",
+                ],
+                "target_primitives": ["rank_uniformity"],
+            },
         ],
         "standalone_route": {
             "route_id": "rank_route_llm_revision",
@@ -446,6 +483,24 @@ def _llm_response_payload() -> dict[str, object]:
         },
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _retarget_formal_attempt_queue(
+    response: dict[str, object],
+    *,
+    target_prover_family: str,
+    owner: str,
+) -> None:
+    for item in response.get("formal_attempt_queue", []):
+        if not isinstance(item, dict):
+            continue
+        primitive = str(item.get("primitive", "")).strip()
+        item["target_prover_family"] = target_prover_family
+        item["owner"] = owner
+        item["action"] = (
+            f"{owner} proof-state attempt for {primitive} on "
+            f"{target_prover_family}"
+        )
 
 
 def _append_bridge_cost(
@@ -5627,6 +5682,10 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
         response
         for response in adapter_payload["responses"]
         if response.get("resource_request_bindings")
+        and tuple(
+            response.get("quality_controls", {}).get("resource_contract_ids", [])
+        )
+        == ("lean_lsp:proof_state_feedback",)
     )
     assert tuple(adapter_response["quality_controls"]["resource_contract_ids"]) == (
         "lean_lsp:proof_state_feedback",
@@ -5692,6 +5751,10 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
         row
         for row in evidence_payload["rows"]
         if row.get("resource_request_bindings")
+        and tuple(
+            row.get("quality_controls", {}).get("required_quality_signals", [])
+        )
+        == ("diagnostic_signature",)
     )
     assert tuple(evidence_row["quality_controls"]["required_quality_signals"]) == (
         "diagnostic_signature",
@@ -8168,6 +8231,110 @@ def test_llm_route_planner_rejects_reversed_formal_dag_dependency_alignment() ->
     )
 
 
+def test_llm_route_planner_rejects_missing_formal_attempt_queue_node() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_missing_attempt_queue_node"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"] = [
+        item
+        for item in response["formal_attempt_queue"]
+        if item["formal_node_id"] != "formal:rank_uniformity_bridge"
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "formal_attempt_queue missing selected-route formal DAG nodes" in error
+        and "formal:rank_uniformity_bridge" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_formal_attempt_queue_order_drift() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_bad_attempt_queue_order"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"] = list(reversed(response["formal_attempt_queue"]))
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "must appear after prerequisite formal node formal:exchangeability"
+        in error
+        for error in row["errors"]
+    )
+    assert any(
+        "formal_attempt_queue order must follow formal_realization_dag_edges"
+        in error
+        and "formal:exchangeability before formal:rank_uniformity_bridge" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_formal_attempt_queue_prerequisite_mismatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_bad_attempt_queue_prereq"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"][1]["prerequisite_formal_node_ids"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "formal_attempt_queue[1].prerequisite_formal_node_ids must match "
+        "formal_realization_dag_edges immediate predecessors" in error
+        and "formal:exchangeability" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_route_aligned_nodes_disconnected_from_dag_edges() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_disconnected_aligned_nodes"
@@ -10581,6 +10748,23 @@ def test_llm_route_planner_accepts_introduced_reuse_with_candidate_declaration_r
     }
     for edge in minimal_delta["and_or_cost_graph"]["and_edges"]:
         edge["requires"] = option_primitives_by_id[edge["route_option_id"]]
+    response["formal_attempt_queue"].append(
+        {
+            "attempt_id": "attempt:rank_order_statistic_reuse",
+            "formal_node_id": "formal:rank_order_statistic",
+            "primitive": "rank_order_statistic",
+            "target_prover_family": "lean4",
+            "owner": "lean_lsp_mcp",
+            "action": (
+                "lean_lsp proof-state reuse check for "
+                "Probability.rankOrderStatistic after rank_uniformity"
+            ),
+            "attempt_kind": "reuse_check",
+            "prerequisite_formal_node_ids": ["formal:rank_uniformity_bridge"],
+            "expected_feedback": ["closed_by_existing_declaration"],
+            "target_primitives": ["rank_order_statistic"],
+        }
+    )
     response_json.write_text(json.dumps(response), encoding="utf-8")
 
     payload = export_formalization_gap_planner_llm_route_planner(
@@ -10844,6 +11028,11 @@ def test_llm_route_planner_accepts_non_lean_generic_formal_realization_nodes() -
     response["standalone_route"]["primitives"][0]["candidate_declarations"] = [
         "Rocq.Probability.exchangeable"
     ]
+    _retarget_formal_attempt_queue(
+        response,
+        target_prover_family="rocq",
+        owner="rocq_serapi",
+    )
     response["search_requests"][0] = {
         "request_kind": "prover_feedback",
         "query": "try the Rocq rank_uniformity bridge against Rocq.Probability.exchangeable",
@@ -10976,6 +11165,11 @@ def test_llm_route_planner_target_scopes_lean_search_hooks_for_rocq() -> None:
     response["standalone_route"]["primitives"][0]["candidate_declarations"] = [
         "Rocq.Probability.exchangeable"
     ]
+    _retarget_formal_attempt_queue(
+        response,
+        target_prover_family="rocq",
+        owner="formal_retrieval",
+    )
     response["search_requests"] = [
         {
             "request_kind": "lean_search",
@@ -11097,6 +11291,11 @@ def test_llm_route_planner_accepts_target_filtered_registry_adapter_id() -> None
     response["standalone_route"]["primitives"][0]["candidate_declarations"] = [
         "Rocq.Probability.exchangeable"
     ]
+    _retarget_formal_attempt_queue(
+        response,
+        target_prover_family="rocq",
+        owner="rocq_serapi",
+    )
     response["planner_next_actions"] = [
         {
             "owner": "route_revision_overlay",
@@ -11343,6 +11542,7 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
         "formal_realization_dag_edges",
         "route_alignment_edges",
         "minimal_delta_plan",
+        "formal_attempt_queue",
         "standalone_route",
         "proof_evidence_boundary",
     ]
@@ -13082,6 +13282,11 @@ def test_llm_route_planner_accepts_target_specific_rocq_tools_for_rocq_target() 
     response["formal_realization_dag_nodes"] = response.pop(
         "lean_realization_dag_nodes"
     )
+    _retarget_formal_attempt_queue(
+        response,
+        target_prover_family="rocq",
+        owner="rocq_lsp_serapi",
+    )
     response["search_requests"] = [
         {
             "request_kind": "formal_library",
@@ -13125,6 +13330,11 @@ def test_llm_route_planner_accepts_target_specific_hol4_tools_for_hol4_target() 
     response = _llm_response_payload()
     response["formal_realization_dag_nodes"] = response.pop(
         "lean_realization_dag_nodes"
+    )
+    _retarget_formal_attempt_queue(
+        response,
+        target_prover_family="hol_4",
+        owner="hol4_kernel_replay",
     )
     response["search_requests"] = [
         {
@@ -16166,6 +16376,23 @@ def test_llm_route_planner_accepts_introduced_source_backed_bridge_primitive() -
             "primitive": "deterministic_tie_breaking",
             "coverage_status": "bridge_needed",
             "source_refs": ["conformal_prediction_textbook"],
+        }
+    )
+    response["formal_attempt_queue"].append(
+        {
+            "attempt_id": "attempt:deterministic_tie_breaking_bridge",
+            "formal_node_id": "formal:deterministic_tie_breaking_bridge",
+            "primitive": "deterministic_tie_breaking",
+            "target_prover_family": "lean4",
+            "owner": "lean_lsp_mcp",
+            "action": (
+                "lean_lsp proof-state attempt for deterministic_tie_breaking "
+                "after rank_uniformity"
+            ),
+            "attempt_kind": "bridge_proof",
+            "prerequisite_formal_node_ids": ["formal:rank_uniformity_bridge"],
+            "expected_feedback": ["residual_goals", "missing_side_conditions"],
+            "target_primitives": ["deterministic_tie_breaking"],
         }
     )
     response_json.write_text(json.dumps(response), encoding="utf-8")

@@ -901,6 +901,24 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
             "stop_conditions": ["optional grounded stop conditions"],
         }
     ],
+    "formal_attempt_queue": [
+        {
+            "attempt_id": "stable attempt id",
+            "formal_node_id": "formal_realization_dag_nodes[].node_id to attempt",
+            "primitive": "formal primitive for the attempted node",
+            "target_prover_family": "lean4|rocq|isabelle|agda|...",
+            "owner": "prover/LSP/library adapter that should attempt this node",
+            "action": "bounded proof-state or reuse check to run",
+            "attempt_kind": "reuse_check|wrapper_check|bridge_proof|source_port_probe|definition_probe|proof_state_feedback",
+            "prerequisite_formal_node_ids": [
+                "formal DAG predecessors that must be attempted first"
+            ],
+            "expected_feedback": [
+                "closed_by_existing_declaration|residual_goals|missing_side_conditions|wrong_formulation"
+            ],
+            "target_primitives": ["primitive ids bounded by this attempt"],
+        }
+    ],
     "standalone_route": {
         "display_name": "route name",
         "theorem_statement": "informal theorem statement",
@@ -978,6 +996,7 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     uncertainty_flags: tuple[str, ...]
     semantic_alignment_risks: tuple[str, ...]
     planner_next_actions: tuple[dict[str, object], ...]
+    formal_attempt_queue: tuple[dict[str, object], ...]
     standalone_route: dict[str, object]
     source_refs: tuple[str, ...]
     source_snippets: tuple[dict[str, object], ...]
@@ -2849,6 +2868,12 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_rows_with_planner_next_actions": sum(
             1 for row in rows if row.planner_next_actions
         ),
+        "n_formal_attempt_queue_items": sum(
+            len(row.formal_attempt_queue) for row in rows
+        ),
+        "n_rows_with_formal_attempt_queue": sum(
+            1 for row in rows if row.formal_attempt_queue
+        ),
         "n_rows_with_context_packet_inventory": sum(
             1 for row in rows if row.context_packet_inventory
         ),
@@ -4301,6 +4326,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "uncertainty_flags",
             "semantic_alignment_risks",
             "planner_next_actions",
+            "formal_attempt_queue",
             "standalone_route",
             "source_refs",
             "source_snippets",
@@ -4359,6 +4385,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "uncertainty_flags": string_array,
             "semantic_alignment_risks": string_array,
             "planner_next_actions": object_array,
+            "formal_attempt_queue": object_array,
             "standalone_route": {"type": "object"},
             "source_refs": string_array,
             "source_snippets": object_array,
@@ -9667,6 +9694,8 @@ def _user_prompt(
             "search_requests.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
             "Every planner_next_actions row must include owner and action, and the row must resolve to a supported literature/formal-library/proof-state/route-revision hook family.",
             "planner_next_actions.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
+            "Return formal_attempt_queue as the bottom-up execution schedule for the selected formal_realization_dag_nodes: each row must name an existing formal_node_id, target_prover_family, owner, action, attempt_kind, expected_feedback, target_primitives, and prerequisite_formal_node_ids.",
+            "formal_attempt_queue order and prerequisite_formal_node_ids must follow formal_realization_dag_edges for selected-route formal nodes and their DAG ancestors; prerequisites must appear earlier in the queue.",
             "Use context_packet.route_planning_brief.primitive_evidence_matrix as the compact per-primitive join of source snippets, formal declaration coverage, residual goals, and minimal-delta cost hints.",
             "Use context_packet.context_packet_inventory as the compact inventory of available evidence and feedback rows; raw context_packet rows remain the source of truth if a count is surprising.",
             "Use context_packet.route_adoption_preconditions as the pre-response forecast of known route-adoption blockers; if known_pre_response_blockers is nonempty, preserve blocker-specific residual interpretations, search_requests, or planner_next_actions instead of presenting the route as replay-ready.",
@@ -10468,6 +10497,7 @@ def llm_route_planner_response_payload_schema(
             "formal_realization_dag_edges",
             "route_alignment_edges",
             "minimal_delta_plan",
+            "formal_attempt_queue",
             "standalone_route",
             "proof_evidence_boundary",
         ],
@@ -10608,6 +10638,37 @@ def llm_route_planner_response_payload_schema(
                         "quality_gates": string_array,
                         "response_validation_signals": string_array,
                         "stop_conditions": string_array,
+                    },
+                },
+            },
+            "formal_attempt_queue": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "required": [
+                        "attempt_id",
+                        "formal_node_id",
+                        "primitive",
+                        "target_prover_family",
+                        "owner",
+                        "action",
+                        "attempt_kind",
+                        "prerequisite_formal_node_ids",
+                        "expected_feedback",
+                    ],
+                    "properties": {
+                        "attempt_id": {"type": "string", "minLength": 1},
+                        "formal_node_id": {"type": "string", "minLength": 1},
+                        "primitive": {"type": "string", "minLength": 1},
+                        "target_prover_family": {"type": "string", "minLength": 1},
+                        "owner": {"type": "string", "minLength": 1},
+                        "action": {"type": "string", "minLength": 1},
+                        "attempt_kind": {"type": "string", "minLength": 1},
+                        "prerequisite_formal_node_ids": string_array,
+                        "expected_feedback": string_array,
+                        "target_primitives": string_array,
                     },
                 },
             },
@@ -12644,6 +12705,7 @@ def _row_for_request(
             payload.get("semantic_alignment_risks", [])
         ),
         planner_next_actions=_dict_tuple(payload.get("planner_next_actions", [])),
+        formal_attempt_queue=_dict_tuple(payload.get("formal_attempt_queue", [])),
         standalone_route=standalone_route,
         source_refs=_route_source_refs(payload),
         source_snippets=_route_source_snippets(payload),
@@ -13048,6 +13110,7 @@ def _response_contract_errors(
     )
     formal_edges = _dict_tuple(payload.get("formal_realization_dag_edges", []))
     alignment_edges = _dict_tuple(payload.get("route_alignment_edges", []))
+    minimal_delta = _dict_value(payload, "minimal_delta_plan")
     if not informal_nodes:
         errors.append("informal_knowledge_dag_nodes must be non-empty")
     if not formal_nodes:
@@ -13111,6 +13174,18 @@ def _response_contract_errors(
             edges=formal_edges,
             node_ids=_node_ids(formal_nodes),
         )
+    )
+    errors.extend(
+        _response_formal_attempt_queue_errors(
+            payload,
+            request,
+            formal_nodes=formal_nodes,
+            formal_edges=formal_edges,
+            minimal_delta=minimal_delta,
+        )
+    )
+    errors.extend(
+        _response_formal_attempt_queue_primitive_grounding_errors(payload, request)
     )
     errors.extend(_response_formal_marker_contract_errors(payload, request))
     errors.extend(_response_formal_declaration_grounding_errors(payload, request))
@@ -13490,6 +13565,267 @@ def _dag_path_exists(
             if child not in visited:
                 stack.append(child)
     return False
+
+
+def _response_formal_attempt_queue_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+    *,
+    formal_nodes: tuple[dict[str, object], ...],
+    formal_edges: tuple[dict[str, object], ...],
+    minimal_delta: Mapping[str, Any],
+) -> list[str]:
+    queue = _dict_tuple(payload.get("formal_attempt_queue", []))
+    if not queue:
+        return ["formal_attempt_queue must be non-empty"]
+
+    formal_by_id = {
+        str(node.get("node_id", "")).strip(): node
+        for node in formal_nodes
+        if str(node.get("node_id", "")).strip()
+    }
+    primitive_by_node_id = {
+        node_id: _primitive_key(node.get("primitive", ""))
+        for node_id, node in formal_by_id.items()
+    }
+    predecessors_by_target: dict[str, set[str]] = {}
+    successors_by_source: dict[str, set[str]] = {}
+    for edge in formal_edges:
+        source = str(edge.get("source_node_id", "")).strip()
+        target = str(edge.get("target_node_id", "")).strip()
+        if (
+            source
+            and target
+            and source != target
+            and source in formal_by_id
+            and target in formal_by_id
+        ):
+            predecessors_by_target.setdefault(target, set()).add(source)
+            successors_by_source.setdefault(source, set()).add(target)
+
+    required_node_ids = _formal_attempt_queue_required_node_ids(
+        formal_nodes=formal_nodes,
+        formal_predecessors_by_target=predecessors_by_target,
+        minimal_delta=minimal_delta,
+    )
+
+    errors: list[str] = []
+    expected_target = _target_prover_key(request.get("target_prover_family", ""))
+    attempt_ids: set[str] = set()
+    queued_node_positions: dict[str, int] = {}
+    queued_node_ids: list[str] = []
+    for index, item in enumerate(queue):
+        attempt_id = str(item.get("attempt_id", "")).strip()
+        if not attempt_id:
+            errors.append(f"formal_attempt_queue[{index}].attempt_id missing")
+        elif attempt_id in attempt_ids:
+            errors.append(
+                f"formal_attempt_queue[{index}].attempt_id duplicates another "
+                f"attempt: {attempt_id}"
+            )
+        else:
+            attempt_ids.add(attempt_id)
+
+        formal_node_id = str(item.get("formal_node_id", "")).strip()
+        if not formal_node_id:
+            errors.append(f"formal_attempt_queue[{index}].formal_node_id missing")
+            continue
+        if formal_node_id not in formal_by_id:
+            errors.append(
+                f"formal_attempt_queue[{index}].formal_node_id references unknown "
+                f"formal_realization_dag_nodes node: {formal_node_id}"
+            )
+            continue
+        if formal_node_id in queued_node_positions:
+            errors.append(
+                f"formal_attempt_queue[{index}].formal_node_id duplicates another "
+                f"queued formal node: {formal_node_id}"
+            )
+        queued_node_positions.setdefault(formal_node_id, index)
+        queued_node_ids.append(formal_node_id)
+
+        expected_primitive = primitive_by_node_id.get(formal_node_id, "")
+        actual_primitive = _primitive_key(item.get("primitive", ""))
+        if not actual_primitive:
+            errors.append(f"formal_attempt_queue[{index}].primitive missing")
+        elif expected_primitive and actual_primitive != expected_primitive:
+            errors.append(
+                f"formal_attempt_queue[{index}].primitive must match "
+                f"formal node {formal_node_id} primitive {expected_primitive}"
+            )
+
+        target_primitives = _planner_action_target_primitive_keys(item)
+        if not target_primitives:
+            errors.append(
+                f"formal_attempt_queue[{index}].target_primitives must be non-empty"
+            )
+        elif expected_primitive and expected_primitive not in target_primitives:
+            errors.append(
+                f"formal_attempt_queue[{index}].target_primitives must include "
+                f"formal node primitive {expected_primitive}"
+            )
+
+        target_prover = str(item.get("target_prover_family", "")).strip()
+        if not target_prover:
+            errors.append(
+                f"formal_attempt_queue[{index}].target_prover_family missing"
+            )
+        elif expected_target and _target_prover_key(target_prover) != expected_target:
+            errors.append(
+                f"formal_attempt_queue[{index}].target_prover_family "
+                f"{target_prover} does not match request target_prover_family "
+                f"{request.get('target_prover_family', '')}"
+            )
+
+        if not str(item.get("owner", "")).strip():
+            errors.append(f"formal_attempt_queue[{index}].owner missing")
+        if not str(item.get("action", "")).strip():
+            errors.append(f"formal_attempt_queue[{index}].action missing")
+        if not str(item.get("attempt_kind", "")).strip():
+            errors.append(f"formal_attempt_queue[{index}].attempt_kind missing")
+        if not _planner_next_action_has_supported_hook(item):
+            errors.append(
+                f"formal_attempt_queue[{index}] does not resolve to a supported "
+                "prover/formal-library hook family"
+            )
+        expected_feedback = _str_tuple(item.get("expected_feedback", []))
+        if not expected_feedback:
+            errors.append(
+                f"formal_attempt_queue[{index}].expected_feedback must be non-empty"
+            )
+
+        prerequisites = _str_tuple(item.get("prerequisite_formal_node_ids", []))
+        duplicate_prerequisites = _duplicate_string_keys(prerequisites)
+        if duplicate_prerequisites:
+            errors.append(
+                f"formal_attempt_queue[{index}].prerequisite_formal_node_ids "
+                "must not contain duplicates: "
+                + ", ".join(duplicate_prerequisites[:8])
+            )
+        unknown_prerequisites = [
+            prerequisite
+            for prerequisite in prerequisites
+            if prerequisite not in formal_by_id
+        ]
+        if unknown_prerequisites:
+            errors.append(
+                f"formal_attempt_queue[{index}].prerequisite_formal_node_ids "
+                "reference unknown formal nodes: "
+                + ", ".join(unknown_prerequisites[:8])
+            )
+        self_prerequisites = [
+            prerequisite for prerequisite in prerequisites if prerequisite == formal_node_id
+        ]
+        if self_prerequisites:
+            errors.append(
+                f"formal_attempt_queue[{index}].prerequisite_formal_node_ids "
+                f"must not include its own formal_node_id: {formal_node_id}"
+            )
+
+    missing_required = sorted(required_node_ids - set(queued_node_ids))
+    if missing_required:
+        errors.append(
+            "formal_attempt_queue missing selected-route formal DAG nodes: "
+            + ", ".join(missing_required[:8])
+        )
+
+    if not any(
+        not _str_tuple(item.get("prerequisite_formal_node_ids", []))
+        for item in queue
+    ):
+        errors.append(
+            "formal_attempt_queue must include at least one initial attempt with "
+            "empty prerequisite_formal_node_ids"
+        )
+
+    for index, item in enumerate(queue):
+        formal_node_id = str(item.get("formal_node_id", "")).strip()
+        if formal_node_id not in formal_by_id:
+            continue
+        prerequisites = set(_str_tuple(item.get("prerequisite_formal_node_ids", [])))
+        if formal_node_id in required_node_ids:
+            expected_prerequisites = (
+                predecessors_by_target.get(formal_node_id, set()) & required_node_ids
+            )
+            if prerequisites != expected_prerequisites:
+                errors.append(
+                    f"formal_attempt_queue[{index}].prerequisite_formal_node_ids "
+                    "must match formal_realization_dag_edges immediate "
+                    f"predecessors for {formal_node_id}: expected "
+                    + ", ".join(sorted(expected_prerequisites)[:8])
+                )
+        for prerequisite in prerequisites:
+            prerequisite_position = queued_node_positions.get(prerequisite)
+            if prerequisite_position is None:
+                continue
+            if prerequisite_position >= index:
+                errors.append(
+                    f"formal_attempt_queue[{index}] must appear after prerequisite "
+                    f"formal node {prerequisite}"
+                )
+        for successor in successors_by_source.get(formal_node_id, set()):
+            successor_position = queued_node_positions.get(successor)
+            if successor_position is not None and successor_position <= index:
+                errors.append(
+                    "formal_attempt_queue order must follow "
+                    f"formal_realization_dag_edges: {formal_node_id} before "
+                    f"{successor}"
+                )
+
+    return errors
+
+
+def _formal_attempt_queue_required_node_ids(
+    *,
+    formal_nodes: tuple[dict[str, object], ...],
+    formal_predecessors_by_target: Mapping[str, set[str]],
+    minimal_delta: Mapping[str, Any],
+) -> set[str]:
+    selected = {
+        _primitive_key(primitive)
+        for primitive in _str_tuple(minimal_delta.get("selected_primitives", []))
+    }
+    selected.discard("")
+    required_primitives = selected | _minimal_delta_primitives(minimal_delta, selected)
+    required_primitives.discard("")
+    direct_node_ids = {
+        str(node.get("node_id", "")).strip()
+        for node in formal_nodes
+        if str(node.get("node_id", "")).strip()
+        and _primitive_key(node.get("primitive", "")) in required_primitives
+    }
+    return direct_node_ids | _formal_dag_ancestor_ids(
+        direct_node_ids,
+        predecessors_by_target=formal_predecessors_by_target,
+    )
+
+
+def _formal_dag_ancestor_ids(
+    node_ids: set[str],
+    *,
+    predecessors_by_target: Mapping[str, set[str]],
+) -> set[str]:
+    ancestors: set[str] = set()
+    stack = list(node_ids)
+    while stack:
+        node_id = stack.pop()
+        for predecessor in predecessors_by_target.get(node_id, set()):
+            if predecessor in ancestors:
+                continue
+            ancestors.add(predecessor)
+            stack.append(predecessor)
+    return ancestors
+
+
+def _response_formal_attempt_queue_primitive_grounding_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    return _response_target_primitive_grounding_errors(
+        payload,
+        request,
+        collection_name="formal_attempt_queue",
+    )
 
 
 def _kernel_proof_claim_errors(value: Any, *, location: str) -> list[str]:
@@ -15311,6 +15647,7 @@ def _response_target_prover_consistency_errors(
     for collection_name in (
         "search_requests",
         "planner_next_actions",
+        "formal_attempt_queue",
         "residual_interpretations",
     ):
         for index, row in enumerate(_dict_tuple(payload.get(collection_name, []))):
@@ -15361,7 +15698,11 @@ def _response_target_prover_tool_scope_errors(
     if not expected:
         return []
     errors: list[str] = []
-    for collection_name in ("search_requests", "planner_next_actions"):
+    for collection_name in (
+        "search_requests",
+        "planner_next_actions",
+        "formal_attempt_queue",
+    ):
         for index, row in enumerate(_dict_tuple(payload.get(collection_name, []))):
             incompatible = _target_incompatible_tool_markers(
                 row,
@@ -24517,6 +24858,9 @@ def _accepted_route_for_seed(
         "llm_route_planner_planner_next_actions": [
             dict(item) for item in row.planner_next_actions
         ],
+        "llm_route_planner_formal_attempt_queue": [
+            dict(item) for item in row.formal_attempt_queue
+        ],
         "llm_route_planner_interactive_refinement_hooks": [
             dict(item) for item in llm_refinement_hooks
         ],
@@ -24623,6 +24967,9 @@ def _accepted_route_for_seed(
         dict(edge) for edge in revised_alignment_edges
     ]
     route["minimal_delta_and_or_cost_graph"] = dict(and_or_cost_graph)
+    route["formal_attempt_queue"] = [
+        dict(item) for item in row.formal_attempt_queue
+    ]
     route["realization_coverage_witness"] = realization_coverage_witness
     route["selected_primitives"] = list(selected_primitives)
     route["llm_route_planner_row_id"] = row.llm_route_planner_row_id
@@ -27520,6 +27867,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Exact source-theorem proof-body executor resources/contracts: {payload.get('n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt')}/{payload.get('n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt')}",
         f"- Search requests: {payload.get('n_search_requests')}",
         f"- Planner next actions: {payload.get('n_planner_next_actions')}",
+        f"- Formal attempt queue items: {payload.get('n_formal_attempt_queue_items')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
         "## Boundary",
