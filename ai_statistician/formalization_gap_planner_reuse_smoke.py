@@ -2140,6 +2140,24 @@ def run_formalization_gap_planner_reuse_smoke(
                 "n_request_bound_payload_route_adoption_precondition_required_response_fields",
             )
         ),
+        "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_agentic_proof_strategy_plan": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payloads_with_agentic_proof_strategy_plan",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_agentic_proof_strategy_plan_rows": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payload_agentic_proof_strategy_plan_rows",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_agentic_proof_strategy_plan_ready": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payload_agentic_proof_strategy_plan_ready",
+            )
+        ),
         "n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue": (
             _optional_int(
                 llm_response_payload_validation_payload,
@@ -2162,6 +2180,18 @@ def run_formalization_gap_planner_reuse_smoke(
             _optional_int(
                 llm_response_payload_validation_payload,
                 "n_formal_attempt_queue_errors",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_payloads_with_agentic_proof_strategy_plan_obligation_errors": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_payloads_with_agentic_proof_strategy_plan_obligation_errors",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_agentic_proof_strategy_plan_obligation_errors": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_agentic_proof_strategy_plan_obligation_errors",
             )
         ),
         "n_llm_route_planner_response_payload_validation_declared_target_prover_payloads": (
@@ -9678,6 +9708,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue')} "
             f"formal_attempt_queue_errors={payload.get('n_llm_route_planner_response_payload_validation_formal_attempt_queue_errors')}/"
             f"{payload.get('n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue_errors')} "
+            f"agentic_strategy={payload.get('n_llm_route_planner_response_payload_validation_agentic_proof_strategy_plan_ready')}/"
+            f"{payload.get('n_llm_route_planner_response_payload_validation_agentic_proof_strategy_plan_rows')} "
+            f"agentic_strategy_errors={payload.get('n_llm_route_planner_response_payload_validation_agentic_proof_strategy_plan_obligation_errors')}/"
+            f"{payload.get('n_llm_route_planner_response_payload_validation_payloads_with_agentic_proof_strategy_plan_obligation_errors')} "
             f"target_mismatch={payload.get('n_llm_route_planner_response_payload_validation_target_prover_mismatches')} "
             f"present={payload.get('has_llm_route_planner_response_payload_validation')}"
         ),

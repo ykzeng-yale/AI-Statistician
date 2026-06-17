@@ -1680,10 +1680,37 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         == 0
     )
+    assert (
+        validation_summary[
+            "n_request_bound_payloads_with_agentic_proof_strategy_plan"
+        ]
+        == 0
+    )
+    assert (
+        validation_summary[
+            "n_request_bound_payload_agentic_proof_strategy_plan_rows"
+        ]
+        == 0
+    )
+    assert (
+        validation_summary[
+            "n_request_bound_payload_agentic_proof_strategy_plan_ready"
+        ]
+        == 0
+    )
     assert validation_summary["n_payloads_with_formal_attempt_queue"] == 1
     assert validation_summary["n_payload_formal_attempt_queue_items"] == 1
     assert validation_summary["n_payloads_with_formal_attempt_queue_errors"] == 0
     assert validation_summary["n_formal_attempt_queue_errors"] == 0
+    assert (
+        validation_summary[
+            "n_payloads_with_agentic_proof_strategy_plan_obligation_errors"
+        ]
+        == 0
+    )
+    assert (
+        validation_summary["n_agentic_proof_strategy_plan_obligation_errors"] == 0
+    )
     assert validation_summary["n_payloads_with_declared_target_prover_family"] == 1
     assert (
         validation_summary[
@@ -3454,6 +3481,14 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "required"
     ]
     assert "n_formal_attempt_queue_errors" in validation_summary_schema["required"]
+    assert (
+        "n_request_bound_payloads_with_agentic_proof_strategy_plan"
+        in validation_summary_schema["required"]
+    )
+    assert (
+        "n_agentic_proof_strategy_plan_obligation_errors"
+        in validation_summary_schema["required"]
+    )
     cross_prover_attempt_summary_schema = publication_bundle_manifest_schema_payload[
         "properties"
     ]["cross_prover_formal_attempt_dependency_summary"]

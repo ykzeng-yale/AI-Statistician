@@ -3382,6 +3382,17 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
                 _dict_value(request_context, "context_packet"),
                 "route_adoption_preconditions",
             )
+            request_context_agentic_strategy_plan_rows = _dict_tuple(
+                _dict_value(request_context, "context_packet").get(
+                    "formal_verifier_agentic_proof_strategy_plan_rows",
+                    [],
+                )
+            )
+            request_context_agentic_strategy_plan_ready_count = sum(
+                1
+                for row in request_context_agentic_strategy_plan_rows
+                if str(row.get("followup_status", "") or "").startswith("READY_")
+            )
         elif request_context_json is not None:
             request_context_validation_mode = "request_context_unmatched"
             request_context_id = ""
@@ -3390,6 +3401,8 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
             request_context_target_prover_key = ""
             request_context_inventory = {}
             request_context_route_adoption_preconditions = {}
+            request_context_agentic_strategy_plan_rows = tuple()
+            request_context_agentic_strategy_plan_ready_count = 0
         else:
             request_context_validation_mode = "schema_only"
             request_context_id = ""
@@ -3398,6 +3411,8 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
             request_context_target_prover_key = ""
             request_context_inventory = {}
             request_context_route_adoption_preconditions = {}
+            request_context_agentic_strategy_plan_rows = tuple()
+            request_context_agentic_strategy_plan_ready_count = 0
         target_prover_family_consistent = not (
             payload_target_prover_key
             and request_context_target_prover_key
@@ -3465,6 +3480,15 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
                     )
                     or 0
                 ),
+                "request_context_agentic_proof_strategy_plan_present": bool(
+                    request_context_agentic_strategy_plan_rows
+                ),
+                "request_context_agentic_proof_strategy_plan_row_count": len(
+                    request_context_agentic_strategy_plan_rows
+                ),
+                "request_context_agentic_proof_strategy_plan_ready_count": (
+                    request_context_agentic_strategy_plan_ready_count
+                ),
                 "payload_formal_attempt_queue_present": bool(
                     payload_formal_attempt_queue
                 ),
@@ -3473,6 +3497,9 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
                 ),
                 "n_formal_attempt_queue_errors": _formal_attempt_queue_error_count(
                     row_errors
+                ),
+                "n_agentic_proof_strategy_plan_obligation_errors": (
+                    _agentic_strategy_plan_obligation_error_count(row_errors)
                 ),
                 "n_schema_errors": len(schema_errors),
                 "n_request_context_errors": len(request_context_errors),
@@ -3574,6 +3601,22 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
             for row in rows
             if row["request_context_validation_mode"] == "request_bound"
         ),
+        "n_request_bound_payloads_with_agentic_proof_strategy_plan": sum(
+            1
+            for row in rows
+            if row["request_context_validation_mode"] == "request_bound"
+            and row["request_context_agentic_proof_strategy_plan_present"]
+        ),
+        "n_request_bound_payload_agentic_proof_strategy_plan_rows": sum(
+            int(row["request_context_agentic_proof_strategy_plan_row_count"] or 0)
+            for row in rows
+            if row["request_context_validation_mode"] == "request_bound"
+        ),
+        "n_request_bound_payload_agentic_proof_strategy_plan_ready": sum(
+            int(row["request_context_agentic_proof_strategy_plan_ready_count"] or 0)
+            for row in rows
+            if row["request_context_validation_mode"] == "request_bound"
+        ),
         "n_payloads_with_formal_attempt_queue": sum(
             1 for row in rows if bool(row["payload_formal_attempt_queue_present"])
         ),
@@ -3586,6 +3629,17 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
         ),
         "n_formal_attempt_queue_errors": sum(
             int(row["n_formal_attempt_queue_errors"] or 0) for row in rows
+        ),
+        "n_payloads_with_agentic_proof_strategy_plan_obligation_errors": sum(
+            1
+            for row in rows
+            if int(
+                row["n_agentic_proof_strategy_plan_obligation_errors"] or 0
+            )
+        ),
+        "n_agentic_proof_strategy_plan_obligation_errors": sum(
+            int(row["n_agentic_proof_strategy_plan_obligation_errors"] or 0)
+            for row in rows
         ),
         "n_payloads_with_declared_target_prover_family": sum(
             1 for row in rows if str(row["payload_target_prover_family"]).strip()
@@ -6381,6 +6435,22 @@ def validate_llm_route_planner_response_payload_validation_manifest(
         )
         for row in request_bound_rows
     )
+    request_bound_rows_with_agentic_strategy_plan = tuple(
+        row
+        for row in request_bound_rows
+        if bool(row.get("request_context_agentic_proof_strategy_plan_present"))
+    )
+    request_bound_agentic_strategy_plan_rows = sum(
+        int(row.get("request_context_agentic_proof_strategy_plan_row_count", 0) or 0)
+        for row in request_bound_rows
+    )
+    request_bound_agentic_strategy_plan_ready = sum(
+        int(
+            row.get("request_context_agentic_proof_strategy_plan_ready_count", 0)
+            or 0
+        )
+        for row in request_bound_rows
+    )
     payload_rows_with_formal_attempt_queue = tuple(
         row for row in rows if bool(row.get("payload_formal_attempt_queue_present"))
     )
@@ -6393,6 +6463,17 @@ def validate_llm_route_planner_response_payload_validation_manifest(
     )
     formal_attempt_queue_errors = sum(
         int(row.get("n_formal_attempt_queue_errors", 0) or 0) for row in rows
+    )
+    payload_rows_with_agentic_strategy_errors = tuple(
+        row
+        for row in rows
+        if int(
+            row.get("n_agentic_proof_strategy_plan_obligation_errors", 0) or 0
+        )
+    )
+    agentic_strategy_obligation_errors = sum(
+        int(row.get("n_agentic_proof_strategy_plan_obligation_errors", 0) or 0)
+        for row in rows
     )
     payload_target_counts = _value_counts(
         [
@@ -6499,6 +6580,39 @@ def validate_llm_route_planner_response_payload_validation_manifest(
             "must match request_bound row precondition required-field counts"
         )
     if int(
+        manifest.get(
+            "n_request_bound_payloads_with_agentic_proof_strategy_plan",
+            0,
+        )
+        or 0
+    ) != len(request_bound_rows_with_agentic_strategy_plan):
+        errors.append(
+            "n_request_bound_payloads_with_agentic_proof_strategy_plan must "
+            "match request_bound rows with agentic strategy plan context"
+        )
+    if int(
+        manifest.get(
+            "n_request_bound_payload_agentic_proof_strategy_plan_rows",
+            0,
+        )
+        or 0
+    ) != request_bound_agentic_strategy_plan_rows:
+        errors.append(
+            "n_request_bound_payload_agentic_proof_strategy_plan_rows must "
+            "match request_bound row agentic strategy plan row counts"
+        )
+    if int(
+        manifest.get(
+            "n_request_bound_payload_agentic_proof_strategy_plan_ready",
+            0,
+        )
+        or 0
+    ) != request_bound_agentic_strategy_plan_ready:
+        errors.append(
+            "n_request_bound_payload_agentic_proof_strategy_plan_ready must "
+            "match request_bound row ready agentic strategy plan counts"
+        )
+    if int(
         manifest.get("n_payloads_with_formal_attempt_queue", 0) or 0
     ) != len(payload_rows_with_formal_attempt_queue):
         errors.append(
@@ -6525,6 +6639,25 @@ def validate_llm_route_planner_response_payload_validation_manifest(
         errors.append(
             "n_formal_attempt_queue_errors must match row "
             "n_formal_attempt_queue_errors sum"
+        )
+    if int(
+        manifest.get(
+            "n_payloads_with_agentic_proof_strategy_plan_obligation_errors",
+            0,
+        )
+        or 0
+    ) != len(payload_rows_with_agentic_strategy_errors):
+        errors.append(
+            "n_payloads_with_agentic_proof_strategy_plan_obligation_errors "
+            "must match rows with agentic strategy obligation errors"
+        )
+    if int(
+        manifest.get("n_agentic_proof_strategy_plan_obligation_errors", 0)
+        or 0
+    ) != agentic_strategy_obligation_errors:
+        errors.append(
+            "n_agentic_proof_strategy_plan_obligation_errors must match row "
+            "n_agentic_proof_strategy_plan_obligation_errors sum"
         )
     if int(
         manifest.get("n_payloads_with_declared_target_prover_family", 0) or 0
@@ -6605,8 +6738,11 @@ def validate_llm_route_planner_response_payload_validation_row(
         "request_context_inventory_total_rows",
         "request_context_route_adoption_precondition_known_blocker_count",
         "request_context_route_adoption_precondition_required_response_field_count",
+        "request_context_agentic_proof_strategy_plan_row_count",
+        "request_context_agentic_proof_strategy_plan_ready_count",
         "payload_formal_attempt_queue_item_count",
         "n_formal_attempt_queue_errors",
+        "n_agentic_proof_strategy_plan_obligation_errors",
         "n_schema_errors",
         "n_request_context_errors",
         "n_errors",
@@ -6626,6 +6762,9 @@ def validate_llm_route_planner_response_payload_validation_row(
     n_schema_errors = count_values["n_schema_errors"]
     n_request_context_errors = count_values["n_request_context_errors"]
     n_formal_attempt_queue_errors = count_values["n_formal_attempt_queue_errors"]
+    n_agentic_strategy_errors = count_values[
+        "n_agentic_proof_strategy_plan_obligation_errors"
+    ]
     if n_errors != len(reported_errors):
         errors.append("n_errors must match errors length")
     if n_errors > n_schema_errors + n_request_context_errors:
@@ -6638,6 +6777,13 @@ def validate_llm_route_planner_response_payload_validation_row(
         errors.append(
             "n_formal_attempt_queue_errors must match errors containing "
             "formal_attempt_queue"
+        )
+    if n_agentic_strategy_errors != _agentic_strategy_plan_obligation_error_count(
+        reported_errors
+    ):
+        errors.append(
+            "n_agentic_proof_strategy_plan_obligation_errors must match "
+            "agentic strategy obligation errors"
         )
     if not bool(row.get("payload_formal_attempt_queue_present", False)) and (
         count_values["payload_formal_attempt_queue_item_count"]
@@ -6698,12 +6844,40 @@ def validate_llm_route_planner_response_payload_validation_row(
         errors.append(
             "blocked route_adoption_preconditions must carry known blocker count"
         )
+    if not bool(
+        row.get("request_context_agentic_proof_strategy_plan_present", False)
+    ) and (
+        count_values["request_context_agentic_proof_strategy_plan_row_count"]
+        or count_values["request_context_agentic_proof_strategy_plan_ready_count"]
+    ):
+        errors.append(
+            "request_context_agentic_proof_strategy_plan_present must be true "
+            "when agentic strategy plan count fields are nonzero"
+        )
+    if (
+        count_values["request_context_agentic_proof_strategy_plan_ready_count"]
+        > count_values["request_context_agentic_proof_strategy_plan_row_count"]
+    ):
+        errors.append(
+            "request_context_agentic_proof_strategy_plan_ready_count cannot "
+            "exceed request_context_agentic_proof_strategy_plan_row_count"
+        )
 
     return sorted(set(errors))
 
 
 def _formal_attempt_queue_error_count(errors: Iterable[object]) -> int:
     return sum(1 for error in errors if "formal_attempt_queue" in str(error))
+
+
+def _agentic_strategy_plan_obligation_error_count(
+    errors: Iterable[object],
+) -> int:
+    return sum(
+        1
+        for error in errors
+        if "agentic proof strategy plan ready row" in str(error)
+    )
 
 
 def validate_llm_route_planner_row(
@@ -11822,9 +11996,13 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
             "request_context_route_adoption_precondition_blocked_before_response",
             "request_context_route_adoption_precondition_known_blocker_count",
             "request_context_route_adoption_precondition_required_response_field_count",
+            "request_context_agentic_proof_strategy_plan_present",
+            "request_context_agentic_proof_strategy_plan_row_count",
+            "request_context_agentic_proof_strategy_plan_ready_count",
             "payload_formal_attempt_queue_present",
             "payload_formal_attempt_queue_item_count",
             "n_formal_attempt_queue_errors",
+            "n_agentic_proof_strategy_plan_obligation_errors",
             "n_schema_errors",
             "n_request_context_errors",
             "n_errors",
@@ -11876,9 +12054,21 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
             "request_context_route_adoption_precondition_required_response_field_count": (
                 nonnegative_integer
             ),
+            "request_context_agentic_proof_strategy_plan_present": {
+                "type": "boolean"
+            },
+            "request_context_agentic_proof_strategy_plan_row_count": (
+                nonnegative_integer
+            ),
+            "request_context_agentic_proof_strategy_plan_ready_count": (
+                nonnegative_integer
+            ),
             "payload_formal_attempt_queue_present": {"type": "boolean"},
             "payload_formal_attempt_queue_item_count": nonnegative_integer,
             "n_formal_attempt_queue_errors": nonnegative_integer,
+            "n_agentic_proof_strategy_plan_obligation_errors": (
+                nonnegative_integer
+            ),
             "n_schema_errors": nonnegative_integer,
             "n_request_context_errors": nonnegative_integer,
             "n_errors": nonnegative_integer,
@@ -11928,10 +12118,15 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
             "n_request_bound_payloads_with_blocking_route_adoption_preconditions",
             "n_request_bound_payload_route_adoption_precondition_known_blockers",
             "n_request_bound_payload_route_adoption_precondition_required_response_fields",
+            "n_request_bound_payloads_with_agentic_proof_strategy_plan",
+            "n_request_bound_payload_agentic_proof_strategy_plan_rows",
+            "n_request_bound_payload_agentic_proof_strategy_plan_ready",
             "n_payloads_with_formal_attempt_queue",
             "n_payload_formal_attempt_queue_items",
             "n_payloads_with_formal_attempt_queue_errors",
             "n_formal_attempt_queue_errors",
+            "n_payloads_with_agentic_proof_strategy_plan_obligation_errors",
+            "n_agentic_proof_strategy_plan_obligation_errors",
             "n_payloads_with_declared_target_prover_family",
             "n_request_bound_payloads_with_target_prover_family_mismatch",
             "by_payload_target_prover_family",
@@ -12020,10 +12215,25 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
             "n_request_bound_payload_route_adoption_precondition_required_response_fields": {
                 "type": "integer"
             },
+            "n_request_bound_payloads_with_agentic_proof_strategy_plan": {
+                "type": "integer"
+            },
+            "n_request_bound_payload_agentic_proof_strategy_plan_rows": {
+                "type": "integer"
+            },
+            "n_request_bound_payload_agentic_proof_strategy_plan_ready": {
+                "type": "integer"
+            },
             "n_payloads_with_formal_attempt_queue": {"type": "integer"},
             "n_payload_formal_attempt_queue_items": {"type": "integer"},
             "n_payloads_with_formal_attempt_queue_errors": {"type": "integer"},
             "n_formal_attempt_queue_errors": {"type": "integer"},
+            "n_payloads_with_agentic_proof_strategy_plan_obligation_errors": {
+                "type": "integer"
+            },
+            "n_agentic_proof_strategy_plan_obligation_errors": {
+                "type": "integer"
+            },
             "n_payloads_with_declared_target_prover_family": {"type": "integer"},
             "n_request_bound_payloads_with_target_prover_family_mismatch": {
                 "type": "integer"
@@ -14347,6 +14557,7 @@ def _response_contract_errors(
     errors.extend(_response_source_snippet_provenance_errors(payload, request))
     errors.extend(_response_source_snippet_primitive_support_errors(payload, request))
     errors.extend(_response_resource_request_alignment_errors(payload, request))
+    errors.extend(_response_agentic_proof_strategy_plan_obligation_errors(payload, request))
     errors.extend(_response_route_adoption_precondition_errors(payload, request))
     for index, node in enumerate(formal_nodes):
         if not str(node.get("node_id", "")).strip():
@@ -14478,6 +14689,186 @@ def _response_payload_formal_attempt_queue_contract_errors(
         formal_edges=formal_edges,
         minimal_delta=minimal_delta,
     )
+
+
+def _response_agentic_proof_strategy_plan_obligation_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    context_packet = _dict_value(request, "context_packet")
+    ready_rows = tuple(
+        row
+        for row in _dict_tuple(
+            context_packet.get("formal_verifier_agentic_proof_strategy_plan_rows", [])
+        )
+        if str(row.get("followup_status", "") or "").startswith("READY_")
+    )
+    if not ready_rows:
+        return []
+
+    collections = {
+        "search_requests": _dict_tuple(payload.get("search_requests", [])),
+        "planner_next_actions": _dict_tuple(payload.get("planner_next_actions", [])),
+        "formal_attempt_queue": _dict_tuple(payload.get("formal_attempt_queue", [])),
+    }
+    errors: list[str] = []
+    for index, strategy_row in enumerate(ready_rows):
+        allowed_collections = _agentic_strategy_allowed_response_collections(
+            strategy_row
+        )
+        if any(
+            _agentic_strategy_response_collection_matches(
+                strategy_row,
+                collections.get(collection_name, ()),
+                collection_name=collection_name,
+            )
+            for collection_name in allowed_collections
+        ):
+            continue
+        strategy_id = str(strategy_row.get("strategy_id", "") or "").strip()
+        residual_gap = str(strategy_row.get("residual_gap", "") or "").strip()
+        strategy_kind = str(
+            strategy_row.get("agentic_strategy_kind", "") or ""
+        ).strip()
+        errors.append(
+            "agentic proof strategy plan ready row "
+            f"{index} must be answered by "
+            + ", ".join(allowed_collections)
+            + " using its strategy_id, residual_obligation_id, residual_gap, "
+            "or target primitive; "
+            f"strategy_id={strategy_id or '<missing>'}; "
+            f"agentic_strategy_kind={strategy_kind or '<missing>'}; "
+            f"residual_gap={residual_gap or '<missing>'}"
+        )
+    return errors
+
+
+def _agentic_strategy_allowed_response_collections(
+    strategy_row: Mapping[str, Any],
+) -> tuple[str, ...]:
+    kind = _resource_ref_key(strategy_row.get("agentic_strategy_kind", ""))
+    if kind == "global_goal_cache_source_discovery":
+        return ("search_requests", "planner_next_actions")
+    if kind in {
+        "evolve_block_residual_patch",
+        "kernel_overlay_composition_patch_seed",
+    }:
+        return ("planner_next_actions", "formal_attempt_queue")
+    return ("search_requests", "planner_next_actions", "formal_attempt_queue")
+
+
+def _agentic_strategy_response_collection_matches(
+    strategy_row: Mapping[str, Any],
+    response_rows: tuple[dict[str, object], ...],
+    *,
+    collection_name: str,
+) -> bool:
+    return any(
+        _agentic_strategy_response_row_matches(
+            strategy_row,
+            response_row,
+            collection_name=collection_name,
+        )
+        for response_row in response_rows
+    )
+
+
+def _agentic_strategy_response_row_matches(
+    strategy_row: Mapping[str, Any],
+    response_row: Mapping[str, Any],
+    *,
+    collection_name: str,
+) -> bool:
+    strategy_ids = _agentic_strategy_identity_keys(strategy_row)
+    response_ids = _agentic_strategy_identity_keys(response_row)
+    if strategy_ids and strategy_ids & response_ids:
+        return True
+
+    strategy_kind = _resource_ref_key(strategy_row.get("agentic_strategy_kind", ""))
+    response_kind = _resource_ref_key(response_row.get("agentic_strategy_kind", ""))
+    if strategy_kind and response_kind and strategy_kind == response_kind:
+        return True
+
+    target_primitives = _agentic_strategy_target_primitive_keys(strategy_row)
+    response_primitives = _planner_action_target_primitive_keys(response_row)
+    if target_primitives and target_primitives & response_primitives:
+        return True
+
+    residual_gap = _resource_ref_key(strategy_row.get("residual_gap", ""))
+    if residual_gap:
+        content_tokens = _agentic_strategy_response_content_keys(
+            response_row,
+            collection_name=collection_name,
+        )
+        if residual_gap in content_tokens or _primitive_key(
+            strategy_row.get("residual_gap", "")
+        ) in content_tokens:
+            return True
+    return False
+
+
+def _agentic_strategy_identity_keys(row: Mapping[str, Any]) -> set[str]:
+    keys: set[str] = set()
+    for field_name in (
+        "strategy_id",
+        "followup_id",
+        "residual_response_validation_id",
+        "prompt_packet_id",
+        "residual_obligation_id",
+        "candidate_database_key",
+    ):
+        keys.update(
+            _resource_ref_key(value)
+            for value in _str_tuple(row.get(field_name, []))
+            if _resource_ref_key(value)
+        )
+    return keys
+
+
+def _agentic_strategy_target_primitive_keys(
+    row: Mapping[str, Any],
+) -> set[str]:
+    primitives = _planner_action_target_primitive_keys(row)
+    for field_name in (
+        "residual_gap",
+        "candidate_bridge_lemma_name",
+        "paper_patterns",
+        "global_goal_cache_keys",
+    ):
+        primitives.update(
+            _primitive_key(value)
+            for value in _primitive_values(row.get(field_name))
+            if _primitive_key(value)
+        )
+    primitives.discard("")
+    return primitives
+
+
+def _agentic_strategy_response_content_keys(
+    row: Mapping[str, Any],
+    *,
+    collection_name: str,
+) -> set[str]:
+    values = [
+        *_planner_action_queries(row),
+        *_str_tuple(row.get("target_primitives", [])),
+        *_str_tuple(row.get("residual_gap", "")),
+        *_str_tuple(row.get("residual_goal", "")),
+    ]
+    if collection_name == "formal_attempt_queue":
+        values.extend(_formal_attempt_queue_queries(row))
+    keys = {
+        _resource_ref_key(value)
+        for value in values
+        if _resource_ref_key(value)
+    }
+    keys.update(_planner_action_content_tokens(row))
+    keys.update(
+        _primitive_key(value)
+        for value in values
+        if _primitive_key(value)
+    )
+    return keys
 
 
 def _response_route_adoption_precondition_errors(

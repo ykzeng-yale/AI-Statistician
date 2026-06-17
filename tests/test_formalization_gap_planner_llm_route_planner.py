@@ -9843,9 +9843,13 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
         ]
         == 0
     )
+    assert row["request_context_agentic_proof_strategy_plan_present"] is False
+    assert row["request_context_agentic_proof_strategy_plan_row_count"] == 0
+    assert row["request_context_agentic_proof_strategy_plan_ready_count"] == 0
     assert row["payload_formal_attempt_queue_present"] is True
     assert row["payload_formal_attempt_queue_item_count"] == 2
     assert row["n_formal_attempt_queue_errors"] == 0
+    assert row["n_agentic_proof_strategy_plan_obligation_errors"] == 0
     assert row["n_schema_errors"] == 0
     assert row["n_request_context_errors"] == 0
     row_schema = payload["response_payload_validation_row_schema"]
@@ -9908,6 +9912,28 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
             row_schema,
         )
     )
+    drifted_agentic_count_row = deepcopy(row)
+    drifted_agentic_count_row["n_agentic_proof_strategy_plan_obligation_errors"] = 1
+    assert (
+        "n_agentic_proof_strategy_plan_obligation_errors must match "
+        "agentic strategy obligation errors"
+        in validate_llm_route_planner_response_payload_validation_row(
+            drifted_agentic_count_row,
+            row_schema,
+        )
+    )
+    drifted_agentic_presence_row = deepcopy(row)
+    drifted_agentic_presence_row[
+        "request_context_agentic_proof_strategy_plan_row_count"
+    ] = 1
+    assert (
+        "request_context_agentic_proof_strategy_plan_present must be true "
+        "when agentic strategy plan count fields are nonzero"
+        in validate_llm_route_planner_response_payload_validation_row(
+            drifted_agentic_presence_row,
+            row_schema,
+        )
+    )
     drifted_target_row = deepcopy(row)
     drifted_target_row["payload_target_prover_family"] = "Lean 4"
     drifted_target_row["payload_target_prover_key"] = "lean4"
@@ -9962,6 +9988,18 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
         "payload_formal_attempt_queue_item_count sum"
         in validate_llm_route_planner_response_payload_validation_manifest(
             drifted_queue_items_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_agentic_manifest = deepcopy(payload)
+    drifted_agentic_manifest[
+        "n_agentic_proof_strategy_plan_obligation_errors"
+    ] = 1
+    assert (
+        "n_agentic_proof_strategy_plan_obligation_errors must match row "
+        "n_agentic_proof_strategy_plan_obligation_errors sum"
+        in validate_llm_route_planner_response_payload_validation_manifest(
+            drifted_agentic_manifest,
             manifest_schema,
         )
     )
@@ -15546,6 +15584,224 @@ def test_response_payload_validation_enforces_route_adoption_preconditions() -> 
     assert any(
         "route_adoption_preconditions require at least one nonempty "
         "search_requests or planner_next_actions row" in error
+        for error in silent_row["errors"]
+    )
+
+
+def test_response_payload_validation_enforces_agentic_strategy_plan_obligations() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_response_validation_agentic_strategy_obligations"
+    )
+    out_dir = root / "llm_route_planner"
+    strategy_plan_dir = root / "agentic_strategy_plan"
+    response_json = root / "responses.json"
+    request_context_json = root / "request_context.json"
+    validation_out_dir = root / "response_payload_validation"
+    shutil.rmtree(root, ignore_errors=True)
+    strategy_plan_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    strategy_rows = [
+        {
+            "schema_version": 1,
+            "strategy_id": "strategy:rank_route:patch_gap",
+            "followup_id": "followup:rank_route:patch_gap",
+            "residual_response_validation_id": "validation:rank_route:patch_gap",
+            "prompt_packet_id": "packet:rank_route:patch_gap",
+            "residual_obligation_id": "residual-obligation:rank_route:patch_gap",
+            "route_id": "rank_route",
+            "display_name": "distribution_free_rank_bound",
+            "target_theorem_name": "distribution_free_rank_bound",
+            "candidate_bridge_lemma_name": "exchangeability_patch_bridge",
+            "residual_gap": "exchangeability_patch_gap",
+            "action_class": "reuse_exact_proof_bank_obligation",
+            "followup_kind": "residual_patch_rerun",
+            "followup_status": "READY_FOR_AGENTIC_PROOF_STRATEGY",
+            "agentic_strategy_kind": "evolve_block_residual_patch",
+            "required_live_tools": ["lean_goal", "lean_multi_attempt"],
+            "evaluator_gates": ["patch-rerun calibration"],
+            "candidate_database_key": "candidate-db:rank_route:patch_gap",
+            "expected_artifacts": ["patched/Rank.lean"],
+            "priority_score": 130,
+            "rank": 1,
+            "proof_evidence_status": (
+                "AGENTIC_STRATEGY_PLAN_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            "ok": True,
+            "errors": [],
+        },
+        {
+            "schema_version": 1,
+            "strategy_id": "strategy:rank_route:source_gap",
+            "followup_id": "followup:rank_route:source_gap",
+            "residual_response_validation_id": "validation:rank_route:source_gap",
+            "prompt_packet_id": "packet:rank_route:source_gap",
+            "residual_obligation_id": "residual-obligation:rank_route:source_gap",
+            "route_id": "rank_route",
+            "display_name": "distribution_free_rank_bound",
+            "target_theorem_name": "distribution_free_rank_bound",
+            "candidate_bridge_lemma_name": "rank_uniformity_source_bridge",
+            "residual_gap": "source_cache_rank_uniformity_gap",
+            "action_class": "source_discovery_needed",
+            "followup_kind": "residual_source_discovery",
+            "followup_status": "READY_FOR_AGENTIC_PROOF_STRATEGY",
+            "agentic_strategy_kind": "global_goal_cache_source_discovery",
+            "required_live_tools": ["paperqa", "lean_leansearch"],
+            "evaluator_gates": ["primitive-source coverage expansion"],
+            "global_goal_cache_keys": ["source_cache_rank_uniformity_gap"],
+            "candidate_database_key": "candidate-db:rank_route:source_gap",
+            "expected_artifacts": ["source_cache/rank_uniformity.json"],
+            "priority_score": 80,
+            "rank": 2,
+            "proof_evidence_status": (
+                "AGENTIC_STRATEGY_PLAN_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            "ok": True,
+            "errors": [],
+        },
+    ]
+    (
+        strategy_plan_dir / "formal_verifier_agentic_proof_strategy_plan_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "n_strategy_rows": len(strategy_rows),
+                "n_ready": 2,
+                "n_patch_evolve_blocks": 1,
+                "n_source_discovery_cache_items": 1,
+                "n_kernel_overlay_composition_seeds": 0,
+                "n_with_live_tool_plan": 2,
+                "all_ok": True,
+                "rows": strategy_rows,
+                "limitations": [
+                    "agentic proof strategy rows are proof-search contracts, not theorem proof evidence"
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    prompt_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="prompt_only",
+        formal_verifier_agentic_proof_strategy_plan_dir=strategy_plan_dir,
+    )
+    request = prompt_payload["request_packets"][0]
+    assert (
+        len(request["context_packet"]["formal_verifier_agentic_proof_strategy_plan_rows"])
+        == 2
+    )
+    request_context_json.write_text(
+        json.dumps({"request_packets": [request]}, indent=2),
+        encoding="utf-8",
+    )
+
+    valid_payload = _llm_response_payload()
+    valid_payload["search_requests"].append(
+        {
+            "request_kind": "literature",
+            "query": (
+                "source_cache_rank_uniformity_gap source evidence for the "
+                "rank-uniformity strategy row"
+            ),
+            "reason": (
+                "Answer strategy:rank_route:source_gap before route adoption"
+            ),
+            "strategy_id": "strategy:rank_route:source_gap",
+        }
+    )
+    valid_payload["planner_next_actions"].append(
+        {
+            "owner": "lean_lsp_mcp",
+            "action": (
+                "run lean_lsp patch evolve block for exchangeability_patch_gap"
+            ),
+            "target_primitives": ["exchangeability"],
+            "strategy_id": "strategy:rank_route:patch_gap",
+            "agentic_strategy_kind": "evolve_block_residual_patch",
+        }
+    )
+    silent_payload = _llm_response_payload()
+    response_json.write_text(
+        json.dumps(
+            {
+                "responses": [
+                    {
+                        "request_id": request["request_id"],
+                        "route_id": request["route_id"],
+                        "response_payload": valid_payload,
+                    },
+                    {
+                        "request_id": request["request_id"],
+                        "route_id": request["route_id"],
+                        "response_payload": silent_payload,
+                    },
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    validation_payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        validation_out_dir,
+        request_context_json=request_context_json,
+    )
+
+    assert validation_payload["all_ok"] is False
+    assert validation_payload["n_payloads"] == 2
+    assert validation_payload["n_valid_payloads"] == 1
+    assert validation_payload["n_invalid_payloads"] == 1
+    assert (
+        validation_payload[
+            "n_request_bound_payloads_with_agentic_proof_strategy_plan"
+        ]
+        == 2
+    )
+    assert (
+        validation_payload[
+            "n_request_bound_payload_agentic_proof_strategy_plan_rows"
+        ]
+        == 4
+    )
+    assert (
+        validation_payload[
+            "n_request_bound_payload_agentic_proof_strategy_plan_ready"
+        ]
+        == 4
+    )
+    assert (
+        validation_payload[
+            "n_payloads_with_agentic_proof_strategy_plan_obligation_errors"
+        ]
+        == 1
+    )
+    assert (
+        validation_payload["n_agentic_proof_strategy_plan_obligation_errors"] == 2
+    )
+    assert (
+        validate_llm_route_planner_response_payload_validation_manifest(
+            validation_payload,
+            validation_payload["response_payload_validation_manifest_schema"],
+        )
+        == []
+    )
+    valid_row, silent_row = validation_payload["rows"]
+    assert valid_row["ok"] is True
+    assert valid_row["request_context_agentic_proof_strategy_plan_present"] is True
+    assert valid_row["request_context_agentic_proof_strategy_plan_row_count"] == 2
+    assert valid_row["request_context_agentic_proof_strategy_plan_ready_count"] == 2
+    assert valid_row["n_agentic_proof_strategy_plan_obligation_errors"] == 0
+    assert silent_row["ok"] is False
+    assert silent_row["n_agentic_proof_strategy_plan_obligation_errors"] == 2
+    assert silent_row["n_request_context_errors"] == 2
+    assert all(
+        "agentic proof strategy plan ready row" in error
         for error in silent_row["errors"]
     )
 
