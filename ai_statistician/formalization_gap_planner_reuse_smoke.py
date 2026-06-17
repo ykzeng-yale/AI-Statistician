@@ -1784,6 +1784,12 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_goal_plan_standalone_input_traces_with_llm_route_option_selection_brief": (
+            plan_payload.get(
+                "n_standalone_input_traces_with_llm_route_option_selection_brief",
+                0,
+            )
+        ),
         "n_goal_plan_standalone_input_traces_with_llm_primitive_evidence_matrix_witness": (
             plan_payload.get(
                 "n_standalone_input_traces_with_llm_primitive_evidence_matrix_witness",
@@ -9522,9 +9528,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Publication bundle schema catalog entries: {payload.get('n_publication_bundle_schema_catalog_entries')}",
         f"- Publication bundle schema catalog contract errors: {payload.get('n_publication_bundle_schema_catalog_contract_errors')}",
         (
-            f"- Goal-plan LLM trace metadata/brief/matrix/model-tier/generator-metadata: "
+            f"- Goal-plan LLM trace metadata/brief/route-option/matrix/model-tier/generator-metadata: "
             f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata')}/"
             f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_route_planning_brief')}/"
+            f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_route_option_selection_brief')}/"
             f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_primitive_evidence_matrix_witness')}/"
             f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_model_tier')}/"
             f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_generator_metadata')} "

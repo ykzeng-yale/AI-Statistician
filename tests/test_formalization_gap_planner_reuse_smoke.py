@@ -399,6 +399,54 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
         ),
     ]
     return {
+        "target_context_summary": {
+            "normalized_objects": ["calibration scores", "test score"],
+            "normalized_assumptions": [
+                "exchangeable calibration and test scores",
+                "finite calibration sample",
+            ],
+            "normalized_procedures": ["split conformal prediction set"],
+            "desired_conclusions": [
+                "finite sample marginal coverage inequality"
+            ],
+            "desired_theorem_shapes": ["coverage probability lower bound"],
+            "target_intake_ids": [
+                "formalization_gap_planner_target_intake:bf53072844e0943c"
+            ],
+            "proof_source_refs": [
+                (
+                    "add minimal_delta delta actions or planner_next_actions "
+                    "for delta-needed primitive evidence-matrix rows: "
+                    "calibration_scores, coverage_inequality, "
+                    "exchangeable_calibration_and_test_scores, "
+                    "finite_calibration_sample, finite_sample_bound, "
+                    "finite_sample_marginal_coverage_inequality, "
+                    "split_conformal_prediction_set, test_score"
+                ),
+                "calibration_scores",
+                "coverage_inequality",
+                "exchangeability rank_uniformity",
+                "exchangeable_calibration_and_test_scores",
+                "finite_calibration_sample",
+                "finite_sample_bound",
+                "finite_sample_marginal_coverage_inequality",
+                "llm_reviewed_rank_route",
+                "rank convention may differ across libraries",
+                (
+                    "request-bound minimal-delta cost hints include primitives "
+                    "omitted by the selected route"
+                ),
+                "review_or_restore_omitted_cost_hint_primitives",
+                "split_conformal_prediction_set",
+                "test_score",
+                "tie-breaking convention requires review",
+                "conformal_prediction_textbook",
+                "conformal prediction textbook",
+                "empirical_process_lean",
+                "local_statinference_repo",
+            ],
+            "proof_evidence_boundary": LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
+        },
         "informal_knowledge_dag_nodes": [
             {
                 "node_id": "informal:exchangeability",
@@ -777,6 +825,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert (
         payload[
             "n_goal_plan_standalone_input_traces_with_llm_route_planning_brief"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_route_option_selection_brief"
         ]
         == 1
     )
@@ -4460,6 +4514,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_goal_plan_standalone_input_traces_with_llm_route_option_selection_brief"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_goal_plan_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
         ]
         == 1
@@ -6378,6 +6438,12 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
     assert (
         payload[
             "n_goal_plan_standalone_input_traces_with_llm_route_planning_brief"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_route_option_selection_brief"
         ]
         == 1
     )

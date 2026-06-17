@@ -1052,6 +1052,7 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     target_theorem_context_packet: dict[str, object]
     target_context_summary: dict[str, object]
     route_planning_brief: dict[str, object]
+    route_option_selection_brief: dict[str, object]
     route_adoption_preconditions: dict[str, object]
     source_grounding_rows: tuple[dict[str, object], ...]
     source_grounding_obligations: dict[str, object]
@@ -3256,6 +3257,9 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_rows_with_target_context_summary": sum(
             1 for row in rows if row.target_context_summary
         ),
+        "n_rows_with_route_option_selection_brief": sum(
+            1 for row in rows if row.route_option_selection_brief
+        ),
         "n_rows_with_route_adoption_preconditions": sum(
             1 for row in rows if row.route_adoption_preconditions
         ),
@@ -4278,6 +4282,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_rows_with_complete_route_option_action_witness",
             "n_rows_with_context_packet_inventory",
             "n_rows_with_target_context_summary",
+            "n_rows_with_route_option_selection_brief",
             "n_rows_with_route_adoption_preconditions",
             "n_row_route_adoption_precondition_known_blockers",
             "n_row_schema_valid",
@@ -4669,6 +4674,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_rows_with_route_option_action_witness_obligations": nonnegative_integer,
             "n_rows_with_complete_route_option_action_witness": nonnegative_integer,
             "n_rows_with_target_context_summary": nonnegative_integer,
+            "n_rows_with_route_option_selection_brief": nonnegative_integer,
             "n_rows_with_context_packet_inventory": nonnegative_integer,
             "n_rows_with_route_adoption_preconditions": nonnegative_integer,
             "n_row_route_adoption_precondition_known_blockers": nonnegative_integer,
@@ -4842,6 +4848,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "target_theorem_context_packet",
             "target_context_summary",
             "route_planning_brief",
+            "route_option_selection_brief",
             "route_adoption_preconditions",
             "context_packet_inventory",
             "residual_goal_contexts",
@@ -4904,6 +4911,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "target_theorem_context_packet": {"type": "object"},
             "target_context_summary": {"type": "object"},
             "route_planning_brief": {"type": "object"},
+            "route_option_selection_brief": {"type": "object"},
             "route_adoption_preconditions": {"type": "object"},
             "source_grounding_rows": object_array,
             "source_grounding_obligations": {"type": "object"},
@@ -5336,6 +5344,15 @@ def validate_llm_route_planner_manifest(
         manifest.get("n_rows_with_target_context_summary", 0) or 0
     ) != n_rows_with_target_context_summary:
         errors.append("n_rows_with_target_context_summary must match rows")
+    n_rows_with_route_option_selection_brief = sum(
+        1
+        for row in manifest_rows
+        if _dict_value(row, "route_option_selection_brief")
+    )
+    if int(
+        manifest.get("n_rows_with_route_option_selection_brief", 0) or 0
+    ) != n_rows_with_route_option_selection_brief:
+        errors.append("n_rows_with_route_option_selection_brief must match rows")
     n_rows_with_complete_matrix_witness = sum(
         1
         for row in manifest_rows
@@ -7173,6 +7190,78 @@ def validate_llm_route_planner_row(
         ).lower():
             errors.append(
                 "target_context_summary.proof_evidence_boundary must say not theorem proof evidence"
+            )
+    route_option_selection_brief = _dict_value(
+        row,
+        "route_option_selection_brief",
+    )
+    if route_option_selection_brief:
+        if route_option_selection_brief.get("brief_kind") != (
+            ROUTE_OPTION_SELECTION_BRIEF_KIND
+        ):
+            errors.append(
+                "route_option_selection_brief.brief_kind must equal "
+                + ROUTE_OPTION_SELECTION_BRIEF_KIND
+            )
+        if str(route_option_selection_brief.get("route_id", "")) != str(
+            row.get("route_id", "")
+        ):
+            errors.append(
+                "route_option_selection_brief.route_id must match row route_id"
+            )
+        if str(
+            route_option_selection_brief.get("target_prover_family", "")
+        ) != str(row.get("target_prover_family", "")):
+            errors.append(
+                "route_option_selection_brief.target_prover_family must match "
+                "row target_prover_family"
+            )
+        if str(
+            route_option_selection_brief.get("library_snapshot_ref", "")
+        ) != str(row.get("library_snapshot_ref", "")):
+            errors.append(
+                "route_option_selection_brief.library_snapshot_ref must match "
+                "row library_snapshot_ref"
+            )
+        candidate_options = _dict_tuple(
+            route_option_selection_brief.get("candidate_route_options", [])
+        )
+        if int(
+            route_option_selection_brief.get("n_candidate_route_options", 0) or 0
+        ) != len(candidate_options):
+            errors.append(
+                "route_option_selection_brief.n_candidate_route_options must "
+                "match candidate_route_options"
+            )
+        if int(
+            route_option_selection_brief.get(
+                "n_candidate_route_option_primitives",
+                0,
+            )
+            or 0
+        ) != sum(
+            int(option.get("n_selected_primitives", 0) or 0)
+            for option in candidate_options
+        ):
+            errors.append(
+                "route_option_selection_brief.n_candidate_route_option_primitives "
+                "must match candidate_route_options"
+            )
+        lower_bound_id = str(
+            route_option_selection_brief.get(
+                "lower_bound_selected_route_option_id",
+                "",
+            )
+        ).strip()
+        candidate_ids = {
+            str(option.get("route_option_id", "")).strip()
+            for option in candidate_options
+            if str(option.get("route_option_id", "")).strip()
+        }
+        if lower_bound_id and lower_bound_id not in candidate_ids:
+            errors.append(
+                "route_option_selection_brief.lower_bound_selected_route_option_id "
+                "must name a candidate_route_options route_option_id"
             )
     primitive_matrix_witness = _dict_value(row, "primitive_evidence_matrix_witness")
     route_planning_brief = _dict_value(row, "route_planning_brief")
@@ -14891,6 +14980,9 @@ def _row_for_request(
         target_context_summary=target_context_summary,
         route_planning_brief=dict(
             _dict_value(context_packet, "route_planning_brief")
+        ),
+        route_option_selection_brief=dict(
+            _dict_value(context_packet, "route_option_selection_brief")
         ),
         route_adoption_preconditions=dict(
             _dict_value(context_packet, "route_adoption_preconditions")
@@ -28920,6 +29012,7 @@ def _fallback_route_for_seed(
     target_context_packet = dict(row.target_theorem_context_packet)
     target_context_summary = dict(row.target_context_summary)
     route_planning_brief = dict(row.route_planning_brief)
+    route_option_selection_brief = dict(row.route_option_selection_brief)
     route_adoption_preconditions = dict(row.route_adoption_preconditions)
     source_grounding_obligations = dict(row.source_grounding_obligations)
     primitive_evidence_matrix_witness = dict(row.primitive_evidence_matrix_witness)
@@ -28960,6 +29053,9 @@ def _fallback_route_for_seed(
             target_context_summary
         ),
         "llm_route_planner_route_planning_brief": route_planning_brief,
+        "llm_route_planner_route_option_selection_brief": deepcopy(
+            route_option_selection_brief
+        ),
         "llm_route_planner_primitive_evidence_matrix_witness": (
             primitive_evidence_matrix_witness
         ),
@@ -28981,6 +29077,10 @@ def _fallback_route_for_seed(
         )
     if route_planning_brief:
         fallback["llm_route_planner_route_planning_brief"] = route_planning_brief
+    if route_option_selection_brief:
+        fallback["llm_route_planner_route_option_selection_brief"] = deepcopy(
+            route_option_selection_brief
+        )
     if primitive_evidence_matrix_witness:
         fallback["llm_route_planner_primitive_evidence_matrix_witness"] = (
             primitive_evidence_matrix_witness
@@ -29014,6 +29114,7 @@ def _accepted_route_for_seed(
     target_context_packet = dict(row.target_theorem_context_packet)
     target_context_summary = dict(row.target_context_summary)
     route_planning_brief = dict(row.route_planning_brief)
+    route_option_selection_brief = dict(row.route_option_selection_brief)
     route_adoption_preconditions = dict(row.route_adoption_preconditions)
     source_grounding_obligations = dict(row.source_grounding_obligations)
     primitive_evidence_matrix_witness = dict(row.primitive_evidence_matrix_witness)
@@ -29025,6 +29126,10 @@ def _accepted_route_for_seed(
         )
     if route_planning_brief:
         route["llm_route_planner_route_planning_brief"] = route_planning_brief
+    if route_option_selection_brief:
+        route["llm_route_planner_route_option_selection_brief"] = deepcopy(
+            route_option_selection_brief
+        )
     if primitive_evidence_matrix_witness:
         route["llm_route_planner_primitive_evidence_matrix_witness"] = (
             primitive_evidence_matrix_witness
@@ -29336,6 +29441,9 @@ def _accepted_route_for_seed(
             target_context_summary
         ),
         "llm_route_planner_route_planning_brief": route_planning_brief,
+        "llm_route_planner_route_option_selection_brief": deepcopy(
+            route_option_selection_brief
+        ),
         "llm_route_planner_route_adoption_preconditions": route_adoption_preconditions,
         "llm_route_planner_source_grounding_rows": [
             dict(item) for item in row.source_grounding_rows

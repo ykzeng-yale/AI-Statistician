@@ -833,21 +833,23 @@ standalone input traces preserve this LLM-returned summary as
 that the planner echoed the target-intake context without reopening raw provider
 responses.
 Accepted and fallback LLM route-planner rows now also publish the same
-`target_theorem_context_packet` and the compact `route_planning_brief`, and
-standalone/replan seeds copy them to route-level provenance and
-`replan_metadata`. This keeps the theorem statement, assumptions, procedure,
-desired conclusion, primitive candidates, residual-goal contract, prioritized
-planner focus, and evidence-gap checklist available to the next prover-feedback
-or replan round even when raw prompt rows are trimmed for reuse by an external
-prover adapter.
+`target_theorem_context_packet`, compact `route_planning_brief`, and
+`route_option_selection_brief`, and standalone/replan seeds copy them to
+route-level provenance and `replan_metadata`. This keeps the theorem statement,
+assumptions, procedure, desired conclusion, primitive candidates, residual-goal
+contract, prioritized planner focus, evidence-gap checklist, and minimal-delta
+route-option comparison table available to the next prover-feedback or replan
+round even when raw prompt rows are trimmed for reuse by an external prover
+adapter.
 Standalone replay exposes that same packet as
 `standalone_input_trace.target_theorem_context_packet` with compact route id,
 target-prover, theorem-statement, packet-kind, target-mismatch, and
 route-statement-differs fields. The standalone manifest counts traces with
 target-context packets, target mismatches, and route statements that differ from
 the preserved target theorem. It also counts traces with
-`llm_route_planner_route_planning_brief`, and the reuse-smoke manifest lifts
-that counter, while the LLM route-planner manifest separately counts
+`llm_route_planner_route_planning_brief` and
+`llm_route_planner_route_option_selection_brief`, and the reuse-smoke manifest lifts
+those counters, while the LLM route-planner manifest separately counts
 `primitive_evidence_matrix` rows, source-backed primitives, and
 formal-supported primitives. Publication consumers can therefore verify that
 the distilled route planning checklist and the per-primitive source/formal

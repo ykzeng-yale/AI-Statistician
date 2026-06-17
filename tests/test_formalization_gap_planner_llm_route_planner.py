@@ -9557,6 +9557,10 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     ]["target_theorem_context_packet"]
     assert row["target_context_summary"] == {}
     assert payload["n_rows_with_target_context_summary"] == 0
+    assert row["route_option_selection_brief"] == payload["request_packets"][0][
+        "context_packet"
+    ]["route_option_selection_brief"]
+    assert payload["n_rows_with_route_option_selection_brief"] == 1
     assert row["informal_knowledge_dag_edges"][0]["source_node_id"] == (
         "informal:exchangeability"
     )
@@ -9580,11 +9584,15 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "primitive_evidence_matrix_witness" in row_schema["required"]
     assert "target_theorem_context_packet" in row_schema["required"]
     assert "target_context_summary" in row_schema["required"]
+    assert "route_option_selection_brief" in row_schema["required"]
     assert "context_packet_inventory" in row_schema["required"]
     assert "model_tier_decision_evidence" in row_schema["required"]
     assert row_schema["properties"]["model_tier_decision_evidence"]["type"] == "object"
     assert row_schema["properties"]["target_theorem_context_packet"]["type"] == "object"
     assert row_schema["properties"]["target_context_summary"]["type"] == "object"
+    assert row_schema["properties"]["route_option_selection_brief"]["type"] == (
+        "object"
+    )
     assert row_schema["properties"]["context_packet_inventory"]["type"] == "object"
     assert row_schema["properties"]["realization_coverage_witness"] == {
         "$ref": "#/$defs/realization_coverage_witness"
@@ -9608,6 +9616,7 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     manifest_schema = llm_route_planner_manifest_json_schema()
     assert "legacy_response_field_aliases" in manifest_schema["required"]
     assert "n_rows_with_target_context_summary" in manifest_schema["required"]
+    assert "n_rows_with_route_option_selection_brief" in manifest_schema["required"]
     assert (
         "n_request_source_theorem_semantic_primitive_rows"
         in manifest_schema["required"]
@@ -9701,6 +9710,18 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "target_theorem_context_packet.route_id must match row route_id"
         in validate_llm_route_planner_row(corrupted_target_context_row, row_schema)
     )
+    corrupted_route_option_brief_row = deepcopy(row)
+    corrupted_route_option_brief_row["route_option_selection_brief"][
+        "lower_bound_selected_route_option_id"
+    ] = "route_option:missing"
+    assert (
+        "route_option_selection_brief.lower_bound_selected_route_option_id "
+        "must name a candidate_route_options route_option_id"
+        in validate_llm_route_planner_row(
+            corrupted_route_option_brief_row,
+            row_schema,
+        )
+    )
     corrupted_decision_row = deepcopy(row)
     corrupted_decision_row["model_tier_decision_evidence"][
         "decision_basis"
@@ -9752,6 +9773,12 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert standalone_metadata_props[
         "llm_route_planner_target_theorem_context_packet"
     ]["type"] == "object"
+    assert standalone_route_props["llm_route_planner_route_option_selection_brief"][
+        "type"
+    ] == "object"
+    assert standalone_metadata_props[
+        "llm_route_planner_route_option_selection_brief"
+    ]["type"] == "object"
     seed_selection = payload["standalone_seed"][
         "llm_route_planner_seed_route_selection"
     ]
@@ -9783,6 +9810,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert seed_route["llm_route_planner_route_planning_brief"] == row[
         "route_planning_brief"
     ]
+    assert seed_route["llm_route_planner_route_option_selection_brief"] == row[
+        "route_option_selection_brief"
+    ]
     assert seed_route["llm_route_planner_primitive_evidence_matrix_witness"] == row[
         "primitive_evidence_matrix_witness"
     ]
@@ -9797,6 +9827,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     ]
     assert metadata["llm_route_planner_route_planning_brief"] == row[
         "route_planning_brief"
+    ]
+    assert metadata["llm_route_planner_route_option_selection_brief"] == row[
+        "route_option_selection_brief"
     ]
     assert metadata["llm_route_planner_primitive_evidence_matrix_witness"] == row[
         "primitive_evidence_matrix_witness"
@@ -9849,6 +9882,15 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert metadata["llm_route_planner_primitive_evidence_matrix_witness"] == row[
         "primitive_evidence_matrix_witness"
     ]
+    drifted_route_option_seed = deepcopy(payload["standalone_seed"])
+    drifted_route_option_seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_route_option_selection_brief"
+    ]["lower_bound_selected_route_option_id"] = "route_option:missing"
+    assert (
+        "routes[0].llm_route_planner_route_option_selection_brief must match "
+        "routes[0].replan_metadata.llm_route_planner_route_option_selection_brief"
+        in validate_standalone_input_payload(drifted_route_option_seed)
+    )
     assert metadata["revised_informal_knowledge_dag_nodes"][0]["node_source"] == (
         "llm_route_planner_revised_informal_dag"
     )
@@ -9907,6 +9949,12 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert (
         plan_payload[
             "n_standalone_input_traces_with_llm_route_planning_brief"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_llm_route_option_selection_brief"
         ]
         == 1
     )
@@ -10004,6 +10052,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert trace["llm_route_planner_route_planning_brief"] == row[
         "route_planning_brief"
     ]
+    assert trace["llm_route_planner_route_option_selection_brief"] == row[
+        "route_option_selection_brief"
+    ]
     assert trace["llm_route_planner_primitive_evidence_matrix_witness"] == row[
         "primitive_evidence_matrix_witness"
     ]
@@ -10043,6 +10094,14 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert trace["has_target_theorem_context_packet"] is True
     assert trace["has_llm_route_planner_target_theorem_context_packet"] is True
     assert trace["has_llm_route_planner_route_planning_brief"] is True
+    assert trace["has_llm_route_planner_route_option_selection_brief"] is True
+    assert trace["llm_route_option_selection_brief_candidate_count"] == 1
+    assert (
+        trace[
+            "llm_route_option_selection_brief_lower_bound_selected_route_option_id"
+        ]
+        == "route_option:current_route_min_delta_baseline"
+    )
     assert trace["has_llm_route_planner_route_adoption_preconditions"] is True
     assert trace["llm_route_adoption_precondition_blocker_count"] == len(
         row["route_adoption_preconditions"]["known_pre_response_blockers"]
