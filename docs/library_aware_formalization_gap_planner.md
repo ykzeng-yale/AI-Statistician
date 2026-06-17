@@ -1960,7 +1960,12 @@ coverage/action bucket: exact or already-existing nodes schedule reuse checks,
 wrapper or different-formulation nodes schedule wrapper checks, bridge nodes
 schedule bridge proofs, source-port nodes schedule source-port probes, and new
 definition/theory or unknown nodes schedule definition probes; explicit
-`proof_state_feedback` remains a generic feedback attempt kind.
+`proof_state_feedback` remains a generic feedback attempt kind. The
+`expected_feedback` field must then name at least one signal that can drive that
+attempt: reuse checks need declaration-closure feedback, bridge/proof-state
+attempts need residual goals, diagnostics, proof obligations, or missing side
+conditions, source-port probes need source-port targets or obligations, and
+definition probes need definition/typeclass/new-declaration obligations.
 
 Accepted queue rows are also materialized into `proof_state_feedback`
 interactive refinement hooks and `blocked_by_formal_side_condition` route

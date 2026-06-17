@@ -13846,6 +13846,14 @@ def _response_formal_attempt_queue_errors(
             errors.append(
                 f"formal_attempt_queue[{index}].expected_feedback must be non-empty"
             )
+        else:
+            errors.extend(
+                _formal_attempt_queue_expected_feedback_errors(
+                    index=index,
+                    attempt_kind=attempt_kind,
+                    expected_feedback=expected_feedback,
+                )
+            )
 
         prerequisites = _str_tuple(item.get("prerequisite_formal_node_ids", []))
         duplicate_prerequisites = _duplicate_string_keys(prerequisites)
@@ -13926,6 +13934,79 @@ def _response_formal_attempt_queue_errors(
                 )
 
     return errors
+
+
+def _formal_attempt_queue_expected_feedback_errors(
+    *,
+    index: int,
+    attempt_kind: str,
+    expected_feedback: tuple[str, ...],
+) -> list[str]:
+    required = _formal_attempt_queue_required_feedback_signals(attempt_kind)
+    if not required:
+        return []
+    actual = {
+        _primitive_key(feedback)
+        for feedback in expected_feedback
+        if _primitive_key(feedback)
+    }
+    if actual & required:
+        return []
+    return [
+        f"formal_attempt_queue[{index}].expected_feedback for attempt_kind "
+        f"{attempt_kind} must include at least one of: "
+        + ", ".join(sorted(required))
+    ]
+
+
+def _formal_attempt_queue_required_feedback_signals(
+    attempt_kind: str,
+) -> set[str]:
+    kind = _primitive_key(attempt_kind)
+    if kind == "reuse_check":
+        return {
+            "closed_by_existing_declaration",
+            "candidate_declaration_rows",
+            "formal_declaration_hits",
+            "reuse_confirmed",
+        }
+    if kind == "wrapper_check":
+        return {
+            "wrapper_targets",
+            "wrapper_obligations",
+            "residual_goals",
+            "missing_side_conditions",
+        }
+    if kind == "bridge_proof":
+        return {
+            "residual_goals",
+            "missing_side_conditions",
+            "proof_obligations",
+            "bridge_obligations",
+        }
+    if kind == "source_port_probe":
+        return {
+            "source_port_targets",
+            "source_port_obligations",
+            "source_search_requests",
+            "residual_goals",
+        }
+    if kind == "definition_probe":
+        return {
+            "definition_obligations",
+            "typeclass_obligations",
+            "new_declarations",
+            "residual_goals",
+            "missing_side_conditions",
+        }
+    if kind == "proof_state_feedback":
+        return {
+            "residual_goals",
+            "diagnostic_signature",
+            "missing_side_conditions",
+            "proof_state",
+        }
+    return set()
 
 
 def _formal_attempt_queue_allowed_attempt_kind_bucket(
