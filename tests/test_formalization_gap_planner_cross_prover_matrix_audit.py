@@ -103,6 +103,13 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
     plan_payload = export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
 
     payload = audit_formalization_gap_planner_cross_prover_matrix(plan_dir, out_dir)
+    expected_contract_by_target = {
+        "lean4": "lean_lsp:proof_state_feedback",
+        "rocq": "rocq_lsp_serapi:proof_state_feedback",
+        "isabelle": "isabelle_sledgehammer_afp:proof_state_feedback",
+        "agda": "agda_search_auto:proof_state_feedback",
+    }
+    target_contract_ids = tuple(sorted(expected_contract_by_target.values()))
 
     assert payload["all_ok"]
     assert payload["n_targets"] == 4
@@ -175,7 +182,7 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         "stop_conditions",
     )
     assert payload["packet_quality_control_resource_contract_ids"] == (
-        "lean_lsp:proof_state_feedback",
+        target_contract_ids
     )
     assert payload["packet_quality_control_response_validation_signals"] == (
         "residual_goals_or_diagnostics_present",
@@ -187,8 +194,8 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         "resource_contract_ids"
     ] == {
         "n_packets": payload["n_total_packets"],
-        "n_values": 1,
-        "values": ("lean_lsp:proof_state_feedback",),
+        "n_values": len(target_contract_ids),
+        "values": target_contract_ids,
     }
     assert payload["n_total_packets_with_llm_route_adoption_status"] == 0
     assert payload["n_total_packets_llm_route_adoption_ready"] == 0
@@ -286,8 +293,8 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         "resource_contract_ids"
     ] == {
         "n_packets": payload["n_total_packets"],
-        "n_values": 1,
-        "values": ("lean_lsp:proof_state_feedback",),
+        "n_values": len(target_contract_ids),
+        "values": target_contract_ids,
     }
     assert (
         payload["target_summary"]["n_total_packets_with_llm_route_adoption_status"]
@@ -384,6 +391,25 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         for row in payload["matrix_rows"]
     )
     assert all(
+        row["packet_quality_control_resource_contract_ids"]
+        == (expected_contract_by_target[row["target_prover_family"]],)
+        for row in payload["matrix_rows"]
+    )
+    assert all(
+        row["by_packet_quality_control_field"]["resource_contract_ids"]
+        == {
+            "n_packets": row["n_packets"],
+            "n_values": 1,
+            "values": (expected_contract_by_target[row["target_prover_family"]],),
+        }
+        for row in payload["matrix_rows"]
+    )
+    assert all(
+        row["packet_quality_control_resource_contract_ids"]
+        == (expected_contract_by_target[row["target_prover_family"]],)
+        for row in payload["target_summary"]["target_rows"]
+    )
+    assert all(
         packet["standalone_input_trace"]["source_prover_family"] == "lean4"
         and packet["standalone_input_trace"]["target_prover_family"]
         == packet["target_prover_family"]
@@ -405,6 +431,10 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
             "response_validation_signals",
             "stop_conditions",
         ]
+        and packet["standalone_input_trace"]["quality_controls"][
+            "resource_contract_ids"
+        ]
+        == [expected_contract_by_target[packet["target_prover_family"]]]
         and packet["formal_attempt_dependency_status"]
         == "not_formal_attempt_queue_item"
         for packet in payload["packet_rows"]

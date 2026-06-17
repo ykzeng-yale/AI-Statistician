@@ -95,6 +95,21 @@ QUALITY_CONTROL_FIELDS = (
     "response_validation_signals",
     "stop_conditions",
 )
+PROOF_STATE_RESOURCE_CONTRACT_ID_BY_TARGET = {
+    "lean4": "lean_lsp:proof_state_feedback",
+    "rocq": "rocq_lsp_serapi:proof_state_feedback",
+    "isabelle": "isabelle_sledgehammer_afp:proof_state_feedback",
+    "agda": "agda_search_auto:proof_state_feedback",
+}
+PROVER_RESOURCE_CONTRACT_TARGETS = {
+    "lean_lsp": "lean4",
+    "lean_lsp_mcp": "lean4",
+    "local_lake_lean": "lean4",
+    "leandojo_reprover": "lean4",
+    "rocq_lsp_serapi": "rocq",
+    "isabelle_sledgehammer_afp": "isabelle",
+    "agda_search_auto": "agda",
+}
 RESIDUAL_CONTEXT_STRING_ARRAY_FIELDS = (
     "residual_goals",
     "residual_primitives",
@@ -810,7 +825,12 @@ def validate_prover_adapter_packet_row(
                 target_library_snapshot_ref=str(row.get("library_snapshot_ref", "")),
             )
         )
-        errors.extend(_standalone_trace_quality_control_errors(standalone_input_trace))
+        errors.extend(
+            _standalone_trace_quality_control_errors(
+                standalone_input_trace,
+                target_prover_family=str(row.get("target_prover_family", "")),
+            )
+        )
         errors.extend(_standalone_trace_residual_context_errors(standalone_input_trace))
         errors.extend(
             _standalone_trace_formal_attempt_dependency_errors(
@@ -1102,6 +1122,12 @@ def _packet_for_work_packet(
             target_library_snapshot_ref=library_snapshot_ref,
         )
     )
+    errors.extend(
+        _standalone_trace_quality_control_errors(
+            standalone_input_trace,
+            target_prover_family=target_prover_family,
+        )
+    )
     errors.extend(_standalone_trace_residual_context_errors(standalone_input_trace))
     residual_goal_contexts = _residual_goal_contexts_from_trace(
         standalone_input_trace
@@ -1231,7 +1257,10 @@ def _standalone_input_trace_for_packet(
         trace["target_library_snapshot_ref"] = library_snapshot_ref
         trace["trace_target_projection"] = "target_prover_adapter_contract"
         _attach_formal_attempt_dependency_fields(trace, formal_attempt_dependency)
-        _normalize_trace_quality_control_fields(trace)
+        _normalize_trace_quality_control_fields(
+            trace,
+            target_prover_family=target_prover_family,
+        )
         _normalize_trace_residual_context_fields(trace)
         return trace
     replan_metadata = plan_row.get("replan_metadata", {})
@@ -1320,6 +1349,8 @@ def _standalone_trace_target_errors(
 
 def _standalone_trace_quality_control_errors(
     trace: dict[str, object],
+    *,
+    target_prover_family: str = "",
 ) -> tuple[str, ...]:
     errors: list[str] = []
     raw_controls = trace.get("quality_controls", {})
@@ -1368,6 +1399,16 @@ def _standalone_trace_quality_control_errors(
             errors.append(
                 "standalone_input_trace.quality_control_fields mismatch: "
                 f"observed={sorted(observed_fields)} expected={sorted(expected_fields)}"
+            )
+    target_key = _normalize_prover_family(
+        target_prover_family or str(trace.get("target_prover_family", ""))
+    )
+    for contract_id in controls.get("resource_contract_ids", ()):
+        contract_target = _resource_contract_target_prover_family(contract_id)
+        if contract_target and target_key and contract_target != target_key:
+            errors.append(
+                "standalone_input_trace.quality_controls.resource_contract_ids "
+                f"{contract_id} targets {contract_target}, not {target_key}"
             )
     return tuple(errors)
 
@@ -1593,13 +1634,112 @@ def _packet_minimal_delta_action_witness_field_errors(
     return tuple(errors)
 
 
-def _normalize_trace_quality_control_fields(trace: dict[str, object]) -> None:
+def _normalize_trace_quality_control_fields(
+    trace: dict[str, object],
+    *,
+    target_prover_family: str = "",
+) -> None:
     controls = _quality_controls_from_trace(trace)
+    projected_controls = _project_quality_controls_to_target(
+        controls,
+        target_prover_family=target_prover_family
+        or str(trace.get("target_prover_family", "")),
+    )
+    if projected_controls != controls:
+        trace["source_quality_controls"] = {
+            field_name: list(values) for field_name, values in controls.items()
+        }
+        trace["quality_control_projection"] = _quality_control_projection_trace(
+            source_controls=controls,
+            projected_controls=projected_controls,
+            target_prover_family=target_prover_family
+            or str(trace.get("target_prover_family", "")),
+        )
+        controls = projected_controls
     trace["quality_controls"] = {
         field_name: list(values) for field_name, values in controls.items()
     }
     trace["has_quality_controls"] = bool(controls)
     trace["quality_control_fields"] = sorted(controls)
+
+
+def _project_quality_controls_to_target(
+    controls: dict[str, tuple[str, ...]],
+    *,
+    target_prover_family: str,
+) -> dict[str, tuple[str, ...]]:
+    target_key = _normalize_prover_family(target_prover_family)
+    if not target_key or target_key == "other" or not controls:
+        return controls
+    projected: dict[str, tuple[str, ...]] = dict(controls)
+    resource_contract_ids = controls.get("resource_contract_ids", ())
+    if resource_contract_ids:
+        projected["resource_contract_ids"] = tuple(
+            dict.fromkeys(
+                _project_resource_contract_id_to_target(
+                    contract_id,
+                    target_prover_family=target_key,
+                )
+                for contract_id in resource_contract_ids
+            )
+        )
+    return {field_name: values for field_name, values in projected.items() if values}
+
+
+def _project_resource_contract_id_to_target(
+    contract_id: str,
+    *,
+    target_prover_family: str,
+) -> str:
+    contract_target = _resource_contract_target_prover_family(contract_id)
+    if not contract_target or contract_target == target_prover_family:
+        return contract_id
+    if _resource_contract_is_proof_state_feedback(contract_id):
+        return PROOF_STATE_RESOURCE_CONTRACT_ID_BY_TARGET.get(
+            target_prover_family,
+            contract_id,
+        )
+    return contract_id
+
+
+def _resource_contract_target_prover_family(contract_id: str) -> str:
+    key = str(contract_id or "").strip().lower()
+    if not key:
+        return ""
+    head = key.split(":", 1)[0]
+    if head in PROVER_RESOURCE_CONTRACT_TARGETS:
+        return PROVER_RESOURCE_CONTRACT_TARGETS[head]
+    for resource_id, target_family in PROVER_RESOURCE_CONTRACT_TARGETS.items():
+        if key.startswith(f"{resource_id}:"):
+            return target_family
+    return ""
+
+
+def _resource_contract_is_proof_state_feedback(contract_id: str) -> bool:
+    key = str(contract_id or "").strip().lower()
+    return "proof_state_feedback" in key or key in PROVER_RESOURCE_CONTRACT_TARGETS
+
+
+def _quality_control_projection_trace(
+    *,
+    source_controls: dict[str, tuple[str, ...]],
+    projected_controls: dict[str, tuple[str, ...]],
+    target_prover_family: str,
+) -> dict[str, object]:
+    source_contract_ids = source_controls.get("resource_contract_ids", ())
+    projected_contract_ids = projected_controls.get("resource_contract_ids", ())
+    return {
+        "projection_kind": "target_prover_quality_control_projection",
+        "target_prover_family": _normalize_prover_family(target_prover_family),
+        "source_resource_contract_ids": list(source_contract_ids),
+        "projected_resource_contract_ids": list(projected_contract_ids),
+        "changed_resource_contract_ids": source_contract_ids != projected_contract_ids,
+        "projection_boundary": (
+            "Quality-control resource ids are adapter-routing requirements, "
+            "not theorem proof evidence; target prover packets must use "
+            "target-compatible prover-feedback resources."
+        ),
+    }
 
 
 def _normalize_trace_residual_context_fields(trace: dict[str, object]) -> None:

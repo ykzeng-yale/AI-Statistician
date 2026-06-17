@@ -169,7 +169,7 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
         "stop_conditions",
     )
     assert payload["packet_quality_control_resource_contract_ids"] == (
-        "lean_lsp:proof_state_feedback",
+        "rocq_lsp_serapi:proof_state_feedback",
     )
     assert payload["packet_quality_control_response_validation_signals"] == (
         "residual_goals_or_diagnostics_present",
@@ -182,7 +182,7 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
     ] == {
         "n_packets": 1,
         "n_values": 1,
-        "values": ("lean_lsp:proof_state_feedback",),
+        "values": ("rocq_lsp_serapi:proof_state_feedback",),
     }
     assert payload["n_packets_with_llm_route_adoption_status"] == 0
     assert payload["n_packet_llm_route_adoption_blockers"] == 0
@@ -260,7 +260,7 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
         "residual_context_source_kinds"
     ] == ["proof_state_feedback"]
     assert payload["packets"][0]["standalone_input_trace"]["quality_controls"] == {
-        "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
+        "resource_contract_ids": ["rocq_lsp_serapi:proof_state_feedback"],
         "response_validation_signals": [
             "residual_goals_or_diagnostics_present"
         ],
@@ -268,6 +268,14 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
             "residual interpreted or source search requested"
         ],
     }
+    assert payload["packets"][0]["standalone_input_trace"][
+        "source_quality_controls"
+    ]["resource_contract_ids"] == ["lean_lsp:proof_state_feedback"]
+    assert payload["packets"][0]["standalone_input_trace"][
+        "quality_control_projection"
+    ]["projected_resource_contract_ids"] == [
+        "rocq_lsp_serapi:proof_state_feedback"
+    ]
     assert payload["packets"][0]["standalone_input_trace"][
         "has_quality_controls"
     ]
@@ -337,6 +345,21 @@ def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> No
     bad_packet["standalone_input_trace"]["quality_control_fields"] = []
     assert any(
         "standalone_input_trace.quality_control_fields mismatch" in error
+        for error in validate_prover_adapter_packet_row(
+            bad_packet,
+            prover_adapter_packet_json_schema(),
+        )
+    )
+    bad_packet = dict(payload["packets"][0])
+    bad_packet["standalone_input_trace"] = dict(bad_packet["standalone_input_trace"])
+    bad_packet["standalone_input_trace"]["quality_controls"] = dict(
+        bad_packet["standalone_input_trace"]["quality_controls"]
+    )
+    bad_packet["standalone_input_trace"]["quality_controls"][
+        "resource_contract_ids"
+    ] = ["lean_lsp:proof_state_feedback"]
+    assert any(
+        "targets lean4, not rocq" in error
         for error in validate_prover_adapter_packet_row(
             bad_packet,
             prover_adapter_packet_json_schema(),

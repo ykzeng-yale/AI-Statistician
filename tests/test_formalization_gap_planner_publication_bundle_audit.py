@@ -386,6 +386,16 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
             "residual_context_source_kinds": ["proof_state_feedback"],
             "applied_hook_kinds": ["resource_response_ledger"],
             "quality_controls": {
+                "resource_contract_ids": ["rocq_lsp_serapi:proof_state_feedback"],
+                "required_quality_signals": ["diagnostic_signature"],
+                "response_validation_signals": [
+                    "residual_goals_or_diagnostics_present"
+                ],
+                "stop_conditions": [
+                    "residual interpreted or source search requested"
+                ],
+            },
+            "source_quality_controls": {
                 "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
                 "required_quality_signals": ["diagnostic_signature"],
                 "response_validation_signals": [
@@ -394,6 +404,21 @@ def _fixture_prover_adapter_packet() -> dict[str, object]:
                 "stop_conditions": [
                     "residual interpreted or source search requested"
                 ],
+            },
+            "quality_control_projection": {
+                "projection_kind": "target_prover_quality_control_projection",
+                "target_prover_family": "rocq",
+                "source_resource_contract_ids": ["lean_lsp:proof_state_feedback"],
+                "projected_resource_contract_ids": [
+                    "rocq_lsp_serapi:proof_state_feedback"
+                ],
+                "changed_resource_contract_ids": True,
+                "projection_boundary": (
+                    "Quality-control resource ids are adapter-routing "
+                    "requirements, not theorem proof evidence; target prover "
+                    "packets must use target-compatible prover-feedback "
+                    "resources."
+                ),
             },
             "has_quality_controls": True,
             "quality_control_fields": [
@@ -1066,7 +1091,7 @@ def _fixture_cross_prover_matrix_row(
             "stop_conditions",
         ],
         "packet_quality_control_resource_contract_ids": [
-            "lean_lsp:proof_state_feedback"
+            "rocq_lsp_serapi:proof_state_feedback"
         ],
         "packet_quality_control_response_validation_signals": [
             "residual_goals_or_diagnostics_present"
@@ -1083,7 +1108,7 @@ def _fixture_cross_prover_matrix_row(
             "resource_contract_ids": {
                 "n_packets": 1,
                 "n_values": 1,
-                "values": ["lean_lsp:proof_state_feedback"],
+                "values": ["rocq_lsp_serapi:proof_state_feedback"],
             },
             "response_validation_signals": {
                 "n_packets": 1,
@@ -1164,7 +1189,7 @@ def _fixture_cross_prover_target_summary(
             "stop_conditions",
         ],
         "packet_quality_control_resource_contract_ids": [
-            "lean_lsp:proof_state_feedback"
+            "rocq_lsp_serapi:proof_state_feedback"
         ],
         "packet_quality_control_response_validation_signals": [
             "residual_goals_or_diagnostics_present"
@@ -1181,7 +1206,7 @@ def _fixture_cross_prover_target_summary(
             "resource_contract_ids": {
                 "n_packets": 1,
                 "n_values": 1,
-                "values": ["lean_lsp:proof_state_feedback"],
+                "values": ["rocq_lsp_serapi:proof_state_feedback"],
             },
             "response_validation_signals": {
                 "n_packets": 1,
@@ -1244,7 +1269,7 @@ def _fixture_cross_prover_target_summary(
                     "stop_conditions",
                 ],
                 "packet_quality_control_resource_contract_ids": [
-                    "lean_lsp:proof_state_feedback"
+                    "rocq_lsp_serapi:proof_state_feedback"
                 ],
                 "packet_quality_control_response_validation_signals": [
                     "residual_goals_or_diagnostics_present"
@@ -1261,7 +1286,7 @@ def _fixture_cross_prover_target_summary(
                     "resource_contract_ids": {
                         "n_packets": 1,
                         "n_values": 1,
-                        "values": ["lean_lsp:proof_state_feedback"],
+                        "values": ["rocq_lsp_serapi:proof_state_feedback"],
                     },
                     "response_validation_signals": {
                         "n_packets": 1,
@@ -2208,7 +2233,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                     "stop_conditions",
                 ],
                 "packet_quality_control_resource_contract_ids": [
-                    "lean_lsp:proof_state_feedback"
+                    "rocq_lsp_serapi:proof_state_feedback"
                 ],
                 "packet_quality_control_response_validation_signals": [
                     "residual_goals_or_diagnostics_present"
@@ -2225,7 +2250,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                     "resource_contract_ids": {
                         "n_packets": 1,
                         "n_values": 1,
-                        "values": ["lean_lsp:proof_state_feedback"],
+                        "values": ["rocq_lsp_serapi:proof_state_feedback"],
                     },
                     "response_validation_signals": {
                         "n_packets": 1,
