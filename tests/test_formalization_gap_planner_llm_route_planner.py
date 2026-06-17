@@ -9653,6 +9653,41 @@ def test_llm_route_planner_rejects_formal_attempt_queue_unselected_route_primiti
     )
 
 
+def test_llm_route_planner_rejects_formal_attempt_queue_with_mismatched_action_target() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_mismatched_attempt_target"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"][0]["action"] = (
+        "lean_lsp proof-state attempt for the rank_uniformity bridge lemma"
+    )
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "formal_attempt_queue[0] action/query primitive mentions must include "
+        "a scoped target_primitives/primitive value" in error
+        and "explicit targets: exchangeability" in error
+        and "action/query mentions: rank_uniformity" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_formal_attempt_queue_attempt_kind_drift() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_bad_attempt_queue_kind"

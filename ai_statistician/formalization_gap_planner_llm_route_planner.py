@@ -15428,6 +15428,9 @@ def _response_formal_attempt_queue_errors(
         node_id: _primitive_key(node.get("primitive", ""))
         for node_id, node in formal_by_id.items()
     }
+    target_aliases_by_primitive = _formal_attempt_queue_target_aliases_by_primitive(
+        formal_nodes
+    )
     allowed_queue_primitives = _formal_attempt_queue_allowed_target_primitives(
         formal_nodes=formal_nodes,
         minimal_delta=minimal_delta,
@@ -15519,6 +15522,16 @@ def _response_formal_attempt_queue_errors(
                 "target_primitives: "
                 + ", ".join(unscoped_target_primitives[:8])
             )
+        target_text_error = _action_text_target_primitive_mismatch_error(
+            item,
+            collection_name="formal_attempt_queue",
+            index=index,
+            allowed_primitives=allowed_queue_primitives,
+            explicit_targets=target_primitives,
+            target_aliases_by_primitive=target_aliases_by_primitive,
+        )
+        if target_text_error:
+            errors.append(target_text_error)
 
         target_prover = str(item.get("target_prover_family", "")).strip()
         if not target_prover:
@@ -15786,6 +15799,24 @@ def _formal_attempt_queue_allowed_target_primitives(
             allowed.add(primitive)
     allowed.discard("")
     return allowed
+
+
+def _formal_attempt_queue_target_aliases_by_primitive(
+    formal_nodes: tuple[dict[str, object], ...],
+) -> dict[str, set[str]]:
+    aliases_by_primitive: dict[str, set[str]] = {}
+    for node in formal_nodes:
+        primitive = _primitive_key(node.get("primitive", ""))
+        if not primitive:
+            continue
+        aliases = aliases_by_primitive.setdefault(primitive, set())
+        for declaration in _node_candidate_declarations(node):
+            declaration_key = _formal_declaration_key(declaration)
+            if not declaration_key:
+                continue
+            aliases.add(declaration_key)
+            aliases.add(declaration_key.rsplit(".", maxsplit=1)[-1])
+    return aliases_by_primitive
 
 
 def _formal_attempt_queue_required_node_ids(
@@ -19307,28 +19338,63 @@ def _response_planner_next_action_explicit_target_text_errors(
         return []
     errors: list[str] = []
     for index, action in enumerate(_dict_tuple(payload.get("planner_next_actions", []))):
-        explicit_targets = _planner_action_target_primitive_keys(action)
-        if not explicit_targets:
-            continue
-        text_key = _primitive_key(" ".join(_planner_action_queries(action)))
-        if not text_key:
-            continue
-        mentioned_primitives = {
-            primitive
+        error = _action_text_target_primitive_mismatch_error(
+            action,
+            collection_name="planner_next_actions",
+            index=index,
+            allowed_primitives=allowed_primitives,
+        )
+        if error:
+            errors.append(error)
+    return errors
+
+
+def _action_text_target_primitive_mismatch_error(
+    row: Mapping[str, Any],
+    *,
+    collection_name: str,
+    index: int,
+    allowed_primitives: set[str],
+    explicit_targets: set[str] | None = None,
+    target_aliases_by_primitive: Mapping[str, set[str]] | None = None,
+) -> str:
+    explicit = set(explicit_targets or _planner_action_target_primitive_keys(row))
+    explicit.discard("")
+    if not explicit:
+        return ""
+    text_key = _primitive_key(" ".join(_planner_action_queries(row)))
+    if not text_key:
+        return ""
+    mentioned_primitives = {
+        primitive
             for primitive in allowed_primitives
             if _text_key_contains_alias(text_key, primitive)
         }
-        if not mentioned_primitives or mentioned_primitives & explicit_targets:
-            continue
-        errors.append(
-            f"planner_next_actions[{index}] action/query primitive mentions "
-            "must include a scoped target_primitives/primitive value when "
-            "explicit target fields are present; explicit targets: "
-            + ", ".join(sorted(explicit_targets)[:8])
-            + "; action/query mentions: "
-            + ", ".join(sorted(mentioned_primitives)[:8])
+    target_aliases = target_aliases_by_primitive or {}
+    mentioned_explicit_targets = {
+        primitive
+        for primitive in explicit
+        if _text_key_contains_alias(text_key, primitive)
+        or any(
+            _text_key_contains_alias(text_key, alias)
+            for alias in target_aliases.get(primitive, set())
+            if alias
         )
-    return errors
+    }
+    if (
+        not mentioned_primitives
+        or mentioned_primitives & explicit
+        or mentioned_explicit_targets
+    ):
+        return ""
+    return (
+        f"{collection_name}[{index}] action/query primitive mentions must "
+        "include a scoped target_primitives/primitive value when explicit "
+        "target fields are present; explicit targets: "
+        + ", ".join(sorted(explicit)[:8])
+        + "; action/query mentions: "
+        + ", ".join(sorted(mentioned_primitives)[:8])
+    )
 
 
 def _response_target_primitive_grounding_errors(
