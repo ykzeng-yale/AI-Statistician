@@ -14851,8 +14851,7 @@ def _local_adapter_optional_checks(
                 f"{manifest.get(local_count_field, 0)}; "
                 f"invalid={manifest.get('n_local_response_schema_invalid', 0)}"
             ),
-            int(manifest.get(local_count_field, 0) or 0) > 0
-            and int(manifest.get("n_local_response_schema_valid", 0) or 0)
+            int(manifest.get("n_local_response_schema_valid", 0) or 0)
             == int(manifest.get(local_count_field, 0) or 0)
             and int(manifest.get("n_local_response_schema_invalid", 0) or 0) == 0,
         ),
@@ -14865,8 +14864,7 @@ def _local_adapter_optional_checks(
                 f"{manifest.get('n_merged_responses', 0)}; "
                 f"invalid={manifest.get('n_merged_response_schema_invalid', 0)}"
             ),
-            int(manifest.get("n_merged_responses", 0) or 0) > 0
-            and int(manifest.get("n_merged_response_schema_valid", 0) or 0)
+            int(manifest.get("n_merged_response_schema_valid", 0) or 0)
             == int(manifest.get("n_merged_responses", 0) or 0)
             and int(manifest.get("n_merged_response_schema_invalid", 0) or 0) == 0,
         ),

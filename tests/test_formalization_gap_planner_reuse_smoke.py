@@ -31,6 +31,157 @@ def _sum_count_maps(*maps: object) -> dict[str, int]:
     }
 
 
+def _write_agentic_proof_execution_feedback_dirs(
+    root: Path,
+    *,
+    target_id: str,
+    target_prover_family: str,
+) -> tuple[Path, Path, Path]:
+    materializer_dir = root / "agentic_proof_execution_materializer"
+    artifact_verifier_dir = root / "agentic_proof_execution_artifact_verifier"
+    source_promotion_dir = root / "agentic_proof_source_theorem_promotion"
+    for directory in (materializer_dir, artifact_verifier_dir, source_promotion_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    route_match_ids = (
+        target_id,
+        f"route:{target_id}",
+        f"formalization_gap_planner_route:{target_id}",
+    )
+    provenance = {
+        "source_route_id": target_id,
+        "target_id": target_id,
+        "target_theorem_id": target_id,
+        "target_prover_family": target_prover_family,
+    }
+    common_row = {
+        "schema_version": 1,
+        "route_id": target_id,
+        "source_route_id": target_id,
+        "target_id": target_id,
+        "target_theorem_id": target_id,
+        "route_match_ids": list(route_match_ids),
+        "execution_queue_id": f"agentic-proof-execution:{target_id}",
+        "display_name": target_id,
+        "target_theorem_name": target_id,
+        "target_prover_family": target_prover_family,
+        "formal_statement_sketch": "Theorem split_conformal_coverage : True.",
+        "formal_imports": ["Coq.Init.Logic"],
+        "candidate_artifact_path": "",
+        "target_lean_declaration": "",
+        "source_theorem_target_known": False,
+        "source_theorem_target_provenance": provenance,
+        "proof_evidence_boundary": LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
+        "ok": True,
+        "errors": [],
+    }
+    (
+        materializer_dir
+        / "formal_verifier_agentic_proof_execution_materializer_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "n_materializer_rows": 1,
+                "n_unsupported_target_prover_rows": 1,
+                "by_target_prover_family": {target_prover_family: 1},
+                "rows": [
+                    {
+                        **common_row,
+                        "materialization_id": f"materialization:{target_id}",
+                        "materialization_status": (
+                            "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_MATERIALIZER"
+                        ),
+                        "proof_evidence_status": (
+                            "AGENTIC_PROOF_EXECUTION_MATERIALIZER_NOT_PROOF_EVIDENCE"
+                        ),
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        artifact_verifier_dir
+        / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "n_verifier_rows": 1,
+                "n_unsupported_target_prover_rows": 1,
+                "by_target_prover_family": {target_prover_family: 1},
+                "rows": [
+                    {
+                        **common_row,
+                        "artifact_verification_id": (
+                            f"artifact-verification:{target_id}"
+                        ),
+                        "materialization_id": f"materialization:{target_id}",
+                        "materialization_status": (
+                            "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_MATERIALIZER"
+                        ),
+                        "verification_status": (
+                            "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_ARTIFACT_VERIFIER"
+                        ),
+                        "artifact_kernel_verified": False,
+                        "source_theorem_kernel_verified": False,
+                        "local_lean_checked": False,
+                        "local_lean_compiled": False,
+                        "proof_evidence_status": (
+                            "AGENTIC_ARTIFACT_KERNEL_CHECK_NOT_SOURCE_THEOREM_PROOF"
+                        ),
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        source_promotion_dir
+        / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "n_promotion_rows": 1,
+                "n_unsupported_target_prover_rows": 1,
+                "by_target_prover_family": {target_prover_family: 1},
+                "rows": [
+                    {
+                        **common_row,
+                        "source_theorem_promotion_id": (
+                            f"source-theorem-promotion:{target_id}"
+                        ),
+                        "artifact_verification_id": (
+                            f"artifact-verification:{target_id}"
+                        ),
+                        "materialization_id": f"materialization:{target_id}",
+                        "source_verification_status": (
+                            "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_ARTIFACT_VERIFIER"
+                        ),
+                        "promotion_status": (
+                            "UNSUPPORTED_TARGET_PROVER_FOR_SOURCE_THEOREM_PROMOTION_QUEUE"
+                        ),
+                        "artifact_kernel_verified": False,
+                        "source_theorem_kernel_verified": False,
+                        "owner_agent": "formal_verifier_source_theorem_integrator",
+                        "action_type": "dispatch_compatible_target_prover_adapter",
+                        "required_gate": "compatible Rocq proof replay",
+                        "required_inputs": ["rocq_statement", "rocq_adapter"],
+                        "command_plan": ["dispatch Rocq adapter before promotion"],
+                        "proof_evidence_status": (
+                            "SOURCE_THEOREM_PROMOTION_QUEUE_NOT_PROOF_EVIDENCE"
+                        ),
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return materializer_dir, artifact_verifier_dir, source_promotion_dir
+
+
 def _reviewed_primitive_cost(
     primitive: str,
     coverage_bucket: str,
@@ -3463,6 +3614,170 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         / "formalization_gap_planner_interactive_session"
         / "formalization_gap_planner_interactive_session_manifest.json"
     ).exists()
+
+
+def test_reuse_smoke_surfaces_agentic_proof_execution_feedback_end_to_end() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_reuse_smoke_proof_execution_feedback"
+    )
+    input_path = root / "target_request.json"
+    out_dir = root / "reuse_smoke"
+    target_id = "split_conformal_finite_sample_coverage_feedback"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_target_intake",
+                "target_prover_family": "rocq",
+                "library_snapshot_ref": "rocq:reuse-smoke-proof-feedback",
+                "target_id": target_id,
+                "title": "Split conformal finite-sample coverage proof feedback",
+                "domain": "distribution-free prediction",
+                "theorem_statement": (
+                    "For exchangeable calibration and test scores, split "
+                    "conformal prediction has finite sample marginal coverage."
+                ),
+                "objects": ["calibration scores", "test score"],
+                "assumptions": [
+                    "exchangeable calibration and test scores",
+                    "finite calibration sample",
+                ],
+                "statistical_procedure": "split conformal prediction set",
+                "desired_conclusion": "finite sample marginal coverage inequality",
+                "desired_theorem_shape": "coverage probability lower bound",
+                "known_proof_sources": ["Lei-Wasserman distribution-free prediction"],
+                "candidate_primitives": [
+                    {
+                        "primitive": "rank uniformity",
+                        "coverage_status": "bridge_needed",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    materializer_dir, artifact_verifier_dir, source_promotion_dir = (
+        _write_agentic_proof_execution_feedback_dirs(
+            root,
+            target_id=target_id,
+            target_prover_family="rocq",
+        )
+    )
+
+    payload = run_formalization_gap_planner_reuse_smoke(
+        input_path,
+        out_dir,
+        target_prover_family="rocq",
+        target_library_snapshot_ref="rocq:reuse-smoke-proof-feedback",
+        formal_verifier_agentic_proof_execution_materializer_dir=materializer_dir,
+        formal_verifier_agentic_proof_execution_artifact_verifier_dir=(
+            artifact_verifier_dir
+        ),
+        formal_verifier_agentic_proof_source_theorem_promotion_queue_dir=(
+            source_promotion_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    assert (
+        payload["n_llm_route_planner_request_agentic_proof_execution_materializer_rows"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_request_agentic_proof_execution_artifact_verifier_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_request_agentic_proof_source_theorem_promotion_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload["n_llm_route_planner_requests_with_proof_execution_feedback_summary"]
+        == 1
+    )
+    assert payload["n_llm_route_planner_request_proof_execution_feedback_rows"] == 3
+    assert (
+        payload[
+            "n_llm_route_planner_request_proof_execution_unsupported_target_prover_rows"
+        ]
+        == 3
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_agentic_proof_execution_materializer_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_agentic_proof_execution_artifact_verifier_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_agentic_proof_source_theorem_promotion_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_requests_with_proof_execution_feedback_summary"
+        ]
+        == 1
+    )
+    assert (
+        payload["n_feedback_llm_route_planner_request_proof_execution_feedback_rows"]
+        == 3
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_proof_execution_unsupported_target_prover_rows"
+        ]
+        == 3
+    )
+    assert (
+        payload["n_combined_llm_route_planner_request_proof_execution_feedback_rows"]
+        == 6
+    )
+    assert (
+        payload[
+            "n_combined_llm_route_planner_request_proof_execution_unsupported_target_prover_rows"
+        ]
+        == 6
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_proof_execution_feedback_rows"
+        ]
+        == 3
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_proof_execution_feedback_rows"
+        ]
+        == 3
+    )
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_proof_execution_feedback_rows"
+        ]
+        == 6
+    )
+    report_text = (
+        out_dir / "formalization_gap_planner_reuse_smoke.md"
+    ).read_text(encoding="utf-8")
+    assert (
+        "Bundle LLM proof-execution feedback summaries: primary=3/3 "
+        "feedback=3/3 combined=6/6"
+    ) in report_text
 
 
 def test_reuse_smoke_surfaces_mixed_source_target_distribution() -> None:

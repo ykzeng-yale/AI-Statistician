@@ -2053,16 +2053,10 @@ def _has_kernel_proof_claim(value: Any) -> bool:
     if isinstance(value, dict):
         for raw_key, item in value.items():
             key = str(raw_key).strip().lower()
-            if key in {
-                "kernel_verified",
-                "kernel_checked",
-                "kernel_proved",
-                "theorem_proved",
-                "proof_verified",
-            } and _truthy_claim(item):
+            if _is_kernel_proof_claim_key(key) and _truthy_claim(item):
                 return True
-            if key == "proof_evidence_status" and str(item).strip().upper() and (
-                "NOT_PROOF_EVIDENCE" not in str(item).strip().upper()
+            if key == "proof_evidence_status" and _affirmative_proof_evidence_status(
+                item
             ):
                 return True
             if _has_kernel_proof_claim(item):
@@ -2071,6 +2065,56 @@ def _has_kernel_proof_claim(value: Any) -> bool:
     if isinstance(value, (list, tuple)):
         return any(_has_kernel_proof_claim(item) for item in value)
     return False
+
+
+def _is_kernel_proof_claim_key(key: str) -> bool:
+    claim_keys = {
+        "kernel_verified",
+        "kernel_checked",
+        "kernel_proved",
+        "theorem_proved",
+        "proof_verified",
+    }
+    if key in claim_keys:
+        return True
+    return any(key.endswith(f"_{claim_key}") for claim_key in claim_keys)
+
+
+def _affirmative_proof_evidence_status(value: Any) -> bool:
+    normalized = str(value).strip().upper()
+    if not normalized:
+        return False
+    negative_markers = {
+        "NOT_PROOF_EVIDENCE",
+        "NOT_SOURCE_THEOREM_PROOF",
+        "NOT_THEOREM_PROOF",
+        "_NOT_",
+        "NO_PROOF",
+        "UNSUPPORTED",
+        "UNVERIFIED",
+        "UNCHECKED",
+        "UNPROVED",
+        "FAILED",
+        "FAILURE",
+        "ERROR",
+        "MISSING",
+        "PENDING",
+        "QUEUE",
+        "DRAFT",
+        "CANDIDATE",
+    }
+    if any(marker in normalized for marker in negative_markers):
+        return False
+    affirmative_markers = {
+        "KERNEL_VERIFIED",
+        "KERNEL_CHECKED",
+        "KERNEL_PROVED",
+        "THEOREM_PROVED",
+        "PROOF_VERIFIED",
+        "PROOF_EVIDENCE",
+        "SOURCE_THEOREM_PROOF",
+    }
+    return any(marker in normalized for marker in affirmative_markers)
 
 
 def _truthy_claim(value: Any) -> bool:
