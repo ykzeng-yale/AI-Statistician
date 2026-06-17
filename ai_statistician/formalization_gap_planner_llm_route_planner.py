@@ -10916,7 +10916,7 @@ def _user_prompt(
             "Resource-response ledger rows with awaiting, rejected, absent-response, failed-contract, or unmet-contract-minimum status are status-only; do not use them as residual-goal or route-repair evidence.",
             "Residual interpretations may cover only residual_goals listed in the request packet.",
             "If request residual_goals are present, every residual goal must have an interpretation and a route_repair or repair_action.",
-            "Every residual_interpretations row that proposes route repair must have source_refs/source_snippets, a matching literature/source search_request, or a formal_gap_boundary; prover residuals alone are not source evidence for new mathematical side conditions.",
+            "Every residual_interpretations row that proposes route repair must have source_refs/source_snippets, a matching literature/source search_request, or a formal_gap_boundary naming the target primitive; prover residuals alone are not source evidence for new mathematical side conditions.",
             "Every alignment edge must include a substantive alignment_rationale that names the mapped informal claim, formal primitive, declaration, coverage/action, or source-backed route anchor; placeholder text such as ok/aligned is rejected.",
             "Return informal_knowledge_dag_edges and formal_realization_dag_edges as explicit acyclic DAG dependency edges; when a DAG has multiple nodes, it must have at least one edge, and every edge source_node_id/target_node_id must reference returned nodes.",
             "For informal_knowledge_dag_nodes, each depends_on entry must have a matching informal_knowledge_dag_edges source_node_id -> target_node_id edge, and every informal DAG edge must appear in the target node depends_on list.",
@@ -17009,7 +17009,8 @@ def _response_residual_source_grounding_errors(
         errors.append(
             "residual_interpretations"
             f"[{index}] route repair requires source_refs/source_snippets, "
-            "a matching literature/source search_request, or formal_gap_boundary"
+            "a matching literature/source search_request, or formal_gap_boundary "
+            "naming the target primitive"
         )
     return errors
 
@@ -17092,11 +17093,16 @@ def _residual_interpretation_has_source_refs(
 def _residual_interpretation_has_formal_boundary(
     interpretation: Mapping[str, Any],
 ) -> bool:
-    if _formal_gap_boundary_is_substantive(
-        str(interpretation.get("formal_gap_boundary", "") or "")
-    ):
+    boundary = str(interpretation.get("formal_gap_boundary", "") or "").strip()
+    if not _formal_gap_boundary_is_substantive(boundary):
+        return False
+    primitives = _residual_interpretation_explicit_or_prefixed_primitive_keys(
+        interpretation
+    )
+    if not primitives:
         return True
-    return False
+    boundary_key = _primitive_key(boundary)
+    return all(primitive in boundary_key for primitive in primitives)
 
 
 def _has_literature_search_request_for_residual_interpretation(
