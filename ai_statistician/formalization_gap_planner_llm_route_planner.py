@@ -10917,6 +10917,7 @@ def _user_prompt(
             "Residual interpretations may cover only residual_goals listed in the request packet.",
             "If request residual_goals are present, every residual goal must have an interpretation and a route_repair or repair_action.",
             "Every residual_interpretations row that proposes route repair must have source_refs/source_snippets, a matching literature/source search_request, or a formal_gap_boundary naming the target primitive; prover residuals alone are not source evidence for new mathematical side conditions.",
+            "When search_requests or planner_next_actions include target_primitives/primitive fields, those fields are authoritative; a row scoped to another primitive cannot satisfy an obligation merely by mentioning the target primitive in free text.",
             "Every alignment edge must include a substantive alignment_rationale that names the mapped informal claim, formal primitive, declaration, coverage/action, or source-backed route anchor; placeholder text such as ok/aligned is rejected.",
             "Return informal_knowledge_dag_edges and formal_realization_dag_edges as explicit acyclic DAG dependency edges; when a DAG has multiple nodes, it must have at least one edge, and every edge source_node_id/target_node_id must reference returned nodes.",
             "For informal_knowledge_dag_nodes, each depends_on entry must have a matching informal_knowledge_dag_edges source_node_id -> target_node_id edge, and every informal DAG edge must appear in the target node depends_on list.",
@@ -22886,6 +22887,11 @@ def _has_search_request_for_primitive(
             request_kind_keys,
         ):
             continue
+        explicit_primitives = _search_request_explicit_primitive_keys(request)
+        if explicit_primitives:
+            if primitive_key in explicit_primitives:
+                return True
+            continue
         text_key = _primitive_key(
             " ".join(
                 [
@@ -22914,6 +22920,28 @@ def _has_search_request_for_primitive(
         if primitive_key in text_key:
             return True
     return False
+
+
+def _search_request_explicit_primitive_keys(
+    request: Mapping[str, object],
+) -> set[str]:
+    primitives: set[str] = set()
+    for field_name in (
+        "target_primitive",
+        "target_primitives",
+        "primitive",
+        "primitives",
+    ):
+        primitives.update(
+            primitive
+            for primitive in (
+                _primitive_key(value)
+                for value in _primitive_values(request.get(field_name))
+            )
+            if primitive
+        )
+    primitives.discard("")
+    return primitives
 
 
 def _search_request_kind_matches(

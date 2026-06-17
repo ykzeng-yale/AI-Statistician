@@ -16665,6 +16665,49 @@ def test_llm_route_planner_rejects_formal_source_search_as_literature_request() 
     )
 
 
+def test_llm_route_planner_rejects_search_request_with_mismatched_explicit_target() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_mismatched_search_target"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    rank_node = bad_response["informal_knowledge_dag_nodes"][1]
+    rank_node["source_refs"] = []
+    rank_node["source_snippets"] = []
+    rank_node["source_search_status"] = "SEARCH_REQUESTED"
+    bad_response["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": "rank_uniformity finite-rank source route",
+            "reason": (
+                "This prose mentions rank_uniformity, but the structured "
+                "target points to the wrong primitive."
+            ),
+            "target_primitives": ["exchangeability"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "informal_knowledge_dag_nodes[1] SEARCH_REQUESTED requires a matching "
+        "literature/source search_request" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_residual_search_requested_without_search_request() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejects_residual_search_without_request"
