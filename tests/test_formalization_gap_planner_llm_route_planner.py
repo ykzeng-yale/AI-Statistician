@@ -12497,7 +12497,12 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         "no_unresolved_interactive_route_adoption_preconditions": True,
         "no_interactive_route_adoption_blockers": True,
         "no_source_theorem_feedback": True,
+        "no_pending_source_grounding_obligations": True,
+        "no_residual_source_grounding_obligations": True,
     }
+    assert packet["model_tier_decision_evidence"]["route_signal_counts"][
+        "source_grounding_unresolved_count"
+    ] == 0
     row = payload["rows"][0]
     assert row["model_tier"] == "haiku"
     assert row["model"] == "claude-haiku-4-5-20251001"
@@ -12507,6 +12512,74 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     request = captured["request"]
     assert request.model == "claude-haiku-4-5-20251001"
     assert request.metadata["model_tier"] == "haiku"
+
+
+def test_llm_route_planner_auto_uses_sonnet_for_pending_source_grounding() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_light_source_grounding_tier"
+    )
+    out_dir = root / "llm_route_planner"
+    source_grounding_dir = root / "source_grounding"
+    shutil.rmtree(root, ignore_errors=True)
+    source_grounding_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    (
+        source_grounding_dir
+        / "formalization_gap_planner_source_grounding_audit_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_source_grounding_audit",
+                "rows": [
+                    {
+                        "source_grounding_id": "source-grounding:rank-light",
+                        "route_id": "rank_route_light",
+                        "display_name": "distribution_free_rank_bound_light",
+                        "node_source": "literature_route_review",
+                        "node_id": "informal:rank_uniformity",
+                        "node_kind": "informal_knowledge_dag_node",
+                        "node_label": "Rank uniformity source support needs review",
+                        "source_refs": [],
+                        "source_snippets": [],
+                        "residual_goals": [],
+                        "residual_primitives": ["rank_uniformity"],
+                        "grounding_status": "source_search_pending",
+                        "required_next_action": "source_search",
+                        "ok": False,
+                        "errors": ["rank uniformity source evidence is pending"],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        formalization_gap_planner_source_grounding_audit_dir=source_grounding_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 0
+    packet = payload["request_packets"][0]
+    assert packet["model_tier"] == "sonnet"
+    assert packet["model"] == "claude-sonnet-4-6"
+    evidence = packet["model_tier_decision_evidence"]
+    assert evidence["decision_basis"] == "auto_sonnet_triggers"
+    assert evidence["route_signal_counts"]["source_grounding_unresolved_count"] == 1
+    assert evidence["source_grounding_obligations"]["pending"] is True
+    assert evidence["source_grounding_obligations"]["unresolved_grounding_statuses"] == [
+        "source_search_pending"
+    ]
+    assert any(
+        "pending source-grounding obligation" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
 
 
 def test_llm_route_planner_auto_uses_sonnet_for_unresolved_light_route_alignment() -> None:

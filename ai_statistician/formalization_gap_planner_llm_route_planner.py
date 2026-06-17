@@ -646,6 +646,7 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
     "auto_tier_rules": [
         "Use haiku for small routes whose primitives are already-exists, exact, near, wrapper, or different-formulation coverage and have no residual goals or pending resource dispatch.",
         "Use sonnet when prover residual goals, feedback-loop replan signals, or incomplete realization-coverage witnesses are present.",
+        "Use sonnet when source-grounding audit obligations are pending, especially residual goals without source-backed route repair.",
         "Use sonnet when resource-request queue rows, resource-request playbooks, or interactive-session resource dispatch bindings are present.",
         "Use sonnet when interactive-session route-adoption preconditions remain unresolved or carry known pre-response blockers.",
         "Use sonnet when target-intake rows expose missing proof sources, library-search requirements, proof-state probes, complex theorem shape, or large normalized theorem context.",
@@ -11422,6 +11423,9 @@ def _llm_route_planner_model_tier_decision(
         context_packet,
         feedback_summary=feedback_summary,
     )
+    source_grounding_obligations = _source_grounding_obligation_summary(
+        context_packet
+    )
     interactive_precondition_counts = (
         _context_interactive_route_adoption_precondition_counts(
             context_packet,
@@ -11439,6 +11443,7 @@ def _llm_route_planner_model_tier_decision(
         hard_markers=hard_markers,
         resource_dispatch_counts=resource_dispatch_counts,
         source_theorem_feedback_counts=source_theorem_feedback_counts,
+        source_grounding_obligations=source_grounding_obligations,
         interactive_precondition_counts=interactive_precondition_counts,
     )
     if requested in {"haiku", "sonnet", "opus"}:
@@ -11481,6 +11486,9 @@ def _llm_route_planner_model_tier_decision(
         )
     sonnet_reasons.extend(
         _source_theorem_feedback_sonnet_reasons(source_theorem_feedback_counts)
+    )
+    sonnet_reasons.extend(
+        _source_grounding_obligation_sonnet_reasons(source_grounding_obligations)
     )
     sonnet_reasons.extend(_target_intake_sonnet_reasons(context_packet))
     sonnet_reasons.extend(_seed_route_risk_sonnet_reasons(route, primitives))
@@ -11565,6 +11573,13 @@ def _llm_route_planner_model_tier_decision(
         ),
         "no_source_theorem_feedback": (
             source_theorem_feedback_counts["total_count"] == 0
+        ),
+        "no_pending_source_grounding_obligations": (
+            not bool(source_grounding_obligations.get("pending", False))
+        ),
+        "no_residual_source_grounding_obligations": (
+            int(source_grounding_obligations.get("n_residual_unresolved_rows", 0) or 0)
+            == 0
         ),
     }
     evidence = dict(base_evidence)
@@ -11763,6 +11778,29 @@ def _source_theorem_feedback_sonnet_reasons(
     return reasons
 
 
+def _source_grounding_obligation_sonnet_reasons(
+    obligations: Mapping[str, object],
+) -> list[str]:
+    if not bool(obligations.get("pending", False)):
+        return []
+    unresolved = int(obligations.get("n_unresolved_rows", 0) or 0)
+    residual_unresolved = int(
+        obligations.get("n_residual_unresolved_rows", 0) or 0
+    )
+    statuses = _str_tuple(obligations.get("unresolved_grounding_statuses", []))
+    reasons: list[str] = []
+    if residual_unresolved:
+        reasons.append(
+            f"{residual_unresolved} residual source-grounding obligation(s)"
+        )
+    if unresolved:
+        reason = f"{unresolved} pending source-grounding obligation row(s)"
+        if statuses:
+            reason += " with status " + ", ".join(statuses[:6])
+        reasons.append(reason)
+    return reasons
+
+
 def _route_coverage_action_markers(
     primitives: tuple[Mapping[str, Any], ...],
 ) -> set[str]:
@@ -11791,6 +11829,7 @@ def _model_tier_decision_evidence_base(
     hard_markers: list[str],
     resource_dispatch_counts: Mapping[str, int],
     source_theorem_feedback_counts: Mapping[str, int | bool],
+    source_grounding_obligations: Mapping[str, object],
     interactive_precondition_counts: Mapping[str, int],
 ) -> dict[str, object]:
     return {
@@ -11904,12 +11943,26 @@ def _model_tier_decision_evidence_base(
                 )
                 or 0
             ),
+            "source_grounding_row_count": int(
+                source_grounding_obligations.get("n_rows", 0) or 0
+            ),
+            "source_grounding_unresolved_count": int(
+                source_grounding_obligations.get("n_unresolved_rows", 0) or 0
+            ),
+            "residual_source_grounding_unresolved_count": int(
+                source_grounding_obligations.get(
+                    "n_residual_unresolved_rows",
+                    0,
+                )
+                or 0
+            ),
         },
         "context_resource_dispatch_counts": dict(resource_dispatch_counts),
         "interactive_route_adoption_precondition_counts": dict(
             interactive_precondition_counts
         ),
         "source_theorem_feedback_counts": dict(source_theorem_feedback_counts),
+        "source_grounding_obligations": dict(source_grounding_obligations),
         "coverage_action_markers": sorted(route_markers),
         "complex_coverage_action_markers": list(hard_markers),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
