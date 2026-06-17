@@ -25851,6 +25851,7 @@ def _feedback_next_actions(
         ):
             continue
         request_playbook = _dict_value(row, "request_playbook")
+        target_primitives = _feedback_row_target_primitives(row)
         actions.append(
             {
                 "source": "resource_request_queue",
@@ -25860,6 +25861,8 @@ def _feedback_next_actions(
                 or "dispatch_resource_request",
                 "resource_request_id": str(row.get("resource_request_id", "")).strip(),
                 "request_phase": str(row.get("request_phase", "")).strip(),
+                "primitive": target_primitives[0] if target_primitives else "",
+                "target_primitives": list(target_primitives[:8]),
                 "acceptance_gate": str(row.get("acceptance_gate", "")).strip(),
                 "expected_response_artifact": str(
                     row.get("expected_response_artifact", "")
@@ -25896,6 +25899,7 @@ def _feedback_next_actions(
             and _truthy(row.get("response_present"))
             and not _truthy(row.get("response_playbook_grounded"))
         ):
+            target_primitives = _feedback_row_target_primitives(row)
             actions.append(
                 {
                     "source": "resource_response_ledger",
@@ -25904,6 +25908,8 @@ def _feedback_next_actions(
                     "resource_request_id": str(
                         row.get("resource_request_id", "")
                     ).strip(),
+                    "primitive": target_primitives[0] if target_primitives else "",
+                    "target_primitives": list(target_primitives[:8]),
                     "acceptance_status": str(
                         row.get("acceptance_status", "")
                     ).strip(),
@@ -25934,12 +25940,15 @@ def _feedback_next_actions(
             or _str_tuple(row.get("route_revision_reasons", []))
         ):
             continue
+        target_primitives = _feedback_row_target_primitives(row)
         actions.append(
             {
                 "source": "resource_response_ledger",
                 "owner": str(row.get("resource_id", "")).strip(),
                 "action": "route_revision_recommended",
                 "resource_request_id": str(row.get("resource_request_id", "")).strip(),
+                "primitive": target_primitives[0] if target_primitives else "",
+                "target_primitives": list(target_primitives[:8]),
                 "acceptance_status": str(row.get("acceptance_status", "")).strip(),
                 "priority_score": _bounded_score(row.get("priority_score", 0)),
                 "minimal_delta_cost_score": _bounded_score(
@@ -26179,6 +26188,27 @@ def _feedback_next_actions(
             }
         )
     return actions[:12]
+
+
+def _feedback_row_target_primitives(row: Mapping[str, object]) -> tuple[str, ...]:
+    request_playbook = _dict_value(row, "request_playbook")
+    request_payload = _dict_value(row, "request_payload")
+    input_summary = _dict_value(request_playbook, "input_summary")
+    return _unique_strings(
+        [
+            *_str_tuple(row.get("target_primitives", [])),
+            *_str_tuple(row.get("target_primitive", [])),
+            str(row.get("primitive", "")).strip(),
+            *_str_tuple(row.get("primitives", [])),
+            *_str_tuple(request_playbook.get("target_primitives", [])),
+            *_str_tuple(request_playbook.get("target_primitive", [])),
+            str(request_playbook.get("primitive", "")).strip(),
+            str(input_summary.get("primitive", "")).strip(),
+            *_str_tuple(request_payload.get("target_primitives", [])),
+            *_str_tuple(request_payload.get("target_primitive", [])),
+            str(request_payload.get("primitive", "")).strip(),
+        ]
+    )
 
 
 def _collect_source_snippets(

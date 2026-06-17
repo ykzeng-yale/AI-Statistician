@@ -6103,6 +6103,8 @@ def test_llm_route_planner_rejected_playbook_grounding_response_requests_redispa
             "owner": "paperclip_mcp",
             "action": "redispatch_resource_response_with_request_playbook",
             "resource_request_id": "resource-request:rank_route",
+            "primitive": "rank_uniformity",
+            "target_primitives": ["rank_uniformity"],
             "acceptance_status": (
                 "REJECTED_RESPONSE_NOT_GROUNDED_IN_REQUEST_PLAYBOOK"
             ),
@@ -6351,6 +6353,10 @@ def test_llm_route_planner_stages_pending_resource_request_queue() -> None:
         "resource_request_queue"
     )
     assert summary["recommended_next_actions"][0]["owner"] == "paperclip_cli_mcp"
+    assert summary["recommended_next_actions"][0]["primitive"] == "rank_uniformity"
+    assert summary["recommended_next_actions"][0]["target_primitives"] == [
+        "rank_uniformity"
+    ]
     assert summary["recommended_next_actions"][0]["request_playbook_present"] is True
     assert summary["recommended_next_actions"][0]["operator_prompt"].startswith(
         "Use paperclip_cli_mcp"
@@ -6361,6 +6367,100 @@ def test_llm_route_planner_stages_pending_resource_request_queue() -> None:
     assert summary["recommended_next_actions"][0]["resource_contracts"] == [
         "paperclip:source_snippet_contract"
     ]
+
+
+def test_llm_route_planner_resource_queue_feedback_uses_structured_target_primitives() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_resource_queue_structured_targets"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_request_queue_dir = _write_resource_request_queue(root)
+    manifest_path = (
+        resource_request_queue_dir
+        / "formalization_gap_planner_resource_request_queue_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    queue_row = manifest["rows"][0]
+    queue_row["queue_action_kind"] = "literature_grounded_route_synthesis"
+    queue_row["execution_command"] = "paperclip search --query 'queued source evidence'"
+    queue_row["request_payload"]["source_query"] = "queued source evidence"
+    queue_row["request_playbook"]["operator_prompt"] = (
+        "Use paperclip_cli_mcp to satisfy this queued source-evidence request."
+    )
+    queue_row["request_playbook"]["execution_command"] = (
+        "paperclip search --query 'queued source evidence'"
+    )
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = [
+        {
+            "owner": "paperclip_cli_mcp",
+            "action": (
+                "dispatch queued source_refs source_snippets "
+                "route_revision_recommended evidence request"
+            ),
+            "resource_request_id": "resource-request:rank_route",
+            "resource_id": "paperclip_cli_mcp",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_request_queue_dir=(
+            resource_request_queue_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    feedback_action = payload["request_packets"][0]["context_packet"][
+        "feedback_loop_summary"
+    ]["recommended_next_actions"][0]
+    assert feedback_action["source"] == "resource_request_queue"
+    assert feedback_action["primitive"] == "rank_uniformity"
+    assert feedback_action["target_primitives"] == ["rank_uniformity"]
+    seed_route = payload["standalone_seed"]["routes"][0]
+    feedback_hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_feedback_next_action", {}).get("source")
+        == "resource_request_queue"
+    )
+    assert feedback_hook["target_primitives"] == ["rank_uniformity"]
+
+    plan_dir = root / "standalone_plan_from_resource_queue_structured_targets"
+    refinement_queue_dir = root / "refinement_queue_from_resource_queue_structured_targets"
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    queue_payload = export_formalization_gap_planner_refinement_queue(
+        plan_dir,
+        refinement_queue_dir,
+    )
+    assert queue_payload["all_ok"]
+    feedback_queue_row = next(
+        row
+        for row in queue_payload["rows"]
+        if row["hook_kind"] == "literature_discovery"
+        and row["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_feedback_next_action", {}
+        ).get("source")
+        == "resource_request_queue"
+    )
+    assert feedback_queue_row["target_primitives"] == ("rank_uniformity",)
 
 
 def test_llm_route_planner_cli_stages_resource_request_queue(capsys) -> None:
