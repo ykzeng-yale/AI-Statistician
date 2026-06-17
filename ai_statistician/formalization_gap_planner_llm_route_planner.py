@@ -11363,6 +11363,7 @@ def _user_prompt(
             "Return only JSON.",
             target_intake_requirement,
             "Use context_packet.target_theorem_context_packet as the compact target theorem context packet for theorem statement, skeleton, objects, assumptions, statistical procedure, desired conclusion, proof-style hints, source/formal queries, and residual goals; raw context_packet rows remain the source of truth if a count or summary is surprising.",
+            "When context_packet.target_theorem_context_packet has normalized objects, assumptions, procedures, desired conclusions, theorem shapes, or proof source refs, return target_context_summary preserving those exact request values; this summary is planning context, not proof evidence.",
             "standalone_route.theorem_statement must preserve the requested target theorem identity; route repairs may add explicit side-condition notes but must not switch to a different theorem.",
             "Every informal DAG node must have source_refs, a source_search_status, or a formal_gap_boundary.",
             "source_search_status values are limited to SOURCE_BACKED, SEARCH_REQUESTED/search_pending/source_search_pending/literature_search_pending, or FORMAL_GAP_BOUNDARY/formal_boundary_declared; unsupported status strings are rejected.",
@@ -12314,6 +12315,20 @@ def llm_route_planner_response_payload_schema(
                 },
             },
             "minimal_delta_plan": {"$ref": "#/$defs/minimal_delta_plan"},
+            "target_context_summary": {
+                "type": "object",
+                "additionalProperties": True,
+                "properties": {
+                    "normalized_objects": string_array,
+                    "normalized_assumptions": string_array,
+                    "normalized_procedures": string_array,
+                    "desired_conclusions": string_array,
+                    "desired_theorem_shapes": string_array,
+                    "target_intake_ids": string_array,
+                    "proof_source_refs": string_array,
+                    "proof_evidence_boundary": {"type": "string"},
+                },
+            },
             "residual_interpretations": {
                 "type": "array",
                 "items": {
@@ -15352,6 +15367,7 @@ def _response_contract_errors(
     errors.extend(_response_formal_gap_boundary_errors(payload, request))
     errors.extend(_response_source_ref_grounding_errors(payload, request))
     errors.extend(_response_target_theorem_identity_errors(payload, request))
+    errors.extend(_response_target_context_summary_errors(payload, request))
     errors.extend(_response_target_prover_consistency_errors(payload, request))
     errors.extend(_response_target_prover_tool_scope_errors(payload, request))
     errors.extend(_response_search_request_contract_errors(payload))
@@ -18628,6 +18644,105 @@ def _response_target_theorem_identity_errors(
         f"request_route_id={request.get('route_id', '')}; "
         f"request_display_name={request_route.get('display_name', '')}"
     ]
+
+
+TARGET_CONTEXT_SUMMARY_FIELDS = (
+    "normalized_objects",
+    "normalized_assumptions",
+    "normalized_procedures",
+    "desired_conclusions",
+    "desired_theorem_shapes",
+    "target_intake_ids",
+    "proof_source_refs",
+)
+
+TARGET_CONTEXT_SUMMARY_REQUIRED_FIELDS = (
+    "normalized_objects",
+    "normalized_assumptions",
+    "normalized_procedures",
+    "desired_conclusions",
+    "desired_theorem_shapes",
+    "target_intake_ids",
+)
+
+
+def _response_target_context_summary_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    target_context = _dict_value(
+        _dict_value(request, "context_packet"),
+        "target_theorem_context_packet",
+    )
+    has_normalized_target_context = any(
+        _str_tuple(target_context.get(field_name, []))
+        for field_name in TARGET_CONTEXT_SUMMARY_REQUIRED_FIELDS
+    )
+    if not has_normalized_target_context:
+        return []
+
+    expected = {
+        field_name: _str_tuple(target_context.get(field_name, []))
+        for field_name in TARGET_CONTEXT_SUMMARY_FIELDS
+    }
+    expected = {
+        field_name: values
+        for field_name, values in expected.items()
+        if values
+    }
+    if not expected:
+        return []
+
+    summary = _dict_value(payload, "target_context_summary")
+    if not summary:
+        summary = _dict_value(
+            _dict_value(payload, "standalone_route"),
+            "target_context_summary",
+        )
+    if not summary:
+        return [
+            "target_context_summary required when "
+            "context_packet.target_theorem_context_packet has normalized "
+            "objects, assumptions, procedures, desired conclusions, theorem "
+            "shapes, or target intake ids"
+        ]
+
+    errors: list[str] = []
+    for field_name, expected_values in expected.items():
+        actual_values = _str_tuple(summary.get(field_name, []))
+        missing = _missing_target_context_summary_values(
+            expected_values,
+            actual_values,
+        )
+        if missing:
+            errors.append(
+                f"target_context_summary.{field_name} must preserve "
+                "context_packet.target_theorem_context_packet values; missing: "
+                + "; ".join(missing[:8])
+            )
+    if "not theorem proof evidence" not in str(
+        summary.get("proof_evidence_boundary", PROOF_EVIDENCE_BOUNDARY)
+    ).lower():
+        errors.append(
+            "target_context_summary.proof_evidence_boundary must say not theorem proof evidence"
+        )
+    return errors
+
+
+def _missing_target_context_summary_values(
+    expected_values: tuple[str, ...],
+    actual_values: tuple[str, ...],
+) -> tuple[str, ...]:
+    actual_keys = {_target_context_summary_value_key(value) for value in actual_values}
+    return tuple(
+        value
+        for value in expected_values
+        if _target_context_summary_value_key(value) not in actual_keys
+    )
+
+
+def _target_context_summary_value_key(value: object) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip().lower())
 
 
 def _target_theorem_identity_anchors(

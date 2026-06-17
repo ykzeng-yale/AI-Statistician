@@ -191,6 +191,75 @@ def _write_light_input(root: Path) -> Path:
     return input_json
 
 
+def _write_rank_target_intake_manifest(target_intake_dir: Path) -> None:
+    target_intake_dir.mkdir(parents=True, exist_ok=True)
+    (
+        target_intake_dir / "formalization_gap_planner_target_intake_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_target_intake",
+                "rows": [
+                    {
+                        "schema_version": 1,
+                        "target_intake_id": "target-intake:rank-context",
+                        "target_id": "distribution_free_rank_bound",
+                        "display_name": "distribution free rank bound",
+                        "domain": "conformal_prediction",
+                        "target_prover_family": "lean4",
+                        "library_snapshot_ref": "lean_mathlib_snapshot",
+                        "theorem_statement": (
+                            "A distribution-free rank bound follows from "
+                            "exchangeability."
+                        ),
+                        "theorem_skeleton": "",
+                        "normalized_objects": [
+                            "calibration scores",
+                            "test score",
+                            "rank statistic",
+                        ],
+                        "normalized_assumptions": [
+                            "exchangeability",
+                            "deterministic tie handling",
+                        ],
+                        "normalized_procedure": "split conformal prediction",
+                        "normalized_claim": "finite-sample rank coverage",
+                        "desired_theorem_shape": "finite_sample_rank_coverage",
+                        "proof_source_refs": ["conformal_prediction_textbook"],
+                        "primitive_seed_rows": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                            }
+                        ],
+                        "extracted_primitive_candidates": ["rank_uniformity"],
+                        "background_primitives": ["exchangeability"],
+                        "standalone_route_id": "rank_route",
+                        "literature_queries": ["finite rank coverage under exchangeability"],
+                        "formal_library_grounding_queries": [
+                            "rank uniformity bridge lemma"
+                        ],
+                        "lean_grounding_queries": [],
+                        "proof_state_probe_required": False,
+                        "missing_required_fields": [],
+                        "review_flags": [],
+                        "proof_evidence_status": (
+                            "FORMALIZATION_GAP_PLANNER_TARGET_INTAKE_NOT_PROOF_EVIDENCE"
+                        ),
+                        "proof_evidence_boundary": (
+                            "target intake is not theorem proof evidence"
+                        ),
+                        "ok": True,
+                        "errors": [],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
 def _llm_response_payload() -> dict[str, object]:
     rank_source_snippet = {
         "source_ref": "conformal_prediction_textbook",
@@ -3612,6 +3681,87 @@ def test_llm_route_planner_stages_target_intake_context() -> None:
     assert "formal_library_grounding_queries" in prompt_text
     assert "legacy alias" in prompt_text
     assert "target intake is not proof evidence" in prompt_text
+
+
+def test_llm_route_planner_rejects_missing_target_context_summary() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_missing_target_context_summary"
+    )
+    out_dir = root / "llm_route_planner"
+    target_intake_dir = root / "target_intake"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    _write_rank_target_intake_manifest(target_intake_dir)
+    response_json.write_text(
+        json.dumps(_llm_response_payload(), indent=2),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["response_contract_ok"] is False
+    assert any(
+        "target_context_summary required when "
+        "context_packet.target_theorem_context_packet has normalized" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_accepts_target_context_summary() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_target_context_summary"
+    )
+    out_dir = root / "llm_route_planner"
+    target_intake_dir = root / "target_intake"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    _write_rank_target_intake_manifest(target_intake_dir)
+    response = _llm_response_payload()
+    response["target_context_summary"] = {
+        "normalized_objects": [
+            "calibration scores",
+            "test score",
+            "rank statistic",
+        ],
+        "normalized_assumptions": [
+            "exchangeability",
+            "deterministic tie handling",
+        ],
+        "normalized_procedures": ["split conformal prediction"],
+        "desired_conclusions": ["finite-sample rank coverage"],
+        "desired_theorem_shapes": ["finite_sample_rank_coverage"],
+        "target_intake_ids": ["target-intake:rank-context"],
+        "proof_source_refs": ["conformal_prediction_textbook"],
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["response_contract_ok"] is True
+    assert row["target_theorem_context_packet"]["normalized_assumptions"] == [
+        "exchangeability",
+        "deterministic tie handling",
+    ]
 
 
 def test_llm_route_planner_auto_uses_sonnet_for_source_unbacked_target_intake() -> None:

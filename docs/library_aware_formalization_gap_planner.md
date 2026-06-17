@@ -823,6 +823,11 @@ model emits the informal DAG, formal-realization DAG, alignment edges, and
 minimal-delta plan. Request and manifest validation check the brief and target
 context counts against the raw context and inventory, so they are auditable
 planning guidance rather than separate evidence sources.
+When target-intake rows contribute normalized objects, assumptions, procedures,
+desired conclusions, theorem shapes, or proof-source refs, accepted LLM response
+payloads must include `target_context_summary` preserving those request values;
+the summary is planning context and explicitly remains outside theorem-proof
+evidence.
 Accepted and fallback LLM route-planner rows now also publish the same
 `target_theorem_context_packet` and the compact `route_planning_brief`, and
 standalone/replan seeds copy them to route-level provenance and
