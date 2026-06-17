@@ -19000,6 +19000,120 @@ def test_llm_route_planner_accepts_introduced_source_backed_bridge_primitive() -
     assert row["acceptance_status"] == "ACCEPTED_WITH_SEARCH_REQUESTS"
 
 
+def test_llm_route_planner_rejects_introduced_primitive_with_vague_source_node() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_vague_source_node"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    bad_response = _llm_response_payload()
+    primitive = "phantom_compactness"
+    bad_response["informal_knowledge_dag_nodes"].append(
+        {
+            "node_id": "informal:source_backed_side_condition",
+            "claim": (
+                "A source-backed side condition is needed somewhere in this "
+                "rank route."
+            ),
+            "depends_on": ["informal:rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "source_search_status": "SOURCE_BACKED",
+            "semantic_role": "side_condition",
+        }
+    )
+    bad_response["informal_knowledge_dag_edges"].append(
+        {
+            "source_node_id": "informal:rank_uniformity",
+            "target_node_id": "informal:source_backed_side_condition",
+            "edge_kind": "requires",
+            "rationale": (
+                "The vague side condition is downstream of the rank-uniformity "
+                "route."
+            ),
+        }
+    )
+    bad_response["lean_realization_dag_nodes"].append(
+        {
+            "node_id": "formal:phantom_compactness_bridge",
+            "primitive": primitive,
+            "coverage_bucket": "bridge",
+            "candidate_declarations": [],
+            "formalization_action": "prove_bridge",
+        }
+    )
+    bad_response["formal_realization_dag_edges"].append(
+        {
+            "source_node_id": "formal:rank_uniformity_bridge",
+            "target_node_id": "formal:phantom_compactness_bridge",
+            "edge_kind": "bridges",
+            "rationale": (
+                "The phantom compactness bridge is downstream of the rank "
+                "uniformity bridge."
+            ),
+        }
+    )
+    bad_response["route_alignment_edges"].append(
+        {
+            "informal_node_id": "informal:source_backed_side_condition",
+            "formal_node_id": "formal:phantom_compactness_bridge",
+            "alignment_status": "bridge_needed",
+            "alignment_rationale": (
+                "The vague source-backed side condition is claimed to support "
+                "the phantom_compactness bridge."
+            ),
+        }
+    )
+    bad_response["minimal_delta_plan"]["selected_primitives"].append(primitive)
+    bad_response["minimal_delta_plan"]["bridge_lemmas"].append(
+        "phantom_compactness: prove the claimed compactness bridge lemma"
+    )
+    _append_bridge_cost(bad_response, primitive)
+    bad_response["standalone_route"]["primitives"].append(
+        {
+            "primitive": primitive,
+            "coverage_status": "bridge_needed",
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    )
+    bad_response["formal_attempt_queue"].append(
+        {
+            "attempt_id": "attempt:phantom_compactness_bridge",
+            "formal_node_id": "formal:phantom_compactness_bridge",
+            "primitive": primitive,
+            "target_prover_family": "lean4",
+            "owner": "lean_lsp_mcp",
+            "action": (
+                "lean_lsp proof-state attempt for phantom_compactness after "
+                "rank_uniformity"
+            ),
+            "attempt_kind": "bridge_proof",
+            "prerequisite_formal_node_ids": ["formal:rank_uniformity_bridge"],
+            "expected_feedback": ["residual_goals", "missing_side_conditions"],
+            "target_primitives": [primitive],
+        }
+    )
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "introduced primitive requires aligned informal evidence" in error
+        and "explicit primitive scope" in error
+        and primitive in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_incoherent_selected_primitives() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_rejects_primitives")
     response_json = root / "bad_response.json"
