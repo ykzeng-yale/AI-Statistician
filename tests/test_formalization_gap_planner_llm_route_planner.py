@@ -2174,6 +2174,10 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert {"codex", "codex_exec"}.isdisjoint(
         set(generation_policy["supported_live_generator_providers"])
     )
+    assert any(
+        "source-grounding" in rule.lower() and "sonnet" in rule.lower()
+        for rule in generation_policy["auto_tier_rules"]
+    )
     assert generation_policy["proof_evidence_status"] == (
         "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
     )
@@ -2265,6 +2269,17 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert (
         "llm_generation_policy.resolved_model must match model"
         in validate_llm_route_planner_request(drifted_request)
+    )
+    stale_auto_rule_request = deepcopy(request)
+    stale_auto_rule_request["llm_generation_policy"]["auto_tier_rules"] = [
+        rule
+        for rule in generation_policy["auto_tier_rules"]
+        if "source-grounding" not in rule.lower()
+    ]
+    assert (
+        "llm_generation_policy.auto_tier_rules must route pending "
+        "source-grounding obligations to Sonnet"
+        in validate_llm_route_planner_request(stale_auto_rule_request)
     )
     stale_tier_policy_request = deepcopy(request)
     stale_tier_policy_request["llm_generation_policy"]["claude_models_by_tier"][

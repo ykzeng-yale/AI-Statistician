@@ -11250,6 +11250,18 @@ def _llm_generation_policy_errors(row: Mapping[str, object]) -> list[str]:
             "llm_generation_policy.supported_live_generator_providers must not "
             "include codex or codex_exec"
         )
+    auto_rules = policy.get("auto_tier_rules", [])
+    if not isinstance(auto_rules, list) or not auto_rules:
+        errors.append("llm_generation_policy.auto_tier_rules missing")
+    elif not any(
+        "source-grounding" in str(rule).lower()
+        and "sonnet" in str(rule).lower()
+        for rule in auto_rules
+    ):
+        errors.append(
+            "llm_generation_policy.auto_tier_rules must route pending "
+            "source-grounding obligations to Sonnet"
+        )
     if policy.get("proof_evidence_status") != PROOF_EVIDENCE_STATUS:
         errors.append("llm_generation_policy.proof_evidence_status mismatch")
     if "not theorem proof evidence" not in str(
