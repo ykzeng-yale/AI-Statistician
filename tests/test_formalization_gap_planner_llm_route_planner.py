@@ -3758,10 +3758,55 @@ def test_llm_route_planner_accepts_target_context_summary() -> None:
     assert payload["all_ok"]
     row = payload["rows"][0]
     assert row["response_contract_ok"] is True
+    assert payload["n_rows_with_target_context_summary"] == 1
+    assert row["target_context_summary"] == response["target_context_summary"]
     assert row["target_theorem_context_packet"]["normalized_assumptions"] == [
         "exchangeability",
         "deterministic tie handling",
     ]
+    row_schema = llm_route_planner_row_json_schema()
+    assert "target_context_summary" in row_schema["required"]
+    assert validate_llm_route_planner_row(row, row_schema) == []
+    drifted_row = deepcopy(row)
+    drifted_row["target_context_summary"]["normalized_assumptions"] = [
+        "exchangeability"
+    ]
+    assert (
+        "target_context_summary.normalized_assumptions must match "
+        "target_theorem_context_packet values"
+    ) in validate_llm_route_planner_row(drifted_row, row_schema)
+    seed_route = payload["standalone_seed"]["routes"][0]
+    metadata = seed_route["replan_metadata"]
+    assert seed_route["llm_route_planner_target_context_summary"] == row[
+        "target_context_summary"
+    ]
+    assert metadata["llm_route_planner_target_context_summary"] == row[
+        "target_context_summary"
+    ]
+    drifted_seed = deepcopy(payload["standalone_seed"])
+    drifted_seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_target_context_summary"
+    ]["normalized_assumptions"] = ["exchangeability"]
+    assert (
+        "routes[0].llm_route_planner_target_context_summary must match "
+        "routes[0].replan_metadata.llm_route_planner_target_context_summary"
+    ) in validate_standalone_input_payload(drifted_seed)
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        root / "standalone_plan_from_target_context_summary",
+    )
+    assert plan_payload["all_ok"]
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_llm_target_context_summary"
+        ]
+        == 1
+    )
+    trace = plan_payload["rows"][0]["standalone_input_trace"]
+    assert trace["llm_route_planner_target_context_summary"] == row[
+        "target_context_summary"
+    ]
+    assert trace["has_llm_route_planner_target_context_summary"] is True
 
 
 def test_llm_route_planner_auto_uses_sonnet_for_source_unbacked_target_intake() -> None:
@@ -9510,6 +9555,8 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert row["target_theorem_context_packet"] == payload["request_packets"][0][
         "context_packet"
     ]["target_theorem_context_packet"]
+    assert row["target_context_summary"] == {}
+    assert payload["n_rows_with_target_context_summary"] == 0
     assert row["informal_knowledge_dag_edges"][0]["source_node_id"] == (
         "informal:exchangeability"
     )
@@ -9532,10 +9579,12 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "realization_coverage_witness" in row_schema["required"]
     assert "primitive_evidence_matrix_witness" in row_schema["required"]
     assert "target_theorem_context_packet" in row_schema["required"]
+    assert "target_context_summary" in row_schema["required"]
     assert "context_packet_inventory" in row_schema["required"]
     assert "model_tier_decision_evidence" in row_schema["required"]
     assert row_schema["properties"]["model_tier_decision_evidence"]["type"] == "object"
     assert row_schema["properties"]["target_theorem_context_packet"]["type"] == "object"
+    assert row_schema["properties"]["target_context_summary"]["type"] == "object"
     assert row_schema["properties"]["context_packet_inventory"]["type"] == "object"
     assert row_schema["properties"]["realization_coverage_witness"] == {
         "$ref": "#/$defs/realization_coverage_witness"
@@ -9558,6 +9607,7 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     )
     manifest_schema = llm_route_planner_manifest_json_schema()
     assert "legacy_response_field_aliases" in manifest_schema["required"]
+    assert "n_rows_with_target_context_summary" in manifest_schema["required"]
     assert (
         "n_request_source_theorem_semantic_primitive_rows"
         in manifest_schema["required"]

@@ -1050,6 +1050,7 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     quality_control_obligations: dict[str, object]
     feedback_loop_summary: dict[str, object]
     target_theorem_context_packet: dict[str, object]
+    target_context_summary: dict[str, object]
     route_planning_brief: dict[str, object]
     route_adoption_preconditions: dict[str, object]
     source_grounding_rows: tuple[dict[str, object], ...]
@@ -3252,6 +3253,9 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_rows_with_context_packet_inventory": sum(
             1 for row in rows if row.context_packet_inventory
         ),
+        "n_rows_with_target_context_summary": sum(
+            1 for row in rows if row.target_context_summary
+        ),
         "n_rows_with_route_adoption_preconditions": sum(
             1 for row in rows if row.route_adoption_preconditions
         ),
@@ -4273,6 +4277,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_rows_with_route_option_action_witness_obligations",
             "n_rows_with_complete_route_option_action_witness",
             "n_rows_with_context_packet_inventory",
+            "n_rows_with_target_context_summary",
             "n_rows_with_route_adoption_preconditions",
             "n_row_route_adoption_precondition_known_blockers",
             "n_row_schema_valid",
@@ -4663,6 +4668,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_route_option_action_witness_missing_primitives": nonnegative_integer,
             "n_rows_with_route_option_action_witness_obligations": nonnegative_integer,
             "n_rows_with_complete_route_option_action_witness": nonnegative_integer,
+            "n_rows_with_target_context_summary": nonnegative_integer,
             "n_rows_with_context_packet_inventory": nonnegative_integer,
             "n_rows_with_route_adoption_preconditions": nonnegative_integer,
             "n_row_route_adoption_precondition_known_blockers": nonnegative_integer,
@@ -4834,6 +4840,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "quality_control_obligations",
             "feedback_loop_summary",
             "target_theorem_context_packet",
+            "target_context_summary",
             "route_planning_brief",
             "route_adoption_preconditions",
             "context_packet_inventory",
@@ -4895,6 +4902,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "quality_control_obligations": {"type": "object"},
             "feedback_loop_summary": {"type": "object"},
             "target_theorem_context_packet": {"type": "object"},
+            "target_context_summary": {"type": "object"},
             "route_planning_brief": {"type": "object"},
             "route_adoption_preconditions": {"type": "object"},
             "source_grounding_rows": object_array,
@@ -5319,6 +5327,15 @@ def validate_llm_route_planner_manifest(
         errors.append(
             "n_rows_with_primitive_evidence_matrix_witness must match rows"
         )
+    n_rows_with_target_context_summary = sum(
+        1
+        for row in manifest_rows
+        if _dict_value(row, "target_context_summary")
+    )
+    if int(
+        manifest.get("n_rows_with_target_context_summary", 0) or 0
+    ) != n_rows_with_target_context_summary:
+        errors.append("n_rows_with_target_context_summary must match rows")
     n_rows_with_complete_matrix_witness = sum(
         1
         for row in manifest_rows
@@ -7120,6 +7137,42 @@ def validate_llm_route_planner_row(
         ):
             errors.append(
                 "target_theorem_context_packet.target_prover_family must match row target_prover_family"
+            )
+    target_context_summary = _dict_value(row, "target_context_summary")
+    has_normalized_target_context = any(
+        _str_tuple(target_context.get(field_name, []))
+        for field_name in TARGET_CONTEXT_SUMMARY_REQUIRED_FIELDS
+    )
+    if (
+        row.get("response_contract_ok")
+        and has_normalized_target_context
+        and not target_context_summary
+    ):
+        errors.append(
+            "target_context_summary required for accepted rows with normalized target theorem context"
+        )
+    if target_context_summary:
+        for field_name in TARGET_CONTEXT_SUMMARY_FIELDS:
+            expected_values = _str_tuple(target_context.get(field_name, []))
+            if not expected_values:
+                continue
+            missing = _missing_target_context_summary_values(
+                expected_values,
+                _str_tuple(target_context_summary.get(field_name, [])),
+            )
+            if missing:
+                errors.append(
+                    f"target_context_summary.{field_name} must match "
+                    "target_theorem_context_packet values"
+                )
+        if "not theorem proof evidence" not in str(
+            target_context_summary.get(
+                "proof_evidence_boundary",
+                PROOF_EVIDENCE_BOUNDARY,
+            )
+        ).lower():
+            errors.append(
+                "target_context_summary.proof_evidence_boundary must say not theorem proof evidence"
             )
     primitive_matrix_witness = _dict_value(row, "primitive_evidence_matrix_witness")
     route_planning_brief = _dict_value(row, "route_planning_brief")
@@ -14712,6 +14765,7 @@ def _row_for_request(
         context_packet,
         "context_packet_inventory",
     )
+    target_context_summary = _payload_target_context_summary(payload)
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     source_grounding_obligations = _source_grounding_obligation_summary(
         context_packet
@@ -14834,6 +14888,7 @@ def _row_for_request(
         target_theorem_context_packet=dict(
             _dict_value(context_packet, "target_theorem_context_packet")
         ),
+        target_context_summary=target_context_summary,
         route_planning_brief=dict(
             _dict_value(context_packet, "route_planning_brief")
         ),
@@ -18727,6 +18782,16 @@ def _response_target_context_summary_errors(
             "target_context_summary.proof_evidence_boundary must say not theorem proof evidence"
         )
     return errors
+
+
+def _payload_target_context_summary(payload: Mapping[str, Any]) -> dict[str, object]:
+    summary = _dict_value(payload, "target_context_summary")
+    if not summary:
+        summary = _dict_value(
+            _dict_value(payload, "standalone_route"),
+            "target_context_summary",
+        )
+    return dict(summary)
 
 
 def _missing_target_context_summary_values(
@@ -28853,6 +28918,7 @@ def _fallback_route_for_seed(
 ) -> dict[str, object]:
     fallback = dict(route)
     target_context_packet = dict(row.target_theorem_context_packet)
+    target_context_summary = dict(row.target_context_summary)
     route_planning_brief = dict(row.route_planning_brief)
     route_adoption_preconditions = dict(row.route_adoption_preconditions)
     source_grounding_obligations = dict(row.source_grounding_obligations)
@@ -28890,6 +28956,9 @@ def _fallback_route_for_seed(
         ),
         "target_theorem_context_packet": target_context_packet,
         "llm_route_planner_target_theorem_context_packet": target_context_packet,
+        "llm_route_planner_target_context_summary": deepcopy(
+            target_context_summary
+        ),
         "llm_route_planner_route_planning_brief": route_planning_brief,
         "llm_route_planner_primitive_evidence_matrix_witness": (
             primitive_evidence_matrix_witness
@@ -28906,6 +28975,10 @@ def _fallback_route_for_seed(
     }
     fallback["target_prover_family"] = row.target_prover_family
     fallback["target_theorem_context_packet"] = target_context_packet
+    if target_context_summary:
+        fallback["llm_route_planner_target_context_summary"] = deepcopy(
+            target_context_summary
+        )
     if route_planning_brief:
         fallback["llm_route_planner_route_planning_brief"] = route_planning_brief
     if primitive_evidence_matrix_witness:
@@ -28939,12 +29012,17 @@ def _accepted_route_for_seed(
 ) -> dict[str, object]:
     route = dict(row.standalone_route)
     target_context_packet = dict(row.target_theorem_context_packet)
+    target_context_summary = dict(row.target_context_summary)
     route_planning_brief = dict(row.route_planning_brief)
     route_adoption_preconditions = dict(row.route_adoption_preconditions)
     source_grounding_obligations = dict(row.source_grounding_obligations)
     primitive_evidence_matrix_witness = dict(row.primitive_evidence_matrix_witness)
     route["target_prover_family"] = row.target_prover_family
     route["target_theorem_context_packet"] = target_context_packet
+    if target_context_summary:
+        route["llm_route_planner_target_context_summary"] = deepcopy(
+            target_context_summary
+        )
     if route_planning_brief:
         route["llm_route_planner_route_planning_brief"] = route_planning_brief
     if primitive_evidence_matrix_witness:
@@ -29254,6 +29332,9 @@ def _accepted_route_for_seed(
         "llm_route_planner_feedback_loop_summary": dict(row.feedback_loop_summary),
         "target_theorem_context_packet": target_context_packet,
         "llm_route_planner_target_theorem_context_packet": target_context_packet,
+        "llm_route_planner_target_context_summary": deepcopy(
+            target_context_summary
+        ),
         "llm_route_planner_route_planning_brief": route_planning_brief,
         "llm_route_planner_route_adoption_preconditions": route_adoption_preconditions,
         "llm_route_planner_source_grounding_rows": [

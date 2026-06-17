@@ -355,6 +355,26 @@ def test_standalone_gap_planner_preserves_llm_minimal_delta_cost_graph_trace() -
                 "cost_rationale": "Source port is broader than the bridge.",
             },
         ],
+        "and_edges": [
+            {
+                "route_option_id": "route_option:bridge_rank",
+                "requires": ["exchangeability", "rank_uniformity"],
+            },
+            {
+                "route_option_id": "route_option:source_port_rank",
+                "requires": ["exchangeability", "rank_uniformity"],
+            },
+        ],
+        "or_nodes": [
+            {
+                "node_id": "or:rank_route_choice",
+                "choices": [
+                    "route_option:bridge_rank",
+                    "route_option:source_port_rank",
+                ],
+                "selection_rationale": "Choose the lowest-cost route option.",
+            }
+        ],
     }
     realization_witness = {
         "selected_primitives": ["exchangeability", "rank_uniformity"],

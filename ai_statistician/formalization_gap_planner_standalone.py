@@ -277,6 +277,13 @@ def export_formalization_gap_planner_standalone_plan(
                 "has_llm_route_planner_target_theorem_context_packet"
             )
         ),
+        "n_standalone_input_traces_with_llm_target_context_summary": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "has_llm_route_planner_target_context_summary"
+            )
+        ),
         "n_standalone_input_traces_with_llm_route_planning_brief": sum(
             1
             for row in rows
@@ -778,6 +785,21 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
                 f"routes[{idx}].target_theorem_context_packet must match "
                 f"routes[{idx}].replan_metadata.target_theorem_context_packet"
             )
+        route_target_context_summary = _dict_value(
+            route.get("llm_route_planner_target_context_summary", {})
+        )
+        metadata_target_context_summary = _dict_value(
+            metadata.get("llm_route_planner_target_context_summary", {})
+        )
+        if (
+            route_target_context_summary
+            and metadata_target_context_summary
+            and route_target_context_summary != metadata_target_context_summary
+        ):
+            errors.append(
+                f"routes[{idx}].llm_route_planner_target_context_summary must match "
+                f"routes[{idx}].replan_metadata.llm_route_planner_target_context_summary"
+            )
         route_adoption_preconditions = _dict_value(
             route.get("llm_route_planner_route_adoption_preconditions", {})
         )
@@ -1271,6 +1293,7 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "theorem_statement": {"type": "string"},
                     "theorem_skeleton": {"type": "string"},
                     "target_theorem_context_packet": {"type": "object"},
+                    "llm_route_planner_target_context_summary": {"type": "object"},
                     "llm_route_planner_route_planning_brief": {"type": "object"},
                     "llm_route_planner_primitive_evidence_matrix_witness": {
                         "type": "object"
@@ -1480,6 +1503,7 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "llm_route_planner_target_theorem_context_packet": {
                         "type": "object"
                     },
+                    "llm_route_planner_target_context_summary": {"type": "object"},
                     "llm_route_planner_route_planning_brief": {"type": "object"},
                     "llm_route_planner_primitive_evidence_matrix_witness": {
                         "type": "object"
@@ -2054,6 +2078,12 @@ def _standalone_input_trace(
     llm_target_context_packet = _dict_value(
         metadata.get("llm_route_planner_target_theorem_context_packet", {})
     )
+    llm_target_context_summary = _dict_value(
+        metadata.get(
+            "llm_route_planner_target_context_summary",
+            raw_route.get("llm_route_planner_target_context_summary", {}),
+        )
+    )
     llm_route_planning_brief = _dict_value(
         metadata.get(
             "llm_route_planner_route_planning_brief",
@@ -2132,6 +2162,12 @@ def _standalone_input_trace(
         "has_target_theorem_context_packet": bool(target_context_packet),
         "has_llm_route_planner_target_theorem_context_packet": bool(
             llm_target_context_packet
+        ),
+        "llm_route_planner_target_context_summary": dict(
+            llm_target_context_summary
+        ),
+        "has_llm_route_planner_target_context_summary": bool(
+            llm_target_context_summary
         ),
         "llm_route_planner_route_planning_brief": dict(llm_route_planning_brief),
         "has_llm_route_planner_route_planning_brief": bool(
