@@ -11402,7 +11402,7 @@ def _user_prompt(
             "Resource-response ledger rows with awaiting, rejected, absent-response, failed-contract, or unmet-contract-minimum status are status-only; do not use them as residual-goal or route-repair evidence.",
             "Residual interpretations may cover only residual_goals listed in the request packet.",
             "If request residual_goals are present, every residual goal must have an interpretation and a route_repair or repair_action.",
-            "When context_packet.residual_goal_contexts is present, residual_interpretations must preserve each carried context's residual_goal and target/residual primitive scope.",
+            "When context_packet.residual_goal_contexts is present, residual_interpretations must preserve each carried context's residual_goal, target/residual primitive scope, source refs, and prover-feedback provenance ids or diagnostic signatures.",
             "Every residual_interpretations row that proposes route repair must have source_refs/source_snippets, a matching literature/source search_request, or a formal_gap_boundary naming the target primitive; prover residuals alone are not source evidence for new mathematical side conditions.",
             "When search_requests or planner_next_actions include target_primitives/primitive fields, those fields are authoritative; a row scoped to another primitive cannot satisfy an obligation merely by mentioning the target primitive in free text.",
             "Every alignment edge must include a substantive alignment_rationale that names the mapped informal claim, formal primitive, declaration, coverage/action, or source-backed route anchor; placeholder text such as ok/aligned is rejected.",
@@ -12326,12 +12326,20 @@ def llm_route_planner_response_payload_schema(
                         "route_repair": {"type": "string"},
                         "repair_action": {"type": "string"},
                         "target_primitives": string_array,
+                        "residual_primitives": string_array,
                         "target_prover_family": {"type": "string"},
                         "source_refs": string_array,
                         "source_snippets": {
                             "type": "array",
                             "items": {"$ref": "#/$defs/source_snippet"},
                         },
+                        "evidence_ids": string_array,
+                        "residual_evidence_ids": string_array,
+                        "refinement_evidence_ids": string_array,
+                        "prover_attempt_ids": string_array,
+                        "residual_diagnostic_signature": {"type": "string"},
+                        "provider_diagnostic_signature": {"type": "string"},
+                        "prover_diagnostic_signature": {"type": "string"},
                         "source_search_status": {"type": "string", "minLength": 1},
                         "formal_gap_boundary": {"type": "string"},
                     },
@@ -17753,6 +17761,20 @@ def _response_residual_goal_context_coverage_errors(
             & context_primitives
             for match in matches
         ):
+            source_ref_errors = _residual_goal_context_source_ref_errors(
+                context,
+                matches,
+                index=index,
+                residual_goal=residual_goal,
+            )
+            provenance_errors = _residual_goal_context_provenance_errors(
+                context,
+                matches,
+                index=index,
+                residual_goal=residual_goal,
+            )
+            errors.extend(source_ref_errors)
+            errors.extend(provenance_errors)
             continue
         errors.append(
             "context_packet.residual_goal_contexts"
@@ -17762,6 +17784,79 @@ def _response_residual_goal_context_coverage_errors(
             f"primitives={','.join(sorted(context_primitives))}"
         )
     return errors
+
+
+def _residual_goal_context_source_ref_errors(
+    context: Mapping[str, Any],
+    matches: list[dict[str, object]],
+    *,
+    index: int,
+    residual_goal: str,
+) -> list[str]:
+    context_refs = _residual_context_source_refs(context)
+    if not context_refs:
+        return []
+    if any(_residual_context_source_refs(match) & context_refs for match in matches):
+        return []
+    return [
+        "context_packet.residual_goal_contexts"
+        f"[{index}] matching residual_interpretations row must preserve at "
+        "least one carried source_ref: "
+        f"residual_goal={residual_goal or '<missing>'}; "
+        f"source_refs={','.join(sorted(context_refs))}"
+    ]
+
+
+def _residual_goal_context_provenance_errors(
+    context: Mapping[str, Any],
+    matches: list[dict[str, object]],
+    *,
+    index: int,
+    residual_goal: str,
+) -> list[str]:
+    context_provenance = _residual_context_provenance_values(context)
+    if not context_provenance:
+        return []
+    if any(
+        _residual_context_provenance_values(match) & context_provenance
+        for match in matches
+    ):
+        return []
+    return [
+        "context_packet.residual_goal_contexts"
+        f"[{index}] matching residual_interpretations row must preserve at "
+        "least one carried prover-feedback provenance id or diagnostic "
+        f"signature: residual_goal={residual_goal or '<missing>'}; "
+        f"provenance={','.join(sorted(context_provenance))}"
+    ]
+
+
+def _residual_context_source_refs(row: Mapping[str, Any]) -> set[str]:
+    refs = {
+        str(source_ref).strip()
+        for source_ref in (
+            *_str_tuple(row.get("source_refs", [])),
+            *_source_refs_from_snippets(row.get("source_snippets", [])),
+        )
+        if str(source_ref).strip()
+    }
+    return refs
+
+
+def _residual_context_provenance_values(row: Mapping[str, Any]) -> set[str]:
+    values: list[str] = []
+    for field_name in (
+        "evidence_ids",
+        "residual_evidence_ids",
+        "refinement_evidence_ids",
+        "prover_attempt_ids",
+        "diagnostic_signature",
+        "residual_diagnostic_signature",
+        "provider_diagnostic_signature",
+        "prover_diagnostic_signature",
+    ):
+        values.extend(_str_tuple(row.get(field_name, [])))
+    return {value.strip() for value in values if value.strip()}
 
 
 def _residual_goal_context_primitive_keys(
