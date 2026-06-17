@@ -930,9 +930,79 @@ def test_formalizer_prompt_exposes_registered_proof_obligation_catalog() -> None
 
     assert "registered_proof_bank_obligation_catalog" in prompt
     assert "proof_bank_obligation_request_policy" in prompt
+    assert "formal_target_portability_policy" in prompt
+    assert "formal_statement_sketch" in prompt
+    assert "lean_statement_sketch/lean_imports only as Lean legacy aliases" in prompt
     assert "variance_nonneg" in prompt
     assert "priority_only_for_kernel_smoke_selection" in prompt
     assert "proof_body" not in prompt
+
+
+def test_llm_formalizer_normalizes_target_prover_neutral_formal_target_fields() -> None:
+    response = _formalizer_sample_response()
+    target = dict(response["formal_targets"][0])
+    target.pop("lean_statement_sketch", None)
+    target["id"] = "rocq_aipw_asymptotic_normality_open_target"
+    target["target_prover_family"] = "rocq"
+    target["formal_statement_sketch"] = (
+        "Theorem aipw_asymptotic_normality_open_target : True."
+    )
+    target["formal_imports"] = ["Coq.Init.Logic"]
+    response["formal_targets"] = [target]
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(response),
+        config=FormalizerConfig(provider_name="static", model="static-formalizer-model"),
+    )
+
+    packet = formalizer.propose(
+        question=OpenResearchQuestion(
+            id="rocq_formalizer_packet",
+            title="Rocq formalizer packet",
+            description="Check target-prover-neutral formalizer packet fields.",
+        ),
+        theory_packet={},
+        simulation_manifest={},
+        algorithm_manifest={},
+        registered_problem={},
+        theorem_goals=[],
+    )
+
+    normalized_target = packet["formal_targets"][0]
+    assert normalized_target["target_prover_family"] == "rocq"
+    assert normalized_target["formal_statement_sketch"].startswith("Theorem aipw")
+    assert normalized_target["formal_imports"] == ["Coq.Init.Logic"]
+    assert "lean_statement_sketch" not in normalized_target
+    assert "lean_imports" not in normalized_target
+    assert packet["proof_evidence_status"] == "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE"
+
+
+def test_llm_formalizer_rejects_non_lean_legacy_formal_target_alias() -> None:
+    response = _formalizer_sample_response()
+    target = dict(response["formal_targets"][0])
+    target["target_prover_family"] = "rocq"
+    response["formal_targets"] = [target]
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(response),
+        config=FormalizerConfig(
+            provider_name="static",
+            model="static-formalizer-model",
+            max_repair_attempts=0,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="non-Lean formal target must use"):
+        formalizer.propose(
+            question=OpenResearchQuestion(
+                id="bad_rocq_formalizer_packet",
+                title="Bad Rocq formalizer packet",
+                description="Reject non-Lean packets that rely on Lean aliases.",
+            ),
+            theory_packet={},
+            simulation_manifest={},
+            algorithm_manifest={},
+            registered_problem={},
+            theorem_goals=[],
+        )
 
 
 def test_formalizer_prompt_targets_theorem_closure_when_proof_bank_memory_exhausted() -> None:

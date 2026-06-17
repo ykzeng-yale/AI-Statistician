@@ -213,6 +213,19 @@ def build_formalizer_prompt(
                 "verified bridge obligations to the remaining frontier theorem goal."
             ),
         },
+        "formal_target_portability_policy": {
+            "preferred_fields": [
+                "target_prover_family",
+                "formal_statement_sketch",
+                "formal_imports",
+            ],
+            "lean_legacy_aliases": ["lean_statement_sketch", "lean_imports"],
+            "alias_policy": (
+                "Use lean_* aliases only for Lean targets. For Rocq/Coq, "
+                "Isabelle, Agda, HOL4, or other target provers, use only "
+                "target-prover-neutral formal_* fields."
+            ),
+        },
         "required_output_contract": FORMALIZER_OUTPUT_CONTRACT,
         "boundary": FORMALIZER_BOUNDARY,
     }
@@ -220,7 +233,9 @@ def build_formalizer_prompt(
         "Design formalization and proof-search artifacts for the Formalizer/ProofEngineer subsystem. "
         "Return ONLY compact JSON matching required_output_contract. Keep each list to at most 3 items. "
         "Prefer one minimal formal target plus one or two registered proof-bank obligations over a broad "
-        "formalization essay. You may propose Lean statement sketches, lemma dependency plans, source "
+        "formalization essay. Use target-prover-neutral formal_statement_sketch/formal_imports "
+        "fields, with lean_statement_sketch/lean_imports only as Lean legacy aliases. "
+        "You may propose formal statement sketches, lemma dependency plans, source "
         "retrieval queries, and kernel-check work orders, but do not claim the theorem is proved, do not "
         "claim kernel verification, and do not hide formal gaps. "
         "For proof_bank_obligation_requests, choose obligation_id values from "
@@ -248,8 +263,11 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
         {
             "id": "string",
             "informal_source": "string",
-            "lean_statement_sketch": "string",
-            "lean_imports": ["Mathlib"],
+            "target_prover_family": "lean4|rocq|isabelle|agda|hol4|other",
+            "formal_statement_sketch": "target-prover statement sketch",
+            "formal_imports": ["target prover imports/theories"],
+            "lean_statement_sketch": "Lean-only legacy alias for formal_statement_sketch",
+            "lean_imports": ["Lean-only legacy alias for formal_imports"],
             "semantic_alignment_constraints": ["string"],
             "expected_status": "OPEN",
         }
@@ -346,6 +364,22 @@ def validate_formalizer_packet(packet: Mapping[str, Any]) -> list[str]:
             continue
         if not str(row.get("id", "")).strip():
             errors.append("formal target missing id")
+        target_prover_key = _formal_target_prover_key(row)
+        if not target_prover_key:
+            errors.append("formal target missing target_prover_family")
+        formal_statement = str(row.get("formal_statement_sketch", "") or "").strip()
+        lean_statement = str(row.get("lean_statement_sketch", "") or "").strip()
+        if not formal_statement and not lean_statement:
+            errors.append("formal target missing formal_statement_sketch")
+        if target_prover_key and target_prover_key != "lean4":
+            if lean_statement or "lean_statement_sketch" in row:
+                errors.append(
+                    "non-Lean formal target must use formal_statement_sketch, not lean_statement_sketch"
+                )
+            if row.get("lean_imports"):
+                errors.append(
+                    "non-Lean formal target must use formal_imports, not lean_imports"
+                )
         if str(row.get("expected_status", "OPEN")) not in {"OPEN", "FORMAL_GAP", "NEEDS_KERNEL_CHECK"}:
             errors.append(f"unsupported formal target expected_status: {row.get('expected_status')}")
         forbidden = _contains_forbidden_proof_claim(row)
@@ -379,6 +413,7 @@ def _normalize_formalizer_packet(
     raw_response: str,
 ) -> dict[str, Any]:
     body = dict(payload)
+    body["formal_targets"] = _normalize_formal_targets(body.get("formal_targets", []))
     body["proof_evidence_status"] = FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE
     body["proof_evidence_boundary"] = FORMALIZER_BOUNDARY
     body["kernel_verified"] = False
@@ -410,6 +445,67 @@ def _normalize_formalizer_packet(
         "raw_response_fingerprint": stable_hash(raw_response),
         **body,
     }
+
+
+def _normalize_formal_targets(value: Any) -> list[Any]:
+    if not isinstance(value, list | tuple):
+        return []
+    normalized: list[Any] = []
+    for item in value:
+        if not isinstance(item, Mapping):
+            normalized.append(item)
+            continue
+        row = dict(item)
+        target_prover_family = str(
+            row.get("target_prover_family")
+            or row.get("prover_family")
+            or row.get("target_prover")
+            or "lean4"
+        ).strip()
+        row["target_prover_family"] = target_prover_family
+        target_prover_key = _formal_target_prover_key(row)
+        formal_statement = str(row.get("formal_statement_sketch", "") or "").strip()
+        lean_statement = str(row.get("lean_statement_sketch", "") or "").strip()
+        if not formal_statement and lean_statement:
+            row["formal_statement_sketch"] = lean_statement
+        elif formal_statement and target_prover_key == "lean4" and not lean_statement:
+            row["lean_statement_sketch"] = formal_statement
+        formal_imports = _string_list(row.get("formal_imports", []))
+        lean_imports = _string_list(row.get("lean_imports", []))
+        if not formal_imports and lean_imports:
+            row["formal_imports"] = lean_imports
+        elif formal_imports and target_prover_key == "lean4" and not lean_imports:
+            row["lean_imports"] = formal_imports
+        normalized.append(row)
+    return normalized
+
+
+def _formal_target_prover_key(row: Mapping[str, Any]) -> str:
+    target = str(
+        row.get("target_prover_family")
+        or row.get("prover_family")
+        or row.get("target_prover")
+        or ""
+    ).strip().lower()
+    aliases = {
+        "lean": "lean4",
+        "lean4": "lean4",
+        "mathlib": "lean4",
+        "coq": "rocq",
+        "coq8": "rocq",
+        "rocq": "rocq",
+        "isabelle": "isabelle",
+        "isabelle/hol": "isabelle",
+        "agda": "agda",
+        "hol4": "hol4",
+    }
+    return aliases.get(target, target)
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list | tuple):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:
