@@ -155,6 +155,18 @@ def test_portable_plan_audit_checks_route_option_cost_graph_scope() -> None:
                                     ],
                                 },
                             ],
+                            "or_nodes": [
+                                {
+                                    "node_id": "or:route_option_scope",
+                                    "choices": [
+                                        "route_option:selected",
+                                        "route_option:baseline",
+                                    ],
+                                    "selection_rationale": (
+                                        "selected bridge is cheaper than the broader baseline"
+                                    ),
+                                }
+                            ],
                         },
                         "primitives": [
                             {

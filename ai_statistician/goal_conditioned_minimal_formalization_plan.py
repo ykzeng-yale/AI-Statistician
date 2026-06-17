@@ -1382,7 +1382,7 @@ def _route_option_cost_graph(
         [route_id, selected_primitives, best_route_cost]
     )[:16]
     return {
-        "graph_kind": "SELECTED_ROUTE_ONLY_COST_GRAPH",
+        "graph_kind": "AND_OR_ROUTE_COST_GRAPH",
         "source": "goal_conditioned_minimal_formalization_plan",
         "selected_route_option_id": selected_option_id,
         "route_options": [
@@ -1397,7 +1397,16 @@ def _route_option_cost_graph(
                 ),
             }
         ],
-        "or_nodes": [],
+        "or_nodes": [
+            {
+                "node_id": "or:" + stable_hash([route_id, selected_option_id])[:16],
+                "choices": [selected_option_id],
+                "selection_rationale": (
+                    "No upstream route-option alternatives were supplied, so the "
+                    "fallback graph exposes exactly the selected route option."
+                ),
+            }
+        ],
         "and_edges": [
             {
                 "route_option_id": selected_option_id,
@@ -1482,13 +1491,7 @@ def _route_option_cost_graph_errors(
 ) -> tuple[str, ...]:
     if not graph:
         return tuple()
-    source = str(graph.get("source", "")).strip()
     graph_kind = str(graph.get("graph_kind", "")).strip()
-    if (
-        source == "goal_conditioned_minimal_formalization_plan"
-        and graph_kind == "SELECTED_ROUTE_ONLY_COST_GRAPH"
-    ):
-        return tuple()
 
     errors: list[str] = []
     route_options = _dict_tuple(graph.get("route_options", []))

@@ -98,6 +98,14 @@ def test_goal_conditioned_plan_preserves_route_target_prover_family() -> None:
     assert payload["n_lean_realization_dag_edges"] == 0
     row = payload["rows"][0]
     assert row["target_prover_family"] == "rocq"
+    assert row["route_option_cost_graph"]["graph_kind"] == "AND_OR_ROUTE_COST_GRAPH"
+    assert row["route_option_cost_graph"]["source"] == (
+        "goal_conditioned_minimal_formalization_plan"
+    )
+    assert row["route_option_cost_graph"]["or_nodes"]
+    assert row["route_option_cost_graph"]["and_edges"]
+    assert row["route_option_cost_graph_summary"]["cost_graph_ok"] is True
+    assert row["route_option_cost_graph_summary"]["cost_graph_errors"] == []
     assert row["formal_realization_dag_nodes"]
     assert row["formal_realization_dag_edges"]
     assert not row["lean_realization_dag_nodes"]
