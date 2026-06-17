@@ -663,7 +663,7 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
         "Use haiku for small routes whose primitives are already-exists, exact, near, wrapper, or different-formulation coverage and have no residual goals or pending resource dispatch.",
         "Use sonnet when prover residual goals, feedback-loop replan signals, or incomplete realization-coverage witnesses are present.",
         "Use sonnet when source-grounding audit obligations are pending, especially residual goals without source-backed route repair.",
-        "Use sonnet when resource-request queue rows, resource-request playbooks, or interactive-session resource dispatch bindings are present.",
+        "Use sonnet when resource-request queue rows, resource-request playbooks, interactive-session resource dispatch bindings, or interactive execution commands are present.",
         "Use sonnet when interactive-session route-adoption preconditions remain unresolved or carry known pre-response blockers.",
         "Use sonnet when formal-verifier agentic proof-strategy plan rows are ready for patch-evolve, source-discovery, or kernel-overlay dispatch.",
         "Use sonnet when target-intake rows expose missing proof sources, library-search requirements, proof-state probes, complex theorem shape, or large normalized theorem context.",
@@ -686,6 +686,7 @@ REQUIRED_HAIKU_SAFETY_CHECK_KEYS = frozenset(
         "no_resource_request_playbooks",
         "no_interactive_resource_requests",
         "no_interactive_dispatch_summaries",
+        "no_interactive_execution_commands",
         "no_unresolved_interactive_route_adoption_preconditions",
         "no_interactive_route_adoption_blockers",
         "no_source_theorem_feedback",
@@ -12795,6 +12796,13 @@ def _llm_route_planner_model_tier_decision(
             f"{resource_dispatch_counts['interactive_session_resource_request_dispatch_summary_count']} "
             "interactive dispatch summary row(s)"
         )
+    if resource_dispatch_counts[
+        "interactive_session_resource_request_execution_command_count"
+    ]:
+        sonnet_reasons.append(
+            f"{resource_dispatch_counts['interactive_session_resource_request_execution_command_count']} "
+            "interactive execution command(s)"
+        )
     if hard_markers:
         sonnet_reasons.append(
             "complex coverage/action marker(s): " + ", ".join(hard_markers[:6])
@@ -12841,6 +12849,12 @@ def _llm_route_planner_model_tier_decision(
         "no_interactive_dispatch_summaries": (
             resource_dispatch_counts[
                 "interactive_session_resource_request_dispatch_summary_count"
+            ]
+            == 0
+        ),
+        "no_interactive_execution_commands": (
+            resource_dispatch_counts[
+                "interactive_session_resource_request_execution_command_count"
             ]
             == 0
         ),

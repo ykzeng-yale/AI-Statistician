@@ -14034,6 +14034,7 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         "no_resource_request_playbooks": True,
         "no_interactive_resource_requests": True,
         "no_interactive_dispatch_summaries": True,
+        "no_interactive_execution_commands": True,
         "no_unresolved_interactive_route_adoption_preconditions": True,
         "no_interactive_route_adoption_blockers": True,
         "no_source_theorem_feedback": True,
@@ -14437,6 +14438,76 @@ def test_llm_route_planner_auto_uses_sonnet_for_light_route_interactive_dispatch
     )
     assert any(
         "interactive dispatch summary" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
+
+
+def test_llm_route_planner_auto_uses_sonnet_for_interactive_execution_commands_only() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_interactive_execution_commands_only"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    manifest_path = (
+        interactive_session_dir
+        / "formalization_gap_planner_interactive_session_manifest.json"
+    )
+    session_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for row in session_manifest["rows"]:
+        row["route_id"] = "rank_route_light"
+        row["display_name"] = "distribution_free_rank_bound_light"
+        row["goal_plan_id"] = "goal:rank_route_light"
+        row["needs_more_proof_state_feedback"] = False
+        row["residual_goals"] = []
+        row["resource_request_ids"] = []
+        row["resource_request_resource_ids"] = []
+        row["resource_request_queue_action_kinds"] = []
+        row["resource_request_dispatch_summaries"] = []
+        row["resource_request_execution_commands"] = [
+            "lean-lsp-mcp goal rank_uniformity"
+        ]
+    session_manifest["decision_policy_rows"] = []
+    manifest_path.write_text(json.dumps(session_manifest, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    packet = payload["request_packets"][0]
+    evidence = packet["model_tier_decision_evidence"]
+    assert evidence["decision_basis"] == "auto_sonnet_triggers"
+    assert (
+        evidence["route_signal_counts"][
+            "interactive_session_resource_request_count"
+        ]
+        == 0
+    )
+    assert (
+        evidence["route_signal_counts"][
+            "interactive_session_resource_request_dispatch_summary_count"
+        ]
+        == 0
+    )
+    assert (
+        evidence["route_signal_counts"][
+            "interactive_session_resource_request_execution_command_count"
+        ]
+        == 1
+    )
+    assert evidence["context_resource_dispatch_counts"][
+        "interactive_session_resource_request_execution_command_count"
+    ] == 1
+    assert any(
+        "interactive execution command" in trigger
         for trigger in evidence["sonnet_triggers"]
     )
 
