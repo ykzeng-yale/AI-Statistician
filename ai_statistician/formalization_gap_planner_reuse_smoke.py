@@ -907,6 +907,9 @@ def run_formalization_gap_planner_reuse_smoke(
     feedback_llm_route_planner_invoke_provider: bool = False,
     feedback_llm_route_planner_response_json: Path | None = None,
     feedback_llm_route_planner_static_response_json: Path | None = None,
+    formal_verifier_replay_repair_patch_rerun_residual_obligations_dir: (
+        Path | None
+    ) = None,
     formal_verifier_agentic_proof_execution_materializer_dir: Path | None = None,
     formal_verifier_agentic_proof_execution_artifact_verifier_dir: Path | None = None,
     formal_verifier_agentic_proof_source_theorem_promotion_queue_dir: Path | None = None,
@@ -1048,6 +1051,9 @@ def run_formalization_gap_planner_reuse_smoke(
         formalization_gap_planner_target_intake_dir=target_intake_dir,
         formalization_gap_planner_component_resource_registry_dir=(
             component_resource_registry_dir
+        ),
+        formal_verifier_replay_repair_patch_rerun_residual_obligations_dir=(
+            formal_verifier_replay_repair_patch_rerun_residual_obligations_dir
         ),
         formal_verifier_agentic_proof_execution_materializer_dir=(
             formal_verifier_agentic_proof_execution_materializer_dir
@@ -1304,6 +1310,9 @@ def run_formalization_gap_planner_reuse_smoke(
             formalization_gap_planner_interactive_session_dir=interactive_session_dir,
             formalization_gap_planner_component_resource_registry_dir=(
                 component_resource_registry_dir
+            ),
+            formal_verifier_replay_repair_patch_rerun_residual_obligations_dir=(
+                formal_verifier_replay_repair_patch_rerun_residual_obligations_dir
             ),
             formal_verifier_agentic_proof_execution_materializer_dir=(
                 formal_verifier_agentic_proof_execution_materializer_dir
@@ -2224,6 +2233,34 @@ def run_formalization_gap_planner_reuse_smoke(
             )
             or 0
         ),
+        "n_combined_llm_route_planner_request_patch_rerun_residual_obligation_rows": int(
+            llm_route_planner_payload.get(
+                "n_request_patch_rerun_residual_obligation_rows",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_request_patch_rerun_residual_obligation_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_combined_llm_route_planner_request_patch_rerun_residual_obligation_source_discovery_needed": int(
+            llm_route_planner_payload.get(
+                "n_request_patch_rerun_residual_obligation_source_discovery_needed",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_request_patch_rerun_residual_obligation_source_discovery_needed",
+                0,
+            )
+            or 0
+        ),
         "n_publication_bundle_combined_llm_route_planner_summary_formal_attempt_queue_items": int(
             publication_bundle_llm_route_planner_summary.get(
                 "n_formal_attempt_queue_items",
@@ -2276,6 +2313,34 @@ def run_formalization_gap_planner_reuse_smoke(
         + int(
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_request_proof_execution_unsupported_target_prover_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_patch_rerun_residual_obligation_rows": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_patch_rerun_residual_obligation_rows",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_patch_rerun_residual_obligation_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_patch_rerun_residual_source_discovery_needed": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_patch_rerun_residual_obligation_source_discovery_needed",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_patch_rerun_residual_obligation_source_discovery_needed",
                 0,
             )
             or 0
@@ -2708,6 +2773,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_llm_route_planner_summary_proof_execution_unsupported_target_prover_rows": (
             publication_bundle_llm_route_planner_summary.get(
                 "n_request_proof_execution_unsupported_target_prover_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_patch_rerun_residual_obligation_rows": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_patch_rerun_residual_obligation_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_patch_rerun_residual_source_discovery_needed": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_patch_rerun_residual_obligation_source_discovery_needed",
                 0,
             )
         ),
@@ -3241,6 +3318,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_feedback_llm_route_planner_summary_proof_execution_unsupported_target_prover_rows": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_request_proof_execution_unsupported_target_prover_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_patch_rerun_residual_obligation_rows": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_patch_rerun_residual_obligation_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_patch_rerun_residual_source_discovery_needed": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_patch_rerun_residual_obligation_source_discovery_needed",
                 0,
             )
         ),
@@ -3857,6 +3946,24 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_llm_route_planner_request_proof_execution_unsupported_target_prover_rows": (
             llm_route_planner_payload.get(
                 "n_request_proof_execution_unsupported_target_prover_rows",
+                0,
+            )
+        ),
+        "n_llm_route_planner_requests_with_patch_rerun_residual_obligation_summary": (
+            llm_route_planner_payload.get(
+                "n_requests_with_patch_rerun_residual_obligation_summary",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_patch_rerun_residual_obligation_rows": (
+            llm_route_planner_payload.get(
+                "n_request_patch_rerun_residual_obligation_rows",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_patch_rerun_residual_obligation_source_discovery_needed": (
+            llm_route_planner_payload.get(
+                "n_request_patch_rerun_residual_obligation_source_discovery_needed",
                 0,
             )
         ),
@@ -4629,6 +4736,24 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_request_proof_execution_unsupported_target_prover_rows": (
             feedback_llm_route_planner_payload.get(
                 "n_request_proof_execution_unsupported_target_prover_rows",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_requests_with_patch_rerun_residual_obligation_summary": (
+            feedback_llm_route_planner_payload.get(
+                "n_requests_with_patch_rerun_residual_obligation_summary",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_patch_rerun_residual_obligation_rows": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_patch_rerun_residual_obligation_rows",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_patch_rerun_residual_obligation_source_discovery_needed": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_patch_rerun_residual_obligation_source_discovery_needed",
                 0,
             )
         ),
@@ -9041,6 +9166,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_proof_execution_unsupported_target_prover_rows')} "
             f"combined={payload.get('n_publication_bundle_combined_llm_route_planner_summary_proof_execution_feedback_rows')}/"
             f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_proof_execution_unsupported_target_prover_rows')}"
+        ),
+        (
+            f"- Bundle LLM patch-rerun residual obligation summaries: "
+            f"primary={payload.get('n_publication_bundle_llm_route_planner_summary_patch_rerun_residual_obligation_rows')}/"
+            f"{payload.get('n_publication_bundle_llm_route_planner_summary_patch_rerun_residual_source_discovery_needed')} "
+            f"feedback={payload.get('n_publication_bundle_feedback_llm_route_planner_summary_patch_rerun_residual_obligation_rows')}/"
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_patch_rerun_residual_source_discovery_needed')} "
+            f"combined={payload.get('n_publication_bundle_combined_llm_route_planner_summary_patch_rerun_residual_obligation_rows')}/"
+            f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_patch_rerun_residual_source_discovery_needed')}"
         ),
         (
             f"- Bundle LLM route planner registry resource summaries: "

@@ -2528,6 +2528,197 @@ def test_llm_route_planner_stages_agentic_proof_execution_feedback() -> None:
     assert "Proof execution unsupported target-prover rows: 3" in report
 
 
+def test_llm_route_planner_stages_patch_rerun_residual_obligations() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_patch_rerun_residual_obligations"
+    )
+    out_dir = root / "llm_route_planner"
+    residual_obligations_dir = root / "residual_obligations"
+    shutil.rmtree(root, ignore_errors=True)
+    residual_obligations_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    rows = [
+        {
+            "schema_version": 1,
+            "residual_obligation_id": "residual-obligation:rank_route:exchangeability",
+            "rerun_calibration_id": "rerun-calibration:rank_route",
+            "rerun_id": "patch-rerun:rank_route",
+            "rerun_attempt_id": "patch-rerun-attempt:rank_route",
+            "replay_id": "replay:rank_route",
+            "route_id": "rank_route",
+            "display_name": "distribution_free_rank_bound",
+            "target_theorem_name": "distribution_free_rank_bound",
+            "candidate_bridge_lemma_name": "rank_uniformity_bridge",
+            "patched_artifact_path": "patched/Rank.lean",
+            "patch_rerun_calibration_status": "residual_formal_gaps_remain",
+            "residual_gap": "exchangeability",
+            "residual_kind": "residual_formal_gap",
+            "source_support_classification": "exact_source_supported",
+            "action_class": "reuse_exact_proof_bank_obligation",
+            "action_type": "reuse_exact_proof_bank_obligation",
+            "proof_bank_action_id": "proof-bank-action:exchangeability",
+            "priority": "high",
+            "priority_rank": 1,
+            "exact_proof_bank_obligation": "Probability.exchangeable",
+            "proof_bank_bridge_obligations": [],
+            "local_candidate_declarations": ["Probability.exchangeable"],
+            "external_candidate_declarations": [],
+            "expected_premises": ["calibration scores are exchangeable"],
+            "required_gate": "compose exact proof-bank obligation into patch rerun",
+            "next_action": "compose_exact_proof_bank_obligation",
+            "proof_evidence_status": (
+                "PATCH_RERUN_RESIDUAL_OBLIGATION_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            "ok": True,
+            "errors": [],
+        },
+        {
+            "schema_version": 1,
+            "residual_obligation_id": "residual-obligation:rank_route:rank_uniformity",
+            "rerun_calibration_id": "rerun-calibration:rank_route",
+            "rerun_id": "patch-rerun:rank_route",
+            "rerun_attempt_id": "patch-rerun-attempt:rank_route",
+            "replay_id": "replay:rank_route",
+            "route_id": "rank_route",
+            "display_name": "distribution_free_rank_bound",
+            "target_theorem_name": "distribution_free_rank_bound",
+            "candidate_bridge_lemma_name": "rank_uniformity_bridge",
+            "patched_artifact_path": "patched/Rank.lean",
+            "patch_rerun_calibration_status": "residual_formal_gaps_remain",
+            "residual_gap": "rank_uniformity",
+            "residual_kind": "residual_formal_gap",
+            "source_support_classification": "coverage_missing_for_residual_gap",
+            "action_class": "source_discovery_needed",
+            "action_type": "run_source_discovery",
+            "proof_bank_action_id": "",
+            "priority": "high",
+            "priority_rank": 2,
+            "exact_proof_bank_obligation": "",
+            "proof_bank_bridge_obligations": [],
+            "local_candidate_declarations": [],
+            "external_candidate_declarations": [],
+            "expected_premises": ["rank of test score among calibration scores"],
+            "required_gate": "source support before patch replay can be adopted",
+            "next_action": "run_source_discovery_for_residual_gap",
+            "proof_evidence_status": (
+                "PATCH_RERUN_RESIDUAL_OBLIGATION_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            "ok": True,
+            "errors": [],
+        },
+    ]
+    (
+        residual_obligations_dir
+        / "formal_verifier_replay_repair_patch_rerun_residual_obligations_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "n_residual_obligation_rows": len(rows),
+                "n_source_discovery_needed": 1,
+                "n_exact_proof_bank_reuse": 1,
+                "all_ok": True,
+                "rows": rows,
+                "proof_evidence_status": (
+                    "PATCH_RERUN_RESIDUAL_OBLIGATION_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formal_verifier_replay_repair_patch_rerun_residual_obligations_dir=(
+            residual_obligations_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    assert (
+        payload[
+            "n_request_formal_verifier_patch_rerun_residual_obligation_rows"
+        ]
+        == 2
+    )
+    assert payload["n_requests_with_patch_rerun_residual_obligation_summary"] == 1
+    assert payload["n_request_patch_rerun_residual_obligation_rows"] == 2
+    assert (
+        payload[
+            "n_request_patch_rerun_residual_obligation_source_discovery_needed"
+        ]
+        == 1
+    )
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    assert len(context["formal_verifier_patch_rerun_residual_obligation_rows"]) == 2
+    residual_summary = context["patch_rerun_residual_obligation_summary"]
+    assert residual_summary["total_rows"] == 2
+    assert residual_summary["source_discovery_needed_count"] == 1
+    assert residual_summary["exact_reuse_count"] == 1
+    assert residual_summary["by_action_class"] == {
+        "reuse_exact_proof_bank_obligation": 1,
+        "source_discovery_needed": 1,
+    }
+    feedback_summary = context["feedback_loop_summary"]
+    assert feedback_summary["replan_required"] is True
+    assert (
+        feedback_summary["patch_rerun_residual_obligations"] == residual_summary
+    )
+    assert any(
+        action["source"] == "formal_verifier_patch_rerun_residual_obligations"
+        and action["owner"] == "literature_router"
+        and action["residual_gap"] == "rank_uniformity"
+        for action in feedback_summary["recommended_next_actions"]
+    )
+    preconditions = context["route_adoption_preconditions"]
+    assert preconditions["blocked_before_response"] is True
+    assert (
+        "feedback_summary_actions_pending_resolution"
+        in preconditions["known_pre_response_blockers"]
+    )
+    assert (
+        "feedback_loop_replan_required"
+        in preconditions["known_pre_response_blockers"]
+    )
+    inventory = context["context_packet_inventory"]
+    assert (
+        inventory["row_counts"][
+            "formal_verifier_patch_rerun_residual_obligation_rows"
+        ]
+        == 2
+    )
+    assert inventory["patch_rerun_residual_obligation_summary_present"] is True
+    assert inventory["patch_rerun_residual_obligation_row_count"] == 2
+    assert inventory["patch_rerun_residual_source_discovery_needed_count"] == 1
+    brief = context["route_planning_brief"]
+    assert brief["patch_rerun_residual_obligation_summary"] == residual_summary
+    assert brief["evidence_summary"]["patch_rerun_residual_obligation_row_count"] == 2
+    assert (
+        brief["evidence_summary"][
+            "patch_rerun_residual_source_discovery_needed_count"
+        ]
+        == 1
+    )
+    assert any(
+        focus["focus_id"] == "repair_patch_rerun_residual_obligations"
+        for focus in brief["planner_focus"]
+    )
+    assert any(
+        gap["gap_id"] == "patch_rerun_residual_source_discovery_needed"
+        for gap in brief["evidence_gaps"]
+    )
+    report = (out_dir / "formalization_gap_planner_llm_route_planner.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Patch-rerun residual obligations: rows=2 source_discovery=1" in report
+
+
 def test_llm_route_planner_matches_context_rows_by_route_aliases() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_alias_context")
     out_dir = root / "llm_route_planner"

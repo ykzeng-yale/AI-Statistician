@@ -2399,6 +2399,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_proof_execution_feedback_summary",
             "n_request_proof_execution_feedback_rows",
             "n_request_proof_execution_unsupported_target_prover_rows",
+            "n_requests_with_patch_rerun_residual_obligation_summary",
+            "n_request_patch_rerun_residual_obligation_rows",
+            "n_request_patch_rerun_residual_obligation_source_discovery_needed",
             "n_rows",
             "n_response_present",
             "n_response_contract_ok",
@@ -2643,6 +2646,13 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             ),
             "n_request_proof_execution_feedback_rows": nonnegative_integer,
             "n_request_proof_execution_unsupported_target_prover_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_patch_rerun_residual_obligation_summary": (
+                nonnegative_integer
+            ),
+            "n_request_patch_rerun_residual_obligation_rows": nonnegative_integer,
+            "n_request_patch_rerun_residual_obligation_source_discovery_needed": (
                 nonnegative_integer
             ),
             "n_rows": nonnegative_integer,
@@ -5236,6 +5246,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_requests_with_proof_execution_feedback_summary": 0,
         "n_request_proof_execution_feedback_rows": 0,
         "n_request_proof_execution_unsupported_target_prover_rows": 0,
+        "n_requests_with_patch_rerun_residual_obligation_summary": 0,
+        "n_request_patch_rerun_residual_obligation_rows": 0,
+        "n_request_patch_rerun_residual_obligation_source_discovery_needed": 0,
         "n_rows": 0,
         "n_response_present": 0,
         "n_response_contract_ok": 0,
@@ -5936,6 +5949,51 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                             _dict_value(packet, "context_packet"),
                             "proof_execution_feedback_summary",
                         ).get("unsupported_target_prover_rows", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_requests_with_patch_rerun_residual_obligation_summary": int(
+            payload.get(
+                "n_requests_with_patch_rerun_residual_obligation_summary",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_value(packet, "context_packet").get(
+                        "patch_rerun_residual_obligation_summary"
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_patch_rerun_residual_obligation_rows": int(
+            payload.get(
+                "n_request_patch_rerun_residual_obligation_rows",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "patch_rerun_residual_obligation_summary",
+                        ).get("total_rows", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_patch_rerun_residual_obligation_source_discovery_needed": int(
+            payload.get(
+                "n_request_patch_rerun_residual_obligation_source_discovery_needed",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "patch_rerun_residual_obligation_summary",
+                        ).get("source_discovery_needed_count", 0)
                         or 0
                     )
                     for packet in request_packets

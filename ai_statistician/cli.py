@@ -2723,6 +2723,13 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
             if args.exact_source_theorem_proof_body_executor_dir
             else None
         ),
+        formal_verifier_replay_repair_patch_rerun_residual_obligations_dir=(
+            Path(
+                args.formal_verifier_replay_repair_patch_rerun_residual_obligations_dir
+            )
+            if args.formal_verifier_replay_repair_patch_rerun_residual_obligations_dir
+            else None
+        ),
         formal_verifier_agentic_proof_execution_materializer_dir=(
             Path(args.formal_verifier_agentic_proof_execution_materializer_dir)
             if args.formal_verifier_agentic_proof_execution_materializer_dir
@@ -4006,6 +4013,13 @@ def _formalization_gap_planner_reuse_smoke(args: argparse.Namespace) -> int:
         feedback_llm_route_planner_static_response_json=(
             Path(args.feedback_llm_route_planner_static_response_file)
             if args.feedback_llm_route_planner_static_response_file
+            else None
+        ),
+        formal_verifier_replay_repair_patch_rerun_residual_obligations_dir=(
+            Path(
+                args.formal_verifier_replay_repair_patch_rerun_residual_obligations_dir
+            )
+            if args.formal_verifier_replay_repair_patch_rerun_residual_obligations_dir
             else None
         ),
         formal_verifier_agentic_proof_execution_materializer_dir=(
@@ -8449,6 +8463,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     formalization_gap_planner_reuse_smoke.add_argument(
+        "--formal-verifier-replay-repair-patch-rerun-residual-obligations-dir",
+        help=(
+            "optional formal-verifier patch-rerun residual obligations directory "
+            "to include as proof-state feedback in primary and feedback LLM "
+            "route-planner prompts"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
         "--formal-verifier-agentic-proof-execution-materializer-dir",
         help=(
             "optional agentic proof execution materializer directory to include "
@@ -8630,6 +8652,13 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "optional exact source-theorem proof-body executor output directory "
             "carrying local Lean execution results"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formal-verifier-replay-repair-patch-rerun-residual-obligations-dir",
+        help=(
+            "optional formal-verifier patch-rerun residual obligations directory "
+            "carrying proof-bank, bridge, wrapper, and source-discovery feedback"
         ),
     )
     formalization_gap_planner_llm_route_planner.add_argument(
