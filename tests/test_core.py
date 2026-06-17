@@ -16280,6 +16280,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     "n_live_proof_state_requests": 1,
                     "n_lean_lsp_mcp_ready_requests": 1,
                     "n_kernel_verified": 0,
+                    "n_unsupported_target_prover_rows": 0,
+                    "by_target_prover_family": {"lean4": 1},
                     "n_ok": 1,
                     "rows": [
                         {
@@ -16287,6 +16289,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "execution_queue_id": "formal_verifier_agentic_proof_execution_queue:auto",
                             "display_name": "auto:claim:skeleton",
                             "target_theorem_name": "formal:auto:claim",
+                            "target_prover_family": "lean4",
+                            "formal_statement_sketch": "theorem auto_claim : True := by trivial",
+                            "formal_imports": ["Mathlib"],
                             "materialization_status": "MATERIALIZED_LEAN_ARTIFACT",
                             "candidate_artifact_path": candidate_artifact_path,
                             "target_lean_file": candidate_artifact_path,
@@ -16336,6 +16341,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     "n_live_proof_state_request_valid": 1,
                     "n_lean_lsp_mcp_ready_requests": 1,
                     "n_live_proof_state_request_failures": 0,
+                    "n_unsupported_target_prover_rows": 0,
+                    "by_target_prover_family": {"lean4": 1},
                     "n_ok": 1,
                     "proof_evidence_status": "AGENTIC_ARTIFACT_KERNEL_CHECK_NOT_SOURCE_THEOREM_PROOF",
                     "rows": [
@@ -16345,6 +16352,10 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "execution_queue_id": "formal_verifier_agentic_proof_execution_queue:auto",
                             "display_name": "auto:claim:skeleton",
                             "target_theorem_name": "formal:auto:claim",
+                            "target_prover_family": "lean4",
+                            "formal_statement_sketch": "theorem auto_claim : True := by trivial",
+                            "formal_imports": ["Mathlib"],
+                            "materialization_status": "MATERIALIZED_LEAN_ARTIFACT",
                             "candidate_artifact_path": candidate_artifact_path,
                             "execution_transcript_path": "runs/current_kernel_overlay_seeded_agentic_proof_execution_queue/execution_transcripts/auto_claim_skeleton.jsonl",
                             "execution_transcript_event_id": "agentic_artifact_verifier_event:auto",
@@ -16453,6 +16464,8 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                     "n_ready_for_source_theorem_integration": 0,
                     "n_needs_source_theorem_target_resolution": 1,
                     "n_blocked_artifact_verification_failed": 0,
+                    "n_unsupported_target_prover_rows": 0,
+                    "by_target_prover_family": {"lean4": 1},
                     "n_source_theorem_target_known": 0,
                     "n_needs_source_theorem_target": 1,
                     "n_ok": 1,
@@ -16465,6 +16478,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
                             "execution_queue_id": "formal_verifier_agentic_proof_execution_queue:auto",
                             "display_name": "auto:claim:skeleton",
                             "target_theorem_name": "formal:auto:claim",
+                            "target_prover_family": "lean4",
+                            "formal_statement_sketch": "theorem auto_claim : True := by trivial",
+                            "formal_imports": ["Mathlib"],
                             "candidate_artifact_path": candidate_artifact_path,
                             "target_lean_declaration": "auto_claim_skeleton_route_probe",
                             "artifact_kernel_verified": True,
@@ -16871,9 +16887,23 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             queue["formal_verifier_agentic_proof_execution_materializer_kernel_verified"],
             0,
         )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_execution_materializer_unsupported_target_prover_rows"
+            ],
+            0,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_execution_materializer_by_target_prover_family"
+            ],
+            {"lean4": 1},
+        )
         materializer_preview = queue[
             "formal_verifier_agentic_proof_execution_materializer_preview"
         ][0]
+        self.assertEqual(materializer_preview["target_prover_family"], "lean4")
+        self.assertEqual(materializer_preview["formal_imports"], ["Mathlib"])
         self.assertEqual(
             materializer_preview["target_lean_declaration"],
             "auto_claim_skeleton_route_probe",
@@ -16948,6 +16978,18 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         )
         self.assertEqual(
             queue[
+                "formal_verifier_agentic_proof_execution_artifact_unsupported_target_prover_rows"
+            ],
+            0,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_execution_artifact_by_target_prover_family"
+            ],
+            {"lean4": 1},
+        )
+        self.assertEqual(
+            queue[
                 "formal_verifier_agentic_proof_execution_artifact_proof_evidence_status"
             ],
             "AGENTIC_ARTIFACT_KERNEL_CHECK_NOT_SOURCE_THEOREM_PROOF",
@@ -16955,6 +16997,12 @@ theorem composition_gap (h_frontier_missing : False) : True := by
         verifier_preview = queue[
             "formal_verifier_agentic_proof_execution_artifact_verifier_preview"
         ][0]
+        self.assertEqual(verifier_preview["target_prover_family"], "lean4")
+        self.assertEqual(
+            verifier_preview["materialization_status"],
+            "MATERIALIZED_LEAN_ARTIFACT",
+        )
+        self.assertEqual(verifier_preview["formal_imports"], ["Mathlib"])
         self.assertTrue(verifier_preview["execution_transcript_event_written"])
         self.assertEqual(
             verifier_preview["execution_transcript_event_id"],
@@ -17083,9 +17131,23 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             ],
             1,
         )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_source_theorem_promotion_unsupported_target_prover_rows"
+            ],
+            0,
+        )
+        self.assertEqual(
+            queue[
+                "formal_verifier_agentic_proof_source_theorem_promotion_by_target_prover_family"
+            ],
+            {"lean4": 1},
+        )
         source_promotion_preview = queue[
             "formal_verifier_agentic_proof_source_theorem_promotion_preview"
         ][0]
+        self.assertEqual(source_promotion_preview["target_prover_family"], "lean4")
+        self.assertEqual(source_promotion_preview["formal_imports"], ["Mathlib"])
         self.assertEqual(
             source_promotion_preview["promotion_status"],
             "NEEDS_SOURCE_THEOREM_TARGET_RESOLUTION",
@@ -17314,6 +17376,9 @@ theorem composition_gap (h_frontier_missing : False) : True := by
             "Agentic Source-Theorem Target Resolution",
             (out / "rag_collaboration.md").read_text(),
         )
+        report_text = (out / "rag_collaboration.md").read_text()
+        self.assertIn("unsupported target-prover rows", report_text)
+        self.assertIn("families {'lean4': 1}", report_text)
 
     def test_research_training_export_writes_agent_sft_and_grpo_data(self) -> None:
         async def run():

@@ -1963,6 +1963,20 @@ def export_rag_collaboration_manifest(
                     "n_kernel_verified"
                 ),
             ),
+            "formal_verifier_agentic_proof_execution_materializer_unsupported_target_prover_rows": counts.get(
+                "formal_verifier_agentic_proof_execution_materializer_unsupported_target_prover_rows",
+                formal_verifier_agentic_proof_execution_materializer_payload.get(
+                    "n_unsupported_target_prover_rows",
+                    0,
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_materializer_by_target_prover_family": counts.get(
+                "formal_verifier_agentic_proof_execution_materializer_by_target_prover_family",
+                formal_verifier_agentic_proof_execution_materializer_payload.get(
+                    "by_target_prover_family",
+                    {},
+                ),
+            ),
             "formal_verifier_agentic_proof_execution_materializer_manifest": str(
                 formal_verifier_agentic_proof_execution_materializer_path
             ),
@@ -2034,6 +2048,20 @@ def export_rag_collaboration_manifest(
                 "formal_verifier_agentic_proof_execution_artifact_live_proof_state_request_failures",
                 formal_verifier_agentic_proof_execution_artifact_verifier_payload.get(
                     "n_live_proof_state_request_failures"
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_artifact_unsupported_target_prover_rows": counts.get(
+                "formal_verifier_agentic_proof_execution_artifact_unsupported_target_prover_rows",
+                formal_verifier_agentic_proof_execution_artifact_verifier_payload.get(
+                    "n_unsupported_target_prover_rows",
+                    0,
+                ),
+            ),
+            "formal_verifier_agentic_proof_execution_artifact_by_target_prover_family": counts.get(
+                "formal_verifier_agentic_proof_execution_artifact_by_target_prover_family",
+                formal_verifier_agentic_proof_execution_artifact_verifier_payload.get(
+                    "by_target_prover_family",
+                    {},
                 ),
             ),
             "formal_verifier_agentic_proof_execution_artifact_proof_evidence_status": counts.get(
@@ -2156,6 +2184,20 @@ def export_rag_collaboration_manifest(
                 "formal_verifier_agentic_proof_source_theorem_promotion_blocked_artifact_failed",
                 formal_verifier_agentic_proof_source_theorem_promotion_queue_payload.get(
                     "n_blocked_artifact_verification_failed"
+                ),
+            ),
+            "formal_verifier_agentic_proof_source_theorem_promotion_unsupported_target_prover_rows": counts.get(
+                "formal_verifier_agentic_proof_source_theorem_promotion_unsupported_target_prover_rows",
+                formal_verifier_agentic_proof_source_theorem_promotion_queue_payload.get(
+                    "n_unsupported_target_prover_rows",
+                    0,
+                ),
+            ),
+            "formal_verifier_agentic_proof_source_theorem_promotion_by_target_prover_family": counts.get(
+                "formal_verifier_agentic_proof_source_theorem_promotion_by_target_prover_family",
+                formal_verifier_agentic_proof_source_theorem_promotion_queue_payload.get(
+                    "by_target_prover_family",
+                    {},
                 ),
             ),
             "formal_verifier_agentic_proof_source_theorem_promotion_manifest": str(
@@ -2618,6 +2660,8 @@ def _overlay_auto_discovered_agentic_counts(
                 "formal_verifier_agentic_proof_execution_materializer_live_proof_state_requests": "n_live_proof_state_requests",
                 "formal_verifier_agentic_proof_execution_materializer_lean_lsp_mcp_ready_requests": "n_lean_lsp_mcp_ready_requests",
                 "formal_verifier_agentic_proof_execution_materializer_kernel_verified": "n_kernel_verified",
+                "formal_verifier_agentic_proof_execution_materializer_unsupported_target_prover_rows": "n_unsupported_target_prover_rows",
+                "formal_verifier_agentic_proof_execution_materializer_by_target_prover_family": "by_target_prover_family",
             },
         ),
         "formal_verifier_agentic_proof_execution_artifact_verifier": (
@@ -2636,6 +2680,8 @@ def _overlay_auto_discovered_agentic_counts(
                 "formal_verifier_agentic_proof_execution_artifact_live_proof_state_request_valid": "n_live_proof_state_request_valid",
                 "formal_verifier_agentic_proof_execution_artifact_lean_lsp_mcp_ready_requests": "n_lean_lsp_mcp_ready_requests",
                 "formal_verifier_agentic_proof_execution_artifact_live_proof_state_request_failures": "n_live_proof_state_request_failures",
+                "formal_verifier_agentic_proof_execution_artifact_unsupported_target_prover_rows": "n_unsupported_target_prover_rows",
+                "formal_verifier_agentic_proof_execution_artifact_by_target_prover_family": "by_target_prover_family",
                 "formal_verifier_agentic_proof_execution_artifact_verifier_ok": "n_ok",
                 "formal_verifier_agentic_proof_execution_artifact_proof_evidence_status": "proof_evidence_status",
             },
@@ -2666,6 +2712,8 @@ def _overlay_auto_discovered_agentic_counts(
                 "formal_verifier_agentic_proof_source_theorem_promotion_source_theorem_kernel_verified": "n_source_theorem_kernel_verified",
                 "formal_verifier_agentic_proof_source_theorem_promotion_needs_source_target": "n_needs_source_theorem_target",
                 "formal_verifier_agentic_proof_source_theorem_promotion_blocked_artifact_failed": "n_blocked_artifact_verification_failed",
+                "formal_verifier_agentic_proof_source_theorem_promotion_unsupported_target_prover_rows": "n_unsupported_target_prover_rows",
+                "formal_verifier_agentic_proof_source_theorem_promotion_by_target_prover_family": "by_target_prover_family",
                 "formal_verifier_agentic_proof_source_theorem_promotion_ok": "n_ok",
             },
         ),
@@ -4224,6 +4272,9 @@ def _formal_verifier_agentic_proof_execution_materializer_preview(
                 "execution_queue_id": row.get("execution_queue_id"),
                 "display_name": row.get("display_name"),
                 "target_theorem_name": row.get("target_theorem_name", ""),
+                "target_prover_family": row.get("target_prover_family", ""),
+                "formal_statement_sketch": row.get("formal_statement_sketch", ""),
+                "formal_imports": row.get("formal_imports", []),
                 "materialization_status": row.get("materialization_status", ""),
                 "candidate_artifact_path": row.get("candidate_artifact_path", ""),
                 "target_lean_file": row.get("target_lean_file", ""),
@@ -4265,6 +4316,10 @@ def _formal_verifier_agentic_proof_execution_artifact_verifier_preview(
                 "execution_queue_id": row.get("execution_queue_id"),
                 "display_name": row.get("display_name"),
                 "target_theorem_name": row.get("target_theorem_name", ""),
+                "target_prover_family": row.get("target_prover_family", ""),
+                "formal_statement_sketch": row.get("formal_statement_sketch", ""),
+                "formal_imports": row.get("formal_imports", []),
+                "materialization_status": row.get("materialization_status", ""),
                 "candidate_artifact_path": row.get("candidate_artifact_path", ""),
                 "execution_transcript_path": row.get("execution_transcript_path", ""),
                 "execution_transcript_event_id": row.get(
@@ -4380,6 +4435,9 @@ def _formal_verifier_agentic_proof_source_theorem_promotion_preview(
                 "execution_queue_id": row.get("execution_queue_id"),
                 "display_name": row.get("display_name"),
                 "target_theorem_name": row.get("target_theorem_name", ""),
+                "target_prover_family": row.get("target_prover_family", ""),
+                "formal_statement_sketch": row.get("formal_statement_sketch", ""),
+                "formal_imports": row.get("formal_imports", []),
                 "candidate_artifact_path": row.get("candidate_artifact_path", ""),
                 "target_lean_declaration": row.get("target_lean_declaration", ""),
                 "artifact_kernel_verified": row.get("artifact_kernel_verified"),
@@ -4911,7 +4969,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"`{queue.get('formal_verifier_agentic_proof_execution_materializer_live_goal_location_ready')}` live-goal locations, "
         f"`{queue.get('formal_verifier_agentic_proof_execution_materializer_live_proof_state_requests')}` live proof-state requests, "
         f"`{queue.get('formal_verifier_agentic_proof_execution_materializer_lean_lsp_mcp_ready_requests')}` Lean-LSP/MCP-ready, "
-        f"`{queue.get('formal_verifier_agentic_proof_execution_materializer_kernel_verified')}` artifact kernels)",
+        f"`{queue.get('formal_verifier_agentic_proof_execution_materializer_kernel_verified')}` artifact kernels, "
+        f"`{queue.get('formal_verifier_agentic_proof_execution_materializer_unsupported_target_prover_rows')}` unsupported target-prover rows, "
+        f"families {queue.get('formal_verifier_agentic_proof_execution_materializer_by_target_prover_family')})",
         f"- Formal verifier agentic artifact verifier: checked `{queue.get('formal_verifier_agentic_proof_execution_artifact_verifier_checked')}`, "
         f"compiled `{queue.get('formal_verifier_agentic_proof_execution_artifact_verifier_compiled')}`, "
         f"artifact kernel `{queue.get('formal_verifier_agentic_proof_execution_artifact_kernel_verified')}`, "
@@ -4919,6 +4979,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"proof-state requests `{queue.get('formal_verifier_agentic_proof_execution_artifact_live_proof_state_request_valid')}`/"
         f"`{queue.get('formal_verifier_agentic_proof_execution_artifact_live_proof_state_requests')}` valid, "
         f"source theorem kernel `{queue.get('formal_verifier_agentic_proof_execution_source_theorem_kernel_verified')}` "
+        f"unsupported target-prover rows `{queue.get('formal_verifier_agentic_proof_execution_artifact_unsupported_target_prover_rows')}` "
+        f"families {queue.get('formal_verifier_agentic_proof_execution_artifact_by_target_prover_family')} "
         f"({queue.get('formal_verifier_agentic_proof_execution_artifact_proof_evidence_status')})",
         f"- Formal verifier agentic proof trace memory: `{queue.get('formal_verifier_agentic_proof_trace_memory_rows')}` rows "
         f"(`{queue.get('formal_verifier_agentic_proof_trace_memory_verifier_events')}` verifier events, "
@@ -4932,7 +4994,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_needs_target_resolution')}` target-resolution, "
         f"`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_artifact_kernel_inputs')}` artifact-kernel inputs, "
         f"`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_source_theorem_kernel_verified')}` source-theorem kernels, "
-        f"`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_needs_source_target')}` need source target)",
+        f"`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_needs_source_target')}` need source target, "
+        f"`{queue.get('formal_verifier_agentic_proof_source_theorem_promotion_unsupported_target_prover_rows')}` unsupported target-prover rows, "
+        f"families {queue.get('formal_verifier_agentic_proof_source_theorem_promotion_by_target_prover_family')})",
         f"- Formal verifier agentic source-theorem target resolution: `{queue.get('formal_verifier_agentic_proof_source_theorem_target_resolution_rows')}` rows "
         f"(`{queue.get('formal_verifier_agentic_proof_source_theorem_target_resolution_resolved')}` resolved, "
         f"`{queue.get('formal_verifier_agentic_proof_source_theorem_target_resolution_needs_route_match')}` need route match, "
