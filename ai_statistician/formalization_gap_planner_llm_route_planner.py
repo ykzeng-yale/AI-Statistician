@@ -1254,6 +1254,7 @@ def export_formalization_gap_planner_llm_route_planner(
         for request, request_errors in zip(request_packets, request_schema_errors)
     )
     row_dicts = [asdict(row) for row in rows]
+    response_model_tier_mismatches = _row_model_tier_mismatches(row_dicts)
     provider_usage_rows = _provider_usage_rows(row_dicts)
     provider_usage_summary = _provider_usage_summary(provider_usage_rows)
     model_tier_decision_ledger = tuple(
@@ -2499,6 +2500,8 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_rows": len(rows),
         "n_response_present": sum(1 for row in rows if row.response_present),
         "n_provider_failures": sum(1 for row in rows if row.provider_failure),
+        "n_response_model_tier_mismatches": len(response_model_tier_mismatches),
+        "response_model_tier_mismatches": response_model_tier_mismatches,
         "n_rows_with_generator_metadata": sum(
             1 for row in rows if row.generator_metadata
         ),
@@ -3808,6 +3811,8 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_rows",
             "n_response_present",
             "n_provider_failures",
+            "n_response_model_tier_mismatches",
+            "response_model_tier_mismatches",
             "n_rows_with_generator_metadata",
             "provider_usage_rows",
             "provider_usage_summary",
@@ -4146,6 +4151,8 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_rows": nonnegative_integer,
             "n_response_present": nonnegative_integer,
             "n_provider_failures": nonnegative_integer,
+            "n_response_model_tier_mismatches": nonnegative_integer,
+            "response_model_tier_mismatches": object_array,
             "n_rows_with_generator_metadata": nonnegative_integer,
             "provider_usage_rows": object_array,
             "provider_usage_summary": {"type": "object"},
@@ -5786,6 +5793,20 @@ def validate_llm_route_planner_manifest(
     ) != sum(1 for row in model_tier_decision_ledger if row.get("provider_failure")):
         errors.append(
             "n_model_tier_decision_ledger_provider_failure_rows must match model_tier_decision_ledger"
+        )
+    response_model_tier_mismatches = _dict_tuple(
+        manifest.get("response_model_tier_mismatches", [])
+    )
+    expected_response_model_tier_mismatches = tuple(
+        _row_model_tier_mismatches(manifest_rows)
+    )
+    if tuple(response_model_tier_mismatches) != expected_response_model_tier_mismatches:
+        errors.append("response_model_tier_mismatches must match rows")
+    if int(manifest.get("n_response_model_tier_mismatches", 0) or 0) != len(
+        response_model_tier_mismatches
+    ):
+        errors.append(
+            "n_response_model_tier_mismatches must match response_model_tier_mismatches"
         )
     provider_usage_rows = _dict_tuple(manifest.get("provider_usage_rows", []))
     expected_provider_usage_rows = _provider_usage_rows(manifest_rows)
@@ -11376,6 +11397,29 @@ def _request_model_tier_mismatches(
         for mismatch in [_request_model_tier_mismatch(request)]
         if mismatch
     ]
+
+
+def _row_model_tier_mismatches(
+    rows: Iterable[Mapping[str, object]],
+) -> list[dict[str, object]]:
+    mismatches: list[dict[str, object]] = []
+    for row in rows:
+        mismatch = _row_model_tier_mismatch_error(row)
+        if not mismatch:
+            continue
+        mismatches.append(
+            {
+                "request_id": str(row.get("request_id", "")),
+                "route_id": str(row.get("route_id", "")),
+                "provider_name": str(row.get("provider_name", "")),
+                "model": str(row.get("model", "")),
+                "model_tier": str(row.get("model_tier", "")),
+                "response_present": bool(row.get("response_present", False)),
+                "acceptance_status": str(row.get("acceptance_status", "")),
+                "error": mismatch,
+            }
+        )
+    return mismatches
 
 
 def _generation_preflight_errors(
@@ -28744,6 +28788,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Model-tier decision ledger rows: {payload.get('n_model_tier_decision_ledger_rows')}",
         f"- Model-tier decision ledger escalations: {payload.get('n_model_tier_decision_ledger_rows_with_escalation')}",
         f"- Responses present: {payload.get('n_response_present')}",
+        f"- Response model-tier mismatches: {payload.get('n_response_model_tier_mismatches')}",
         f"- Provider failures: {payload.get('n_provider_failures')}",
         f"- Rows with generator metadata: {payload.get('n_rows_with_generator_metadata')}",
         f"- Rows with provider usage: {payload.get('n_rows_with_provider_usage')}",

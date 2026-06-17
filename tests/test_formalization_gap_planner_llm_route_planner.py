@@ -13206,6 +13206,16 @@ def test_llm_route_planner_rejects_provider_returned_model_tier_mismatch() -> No
     assert payload["by_request_model_tier"] == {"haiku": 1}
     assert payload["n_rejected"] == 1
     assert payload["n_response_contract_ok"] == 0
+    assert payload["n_response_model_tier_mismatches"] == 1
+    response_mismatch = payload["response_model_tier_mismatches"][0]
+    assert response_mismatch["provider_name"] == "anthropic"
+    assert response_mismatch["model"] == "claude-sonnet-4-6"
+    assert response_mismatch["model_tier"] == "haiku"
+    assert response_mismatch["response_present"] is True
+    assert response_mismatch["acceptance_status"] == (
+        "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    )
+    assert "expected Claude haiku tier" in response_mismatch["error"]
     assert payload["n_row_schema_invalid"] == 1
     row = payload["rows"][0]
     assert row["model_tier"] == "haiku"
