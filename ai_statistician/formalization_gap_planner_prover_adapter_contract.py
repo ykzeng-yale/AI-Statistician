@@ -186,6 +186,9 @@ class FormalizationGapPlannerProverAdapterResponseValidationRow:
     library_snapshot_ref: str
     semantic_alignment_notes: str
     residual_translation_gaps: tuple[str, ...]
+    minimal_delta_action_witness_count: int
+    minimal_delta_action_witness_acknowledged: bool
+    addressed_minimal_delta_action_witnesses: tuple[dict[str, object], ...]
     formal_attempt_dependency_status: str
     prerequisite_feedback_satisfied: bool
     prerequisite_response_ids: tuple[str, ...]
@@ -474,6 +477,30 @@ def export_formalization_gap_planner_prover_adapter_contract(
         ),
         "n_responses_with_prerequisite_response_ids": sum(
             1 for row in validations if row.prerequisite_response_ids
+        ),
+        "n_response_minimal_delta_action_witnesses_required": sum(
+            1
+            for row in validations
+            if row.response_present and row.minimal_delta_action_witness_count
+        ),
+        "n_response_minimal_delta_action_witnesses_acknowledged": sum(
+            1
+            for row in validations
+            if row.response_present
+            and row.minimal_delta_action_witness_count
+            and row.minimal_delta_action_witness_acknowledged
+        ),
+        "n_response_minimal_delta_action_witnesses_unacknowledged": sum(
+            1
+            for row in validations
+            if row.response_present
+            and row.minimal_delta_action_witness_count
+            and not row.minimal_delta_action_witness_acknowledged
+        ),
+        "n_response_addressed_minimal_delta_action_witnesses": sum(
+            len(row.addressed_minimal_delta_action_witnesses)
+            for row in validations
+            if row.response_present
         ),
         "n_rejected_formal_attempt_dependency_gate": sum(
             1
@@ -908,6 +935,9 @@ def prover_adapter_response_validation_row_json_schema() -> dict[str, object]:
             "library_snapshot_ref",
             "semantic_alignment_notes",
             "residual_translation_gaps",
+            "minimal_delta_action_witness_count",
+            "minimal_delta_action_witness_acknowledged",
+            "addressed_minimal_delta_action_witnesses",
             "formal_attempt_dependency_status",
             "prerequisite_feedback_satisfied",
             "prerequisite_response_ids",
@@ -939,6 +969,12 @@ def prover_adapter_response_validation_row_json_schema() -> dict[str, object]:
             "library_snapshot_ref": {"type": "string"},
             "semantic_alignment_notes": {"type": "string"},
             "residual_translation_gaps": string_array,
+            "minimal_delta_action_witness_count": {"type": "integer"},
+            "minimal_delta_action_witness_acknowledged": {"type": "boolean"},
+            "addressed_minimal_delta_action_witnesses": {
+                "type": "array",
+                "items": {"type": "object", "additionalProperties": True},
+            },
             "formal_attempt_dependency_status": {
                 "enum": list(FORMAL_ATTEMPT_DEPENDENCY_STATUSES)
             },
@@ -2243,6 +2279,13 @@ def _validate_response(
             library_snapshot_ref="",
             semantic_alignment_notes="",
             residual_translation_gaps=(),
+            minimal_delta_action_witness_count=(
+                packet.minimal_delta_action_witness_count
+            ),
+            minimal_delta_action_witness_acknowledged=(
+                not packet.minimal_delta_action_witnesses
+            ),
+            addressed_minimal_delta_action_witnesses=(),
             formal_attempt_dependency_status=packet.formal_attempt_dependency_status,
             prerequisite_feedback_satisfied=False,
             prerequisite_response_ids=(),
@@ -2266,6 +2309,18 @@ def _validate_response(
     library_snapshot_ref = str(response.get("library_snapshot_ref", ""))
     semantic_alignment_notes = str(response.get("semantic_alignment_notes", ""))
     residual_translation_gaps = _str_tuple(response.get("residual_translation_gaps", []))
+    addressed_minimal_delta_action_witnesses = _dict_tuple(
+        response.get("addressed_minimal_delta_action_witnesses", [])
+    )
+    minimal_delta_action_witness_acknowledged = (
+        _response_acknowledges_minimal_delta_action_witnesses(
+            packet,
+            response,
+            translated_statement=translated_statement,
+            semantic_alignment_notes=semantic_alignment_notes,
+            residual_translation_gaps=residual_translation_gaps,
+        )
+    )
     prerequisite_feedback_raw = response.get("prerequisite_feedback_satisfied", False)
     prerequisite_feedback_satisfied = (
         prerequisite_feedback_raw
@@ -2350,13 +2405,7 @@ def _validate_response(
     if (
         mapping_status == "ready_for_kernel_attempt"
         and packet.minimal_delta_action_witnesses
-        and not _response_acknowledges_minimal_delta_action_witnesses(
-            packet,
-            response,
-            translated_statement=translated_statement,
-            semantic_alignment_notes=semantic_alignment_notes,
-            residual_translation_gaps=residual_translation_gaps,
-        )
+        and not minimal_delta_action_witness_acknowledged
     ):
         errors.append(
             "ready_for_kernel_attempt must acknowledge "
@@ -2426,6 +2475,13 @@ def _validate_response(
         library_snapshot_ref=library_snapshot_ref,
         semantic_alignment_notes=semantic_alignment_notes,
         residual_translation_gaps=residual_translation_gaps,
+        minimal_delta_action_witness_count=packet.minimal_delta_action_witness_count,
+        minimal_delta_action_witness_acknowledged=(
+            minimal_delta_action_witness_acknowledged
+        ),
+        addressed_minimal_delta_action_witnesses=(
+            addressed_minimal_delta_action_witnesses
+        ),
         formal_attempt_dependency_status=packet.formal_attempt_dependency_status,
         prerequisite_feedback_satisfied=prerequisite_feedback_satisfied,
         prerequisite_response_ids=prerequisite_response_ids,
@@ -2754,6 +2810,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Minimal-delta action witness fields: {payload.get('packet_minimal_delta_action_witness_fields')}",
         f"- Responses: {payload.get('n_response_present')}/{payload.get('n_packets')}",
         f"- Contract OK responses: {payload.get('n_response_contract_ok')}",
+        "- Response minimal-delta witness acknowledgments: "
+        f"{payload.get('n_response_minimal_delta_action_witnesses_acknowledged')}/"
+        f"{payload.get('n_response_minimal_delta_action_witnesses_required')}",
+        "- Response minimal-delta witness unacknowledged: "
+        f"{payload.get('n_response_minimal_delta_action_witnesses_unacknowledged')}",
         (
             f"- Response validation row schema valid: "
             f"{payload.get('n_response_validation_row_schema_valid')}/"

@@ -607,6 +607,27 @@ def test_prover_adapter_contract_gates_waiting_formal_attempt_dependency() -> No
     assert not unacknowledged_payload["all_ok"]
     witness_validation = unacknowledged_payload["response_validation_rows"][0]
     assert witness_validation["prerequisite_feedback_satisfied"] is True
+    assert witness_validation["minimal_delta_action_witness_count"] == 1
+    assert witness_validation["minimal_delta_action_witness_acknowledged"] is False
+    assert witness_validation["addressed_minimal_delta_action_witnesses"] == ()
+    assert (
+        unacknowledged_payload[
+            "n_response_minimal_delta_action_witnesses_required"
+        ]
+        == 1
+    )
+    assert (
+        unacknowledged_payload[
+            "n_response_minimal_delta_action_witnesses_acknowledged"
+        ]
+        == 0
+    )
+    assert (
+        unacknowledged_payload[
+            "n_response_minimal_delta_action_witnesses_unacknowledged"
+        ]
+        == 1
+    )
     assert any(
         "minimal_delta_action_witnesses" in error
         for error in witness_validation["errors"]
@@ -633,6 +654,27 @@ def test_prover_adapter_contract_gates_waiting_formal_attempt_dependency() -> No
         adapter_response_jsonl=response_jsonl,
     )
     assert explicit_ack_payload["all_ok"]
+    explicit_ack_validation = explicit_ack_payload["response_validation_rows"][0]
+    assert explicit_ack_validation["minimal_delta_action_witness_count"] == 1
+    assert explicit_ack_validation["minimal_delta_action_witness_acknowledged"] is True
+    assert explicit_ack_validation["addressed_minimal_delta_action_witnesses"] == (
+        {
+            "action_field": "bridge_lemmas",
+            "primitive": "rank_uniformity",
+        },
+    )
+    assert (
+        explicit_ack_payload[
+            "n_response_minimal_delta_action_witnesses_acknowledged"
+        ]
+        == 1
+    )
+    assert (
+        explicit_ack_payload[
+            "n_response_addressed_minimal_delta_action_witnesses"
+        ]
+        == 1
+    )
 
     unlocked_response = {
         **blocked_response,
@@ -654,10 +696,25 @@ def test_prover_adapter_contract_gates_waiting_formal_attempt_dependency() -> No
     assert unlocked_payload["all_ok"]
     assert unlocked_payload["n_response_prerequisite_feedback_satisfied"] == 1
     assert unlocked_payload["n_responses_with_prerequisite_response_ids"] == 1
+    assert (
+        unlocked_payload[
+            "n_response_minimal_delta_action_witnesses_acknowledged"
+        ]
+        == 1
+    )
+    assert (
+        unlocked_payload[
+            "n_response_minimal_delta_action_witnesses_unacknowledged"
+        ]
+        == 0
+    )
     assert unlocked_payload["packets"][0]["minimal_delta_action_witness_count"] == 1
     assert unlocked_payload["response_validation_rows"][0][
         "prerequisite_response_ids"
     ] == ("prover_feedback:exchangeability",)
+    assert unlocked_payload["response_validation_rows"][0][
+        "minimal_delta_action_witness_acknowledged"
+    ] is True
     assert not validate_prover_adapter_packet_row(unlocked_payload["packets"][0])
 
 

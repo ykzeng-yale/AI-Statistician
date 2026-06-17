@@ -2090,6 +2090,13 @@ verifier. If a packet carries `minimal_delta_action_witnesses`, a
 obligation in `translated_statement`, `semantic_alignment_notes`, or
 `addressed_minimal_delta_action_witnesses`; otherwise it must report
 `residual_translation_gaps` instead of silently treating the packet as ready.
+The response-validation row and manifest expose the acknowledgement state with
+`minimal_delta_action_witness_count`,
+`minimal_delta_action_witness_acknowledged`,
+`addressed_minimal_delta_action_witnesses`, and aggregate acknowledged/
+unacknowledged counters, so downstream audits do not need to parse diagnostic
+strings to determine whether the target-prover mapping consumed the selected
+minimal delta.
 
 Every run also writes
 `library_aware_formalization_gap_plan.schema.json` and
