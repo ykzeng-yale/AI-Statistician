@@ -14485,6 +14485,7 @@ def _route_adoption_preconditions(
             *_residual_goal_target_primitives(residual_goals),
             *_feedback_summary_target_primitives(feedback_summary),
             *_str_tuple(source_grounding_obligations.get("target_primitives", [])),
+            *_str_tuple(quality_control_obligations.get("target_primitives", [])),
             *_str_tuple(
                 interactive_route_adoption_preconditions.get(
                     "target_primitives",

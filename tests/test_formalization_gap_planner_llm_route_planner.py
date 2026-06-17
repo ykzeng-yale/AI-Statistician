@@ -12374,6 +12374,7 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
         "search_requests",
         "planner_next_actions",
     ]
+    assert pending_preconditions["target_primitives"] == ["rank_uniformity"]
     quality_focus = next(
         focus
         for focus in pending_context["route_planning_brief"]["planner_focus"]
