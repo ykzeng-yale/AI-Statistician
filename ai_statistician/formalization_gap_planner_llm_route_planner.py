@@ -658,6 +658,25 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
     "proof_boundary": PROOF_EVIDENCE_STATUS,
 }
 
+REQUIRED_HAIKU_SAFETY_CHECK_KEYS = frozenset(
+    {
+        "no_residual_goals",
+        "primitive_count_at_most_four",
+        "source_ref_count_at_most_six",
+        "theorem_statement_at_most_600_chars",
+        "no_complex_coverage_or_action_markers",
+        "no_pending_resource_request_queue",
+        "no_resource_request_playbooks",
+        "no_interactive_resource_requests",
+        "no_interactive_dispatch_summaries",
+        "no_unresolved_interactive_route_adoption_preconditions",
+        "no_interactive_route_adoption_blockers",
+        "no_source_theorem_feedback",
+        "no_pending_source_grounding_obligations",
+        "no_residual_source_grounding_obligations",
+    }
+)
+
 
 MINIMAL_DELTA_COST_POLICY: dict[str, object] = {
     "cost_policy_id": MINIMAL_DELTA_COST_POLICY_ID,
@@ -12693,6 +12712,12 @@ def _model_tier_decision_evidence_errors(
         checks = _dict_value(evidence, "haiku_safety_checks")
         if not checks:
             errors.append(f"{prefix}.haiku_safety_checks required for auto Haiku")
+        missing_checks = sorted(REQUIRED_HAIKU_SAFETY_CHECK_KEYS - set(checks))
+        if missing_checks:
+            errors.append(
+                f"{prefix}.haiku_safety_checks missing required checks: "
+                + ", ".join(missing_checks)
+            )
         failed_checks = sorted(
             str(key)
             for key, value in checks.items()

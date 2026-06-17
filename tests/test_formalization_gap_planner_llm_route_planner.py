@@ -12515,6 +12515,21 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         "no_pending_source_grounding_obligations": True,
         "no_residual_source_grounding_obligations": True,
     }
+    stale_haiku_safety_request = deepcopy(packet)
+    stale_haiku_checks = stale_haiku_safety_request[
+        "model_tier_decision_evidence"
+    ]["haiku_safety_checks"]
+    stale_haiku_checks.pop("no_pending_source_grounding_obligations")
+    stale_haiku_checks.pop("no_residual_source_grounding_obligations")
+    stale_haiku_errors = validate_llm_route_planner_request(
+        stale_haiku_safety_request
+    )
+    assert any(
+        "haiku_safety_checks missing required checks" in error
+        and "no_pending_source_grounding_obligations" in error
+        and "no_residual_source_grounding_obligations" in error
+        for error in stale_haiku_errors
+    )
     assert packet["model_tier_decision_evidence"]["route_signal_counts"][
         "source_grounding_unresolved_count"
     ] == 0
