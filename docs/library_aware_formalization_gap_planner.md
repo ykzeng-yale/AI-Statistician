@@ -1045,8 +1045,8 @@ larger theorem context to Sonnet. It also upgrades source-theorem/proof-body
 feedback rows with semantic-primitive gaps, exact proof-body execution
 failures, or formal-environment blockers to Sonnet and records those row counts
 and trigger reasons in `model_tier_decision_evidence`. If a live Anthropic
-Haiku route-plan response
-fails local JSON/contract validation and a repair attempt remains, the repair
+Haiku route-plan response fails local JSON, contract, or primitive-evidence
+matrix accountability validation and a repair attempt remains, the repair
 attempt escalates to Sonnet and records `requested_model_tier`,
 `effective_model_tier`, and `model_tier_escalated` in generator metadata,
 repair history, and the repair ledger. To run the second pass with
@@ -2233,7 +2233,10 @@ The current implementation composes four existing AI Statistician artifacts:
    without grounded source snippets, fail to account for selected
    formal-supported primitives through direct reuse or structured
    search/revision actions, omit selected delta/action accounting, or otherwise
-   select primitives outside the request matrix. The accepted
+   select primitives outside the request matrix. Live provider generation uses
+   the same primitive-matrix errors as local repair feedback, so a schema-valid
+   Claude response that omits selected primitive evidence is repaired before it
+   can become an accepted route-plan row. The accepted
    LLM DAG, route-alignment edges,
    minimal-delta plan, search requests, residual interpretations, and provider
    provenance are also copied into the seed route's `replan_metadata`, so the

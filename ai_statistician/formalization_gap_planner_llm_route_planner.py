@@ -9937,6 +9937,10 @@ def _generate_responses(
                     *generation_errors,
                     *validate_llm_route_planner_response(candidate),
                     *_response_contract_errors(payload, packet),
+                    *_response_payload_validation_primitive_matrix_errors(
+                        payload,
+                        packet,
+                    ),
                 ]
                 if not validation_errors:
                     last_response = candidate
@@ -10232,6 +10236,26 @@ def _repair_guidance_for_error(
             "prover residual interpretation is incomplete or ungrounded",
             "interpret every residual goal with a source-backed repair, search request, or formal gap boundary",
             ("residual_interpretations", "search_requests", "formal_gap_boundary"),
+        )
+    if "primitive_evidence_matrix" in normalized:
+        return (
+            "primitive_evidence_matrix_accountability",
+            (
+                "selected route primitives are not fully accounted against the "
+                "request evidence matrix"
+            ),
+            (
+                "for every selected primitive, preserve request matrix identity "
+                "and add the required source snippets, formal-library reuse, "
+                "delta work item, search request, or planner next action"
+            ),
+            (
+                "minimal_delta_plan.selected_primitives",
+                "source_snippets",
+                "formal_realization_dag_nodes",
+                "search_requests",
+                "planner_next_actions",
+            ),
         )
     if (
         "minimal_delta" in normalized

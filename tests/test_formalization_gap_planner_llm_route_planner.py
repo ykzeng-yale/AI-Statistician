@@ -13445,6 +13445,76 @@ def test_llm_route_planner_repairs_invalid_provider_response_with_local_validato
     assert "- Repair ledger rows: 1" in report
 
 
+def test_llm_route_planner_repairs_primitive_matrix_accountability_failure() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_matrix_repair_fake"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    requests = []
+
+    class RepairingFakeAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            requests.append(request)
+            if len(requests) == 1:
+                return GeneratorResponse(
+                    text=json.dumps(_drop_source_snippets(_llm_response_payload())),
+                    provider="anthropic",
+                    model=request.model,
+                    metadata={"generator_only": True, "tools_available": False},
+                )
+            return GeneratorResponse(
+                text=json.dumps(_llm_response_payload()),
+                provider="anthropic",
+                model=request.model,
+                metadata={"generator_only": True, "tools_available": False},
+            )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=RepairingFakeAnthropicBackend(),
+        max_repair_attempts=1,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_generated_response_repair_attempts"] == 1
+    assert payload["n_generated_responses_repaired"] == 1
+    assert payload["n_response_contract_ok"] == 1
+    assert len(requests) == 2
+    repair_prompt = requests[1].user_prompt
+    assert "primitive_evidence_matrix_accountability" in repair_prompt
+    assert (
+        "primitive_evidence_matrix source-backed primitives require response source_snippets"
+        in repair_prompt
+    )
+    assert "rank_uniformity" in repair_prompt
+    row = payload["rows"][0]
+    assert row["repair_attempts"] == 1
+    assert row["primitive_evidence_matrix_witness"][
+        "matrix_accounting_complete"
+    ] is True
+    repair_categories = row["repair_error_history"][0][
+        "repair_guidance_categories"
+    ]
+    assert "primitive_evidence_matrix_accountability" in repair_categories
+    repair_ledger_row = row["repair_attempt_ledger"][0]
+    assert "primitive_evidence_matrix_accountability" in repair_ledger_row[
+        "repair_guidance_categories"
+    ]
+    assert any(
+        "primitive_evidence_matrix source-backed primitives require response source_snippets"
+        in error
+        for error in repair_ledger_row["errors"]
+    )
+
+
 def test_llm_route_planner_preserves_exhausted_repair_attempt_ledger() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_repair_exhausted")
     out_dir = root / "llm_route_planner"
