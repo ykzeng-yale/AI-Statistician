@@ -7959,6 +7959,9 @@ def _route_planning_brief(
         context_packet,
         "route_adoption_preconditions",
     )
+    route_adoption_precondition_targets = _str_tuple(
+        route_adoption_preconditions.get("target_primitives", [])
+    )
     resource_feedback_readiness = _dict_value(
         context_packet,
         "resource_feedback_readiness_summary",
@@ -8509,6 +8512,7 @@ def _route_planning_brief(
                 )
             )
             or ("planner_next_actions", "search_requests"),
+            target_primitives=route_adoption_precondition_targets,
         )
         add_gap(
             "known_route_adoption_preconditions",
@@ -8522,6 +8526,7 @@ def _route_planning_brief(
                 "the blocker-specific route repair path"
             ),
             evidence_fields=("context_packet.route_adoption_preconditions",),
+            target_primitives=route_adoption_precondition_targets,
         )
 
     target_context = dict(target_theorem_context)
@@ -14470,6 +14475,32 @@ def _route_adoption_preconditions(
         blockers.append(ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS)
         response_required_fields.extend(["search_requests", "planner_next_actions"])
 
+    target_primitives = _unique_strings(
+        [
+            *_residual_goal_target_primitives(residual_goals),
+            *_feedback_summary_target_primitives(feedback_summary),
+            *_str_tuple(source_grounding_obligations.get("target_primitives", [])),
+            *_str_tuple(
+                interactive_route_adoption_preconditions.get(
+                    "target_primitives",
+                    [],
+                )
+            ),
+            *_str_tuple(
+                realization_coverage.get(
+                    "missing_selected_formal_primitives",
+                    [],
+                )
+            ),
+            *_str_tuple(
+                realization_coverage.get(
+                    "missing_delta_alignment_primitives",
+                    [],
+                )
+            ),
+            *_str_tuple(realization_coverage.get("omitted_cost_hint_primitives", [])),
+        ]
+    )
     blockers = list(dict.fromkeys(blockers))
     response_required_fields = list(dict.fromkeys(response_required_fields))
     blocked_before_response = bool(blockers)
@@ -14486,6 +14517,7 @@ def _route_adoption_preconditions(
         "n_known_pre_response_blockers": len(blockers),
         "response_required_fields": response_required_fields,
         "n_response_required_fields": len(response_required_fields),
+        "target_primitives": list(target_primitives[:20]),
         "blocker_trigger_fields": {
             blocker: list(ROUTE_ADOPTION_BLOCKER_TRIGGER_FIELDS.get(blocker, ()))
             for blocker in blockers

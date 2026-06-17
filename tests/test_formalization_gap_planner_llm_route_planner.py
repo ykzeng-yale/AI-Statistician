@@ -12100,6 +12100,20 @@ def test_llm_route_planner_blocks_route_adoption_on_unresolved_source_grounding(
         "search_requests",
         "planner_next_actions",
     }
+    assert preconditions["target_primitives"] == ["rank_uniformity"]
+    route_brief = context["route_planning_brief"]
+    precondition_focus = next(
+        focus
+        for focus in route_brief["planner_focus"]
+        if focus["focus_id"] == "resolve_route_adoption_preconditions"
+    )
+    assert precondition_focus["target_primitives"] == ["rank_uniformity"]
+    precondition_gap = next(
+        gap
+        for gap in route_brief["evidence_gaps"]
+        if gap["gap_id"] == "known_route_adoption_preconditions"
+    )
+    assert precondition_gap["target_primitives"] == ["rank_uniformity"]
     assert (
         row["route_adoption_preconditions"]
         == context["route_adoption_preconditions"]
