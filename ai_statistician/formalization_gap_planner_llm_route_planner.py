@@ -17738,6 +17738,7 @@ def _target_incompatible_tool_markers(
     refs = _structured_resource_refs(row)
     for ref_values in refs.values():
         values.extend(_str_tuple(ref_values))
+    values.extend(_str_tuple(row.get("request_kind", "")))
     incompatible: list[str] = []
     for value in values:
         key = _resource_ref_key(value)

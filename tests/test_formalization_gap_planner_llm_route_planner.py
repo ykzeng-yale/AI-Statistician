@@ -15382,6 +15382,63 @@ def test_llm_route_planner_rejects_target_specific_lean_tools_for_rocq_target() 
     assert "target_prover_family rocq" in error_text
 
 
+def test_llm_route_planner_rejects_lean_search_kind_for_rocq_target_without_owner() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_lean_request_kind_for_rocq"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["target_prover_family"] = "rocq"
+    input_payload["library_snapshot_ref"] = "rocq_probability_snapshot"
+    input_json.write_text(json.dumps(input_payload), encoding="utf-8")
+    bad_response = _llm_response_payload()
+    bad_response["formal_realization_dag_nodes"] = bad_response.pop(
+        "lean_realization_dag_nodes"
+    )
+    _retarget_formal_attempt_queue(
+        bad_response,
+        target_prover_family="rocq",
+        owner="rocq_lsp_serapi",
+    )
+    bad_response["search_requests"] = [
+        {
+            "request_kind": "lean_search",
+            "query": "rank_uniformity declaration search",
+            "reason": (
+                "This hides a Lean-specific search kind without naming a Lean "
+                "owner or resource."
+            ),
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    bad_response["planner_next_actions"] = [
+        {
+            "owner": "rocq_lsp_serapi",
+            "action": "run Rocq proof-state feedback for the rank route",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert "search_requests[0] uses target-specific tool/resource" in error_text
+    assert "lean_search targets lean4" in error_text
+    assert "target_prover_family rocq" in error_text
+
+
 def test_llm_route_planner_accepts_target_specific_rocq_tools_for_rocq_target() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_accepts_rocq_tool_for_rocq"
