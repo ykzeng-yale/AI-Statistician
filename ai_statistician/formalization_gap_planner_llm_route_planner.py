@@ -666,6 +666,7 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
         "Use sonnet when source-grounding audit obligations are pending, especially residual goals without source-backed route repair.",
         "Use sonnet when resource-request queue rows, resource-request playbooks, or interactive-session resource dispatch bindings are present.",
         "Use sonnet when interactive-session route-adoption preconditions remain unresolved or carry known pre-response blockers.",
+        "Use sonnet when formal-verifier agentic proof-strategy plan rows are ready for patch-evolve, source-discovery, or kernel-overlay dispatch.",
         "Use sonnet when target-intake rows expose missing proof sources, library-search requirements, proof-state probes, complex theorem shape, or large normalized theorem context.",
         "Use sonnet when the seed route itself carries uncertainty flags, semantic alignment risks, source-search-pending markers, or substantive formal-gap boundaries.",
         "Use sonnet when any primitive needs a bridge, source port, new definition, new theory, or has unknown/missing/unresolved coverage or alignment status.",
@@ -691,6 +692,7 @@ REQUIRED_HAIKU_SAFETY_CHECK_KEYS = frozenset(
         "no_source_theorem_feedback",
         "no_pending_source_grounding_obligations",
         "no_residual_source_grounding_obligations",
+        "no_agentic_proof_strategy_plan_ready",
     }
 )
 
@@ -12627,6 +12629,9 @@ def _llm_route_planner_model_tier_decision(
     source_grounding_obligations = _source_grounding_obligation_summary(
         context_packet
     )
+    agentic_strategy_plan_counts = _context_agentic_proof_strategy_plan_counts(
+        context_packet
+    )
     interactive_precondition_counts = (
         _context_interactive_route_adoption_precondition_counts(
             context_packet,
@@ -12645,6 +12650,7 @@ def _llm_route_planner_model_tier_decision(
         resource_dispatch_counts=resource_dispatch_counts,
         source_theorem_feedback_counts=source_theorem_feedback_counts,
         source_grounding_obligations=source_grounding_obligations,
+        agentic_strategy_plan_counts=agentic_strategy_plan_counts,
         interactive_precondition_counts=interactive_precondition_counts,
     )
     if requested in {"haiku", "sonnet", "opus"}:
@@ -12690,6 +12696,9 @@ def _llm_route_planner_model_tier_decision(
     )
     sonnet_reasons.extend(
         _source_grounding_obligation_sonnet_reasons(source_grounding_obligations)
+    )
+    sonnet_reasons.extend(
+        _agentic_proof_strategy_plan_sonnet_reasons(agentic_strategy_plan_counts)
     )
     sonnet_reasons.extend(_target_intake_sonnet_reasons(context_packet))
     sonnet_reasons.extend(_seed_route_risk_sonnet_reasons(route, primitives))
@@ -12781,6 +12790,9 @@ def _llm_route_planner_model_tier_decision(
         "no_residual_source_grounding_obligations": (
             int(source_grounding_obligations.get("n_residual_unresolved_rows", 0) or 0)
             == 0
+        ),
+        "no_agentic_proof_strategy_plan_ready": (
+            int(agentic_strategy_plan_counts.get("ready_count", 0) or 0) == 0
         ),
     }
     evidence = dict(base_evidence)
@@ -12979,6 +12991,49 @@ def _source_theorem_feedback_sonnet_reasons(
     return reasons
 
 
+def _context_agentic_proof_strategy_plan_counts(
+    context_packet: Mapping[str, Any],
+) -> dict[str, int]:
+    summary = _dict_value(context_packet, "agentic_proof_strategy_plan_summary")
+    if not summary:
+        summary = _agentic_proof_strategy_plan_summary(context_packet)
+    return {
+        "total_rows": int(summary.get("total_rows", 0) or 0),
+        "ready_count": int(summary.get("ready_count", 0) or 0),
+        "patch_evolve_block_count": int(
+            summary.get("patch_evolve_block_count", 0) or 0
+        ),
+        "source_discovery_cache_item_count": int(
+            summary.get("source_discovery_cache_item_count", 0) or 0
+        ),
+        "kernel_overlay_composition_seed_count": int(
+            summary.get("kernel_overlay_composition_seed_count", 0) or 0
+        ),
+        "with_live_tool_plan_count": int(
+            summary.get("with_live_tool_plan_count", 0) or 0
+        ),
+    }
+
+
+def _agentic_proof_strategy_plan_sonnet_reasons(
+    counts: Mapping[str, int],
+) -> list[str]:
+    ready = int(counts.get("ready_count", 0) or 0)
+    if not ready:
+        return []
+    reason = f"{ready} ready agentic proof-strategy plan row(s)"
+    dispatch_kinds: list[str] = []
+    if int(counts.get("patch_evolve_block_count", 0) or 0):
+        dispatch_kinds.append("patch-evolve")
+    if int(counts.get("source_discovery_cache_item_count", 0) or 0):
+        dispatch_kinds.append("source-discovery")
+    if int(counts.get("kernel_overlay_composition_seed_count", 0) or 0):
+        dispatch_kinds.append("kernel-overlay")
+    if dispatch_kinds:
+        reason += " needing " + "/".join(dispatch_kinds) + " dispatch"
+    return [reason]
+
+
 def _source_grounding_obligation_sonnet_reasons(
     obligations: Mapping[str, object],
 ) -> list[str]:
@@ -13031,6 +13086,7 @@ def _model_tier_decision_evidence_base(
     resource_dispatch_counts: Mapping[str, int],
     source_theorem_feedback_counts: Mapping[str, int | bool],
     source_grounding_obligations: Mapping[str, object],
+    agentic_strategy_plan_counts: Mapping[str, int],
     interactive_precondition_counts: Mapping[str, int],
 ) -> dict[str, object]:
     return {
@@ -13157,6 +13213,33 @@ def _model_tier_decision_evidence_base(
                 )
                 or 0
             ),
+            "agentic_proof_strategy_plan_row_count": int(
+                agentic_strategy_plan_counts.get("total_rows", 0) or 0
+            ),
+            "agentic_proof_strategy_plan_ready_count": int(
+                agentic_strategy_plan_counts.get("ready_count", 0) or 0
+            ),
+            "agentic_proof_strategy_plan_patch_evolve_block_count": int(
+                agentic_strategy_plan_counts.get("patch_evolve_block_count", 0) or 0
+            ),
+            "agentic_proof_strategy_plan_source_discovery_cache_item_count": int(
+                agentic_strategy_plan_counts.get(
+                    "source_discovery_cache_item_count",
+                    0,
+                )
+                or 0
+            ),
+            "agentic_proof_strategy_plan_kernel_overlay_composition_seed_count": int(
+                agentic_strategy_plan_counts.get(
+                    "kernel_overlay_composition_seed_count",
+                    0,
+                )
+                or 0
+            ),
+            "agentic_proof_strategy_plan_live_tool_plan_count": int(
+                agentic_strategy_plan_counts.get("with_live_tool_plan_count", 0)
+                or 0
+            ),
         },
         "context_resource_dispatch_counts": dict(resource_dispatch_counts),
         "interactive_route_adoption_precondition_counts": dict(
@@ -13164,6 +13247,7 @@ def _model_tier_decision_evidence_base(
         ),
         "source_theorem_feedback_counts": dict(source_theorem_feedback_counts),
         "source_grounding_obligations": dict(source_grounding_obligations),
+        "agentic_proof_strategy_plan_counts": dict(agentic_strategy_plan_counts),
         "coverage_action_markers": sorted(route_markers),
         "complex_coverage_action_markers": list(hard_markers),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,

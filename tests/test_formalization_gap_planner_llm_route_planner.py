@@ -13384,6 +13384,7 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         "no_source_theorem_feedback": True,
         "no_pending_source_grounding_obligations": True,
         "no_residual_source_grounding_obligations": True,
+        "no_agentic_proof_strategy_plan_ready": True,
     }
     stale_haiku_safety_request = deepcopy(packet)
     stale_haiku_checks = stale_haiku_safety_request[
@@ -13391,6 +13392,7 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     ]["haiku_safety_checks"]
     stale_haiku_checks.pop("no_pending_source_grounding_obligations")
     stale_haiku_checks.pop("no_residual_source_grounding_obligations")
+    stale_haiku_checks.pop("no_agentic_proof_strategy_plan_ready")
     stale_haiku_errors = validate_llm_route_planner_request(
         stale_haiku_safety_request
     )
@@ -13398,6 +13400,7 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         "haiku_safety_checks missing required checks" in error
         and "no_pending_source_grounding_obligations" in error
         and "no_residual_source_grounding_obligations" in error
+        and "no_agentic_proof_strategy_plan_ready" in error
         for error in stale_haiku_errors
     )
     assert packet["model_tier_decision_evidence"]["route_signal_counts"][
@@ -13412,6 +13415,105 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     request = captured["request"]
     assert request.model == "claude-haiku-4-5-20251001"
     assert request.metadata["model_tier"] == "haiku"
+
+
+def test_llm_route_planner_auto_uses_sonnet_for_ready_agentic_strategy_plan() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_light_agentic_strategy_tier"
+    )
+    out_dir = root / "llm_route_planner"
+    strategy_plan_dir = root / "agentic_strategy_plan"
+    shutil.rmtree(root, ignore_errors=True)
+    strategy_plan_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    strategy_rows = [
+        {
+            "schema_version": 1,
+            "strategy_id": "strategy:rank_route_light:source",
+            "followup_id": "followup:rank_route_light:source",
+            "residual_response_validation_id": "validation:rank_route_light:source",
+            "prompt_packet_id": "packet:rank_route_light:source",
+            "residual_obligation_id": (
+                "residual-obligation:rank_route_light:rank_uniformity"
+            ),
+            "route_id": "rank_route_light",
+            "display_name": "distribution_free_rank_bound_light",
+            "target_theorem_name": "distribution_free_rank_bound_light",
+            "candidate_bridge_lemma_name": "rank_uniformity_bridge",
+            "residual_gap": "rank_uniformity",
+            "action_class": "source_discovery_needed",
+            "followup_kind": "residual_source_discovery",
+            "followup_status": "READY_FOR_AGENTIC_PROOF_STRATEGY",
+            "agentic_strategy_kind": "global_goal_cache_source_discovery",
+            "paper_patterns": ["uniform rank statistic"],
+            "required_live_tools": ["paperqa", "lean_leansearch"],
+            "evaluator_gates": ["primitive-source coverage expansion"],
+            "global_goal_cache_keys": ["rank_uniformity:exchangeable_scores"],
+            "candidate_database_key": "candidate-db:rank_route_light:rank_uniformity",
+            "expected_artifacts": ["source_cache/rank_uniformity.json"],
+            "priority_score": 80,
+            "rank": 1,
+            "proof_evidence_status": (
+                "AGENTIC_STRATEGY_PLAN_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            "ok": True,
+            "errors": [],
+        }
+    ]
+    (
+        strategy_plan_dir / "formal_verifier_agentic_proof_strategy_plan_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "n_strategy_rows": len(strategy_rows),
+                "n_ready": 1,
+                "n_patch_evolve_blocks": 0,
+                "n_source_discovery_cache_items": 1,
+                "n_kernel_overlay_composition_seeds": 0,
+                "n_with_live_tool_plan": 1,
+                "all_ok": True,
+                "rows": strategy_rows,
+                "limitations": [
+                    "agentic proof strategy rows are proof-search contracts, not theorem proof evidence"
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        formal_verifier_agentic_proof_strategy_plan_dir=strategy_plan_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 0
+    packet = payload["request_packets"][0]
+    assert packet["model_tier"] == "sonnet"
+    assert packet["model"] == "claude-sonnet-4-6"
+    evidence = packet["model_tier_decision_evidence"]
+    assert evidence["decision_basis"] == "auto_sonnet_triggers"
+    assert evidence["route_signal_counts"][
+        "agentic_proof_strategy_plan_row_count"
+    ] == 1
+    assert evidence["route_signal_counts"][
+        "agentic_proof_strategy_plan_ready_count"
+    ] == 1
+    assert evidence["route_signal_counts"][
+        "agentic_proof_strategy_plan_source_discovery_cache_item_count"
+    ] == 1
+    assert evidence["agentic_proof_strategy_plan_counts"]["ready_count"] == 1
+    assert any(
+        "ready agentic proof-strategy plan" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
 
 
 def test_llm_route_planner_auto_uses_sonnet_for_pending_source_grounding() -> None:
