@@ -36,6 +36,9 @@ class FormalVerifierAgenticProofExecutionMaterializerRow:
     display_name: str
     target_theorem_name: str
     candidate_bridge_lemma_name: str
+    target_prover_family: str
+    formal_statement_sketch: str
+    formal_imports: tuple[str, ...]
     residual_gap: str
     population_bucket: str
     materialization_status: str
@@ -83,6 +86,10 @@ def export_formal_verifier_agentic_proof_execution_materializer(
         if isinstance(row, dict)
     ]
     by_status = Counter(row.materialization_status for row in rows)
+    artifact_statuses = {
+        "MATERIALIZED_LEAN_ARTIFACT",
+        "EXISTING_LEAN_ARTIFACT_REUSED",
+    }
     payload: dict[str, object] = {
         "schema_version": (
             FORMAL_VERIFIER_AGENTIC_PROOF_EXECUTION_MATERIALIZER_SCHEMA_VERSION
@@ -106,6 +113,12 @@ def export_formal_verifier_agentic_proof_execution_materializer(
         "n_source_discovery_rows_skipped": by_status.get(
             "SOURCE_DISCOVERY_ROW_NOT_MATERIALIZED", 0
         ),
+        "n_unsupported_target_prover_rows": by_status.get(
+            "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_MATERIALIZER", 0
+        ),
+        "by_target_prover_family": dict(
+            sorted(Counter(row.target_prover_family for row in rows).items())
+        ),
         "n_live_goal_location_ready": sum(
             1 for row in rows if row.live_goal_location_ready
         ),
@@ -119,13 +132,25 @@ def export_formal_verifier_agentic_proof_execution_materializer(
             in row.live_proof_state_request.get("provider_preferences", ())
         ),
         "n_kernel_verified": sum(1 for row in rows if row.kernel_verified),
-        "n_exact_source_theorem_candidate_artifacts": sum(
+        "n_exact_source_theorem_candidate_rows": sum(
             1
             for row in rows
             if row.materialization_mode == "exact_source_theorem_candidate"
         ),
-        "n_route_probe_artifacts": sum(
+        "n_exact_source_theorem_candidate_artifacts": sum(
+            1
+            for row in rows
+            if row.materialization_mode == "exact_source_theorem_candidate"
+            and row.materialization_status in artifact_statuses
+        ),
+        "n_route_probe_rows": sum(
             1 for row in rows if row.materialization_mode == "route_probe"
+        ),
+        "n_route_probe_artifacts": sum(
+            1
+            for row in rows
+            if row.materialization_mode == "route_probe"
+            and row.materialization_status in artifact_statuses
         ),
         "n_ok": sum(1 for row in rows if row.ok),
         "all_ok": not errors and all(row.ok for row in rows),
@@ -139,6 +164,7 @@ def export_formal_verifier_agentic_proof_execution_materializer(
             "materialized artifacts are proof-worker inputs, not verified theorem outputs",
             "ordinary proof-worker rows still materialize route probes as operational work contracts",
             "source-theorem promotion rows materialize exact theorem candidates only when a statement sketch is present",
+            "non-Lean target-prover rows are explicit skips for this Lean materializer, not Lean proof failures",
             "kernel_verified is false until a separate Lean/AXLE verifier accepts the artifact",
         ],
     }
@@ -180,6 +206,8 @@ def _source_theorem_target_provenance(
             "source_theorem_goal_id",
             "source_theorem_statement",
             "source_theorem_lean_file",
+            "target_prover_family",
+            "formal_statement_sketch",
             "target_lean_declaration",
             "materialization_id",
             "execution_queue_id",
@@ -187,6 +215,23 @@ def _source_theorem_target_provenance(
             value = str(source.get(key, "") or "").strip()
             if value and key not in provenance:
                 provenance[key] = value
+        for key in ("formal_imports",):
+            values = _str_tuple(source.get(key, []))
+            if values and key not in provenance:
+                provenance[key] = list(values)
+        target_location = source.get("target_location", {})
+        if isinstance(target_location, dict):
+            for key in (
+                "target_prover_family",
+                "formal_statement_sketch",
+                "target_lean_declaration",
+            ):
+                value = str(target_location.get(key, "") or "").strip()
+                if value and key not in provenance:
+                    provenance[key] = value
+            values = _str_tuple(target_location.get("formal_imports", []))
+            if values and "formal_imports" not in provenance:
+                provenance["formal_imports"] = list(values)
         constraints.extend(
             str(value).strip()
             for value in source.get("semantic_alignment_constraints", []) or []
@@ -212,6 +257,80 @@ def _source_theorem_target_provenance(
     return provenance
 
 
+def _target_location(row: dict[str, Any]) -> dict[str, Any]:
+    context = row.get("kernel_overlay_context", {})
+    if not isinstance(context, dict):
+        return {}
+    target_location = context.get("target_location", {})
+    return target_location if isinstance(target_location, dict) else {}
+
+
+def _target_prover_family(row: dict[str, Any]) -> str:
+    target_location = _target_location(row)
+    provenance = row.get("source_theorem_target_provenance", {})
+    if not isinstance(provenance, dict):
+        provenance = {}
+    return str(
+        row.get("target_prover_family")
+        or target_location.get("target_prover_family")
+        or provenance.get("target_prover_family")
+        or "lean4"
+    ).strip()
+
+
+def _is_lean_target(row: dict[str, Any]) -> bool:
+    return _target_prover_family(row).lower() in {"lean", "lean4"}
+
+
+def _formal_statement_sketch(row: dict[str, Any]) -> str:
+    target_location = _target_location(row)
+    return str(
+        row.get("formal_statement_sketch")
+        or target_location.get("formal_statement_sketch")
+        or row.get("lean_statement_sketch")
+        or ""
+    ).strip()
+
+
+def _formal_imports(row: dict[str, Any]) -> tuple[str, ...]:
+    target_location = _target_location(row)
+    raw_imports = (
+        row.get("formal_imports")
+        or target_location.get("formal_imports")
+        or target_location.get("target_imports")
+        or row.get("lean_imports")
+        or []
+    )
+    return _str_tuple(raw_imports)
+
+
+def _target_lean_declaration(row: dict[str, Any], materialization_mode: str) -> str:
+    target_location = _target_location(row)
+    explicit = str(
+        row.get("target_lean_declaration")
+        or target_location.get("target_lean_declaration")
+        or ""
+    ).strip()
+    if explicit:
+        return explicit
+    if not _is_lean_target(row):
+        return ""
+    target_theorem_name = str(row.get("target_theorem_name", "") or "")
+    candidate_bridge_lemma_name = str(row.get("candidate_bridge_lemma_name", "") or "")
+    display_name = str(row.get("display_name", "") or "")
+    if materialization_mode == "exact_source_theorem_candidate":
+        return _safe_identifier(
+            target_theorem_name
+            or candidate_bridge_lemma_name
+            or display_name
+            or "source_theorem_candidate",
+        )
+    return _safe_identifier(
+        candidate_bridge_lemma_name or display_name or "agentic_proof_candidate",
+        suffix="_route_probe",
+    )
+
+
 def _materializer_row(
     row: dict[str, Any],
     *,
@@ -229,6 +348,9 @@ def _materializer_row(
     execution_transcript_raw = str(row.get("execution_transcript_path", ""))
     candidate_artifact_path = Path(candidate_artifact_raw)
     execution_transcript_path = Path(execution_transcript_raw)
+    target_prover_family = _target_prover_family(row)
+    formal_statement_sketch = _formal_statement_sketch(row)
+    formal_imports = _formal_imports(row)
     kernel_overlay_context = row.get("kernel_overlay_context", {})
     if not isinstance(kernel_overlay_context, dict):
         kernel_overlay_context = {}
@@ -261,19 +383,22 @@ def _materializer_row(
     target_lean_column = 0
     evolve_start = 0
     evolve_end = 0
-    target_lean_declaration = (
-        _safe_identifier(
-            target_theorem_name
-            or candidate_bridge_lemma_name
-            or display_name
-            or "source_theorem_candidate",
+    target_lean_declaration = _target_lean_declaration(row, materialization_mode)
+    if target_prover_family:
+        source_theorem_target_provenance.setdefault(
+            "target_prover_family",
+            target_prover_family,
         )
-        if materialization_mode == "exact_source_theorem_candidate"
-        else _safe_identifier(
-            candidate_bridge_lemma_name or display_name or "agentic_proof_candidate",
-            suffix="_route_probe",
+    if formal_statement_sketch:
+        source_theorem_target_provenance.setdefault(
+            "formal_statement_sketch",
+            formal_statement_sketch,
         )
-    )
+    if formal_imports:
+        source_theorem_target_provenance.setdefault(
+            "formal_imports",
+            list(formal_imports),
+        )
     if target_lean_declaration:
         source_theorem_target_provenance.setdefault(
             "target_lean_declaration",
@@ -294,6 +419,8 @@ def _materializer_row(
     live_proof_state_request: dict[str, object] = {}
     if population_bucket == "source_discovery_attempt":
         status = "SOURCE_DISCOVERY_ROW_NOT_MATERIALIZED"
+    elif not _is_lean_target(row):
+        status = "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_MATERIALIZER"
     elif not errors:
         if (
             materialization_mode == "exact_source_theorem_candidate"
@@ -305,7 +432,11 @@ def _materializer_row(
             and not source_theorem_target_known
         ):
             errors.append("source theorem target is not resolved")
-    if not errors and population_bucket != "source_discovery_attempt":
+    if (
+        not errors
+        and population_bucket != "source_discovery_attempt"
+        and status != "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_MATERIALIZER"
+    ):
         candidate_artifact_path.parent.mkdir(parents=True, exist_ok=True)
         execution_transcript_path.parent.mkdir(parents=True, exist_ok=True)
         if candidate_artifact_path.exists() and not overwrite:
@@ -371,6 +502,9 @@ def _materializer_row(
         display_name=display_name,
         target_theorem_name=target_theorem_name,
         candidate_bridge_lemma_name=candidate_bridge_lemma_name,
+        target_prover_family=target_prover_family,
+        formal_statement_sketch=formal_statement_sketch,
+        formal_imports=formal_imports,
         residual_gap=residual_gap,
         population_bucket=population_bucket,
         materialization_status=status,
@@ -682,6 +816,9 @@ def _live_proof_state_request(
         ),
         "fallback_adapter": "formalization-gap-planner-local-proof-state-adapter",
         "candidate_artifact_path": str(candidate_artifact_path),
+        "target_prover_family": _target_prover_family(row),
+        "formal_statement_sketch": _formal_statement_sketch(row),
+        "formal_imports": _formal_imports(row),
         "target_lean_file": str(candidate_artifact_path),
         "target_lean_line": target_lean_line,
         "target_lean_column": target_lean_column,
@@ -744,6 +881,9 @@ def _write_transcript(
         "event": "candidate_artifact_materialized",
         "materialization_status": status,
         "candidate_artifact_path": str(candidate_artifact_path),
+        "target_prover_family": _target_prover_family(row),
+        "formal_statement_sketch": _formal_statement_sketch(row),
+        "formal_imports": _formal_imports(row),
         "target_lean_file": str(candidate_artifact_path),
         "target_lean_line": target_lean_line,
         "target_lean_column": target_lean_column,
@@ -795,6 +935,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Queue rows: {payload.get('n_queue_rows')}",
         f"- Materialized artifacts: {payload.get('n_materialized_artifacts')}",
         f"- New artifacts: {payload.get('n_new_artifacts')}",
+        f"- Unsupported target-prover rows: {payload.get('n_unsupported_target_prover_rows')}",
+        f"- Target prover families: {payload.get('by_target_prover_family')}",
+        f"- Exact source theorem candidate rows/artifacts: {payload.get('n_exact_source_theorem_candidate_rows')}/{payload.get('n_exact_source_theorem_candidate_artifacts')}",
+        f"- Route probe rows/artifacts: {payload.get('n_route_probe_rows')}/{payload.get('n_route_probe_artifacts')}",
         f"- Live goal location ready: {payload.get('n_live_goal_location_ready')}",
         f"- Live proof-state requests: {payload.get('n_live_proof_state_requests')}",
         f"- Lean-LSP/MCP-ready requests: {payload.get('n_lean_lsp_mcp_ready_requests')}",
@@ -810,8 +954,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         if not isinstance(row, dict):
             continue
         lines.append(
-            f"- #{row.get('target_lean_declaration')} "
+            f"- #{row.get('target_lean_declaration') or row.get('target_theorem_name')} "
             f"`{row.get('materialization_status')}` "
+            f"target={row.get('target_prover_family')} "
             f"line={row.get('target_lean_line')} "
             f"live_request={bool(row.get('live_proof_state_request'))} "
             f"artifact=`{row.get('candidate_artifact_path')}`"

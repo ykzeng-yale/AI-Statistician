@@ -2040,6 +2040,104 @@ def test_exact_source_theorem_materializer_infers_mathlib_for_stale_seed_queue(
     assert "sorry" not in source
 
 
+def test_exact_source_theorem_materializer_skips_non_lean_target(
+    tmp_path: Path,
+) -> None:
+    queue_dir = tmp_path / "rocq_source_queue"
+    queue_dir.mkdir()
+    artifact_path = tmp_path / "rocq_source_candidate.v"
+    transcript_path = tmp_path / "rocq_source_candidate.jsonl"
+    (
+        queue_dir / "formal_verifier_agentic_proof_execution_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "rows": [
+                    {
+                        "execution_queue_id": "runtime_source_theorem:rocq",
+                        "population_entry_id": (
+                            "runtime_source_theorem_population:rocq"
+                        ),
+                        "strategy_id": (
+                            "runtime_source_theorem_promotion_exact_target_attempt"
+                        ),
+                        "display_name": "Materialize Rocq exact source theorem",
+                        "target_theorem_name": "split_conformal_coverage",
+                        "candidate_bridge_lemma_name": "",
+                        "target_prover_family": "rocq",
+                        "formal_statement_sketch": (
+                            "Theorem split_conformal_coverage : True."
+                        ),
+                        "formal_imports": ["Coq.Init.Logic"],
+                        "residual_gap": "Rocq proof body requires Rocq adapter",
+                        "population_bucket": "source_theorem_promotion_attempt",
+                        "source_theorem_materialization_mode": (
+                            "exact_source_theorem_candidate"
+                        ),
+                        "kernel_overlay_context": {
+                            "source_theorem_target_known": True,
+                            "target_location": {
+                                "target_prover_family": "rocq",
+                                "formal_statement_sketch": (
+                                    "Theorem split_conformal_coverage : True."
+                                ),
+                                "formal_imports": ["Coq.Init.Logic"],
+                                "target_lean_declaration": "",
+                                "target_imports": [],
+                            },
+                        },
+                        "candidate_artifact_path": str(artifact_path),
+                        "execution_transcript_path": str(transcript_path),
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formal_verifier_agentic_proof_execution_materializer(
+        queue_dir,
+        tmp_path / "rocq_source_materializer",
+    )
+
+    assert payload["all_ok"] is True
+    assert payload["n_exact_source_theorem_candidate_rows"] == 1
+    assert payload["n_exact_source_theorem_candidate_artifacts"] == 0
+    assert payload["n_materialized_artifacts"] == 0
+    assert payload["n_live_goal_location_ready"] == 0
+    assert payload["n_live_proof_state_requests"] == 0
+    assert payload["n_unsupported_target_prover_rows"] == 1
+    assert payload["by_target_prover_family"] == {"rocq": 1}
+    assert payload["by_materialization_status"] == {
+        "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_MATERIALIZER": 1
+    }
+    row = payload["rows"][0]
+    assert row["ok"] is True
+    assert row["errors"] == ()
+    assert row["target_prover_family"] == "rocq"
+    assert row["formal_statement_sketch"] == (
+        "Theorem split_conformal_coverage : True."
+    )
+    assert row["formal_imports"] == ("Coq.Init.Logic",)
+    assert row["target_lean_declaration"] == ""
+    assert row["target_lean_file"] == ""
+    assert row["live_goal_location_ready"] is False
+    assert row["live_proof_state_request"] == {}
+    assert row["source_theorem_target_provenance"][
+        "target_prover_family"
+    ] == "rocq"
+    assert row["source_theorem_target_provenance"][
+        "formal_statement_sketch"
+    ] == "Theorem split_conformal_coverage : True."
+    assert row["source_theorem_target_provenance"]["formal_imports"] == [
+        "Coq.Init.Logic"
+    ]
+    assert not artifact_path.exists()
+    assert not transcript_path.exists()
+
+
 def test_source_theorem_exact_candidate_lean_failure_enters_runtime_memory(
     tmp_path: Path,
 ) -> None:

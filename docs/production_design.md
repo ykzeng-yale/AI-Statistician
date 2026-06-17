@@ -255,6 +255,11 @@ side of the same contract: it runs queued skeleton probes through local Lean
 when available, blocks `sorry`/`admit`/`axiom` probes, classifies non-Lean
 skeletons as statement-materialization gaps, and merges diagnostics and
 residual goals into the validator JSONL without treating them as proof evidence.
+The Lean artifact materializer now preserves `target_prover_family`,
+`formal_statement_sketch`, and `formal_imports` on every row and reports
+non-Lean targets as `UNSUPPORTED_TARGET_PROVER_FOR_LEAN_MATERIALIZER` skips,
+so mixed-prover publication runs can distinguish unsupported adapter work from
+Lean proof failures.
 LLM route-planner residual interpretations now enter the same dispatch path as
 search requests and planner next actions: the resource-request queue materializes
 them as route-revision work by default, preserves the residual goal and repair
