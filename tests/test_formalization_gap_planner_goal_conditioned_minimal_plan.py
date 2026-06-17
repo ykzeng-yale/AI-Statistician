@@ -385,6 +385,103 @@ def test_goal_conditioned_plan_rejects_nonminimal_upstream_cost_graph() -> None:
     )
 
 
+def test_goal_conditioned_plan_rejects_flat_upstream_cost_graph() -> None:
+    root = Path("runs/test_formalization_gap_planner_goal_conditioned_flat_graph")
+    delta_dir = root / "delta"
+    queue_dir = root / "queue"
+    out_dir = root / "plan"
+    shutil.rmtree(root, ignore_errors=True)
+    delta_dir.mkdir(parents=True, exist_ok=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    (delta_dir / "formalization_delta_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "target_prover_family": "lean4",
+                "rows": [{"primitive": "selected_bridge"}],
+                "theorem_formalization_routes": [
+                    {
+                        "route_id": "route:flat_graph",
+                        "task_id": "task:flat_graph",
+                        "display_name": "Flat graph route",
+                        "theorem_skeleton": (
+                            "theorem selected_bridge : True := by trivial"
+                        ),
+                        "theorem_statement": "Selected bridge route.",
+                        "target_prover_family": "lean4",
+                        "route_class": "bridge_or_wrapper",
+                        "total_estimated_cost": 4,
+                        "selected_primitives": ["selected_bridge"],
+                        "minimal_delta_and_or_cost_graph": {
+                            "graph_kind": "AND_OR_ROUTE_COST_GRAPH",
+                            "selected_route_option_id": "route_option:selected",
+                            "route_options": [
+                                {
+                                    "route_option_id": "route_option:selected",
+                                    "selected": True,
+                                    "selected_primitives": ["selected_bridge"],
+                                    "route_cost": 4,
+                                    "cost_rationale": "selected bridge route",
+                                }
+                            ],
+                        },
+                        "actions": [
+                            {
+                                "primitive": "selected_bridge",
+                                "action_id": "action:selected_bridge",
+                                "action_class": "design_bridge_lemma",
+                                "total_cost": 4,
+                                "candidate_declarations": ["True.intro"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (queue_dir / "formal_verifier_queue_manifest.json").write_text(
+        json.dumps(
+            {
+                "target_prover_family": "lean4",
+                "rows": [
+                    {
+                        "route_id": "route:flat_graph",
+                        "target_prover_family": "lean4",
+                        "import_cone_size": 0,
+                        "dependency_graph_depth": 0,
+                        "blocker_count": 0,
+                        "source_trust_level": "local_candidate_declarations",
+                        "recommended_action": "prove selected bridge",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_goal_conditioned_minimal_formalization_plan(
+        delta_dir,
+        queue_dir,
+        out_dir,
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["ok"] is False
+    assert "route_option_cost_graph.or_nodes must be non-empty" in row["errors"]
+    assert "route_option_cost_graph.and_edges must be non-empty" in row["errors"]
+    summary = row["route_option_cost_graph_summary"]
+    assert summary["cost_graph_ok"] is False
+    assert "route_option_cost_graph.or_nodes must be non-empty" in summary[
+        "cost_graph_errors"
+    ]
+    assert "route_option_cost_graph.and_edges must be non-empty" in summary[
+        "cost_graph_errors"
+    ]
+
+
 def test_goal_conditioned_plan_reports_mixed_route_targets() -> None:
     root = Path("runs/test_formalization_gap_planner_goal_conditioned_mixed_targets")
     delta_dir = root / "delta"
