@@ -17739,6 +17739,7 @@ def _target_incompatible_tool_markers(
     for ref_values in refs.values():
         values.extend(_str_tuple(ref_values))
     values.extend(_str_tuple(row.get("request_kind", "")))
+    values.extend(_target_tool_dispatch_values(row))
     incompatible: list[str] = []
     for value in values:
         key = _resource_ref_key(value)
@@ -17750,6 +17751,23 @@ def _target_incompatible_tool_markers(
                     incompatible.append(f"{value} targets {target}")
                 break
     return tuple(dict.fromkeys(incompatible))
+
+
+def _target_tool_dispatch_values(row: Mapping[str, Any]) -> tuple[str, ...]:
+    values: list[str] = []
+    for field_name in (
+        "query",
+        "queries",
+        "action",
+        "next_action",
+        "tool_action",
+        "command",
+        "commands",
+        "command_plan",
+        "mcp_or_cli_hint",
+    ):
+        values.extend(_str_tuple(row.get(field_name, [])))
+    return _str_tuple(values)
 
 
 def _response_formal_search_obligation_errors(
