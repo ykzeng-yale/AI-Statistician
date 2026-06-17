@@ -3113,6 +3113,40 @@ def test_llm_route_planner_accepts_registry_bound_actions_without_queue() -> Non
     assert row["planner_next_actions"][0]["owner"] == "lean_lsp_mcp"
 
 
+def test_llm_route_planner_rejects_unregistered_formal_attempt_queue_resource() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_bad_attempt_queue_resource"
+    )
+    out_dir = root / "llm_route_planner"
+    registry_dir = root / "component_resource_registry"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    export_formalization_gap_planner_component_resource_registry(registry_dir)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"][0]["resource_id"] = "invented_prover_mcp"
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_component_resource_registry_dir=registry_dir,
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "formal_attempt_queue[0] references resource_id(s) not present "
+        "in request queue or registry context" in error
+        and "invented_prover_mcp" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_missing_delta_action_witness() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_missing_delta_action"

@@ -394,14 +394,14 @@ the response. Evaluation rows preserve the
 LLM route-adoption readiness status and blockers, so an accepted but
 search-pending/refinement-pending Claude route is not reported as ready for
 standalone replay. This is still planning evidence, not proof evidence. The
-`search_requests` and `planner_next_actions` rows expose first-class
+`search_requests`, `planner_next_actions`, and `formal_attempt_queue` rows expose first-class
 `target_primitives`, `resource_request_id`, `resource_id`,
 `resource_contract_ids`, `required_quality_signals`, `quality_gates`,
 `response_validation_signals`, and `stop_conditions` in the public response
 payload schema. When request context
 contains an interactive decision policy, resource queue, feedback summary, or
 component-resource registry, those quality controls must be grounded in that
-context; invented gates or response-validation signals reject the LLM route
+context; invented queue resources, gates, or response-validation signals reject the LLM route
 instead of silently becoming tool policy. Explicit
 `search_requests.target_primitives` and
 `planner_next_actions.target_primitives` must also resolve to primitives already
@@ -1950,7 +1950,12 @@ guessing the route order. `target_primitives` are intentionally stricter than
 general planner action targets: they must be drawn from selected
 `minimal_delta_plan` primitives or `formal_realization_dag_nodes` primitives,
 so an LLM cannot smuggle an unselected request-baseline primitive from an
-alternative cost route into the prover worklist.
+alternative cost route into the prover worklist. When a staged request includes
+a resource queue or component-resource registry, queue `resource_id`,
+`adapter_id`, `resource_contract_ids`, and quality-control fields are validated
+against that context before the row can be exported as a prover worklist item;
+`owner` remains an execution label unless the row also provides an explicit
+resource binding.
 
 Accepted queue rows are also materialized into `proof_state_feedback`
 interactive refinement hooks and `blocked_by_formal_side_condition` route

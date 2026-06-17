@@ -18111,6 +18111,10 @@ def _response_resource_request_alignment_errors(
         ("planner_next_actions", index, row)
         for index, row in enumerate(_dict_tuple(payload.get("planner_next_actions", [])))
     )
+    evidence_requests.extend(
+        ("formal_attempt_queue", index, row)
+        for index, row in enumerate(_dict_tuple(payload.get("formal_attempt_queue", [])))
+    )
     if not evidence_requests:
         return []
 
@@ -18181,7 +18185,7 @@ def _response_resource_request_alignment_errors(
                 if tool_id not in allowed_resource_ids
                 and _resource_owner_looks_like_tool(tool_id)
             )
-            if has_resource_id_context
+            if has_resource_id_context and collection_name != "formal_attempt_queue"
             else []
         )
         if unknown_tool_owners:
