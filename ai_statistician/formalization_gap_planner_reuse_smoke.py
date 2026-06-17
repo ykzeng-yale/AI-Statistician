@@ -2670,6 +2670,18 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_failed",
             0,
         ),
+        "n_publication_bundle_optional_interactive_session_formal_attempt_queue_checked": (
+            publication_bundle_audit_payload.get(
+                "n_optional_interactive_session_formal_attempt_queue_checked",
+                0,
+            )
+        ),
+        "n_publication_bundle_optional_interactive_session_formal_attempt_queue_valid": (
+            publication_bundle_audit_payload.get(
+                "n_optional_interactive_session_formal_attempt_queue_valid",
+                0,
+            )
+        ),
         "n_publication_bundle_schema_catalog_entries": (
             publication_bundle_payload.get("schema_catalog_summary", {}).get(
                 "n_schema_entries",
@@ -7762,6 +7774,26 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_resource_request_execution_commands",
             0,
         ),
+        "n_interactive_session_rows_with_formal_attempt_queue": interactive_session_payload.get(
+            "n_rows_with_formal_attempt_queue",
+            0,
+        ),
+        "n_interactive_session_formal_attempt_queue_items": interactive_session_payload.get(
+            "n_formal_attempt_queue_items",
+            0,
+        ),
+        "n_interactive_session_formal_attempt_queue_ready_items": (
+            interactive_session_payload.get("n_formal_attempt_queue_ready_items", 0)
+        ),
+        "n_interactive_session_formal_attempt_queue_blocked_items": (
+            interactive_session_payload.get("n_formal_attempt_queue_blocked_items", 0)
+        ),
+        "n_interactive_session_formal_attempt_queue_execution_commands": (
+            interactive_session_payload.get(
+                "n_formal_attempt_queue_execution_commands",
+                0,
+            )
+        ),
         "n_interactive_session_replan": interactive_session_payload.get(
             "n_run_route_replan",
             0,
@@ -10141,6 +10173,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Interactive session rows: {payload.get('n_interactive_session_rows')}",
         f"- Bundle interactive-session schema valid: {payload.get('n_publication_bundle_optional_interactive_session_row_schema_valid')}/{payload.get('n_publication_bundle_optional_interactive_session_row_schema_checked')}",
         f"- Bundle interactive-session resource-response status consistent: {payload.get('n_publication_bundle_optional_interactive_session_resource_response_status_valid')}/{payload.get('n_publication_bundle_optional_interactive_session_resource_response_status_checked')}",
+        f"- Bundle interactive-session formal-attempt queue valid: {payload.get('n_publication_bundle_optional_interactive_session_formal_attempt_queue_valid')}/{payload.get('n_publication_bundle_optional_interactive_session_formal_attempt_queue_checked')}",
         f"- Interactive decision-policy schema valid: {payload.get('n_interactive_decision_policy_row_schema_valid')}/{payload.get('n_interactive_decision_policy_rows')}",
         f"- Interactive decision-policy resource contracts: {payload.get('n_interactive_decision_policy_rows_with_resource_contracts')}/{payload.get('n_interactive_decision_policy_rows')}",
         f"- Interactive decision-policy frontier resources: {payload.get('n_interactive_decision_policy_rows_with_frontier_resources')}/{payload.get('n_interactive_decision_policy_rows')}",
@@ -10151,6 +10184,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Interactive session rows requiring replan: {payload.get('n_interactive_session_rows_requiring_replan')}",
         f"- Interactive session replay-ready: {payload.get('n_interactive_session_replay')}",
         f"- Interactive session rows with resource requests: {payload.get('n_interactive_session_rows_with_resource_requests')}",
+        f"- Interactive session formal-attempt queue ready/blocked/total: {payload.get('n_interactive_session_formal_attempt_queue_ready_items')}/{payload.get('n_interactive_session_formal_attempt_queue_blocked_items')}/{payload.get('n_interactive_session_formal_attempt_queue_items')}",
+        f"- Interactive session formal-attempt queue execution commands: {payload.get('n_interactive_session_formal_attempt_queue_execution_commands')}",
         f"- Interactive session unresolved route-adoption preconditions: {payload.get('n_interactive_session_rows_with_unresolved_route_adoption_preconditions')}/{payload.get('n_interactive_session_rows_with_route_adoption_preconditions')}",
         (
             f"- LLM feedback-summary interactive route-adoption preconditions: "

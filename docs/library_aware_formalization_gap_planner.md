@@ -1834,6 +1834,8 @@ Interactive-session rows also surface the same ready/blocked formal-attempt
 queue counts and emit next-action commands only for dependency-ready queue
 items, so public reuse consumers can see the bottom-up prover replay step
 without treating the session ledger itself as proof evidence.
+The publication-bundle audit checks those packaged interactive-session queue
+counts and rejects execution commands that mention blocked formal attempts.
 The cross-prover matrix audit reruns that packet export for the declared public
 reuse targets, currently Lean4, Rocq, Isabelle, Agda, HOL4, HOL Light, Mizar,
 and Metamath, checks packet-count consistency, verifies that every target packet

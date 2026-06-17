@@ -956,6 +956,19 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_generic_prover_fields")
             and check.ok
         ),
+        "n_optional_interactive_session_formal_attempt_queue_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_session_row_")
+            and check.check_name.endswith("_formal_attempt_queue_consistency")
+        ),
+        "n_optional_interactive_session_formal_attempt_queue_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_interactive_session_row_")
+            and check.check_name.endswith("_formal_attempt_queue_consistency")
+            and check.ok
+        ),
         "n_optional_interactive_session_route_precondition_checked": sum(
             1
             for check in checks
@@ -16715,6 +16728,9 @@ def _interactive_session_optional_checks(
             _interactive_session_route_precondition_errors(row, stability_row)
         )
         generic_prover_errors = _interactive_session_generic_prover_field_errors(row)
+        formal_attempt_queue_errors = (
+            _interactive_session_formal_attempt_queue_errors(row)
+        )
         checks.append(
             _check(
                 f"optional_interactive_session_row_{idx}_schema_valid",
@@ -16734,6 +16750,21 @@ def _interactive_session_optional_checks(
                     "; ".join(generic_prover_errors) if generic_prover_errors else "ok",
                     not generic_prover_errors,
                     errors=generic_prover_errors,
+                )
+            )
+        if _interactive_session_row_has_formal_attempt_queue(row):
+            checks.append(
+                _check(
+                    f"optional_interactive_session_row_{idx}_formal_attempt_queue_consistency",
+                    "optional_artifacts",
+                    "interactive-session formal-attempt queue counts and ready-item commands are internally consistent",
+                    (
+                        "; ".join(formal_attempt_queue_errors)
+                        if formal_attempt_queue_errors
+                        else "ok"
+                    ),
+                    not formal_attempt_queue_errors,
+                    errors=formal_attempt_queue_errors,
                 )
             )
         if _interactive_session_row_has_resource_status(row) or (
@@ -20531,6 +20562,97 @@ def _interactive_session_generic_prover_field_errors(
     return tuple(errors)
 
 
+def _interactive_session_row_has_formal_attempt_queue(row: dict[str, Any]) -> bool:
+    return bool(
+        _dict_tuple(row.get("formal_attempt_queue_items", []))
+        or _str_tuple(row.get("formal_attempt_queue_attempt_ids", []))
+        or _str_tuple(row.get("formal_attempt_queue_ready_attempt_ids", []))
+        or _str_tuple(row.get("formal_attempt_queue_execution_commands", []))
+        or int(row.get("formal_attempt_queue_item_count", 0) or 0) > 0
+        or int(row.get("formal_attempt_queue_ready_item_count", 0) or 0) > 0
+        or int(row.get("formal_attempt_queue_blocked_item_count", 0) or 0) > 0
+    )
+
+
+def _interactive_session_formal_attempt_queue_errors(
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    items = _dict_tuple(row.get("formal_attempt_queue_items", []))
+    ready_items = tuple(
+        item for item in items if _formal_attempt_queue_item_ready(item)
+    )
+    blocked_items = tuple(item for item in items if item not in ready_items)
+    attempt_ids = _str_tuple([item.get("attempt_id", "") for item in items])
+    ready_attempt_ids = _str_tuple(
+        [item.get("attempt_id", "") for item in ready_items]
+    )
+    blocked_attempt_ids = _str_tuple(
+        [item.get("attempt_id", "") for item in blocked_items]
+    )
+    reported_attempt_ids = _str_tuple(row.get("formal_attempt_queue_attempt_ids", []))
+    reported_ready_attempt_ids = _str_tuple(
+        row.get("formal_attempt_queue_ready_attempt_ids", [])
+    )
+    commands = _str_tuple(row.get("formal_attempt_queue_execution_commands", []))
+    command_blob = "\n".join(commands)
+    errors: list[str] = []
+    if int(row.get("formal_attempt_queue_item_count", 0) or 0) != len(items):
+        errors.append("formal_attempt_queue_item_count mismatch")
+    if int(row.get("formal_attempt_queue_ready_item_count", 0) or 0) != len(
+        ready_items
+    ):
+        errors.append("formal_attempt_queue_ready_item_count mismatch")
+    if int(row.get("formal_attempt_queue_blocked_item_count", 0) or 0) != len(
+        blocked_items
+    ):
+        errors.append("formal_attempt_queue_blocked_item_count mismatch")
+    if reported_attempt_ids != attempt_ids:
+        errors.append("formal_attempt_queue_attempt_ids mismatch")
+    if reported_ready_attempt_ids != ready_attempt_ids:
+        errors.append("formal_attempt_queue_ready_attempt_ids mismatch")
+    if int(row.get("formal_attempt_queue_execution_command_count", len(commands)) or 0) != len(
+        commands
+    ):
+        errors.append("formal_attempt_queue_execution_command_count mismatch")
+    if commands and not any(
+        "formalization-gap-planner-prover-adapter-contract" in command
+        for command in commands
+    ):
+        errors.append("formal_attempt_queue commands missing prover-adapter contract")
+    for attempt_id in ready_attempt_ids:
+        if attempt_id and attempt_id not in command_blob:
+            errors.append(
+                f"ready formal_attempt_queue attempt missing command: {attempt_id}"
+            )
+    for attempt_id in blocked_attempt_ids:
+        if attempt_id and attempt_id in command_blob:
+            errors.append(
+                f"blocked formal_attempt_queue attempt appears in command: {attempt_id}"
+            )
+    next_kind = str(row.get("next_interaction_kind", "")).strip()
+    if (
+        ready_items
+        and next_kind in {"proof_state_feedback", "target_prover_replay"}
+        and not commands
+    ):
+        errors.append(
+            "dependency-ready formal_attempt_queue items have no execution commands"
+        )
+    if next_kind not in {"proof_state_feedback", "target_prover_replay"} and commands:
+        errors.append(
+            "formal_attempt_queue execution commands emitted outside prover replay/feedback"
+        )
+    return tuple(errors)
+
+
+def _formal_attempt_queue_item_ready(item: dict[str, Any]) -> bool:
+    return (
+        str(item.get("formal_attempt_dependency_status", "")).strip()
+        == "ready_no_formal_prerequisites"
+        or bool(item.get("formal_attempt_initial_ready", False))
+    )
+
+
 def _prover_classes_require_target_family(classes: tuple[str, ...]) -> bool:
     return any(
         attempt_class.startswith("target_prover_")
@@ -20884,6 +21006,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional interactive-session resource-response status consistent: {payload.get('n_optional_interactive_session_resource_response_status_valid')}/{payload.get('n_optional_interactive_session_resource_response_status_checked')}",
         f"- Optional interactive-session route-precondition status consistent: {payload.get('n_optional_interactive_session_route_precondition_valid')}/{payload.get('n_optional_interactive_session_route_precondition_checked')}",
         f"- Optional interactive-session generic prover fields valid: {payload.get('n_optional_interactive_session_generic_prover_fields_valid')}/{payload.get('n_optional_interactive_session_generic_prover_fields_checked')}",
+        f"- Optional interactive-session formal-attempt queue valid: {payload.get('n_optional_interactive_session_formal_attempt_queue_valid')}/{payload.get('n_optional_interactive_session_formal_attempt_queue_checked')}",
         f"- Optional interactive decision-policy schema valid: {payload.get('n_optional_interactive_decision_policy_row_schema_valid')}/{payload.get('n_optional_interactive_decision_policy_row_schema_checked')}",
         f"- Optional refinement-evidence schema valid: {payload.get('n_optional_refinement_evidence_row_schema_valid')}/{payload.get('n_optional_refinement_evidence_row_schema_checked')}",
         f"- Optional refinement-adapter response schema valid: {payload.get('n_optional_refinement_adapter_response_schema_valid')}/{payload.get('n_optional_refinement_adapter_response_schema_checked')}",

@@ -7394,6 +7394,169 @@ def test_publication_bundle_audit_rejects_stale_interactive_route_preconditions(
     )
 
 
+def test_publication_bundle_audit_rejects_stale_interactive_formal_attempt_queue() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_audit_interactive_formal_attempt_queue"
+    )
+    plan_dir = root / "plan"
+    stability_dir = root / "route_stability"
+    interactive_session_dir = root / "interactive_session"
+    bundle_dir = root / "bundle"
+    audit_dir = root / "audit"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    stability_dir.mkdir(parents=True, exist_ok=True)
+
+    formal_attempt_queue = [
+        {
+            "attempt_id": "attempt:rank_uniformity",
+            "formal_node_id": "formal:rank_uniformity",
+            "primitive": "rank_uniformity",
+            "target_primitives": ["rank_uniformity"],
+            "target_prover_family": "lean4",
+            "attempt_kind": "kernel_probe",
+            "action": "try rank uniformity bridge",
+            "expected_feedback": ["residual_goals"],
+            "prerequisite_formal_node_ids": [],
+        },
+        {
+            "attempt_id": "attempt:coverage_bridge",
+            "formal_node_id": "formal:coverage_bridge",
+            "primitive": "coverage_bridge",
+            "target_primitives": ["coverage_bridge"],
+            "target_prover_family": "lean4",
+            "attempt_kind": "bridge_lemma",
+            "action": "try coverage bridge after rank uniformity",
+            "expected_feedback": ["kernel_status", "residual_goals"],
+            "prerequisite_formal_node_ids": ["formal:rank_uniformity"],
+        },
+    ]
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": "library_aware_formalization_gap_planner",
+                "portable_schema_id": PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:formal-attempt",
+                        "route_id": "route:formal-attempt",
+                        "display_name": "formal attempt queue route",
+                        "target_prover_family": "lean4",
+                        "selected_primitives": [
+                            "rank_uniformity",
+                            "coverage_bridge",
+                        ],
+                        "formal_attempt_queue": formal_attempt_queue,
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        stability_dir
+        / "formalization_gap_planner_route_stability_audit_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "schema_version": 1,
+                        "route_stability_audit_id": "stability:formal-attempt",
+                        "goal_plan_id": "goal:formal-attempt",
+                        "route_id": "route:formal-attempt",
+                        "display_name": "formal attempt queue route",
+                        "stability_decision": (
+                            "ROUTE_STABILIZED_FOR_CURRENT_EVIDENCE_BOUND"
+                        ),
+                        "stable_under_current_evidence_bound": True,
+                        "target_prover_families": ["lean4"],
+                        "responded_hook_kinds": [],
+                        "awaiting_hook_kinds": [],
+                        "rejected_hook_kinds": [],
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    interactive_payload = export_formalization_gap_planner_interactive_session(
+        plan_dir,
+        interactive_session_dir,
+        formalization_gap_planner_route_stability_audit_dir=stability_dir,
+    )
+    assert interactive_payload["n_formal_attempt_queue_items"] == 2
+    assert interactive_payload["n_formal_attempt_queue_ready_items"] == 1
+
+    export_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+    valid_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        audit_dir,
+    )
+    assert valid_payload["all_ok"]
+    assert valid_payload[
+        "n_optional_interactive_session_formal_attempt_queue_checked"
+    ] == 1
+    assert valid_payload[
+        "n_optional_interactive_session_formal_attempt_queue_valid"
+    ] == 1
+
+    interactive_jsonl = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_interactive_session"
+        / "formalization_gap_planner_interactive_session.jsonl"
+    )
+    rows = [
+        json.loads(line)
+        for line in interactive_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    rows[0]["formal_attempt_queue_execution_commands"] = [
+        *rows[0]["formal_attempt_queue_execution_commands"],
+        "execute formal_attempt_queue item formal_attempt_queue_index=1 "
+        "attempt_id=attempt:coverage_bridge target_prover_family=lean4",
+    ]
+    interactive_jsonl.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    rejected_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        audit_dir,
+    )
+    failed_names = {
+        row["check_name"] for row in rejected_payload["checks"] if not row["ok"]
+    }
+    assert not rejected_payload["all_ok"]
+    assert rejected_payload[
+        "n_optional_interactive_session_formal_attempt_queue_checked"
+    ] == 1
+    assert rejected_payload[
+        "n_optional_interactive_session_formal_attempt_queue_valid"
+    ] == 0
+    assert (
+        "optional_interactive_session_row_0_formal_attempt_queue_consistency"
+        in failed_names
+    )
+    consistency_check = next(
+        row
+        for row in rejected_payload["checks"]
+        if row["check_name"]
+        == "optional_interactive_session_row_0_formal_attempt_queue_consistency"
+    )
+    consistency_errors = "; ".join(consistency_check["errors"])
+    assert "blocked formal_attempt_queue attempt appears in command" in (
+        consistency_errors
+    )
+
+
 def test_publication_bundle_audit_validates_interactive_policy_resource_links() -> None:
     root = Path("runs/test_formalization_gap_planner_publication_bundle_audit_interactive_links")
     bundle_dir = root / "bundle"
@@ -7770,6 +7933,13 @@ def test_publication_bundle_audit_rejects_stale_generic_prover_fields() -> None:
         "responded_hook_kinds": ["proof_state_feedback"],
         "resource_response_awaiting_request_ids": [],
         "resource_response_rejected_request_ids": [],
+        "formal_attempt_queue_items": [],
+        "formal_attempt_queue_item_count": 0,
+        "formal_attempt_queue_ready_item_count": 0,
+        "formal_attempt_queue_blocked_item_count": 0,
+        "formal_attempt_queue_attempt_ids": [],
+        "formal_attempt_queue_ready_attempt_ids": [],
+        "formal_attempt_queue_execution_commands": [],
         "residual_goals": ["rank_uniformity"],
         "source_refs": ["fixture source"],
         "formal_declaration_hits": [],

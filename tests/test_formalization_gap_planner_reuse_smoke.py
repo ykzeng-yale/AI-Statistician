@@ -3241,6 +3241,30 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_interactive_session_resource_request_execution_commands"] <= payload[
         "n_interactive_session_resource_requests_linked"
     ]
+    assert payload["n_interactive_session_rows_with_formal_attempt_queue"] <= payload[
+        "n_interactive_session_rows"
+    ]
+    assert (
+        payload["n_interactive_session_formal_attempt_queue_ready_items"]
+        + payload["n_interactive_session_formal_attempt_queue_blocked_items"]
+        == payload["n_interactive_session_formal_attempt_queue_items"]
+    )
+    if payload["n_interactive_session_formal_attempt_queue_execution_commands"]:
+        assert payload["n_interactive_session_formal_attempt_queue_ready_items"] > 0
+    assert (
+        payload[
+            "n_publication_bundle_optional_interactive_session_formal_attempt_queue_checked"
+        ]
+        == payload["n_interactive_session_rows_with_formal_attempt_queue"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_interactive_session_formal_attempt_queue_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_interactive_session_formal_attempt_queue_checked"
+        ]
+    )
     assert payload["n_ablation_variants"] == 5
     assert payload["n_ablation_ok"] == payload["n_ablation_variants"]
     assert payload["n_ablation_row_schema_valid"] == payload["n_ablation_variants"]
