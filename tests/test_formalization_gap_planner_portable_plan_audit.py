@@ -258,6 +258,21 @@ def test_portable_plan_audit_accepts_generic_formal_realization_without_legacy_l
     assert payload["all_ok"]
     assert payload["n_rows_with_two_dag"] == 1
     assert payload["n_rows_with_alignment_edges"] == 1
+    refinement_hook_checks = [
+        check
+        for check in payload["checks"]
+        if check["check_name"].startswith("row_")
+        and check["check_name"].endswith("refinement_hooks")
+    ]
+    assert refinement_hook_checks
+    assert all(check["ok"] for check in refinement_hook_checks)
+    assert all(
+        "target-prover library grounding" in check["expected"]
+        for check in refinement_hook_checks
+    )
+    assert all(
+        "Lean grounding" not in check["expected"] for check in refinement_hook_checks
+    )
 
 
 def test_portable_plan_audit_rejects_non_lean_legacy_lean_realization_alias() -> None:

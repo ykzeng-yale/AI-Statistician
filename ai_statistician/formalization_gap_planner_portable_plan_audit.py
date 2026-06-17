@@ -518,7 +518,10 @@ def _row_checks(
                 _check(
                     row_prefix + "refinement_hooks",
                     "feedback_loop",
-                    "interactive hooks include Lean grounding and proof feedback",
+                    (
+                        "interactive hooks include target-prover library "
+                        "grounding and proof feedback"
+                    ),
                     ",".join(_hook_kinds(row)),
                     _has_refinement_hooks(row),
                 ),
