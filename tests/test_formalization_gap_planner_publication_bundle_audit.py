@@ -2190,6 +2190,13 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "by_total_packet_llm_route_adoption_status": {
                     "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
                 },
+                "n_total_packets_with_formal_attempt_dependency": 0,
+                "n_total_packets_formal_attempt_initial_ready": 0,
+                "n_total_packets_formal_attempt_waiting": 0,
+                "n_total_packets_formal_attempt_missing_prerequisites": 0,
+                "by_total_packet_formal_attempt_dependency_status": {
+                    "not_formal_attempt_queue_item": 1
+                },
                 "packet_count_consistent": True,
                 "alignment_packet_count_consistent": True,
                     "standalone_input_trace_packet_count_consistent": True,
@@ -3852,6 +3859,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         audit_payload["n_optional_cross_prover_response_validation_row_schema_valid"]
         == 1
     )
+    assert (
+        audit_payload[
+            "n_optional_cross_prover_formal_attempt_dependency_checked"
+        ]
+        == 3
+    )
+    assert (
+        audit_payload[
+            "n_optional_cross_prover_formal_attempt_dependency_valid"
+        ]
+        == 3
+    )
     assert audit_payload["n_benchmark_route_row_schema_checked"] == bundle_payload[
         "benchmark_summary"
     ]["n_routes"]
@@ -4674,6 +4693,24 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert any(
         row["check_name"]
         == "optional_cross_prover_response_validation_row_0_schema_valid"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_cross_prover_formal_attempt_dependency_manifest_counts"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_cross_prover_formal_attempt_dependency_target_summary_consistent"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_cross_prover_formal_attempt_dependency_jsonl_consistent"
         and row["ok"]
         for row in audit_payload["checks"]
     )

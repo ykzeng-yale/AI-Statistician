@@ -2467,6 +2467,21 @@ def audit_formalization_gap_planner_publication_bundle(
             and check.check_name.endswith("_schema_valid")
             and check.ok
         ),
+        "n_optional_cross_prover_formal_attempt_dependency_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_cross_prover_formal_attempt_dependency_"
+            )
+        ),
+        "n_optional_cross_prover_formal_attempt_dependency_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_cross_prover_formal_attempt_dependency_"
+            )
+            and check.ok
+        ),
         "by_category": dict(sorted(by_category.items())),
         "n_bundle_files": len(bundle_files),
         "bundle_files": tuple(str(path) for path in bundle_files),
@@ -17926,6 +17941,85 @@ def _cross_prover_matrix_optional_checks(
         if isinstance(row.get("standalone_input_trace"), dict)
         and row["standalone_input_trace"].get("has_replan_metadata")
     )
+    n_attempt_dependency = int(
+        manifest.get("n_total_packets_with_formal_attempt_dependency", 0) or 0
+    )
+    n_attempt_ready = int(
+        manifest.get("n_total_packets_formal_attempt_initial_ready", 0) or 0
+    )
+    n_attempt_waiting = int(
+        manifest.get("n_total_packets_formal_attempt_waiting", 0) or 0
+    )
+    n_attempt_missing = int(
+        manifest.get("n_total_packets_formal_attempt_missing_prerequisites", 0)
+        or 0
+    )
+    attempt_manifest_counts = _int_mapping(
+        manifest.get("by_total_packet_formal_attempt_dependency_status")
+    )
+    attempt_target_counts = _int_mapping(
+        target_summary.get("by_total_packet_formal_attempt_dependency_status")
+    )
+    attempt_packet_counts = dict(
+        sorted(
+            Counter(
+                str(row.get("formal_attempt_dependency_status", "") or "")
+                for row in packet_rows
+            ).items()
+        )
+    )
+    attempt_dependency_statuses = {
+        "ready_no_formal_prerequisites",
+        "waiting_for_formal_prerequisite_attempts",
+        "missing_formal_prerequisite_attempts",
+    }
+    n_attempt_dependency_from_histogram = sum(
+        count
+        for status, count in attempt_manifest_counts.items()
+        if status in attempt_dependency_statuses
+    )
+    attempt_manifest_counts_ok = (
+        sum(attempt_manifest_counts.values()) == n_packets
+        and n_attempt_ready
+        == attempt_manifest_counts.get("ready_no_formal_prerequisites", 0)
+        and n_attempt_waiting
+        == attempt_manifest_counts.get("waiting_for_formal_prerequisite_attempts", 0)
+        and n_attempt_missing
+        == attempt_manifest_counts.get("missing_formal_prerequisite_attempts", 0)
+        and n_attempt_dependency
+        == n_attempt_ready + n_attempt_waiting + n_attempt_missing
+        == n_attempt_dependency_from_histogram
+    )
+    attempt_target_counts_ok = (
+        int(target_summary.get("n_total_packets", 0) or 0) == n_packets
+        and int(
+            target_summary.get(
+                "n_total_packets_with_formal_attempt_dependency", 0
+            )
+            or 0
+        )
+        == n_attempt_dependency
+        and int(
+            target_summary.get(
+                "n_total_packets_formal_attempt_initial_ready", 0
+            )
+            or 0
+        )
+        == n_attempt_ready
+        and int(
+            target_summary.get("n_total_packets_formal_attempt_waiting", 0)
+            or 0
+        )
+        == n_attempt_waiting
+        and int(
+            target_summary.get(
+                "n_total_packets_formal_attempt_missing_prerequisites", 0
+            )
+            or 0
+        )
+        == n_attempt_missing
+        and attempt_target_counts == attempt_manifest_counts
+    )
     checks = [
         _check(
             "optional_cross_prover_targets_ok",
@@ -17986,6 +18080,37 @@ def _cross_prover_matrix_optional_checks(
             n_trace == n_jsonl_trace
             and n_replan_trace == n_jsonl_replan_trace
             and n_missing_trace == max(0, len(packet_rows) - n_jsonl_trace),
+        ),
+        _check(
+            "optional_cross_prover_formal_attempt_dependency_manifest_counts",
+            "optional_artifacts",
+            "cross-prover formal-attempt dependency manifest counts are internally consistent",
+            (
+                f"dependency={n_attempt_dependency}; ready={n_attempt_ready}; "
+                f"waiting={n_attempt_waiting}; missing={n_attempt_missing}; "
+                f"histogram={attempt_manifest_counts}; packets={n_packets}"
+            ),
+            attempt_manifest_counts_ok,
+        ),
+        _check(
+            "optional_cross_prover_formal_attempt_dependency_target_summary_consistent",
+            "optional_artifacts",
+            "cross-prover formal-attempt dependency counts match the target summary",
+            (
+                f"manifest={attempt_manifest_counts}; "
+                f"target_summary={attempt_target_counts}"
+            ),
+            attempt_target_counts_ok,
+        ),
+        _check(
+            "optional_cross_prover_formal_attempt_dependency_jsonl_consistent",
+            "optional_artifacts",
+            "cross-prover packet JSONL formal-attempt dependency statuses match the manifest histogram",
+            (
+                f"manifest={attempt_manifest_counts}; "
+                f"jsonl={attempt_packet_counts}"
+            ),
+            attempt_packet_counts == attempt_manifest_counts,
         ),
         _check(
             "optional_cross_prover_matrix_row_schema_file",
@@ -20329,6 +20454,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional cross-prover packet schema valid: {payload.get('n_optional_cross_prover_packet_row_schema_valid')}/{payload.get('n_optional_cross_prover_packet_row_schema_checked')}",
         f"- Optional cross-prover packet trace valid: {payload.get('n_optional_cross_prover_packet_trace_valid')}/{payload.get('n_optional_cross_prover_packet_trace_checked')}",
         f"- Optional cross-prover response-validation schema valid: {payload.get('n_optional_cross_prover_response_validation_row_schema_valid')}/{payload.get('n_optional_cross_prover_response_validation_row_schema_checked')}",
+        f"- Optional cross-prover formal-attempt dependency valid: {payload.get('n_optional_cross_prover_formal_attempt_dependency_valid')}/{payload.get('n_optional_cross_prover_formal_attempt_dependency_checked')}",
         f"- Bundle files: {payload.get('n_bundle_files')}",
         f"- All OK: {payload.get('all_ok')}",
         "",

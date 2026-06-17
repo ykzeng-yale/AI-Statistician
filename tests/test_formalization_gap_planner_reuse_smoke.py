@@ -148,6 +148,17 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                 "semantic_role": "lemma",
             },
         ],
+        "informal_knowledge_dag_edges": [
+            {
+                "source_node_id": "informal:exchangeability",
+                "target_node_id": "informal:rank_uniformity",
+                "edge_kind": "uses",
+                "rationale": (
+                    "The finite-rank uniformity step uses exchangeability of the "
+                    "calibration and test scores."
+                ),
+            }
+        ],
         "lean_realization_dag_nodes": [
             {
                 "node_id": "formal:exchangeability",
@@ -173,6 +184,17 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                 _reviewed_baseline_formal_node(primitive)
                 for primitive in baseline_boundary_primitives
             ],
+        ],
+        "formal_realization_dag_edges": [
+            {
+                "source_node_id": "formal:exchangeability",
+                "target_node_id": "formal:rank_uniformity_bridge",
+                "edge_kind": "uses",
+                "rationale": (
+                    "The rank-uniformity bridge is attempted after checking the "
+                    "available exchangeability declaration."
+                ),
+            }
         ],
         "route_alignment_edges": [
             {
@@ -342,6 +364,45 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                 "owner": "lean_lsp_mcp",
                 "action": "attempt a focused rank_uniformity bridge lemma",
             }
+        ],
+        "formal_attempt_queue": [
+            {
+                "attempt_id": "formal_attempt:exchangeability_reuse",
+                "formal_node_id": "formal:exchangeability",
+                "primitive": "exchangeability",
+                "target_prover_family": "lean4",
+                "owner": "lean_lsp_mcp",
+                "action": (
+                    "check whether Probability.exchangeable closes the "
+                    "exchangeability realization node"
+                ),
+                "attempt_kind": "reuse_check",
+                "prerequisite_formal_node_ids": [],
+                "expected_feedback": [
+                    "closed_by_existing_declaration",
+                    "residual_goals",
+                ],
+                "target_primitives": ["exchangeability"],
+            },
+            {
+                "attempt_id": "formal_attempt:rank_uniformity_bridge",
+                "formal_node_id": "formal:rank_uniformity_bridge",
+                "primitive": "rank_uniformity",
+                "target_prover_family": "lean4",
+                "owner": "lean_lsp_mcp",
+                "action": (
+                    "attempt the focused rank_uniformity bridge lemma using "
+                    "the exchangeability realization"
+                ),
+                "attempt_kind": "bridge_proof",
+                "prerequisite_formal_node_ids": ["formal:exchangeability"],
+                "expected_feedback": [
+                    "residual_goals",
+                    "missing_side_conditions",
+                    "wrong_formulation",
+                ],
+                "target_primitives": ["rank_uniformity"],
+            },
         ],
         "standalone_route": {
             "route_id": "llm_rank_route",
@@ -3521,7 +3582,20 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         "coverage_status"
     ] = "wrapper_needed"
     feedback_response["residual_interpretations"] = [
-        _reviewed_target_adapter_boundary_residual("rank_uniformity")
+        {
+            "residual_goal": "exchangeability: non-Lean theorem skeleton",
+            "interpretation": (
+                "The feedback pass needs the target-prover exchangeability "
+                "wrapper skeleton before checking reuse."
+            ),
+            "repair_action": "materialize target-prover exchangeability wrapper",
+            "target_primitives": ["exchangeability"],
+            "formal_gap_boundary": (
+                "The missing exchangeability wrapper is a formalization boundary "
+                "reported by the prover-feedback loop, not new source evidence."
+            ),
+        },
+        _reviewed_target_adapter_boundary_residual("rank_uniformity"),
     ]
     feedback_response_path.write_text(
         json.dumps(feedback_response, indent=2),

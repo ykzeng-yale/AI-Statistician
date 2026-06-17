@@ -2460,6 +2460,13 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
                 "by_total_packet_llm_route_adoption_status": {
                     "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
                 },
+                "n_total_packets_with_formal_attempt_dependency": 0,
+                "n_total_packets_formal_attempt_initial_ready": 0,
+                "n_total_packets_formal_attempt_waiting": 0,
+                "n_total_packets_formal_attempt_missing_prerequisites": 0,
+                "by_total_packet_formal_attempt_dependency_status": {
+                    "not_formal_attempt_queue_item": 1
+                },
                 "packet_count_consistent": True,
                 "alignment_packet_count_consistent": True,
                     "standalone_input_trace_packet_count_consistent": True,
@@ -2734,6 +2741,37 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         == ()
     )
     assert payload["evaluation_summary"]["quality_control_stop_conditions"] == ()
+    cross_prover_attempt_summary = payload[
+        "cross_prover_formal_attempt_dependency_summary"
+    ]
+    assert cross_prover_attempt_summary["requested"] is True
+    assert cross_prover_attempt_summary["n_total_packets"] == 1
+    assert (
+        cross_prover_attempt_summary[
+            "n_total_packets_with_formal_attempt_dependency"
+        ]
+        == 0
+    )
+    assert (
+        cross_prover_attempt_summary[
+            "n_total_packets_formal_attempt_initial_ready"
+        ]
+        == 0
+    )
+    assert (
+        cross_prover_attempt_summary["n_total_packets_formal_attempt_waiting"]
+        == 0
+    )
+    assert (
+        cross_prover_attempt_summary[
+            "n_total_packets_formal_attempt_missing_prerequisites"
+        ]
+        == 0
+    )
+    assert cross_prover_attempt_summary[
+        "by_total_packet_formal_attempt_dependency_status"
+    ] == {"not_formal_attempt_queue_item": 1}
+    assert cross_prover_attempt_summary["target_summary_consistent"] is True
     assert payload["llm_route_planner_summary"]["requested"] is False
     assert payload["llm_route_planner_summary"]["n_request_packets"] == 0
     assert payload["llm_route_planner_summary"]["n_rows"] == 0
@@ -3108,6 +3146,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "llm_route_planner_response_payload_validation_summary"
         in publication_bundle_manifest_schema_payload["required"]
     )
+    assert (
+        "cross_prover_formal_attempt_dependency_summary"
+        in publication_bundle_manifest_schema_payload["required"]
+    )
     validation_summary_schema = publication_bundle_manifest_schema_payload[
         "properties"
     ]["llm_route_planner_response_payload_validation_summary"]
@@ -3123,6 +3165,20 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "n_request_bound_payloads_with_blocking_route_adoption_preconditions"
         in validation_summary_schema["required"]
     )
+    cross_prover_attempt_summary_schema = publication_bundle_manifest_schema_payload[
+        "properties"
+    ]["cross_prover_formal_attempt_dependency_summary"]
+    assert (
+        "n_total_packets_formal_attempt_waiting"
+        in cross_prover_attempt_summary_schema["required"]
+    )
+    assert (
+        "by_total_packet_formal_attempt_dependency_status"
+        in cross_prover_attempt_summary_schema["required"]
+    )
+    assert "target_summary_consistent" in cross_prover_attempt_summary_schema[
+        "required"
+    ]
     assert "path" in publication_bundle_manifest_schema_payload["properties"][
         "core_artifacts"
     ]["items"]["required"]

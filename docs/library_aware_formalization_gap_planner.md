@@ -630,9 +630,9 @@ The cross-prover matrix and target summary also roll these fields up as
 formal-attempt dependency readiness counters and status histograms, so
 Rocq/Isabelle/Agda adapters can identify initially ready, waiting, and
 missing-prerequisite packet queues before opening individual packet rows.
-The reuse-smoke manifest and report lift the same counters into release-gate
-output, so public bundle checks expose dependency-queue readiness without
-requiring consumers to inspect nested cross-prover JSON.
+The reuse-smoke and publication-bundle manifests/reports lift the same counters
+into release-gate and bundle output, so public checks expose dependency-queue
+readiness without requiring consumers to inspect nested cross-prover JSON.
 The publication-bundle manifest itself includes an `evaluation_summary` with
 the same realization, cost-hint, route-adoption, and quality-control counters,
 plus minimal-delta route-option totals, selected-route cost means,
@@ -2547,6 +2547,10 @@ The current implementation composes four existing AI Statistician artifacts:
 records the proof boundary and remains route/planning evidence only. The
 reuse-smoke manifest exposes the schema catalog, catalog schema, and
 publication-bundle manifest schema as top-level artifacts for external users.
+The publication-bundle manifest also lifts cross-prover formal-attempt
+dependency readiness counters from the matrix manifest and verifies that they
+match the copied target summary; the bundle audit recomputes the same histogram
+from packet JSONL rows.
 The reproduction manifest includes a
 `run_evaluation` command; for bundles with optional evaluation artifacts, that
 command uses

@@ -2006,6 +2006,11 @@ def export_formalization_gap_planner_publication_bundle(
                 "all_ok",
             ),
         ),
+        "cross_prover_formal_attempt_dependency_summary": (
+            _cross_prover_formal_attempt_dependency_summary(
+                formalization_gap_planner_cross_prover_matrix_audit_dir
+            )
+        ),
         "route_replan_handoff_summary": _manifest_summary(
             formalization_gap_planner_route_replan_handoff_dir,
             "formalization_gap_planner_route_replan_handoff_manifest.json",
@@ -2767,6 +2772,39 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "all_ok": {"type": "boolean"},
         },
     }
+    cross_prover_formal_attempt_dependency_summary_schema = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "requested",
+            "manifest_path",
+            "target_summary_path",
+            "n_total_packets",
+            "n_total_packets_with_formal_attempt_dependency",
+            "n_total_packets_formal_attempt_initial_ready",
+            "n_total_packets_formal_attempt_waiting",
+            "n_total_packets_formal_attempt_missing_prerequisites",
+            "by_total_packet_formal_attempt_dependency_status",
+            "target_summary_consistent",
+        ],
+        "properties": {
+            "requested": {"type": "boolean"},
+            "manifest_path": {"type": "string"},
+            "target_summary_path": {"type": "string"},
+            "n_total_packets": nonnegative_integer,
+            "n_total_packets_with_formal_attempt_dependency": nonnegative_integer,
+            "n_total_packets_formal_attempt_initial_ready": nonnegative_integer,
+            "n_total_packets_formal_attempt_waiting": nonnegative_integer,
+            "n_total_packets_formal_attempt_missing_prerequisites": (
+                nonnegative_integer
+            ),
+            "by_total_packet_formal_attempt_dependency_status": {
+                "type": "object",
+                "additionalProperties": nonnegative_integer,
+            },
+            "target_summary_consistent": {"type": "boolean"},
+        },
+    }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_MANIFEST_SCHEMA_ID,
@@ -2785,6 +2823,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "llm_route_planner_summary",
             "feedback_llm_route_planner_summary",
             "llm_route_planner_response_payload_validation_summary",
+            "cross_prover_formal_attempt_dependency_summary",
             "schema_catalog_summary",
             "all_ok",
             "proof_evidence_status",
@@ -2811,6 +2850,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "feedback_llm_route_planner_summary": llm_route_planner_summary_schema,
             "llm_route_planner_response_payload_validation_summary": (
                 response_payload_validation_summary_schema
+            ),
+            "cross_prover_formal_attempt_dependency_summary": (
+                cross_prover_formal_attempt_dependency_summary_schema
             ),
             "schema_catalog_summary": {"type": "object"},
             "portable_reuse_targets": string_array,
@@ -4418,6 +4460,86 @@ def _manifest_summary(
         "requested": True,
         "manifest_path": str(manifest_path),
         **{key: payload.get(key, 0) for key in keys},
+    }
+
+
+def _int_or_zero(value: object) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _count_map(value: object) -> dict[str, int]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {
+        str(key): _int_or_zero(count)
+        for key, count in sorted(value.items(), key=lambda item: str(item[0]))
+    }
+
+
+def _cross_prover_formal_attempt_dependency_summary(
+    source_dir: Path | None,
+) -> dict[str, object]:
+    zero_summary: dict[str, object] = {
+        "requested": False,
+        "manifest_path": "",
+        "target_summary_path": "",
+        "n_total_packets": 0,
+        "n_total_packets_with_formal_attempt_dependency": 0,
+        "n_total_packets_formal_attempt_initial_ready": 0,
+        "n_total_packets_formal_attempt_waiting": 0,
+        "n_total_packets_formal_attempt_missing_prerequisites": 0,
+        "by_total_packet_formal_attempt_dependency_status": {},
+        "target_summary_consistent": False,
+    }
+    if source_dir is None:
+        return zero_summary
+    manifest_path = (
+        source_dir
+        / "formalization_gap_planner_cross_prover_matrix_audit_manifest.json"
+    )
+    target_summary_path = (
+        source_dir / "formalization_gap_planner_cross_prover_target_summary.json"
+    )
+    manifest = _read_json_no_error(manifest_path)
+    target_summary = _read_json_no_error(target_summary_path)
+    counter_fields = (
+        "n_total_packets_with_formal_attempt_dependency",
+        "n_total_packets_formal_attempt_initial_ready",
+        "n_total_packets_formal_attempt_waiting",
+        "n_total_packets_formal_attempt_missing_prerequisites",
+    )
+    manifest_counters = {
+        field_name: _int_or_zero(manifest.get(field_name))
+        for field_name in counter_fields
+    }
+    target_summary_counters = {
+        field_name: _int_or_zero(target_summary.get(field_name))
+        for field_name in counter_fields
+    }
+    manifest_histogram = _count_map(
+        manifest.get("by_total_packet_formal_attempt_dependency_status")
+    )
+    target_summary_histogram = _count_map(
+        target_summary.get("by_total_packet_formal_attempt_dependency_status")
+    )
+    total_packets = _int_or_zero(manifest.get("n_total_packets"))
+    target_total_packets = _int_or_zero(target_summary.get("n_total_packets"))
+    return {
+        **zero_summary,
+        "requested": True,
+        "manifest_path": str(manifest_path),
+        "target_summary_path": str(target_summary_path),
+        "n_total_packets": total_packets,
+        **manifest_counters,
+        "by_total_packet_formal_attempt_dependency_status": manifest_histogram,
+        "target_summary_consistent": (
+            total_packets == target_total_packets
+            and manifest_counters == target_summary_counters
+            and manifest_histogram == target_summary_histogram
+        ),
     }
 
 
@@ -6527,6 +6649,19 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Evaluation quality controls: "
             f"rows={payload.get('evaluation_summary', {}).get('n_rows_with_quality_controls')} "
             f"fields={payload.get('evaluation_summary', {}).get('quality_control_fields')}"
+        ),
+        (
+            f"- Cross-prover formal-attempt dependency: "
+            f"with_dependency="
+            f"{payload.get('cross_prover_formal_attempt_dependency_summary', {}).get('n_total_packets_with_formal_attempt_dependency')} "
+            f"ready="
+            f"{payload.get('cross_prover_formal_attempt_dependency_summary', {}).get('n_total_packets_formal_attempt_initial_ready')} "
+            f"waiting="
+            f"{payload.get('cross_prover_formal_attempt_dependency_summary', {}).get('n_total_packets_formal_attempt_waiting')} "
+            f"missing="
+            f"{payload.get('cross_prover_formal_attempt_dependency_summary', {}).get('n_total_packets_formal_attempt_missing_prerequisites')} "
+            f"target_summary_consistent="
+            f"{payload.get('cross_prover_formal_attempt_dependency_summary', {}).get('target_summary_consistent')}"
         ),
         (
             f"- LLM route planner ready/pending/blockers: "
