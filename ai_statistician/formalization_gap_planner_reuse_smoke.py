@@ -907,6 +907,9 @@ def run_formalization_gap_planner_reuse_smoke(
     feedback_llm_route_planner_invoke_provider: bool = False,
     feedback_llm_route_planner_response_json: Path | None = None,
     feedback_llm_route_planner_static_response_json: Path | None = None,
+    formal_verifier_agentic_proof_execution_materializer_dir: Path | None = None,
+    formal_verifier_agentic_proof_execution_artifact_verifier_dir: Path | None = None,
+    formal_verifier_agentic_proof_source_theorem_promotion_queue_dir: Path | None = None,
 ) -> dict[str, object]:
     """Run the public gap-planner path as one reproducible smoke test.
 
@@ -1045,6 +1048,15 @@ def run_formalization_gap_planner_reuse_smoke(
         formalization_gap_planner_target_intake_dir=target_intake_dir,
         formalization_gap_planner_component_resource_registry_dir=(
             component_resource_registry_dir
+        ),
+        formal_verifier_agentic_proof_execution_materializer_dir=(
+            formal_verifier_agentic_proof_execution_materializer_dir
+        ),
+        formal_verifier_agentic_proof_execution_artifact_verifier_dir=(
+            formal_verifier_agentic_proof_execution_artifact_verifier_dir
+        ),
+        formal_verifier_agentic_proof_source_theorem_promotion_queue_dir=(
+            formal_verifier_agentic_proof_source_theorem_promotion_queue_dir
         ),
     )
     llm_route_planner_seed_path = (
@@ -1292,6 +1304,15 @@ def run_formalization_gap_planner_reuse_smoke(
             formalization_gap_planner_interactive_session_dir=interactive_session_dir,
             formalization_gap_planner_component_resource_registry_dir=(
                 component_resource_registry_dir
+            ),
+            formal_verifier_agentic_proof_execution_materializer_dir=(
+                formal_verifier_agentic_proof_execution_materializer_dir
+            ),
+            formal_verifier_agentic_proof_execution_artifact_verifier_dir=(
+                formal_verifier_agentic_proof_execution_artifact_verifier_dir
+            ),
+            formal_verifier_agentic_proof_source_theorem_promotion_queue_dir=(
+                formal_verifier_agentic_proof_source_theorem_promotion_queue_dir
             ),
         )
     )
@@ -2175,6 +2196,34 @@ def run_formalization_gap_planner_reuse_smoke(
             )
             or 0
         ),
+        "n_combined_llm_route_planner_request_proof_execution_feedback_rows": int(
+            llm_route_planner_payload.get(
+                "n_request_proof_execution_feedback_rows",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_request_proof_execution_feedback_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_combined_llm_route_planner_request_proof_execution_unsupported_target_prover_rows": int(
+            llm_route_planner_payload.get(
+                "n_request_proof_execution_unsupported_target_prover_rows",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_request_proof_execution_unsupported_target_prover_rows",
+                0,
+            )
+            or 0
+        ),
         "n_publication_bundle_combined_llm_route_planner_summary_formal_attempt_queue_items": int(
             publication_bundle_llm_route_planner_summary.get(
                 "n_formal_attempt_queue_items",
@@ -2199,6 +2248,34 @@ def run_formalization_gap_planner_reuse_smoke(
         + int(
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_rows_with_formal_attempt_queue",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_proof_execution_feedback_rows": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_proof_execution_feedback_rows",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_proof_execution_feedback_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_proof_execution_unsupported_target_prover_rows": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_proof_execution_unsupported_target_prover_rows",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_proof_execution_unsupported_target_prover_rows",
                 0,
             )
             or 0
@@ -2595,6 +2672,42 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_llm_route_planner_summary_rows_with_formal_attempt_queue": (
             publication_bundle_llm_route_planner_summary.get(
                 "n_rows_with_formal_attempt_queue",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_agentic_proof_execution_materializer_rows": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_agentic_proof_execution_materializer_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_agentic_proof_execution_artifact_verifier_rows": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_agentic_proof_execution_artifact_verifier_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_agentic_proof_source_theorem_promotion_rows": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_agentic_proof_source_theorem_promotion_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_requests_with_proof_execution_feedback_summary": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_requests_with_proof_execution_feedback_summary",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_proof_execution_feedback_rows": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_proof_execution_feedback_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_proof_execution_unsupported_target_prover_rows": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_proof_execution_unsupported_target_prover_rows",
                 0,
             )
         ),
@@ -3092,6 +3205,42 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_feedback_llm_route_planner_summary_rows_with_formal_attempt_queue": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_rows_with_formal_attempt_queue",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_agentic_proof_execution_materializer_rows": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_agentic_proof_execution_materializer_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_agentic_proof_execution_artifact_verifier_rows": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_agentic_proof_execution_artifact_verifier_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_agentic_proof_source_theorem_promotion_rows": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_agentic_proof_source_theorem_promotion_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_proof_execution_feedback_summary": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_requests_with_proof_execution_feedback_summary",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_proof_execution_feedback_rows": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_proof_execution_feedback_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_proof_execution_unsupported_target_prover_rows": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_proof_execution_unsupported_target_prover_rows",
                 0,
             )
         ),
@@ -3674,6 +3823,42 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_llm_route_planner_rows_with_formal_attempt_queue": (
             llm_route_planner_payload.get("n_rows_with_formal_attempt_queue", 0)
+        ),
+        "n_llm_route_planner_request_agentic_proof_execution_materializer_rows": (
+            llm_route_planner_payload.get(
+                "n_request_agentic_proof_execution_materializer_rows",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_agentic_proof_execution_artifact_verifier_rows": (
+            llm_route_planner_payload.get(
+                "n_request_agentic_proof_execution_artifact_verifier_rows",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_agentic_proof_source_theorem_promotion_rows": (
+            llm_route_planner_payload.get(
+                "n_request_agentic_proof_source_theorem_promotion_rows",
+                0,
+            )
+        ),
+        "n_llm_route_planner_requests_with_proof_execution_feedback_summary": (
+            llm_route_planner_payload.get(
+                "n_requests_with_proof_execution_feedback_summary",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_proof_execution_feedback_rows": (
+            llm_route_planner_payload.get(
+                "n_request_proof_execution_feedback_rows",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_proof_execution_unsupported_target_prover_rows": (
+            llm_route_planner_payload.get(
+                "n_request_proof_execution_unsupported_target_prover_rows",
+                0,
+            )
         ),
         "n_llm_route_planner_accepted_route_plans": llm_route_planner_payload.get(
             "n_accepted_route_plans",
@@ -4408,6 +4593,42 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_rows_with_formal_attempt_queue": (
             feedback_llm_route_planner_payload.get(
                 "n_rows_with_formal_attempt_queue",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_agentic_proof_execution_materializer_rows": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_agentic_proof_execution_materializer_rows",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_agentic_proof_execution_artifact_verifier_rows": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_agentic_proof_execution_artifact_verifier_rows",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_agentic_proof_source_theorem_promotion_rows": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_agentic_proof_source_theorem_promotion_rows",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_requests_with_proof_execution_feedback_summary": (
+            feedback_llm_route_planner_payload.get(
+                "n_requests_with_proof_execution_feedback_summary",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_proof_execution_feedback_rows": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_proof_execution_feedback_rows",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_proof_execution_unsupported_target_prover_rows": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_proof_execution_unsupported_target_prover_rows",
                 0,
             )
         ),
@@ -8811,6 +9032,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_rows_with_formal_attempt_queue')} "
             f"combined={payload.get('n_publication_bundle_combined_llm_route_planner_summary_formal_attempt_queue_items')}/"
             f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_rows_with_formal_attempt_queue')}"
+        ),
+        (
+            f"- Bundle LLM proof-execution feedback summaries: "
+            f"primary={payload.get('n_publication_bundle_llm_route_planner_summary_proof_execution_feedback_rows')}/"
+            f"{payload.get('n_publication_bundle_llm_route_planner_summary_proof_execution_unsupported_target_prover_rows')} "
+            f"feedback={payload.get('n_publication_bundle_feedback_llm_route_planner_summary_proof_execution_feedback_rows')}/"
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_proof_execution_unsupported_target_prover_rows')} "
+            f"combined={payload.get('n_publication_bundle_combined_llm_route_planner_summary_proof_execution_feedback_rows')}/"
+            f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_proof_execution_unsupported_target_prover_rows')}"
         ),
         (
             f"- Bundle LLM route planner registry resource summaries: "

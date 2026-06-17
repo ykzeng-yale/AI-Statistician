@@ -1248,6 +1248,36 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         manifest["llm_route_planner_summary"]["n_rows_with_formal_attempt_queue"]
         == 0
     )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_agentic_proof_execution_materializer_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_agentic_proof_execution_artifact_verifier_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_agentic_proof_source_theorem_promotion_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_proof_execution_feedback_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_proof_execution_unsupported_target_prover_rows"
+        ]
+        == 0
+    )
     assert manifest["llm_route_planner_summary"]["n_accepted_route_plans"] == 0
     assert (
         manifest["llm_route_planner_summary"][
@@ -1525,6 +1555,36 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert (
         manifest["feedback_llm_route_planner_summary"][
             "n_rows_with_formal_attempt_queue"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_agentic_proof_execution_materializer_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_agentic_proof_execution_artifact_verifier_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_agentic_proof_source_theorem_promotion_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_proof_execution_feedback_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_proof_execution_unsupported_target_prover_rows"
         ]
         == 0
     )
@@ -2952,6 +3012,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert payload["llm_route_planner_summary"]["n_rows"] == 0
     assert (
         payload["llm_route_planner_summary"][
+            "n_request_proof_execution_feedback_rows"
+        ]
+        == 0
+    )
+    assert (
+        payload["llm_route_planner_summary"][
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces"
         ]
         == 0
@@ -2967,6 +3033,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert payload["feedback_llm_route_planner_summary"]["requested"] is False
     assert payload["feedback_llm_route_planner_summary"]["n_request_packets"] == 0
     assert payload["feedback_llm_route_planner_summary"]["n_rows"] == 0
+    assert (
+        payload["feedback_llm_route_planner_summary"][
+            "n_request_proof_execution_feedback_rows"
+        ]
+        == 0
+    )
     assert (
         payload["feedback_llm_route_planner_summary"][
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces"
@@ -3337,6 +3409,26 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "n_rows_with_source_snippets" in llm_summary_schema["required"]
     assert "n_formal_attempt_queue_items" in llm_summary_schema["required"]
     assert "n_rows_with_formal_attempt_queue" in llm_summary_schema["required"]
+    assert (
+        "n_request_agentic_proof_execution_materializer_rows"
+        in llm_summary_schema["required"]
+    )
+    assert (
+        "n_request_agentic_proof_execution_artifact_verifier_rows"
+        in llm_summary_schema["required"]
+    )
+    assert (
+        "n_request_agentic_proof_source_theorem_promotion_rows"
+        in llm_summary_schema["required"]
+    )
+    assert (
+        "n_request_proof_execution_feedback_rows"
+        in llm_summary_schema["required"]
+    )
+    assert (
+        "n_request_proof_execution_unsupported_target_prover_rows"
+        in llm_summary_schema["required"]
+    )
     validation_summary_schema = publication_bundle_manifest_schema_payload[
         "properties"
     ]["llm_route_planner_response_payload_validation_summary"]

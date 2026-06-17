@@ -4008,6 +4008,21 @@ def _formalization_gap_planner_reuse_smoke(args: argparse.Namespace) -> int:
             if args.feedback_llm_route_planner_static_response_file
             else None
         ),
+        formal_verifier_agentic_proof_execution_materializer_dir=(
+            Path(args.formal_verifier_agentic_proof_execution_materializer_dir)
+            if args.formal_verifier_agentic_proof_execution_materializer_dir
+            else None
+        ),
+        formal_verifier_agentic_proof_execution_artifact_verifier_dir=(
+            Path(args.formal_verifier_agentic_proof_execution_artifact_verifier_dir)
+            if args.formal_verifier_agentic_proof_execution_artifact_verifier_dir
+            else None
+        ),
+        formal_verifier_agentic_proof_source_theorem_promotion_queue_dir=(
+            Path(args.formal_verifier_agentic_proof_source_theorem_promotion_queue_dir)
+            if args.formal_verifier_agentic_proof_source_theorem_promotion_queue_dir
+            else None
+        ),
     )
     print("\nAI Statistical Theory Lab Formalization Gap Planner Reuse Smoke")
     print("=" * 72)
@@ -8431,6 +8446,27 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "offline static feedback response JSON for deterministic replay; "
             "use with --feedback-llm-route-planner-invoke-provider to generate one response per request"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--formal-verifier-agentic-proof-execution-materializer-dir",
+        help=(
+            "optional agentic proof execution materializer directory to include "
+            "as proof-execution feedback in primary and feedback LLM route-planner prompts"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--formal-verifier-agentic-proof-execution-artifact-verifier-dir",
+        help=(
+            "optional agentic proof artifact verifier directory to include as "
+            "proof-execution feedback in primary and feedback LLM route-planner prompts"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
+        "--formal-verifier-agentic-proof-source-theorem-promotion-queue-dir",
+        help=(
+            "optional agentic source-theorem promotion queue directory to include "
+            "as proof-execution feedback in primary and feedback LLM route-planner prompts"
         ),
     )
     formalization_gap_planner_reuse_smoke.add_argument(

@@ -2390,6 +2390,15 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_exact_source_theorem_proof_body_executor_context",
             "n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt",
             "n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt",
+            "n_requests_with_agentic_proof_execution_materializer_rows",
+            "n_request_agentic_proof_execution_materializer_rows",
+            "n_requests_with_agentic_proof_execution_artifact_verifier_rows",
+            "n_request_agentic_proof_execution_artifact_verifier_rows",
+            "n_requests_with_agentic_proof_source_theorem_promotion_rows",
+            "n_request_agentic_proof_source_theorem_promotion_rows",
+            "n_requests_with_proof_execution_feedback_summary",
+            "n_request_proof_execution_feedback_rows",
+            "n_request_proof_execution_unsupported_target_prover_rows",
             "n_rows",
             "n_response_present",
             "n_response_contract_ok",
@@ -2609,6 +2618,31 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_request_source_theorem_proof_body_execution_result_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_agentic_proof_execution_materializer_rows": (
+                nonnegative_integer
+            ),
+            "n_request_agentic_proof_execution_materializer_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_agentic_proof_execution_artifact_verifier_rows": (
+                nonnegative_integer
+            ),
+            "n_request_agentic_proof_execution_artifact_verifier_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_agentic_proof_source_theorem_promotion_rows": (
+                nonnegative_integer
+            ),
+            "n_request_agentic_proof_source_theorem_promotion_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_proof_execution_feedback_summary": (
+                nonnegative_integer
+            ),
+            "n_request_proof_execution_feedback_rows": nonnegative_integer,
+            "n_request_proof_execution_unsupported_target_prover_rows": (
                 nonnegative_integer
             ),
             "n_rows": nonnegative_integer,
@@ -5193,6 +5227,15 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_source_theorem_formal_environment_rows": 0,
         "n_requests_with_source_theorem_proof_body_execution_result_rows": 0,
         "n_request_source_theorem_proof_body_execution_result_rows": 0,
+        "n_requests_with_agentic_proof_execution_materializer_rows": 0,
+        "n_request_agentic_proof_execution_materializer_rows": 0,
+        "n_requests_with_agentic_proof_execution_artifact_verifier_rows": 0,
+        "n_request_agentic_proof_execution_artifact_verifier_rows": 0,
+        "n_requests_with_agentic_proof_source_theorem_promotion_rows": 0,
+        "n_request_agentic_proof_source_theorem_promotion_rows": 0,
+        "n_requests_with_proof_execution_feedback_summary": 0,
+        "n_request_proof_execution_feedback_rows": 0,
+        "n_request_proof_execution_unsupported_target_prover_rows": 0,
         "n_rows": 0,
         "n_response_present": 0,
         "n_response_contract_ok": 0,
@@ -5753,6 +5796,150 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             payload.get(
                 "n_request_source_theorem_proof_body_execution_result_rows",
                 0,
+            )
+            or 0
+        ),
+        "n_requests_with_agentic_proof_execution_materializer_rows": int(
+            payload.get(
+                "n_requests_with_agentic_proof_execution_materializer_rows",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_tuple(
+                        _dict_value(packet, "context_packet").get(
+                            "agentic_proof_execution_materializer_rows",
+                            [],
+                        )
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_agentic_proof_execution_materializer_rows": int(
+            payload.get(
+                "n_request_agentic_proof_execution_materializer_rows",
+                sum(
+                    len(
+                        _dict_tuple(
+                            _dict_value(packet, "context_packet").get(
+                                "agentic_proof_execution_materializer_rows",
+                                [],
+                            )
+                        )
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_requests_with_agentic_proof_execution_artifact_verifier_rows": int(
+            payload.get(
+                "n_requests_with_agentic_proof_execution_artifact_verifier_rows",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_tuple(
+                        _dict_value(packet, "context_packet").get(
+                            "agentic_proof_execution_artifact_verifier_rows",
+                            [],
+                        )
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_agentic_proof_execution_artifact_verifier_rows": int(
+            payload.get(
+                "n_request_agentic_proof_execution_artifact_verifier_rows",
+                sum(
+                    len(
+                        _dict_tuple(
+                            _dict_value(packet, "context_packet").get(
+                                "agentic_proof_execution_artifact_verifier_rows",
+                                [],
+                            )
+                        )
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_requests_with_agentic_proof_source_theorem_promotion_rows": int(
+            payload.get(
+                "n_requests_with_agentic_proof_source_theorem_promotion_rows",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_tuple(
+                        _dict_value(packet, "context_packet").get(
+                            "agentic_proof_source_theorem_promotion_rows",
+                            [],
+                        )
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_agentic_proof_source_theorem_promotion_rows": int(
+            payload.get(
+                "n_request_agentic_proof_source_theorem_promotion_rows",
+                sum(
+                    len(
+                        _dict_tuple(
+                            _dict_value(packet, "context_packet").get(
+                                "agentic_proof_source_theorem_promotion_rows",
+                                [],
+                            )
+                        )
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_requests_with_proof_execution_feedback_summary": int(
+            payload.get(
+                "n_requests_with_proof_execution_feedback_summary",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_value(packet, "context_packet").get(
+                        "proof_execution_feedback_summary"
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_proof_execution_feedback_rows": int(
+            payload.get(
+                "n_request_proof_execution_feedback_rows",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "proof_execution_feedback_summary",
+                        ).get("total_rows", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_proof_execution_unsupported_target_prover_rows": int(
+            payload.get(
+                "n_request_proof_execution_unsupported_target_prover_rows",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "proof_execution_feedback_summary",
+                        ).get("unsupported_target_prover_rows", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
             )
             or 0
         ),
@@ -7116,6 +7303,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"primary_rows={payload.get('llm_route_planner_summary', {}).get('n_rows_with_formal_attempt_queue')} "
             f"feedback_items={payload.get('feedback_llm_route_planner_summary', {}).get('n_formal_attempt_queue_items')} "
             f"feedback_rows={payload.get('feedback_llm_route_planner_summary', {}).get('n_rows_with_formal_attempt_queue')}"
+        ),
+        (
+            f"- LLM proof-execution feedback rows primary/feedback: "
+            f"primary={payload.get('llm_route_planner_summary', {}).get('n_request_proof_execution_feedback_rows')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_request_proof_execution_unsupported_target_prover_rows')} "
+            f"feedback={payload.get('feedback_llm_route_planner_summary', {}).get('n_request_proof_execution_feedback_rows')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_request_proof_execution_unsupported_target_prover_rows')}"
         ),
         (
             f"- LLM response-payload formal-attempt queue validation: "
