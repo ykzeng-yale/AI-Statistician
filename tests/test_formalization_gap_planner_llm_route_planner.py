@@ -1341,6 +1341,7 @@ def _write_source_theorem_planner_feedback(root: Path) -> dict[str, Path]:
                         "semantic_primitive_id": (
                             "exchangeability_to_uniform_rank_semantics"
                         ),
+                        "target_primitives": ["rank_uniformity"],
                         "semantic_primitive_gap": (
                             "formalize exchangeability-to-uniform-rank semantics"
                         ),
@@ -1376,6 +1377,7 @@ def _write_source_theorem_planner_feedback(root: Path) -> dict[str, Path]:
                 "target_theorem_name": "distribution_free_rank_bound",
                 "source_theorem_target_provenance": provenance,
                 "semantic_primitive_id": "order_statistic_quantile_semantics",
+                "target_primitives": ["rank_uniformity"],
                 "semantic_primitive_gap": (
                     "formalize order-statistic quantile semantics"
                 ),
@@ -1404,6 +1406,7 @@ def _write_source_theorem_planner_feedback(root: Path) -> dict[str, Path]:
                 "work_order_id": "formal-env:rank_route",
                 "target_theorem_name": "distribution_free_rank_bound",
                 "source_theorem_target_provenance": provenance,
+                "target_primitives": ["rank_uniformity"],
                 "missing_formal_symbols": ["OrderStatisticQuantileSemantics"],
                 "typeclass_blockers": ["DecidableEq score"],
                 "formal_environment_typeclass_blockers": ["DecidableEq score"],
@@ -1457,6 +1460,7 @@ def _write_source_theorem_planner_feedback(root: Path) -> dict[str, Path]:
                         "execution_queue_id": "proof-body-queue:rank_route",
                         "target_theorem_name": "distribution_free_rank_bound",
                         "source_theorem_target_provenance": provenance,
+                        "target_primitives": ["rank_uniformity"],
                         "failure_classification": (
                             "formal_environment_placeholder_primitives"
                         ),
@@ -5017,6 +5021,17 @@ def test_llm_route_planner_stages_source_theorem_feedback_rows() -> None:
     ]
     assert source_theorem_feedback["typeclass_blockers"] == ["DecidableEq score"]
     assert {
+        tuple(action.get("target_primitives", []))
+        for action in summary["recommended_next_actions"]
+        if action["source"]
+        in {
+            "source_theorem_semantic_primitive_rows",
+            "proof_body_semantic_primitive_work_order_rows",
+            "source_theorem_formal_environment_rows",
+            "source_theorem_proof_body_execution_result_rows",
+        }
+    } == {("rank_uniformity",)}
+    assert {
         action["source"] for action in summary["recommended_next_actions"]
     } >= {
         "source_theorem_semantic_primitive_rows",
@@ -5244,6 +5259,18 @@ def test_llm_route_planner_routes_source_theorem_feedback_hooks() -> None:
         "source_theorem_formal_environment_rows": "formal_library_grounding",
         "source_theorem_proof_body_execution_result_rows": "route_revision",
     }
+    assert {
+        tuple(hook.get("target_primitives", []))
+        for hook in feedback_hooks
+    } == {("rank_uniformity",)}
+    assert {
+        tuple(
+            hook["llm_route_planner_feedback_next_action"].get(
+                "target_primitives", []
+            )
+        )
+        for hook in feedback_hooks
+    } == {("rank_uniformity",)}
     assert "literature_discovery" not in set(hook_kind_by_source.values())
     assert any(
         "distribution-free rank bound follows from exchangeability"
@@ -5262,6 +5289,21 @@ def test_llm_route_planner_routes_source_theorem_feedback_hooks() -> None:
         "source_theorem_formal_environment_rows",
         "source_theorem_proof_body_execution_result_rows",
     }
+    feedback_triggers = [
+        trigger
+        for trigger in seed_route["route_revision_triggers"]
+        if trigger.get("llm_route_planner_feedback_next_action", {}).get("source")
+        in {
+            "source_theorem_semantic_primitive_rows",
+            "proof_body_semantic_primitive_work_order_rows",
+            "source_theorem_formal_environment_rows",
+            "source_theorem_proof_body_execution_result_rows",
+        }
+    ]
+    assert {
+        tuple(trigger.get("target_primitives", []))
+        for trigger in feedback_triggers
+    } == {("rank_uniformity",)}
 
 
 def test_llm_route_planner_materializes_bare_feedback_replan_required() -> None:

@@ -25149,11 +25149,14 @@ def _source_theorem_feedback_next_actions(
         gap = str(row.get("semantic_primitive_gap", "") or "").strip()
         if not semantic_id and not gap:
             continue
+        target_primitives = _feedback_row_target_primitives(row)
         actions.append(
             {
                 "source": "source_theorem_semantic_primitive_rows",
                 "owner": "FormalizerProofEngineer",
                 "action": "verify_or_reformulate_source_theorem_semantic_primitive",
+                "primitive": target_primitives[0] if target_primitives else "",
+                "target_primitives": list(target_primitives[:8]),
                 "semantic_primitive_id": semantic_id,
                 "semantic_primitive_gap": gap,
                 "target_theorem_name": str(
@@ -25173,11 +25176,14 @@ def _source_theorem_feedback_next_actions(
         (),
     ):
         semantic_id = str(row.get("semantic_primitive_id", "") or "").strip()
+        target_primitives = _feedback_row_target_primitives(row)
         actions.append(
             {
                 "source": "proof_body_semantic_primitive_work_order_rows",
                 "owner": str(row.get("next_owner", "") or "FormalizerProofEngineer"),
                 "action": "dispatch_or_prove_source_theorem_semantic_work_order",
+                "primitive": target_primitives[0] if target_primitives else "",
+                "target_primitives": list(target_primitives[:8]),
                 "work_order_id": str(row.get("work_order_id", "")).strip(),
                 "semantic_primitive_id": semantic_id,
                 "semantic_primitive_gap": str(
@@ -25201,11 +25207,14 @@ def _source_theorem_feedback_next_actions(
         )
         if not missing_symbols and not typeclass_blockers:
             continue
+        target_primitives = _feedback_row_target_primitives(row)
         actions.append(
             {
                 "source": "source_theorem_formal_environment_rows",
                 "owner": "FormalizerProofEngineer",
                 "action": "repair_source_theorem_formal_environment",
+                "primitive": target_primitives[0] if target_primitives else "",
+                "target_primitives": list(target_primitives[:8]),
                 "work_order_id": str(row.get("work_order_id", "")).strip(),
                 "target_theorem_name": str(
                     row.get("target_theorem_name", "")
@@ -25226,11 +25235,14 @@ def _source_theorem_feedback_next_actions(
             live_request.get("proof_body_goal_excerpt", [])
             or row.get("proof_body_goal_excerpt", [])
         )
+        target_primitives = _feedback_row_target_primitives(row)
         actions.append(
             {
                 "source": "source_theorem_proof_body_execution_result_rows",
                 "owner": "route_planner",
                 "action": "repair_route_from_source_theorem_proof_body_feedback",
+                "primitive": target_primitives[0] if target_primitives else "",
+                "target_primitives": list(target_primitives[:8]),
                 "execution_result_id": str(
                     row.get("execution_result_id", "")
                 ).strip(),
@@ -26586,6 +26598,9 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "ok",
         "errors",
         "primitive",
+        "target_primitive",
+        "target_primitives",
+        "primitives",
         "component_id",
         "component_name",
         "planner_stage",
@@ -29457,6 +29472,11 @@ def _feedback_action_text_values(action: Mapping[str, object]) -> tuple[str, ...
         "mcp_or_cli_hint",
         "reason",
         "action",
+        "target_theorem_name",
+        "semantic_primitive_id",
+        "semantic_primitive_gap",
+        "placeholder_symbol",
+        "failure_classification",
         "request_phase",
         "acceptance_gate",
         "expected_response_artifact",
@@ -29476,6 +29496,11 @@ def _feedback_action_text_values(action: Mapping[str, object]) -> tuple[str, ...
         "commands",
         "residual_goals",
         "reasons",
+        "candidate_registered_obligation_ids",
+        "goal_excerpt",
+        "missing_formal_symbols",
+        "placeholder_symbols",
+        "typeclass_blockers",
     ):
         values.extend(_str_tuple(action.get(field_name, [])))
     return _str_tuple(values)
