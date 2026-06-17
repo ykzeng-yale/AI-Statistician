@@ -11340,6 +11340,27 @@ def _repair_guidance_for_error(
             "remove kernel proof claims and state that the route is not theorem proof evidence",
             ("kernel_verified", "proof_evidence_boundary"),
         )
+    if "agentic proof strategy plan ready row" in normalized:
+        return (
+            "agentic_strategy_obligation",
+            (
+                "ready agentic proof-strategy rows from the request context were "
+                "not dispatched by the planner response"
+            ),
+            (
+                "answer each ready context_packet.formal_verifier_agentic_proof_strategy_plan_rows "
+                "entry with a matching search_requests, planner_next_actions, or formal_attempt_queue "
+                "row keyed by strategy_id, residual_obligation_id, residual_gap, or target primitive; "
+                "source-discovery rows need source/literature search or planner actions, while "
+                "patch-evolve and kernel-overlay rows need planner or formal-attempt actions"
+            ),
+            (
+                "context_packet.formal_verifier_agentic_proof_strategy_plan_rows",
+                "search_requests",
+                "planner_next_actions",
+                "formal_attempt_queue",
+            ),
+        )
     if "residual" in normalized:
         return (
             "residual_repair_grounding",

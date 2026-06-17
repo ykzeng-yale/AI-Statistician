@@ -14437,6 +14437,150 @@ def test_llm_route_planner_repairs_invalid_provider_response_with_local_validato
     assert "- Repair ledger rows: 1" in report
 
 
+def test_llm_route_planner_repair_guidance_dispatches_agentic_strategy_obligations() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_agentic_strategy_repair"
+    )
+    out_dir = root / "llm_route_planner"
+    strategy_plan_dir = root / "agentic_strategy_plan"
+    shutil.rmtree(root, ignore_errors=True)
+    strategy_plan_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    strategy_rows = [
+        {
+            "schema_version": 1,
+            "strategy_id": "strategy:rank_route:tie-source",
+            "followup_id": "followup:rank_route:tie-source",
+            "residual_response_validation_id": "validation:rank_route:tie-source",
+            "prompt_packet_id": "packet:rank_route:tie-source",
+            "residual_obligation_id": "residual-obligation:rank_route:tie-source",
+            "route_id": "rank_route",
+            "display_name": "distribution_free_rank_bound",
+            "target_theorem_name": "distribution_free_rank_bound",
+            "candidate_bridge_lemma_name": "calibration_quantile_tie_policy_bridge",
+            "residual_gap": "calibration_quantile_tie_policy",
+            "action_class": "source_discovery_needed",
+            "followup_kind": "residual_source_discovery",
+            "followup_status": "READY_FOR_AGENTIC_PROOF_STRATEGY",
+            "agentic_strategy_kind": "global_goal_cache_source_discovery",
+            "paper_patterns": ["calibration quantile tie policy"],
+            "required_live_tools": ["paperclip", "paperqa"],
+            "evaluator_gates": ["source-backed residual route repair"],
+            "global_goal_cache_keys": [
+                "calibration_quantile_tie_policy:rank_route"
+            ],
+            "candidate_database_key": "candidate-db:rank_route:tie-source",
+            "expected_artifacts": [
+                "source_cache/calibration_quantile_tie_policy.json"
+            ],
+            "priority_score": 90,
+            "rank": 1,
+            "proof_evidence_status": (
+                "AGENTIC_STRATEGY_PLAN_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            "ok": True,
+            "errors": [],
+        }
+    ]
+    (
+        strategy_plan_dir / "formal_verifier_agentic_proof_strategy_plan_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "n_strategy_rows": len(strategy_rows),
+                "n_ready": 1,
+                "n_patch_evolve_blocks": 0,
+                "n_source_discovery_cache_items": 1,
+                "n_kernel_overlay_composition_seeds": 0,
+                "n_with_live_tool_plan": 1,
+                "all_ok": True,
+                "rows": strategy_rows,
+                "limitations": [
+                    "agentic proof strategy rows are proof-search contracts, not theorem proof evidence"
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    repaired_response = _llm_response_payload()
+    repaired_response["search_requests"] = [
+        *repaired_response["search_requests"],
+        {
+            "request_kind": "source_search",
+            "query": (
+                "source search for calibration_quantile_tie_policy "
+                "strategy:rank_route:tie-source"
+            ),
+            "reason": (
+                "answer ready agentic proof strategy row "
+                "strategy:rank_route:tie-source before route repair"
+            ),
+            "strategy_id": "strategy:rank_route:tie-source",
+            "residual_obligation_id": "residual-obligation:rank_route:tie-source",
+            "agentic_strategy_kind": "global_goal_cache_source_discovery",
+        },
+    ]
+    requests = []
+
+    class RepairingFakeAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            requests.append(request)
+            if len(requests) == 1:
+                return GeneratorResponse(
+                    text=json.dumps(_llm_response_payload()),
+                    provider="anthropic",
+                    model=request.model,
+                    metadata={"generator_only": True, "tools_available": False},
+                )
+            return GeneratorResponse(
+                text=json.dumps(repaired_response),
+                provider="anthropic",
+                model=request.model,
+                metadata={"generator_only": True, "tools_available": False},
+            )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        invoke_provider=True,
+        generator_backend=RepairingFakeAnthropicBackend(),
+        formal_verifier_agentic_proof_strategy_plan_dir=strategy_plan_dir,
+        max_repair_attempts=1,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_generated_response_repair_attempts"] == 1
+    assert payload["n_generated_responses_repaired"] == 1
+    assert len(requests) == 2
+    assert "agentic_strategy_obligation" in requests[1].user_prompt
+    assert (
+        "context_packet.formal_verifier_agentic_proof_strategy_plan_rows"
+        in requests[1].user_prompt
+    )
+    assert "strategy:rank_route:tie-source" in requests[1].user_prompt
+    row = payload["rows"][0]
+    assert row["repair_attempts"] == 1
+    assert row["repair_error_history"]
+    assert "agentic_strategy_obligation" in row["repair_error_history"][0][
+        "repair_guidance_categories"
+    ]
+    assert any(
+        "agentic proof strategy plan ready row" in error
+        for error in row["repair_error_history"][0]["errors"]
+    )
+    repair_ledger_row = payload["repair_attempt_ledger"][0]
+    assert "agentic_strategy_obligation" in repair_ledger_row[
+        "repair_guidance_categories"
+    ]
+    assert not row["generation_errors"]
+
+
 def test_llm_route_planner_repairs_primitive_matrix_accountability_failure() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_matrix_repair_fake"
