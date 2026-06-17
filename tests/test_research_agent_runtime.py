@@ -6607,13 +6607,132 @@ def test_research_agent_runtime_rejects_unsupported_generator_provider() -> None
         config=ResearchArchitectConfig(provider_name="codex_exec", model="gpt-codex-test"),
     )
 
-    with pytest.raises(ValueError, match="LLM topology policy violation"):
+    with pytest.raises(ValueError, match="not accepted as pure LLM generator"):
         run_research_agent_runtime(
             [question],
             out_dir,
             theory_developer=developer,
             config=ResearchAgentRuntimeConfig(n_runs=10, seed=20260528, max_iterations=2),
         )
+
+
+def test_direct_llm_workers_reject_codex_provider_before_backend_call() -> None:
+    class BackendThatMustNotBeCalled:
+        provider_name = "codex_exec"
+
+        def __init__(self) -> None:
+            self.requests = []
+
+        def generate(self, request):
+            self.requests.append(request)
+            raise AssertionError("agent-style provider backend must not be called")
+
+    question = OpenResearchQuestion(
+        id="codex_provider_policy",
+        title="Codex provider policy",
+        description="Check that direct LLM workers reject agent-style providers.",
+        tags=("policy",),
+    )
+    worker_calls = [
+        (
+            "TheoryDeveloper",
+            lambda backend: LLMTheoryDeveloperAgent(
+                provider=backend,
+                config=ResearchArchitectConfig(
+                    provider_name="codex_exec",
+                    model="gpt-codex-test",
+                ),
+            ).derive(question),
+        ),
+        (
+            "ArchitectCoordinator",
+            lambda backend: LLMArchitectCoordinatorAgent(
+                provider=backend,
+                config=ArchitectCoordinatorConfig(
+                    provider_name="codex_exec",
+                    model="gpt-codex-test",
+                ),
+            ).propose(
+                question=question,
+                architect_context={},
+                runtime_config={},
+            ),
+        ),
+        (
+            "SimulationEngineer",
+            lambda backend: LLMSimulationEngineerAgent(
+                provider=backend,
+                config=SimulationEngineerConfig(
+                    provider_name="codex_exec",
+                    model="gpt-codex-test",
+                ),
+            ).propose(
+                question=question,
+                theory_packet={},
+                registered_problem={},
+                registered_procedures=[],
+                n_runs=1,
+                seed=1,
+            ),
+        ),
+        (
+            "AlgorithmEngineer",
+            lambda backend: LLMAlgorithmEngineerAgent(
+                provider=backend,
+                config=AlgorithmEngineerConfig(
+                    provider_name="codex_exec",
+                    model="gpt-codex-test",
+                ),
+            ).propose(
+                question=question,
+                theory_packet={},
+                simulation_manifest={},
+                implementation_gaps=[],
+            ),
+        ),
+        (
+            "FormalizerProofEngineer",
+            lambda backend: LLMFormalizerProofEngineerAgent(
+                provider=backend,
+                config=FormalizerConfig(
+                    provider_name="codex_exec",
+                    model="gpt-codex-test",
+                ),
+            ).propose(
+                question=question,
+                theory_packet={},
+                simulation_manifest={},
+                algorithm_manifest={},
+                registered_problem={},
+                theorem_goals=[],
+            ),
+        ),
+        (
+            "CriticEvaluator",
+            lambda backend: LLMCriticEvaluatorAgent(
+                provider=backend,
+                config=CriticEvaluatorConfig(
+                    provider_name="codex_exec",
+                    model="gpt-codex-test",
+                ),
+            ).propose(
+                question=question,
+                retrieval_manifest={},
+                theory_packet={},
+                simulation_manifest={},
+                algorithm_manifest={},
+                formalization_manifest={},
+                deterministic_agenda=[],
+                deterministic_learning_rows=[],
+            ),
+        ),
+    ]
+
+    for worker_name, call_worker in worker_calls:
+        backend = BackendThatMustNotBeCalled()
+        with pytest.raises(ValueError, match="not accepted as pure LLM generator"):
+            call_worker(backend)
+        assert backend.requests == [], worker_name
 
 
 def test_research_agent_runtime_rejects_anthropic_model_tier_mismatch() -> None:

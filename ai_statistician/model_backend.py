@@ -199,11 +199,13 @@ def default_generator_model(
     planning and Haiku for cheaper structured helper tasks.
     """
 
+    env = env or os.environ
+    provider = (provider_name or default_generator_provider(env)).strip().lower()
+    if provider in PROHIBITED_AGENT_GENERATOR_PROVIDERS:
+        return ""
     requested = str(requested_model or "").strip()
     if requested:
         return requested
-    env = env or os.environ
-    provider = (provider_name or default_generator_provider(env)).strip().lower()
     global_model = (
         (env.get("AI_STATISTICIAN_LLM_MODEL") or "").strip()
         if _global_model_override_applies(env, provider)
@@ -272,12 +274,23 @@ def resolve_generator_model(
     request is actually built, not when a module is imported.
     """
 
+    _raise_if_prohibited_generator_provider(provider_name)
     return default_generator_model(
         provider_name,
         requested_model,
         env=env,
         model_tier=model_tier,
     )
+
+
+def _raise_if_prohibited_generator_provider(provider_name: str) -> None:
+    provider = str(provider_name or "").strip().lower()
+    if provider in PROHIBITED_AGENT_GENERATOR_PROVIDERS:
+        raise ValueError(
+            f"{provider_name} is an agent-style provider; Codex/Claude Code/"
+            "Cursor/Gemini CLI-style agents are not accepted as pure LLM "
+            "generator backends. Use anthropic, openai, or static."
+        )
 
 
 def claude_model_tier_for_model(model: str) -> str:

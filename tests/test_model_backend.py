@@ -17,6 +17,7 @@ from ai_statistician.model_backend import (
     CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS,
     DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    PROHIBITED_AGENT_GENERATOR_PROVIDERS,
     AnthropicGeneratorBackend,
     GeneratorRequest,
     LiveGeneratorTimeoutError,
@@ -29,6 +30,7 @@ from ai_statistician.model_backend import (
     claude_model_tier_policy_violations,
     default_generator_model,
     default_generator_provider,
+    resolve_generator_model,
 )
 
 
@@ -449,6 +451,7 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     assert default_generator_model("anthropic", model_tier="haiku") == "claude-haiku-4-5-20251001"
     assert default_generator_model("codex") == ""
     assert default_generator_model("codex_exec") == ""
+    assert default_generator_model("codex_exec", requested_model="gpt-codex-test") == ""
 
     monkeypatch.setenv("AI_STATISTICIAN_LLM_PROVIDER", "anthropic")
     monkeypatch.setenv("AI_STATISTICIAN_ANTHROPIC_MODEL", "claude-test")
@@ -464,6 +467,16 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     assert default_generator_model("anthropic", model_tier="haiku") == "claude-haiku-test"
     assert default_generator_model("anthropic", model_tier="sonnet") == "claude-sonnet-test"
     assert default_generator_model("anthropic", model_tier="opus") == "claude-opus-test"
+
+
+def test_resolve_generator_model_rejects_agent_style_provider_aliases() -> None:
+    for provider_name in PROHIBITED_AGENT_GENERATOR_PROVIDERS:
+        with pytest.raises(ValueError, match="not accepted as pure LLM generator"):
+            resolve_generator_model(
+                provider_name=provider_name,
+                requested_model="agent-cli-model",
+                model_tier="sonnet",
+            )
 
 
 def test_global_model_env_does_not_collapse_anthropic_cost_aware_tiers(

@@ -46,7 +46,10 @@ unsupported or agent-style provider such as `codex_exec`, runtime defaults stay
 on Anthropic and `ai_statistician doctor` emits a provider-override warning
 instead of silently treating the agent as a pure generator; generic global model
 overrides such as `AI_STATISTICIAN_LLM_MODEL=gpt-*` are ignored for that
-fallback so they cannot be sent to the Anthropic API by accident.
+fallback so they cannot be sent to the Anthropic API by accident. Direct LLM
+worker APIs use the same model-resolution guard and fail before any backend call
+when configured with `codex`, `codex_exec`, Claude Code, Cursor, or Gemini
+CLI-style agent providers.
 Formalization gap planner auto-tiering records source-theorem/proof-body
 feedback counts in each request's model-tier decision evidence; semantic
 primitive gaps, exact proof-body execution failures, and formal-environment
