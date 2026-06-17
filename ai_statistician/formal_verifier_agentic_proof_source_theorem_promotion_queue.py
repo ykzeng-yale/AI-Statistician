@@ -29,6 +29,9 @@ class FormalVerifierAgenticProofSourceTheoremPromotionQueueRow:
     execution_queue_id: str
     display_name: str
     target_theorem_name: str
+    target_prover_family: str
+    formal_statement_sketch: str
+    formal_imports: tuple[str, ...]
     candidate_artifact_path: str
     target_lean_declaration: str
     target_lean_line: int
@@ -101,6 +104,13 @@ def export_formal_verifier_agentic_proof_source_theorem_promotion_queue(
             "BLOCKED_ARTIFACT_VERIFICATION_FAILED",
             0,
         ),
+        "n_unsupported_target_prover_rows": by_status.get(
+            "UNSUPPORTED_TARGET_PROVER_FOR_SOURCE_THEOREM_PROMOTION_QUEUE",
+            0,
+        ),
+        "by_target_prover_family": dict(
+            sorted(Counter(row.target_prover_family for row in rows).items())
+        ),
         "n_source_theorem_target_known": sum(
             1 for row in rows if row.source_theorem_target_known
         ),
@@ -120,6 +130,7 @@ def export_formal_verifier_agentic_proof_source_theorem_promotion_queue(
         "limitations": [
             "route-probe artifact verification is not source theorem verification",
             "source theorem targets may need to be resolved from the route ledger",
+            "non-Lean target-prover rows are explicit skips for this Lean source-theorem promotion queue",
             "promotion requires full-route Lean/AXLE evidence before claim-ledger updates",
         ],
     }
@@ -144,6 +155,45 @@ def export_formal_verifier_agentic_proof_source_theorem_promotion_queue(
     return payload
 
 
+def _target_prover_family(row: dict[str, Any]) -> str:
+    provenance = row.get("source_theorem_target_provenance", {})
+    if not isinstance(provenance, dict):
+        provenance = {}
+    return str(
+        row.get("target_prover_family")
+        or provenance.get("target_prover_family")
+        or "lean4"
+    ).strip()
+
+
+def _is_lean_target(row: dict[str, Any]) -> bool:
+    return _target_prover_family(row).lower() in {"lean", "lean4"}
+
+
+def _formal_statement_sketch(row: dict[str, Any]) -> str:
+    provenance = row.get("source_theorem_target_provenance", {})
+    if not isinstance(provenance, dict):
+        provenance = {}
+    return str(
+        row.get("formal_statement_sketch")
+        or provenance.get("formal_statement_sketch")
+        or row.get("lean_statement_sketch")
+        or ""
+    ).strip()
+
+
+def _formal_imports(row: dict[str, Any]) -> tuple[str, ...]:
+    provenance = row.get("source_theorem_target_provenance", {})
+    if not isinstance(provenance, dict):
+        provenance = {}
+    values = row.get("formal_imports") or provenance.get("formal_imports") or []
+    if isinstance(values, (str, bytes)):
+        values = [values]
+    if not isinstance(values, (list, tuple, set)):
+        return ()
+    return tuple(str(item) for item in values if str(item))
+
+
 def _promotion_row(
     row: dict[str, Any],
 ) -> FormalVerifierAgenticProofSourceTheoremPromotionQueueRow:
@@ -153,8 +203,12 @@ def _promotion_row(
     execution_queue_id = str(row.get("execution_queue_id", ""))
     display_name = str(row.get("display_name", ""))
     target_theorem_name = str(row.get("target_theorem_name", ""))
+    target_prover_family = _target_prover_family(row)
+    formal_statement_sketch = _formal_statement_sketch(row)
+    formal_imports = _formal_imports(row)
     candidate_artifact_path = str(row.get("candidate_artifact_path", ""))
     target_lean_declaration = str(row.get("target_lean_declaration", ""))
+    source_verification_status = str(row.get("verification_status", ""))
     artifact_kernel_verified = bool(row.get("artifact_kernel_verified", False))
     source_theorem_kernel_verified = bool(
         row.get("source_theorem_kernel_verified", False)
@@ -170,6 +224,21 @@ def _promotion_row(
     )
     if source_theorem_target_known:
         source_theorem_target_provenance["source_theorem_target_known"] = True
+    if target_prover_family:
+        source_theorem_target_provenance.setdefault(
+            "target_prover_family",
+            target_prover_family,
+        )
+    if formal_statement_sketch:
+        source_theorem_target_provenance.setdefault(
+            "formal_statement_sketch",
+            formal_statement_sketch,
+        )
+    if formal_imports:
+        source_theorem_target_provenance.setdefault(
+            "formal_imports",
+            list(formal_imports),
+        )
     if artifact_verification_id:
         source_theorem_target_provenance.setdefault(
             "artifact_verification_id",
@@ -191,14 +260,34 @@ def _promotion_row(
             target_lean_declaration,
         )
     target_lean_line = _int(row.get("target_lean_line"))
+    unsupported_target_prover = (
+        source_verification_status
+        == "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_ARTIFACT_VERIFIER"
+        or not _is_lean_target(row)
+    )
     if not artifact_verification_id:
         errors.append("artifact_verification_id missing")
-    if not candidate_artifact_path:
+    if unsupported_target_prover:
+        pass
+    elif not candidate_artifact_path:
         errors.append("candidate_artifact_path missing")
-    if not target_lean_declaration:
+    if not unsupported_target_prover and not target_lean_declaration:
         errors.append("target_lean_declaration missing")
 
-    if source_theorem_kernel_verified:
+    if unsupported_target_prover:
+        promotion_status = "UNSUPPORTED_TARGET_PROVER_FOR_SOURCE_THEOREM_PROMOTION_QUEUE"
+        action_type = "dispatch_source_theorem_to_target_prover_adapter"
+        priority = "normal"
+        required_gate = (
+            "a target-prover-specific materializer, verifier, and source-theorem "
+            "promotion adapter handles this formal target before any kernel claim"
+        )
+        command_plan = (
+            "preserve the target-prover-neutral formal statement and imports",
+            "route the row to the matching target-prover adapter contract",
+            "do not run the Lean source-theorem promotion queue for this row",
+        )
+    elif source_theorem_kernel_verified:
         promotion_status = "SOURCE_THEOREM_KERNEL_VERIFIED_NO_QUEUE_ACTION"
         action_type = "record_source_theorem_kernel_evidence"
         priority = "high"
@@ -254,18 +343,31 @@ def _promotion_row(
             "rerun the artifact verifier",
         )
     required_inputs = (
-        "candidate_artifact_path",
-        "artifact_verifier_manifest",
-        "source_theorem_statement_or_file",
-        "full_route_lean_or_axle_verifier_manifest",
-    )
-    evidence_paths = tuple(
-        item
-        for item in (
-            candidate_artifact_path,
-            str(row.get("artifact_verifier_manifest", "")),
+        (
+            "target_prover_family",
+            "formal_statement_sketch",
+            "formal_imports",
+            "target_prover_adapter_contract",
         )
-        if item
+        if unsupported_target_prover
+        else (
+            "candidate_artifact_path",
+            "artifact_verifier_manifest",
+            "source_theorem_statement_or_file",
+            "full_route_lean_or_axle_verifier_manifest",
+        )
+    )
+    evidence_paths = (
+        ()
+        if unsupported_target_prover
+        else tuple(
+            item
+            for item in (
+                candidate_artifact_path,
+                str(row.get("artifact_verifier_manifest", "")),
+            )
+            if item
+        )
     )
     return FormalVerifierAgenticProofSourceTheoremPromotionQueueRow(
         schema_version=FORMAL_VERIFIER_AGENTIC_PROOF_SOURCE_THEOREM_PROMOTION_QUEUE_SCHEMA_VERSION,
@@ -285,6 +387,9 @@ def _promotion_row(
         execution_queue_id=execution_queue_id,
         display_name=display_name,
         target_theorem_name=target_theorem_name,
+        target_prover_family=target_prover_family,
+        formal_statement_sketch=formal_statement_sketch,
+        formal_imports=formal_imports,
         candidate_artifact_path=candidate_artifact_path,
         target_lean_declaration=target_lean_declaration,
         target_lean_line=target_lean_line,
@@ -294,7 +399,7 @@ def _promotion_row(
         source_theorem_target_provenance=source_theorem_target_provenance,
         verifier=str(row.get("verifier", "")),
         verification_strength=str(row.get("verification_strength", "")),
-        source_verification_status=str(row.get("verification_status", "")),
+        source_verification_status=source_verification_status,
         promotion_status=promotion_status,
         owner_agent="formal_verifier_source_theorem_integrator",
         action_type=action_type,
@@ -336,6 +441,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Rows: {payload.get('n_ok')}/{payload.get('n_promotion_rows')}",
         f"- Artifact-kernel inputs: {payload.get('n_artifact_kernel_verified_inputs')}",
         f"- Ready for source-theorem integration: {payload.get('n_ready_for_source_theorem_integration')}",
+        f"- Unsupported target-prover rows: {payload.get('n_unsupported_target_prover_rows')}",
+        f"- Target prover families: {payload.get('by_target_prover_family')}",
         f"- Source theorem kernel verified: {payload.get('n_source_theorem_kernel_verified')}",
         f"- Needs source theorem target: {payload.get('n_needs_source_theorem_target')}",
         f"- Fingerprint: `{payload.get('source_theorem_promotion_queue_fingerprint')}`",
@@ -350,6 +457,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             continue
         lines.append(
             f"- `{row.get('target_theorem_name')}`: {row.get('promotion_status')} "
+            f"target={row.get('target_prover_family')} "
             f"artifact_kernel={row.get('artifact_kernel_verified')} "
             f"source_theorem_kernel={row.get('source_theorem_kernel_verified')}"
         )

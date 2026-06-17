@@ -85,6 +85,9 @@ from ai_statistician.formal_verifier_agentic_proof_execution_materializer import
 from ai_statistician.formal_verifier_agentic_proof_execution_artifact_verifier import (
     export_formal_verifier_agentic_proof_execution_artifact_verifier,
 )
+from ai_statistician.formal_verifier_agentic_proof_source_theorem_promotion_queue import (
+    export_formal_verifier_agentic_proof_source_theorem_promotion_queue,
+)
 from ai_statistician.formal_verifier_agentic_proof_source_theorem_integrator import (
     export_formal_verifier_agentic_proof_source_theorem_integrator,
 )
@@ -2097,9 +2100,26 @@ def test_exact_source_theorem_materializer_skips_non_lean_target(
         encoding="utf-8",
     )
 
+    materializer_dir = tmp_path / "rocq_source_materializer"
     payload = export_formal_verifier_agentic_proof_execution_materializer(
         queue_dir,
-        tmp_path / "rocq_source_materializer",
+        materializer_dir,
+    )
+    verifier_dir = tmp_path / "rocq_source_artifact_verifier"
+    verifier_payload = export_formal_verifier_agentic_proof_execution_artifact_verifier(
+        materializer_dir,
+        verifier_dir,
+        lean_command=("true",),
+    )
+    promotion_payload = export_formal_verifier_agentic_proof_source_theorem_promotion_queue(
+        verifier_dir,
+        tmp_path / "rocq_source_promotion_queue",
+    )
+    integrator_payload = export_formal_verifier_agentic_proof_source_theorem_integrator(
+        tmp_path / "rocq_source_promotion_queue",
+        tmp_path / "rocq_source_integrator",
+        lean_command=("true",),
+        local_lean=True,
     )
 
     assert payload["all_ok"] is True
@@ -2136,6 +2156,86 @@ def test_exact_source_theorem_materializer_skips_non_lean_target(
     ]
     assert not artifact_path.exists()
     assert not transcript_path.exists()
+
+    assert verifier_payload["all_ok"] is True
+    assert verifier_payload["n_verifier_rows"] == 1
+    assert verifier_payload["n_local_lean_checked"] == 0
+    assert verifier_payload["n_artifact_kernel_verified"] == 0
+    assert verifier_payload["n_unsupported_target_prover_rows"] == 1
+    assert verifier_payload["by_target_prover_family"] == {"rocq": 1}
+    assert verifier_payload["by_verification_status"] == {
+        "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_ARTIFACT_VERIFIER": 1
+    }
+    verifier_row = verifier_payload["rows"][0]
+    assert verifier_row["ok"] is True
+    assert verifier_row["errors"] == ()
+    assert verifier_row["target_prover_family"] == "rocq"
+    assert verifier_row["formal_statement_sketch"] == (
+        "Theorem split_conformal_coverage : True."
+    )
+    assert verifier_row["formal_imports"] == ("Coq.Init.Logic",)
+    assert verifier_row["target_lean_declaration"] == ""
+    assert verifier_row["target_lean_line"] == 0
+    assert verifier_row["live_proof_state_request_status"] == ""
+    assert verifier_row["local_lean_checked"] is False
+    assert verifier_row["diagnostics"] == (
+        "target_prover_family rocq is not supported by Lean artifact verifier",
+    )
+    assert verifier_row["source_theorem_target_provenance"][
+        "target_prover_family"
+    ] == "rocq"
+
+    assert promotion_payload["all_ok"] is True
+    assert promotion_payload["n_promotion_rows"] == 1
+    assert promotion_payload["n_unsupported_target_prover_rows"] == 1
+    assert promotion_payload["by_target_prover_family"] == {"rocq": 1}
+    assert promotion_payload["by_promotion_status"] == {
+        "UNSUPPORTED_TARGET_PROVER_FOR_SOURCE_THEOREM_PROMOTION_QUEUE": 1
+    }
+    promotion_row = promotion_payload["rows"][0]
+    assert promotion_row["ok"] is True
+    assert promotion_row["target_prover_family"] == "rocq"
+    assert promotion_row["formal_statement_sketch"] == (
+        "Theorem split_conformal_coverage : True."
+    )
+    assert promotion_row["formal_imports"] == ("Coq.Init.Logic",)
+    assert promotion_row["target_lean_declaration"] == ""
+    assert promotion_row["promotion_status"] == (
+        "UNSUPPORTED_TARGET_PROVER_FOR_SOURCE_THEOREM_PROMOTION_QUEUE"
+    )
+    assert promotion_row["action_type"] == (
+        "dispatch_source_theorem_to_target_prover_adapter"
+    )
+    assert promotion_row["required_inputs"] == (
+        "target_prover_family",
+        "formal_statement_sketch",
+        "formal_imports",
+        "target_prover_adapter_contract",
+    )
+    assert promotion_row["evidence_paths"] == ()
+
+    assert integrator_payload["all_ok"] is True
+    assert integrator_payload["n_integration_rows"] == 1
+    assert integrator_payload["n_local_lean_checked"] == 0
+    assert integrator_payload["n_source_theorem_kernel_verified"] == 0
+    assert integrator_payload["n_unsupported_target_prover_rows"] == 1
+    assert integrator_payload["by_target_prover_family"] == {"rocq": 1}
+    assert integrator_payload["by_integration_status"] == {
+        "UNSUPPORTED_TARGET_PROVER_FOR_SOURCE_THEOREM_INTEGRATOR": 1
+    }
+    integrator_row = integrator_payload["rows"][0]
+    assert integrator_row["ok"] is True
+    assert integrator_row["target_prover_family"] == "rocq"
+    assert integrator_row["formal_statement_sketch"] == (
+        "Theorem split_conformal_coverage : True."
+    )
+    assert integrator_row["formal_imports"] == ("Coq.Init.Logic",)
+    assert integrator_row["integration_status"] == (
+        "UNSUPPORTED_TARGET_PROVER_FOR_SOURCE_THEOREM_INTEGRATOR"
+    )
+    assert integrator_row["local_lean_checked"] is False
+    assert integrator_row["source_theorem_kernel_verified"] is False
+    assert integrator_row["errors"] == ()
 
 
 def test_source_theorem_exact_candidate_lean_failure_enters_runtime_memory(

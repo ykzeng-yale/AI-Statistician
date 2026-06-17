@@ -39,6 +39,9 @@ class FormalVerifierAgenticProofSourceTheoremIntegratorRow:
     source_theorem_promotion_id: str
     promotion_status: str
     target_theorem_name: str
+    target_prover_family: str
+    formal_statement_sketch: str
+    formal_imports: tuple[str, ...]
     exact_source_candidate_path: str
     candidate_artifact_path: str
     artifact_kernel_verified: bool
@@ -130,6 +133,13 @@ def export_formal_verifier_agentic_proof_source_theorem_integrator(
         "n_source_theorem_kernel_verified": sum(
             1 for row in rows if row.source_theorem_kernel_verified
         ),
+        "n_unsupported_target_prover_rows": by_status.get(
+            "UNSUPPORTED_TARGET_PROVER_FOR_SOURCE_THEOREM_INTEGRATOR",
+            0,
+        ),
+        "by_target_prover_family": dict(
+            sorted(Counter(row.target_prover_family for row in rows).items())
+        ),
         "n_ready_for_local_lean": by_status.get(
             "EXACT_SOURCE_THEOREM_READY_FOR_LOCAL_LEAN",
             0,
@@ -156,6 +166,7 @@ def export_formal_verifier_agentic_proof_source_theorem_integrator(
         "limitations": [
             "route probes are rejected as source theorem proofs",
             "artifact_kernel_verified is insufficient for source theorem promotion",
+            "non-Lean target-prover rows are explicit skips for this Lean source-theorem integrator",
             "exact source theorem proof requires the target declaration itself to pass Lean/AXLE",
         ],
     }
@@ -178,6 +189,45 @@ def export_formal_verifier_agentic_proof_source_theorem_integrator(
     return payload
 
 
+def _target_prover_family(row: dict[str, Any]) -> str:
+    provenance = row.get("source_theorem_target_provenance", {})
+    if not isinstance(provenance, dict):
+        provenance = {}
+    return str(
+        row.get("target_prover_family")
+        or provenance.get("target_prover_family")
+        or "lean4"
+    ).strip()
+
+
+def _is_lean_target(row: dict[str, Any]) -> bool:
+    return _target_prover_family(row).lower() in {"lean", "lean4"}
+
+
+def _formal_statement_sketch(row: dict[str, Any]) -> str:
+    provenance = row.get("source_theorem_target_provenance", {})
+    if not isinstance(provenance, dict):
+        provenance = {}
+    return str(
+        row.get("formal_statement_sketch")
+        or provenance.get("formal_statement_sketch")
+        or row.get("lean_statement_sketch")
+        or ""
+    ).strip()
+
+
+def _formal_imports(row: dict[str, Any]) -> tuple[str, ...]:
+    provenance = row.get("source_theorem_target_provenance", {})
+    if not isinstance(provenance, dict):
+        provenance = {}
+    values = row.get("formal_imports") or provenance.get("formal_imports") or []
+    if isinstance(values, (str, bytes)):
+        values = [values]
+    if not isinstance(values, (list, tuple, set)):
+        return ()
+    return tuple(str(item) for item in values if str(item))
+
+
 def _integrator_row(
     row: dict[str, Any],
     *,
@@ -190,6 +240,9 @@ def _integrator_row(
     promotion_status = str(row.get("promotion_status", "") or "")
     promotion_id = str(row.get("source_theorem_promotion_id", "") or "")
     target_theorem_name = str(row.get("target_theorem_name", "") or "").strip()
+    target_prover_family = _target_prover_family(row)
+    formal_statement_sketch = _formal_statement_sketch(row)
+    formal_imports = _formal_imports(row)
     candidate_artifact_path = str(row.get("candidate_artifact_path", "") or "")
     exact_source_candidate_path = str(
         row.get("source_theorem_candidate_path")
@@ -206,6 +259,21 @@ def _integrator_row(
     )
     if source_theorem_target_known:
         source_theorem_target_provenance["source_theorem_target_known"] = True
+    if target_prover_family:
+        source_theorem_target_provenance.setdefault(
+            "target_prover_family",
+            target_prover_family,
+        )
+    if formal_statement_sketch:
+        source_theorem_target_provenance.setdefault(
+            "formal_statement_sketch",
+            formal_statement_sketch,
+        )
+    if formal_imports:
+        source_theorem_target_provenance.setdefault(
+            "formal_imports",
+            list(formal_imports),
+        )
     if promotion_id:
         source_theorem_target_provenance.setdefault(
             "source_theorem_promotion_id",
@@ -217,11 +285,20 @@ def _integrator_row(
             target_theorem_name,
         )
     source = ""
-    if promotion_status != "READY_FOR_SOURCE_THEOREM_INTEGRATION":
+    unsupported_target_prover = (
+        promotion_status
+        == "UNSUPPORTED_TARGET_PROVER_FOR_SOURCE_THEOREM_PROMOTION_QUEUE"
+        or not _is_lean_target(row)
+    )
+    if unsupported_target_prover:
+        pass
+    elif promotion_status != "READY_FOR_SOURCE_THEOREM_INTEGRATION":
         errors.append("promotion row is not ready for source theorem integration")
-    if not target_theorem_name:
+    if not unsupported_target_prover and not target_theorem_name:
         errors.append("target_theorem_name missing")
-    if not exact_source_candidate_path:
+    if unsupported_target_prover:
+        pass
+    elif not exact_source_candidate_path:
         errors.append("exact source candidate path missing")
     elif not source_path.exists():
         errors.append(f"exact source candidate missing: {source_path}")
@@ -264,7 +341,9 @@ def _integrator_row(
     diagnostics: tuple[str, ...] = ()
     verifier = "local.lean_source_theorem_integrator"
     verification_strength = "source_theorem_integration_static"
-    if promotion_status != "READY_FOR_SOURCE_THEOREM_INTEGRATION":
+    if unsupported_target_prover:
+        integration_status = "UNSUPPORTED_TARGET_PROVER_FOR_SOURCE_THEOREM_INTEGRATOR"
+    elif promotion_status != "READY_FOR_SOURCE_THEOREM_INTEGRATION":
         integration_status = "SKIPPED_PROMOTION_STATUS"
     elif route_probe_detected:
         integration_status = "BLOCKED_ROUTE_PROBE_ARTIFACT"
@@ -311,6 +390,9 @@ def _integrator_row(
         source_theorem_promotion_id=promotion_id,
         promotion_status=promotion_status,
         target_theorem_name=target_theorem_name,
+        target_prover_family=target_prover_family,
+        formal_statement_sketch=formal_statement_sketch,
+        formal_imports=formal_imports,
         exact_source_candidate_path=exact_source_candidate_path,
         candidate_artifact_path=candidate_artifact_path,
         artifact_kernel_verified=artifact_kernel_verified,
@@ -389,6 +471,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Exact declarations: {payload.get('n_exact_declaration_present')}",
         f"- Vacuous True targets blocked: {payload.get('n_blocked_vacuous_true_target')}",
         f"- Route probes blocked: {payload.get('n_blocked_route_probe')}",
+        f"- Unsupported target-prover rows: {payload.get('n_unsupported_target_prover_rows')}",
+        f"- Target prover families: {payload.get('by_target_prover_family')}",
         f"- Source theorem kernel verified: {payload.get('n_source_theorem_kernel_verified')}",
         f"- Lean command: `{payload.get('lean_command')}`",
         f"- Fingerprint: `{payload.get('source_theorem_integrator_fingerprint')}`",
@@ -404,6 +488,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         lines.append(
             f"- `{row.get('target_theorem_name')}`: "
             f"{row.get('integration_status')} "
+            f"target={row.get('target_prover_family')} "
             f"source_kernel={row.get('source_theorem_kernel_verified')}"
         )
         lines.append(f"  candidate: `{row.get('exact_source_candidate_path')}`")

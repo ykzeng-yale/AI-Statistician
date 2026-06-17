@@ -31,6 +31,10 @@ class FormalVerifierAgenticProofExecutionArtifactVerifierRow:
     execution_queue_id: str
     display_name: str
     target_theorem_name: str
+    target_prover_family: str
+    formal_statement_sketch: str
+    formal_imports: tuple[str, ...]
+    materialization_status: str
     candidate_artifact_path: str
     execution_transcript_path: str
     execution_transcript_event_id: str
@@ -115,6 +119,13 @@ def export_formal_verifier_agentic_proof_execution_artifact_verifier(
         "n_artifact_kernel_verified": sum(
             1 for row in rows if row.artifact_kernel_verified
         ),
+        "n_unsupported_target_prover_rows": by_status.get(
+            "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_ARTIFACT_VERIFIER",
+            0,
+        ),
+        "by_target_prover_family": dict(
+            sorted(Counter(row.target_prover_family for row in rows).items())
+        ),
         "n_source_theorem_kernel_verified": sum(
             1 for row in rows if row.source_theorem_kernel_verified
         ),
@@ -167,6 +178,7 @@ def export_formal_verifier_agentic_proof_execution_artifact_verifier(
         "limitations": [
             "artifact kernel verification checks the generated route-probe file only",
             "the route-probe theorem is intentionally weaker than the source theorem",
+            "non-Lean target-prover rows are explicit skips for this Lean verifier, not Lean proof failures",
             "source-theorem promotion still requires residual-gap validation and full-route verification",
         ],
     }
@@ -190,6 +202,45 @@ def export_formal_verifier_agentic_proof_execution_artifact_verifier(
     return payload
 
 
+def _target_prover_family(row: dict[str, Any]) -> str:
+    provenance = row.get("source_theorem_target_provenance", {})
+    if not isinstance(provenance, dict):
+        provenance = {}
+    return str(
+        row.get("target_prover_family")
+        or provenance.get("target_prover_family")
+        or "lean4"
+    ).strip()
+
+
+def _is_lean_target(row: dict[str, Any]) -> bool:
+    return _target_prover_family(row).lower() in {"lean", "lean4"}
+
+
+def _formal_statement_sketch(row: dict[str, Any]) -> str:
+    provenance = row.get("source_theorem_target_provenance", {})
+    if not isinstance(provenance, dict):
+        provenance = {}
+    return str(
+        row.get("formal_statement_sketch")
+        or provenance.get("formal_statement_sketch")
+        or row.get("lean_statement_sketch")
+        or ""
+    ).strip()
+
+
+def _formal_imports(row: dict[str, Any]) -> tuple[str, ...]:
+    provenance = row.get("source_theorem_target_provenance", {})
+    if not isinstance(provenance, dict):
+        provenance = {}
+    return _str_tuple(
+        row.get("formal_imports")
+        or provenance.get("formal_imports")
+        or row.get("lean_imports")
+        or []
+    )
+
+
 def _verifier_row(
     row: dict[str, Any],
     *,
@@ -205,6 +256,10 @@ def _verifier_row(
     artifact_path = Path(str(row.get("candidate_artifact_path", "")))
     execution_transcript_raw = str(row.get("execution_transcript_path", ""))
     execution_transcript_path = Path(execution_transcript_raw) if execution_transcript_raw else None
+    target_prover_family = _target_prover_family(row)
+    formal_statement_sketch = _formal_statement_sketch(row)
+    formal_imports = _formal_imports(row)
+    materialization_status = str(row.get("materialization_status", "") or "")
     target_lean_declaration = str(row.get("target_lean_declaration", ""))
     target_lean_line = _int(row.get("target_lean_line"))
     source_theorem_target_known = bool(
@@ -217,6 +272,21 @@ def _verifier_row(
     )
     if source_theorem_target_known:
         source_theorem_target_provenance["source_theorem_target_known"] = True
+    if target_prover_family:
+        source_theorem_target_provenance.setdefault(
+            "target_prover_family",
+            target_prover_family,
+        )
+    if formal_statement_sketch:
+        source_theorem_target_provenance.setdefault(
+            "formal_statement_sketch",
+            formal_statement_sketch,
+        )
+    if formal_imports:
+        source_theorem_target_provenance.setdefault(
+            "formal_imports",
+            list(formal_imports),
+        )
     if target_lean_declaration:
         source_theorem_target_provenance.setdefault(
             "target_lean_declaration",
@@ -232,25 +302,37 @@ def _verifier_row(
             "execution_queue_id",
             execution_queue_id,
         )
-    (
-        live_request_id,
-        live_request_valid,
-        live_request_status,
-        live_request_providers,
-        live_request_tools,
-        live_request_errors,
-    ) = _validate_live_proof_state_request(
-        row,
-        artifact_path=artifact_path,
-        target_lean_line=target_lean_line,
-        target_lean_declaration=target_lean_declaration,
+    unsupported_target_prover = (
+        materialization_status == "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_MATERIALIZER"
+        or not _is_lean_target(row)
     )
-    errors.extend(live_request_errors)
+    live_request_id = ""
+    live_request_valid = False
+    live_request_status = ""
+    live_request_providers: tuple[str, ...] = ()
+    live_request_tools: tuple[str, ...] = ()
+    if not unsupported_target_prover:
+        (
+            live_request_id,
+            live_request_valid,
+            live_request_status,
+            live_request_providers,
+            live_request_tools,
+            live_request_errors,
+        ) = _validate_live_proof_state_request(
+            row,
+            artifact_path=artifact_path,
+            target_lean_line=target_lean_line,
+            target_lean_declaration=target_lean_declaration,
+        )
+        errors.extend(live_request_errors)
     source = ""
     forbidden_tokens_found: tuple[str, ...] = ()
     if not materialization_id:
         errors.append("materialization_id missing")
-    if not str(row.get("candidate_artifact_path", "")):
+    if unsupported_target_prover:
+        pass
+    elif not str(row.get("candidate_artifact_path", "")):
         errors.append("candidate_artifact_path missing")
     elif not artifact_path.exists():
         errors.append(f"candidate artifact missing: {artifact_path}")
@@ -273,7 +355,13 @@ def _verifier_row(
     diagnostics: tuple[str, ...] = ()
     verifier = "local.lean_artifact"
     verification_strength = "local_lean_artifact_unavailable"
-    if not lean_command:
+    if unsupported_target_prover:
+        diagnostics = (
+            f"target_prover_family {target_prover_family or 'unknown'} is not supported by Lean artifact verifier",
+        )
+        status = "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_ARTIFACT_VERIFIER"
+        verification_strength = "target_prover_not_supported_by_lean_artifact_verifier"
+    elif not lean_command:
         errors.append("lean executable not found")
         diagnostics = ("lean executable not found",)
         status = "LOCAL_LEAN_UNAVAILABLE"
@@ -298,7 +386,7 @@ def _verifier_row(
             errors.append("local Lean artifact check failed")
     failure_classification = (
         ""
-        if compiled
+        if compiled or status == "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_ARTIFACT_VERIFIER"
         else _classify_local_lean_failure(
             diagnostics,
             source=source,
@@ -317,30 +405,34 @@ def _verifier_row(
         "agentic_artifact_verifier_event:"
         + stable_hash([artifact_verification_id, execution_transcript_path, status])[:16]
     )
-    transcript_written = _append_verifier_transcript_event(
-        execution_transcript_path,
-        event_id=execution_transcript_event_id,
-        artifact_verification_id=artifact_verification_id,
-        materialization_id=materialization_id,
-        execution_queue_id=execution_queue_id,
-        candidate_artifact_path=artifact_path,
-        target_lean_declaration=target_lean_declaration,
-        target_lean_line=target_lean_line,
-        verification_status=status,
-        live_proof_state_request_id=live_request_id,
-        live_proof_state_request_status=live_request_status,
-        live_proof_state_requested_tools=live_request_tools,
-        local_lean_checked=checked,
-        local_lean_compiled=compiled,
-        artifact_kernel_verified=compiled,
-        source_theorem_kernel_verified=False,
-        source_theorem_target_known=source_theorem_target_known,
-        source_theorem_target_provenance=source_theorem_target_provenance,
-        verifier=verifier,
-        verification_strength=verification_strength,
-        returncode=returncode,
-        diagnostics=diagnostics,
-        failure_classification=failure_classification,
+    transcript_written = (
+        False
+        if unsupported_target_prover
+        else _append_verifier_transcript_event(
+            execution_transcript_path,
+            event_id=execution_transcript_event_id,
+            artifact_verification_id=artifact_verification_id,
+            materialization_id=materialization_id,
+            execution_queue_id=execution_queue_id,
+            candidate_artifact_path=artifact_path,
+            target_lean_declaration=target_lean_declaration,
+            target_lean_line=target_lean_line,
+            verification_status=status,
+            live_proof_state_request_id=live_request_id,
+            live_proof_state_request_status=live_request_status,
+            live_proof_state_requested_tools=live_request_tools,
+            local_lean_checked=checked,
+            local_lean_compiled=compiled,
+            artifact_kernel_verified=compiled,
+            source_theorem_kernel_verified=False,
+            source_theorem_target_known=source_theorem_target_known,
+            source_theorem_target_provenance=source_theorem_target_provenance,
+            verifier=verifier,
+            verification_strength=verification_strength,
+            returncode=returncode,
+            diagnostics=diagnostics,
+            failure_classification=failure_classification,
+        )
     )
     return FormalVerifierAgenticProofExecutionArtifactVerifierRow(
         schema_version=FORMAL_VERIFIER_AGENTIC_PROOF_EXECUTION_ARTIFACT_VERIFIER_SCHEMA_VERSION,
@@ -349,6 +441,10 @@ def _verifier_row(
         execution_queue_id=execution_queue_id,
         display_name=display_name,
         target_theorem_name=target_theorem_name,
+        target_prover_family=target_prover_family,
+        formal_statement_sketch=formal_statement_sketch,
+        formal_imports=formal_imports,
+        materialization_status=materialization_status,
         candidate_artifact_path=str(artifact_path),
         execution_transcript_path=execution_transcript_raw,
         execution_transcript_event_id=execution_transcript_event_id
