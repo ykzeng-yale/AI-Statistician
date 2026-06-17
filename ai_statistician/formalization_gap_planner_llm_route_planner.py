@@ -14659,6 +14659,7 @@ def _response_contract_errors(
     errors.extend(_response_search_request_primitive_grounding_errors(payload, request))
     errors.extend(_response_planner_next_action_contract_errors(payload))
     errors.extend(_response_planner_next_action_primitive_grounding_errors(payload, request))
+    errors.extend(_response_planner_next_action_explicit_target_text_errors(payload, request))
     errors.extend(_response_source_search_obligation_errors(payload))
     errors.extend(_response_source_snippet_provenance_errors(payload, request))
     errors.extend(_response_source_snippet_primitive_support_errors(payload, request))
@@ -19295,6 +19296,39 @@ def _response_planner_next_action_primitive_grounding_errors(
         request,
         collection_name="planner_next_actions",
     )
+
+
+def _response_planner_next_action_explicit_target_text_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    allowed_primitives = _bounded_action_allowed_primitive_keys(payload, request)
+    if not allowed_primitives:
+        return []
+    errors: list[str] = []
+    for index, action in enumerate(_dict_tuple(payload.get("planner_next_actions", []))):
+        explicit_targets = _planner_action_target_primitive_keys(action)
+        if not explicit_targets:
+            continue
+        text_key = _primitive_key(" ".join(_planner_action_queries(action)))
+        if not text_key:
+            continue
+        mentioned_primitives = {
+            primitive
+            for primitive in allowed_primitives
+            if _text_key_contains_alias(text_key, primitive)
+        }
+        if not mentioned_primitives or mentioned_primitives & explicit_targets:
+            continue
+        errors.append(
+            f"planner_next_actions[{index}] action/query primitive mentions "
+            "must include a scoped target_primitives/primitive value when "
+            "explicit target fields are present; explicit targets: "
+            + ", ".join(sorted(explicit_targets)[:8])
+            + "; action/query mentions: "
+            + ", ".join(sorted(mentioned_primitives)[:8])
+        )
+    return errors
 
 
 def _response_target_primitive_grounding_errors(
