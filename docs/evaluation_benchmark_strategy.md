@@ -493,6 +493,12 @@ The follow-on `formal_verifier_agentic_proof_candidate_evaluation_queue` gate
 adds candidate database lineage, attempt budgets, evaluator pools, live-tool
 sequences, and promotion gates, turning those plans into auditable work orders
 for proof-candidate generation without upgrading them to proof evidence.
+The reusable LLM route-payload validator now treats ready strategy-plan rows as
+request-bound obligations: each ready row must be answered by a matching
+source-search, planner-next-action, or formal-attempt item before the response
+can be accepted. This makes ignored proof-search plans measurable in benchmark
+artifacts through strategy-row, ready-row, and obligation-error counters without
+conflating those counters with kernel proof evidence.
 The `formal_verifier_agentic_proof_safety_policy` gate adds bounded edit
 markers, declaration/header guards, forbidden-token checks, helper-lemma
 anti-restatement checks, source-claim checks, goal-cache keys, and SafeVerify

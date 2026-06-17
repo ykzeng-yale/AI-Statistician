@@ -67,6 +67,7 @@ python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner \
   --provider prompt_only \
   --formalization-gap-planner-target-intake-dir runs/current/formalization_gap_planner_target_intake \
   --formalization-gap-planner-component-resource-registry-dir runs/current/formalization_gap_planner_component_resource_registry \
+  --formal-verifier-agentic-proof-strategy-plan-dir runs/current/formal_verifier_agentic_proof_strategy_plan \
   --out runs/current/formalization_gap_planner_llm_route_planner
 
 python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner-response-payload-validate \
@@ -171,6 +172,17 @@ They also record `formal_attempt_queue` presence, item counts, and
 queue-specific validation-error counts, so a reusable validator artifact can
 distinguish a generally invalid route from a route whose bottom-up
 prover-feedback schedule is malformed or missing required DAG nodes.
+When the matched request context carries ready
+`formal_verifier_agentic_proof_strategy_plan_rows`, request-bound validation
+also requires the response to answer each strategy row with an appropriate
+`search_requests`, `planner_next_actions`, or `formal_attempt_queue` item keyed
+by strategy id, residual obligation, residual gap, or target primitive.
+Source-discovery strategy rows must be answered by source/literature search or
+planner actions; patch-evolve and kernel-overlay rows must be answered by
+planner or formal-attempt work. The validator reports request-bound strategy
+row counts, ready counts, payloads with obligation errors, and total strategy
+obligation errors in both the manifest and row schema, preserving the proof
+boundary that these are proof-search contracts and not theorem proof evidence.
 The publication-bundle audit checks those counters against JSONL rows
 when the optional validator artifact is packaged, and the publication-bundle
 manifest lifts the same validation target-count, route-precondition-count, and
