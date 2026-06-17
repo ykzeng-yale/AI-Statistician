@@ -8666,6 +8666,10 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
         ]
         == 0
     )
+    assert payload["n_payloads_with_formal_attempt_queue"] == 1
+    assert payload["n_payload_formal_attempt_queue_items"] == 2
+    assert payload["n_payloads_with_formal_attempt_queue_errors"] == 0
+    assert payload["n_formal_attempt_queue_errors"] == 0
     assert payload["n_payloads_with_declared_target_prover_family"] == 0
     assert (
         payload["n_request_bound_payloads_with_target_prover_family_mismatch"]
@@ -8700,6 +8704,9 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
         ]
         == 0
     )
+    assert row["payload_formal_attempt_queue_present"] is True
+    assert row["payload_formal_attempt_queue_item_count"] == 2
+    assert row["n_formal_attempt_queue_errors"] == 0
     assert row["n_schema_errors"] == 0
     assert row["n_request_context_errors"] == 0
     row_schema = payload["response_payload_validation_row_schema"]
@@ -8739,6 +8746,26 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert "n_schema_errors must be nonnegative" in (
         validate_llm_route_planner_response_payload_validation_row(
             drifted_negative_row,
+            row_schema,
+        )
+    )
+    drifted_queue_count_row = deepcopy(row)
+    drifted_queue_count_row["payload_formal_attempt_queue_present"] = False
+    assert (
+        "payload_formal_attempt_queue_present must be true when "
+        "payload_formal_attempt_queue_item_count is nonzero"
+        in validate_llm_route_planner_response_payload_validation_row(
+            drifted_queue_count_row,
+            row_schema,
+        )
+    )
+    drifted_queue_error_row = deepcopy(row)
+    drifted_queue_error_row["n_formal_attempt_queue_errors"] = 1
+    assert (
+        "n_formal_attempt_queue_errors must match errors containing "
+        "formal_attempt_queue"
+        in validate_llm_route_planner_response_payload_validation_row(
+            drifted_queue_error_row,
             row_schema,
         )
     )
@@ -8786,6 +8813,16 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
         "n_payloads_with_declared_target_prover_family must match rows with payload_target_prover_family"
         in validate_llm_route_planner_response_payload_validation_manifest(
             drifted_target_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_queue_items_manifest = deepcopy(payload)
+    drifted_queue_items_manifest["n_payload_formal_attempt_queue_items"] = 0
+    assert (
+        "n_payload_formal_attempt_queue_items must match row "
+        "payload_formal_attempt_queue_item_count sum"
+        in validate_llm_route_planner_response_payload_validation_manifest(
+            drifted_queue_items_manifest,
             manifest_schema,
         )
     )
@@ -8862,6 +8899,47 @@ def test_llm_route_planner_response_payload_validator_rejects_wrapper_payload() 
     ]
 
 
+def test_llm_route_planner_response_payload_validator_counts_formal_attempt_queue_errors() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_payload_validate_bad_attempt_queue"
+    )
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"] = [
+        item
+        for item in response["formal_attempt_queue"]
+        if item["formal_node_id"] != "formal:rank_uniformity_bridge"
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_payloads"] == 1
+    assert payload["n_valid_payloads"] == 0
+    assert payload["n_invalid_payloads"] == 1
+    assert payload["n_payloads_with_formal_attempt_queue"] == 1
+    assert payload["n_payload_formal_attempt_queue_items"] == 1
+    assert payload["n_payloads_with_formal_attempt_queue_errors"] == 1
+    assert payload["n_formal_attempt_queue_errors"] >= 1
+    row = payload["rows"][0]
+    assert row["payload_formal_attempt_queue_present"] is True
+    assert row["payload_formal_attempt_queue_item_count"] == 1
+    assert row["n_formal_attempt_queue_errors"] >= 1
+    assert row["n_schema_errors"] >= row["n_formal_attempt_queue_errors"]
+    assert any(
+        "formal_attempt_queue missing selected-route formal DAG nodes" in error
+        and "formal:rank_uniformity_bridge" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_payload_validator_rejects_non_lean_legacy_alias_schema_only() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_payload_validate_rocq_alias")
     out_dir = root / "out"
@@ -8890,10 +8968,16 @@ def test_llm_route_planner_payload_validator_rejects_non_lean_legacy_alias_schem
     assert payload["n_invalid_payloads"] == 1
     row = payload["rows"][0]
     assert row["request_context_validation_mode"] == "schema_only"
-    assert row["n_schema_errors"] == 1
+    assert row["n_schema_errors"] == 3
     assert row["n_request_context_errors"] == 0
+    assert row["n_formal_attempt_queue_errors"] == 2
     assert any(
         "lean_realization_dag_nodes is a Lean-only legacy alias" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "formal_attempt_queue[0].target_prover_family lean4 does not match "
+        "request target_prover_family rocq" in error
         for error in row["errors"]
     )
 
@@ -9312,8 +9396,15 @@ def test_llm_route_planner_response_payload_validator_request_context_rejects_si
     assert not payload["all_ok"]
     row = payload["rows"][0]
     assert row["request_context_validation_mode"] == "request_bound"
-    assert row["n_schema_errors"] == 0
+    assert row["n_schema_errors"] == 1
     assert row["n_request_context_errors"] >= 1
+    assert row["n_formal_attempt_queue_errors"] == 1
+    assert any(
+        "formal_attempt_queue[1].formal_node_id references unknown "
+        "formal_realization_dag_nodes node: formal:rank_uniformity_bridge"
+        in error
+        for error in row["errors"]
+    )
     assert any(
         "baseline route option" in error and "rank_uniformity" in error
         for error in row["errors"]

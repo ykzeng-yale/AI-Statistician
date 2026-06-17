@@ -2094,6 +2094,30 @@ def run_formalization_gap_planner_reuse_smoke(
                 "n_request_bound_payload_route_adoption_precondition_required_response_fields",
             )
         ),
+        "n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_payloads_with_formal_attempt_queue",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_formal_attempt_queue_items": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_payload_formal_attempt_queue_items",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue_errors": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_payloads_with_formal_attempt_queue_errors",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_formal_attempt_queue_errors": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_formal_attempt_queue_errors",
+            )
+        ),
         "n_llm_route_planner_response_payload_validation_declared_target_prover_payloads": (
             _optional_int(
                 llm_response_payload_validation_payload,
@@ -8878,6 +8902,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"request_bound={payload.get('n_llm_route_planner_response_payload_validation_request_bound_payloads')}/"
             f"{payload.get('n_llm_route_planner_response_payload_validation_payloads')} "
             f"precondition_blocked={payload.get('n_llm_route_planner_response_payload_validation_request_bound_payloads_with_blocking_route_adoption_preconditions')} "
+            f"formal_attempt_queue={payload.get('n_llm_route_planner_response_payload_validation_formal_attempt_queue_items')}/"
+            f"{payload.get('n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue')} "
+            f"formal_attempt_queue_errors={payload.get('n_llm_route_planner_response_payload_validation_formal_attempt_queue_errors')}/"
+            f"{payload.get('n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue_errors')} "
             f"target_mismatch={payload.get('n_llm_route_planner_response_payload_validation_target_prover_mismatches')} "
             f"present={payload.get('has_llm_route_planner_response_payload_validation')}"
         ),

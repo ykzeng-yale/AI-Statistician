@@ -2850,7 +2850,12 @@ def _expected_bundle_llm_route_planner_response_payload_validation_summary(
         artifact_dir
         / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
     )
+    rows_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation.jsonl"
+    )
     payload = _read_json_no_error(manifest_path)
+    rows, _row_errors = _read_jsonl_dict_rows_no_error(rows_path)
     by_payload_target = payload.get("by_payload_target_prover_family", {})
     by_request_target = payload.get("by_request_context_target_prover_family", {})
     return {
@@ -2906,6 +2911,48 @@ def _expected_bundle_llm_route_planner_response_payload_validation_summary(
             payload.get(
                 "n_request_bound_payload_route_adoption_precondition_required_response_fields",
                 0,
+            )
+            or 0
+        ),
+        "n_payloads_with_formal_attempt_queue": int(
+            payload.get(
+                "n_payloads_with_formal_attempt_queue",
+                sum(
+                    1
+                    for row in rows
+                    if bool(row.get("payload_formal_attempt_queue_present", False))
+                ),
+            )
+            or 0
+        ),
+        "n_payload_formal_attempt_queue_items": int(
+            payload.get(
+                "n_payload_formal_attempt_queue_items",
+                sum(
+                    int(row.get("payload_formal_attempt_queue_item_count", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_payloads_with_formal_attempt_queue_errors": int(
+            payload.get(
+                "n_payloads_with_formal_attempt_queue_errors",
+                sum(
+                    1
+                    for row in rows
+                    if int(row.get("n_formal_attempt_queue_errors", 0) or 0)
+                ),
+            )
+            or 0
+        ),
+        "n_formal_attempt_queue_errors": int(
+            payload.get(
+                "n_formal_attempt_queue_errors",
+                sum(
+                    int(row.get("n_formal_attempt_queue_errors", 0) or 0)
+                    for row in rows
+                ),
             )
             or 0
         ),

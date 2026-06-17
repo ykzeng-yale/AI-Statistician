@@ -2722,6 +2722,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_bound_payloads_with_blocking_route_adoption_preconditions",
             "n_request_bound_payload_route_adoption_precondition_known_blockers",
             "n_request_bound_payload_route_adoption_precondition_required_response_fields",
+            "n_payloads_with_formal_attempt_queue",
+            "n_payload_formal_attempt_queue_items",
+            "n_payloads_with_formal_attempt_queue_errors",
+            "n_formal_attempt_queue_errors",
             "n_payloads_with_declared_target_prover_family",
             "n_request_bound_payloads_with_target_prover_family_mismatch",
             "by_payload_target_prover_family",
@@ -2759,6 +2763,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_bound_payload_route_adoption_precondition_required_response_fields": (
                 nonnegative_integer
             ),
+            "n_payloads_with_formal_attempt_queue": nonnegative_integer,
+            "n_payload_formal_attempt_queue_items": nonnegative_integer,
+            "n_payloads_with_formal_attempt_queue_errors": nonnegative_integer,
+            "n_formal_attempt_queue_errors": nonnegative_integer,
             "n_payloads_with_declared_target_prover_family": nonnegative_integer,
             "n_request_bound_payloads_with_target_prover_family_mismatch": (
                 nonnegative_integer
@@ -6102,6 +6110,10 @@ def _llm_route_planner_response_payload_validation_summary(
         "n_request_bound_payloads_with_blocking_route_adoption_preconditions": 0,
         "n_request_bound_payload_route_adoption_precondition_known_blockers": 0,
         "n_request_bound_payload_route_adoption_precondition_required_response_fields": 0,
+        "n_payloads_with_formal_attempt_queue": 0,
+        "n_payload_formal_attempt_queue_items": 0,
+        "n_payloads_with_formal_attempt_queue_errors": 0,
+        "n_formal_attempt_queue_errors": 0,
         "n_payloads_with_declared_target_prover_family": 0,
         "n_request_bound_payloads_with_target_prover_family_mismatch": 0,
         "by_payload_target_prover_family": {},
@@ -6121,6 +6133,7 @@ def _llm_route_planner_response_payload_validation_summary(
         / "formalization_gap_planner_llm_route_planner_response_payload_validation.jsonl"
     )
     payload = _read_json_no_error(manifest_path)
+    rows = _read_jsonl_dict_rows_no_error(jsonl_path)
     by_payload_target = payload.get("by_payload_target_prover_family", {})
     by_request_target = payload.get("by_request_context_target_prover_family", {})
     return {
@@ -6180,6 +6193,48 @@ def _llm_route_planner_response_payload_validation_summary(
             payload.get(
                 "n_request_bound_payload_route_adoption_precondition_required_response_fields",
                 0,
+            )
+            or 0
+        ),
+        "n_payloads_with_formal_attempt_queue": int(
+            payload.get(
+                "n_payloads_with_formal_attempt_queue",
+                sum(
+                    1
+                    for row in rows
+                    if bool(row.get("payload_formal_attempt_queue_present", False))
+                ),
+            )
+            or 0
+        ),
+        "n_payload_formal_attempt_queue_items": int(
+            payload.get(
+                "n_payload_formal_attempt_queue_items",
+                sum(
+                    int(row.get("payload_formal_attempt_queue_item_count", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_payloads_with_formal_attempt_queue_errors": int(
+            payload.get(
+                "n_payloads_with_formal_attempt_queue_errors",
+                sum(
+                    1
+                    for row in rows
+                    if int(row.get("n_formal_attempt_queue_errors", 0) or 0)
+                ),
+            )
+            or 0
+        ),
+        "n_formal_attempt_queue_errors": int(
+            payload.get(
+                "n_formal_attempt_queue_errors",
+                sum(
+                    int(row.get("n_formal_attempt_queue_errors", 0) or 0)
+                    for row in rows
+                ),
             )
             or 0
         ),
@@ -6716,6 +6771,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"primary_rows={payload.get('llm_route_planner_summary', {}).get('n_rows_with_formal_attempt_queue')} "
             f"feedback_items={payload.get('feedback_llm_route_planner_summary', {}).get('n_formal_attempt_queue_items')} "
             f"feedback_rows={payload.get('feedback_llm_route_planner_summary', {}).get('n_rows_with_formal_attempt_queue')}"
+        ),
+        (
+            f"- LLM response-payload formal-attempt queue validation: "
+            f"payloads={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_payloads_with_formal_attempt_queue')} "
+            f"items={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_payload_formal_attempt_queue_items')} "
+            f"error_payloads={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_payloads_with_formal_attempt_queue_errors')} "
+            f"errors={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_formal_attempt_queue_errors')}"
         ),
         (
             f"- LLM route planner provider usage rows/input/output/total: "

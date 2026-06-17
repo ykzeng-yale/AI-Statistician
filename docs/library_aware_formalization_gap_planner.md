@@ -167,10 +167,14 @@ request-context target prover, normalized target keys, and a
 `target_prover_family_consistent` flag, with manifest-level target counts and
 mismatch counters. This lets external prover adapters audit target-family drift
 from the reusable validator output without reopening the raw response payload.
+They also record `formal_attempt_queue` presence, item counts, and
+queue-specific validation-error counts, so a reusable validator artifact can
+distinguish a generally invalid route from a route whose bottom-up
+prover-feedback schedule is malformed or missing required DAG nodes.
 The publication-bundle audit checks those counters against JSONL rows
 when the optional validator artifact is packaged, and the publication-bundle
-manifest lifts the same validation target-count and route-precondition-count
-summary into
+manifest lifts the same validation target-count, route-precondition-count, and
+formal-attempt queue validation summary into
 `llm_route_planner_response_payload_validation_summary`. The bundle audit also
 recomputes that lifted summary from the packaged validator manifest, so a bundle
 cannot report different public validation counts than the copied artifact. The

@@ -11515,11 +11515,20 @@ def test_publication_bundle_audit_rejects_response_payload_validation_summary_dr
         ]
         == 1
     )
+    assert (
+        manifest["llm_route_planner_response_payload_validation_summary"][
+            "n_payload_formal_attempt_queue_items"
+        ]
+        == 1
+    )
     manifest["llm_route_planner_response_payload_validation_summary"][
         "n_request_bound_payloads_with_route_adoption_preconditions"
     ] = 0
     manifest["llm_route_planner_response_payload_validation_summary"][
         "n_request_bound_payload_route_adoption_precondition_required_response_fields"
+    ] = 0
+    manifest["llm_route_planner_response_payload_validation_summary"][
+        "n_payload_formal_attempt_queue_items"
     ] = 0
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 

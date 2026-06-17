@@ -787,6 +787,30 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_formal_attempt_queue_items"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue_errors"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_formal_attempt_queue_errors"
+        ]
+        == 0
+    )
+    assert (
+        payload[
             "n_llm_route_planner_response_payload_validation_declared_target_prover_payloads"
         ]
         == 0
@@ -3685,6 +3709,30 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "n_llm_route_planner_response_payload_validation_route_adoption_precondition_required_response_fields"
         ]
         >= 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_formal_attempt_queue_items"
+        ]
+        == 4
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue_errors"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_formal_attempt_queue_errors"
+        ]
+        == 0
     )
     assert (
         payload[
