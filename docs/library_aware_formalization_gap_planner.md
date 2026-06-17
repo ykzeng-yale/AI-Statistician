@@ -134,6 +134,11 @@ library-delta class counts, and names the lower-bound selected option as a
 planning hint. Request validation recomputes this brief from
 `library_alignment_summary`, so public consumers can detect stale or hand-edited
 route-option comparisons before invoking any LLM or prover.
+Response validation also binds the returned
+`minimal_delta_plan.and_or_cost_graph.route_options` back to this brief: each
+brief candidate must be represented by route-option id or the same selected
+primitive set, and matching response options may not underprice the candidate's
+lower-bound route cost.
 Publication bundles copy that JSONL and schema for both the primary and
 feedback LLM route-planner artifacts, and the bundle audit checks that the
 packaged rows match the request packets and manifest counts.

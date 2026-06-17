@@ -11422,6 +11422,13 @@ def test_llm_route_planner_response_payload_validator_request_context_rejects_si
         "baseline route option" in error and "rank_uniformity" in error
         for error in row["errors"]
     )
+    assert any(
+        "context_packet.route_option_selection_brief candidate route option "
+        "must be represented" in error
+        and "route_option:current_route_min_delta_baseline" in error
+        and "rank_uniformity" in error
+        for error in row["errors"]
+    )
 
 
 def test_llm_route_planner_response_payload_validator_request_context_rejects_theorem_drift() -> None:
@@ -18034,6 +18041,13 @@ def test_llm_route_planner_rejects_underpriced_baseline_option_when_cost_hint_pr
     assert row["response_contract_ok"] is False
     assert any(
         "baseline route option" in error and "minimum_route_base_cost=4" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "underprices context_packet.route_option_selection_brief candidate "
+        "route_option:current_route_min_delta_baseline" in error
+        and "route_cost=1" in error
+        and "minimum_route_base_cost=4" in error
         for error in row["errors"]
     )
 

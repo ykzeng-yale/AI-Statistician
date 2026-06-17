@@ -15428,6 +15428,7 @@ def _response_contract_errors(
         )
     )
     errors.extend(_minimal_delta_request_hint_errors(payload, request))
+    errors.extend(_minimal_delta_route_option_selection_brief_errors(payload, request))
     errors.extend(_response_coverage_hint_floor_errors(payload, request))
     standalone_route = _standalone_route_from_payload(
         payload,
@@ -22611,6 +22612,74 @@ def _minimal_delta_request_hint_errors(
                 minimum_route_base_cost=minimum_cost,
             )
         )
+    return errors
+
+
+def _minimal_delta_route_option_selection_brief_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    """Bind response route options back to the request route-option brief."""
+
+    context_packet = _dict_value(request, "context_packet")
+    brief = _dict_value(context_packet, "route_option_selection_brief")
+    if not brief:
+        return []
+    candidate_options = _dict_tuple(brief.get("candidate_route_options", []))
+    if not candidate_options:
+        return []
+
+    minimal_delta = _dict_value(payload, "minimal_delta_plan")
+    graph = _dict_value(minimal_delta, "and_or_cost_graph")
+    response_options = _dict_tuple(graph.get("route_options", []))
+    errors: list[str] = []
+    for candidate in candidate_options:
+        candidate_id = str(candidate.get("route_option_id", "")).strip()
+        candidate_primitives = {
+            _primitive_key(primitive)
+            for primitive in _str_tuple(candidate.get("selected_primitives", []))
+        }
+        candidate_primitives.discard("")
+        if not candidate_id and not candidate_primitives:
+            continue
+        minimum_cost = candidate.get("minimum_route_base_cost")
+        matching_options: list[tuple[int, dict[str, object]]] = []
+        for index, option in enumerate(response_options):
+            option_id = str(option.get("route_option_id", "")).strip()
+            option_primitives = {
+                _primitive_key(primitive)
+                for primitive in _str_tuple(option.get("selected_primitives", []))
+            }
+            option_primitives.discard("")
+            if (candidate_id and option_id == candidate_id) or (
+                candidate_primitives and option_primitives == candidate_primitives
+            ):
+                matching_options.append((index, option))
+        if not matching_options:
+            errors.append(
+                "context_packet.route_option_selection_brief candidate route "
+                "option must be represented in minimal_delta_plan."
+                "and_or_cost_graph.route_options by route_option_id or "
+                f"selected_primitives: {candidate_id or '<unnamed>'} "
+                f"primitives={','.join(sorted(candidate_primitives))}"
+            )
+            continue
+        if not _is_nonnegative_number(minimum_cost):
+            continue
+        minimum_cost_float = float(minimum_cost or 0)
+        for index, option in matching_options:
+            option_cost = option.get("route_cost")
+            if not _is_nonnegative_number(option_cost):
+                continue
+            if float(option_cost or 0) + 1e-9 < minimum_cost_float:
+                errors.append(
+                    "minimal_delta_plan.and_or_cost_graph.route_options"
+                    f"[{index}].route_cost underprices "
+                    "context_packet.route_option_selection_brief candidate "
+                    f"{candidate_id or '<unnamed>'}: "
+                    f"route_cost={float(option_cost or 0):g} but "
+                    f"minimum_route_base_cost={minimum_cost_float:g}"
+                )
     return errors
 
 
