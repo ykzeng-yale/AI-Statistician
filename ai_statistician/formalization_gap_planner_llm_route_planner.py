@@ -227,6 +227,7 @@ CONTEXT_PACKET_ROW_FIELDS = (
     "source_theorem_formal_environment_rows",
     "source_theorem_proof_body_execution_result_rows",
     "formal_verifier_patch_rerun_residual_obligation_rows",
+    "formal_verifier_patch_rerun_residual_followup_queue_rows",
     "agentic_proof_execution_materializer_rows",
     "agentic_proof_execution_artifact_verifier_rows",
     "agentic_proof_source_theorem_promotion_rows",
@@ -1090,6 +1091,9 @@ def export_formalization_gap_planner_llm_route_planner(
     formal_verifier_replay_repair_patch_rerun_residual_obligations_dir: (
         Path | None
     ) = None,
+    formal_verifier_replay_repair_patch_rerun_residual_followup_queue_dir: (
+        Path | None
+    ) = None,
     formal_verifier_agentic_proof_execution_materializer_dir: Path | None = None,
     formal_verifier_agentic_proof_execution_artifact_verifier_dir: Path | None = None,
     formal_verifier_agentic_proof_source_theorem_promotion_queue_dir: (
@@ -1140,6 +1144,9 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
         formal_verifier_replay_repair_patch_rerun_residual_obligations_dir=(
             formal_verifier_replay_repair_patch_rerun_residual_obligations_dir
+        ),
+        formal_verifier_replay_repair_patch_rerun_residual_followup_queue_dir=(
+            formal_verifier_replay_repair_patch_rerun_residual_followup_queue_dir
         ),
         formal_verifier_agentic_proof_execution_materializer_dir=(
             formal_verifier_agentic_proof_execution_materializer_dir
@@ -1900,6 +1907,64 @@ def export_formalization_gap_planner_llm_route_planner(
                     _dict_value(packet, "context_packet"),
                     "patch_rerun_residual_obligation_summary",
                 ).get("source_discovery_needed_count", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_formal_verifier_patch_rerun_residual_followup_queue_rows": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "formal_verifier_patch_rerun_residual_followup_queue_rows",
+                    [],
+                )
+            )
+        ),
+        "n_request_formal_verifier_patch_rerun_residual_followup_queue_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "formal_verifier_patch_rerun_residual_followup_queue_rows",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_patch_rerun_residual_followup_queue_summary": sum(
+            1
+            for packet in request_packets
+            if _dict_value(packet, "context_packet").get(
+                "patch_rerun_residual_followup_queue_summary"
+            )
+        ),
+        "n_request_patch_rerun_residual_followup_queue_rows": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "patch_rerun_residual_followup_queue_summary",
+                ).get("total_rows", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_patch_rerun_residual_followup_queue_ready": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "patch_rerun_residual_followup_queue_summary",
+                ).get("ready_count", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_patch_rerun_residual_followup_queue_source_discovery": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "patch_rerun_residual_followup_queue_summary",
+                ).get("source_discovery_count", 0)
                 or 0
             )
             for packet in request_packets
@@ -6864,6 +6929,13 @@ def _request_packet(
             ),
             route_match_ids,
         ),
+        "formal_verifier_patch_rerun_residual_followup_queue_rows": _rows_for_route(
+            context_payloads.get(
+                "formal_verifier_patch_rerun_residual_followup_queue",
+                {},
+            ),
+            route_match_ids,
+        ),
         "agentic_proof_execution_materializer_rows": _rows_for_route(
             context_payloads.get("agentic_proof_execution_materializer", {}),
             route_match_ids,
@@ -6965,6 +7037,9 @@ def _request_packet(
     )
     context_packet["patch_rerun_residual_obligation_summary"] = (
         _patch_rerun_residual_obligation_summary(context_packet)
+    )
+    context_packet["patch_rerun_residual_followup_queue_summary"] = (
+        _patch_rerun_residual_followup_queue_summary(context_packet)
     )
     context_packet["target_theorem_context_packet"] = (
         _target_theorem_context_packet(
@@ -7623,6 +7698,10 @@ def _route_planning_brief(
         context_packet,
         "patch_rerun_residual_obligation_summary",
     )
+    patch_rerun_residual_followups = _dict_value(
+        context_packet,
+        "patch_rerun_residual_followup_queue_summary",
+    )
     target_theorem_context = _dict_value(
         context_packet,
         "target_theorem_context_packet",
@@ -7879,6 +7958,68 @@ def _route_planning_brief(
                         "source_discovery_residual_gaps",
                         [],
                     )
+                ),
+            )
+    if int(patch_rerun_residual_followups.get("total_rows", 0) or 0):
+        add_focus(
+            "dispatch_patch_rerun_residual_followup_queue",
+            priority=1,
+            action=(
+                "convert validated residual follow-up queue rows into rerun, "
+                "source-discovery, or missing-input actions"
+            ),
+            reason=(
+                "validated residual worker responses produced operational "
+                "follow-up work that should steer the next minimal-delta route"
+            ),
+            evidence_fields=(
+                "context_packet.formal_verifier_patch_rerun_residual_followup_queue_rows",
+                "context_packet.patch_rerun_residual_followup_queue_summary",
+            ),
+            required_output_fields=("planner_next_actions", "search_requests"),
+            target_primitives=_str_tuple(
+                patch_rerun_residual_followups.get("residual_gaps", [])
+            ),
+        )
+        if int(patch_rerun_residual_followups.get("source_discovery_count", 0) or 0):
+            add_gap(
+                "patch_rerun_residual_followup_source_discovery",
+                gap_kind="proof_state_feedback",
+                reason=(
+                    "validated residual follow-up queue contains source-discovery "
+                    "items that need literature/RAG expansion before a replay-ready "
+                    "route can be claimed"
+                ),
+                recommended_action=(
+                    "emit search_requests from follow-up source_discovery_queries "
+                    "and keep the route adoption precondition pending until source "
+                    "coverage is updated"
+                ),
+                evidence_fields=(
+                    "context_packet.patch_rerun_residual_followup_queue_summary",
+                ),
+                target_primitives=_str_tuple(
+                    patch_rerun_residual_followups.get("residual_gaps", [])
+                ),
+            )
+        if int(patch_rerun_residual_followups.get("blocked_count", 0) or 0):
+            add_gap(
+                "patch_rerun_residual_followup_blocked_inputs",
+                gap_kind="proof_state_feedback",
+                reason=(
+                    "validated residual follow-up queue contains blocked work "
+                    "items with missing artifacts, commands, source queries, or "
+                    "other required inputs"
+                ),
+                recommended_action=(
+                    "repair the blocked follow-up inputs before adopting the "
+                    "route as replay-ready"
+                ),
+                evidence_fields=(
+                    "context_packet.formal_verifier_patch_rerun_residual_followup_queue_rows",
+                ),
+                target_primitives=_str_tuple(
+                    patch_rerun_residual_followups.get("residual_gaps", [])
                 ),
             )
     if alignment_summary:
@@ -8153,6 +8294,15 @@ def _route_planning_brief(
         "patch_rerun_residual_exact_reuse_count": int(
             patch_rerun_residual_obligations.get("exact_reuse_count", 0) or 0
         ),
+        "patch_rerun_residual_followup_queue_row_count": int(
+            patch_rerun_residual_followups.get("total_rows", 0) or 0
+        ),
+        "patch_rerun_residual_followup_queue_ready_count": int(
+            patch_rerun_residual_followups.get("ready_count", 0) or 0
+        ),
+        "patch_rerun_residual_followup_queue_source_discovery_count": int(
+            patch_rerun_residual_followups.get("source_discovery_count", 0) or 0
+        ),
         "feedback_replan_required": bool(feedback_summary.get("replan_required", False)),
         "pending_quality_control_value_count": int(
             quality_control_obligations.get("n_pending_values", 0) or 0
@@ -8223,6 +8373,9 @@ def _route_planning_brief(
         "proof_execution_feedback_summary": dict(proof_execution_feedback),
         "patch_rerun_residual_obligation_summary": dict(
             patch_rerun_residual_obligations
+        ),
+        "patch_rerun_residual_followup_queue_summary": dict(
+            patch_rerun_residual_followups
         ),
         "primitive_evidence_matrix": [dict(row) for row in primitive_evidence_matrix],
         "planner_focus": sorted(
@@ -8867,6 +9020,9 @@ def _context_packet_inventory(
     patch_rerun_residual_obligations = _patch_rerun_residual_obligation_summary(
         context_packet
     )
+    patch_rerun_residual_followups = _patch_rerun_residual_followup_queue_summary(
+        context_packet
+    )
     route_adoption_preconditions = _dict_value(
         context_packet,
         "route_adoption_preconditions",
@@ -9048,6 +9204,18 @@ def _context_packet_inventory(
             )
             or 0
         ),
+        "patch_rerun_residual_followup_queue_summary_present": bool(
+            patch_rerun_residual_followups
+        ),
+        "patch_rerun_residual_followup_queue_row_count": int(
+            patch_rerun_residual_followups.get("total_rows", 0) or 0
+        ),
+        "patch_rerun_residual_followup_queue_ready_count": int(
+            patch_rerun_residual_followups.get("ready_count", 0) or 0
+        ),
+        "patch_rerun_residual_followup_queue_source_discovery_count": int(
+            patch_rerun_residual_followups.get("source_discovery_count", 0) or 0
+        ),
         "route_adoption_precondition_present": bool(
             route_adoption_preconditions
         ),
@@ -9222,6 +9390,10 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
         context_packet,
         "patch_rerun_residual_obligation_summary",
     )
+    patch_rerun_residual_followups = _dict_value(
+        context_packet,
+        "patch_rerun_residual_followup_queue_summary",
+    )
     total_context_rows = 0
     for field_name in CONTEXT_PACKET_ROW_FIELDS:
         expected_count = len(_dict_tuple(context_packet.get(field_name, [])))
@@ -9304,6 +9476,24 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             ),
         ),
         (
+            "patch_rerun_residual_followup_queue_row_count",
+            int(patch_rerun_residual_followups.get("total_rows", 0) or 0),
+        ),
+        (
+            "patch_rerun_residual_followup_queue_ready_count",
+            int(patch_rerun_residual_followups.get("ready_count", 0) or 0),
+        ),
+        (
+            "patch_rerun_residual_followup_queue_source_discovery_count",
+            int(
+                patch_rerun_residual_followups.get(
+                    "source_discovery_count",
+                    0,
+                )
+                or 0
+            ),
+        ),
+        (
             "interactive_session_resource_request_count",
             int(
                 _interactive_session_resource_request_summary(
@@ -9369,6 +9559,14 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
         errors.append(
             "context_packet.context_packet_inventory."
             "patch_rerun_residual_obligation_summary_present must match "
+            "context_packet"
+        )
+    if bool(
+        inventory.get("patch_rerun_residual_followup_queue_summary_present", False)
+    ) != bool(patch_rerun_residual_followups):
+        errors.append(
+            "context_packet.context_packet_inventory."
+            "patch_rerun_residual_followup_queue_summary_present must match "
             "context_packet"
         )
     target_theorem_context = _dict_value(
@@ -9708,6 +9906,10 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             context_packet,
             "patch_rerun_residual_obligation_summary",
         )
+        patch_rerun_residual_followups = _dict_value(
+            context_packet,
+            "patch_rerun_residual_followup_queue_summary",
+        )
         brief_count_checks = (
             (
                 "source_ref_count",
@@ -9890,6 +10092,24 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                 int(patch_rerun_residual_obligations.get("exact_reuse_count", 0) or 0),
             ),
             (
+                "patch_rerun_residual_followup_queue_row_count",
+                int(patch_rerun_residual_followups.get("total_rows", 0) or 0),
+            ),
+            (
+                "patch_rerun_residual_followup_queue_ready_count",
+                int(patch_rerun_residual_followups.get("ready_count", 0) or 0),
+            ),
+            (
+                "patch_rerun_residual_followup_queue_source_discovery_count",
+                int(
+                    patch_rerun_residual_followups.get(
+                        "source_discovery_count",
+                        0,
+                    )
+                    or 0
+                ),
+            ),
+            (
                 "source_grounding_unresolved_count",
                 int(
                     _source_grounding_obligation_summary(context_packet).get(
@@ -10022,6 +10242,18 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                 "context_packet.route_planning_brief."
                 "patch_rerun_residual_obligation_summary must match "
                 "context_packet.patch_rerun_residual_obligation_summary"
+            )
+        if (
+            _dict_value(
+                route_planning_brief,
+                "patch_rerun_residual_followup_queue_summary",
+            )
+            != patch_rerun_residual_followups
+        ):
+            errors.append(
+                "context_packet.route_planning_brief."
+                "patch_rerun_residual_followup_queue_summary must match "
+                "context_packet.patch_rerun_residual_followup_queue_summary"
             )
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     quality_controls = _dict_value(quality_control_obligations, "quality_controls")
@@ -22313,6 +22545,9 @@ def _context_payloads(
     formal_verifier_replay_repair_patch_rerun_residual_obligations_dir: (
         Path | None
     ),
+    formal_verifier_replay_repair_patch_rerun_residual_followup_queue_dir: (
+        Path | None
+    ),
     formal_verifier_agentic_proof_execution_materializer_dir: Path | None,
     formal_verifier_agentic_proof_execution_artifact_verifier_dir: Path | None,
     formal_verifier_agentic_proof_source_theorem_promotion_queue_dir: Path | None,
@@ -22394,6 +22629,18 @@ def _context_payloads(
             fallback_jsonl_filenames=(
                 "formal_verifier_replay_repair_patch_rerun_residual_obligations.jsonl",
             ),
+        ),
+        "formal_verifier_patch_rerun_residual_followup_queue": (
+            _optional_rows_payload(
+                formal_verifier_replay_repair_patch_rerun_residual_followup_queue_dir,
+                "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_manifest.json",
+                errors,
+                embedded_row_keys=("rows",),
+                jsonl_fields=("followup_queue_jsonl",),
+                fallback_jsonl_filenames=(
+                    "formal_verifier_replay_repair_patch_rerun_residual_followup_queue.jsonl",
+                ),
+            )
         ),
         "agentic_proof_execution_materializer": _optional_rows_payload(
             formal_verifier_agentic_proof_execution_materializer_dir,
@@ -23104,6 +23351,101 @@ def _patch_rerun_residual_obligation_summary(
     }
 
 
+def _patch_rerun_residual_followup_queue_summary(
+    context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    rows = _dict_tuple(
+        context_packet.get("formal_verifier_patch_rerun_residual_followup_queue_rows", [])
+    )
+    if not rows:
+        return {}
+    by_followup_kind = Counter(str(row.get("followup_kind", "") or "") for row in rows)
+    by_followup_status = Counter(str(row.get("followup_status", "") or "") for row in rows)
+    by_action_class = Counter(str(row.get("action_class", "") or "") for row in rows)
+    residual_gaps = _unique_strings(row.get("residual_gap", "") for row in rows)
+    source_discovery_queries = _unique_strings(
+        query
+        for row in rows
+        for query in _str_tuple(row.get("source_discovery_queries", []))
+    )
+    ready_rows = [
+        row
+        for row in rows
+        if str(row.get("followup_status", "") or "").startswith("READY_")
+    ]
+    blocked_rows = [
+        row
+        for row in rows
+        if str(row.get("followup_status", "") or "").startswith("BLOCKED_")
+    ]
+    patch_rerun_rows = [
+        row
+        for row in rows
+        if str(row.get("followup_kind", "") or "") == "residual_patch_rerun"
+    ]
+    source_discovery_rows = [
+        row
+        for row in rows
+        if str(row.get("followup_kind", "") or "") == "residual_source_discovery"
+    ]
+    return {
+        "summary_kind": (
+            "formalization_gap_planner_llm_route_planner_"
+            "patch_rerun_residual_followup_queue_summary"
+        ),
+        "total_rows": len(rows),
+        "ready_count": len(ready_rows),
+        "blocked_count": len(blocked_rows),
+        "patch_rerun_count": len(patch_rerun_rows),
+        "source_discovery_count": len(source_discovery_rows),
+        "with_artifact_count": sum(
+            1 for row in rows if bool(row.get("proposed_artifact_exists", False))
+        ),
+        "with_source_queries_count": sum(
+            1 for row in rows if _str_tuple(row.get("source_discovery_queries", []))
+        ),
+        "by_followup_kind": dict(sorted(by_followup_kind.items())),
+        "by_followup_status": dict(sorted(by_followup_status.items())),
+        "by_action_class": dict(sorted(by_action_class.items())),
+        "residual_gaps": list(residual_gaps[:20]),
+        "source_discovery_queries": list(source_discovery_queries[:20]),
+        "row_preview": [
+            {
+                "followup_id": str(row.get("followup_id", "")),
+                "residual_obligation_id": str(row.get("residual_obligation_id", "")),
+                "residual_gap": str(row.get("residual_gap", "")),
+                "followup_kind": str(row.get("followup_kind", "")),
+                "followup_status": str(row.get("followup_status", "")),
+                "owner_agent": str(row.get("owner_agent", "")),
+                "required_gate": str(row.get("required_gate", "")),
+                "proposed_lean_artifact_path": str(
+                    row.get("proposed_lean_artifact_path", "")
+                ),
+                "source_discovery_queries": list(
+                    _str_tuple(row.get("source_discovery_queries", []))[:8]
+                ),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", PROOF_EVIDENCE_STATUS)
+                ),
+                "proof_evidence_boundary": str(
+                    row.get("proof_evidence_boundary", PROOF_EVIDENCE_BOUNDARY)
+                ),
+            }
+            for row in rows[:12]
+        ],
+        "planner_instruction": (
+            "Treat validated patch-rerun residual follow-up queue rows as "
+            "operational feedback about the next route-planning action. Ready "
+            "patch-rerun rows should become bounded formal-verifier rerun "
+            "actions; ready source-discovery rows should become literature/RAG "
+            "queries. Blocked rows require missing inputs before the route can "
+            "be claimed replay-ready."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
 def _resource_feedback_readiness_summary(
     context_packet: Mapping[str, Any],
 ) -> dict[str, object]:
@@ -23234,6 +23576,7 @@ def _feedback_loop_summary(
         "source_theorem_formal_environment_rows",
         "source_theorem_proof_body_execution_result_rows",
         "formal_verifier_patch_rerun_residual_obligation_rows",
+        "formal_verifier_patch_rerun_residual_followup_queue_rows",
         "refinement_evidence_rows",
         "route_revision_overlay_rows",
         "route_replan_handoff_rows",
@@ -23331,6 +23674,9 @@ def _feedback_loop_summary(
     patch_rerun_residual_obligations = _patch_rerun_residual_obligation_summary(
         context_packet
     )
+    patch_rerun_residual_followups = _patch_rerun_residual_followup_queue_summary(
+        context_packet
+    )
     realization_coverage = _realization_feedback_summary(
         context_packet,
         all_rows,
@@ -23376,6 +23722,8 @@ def _feedback_loop_summary(
             )
     ) or realization_replan_required or source_theorem_feedback_replan_required or bool(
         patch_rerun_residual_obligations
+    ) or bool(
+        patch_rerun_residual_followups
     )
     if interactive_route_adoption_preconditions.get("unresolved_count", 0):
         replan_required = True
@@ -23390,6 +23738,10 @@ def _feedback_loop_summary(
     ) or bool(
         patch_rerun_residual_obligations.get("source_discovery_needed_count", 0)
         if patch_rerun_residual_obligations
+        else 0
+    ) or bool(
+        patch_rerun_residual_followups.get("source_discovery_count", 0)
+        if patch_rerun_residual_followups
         else 0
     )
     summary: dict[str, object] = {
@@ -23469,6 +23821,10 @@ def _feedback_loop_summary(
     if patch_rerun_residual_obligations:
         summary["patch_rerun_residual_obligations"] = (
             patch_rerun_residual_obligations
+        )
+    if patch_rerun_residual_followups:
+        summary["patch_rerun_residual_followup_queue"] = (
+            patch_rerun_residual_followups
         )
     if resource_feedback_readiness:
         summary["resource_feedback_readiness_summary"] = resource_feedback_readiness
@@ -24520,6 +24876,60 @@ def _feedback_next_actions(
                 ),
             }
         )
+    for row in rows_by_field.get(
+        "formal_verifier_patch_rerun_residual_followup_queue_rows",
+        (),
+    ):
+        residual_gap = str(row.get("residual_gap", "") or "").strip()
+        followup_kind = str(row.get("followup_kind", "") or "").strip()
+        followup_status = str(row.get("followup_status", "") or "").strip()
+        if not (residual_gap or followup_kind or followup_status):
+            continue
+        owner = str(row.get("owner_agent", "") or "").strip()
+        action = "dispatch_residual_followup_queue_item"
+        if followup_kind == "residual_source_discovery":
+            owner = owner or "literature_router"
+            action = "run_residual_source_discovery_followup"
+        elif followup_kind == "residual_patch_rerun":
+            owner = owner or "formal_verifier"
+            action = "rerun_residual_patch_followup"
+        elif followup_status.startswith("BLOCKED_"):
+            owner = owner or "route_planner"
+            action = "repair_blocked_residual_followup_inputs"
+        actions.append(
+            {
+                "source": "formal_verifier_patch_rerun_residual_followup_queue",
+                "owner": owner or "route_planner",
+                "action": action,
+                "followup_id": str(row.get("followup_id", "")).strip(),
+                "residual_response_validation_id": str(
+                    row.get("residual_response_validation_id", "")
+                ).strip(),
+                "residual_obligation_id": str(
+                    row.get("residual_obligation_id", "")
+                ).strip(),
+                "rerun_calibration_id": str(
+                    row.get("rerun_calibration_id", "")
+                ).strip(),
+                "residual_gap": residual_gap,
+                "target_primitives": [residual_gap] if residual_gap else [],
+                "followup_kind": followup_kind,
+                "followup_status": followup_status,
+                "required_gate": str(row.get("required_gate", "")).strip(),
+                "proposed_lean_artifact_path": str(
+                    row.get("proposed_lean_artifact_path", "")
+                ).strip(),
+                "source_discovery_queries": list(
+                    _str_tuple(row.get("source_discovery_queries", []))[:8]
+                ),
+                "execution_commands": list(
+                    _str_tuple(row.get("execution_commands", []))[:8]
+                ),
+                "remaining_residual_formal_gaps": list(
+                    _str_tuple(row.get("remaining_residual_formal_gaps", []))[:8]
+                ),
+            }
+        )
     for row in rows_by_field.get("route_revision_overlay_rows", ()):
         if not (
             str(row.get("route_revision_summary", "")).strip()
@@ -24892,6 +25302,9 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "artifact_verification_id",
         "source_theorem_promotion_id",
         "residual_obligation_id",
+        "followup_id",
+        "residual_response_validation_id",
+        "prompt_packet_id",
         "rerun_calibration_id",
         "rerun_id",
         "rerun_attempt_id",
@@ -25090,11 +25503,23 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "residual_kind",
         "source_support_classification",
         "action_class",
+        "source_acceptance_status",
+        "response_present",
+        "response_contract_ok",
         "proof_bank_action_id",
         "exact_proof_bank_obligation",
         "proof_bank_bridge_obligations",
         "local_candidate_declarations",
         "external_candidate_declarations",
+        "proposed_lean_artifact_path",
+        "proposed_artifact_exists",
+        "changed_lean_declarations",
+        "used_proof_bank_obligations",
+        "used_local_declarations",
+        "source_discovery_queries",
+        "remaining_residual_formal_gaps",
+        "followup_kind",
+        "followup_status",
         "expected_premises",
         "next_action",
         "priority_rank",
@@ -25137,6 +25562,7 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "required_gate",
         "required_inputs",
         "command_plan",
+        "execution_commands",
         "evidence_paths",
         "request_phase",
         "request_rank",
@@ -29581,6 +30007,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Agentic proof execution context rows: materializer={payload.get('n_request_agentic_proof_execution_materializer_rows')} artifact_verifier={payload.get('n_request_agentic_proof_execution_artifact_verifier_rows')} source_promotion={payload.get('n_request_agentic_proof_source_theorem_promotion_rows')}",
         f"- Proof execution unsupported target-prover rows: {payload.get('n_request_proof_execution_unsupported_target_prover_rows')}",
         f"- Patch-rerun residual obligations: rows={payload.get('n_request_patch_rerun_residual_obligation_rows')} source_discovery={payload.get('n_request_patch_rerun_residual_obligation_source_discovery_needed')}",
+        f"- Patch-rerun residual follow-up queue: rows={payload.get('n_request_patch_rerun_residual_followup_queue_rows')} ready={payload.get('n_request_patch_rerun_residual_followup_queue_ready')} source_discovery={payload.get('n_request_patch_rerun_residual_followup_queue_source_discovery')}",
         f"- Search requests: {payload.get('n_search_requests')}",
         f"- Planner next actions: {payload.get('n_planner_next_actions')}",
         f"- Formal attempt queue items: {payload.get('n_formal_attempt_queue_items')}",

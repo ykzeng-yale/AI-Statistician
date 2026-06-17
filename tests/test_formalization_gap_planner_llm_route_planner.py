@@ -2719,6 +2719,225 @@ def test_llm_route_planner_stages_patch_rerun_residual_obligations() -> None:
     assert "Patch-rerun residual obligations: rows=2 source_discovery=1" in report
 
 
+def test_llm_route_planner_stages_patch_rerun_residual_followup_queue() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_patch_rerun_residual_followup_queue"
+    )
+    out_dir = root / "llm_route_planner"
+    followup_queue_dir = root / "followup_queue"
+    shutil.rmtree(root, ignore_errors=True)
+    followup_queue_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    rows = [
+        {
+            "schema_version": 1,
+            "followup_id": "followup:rank_route:patch",
+            "residual_response_validation_id": "validation:rank_route:patch",
+            "prompt_packet_id": "packet:rank_route:patch",
+            "residual_obligation_id": "residual-obligation:rank_route:exchangeability",
+            "rerun_calibration_id": "rerun-calibration:rank_route",
+            "rerun_id": "patch-rerun:rank_route",
+            "rerun_attempt_id": "patch-rerun-attempt:rank_route",
+            "replay_id": "replay:rank_route",
+            "route_id": "rank_route",
+            "display_name": "distribution_free_rank_bound",
+            "target_theorem_name": "distribution_free_rank_bound",
+            "candidate_bridge_lemma_name": "rank_uniformity_bridge",
+            "residual_gap": "exchangeability",
+            "action_class": "reuse_exact_proof_bank_obligation",
+            "source_acceptance_status": (
+                "RESIDUAL_PATCH_PROPOSAL_RECORDED_NOT_PROOF_EVIDENCE"
+            ),
+            "response_present": True,
+            "response_contract_ok": True,
+            "proposed_lean_artifact_path": "patched/Rank.lean",
+            "proposed_artifact_exists": True,
+            "changed_lean_declarations": ["Probability.exchangeable"],
+            "used_proof_bank_obligations": ["Probability.exchangeable"],
+            "used_local_declarations": ["Probability.exchangeable"],
+            "source_discovery_queries": [],
+            "remaining_residual_formal_gaps": [],
+            "followup_kind": "residual_patch_rerun",
+            "followup_status": "READY_FOR_RESIDUAL_PATCH_RERUN",
+            "owner_agent": "formal_verifier",
+            "priority": "high",
+            "required_gate": "rerun patch artifact through calibration",
+            "execution_commands": ["lake env lean patched/Rank.lean"],
+            "proof_evidence_status": "RESIDUAL_FOLLOWUP_QUEUE_NOT_PROOF_EVIDENCE",
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            "ok": True,
+            "errors": [],
+        },
+        {
+            "schema_version": 1,
+            "followup_id": "followup:rank_route:source",
+            "residual_response_validation_id": "validation:rank_route:source",
+            "prompt_packet_id": "packet:rank_route:source",
+            "residual_obligation_id": "residual-obligation:rank_route:rank_uniformity",
+            "rerun_calibration_id": "rerun-calibration:rank_route",
+            "rerun_id": "patch-rerun:rank_route",
+            "rerun_attempt_id": "patch-rerun-attempt:rank_route",
+            "replay_id": "replay:rank_route",
+            "route_id": "rank_route",
+            "display_name": "distribution_free_rank_bound",
+            "target_theorem_name": "distribution_free_rank_bound",
+            "candidate_bridge_lemma_name": "rank_uniformity_bridge",
+            "residual_gap": "rank_uniformity",
+            "action_class": "source_discovery_needed",
+            "source_acceptance_status": (
+                "SOURCE_DISCOVERY_RESPONSE_RECORDED_NOT_PROOF_EVIDENCE"
+            ),
+            "response_present": True,
+            "response_contract_ok": True,
+            "proposed_lean_artifact_path": "",
+            "proposed_artifact_exists": False,
+            "changed_lean_declarations": [],
+            "used_proof_bank_obligations": [],
+            "used_local_declarations": [],
+            "source_discovery_queries": [
+                "rank uniformity exchangeable calibration scores",
+            ],
+            "remaining_residual_formal_gaps": ["rank_uniformity"],
+            "followup_kind": "residual_source_discovery",
+            "followup_status": "READY_FOR_RESIDUAL_SOURCE_DISCOVERY",
+            "owner_agent": "rag_retrieval",
+            "priority": "medium",
+            "required_gate": "expand source coverage before replay adoption",
+            "execution_commands": [
+                "rerun primitive-source coverage for rank uniformity",
+            ],
+            "proof_evidence_status": "RESIDUAL_FOLLOWUP_QUEUE_NOT_PROOF_EVIDENCE",
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            "ok": True,
+            "errors": [],
+        },
+    ]
+    (
+        followup_queue_dir
+        / "formal_verifier_replay_repair_patch_rerun_residual_followup_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "n_followup_items": len(rows),
+                "n_ready": 2,
+                "n_source_discovery_items": 1,
+                "n_patch_rerun_items": 1,
+                "all_ok": True,
+                "rows": rows,
+                "limitations": [
+                    "residual follow-up queue rows are operational work items, not theorem proof evidence"
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formal_verifier_replay_repair_patch_rerun_residual_followup_queue_dir=(
+            followup_queue_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    assert (
+        payload[
+            "n_request_formal_verifier_patch_rerun_residual_followup_queue_rows"
+        ]
+        == 2
+    )
+    assert payload["n_requests_with_patch_rerun_residual_followup_queue_summary"] == 1
+    assert payload["n_request_patch_rerun_residual_followup_queue_rows"] == 2
+    assert payload["n_request_patch_rerun_residual_followup_queue_ready"] == 2
+    assert (
+        payload[
+            "n_request_patch_rerun_residual_followup_queue_source_discovery"
+        ]
+        == 1
+    )
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    assert len(context["formal_verifier_patch_rerun_residual_followup_queue_rows"]) == 2
+    followup_summary = context["patch_rerun_residual_followup_queue_summary"]
+    assert followup_summary["total_rows"] == 2
+    assert followup_summary["ready_count"] == 2
+    assert followup_summary["patch_rerun_count"] == 1
+    assert followup_summary["source_discovery_count"] == 1
+    assert followup_summary["with_artifact_count"] == 1
+    assert followup_summary["with_source_queries_count"] == 1
+    feedback_summary = context["feedback_loop_summary"]
+    assert feedback_summary["replan_required"] is True
+    assert (
+        feedback_summary["patch_rerun_residual_followup_queue"]
+        == followup_summary
+    )
+    assert any(
+        action["source"] == "formal_verifier_patch_rerun_residual_followup_queue"
+        and action["action"] == "run_residual_source_discovery_followup"
+        and action["residual_gap"] == "rank_uniformity"
+        for action in feedback_summary["recommended_next_actions"]
+    )
+    assert any(
+        action["source"] == "formal_verifier_patch_rerun_residual_followup_queue"
+        and action["action"] == "rerun_residual_patch_followup"
+        and action["residual_gap"] == "exchangeability"
+        for action in feedback_summary["recommended_next_actions"]
+    )
+    preconditions = context["route_adoption_preconditions"]
+    assert preconditions["blocked_before_response"] is True
+    assert (
+        "feedback_summary_actions_pending_resolution"
+        in preconditions["known_pre_response_blockers"]
+    )
+    assert (
+        "feedback_loop_replan_required"
+        in preconditions["known_pre_response_blockers"]
+    )
+    inventory = context["context_packet_inventory"]
+    assert (
+        inventory["row_counts"][
+            "formal_verifier_patch_rerun_residual_followup_queue_rows"
+        ]
+        == 2
+    )
+    assert inventory["patch_rerun_residual_followup_queue_summary_present"] is True
+    assert inventory["patch_rerun_residual_followup_queue_row_count"] == 2
+    assert inventory["patch_rerun_residual_followup_queue_ready_count"] == 2
+    assert inventory["patch_rerun_residual_followup_queue_source_discovery_count"] == 1
+    brief = context["route_planning_brief"]
+    assert brief["patch_rerun_residual_followup_queue_summary"] == followup_summary
+    assert (
+        brief["evidence_summary"][
+            "patch_rerun_residual_followup_queue_row_count"
+        ]
+        == 2
+    )
+    assert (
+        brief["evidence_summary"][
+            "patch_rerun_residual_followup_queue_source_discovery_count"
+        ]
+        == 1
+    )
+    assert any(
+        focus["focus_id"] == "dispatch_patch_rerun_residual_followup_queue"
+        for focus in brief["planner_focus"]
+    )
+    assert any(
+        gap["gap_id"] == "patch_rerun_residual_followup_source_discovery"
+        for gap in brief["evidence_gaps"]
+    )
+    report = (out_dir / "formalization_gap_planner_llm_route_planner.md").read_text(
+        encoding="utf-8"
+    )
+    assert (
+        "Patch-rerun residual follow-up queue: rows=2 ready=2 source_discovery=1"
+        in report
+    )
+
+
 def test_llm_route_planner_matches_context_rows_by_route_aliases() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_alias_context")
     out_dir = root / "llm_route_planner"

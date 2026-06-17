@@ -3482,6 +3482,67 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_requests_with_patch_rerun_residual_followup_queue_summary": int(
+            payload.get(
+                "n_requests_with_patch_rerun_residual_followup_queue_summary",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_value(packet, "context_packet").get(
+                        "patch_rerun_residual_followup_queue_summary"
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_patch_rerun_residual_followup_queue_rows": int(
+            payload.get(
+                "n_request_patch_rerun_residual_followup_queue_rows",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "patch_rerun_residual_followup_queue_summary",
+                        ).get("total_rows", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_patch_rerun_residual_followup_queue_ready": int(
+            payload.get(
+                "n_request_patch_rerun_residual_followup_queue_ready",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "patch_rerun_residual_followup_queue_summary",
+                        ).get("ready_count", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_patch_rerun_residual_followup_queue_source_discovery": int(
+            payload.get(
+                "n_request_patch_rerun_residual_followup_queue_source_discovery",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "patch_rerun_residual_followup_queue_summary",
+                        ).get("source_discovery_count", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
         "n_rows": int(payload.get("n_rows", len(rows)) or 0),
         "n_response_present": int(
             payload.get(
