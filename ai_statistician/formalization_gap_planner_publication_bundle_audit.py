@@ -3543,6 +3543,67 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_requests_with_agentic_proof_strategy_plan_summary": int(
+            payload.get(
+                "n_requests_with_agentic_proof_strategy_plan_summary",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_value(packet, "context_packet").get(
+                        "agentic_proof_strategy_plan_summary"
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_agentic_proof_strategy_plan_rows": int(
+            payload.get(
+                "n_request_agentic_proof_strategy_plan_rows",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "agentic_proof_strategy_plan_summary",
+                        ).get("total_rows", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_agentic_proof_strategy_plan_ready": int(
+            payload.get(
+                "n_request_agentic_proof_strategy_plan_ready",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "agentic_proof_strategy_plan_summary",
+                        ).get("ready_count", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_agentic_proof_strategy_plan_source_discovery_cache_items": int(
+            payload.get(
+                "n_request_agentic_proof_strategy_plan_source_discovery_cache_items",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "agentic_proof_strategy_plan_summary",
+                        ).get("source_discovery_cache_item_count", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
         "n_rows": int(payload.get("n_rows", len(rows)) or 0),
         "n_response_present": int(
             payload.get(

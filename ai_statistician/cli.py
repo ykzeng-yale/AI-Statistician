@@ -2737,6 +2737,11 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
             if args.formal_verifier_replay_repair_patch_rerun_residual_followup_queue_dir
             else None
         ),
+        formal_verifier_agentic_proof_strategy_plan_dir=(
+            Path(args.formal_verifier_agentic_proof_strategy_plan_dir)
+            if args.formal_verifier_agentic_proof_strategy_plan_dir
+            else None
+        ),
         formal_verifier_agentic_proof_execution_materializer_dir=(
             Path(args.formal_verifier_agentic_proof_execution_materializer_dir)
             if args.formal_verifier_agentic_proof_execution_materializer_dir
@@ -4034,6 +4039,11 @@ def _formalization_gap_planner_reuse_smoke(args: argparse.Namespace) -> int:
                 args.formal_verifier_replay_repair_patch_rerun_residual_followup_queue_dir
             )
             if args.formal_verifier_replay_repair_patch_rerun_residual_followup_queue_dir
+            else None
+        ),
+        formal_verifier_agentic_proof_strategy_plan_dir=(
+            Path(args.formal_verifier_agentic_proof_strategy_plan_dir)
+            if args.formal_verifier_agentic_proof_strategy_plan_dir
             else None
         ),
         formal_verifier_agentic_proof_execution_materializer_dir=(
@@ -8493,6 +8503,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     formalization_gap_planner_reuse_smoke.add_argument(
+        "--formal-verifier-agentic-proof-strategy-plan-dir",
+        help=(
+            "optional formal-verifier agentic proof strategy plan directory to "
+            "include as live-tool/evaluator-gated proof-search feedback in "
+            "primary and feedback LLM route-planner prompts"
+        ),
+    )
+    formalization_gap_planner_reuse_smoke.add_argument(
         "--formal-verifier-agentic-proof-execution-materializer-dir",
         help=(
             "optional agentic proof execution materializer directory to include "
@@ -8688,6 +8706,13 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "optional formal-verifier patch-rerun residual follow-up queue "
             "directory carrying validated residual rerun/source-discovery work"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formal-verifier-agentic-proof-strategy-plan-dir",
+        help=(
+            "optional formal-verifier agentic proof strategy plan directory "
+            "carrying live-tool and evaluator-gated proof-search work contracts"
         ),
     )
     formalization_gap_planner_llm_route_planner.add_argument(

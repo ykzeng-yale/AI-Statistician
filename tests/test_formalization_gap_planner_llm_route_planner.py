@@ -2938,6 +2938,199 @@ def test_llm_route_planner_stages_patch_rerun_residual_followup_queue() -> None:
     )
 
 
+def test_llm_route_planner_stages_agentic_proof_strategy_plan() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_agentic_strategy_plan"
+    )
+    out_dir = root / "llm_route_planner"
+    strategy_plan_dir = root / "agentic_strategy_plan"
+    shutil.rmtree(root, ignore_errors=True)
+    strategy_plan_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    rows = [
+        {
+            "schema_version": 1,
+            "strategy_id": "strategy:rank_route:patch",
+            "followup_id": "followup:rank_route:patch",
+            "residual_response_validation_id": "validation:rank_route:patch",
+            "prompt_packet_id": "packet:rank_route:patch",
+            "residual_obligation_id": "residual-obligation:rank_route:exchangeability",
+            "route_id": "rank_route",
+            "display_name": "distribution_free_rank_bound",
+            "target_theorem_name": "distribution_free_rank_bound",
+            "candidate_bridge_lemma_name": "exchangeability_bridge",
+            "residual_gap": "exchangeability",
+            "action_class": "reuse_exact_proof_bank_obligation",
+            "followup_kind": "residual_patch_rerun",
+            "followup_status": "READY_FOR_AGENTIC_PROOF_STRATEGY",
+            "agentic_strategy_kind": "evolve_block_residual_patch",
+            "paper_patterns": ["exchangeable calibration scores"],
+            "required_live_tools": ["lean_goal", "lean_multi_attempt"],
+            "evaluator_gates": [
+                "patch-rerun calibration",
+                "full-route Lean kernel verification",
+            ],
+            "evolve_block_scope": "residual bridge candidate for exchangeability",
+            "global_goal_cache_keys": [],
+            "candidate_database_key": "candidate-db:rank_route:exchangeability",
+            "expected_artifacts": ["patched/Rank.lean", "strategy_trace.json"],
+            "priority_score": 130,
+            "rank": 1,
+            "proof_evidence_status": (
+                "AGENTIC_STRATEGY_PLAN_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            "ok": True,
+            "errors": [],
+        },
+        {
+            "schema_version": 1,
+            "strategy_id": "strategy:rank_route:source",
+            "followup_id": "followup:rank_route:source",
+            "residual_response_validation_id": "validation:rank_route:source",
+            "prompt_packet_id": "packet:rank_route:source",
+            "residual_obligation_id": "residual-obligation:rank_route:rank_uniformity",
+            "route_id": "rank_route",
+            "display_name": "distribution_free_rank_bound",
+            "target_theorem_name": "distribution_free_rank_bound",
+            "candidate_bridge_lemma_name": "rank_uniformity_bridge",
+            "residual_gap": "rank_uniformity",
+            "action_class": "source_discovery_needed",
+            "followup_kind": "residual_source_discovery",
+            "followup_status": "READY_FOR_AGENTIC_PROOF_STRATEGY",
+            "agentic_strategy_kind": "global_goal_cache_source_discovery",
+            "paper_patterns": ["uniform rank statistic"],
+            "required_live_tools": ["lean_local_search", "lean_leansearch"],
+            "evaluator_gates": ["primitive-source coverage expansion"],
+            "evolve_block_scope": "",
+            "global_goal_cache_keys": ["rank_uniformity:exchangeable_scores"],
+            "candidate_database_key": "candidate-db:rank_route:rank_uniformity",
+            "expected_artifacts": ["source_cache/rank_uniformity.json"],
+            "priority_score": 80,
+            "rank": 2,
+            "proof_evidence_status": (
+                "AGENTIC_STRATEGY_PLAN_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            "ok": True,
+            "errors": [],
+        },
+    ]
+    (
+        strategy_plan_dir / "formal_verifier_agentic_proof_strategy_plan_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "n_strategy_rows": len(rows),
+                "n_ready": 2,
+                "n_patch_evolve_blocks": 1,
+                "n_source_discovery_cache_items": 1,
+                "n_kernel_overlay_composition_seeds": 0,
+                "n_with_live_tool_plan": 2,
+                "all_ok": True,
+                "rows": rows,
+                "limitations": [
+                    "agentic proof strategy rows are proof-search contracts, not theorem proof evidence"
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formal_verifier_agentic_proof_strategy_plan_dir=strategy_plan_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_request_formal_verifier_agentic_proof_strategy_plan_rows"] == 2
+    assert payload["n_requests_with_agentic_proof_strategy_plan_summary"] == 1
+    assert payload["n_request_agentic_proof_strategy_plan_rows"] == 2
+    assert payload["n_request_agentic_proof_strategy_plan_ready"] == 2
+    assert (
+        payload[
+            "n_request_agentic_proof_strategy_plan_source_discovery_cache_items"
+        ]
+        == 1
+    )
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    assert len(context["formal_verifier_agentic_proof_strategy_plan_rows"]) == 2
+    strategy_summary = context["agentic_proof_strategy_plan_summary"]
+    assert strategy_summary["total_rows"] == 2
+    assert strategy_summary["ready_count"] == 2
+    assert strategy_summary["patch_evolve_block_count"] == 1
+    assert strategy_summary["source_discovery_cache_item_count"] == 1
+    assert strategy_summary["with_live_tool_plan_count"] == 2
+    feedback_summary = context["feedback_loop_summary"]
+    assert feedback_summary["replan_required"] is True
+    assert feedback_summary["needs_more_library_grounding"] is True
+    assert feedback_summary["agentic_proof_strategy_plan"] == strategy_summary
+    assert any(
+        action["source"] == "formal_verifier_agentic_proof_strategy_plan"
+        and action["action"] == "run_agentic_patch_evolve_block"
+        and action["residual_gap"] == "exchangeability"
+        for action in feedback_summary["recommended_next_actions"]
+    )
+    assert any(
+        action["source"] == "formal_verifier_agentic_proof_strategy_plan"
+        and action["action"] == "run_agentic_source_discovery_cache_item"
+        and action["residual_gap"] == "rank_uniformity"
+        for action in feedback_summary["recommended_next_actions"]
+    )
+    preconditions = context["route_adoption_preconditions"]
+    assert preconditions["blocked_before_response"] is True
+    assert (
+        "feedback_summary_actions_pending_resolution"
+        in preconditions["known_pre_response_blockers"]
+    )
+    assert (
+        "feedback_loop_replan_required"
+        in preconditions["known_pre_response_blockers"]
+    )
+    inventory = context["context_packet_inventory"]
+    assert (
+        inventory["row_counts"]["formal_verifier_agentic_proof_strategy_plan_rows"]
+        == 2
+    )
+    assert inventory["agentic_proof_strategy_plan_summary_present"] is True
+    assert inventory["agentic_proof_strategy_plan_row_count"] == 2
+    assert inventory["agentic_proof_strategy_plan_ready_count"] == 2
+    assert (
+        inventory[
+            "agentic_proof_strategy_plan_source_discovery_cache_item_count"
+        ]
+        == 1
+    )
+    brief = context["route_planning_brief"]
+    assert brief["agentic_proof_strategy_plan_summary"] == strategy_summary
+    assert brief["evidence_summary"]["agentic_proof_strategy_plan_row_count"] == 2
+    assert (
+        brief["evidence_summary"][
+            "agentic_proof_strategy_plan_source_discovery_cache_item_count"
+        ]
+        == 1
+    )
+    assert any(
+        focus["focus_id"] == "dispatch_agentic_proof_strategy_plan"
+        for focus in brief["planner_focus"]
+    )
+    assert any(
+        gap["gap_id"] == "agentic_strategy_source_discovery_cache_items"
+        for gap in brief["evidence_gaps"]
+    )
+    report = (out_dir / "formalization_gap_planner_llm_route_planner.md").read_text(
+        encoding="utf-8"
+    )
+    assert (
+        "Agentic proof strategy plan: rows=2 ready=2 source_discovery_cache=1"
+        in report
+    )
+
+
 def test_llm_route_planner_matches_context_rows_by_route_aliases() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_alias_context")
     out_dir = root / "llm_route_planner"

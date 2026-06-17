@@ -228,6 +228,7 @@ CONTEXT_PACKET_ROW_FIELDS = (
     "source_theorem_proof_body_execution_result_rows",
     "formal_verifier_patch_rerun_residual_obligation_rows",
     "formal_verifier_patch_rerun_residual_followup_queue_rows",
+    "formal_verifier_agentic_proof_strategy_plan_rows",
     "agentic_proof_execution_materializer_rows",
     "agentic_proof_execution_artifact_verifier_rows",
     "agentic_proof_source_theorem_promotion_rows",
@@ -266,6 +267,7 @@ ROUTE_MATCH_SCALAR_FIELDS = (
     "goal_plan_id",
     "source_goal_plan_id",
     "target_goal_plan_id",
+    "strategy_id",
 )
 ROUTE_MATCH_COLLECTION_FIELDS = (
     "route_match_ids",
@@ -1094,6 +1096,7 @@ def export_formalization_gap_planner_llm_route_planner(
     formal_verifier_replay_repair_patch_rerun_residual_followup_queue_dir: (
         Path | None
     ) = None,
+    formal_verifier_agentic_proof_strategy_plan_dir: Path | None = None,
     formal_verifier_agentic_proof_execution_materializer_dir: Path | None = None,
     formal_verifier_agentic_proof_execution_artifact_verifier_dir: Path | None = None,
     formal_verifier_agentic_proof_source_theorem_promotion_queue_dir: (
@@ -1147,6 +1150,9 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
         formal_verifier_replay_repair_patch_rerun_residual_followup_queue_dir=(
             formal_verifier_replay_repair_patch_rerun_residual_followup_queue_dir
+        ),
+        formal_verifier_agentic_proof_strategy_plan_dir=(
+            formal_verifier_agentic_proof_strategy_plan_dir
         ),
         formal_verifier_agentic_proof_execution_materializer_dir=(
             formal_verifier_agentic_proof_execution_materializer_dir
@@ -1965,6 +1971,64 @@ def export_formalization_gap_planner_llm_route_planner(
                     _dict_value(packet, "context_packet"),
                     "patch_rerun_residual_followup_queue_summary",
                 ).get("source_discovery_count", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_formal_verifier_agentic_proof_strategy_plan_rows": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "formal_verifier_agentic_proof_strategy_plan_rows",
+                    [],
+                )
+            )
+        ),
+        "n_request_formal_verifier_agentic_proof_strategy_plan_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "formal_verifier_agentic_proof_strategy_plan_rows",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_agentic_proof_strategy_plan_summary": sum(
+            1
+            for packet in request_packets
+            if _dict_value(packet, "context_packet").get(
+                "agentic_proof_strategy_plan_summary"
+            )
+        ),
+        "n_request_agentic_proof_strategy_plan_rows": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "agentic_proof_strategy_plan_summary",
+                ).get("total_rows", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_agentic_proof_strategy_plan_ready": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "agentic_proof_strategy_plan_summary",
+                ).get("ready_count", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_agentic_proof_strategy_plan_source_discovery_cache_items": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "agentic_proof_strategy_plan_summary",
+                ).get("source_discovery_cache_item_count", 0)
                 or 0
             )
             for packet in request_packets
@@ -4310,6 +4374,20 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_request_source_theorem_proof_body_execution_result_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_formal_verifier_agentic_proof_strategy_plan_rows": (
+                nonnegative_integer
+            ),
+            "n_request_formal_verifier_agentic_proof_strategy_plan_rows": (
+                nonnegative_integer
+            ),
+            "n_requests_with_agentic_proof_strategy_plan_summary": (
+                nonnegative_integer
+            ),
+            "n_request_agentic_proof_strategy_plan_rows": nonnegative_integer,
+            "n_request_agentic_proof_strategy_plan_ready": nonnegative_integer,
+            "n_request_agentic_proof_strategy_plan_source_discovery_cache_items": (
                 nonnegative_integer
             ),
             "n_feedback_loop_summary_interactive_resource_requests": (
@@ -6936,6 +7014,10 @@ def _request_packet(
             ),
             route_match_ids,
         ),
+        "formal_verifier_agentic_proof_strategy_plan_rows": _rows_for_route(
+            context_payloads.get("formal_verifier_agentic_proof_strategy_plan", {}),
+            route_match_ids,
+        ),
         "agentic_proof_execution_materializer_rows": _rows_for_route(
             context_payloads.get("agentic_proof_execution_materializer", {}),
             route_match_ids,
@@ -7040,6 +7122,9 @@ def _request_packet(
     )
     context_packet["patch_rerun_residual_followup_queue_summary"] = (
         _patch_rerun_residual_followup_queue_summary(context_packet)
+    )
+    context_packet["agentic_proof_strategy_plan_summary"] = (
+        _agentic_proof_strategy_plan_summary(context_packet)
     )
     context_packet["target_theorem_context_packet"] = (
         _target_theorem_context_packet(
@@ -7702,6 +7787,10 @@ def _route_planning_brief(
         context_packet,
         "patch_rerun_residual_followup_queue_summary",
     )
+    agentic_strategy_plan = _dict_value(
+        context_packet,
+        "agentic_proof_strategy_plan_summary",
+    )
     target_theorem_context = _dict_value(
         context_packet,
         "target_theorem_context_packet",
@@ -8022,6 +8111,53 @@ def _route_planning_brief(
                     patch_rerun_residual_followups.get("residual_gaps", [])
                 ),
             )
+    if int(agentic_strategy_plan.get("total_rows", 0) or 0):
+        add_focus(
+            "dispatch_agentic_proof_strategy_plan",
+            priority=1,
+            action=(
+                "turn agentic proof strategy rows into bounded "
+                "candidate-generation, source-discovery, or kernel-overlay "
+                "composition tasks"
+            ),
+            reason=(
+                "formal-verifier agentic proof strategy rows refine residual "
+                "follow-up work into live-tool and evaluator-gated proof-search "
+                "contracts"
+            ),
+            evidence_fields=(
+                "context_packet.formal_verifier_agentic_proof_strategy_plan_rows",
+                "context_packet.agentic_proof_strategy_plan_summary",
+            ),
+            required_output_fields=("planner_next_actions", "formal_attempt_queue"),
+            target_primitives=_str_tuple(
+                agentic_strategy_plan.get("residual_gaps", [])
+            ),
+        )
+        if int(
+            agentic_strategy_plan.get("source_discovery_cache_item_count", 0)
+            or 0
+        ):
+            add_gap(
+                "agentic_strategy_source_discovery_cache_items",
+                gap_kind="proof_state_feedback",
+                reason=(
+                    "agentic proof strategy rows contain source-discovery cache "
+                    "items that need literature/RAG expansion before route "
+                    "adoption can claim source-backed repair"
+                ),
+                recommended_action=(
+                    "emit source/RAG search requests or planner actions from "
+                    "agentic source-discovery cache items and keep the route "
+                    "adoption precondition pending until coverage is updated"
+                ),
+                evidence_fields=(
+                    "context_packet.agentic_proof_strategy_plan_summary",
+                ),
+                target_primitives=_str_tuple(
+                    agentic_strategy_plan.get("residual_gaps", [])
+                ),
+            )
     if alignment_summary:
         add_focus(
             "honor_library_alignment_summary",
@@ -8204,9 +8340,9 @@ def _route_planning_brief(
     target_context.update(
         {
             "target_intake_claims": [
-            str(row.get("normalized_claim", "")).strip()
-            for row in target_intake_rows[:6]
-            if str(row.get("normalized_claim", "")).strip()
+                str(row.get("normalized_claim", "")).strip()
+                for row in target_intake_rows[:6]
+                if str(row.get("normalized_claim", "")).strip()
             ],
         }
     )
@@ -8303,6 +8439,19 @@ def _route_planning_brief(
         "patch_rerun_residual_followup_queue_source_discovery_count": int(
             patch_rerun_residual_followups.get("source_discovery_count", 0) or 0
         ),
+        "agentic_proof_strategy_plan_row_count": int(
+            agentic_strategy_plan.get("total_rows", 0) or 0
+        ),
+        "agentic_proof_strategy_plan_ready_count": int(
+            agentic_strategy_plan.get("ready_count", 0) or 0
+        ),
+        "agentic_proof_strategy_plan_patch_evolve_block_count": int(
+            agentic_strategy_plan.get("patch_evolve_block_count", 0) or 0
+        ),
+        "agentic_proof_strategy_plan_source_discovery_cache_item_count": int(
+            agentic_strategy_plan.get("source_discovery_cache_item_count", 0)
+            or 0
+        ),
         "feedback_replan_required": bool(feedback_summary.get("replan_required", False)),
         "pending_quality_control_value_count": int(
             quality_control_obligations.get("n_pending_values", 0) or 0
@@ -8377,6 +8526,7 @@ def _route_planning_brief(
         "patch_rerun_residual_followup_queue_summary": dict(
             patch_rerun_residual_followups
         ),
+        "agentic_proof_strategy_plan_summary": dict(agentic_strategy_plan),
         "primitive_evidence_matrix": [dict(row) for row in primitive_evidence_matrix],
         "planner_focus": sorted(
             planner_focus,
@@ -9023,6 +9173,7 @@ def _context_packet_inventory(
     patch_rerun_residual_followups = _patch_rerun_residual_followup_queue_summary(
         context_packet
     )
+    agentic_strategy_plan = _agentic_proof_strategy_plan_summary(context_packet)
     route_adoption_preconditions = _dict_value(
         context_packet,
         "route_adoption_preconditions",
@@ -9216,6 +9367,19 @@ def _context_packet_inventory(
         "patch_rerun_residual_followup_queue_source_discovery_count": int(
             patch_rerun_residual_followups.get("source_discovery_count", 0) or 0
         ),
+        "agentic_proof_strategy_plan_summary_present": bool(
+            agentic_strategy_plan
+        ),
+        "agentic_proof_strategy_plan_row_count": int(
+            agentic_strategy_plan.get("total_rows", 0) or 0
+        ),
+        "agentic_proof_strategy_plan_ready_count": int(
+            agentic_strategy_plan.get("ready_count", 0) or 0
+        ),
+        "agentic_proof_strategy_plan_source_discovery_cache_item_count": int(
+            agentic_strategy_plan.get("source_discovery_cache_item_count", 0)
+            or 0
+        ),
         "route_adoption_precondition_present": bool(
             route_adoption_preconditions
         ),
@@ -9394,6 +9558,10 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
         context_packet,
         "patch_rerun_residual_followup_queue_summary",
     )
+    agentic_strategy_plan = _dict_value(
+        context_packet,
+        "agentic_proof_strategy_plan_summary",
+    )
     total_context_rows = 0
     for field_name in CONTEXT_PACKET_ROW_FIELDS:
         expected_count = len(_dict_tuple(context_packet.get(field_name, [])))
@@ -9494,6 +9662,24 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             ),
         ),
         (
+            "agentic_proof_strategy_plan_row_count",
+            int(agentic_strategy_plan.get("total_rows", 0) or 0),
+        ),
+        (
+            "agentic_proof_strategy_plan_ready_count",
+            int(agentic_strategy_plan.get("ready_count", 0) or 0),
+        ),
+        (
+            "agentic_proof_strategy_plan_source_discovery_cache_item_count",
+            int(
+                agentic_strategy_plan.get(
+                    "source_discovery_cache_item_count",
+                    0,
+                )
+                or 0
+            ),
+        ),
+        (
             "interactive_session_resource_request_count",
             int(
                 _interactive_session_resource_request_summary(
@@ -9567,6 +9753,14 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
         errors.append(
             "context_packet.context_packet_inventory."
             "patch_rerun_residual_followup_queue_summary_present must match "
+            "context_packet"
+        )
+    if bool(
+        inventory.get("agentic_proof_strategy_plan_summary_present", False)
+    ) != bool(agentic_strategy_plan):
+        errors.append(
+            "context_packet.context_packet_inventory."
+            "agentic_proof_strategy_plan_summary_present must match "
             "context_packet"
         )
     target_theorem_context = _dict_value(
@@ -9910,6 +10104,10 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             context_packet,
             "patch_rerun_residual_followup_queue_summary",
         )
+        agentic_strategy_plan = _dict_value(
+            context_packet,
+            "agentic_proof_strategy_plan_summary",
+        )
         brief_count_checks = (
             (
                 "source_ref_count",
@@ -10110,6 +10308,34 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                 ),
             ),
             (
+                "agentic_proof_strategy_plan_row_count",
+                int(agentic_strategy_plan.get("total_rows", 0) or 0),
+            ),
+            (
+                "agentic_proof_strategy_plan_ready_count",
+                int(agentic_strategy_plan.get("ready_count", 0) or 0),
+            ),
+            (
+                "agentic_proof_strategy_plan_patch_evolve_block_count",
+                int(
+                    agentic_strategy_plan.get(
+                        "patch_evolve_block_count",
+                        0,
+                    )
+                    or 0
+                ),
+            ),
+            (
+                "agentic_proof_strategy_plan_source_discovery_cache_item_count",
+                int(
+                    agentic_strategy_plan.get(
+                        "source_discovery_cache_item_count",
+                        0,
+                    )
+                    or 0
+                ),
+            ),
+            (
                 "source_grounding_unresolved_count",
                 int(
                     _source_grounding_obligation_summary(context_packet).get(
@@ -10254,6 +10480,18 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                 "context_packet.route_planning_brief."
                 "patch_rerun_residual_followup_queue_summary must match "
                 "context_packet.patch_rerun_residual_followup_queue_summary"
+            )
+        if (
+            _dict_value(
+                route_planning_brief,
+                "agentic_proof_strategy_plan_summary",
+            )
+            != agentic_strategy_plan
+        ):
+            errors.append(
+                "context_packet.route_planning_brief."
+                "agentic_proof_strategy_plan_summary must match "
+                "context_packet.agentic_proof_strategy_plan_summary"
             )
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     quality_controls = _dict_value(quality_control_obligations, "quality_controls")
@@ -22548,6 +22786,7 @@ def _context_payloads(
     formal_verifier_replay_repair_patch_rerun_residual_followup_queue_dir: (
         Path | None
     ),
+    formal_verifier_agentic_proof_strategy_plan_dir: Path | None,
     formal_verifier_agentic_proof_execution_materializer_dir: Path | None,
     formal_verifier_agentic_proof_execution_artifact_verifier_dir: Path | None,
     formal_verifier_agentic_proof_source_theorem_promotion_queue_dir: Path | None,
@@ -22641,6 +22880,16 @@ def _context_payloads(
                     "formal_verifier_replay_repair_patch_rerun_residual_followup_queue.jsonl",
                 ),
             )
+        ),
+        "formal_verifier_agentic_proof_strategy_plan": _optional_rows_payload(
+            formal_verifier_agentic_proof_strategy_plan_dir,
+            "formal_verifier_agentic_proof_strategy_plan_manifest.json",
+            errors,
+            embedded_row_keys=("rows",),
+            jsonl_fields=("strategy_plan_jsonl",),
+            fallback_jsonl_filenames=(
+                "formal_verifier_agentic_proof_strategy_plan.jsonl",
+            ),
         ),
         "agentic_proof_execution_materializer": _optional_rows_payload(
             formal_verifier_agentic_proof_execution_materializer_dir,
@@ -23446,6 +23695,107 @@ def _patch_rerun_residual_followup_queue_summary(
     }
 
 
+def _agentic_proof_strategy_plan_summary(
+    context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    rows = _dict_tuple(
+        context_packet.get("formal_verifier_agentic_proof_strategy_plan_rows", [])
+    )
+    if not rows:
+        return {}
+    by_strategy_kind = Counter(
+        str(row.get("agentic_strategy_kind", "") or "") for row in rows
+    )
+    by_followup_kind = Counter(str(row.get("followup_kind", "") or "") for row in rows)
+    by_followup_status = Counter(
+        str(row.get("followup_status", "") or "") for row in rows
+    )
+    residual_gaps = _unique_strings(row.get("residual_gap", "") for row in rows)
+    required_live_tools = _unique_strings(
+        tool for row in rows for tool in _str_tuple(row.get("required_live_tools", []))
+    )
+    evaluator_gates = _unique_strings(
+        gate for row in rows for gate in _str_tuple(row.get("evaluator_gates", []))
+    )
+    ready_rows = [
+        row
+        for row in rows
+        if str(row.get("followup_status", "") or "").startswith("READY_")
+    ]
+    source_discovery_rows = [
+        row
+        for row in rows
+        if str(row.get("agentic_strategy_kind", "") or "")
+        == "global_goal_cache_source_discovery"
+    ]
+    patch_evolve_rows = [
+        row
+        for row in rows
+        if str(row.get("agentic_strategy_kind", "") or "")
+        == "evolve_block_residual_patch"
+    ]
+    kernel_overlay_rows = [
+        row
+        for row in rows
+        if str(row.get("agentic_strategy_kind", "") or "")
+        == "kernel_overlay_composition_patch_seed"
+    ]
+    return {
+        "summary_kind": (
+            "formalization_gap_planner_llm_route_planner_"
+            "agentic_proof_strategy_plan_summary"
+        ),
+        "total_rows": len(rows),
+        "ready_count": len(ready_rows),
+        "patch_evolve_block_count": len(patch_evolve_rows),
+        "source_discovery_cache_item_count": len(source_discovery_rows),
+        "kernel_overlay_composition_seed_count": len(kernel_overlay_rows),
+        "with_live_tool_plan_count": sum(
+            1 for row in rows if _str_tuple(row.get("required_live_tools", []))
+        ),
+        "by_agentic_strategy_kind": dict(sorted(by_strategy_kind.items())),
+        "by_followup_kind": dict(sorted(by_followup_kind.items())),
+        "by_followup_status": dict(sorted(by_followup_status.items())),
+        "residual_gaps": list(residual_gaps[:20]),
+        "required_live_tools": list(required_live_tools[:20]),
+        "evaluator_gates": list(evaluator_gates[:20]),
+        "row_preview": [
+            {
+                "strategy_id": str(row.get("strategy_id", "")),
+                "residual_obligation_id": str(row.get("residual_obligation_id", "")),
+                "residual_gap": str(row.get("residual_gap", "")),
+                "agentic_strategy_kind": str(row.get("agentic_strategy_kind", "")),
+                "followup_status": str(row.get("followup_status", "")),
+                "candidate_database_key": str(row.get("candidate_database_key", "")),
+                "priority_score": int(row.get("priority_score", 0) or 0),
+                "rank": int(row.get("rank", 0) or 0),
+                "required_live_tools": list(
+                    _str_tuple(row.get("required_live_tools", []))[:8]
+                ),
+                "evaluator_gates": list(
+                    _str_tuple(row.get("evaluator_gates", []))[:8]
+                ),
+                "proof_evidence_status": str(
+                    row.get("proof_evidence_status", PROOF_EVIDENCE_STATUS)
+                ),
+                "proof_evidence_boundary": str(
+                    row.get("proof_evidence_boundary", PROOF_EVIDENCE_BOUNDARY)
+                ),
+            }
+            for row in rows[:12]
+        ],
+        "planner_instruction": (
+            "Treat agentic proof strategy plan rows as search/evaluator work "
+            "contracts, not proof evidence. Patch evolve blocks should become "
+            "bounded proof-candidate generation tasks; source-discovery cache "
+            "items should become literature/RAG work; kernel-overlay seeds should "
+            "be composed only through evaluator gates and later kernel replay."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
 def _resource_feedback_readiness_summary(
     context_packet: Mapping[str, Any],
 ) -> dict[str, object]:
@@ -23577,6 +23927,7 @@ def _feedback_loop_summary(
         "source_theorem_proof_body_execution_result_rows",
         "formal_verifier_patch_rerun_residual_obligation_rows",
         "formal_verifier_patch_rerun_residual_followup_queue_rows",
+        "formal_verifier_agentic_proof_strategy_plan_rows",
         "refinement_evidence_rows",
         "route_revision_overlay_rows",
         "route_replan_handoff_rows",
@@ -23677,6 +24028,7 @@ def _feedback_loop_summary(
     patch_rerun_residual_followups = _patch_rerun_residual_followup_queue_summary(
         context_packet
     )
+    agentic_strategy_plan = _agentic_proof_strategy_plan_summary(context_packet)
     realization_coverage = _realization_feedback_summary(
         context_packet,
         all_rows,
@@ -23724,6 +24076,8 @@ def _feedback_loop_summary(
         patch_rerun_residual_obligations
     ) or bool(
         patch_rerun_residual_followups
+    ) or bool(
+        agentic_strategy_plan
     )
     if interactive_route_adoption_preconditions.get("unresolved_count", 0):
         replan_required = True
@@ -23742,6 +24096,10 @@ def _feedback_loop_summary(
     ) or bool(
         patch_rerun_residual_followups.get("source_discovery_count", 0)
         if patch_rerun_residual_followups
+        else 0
+    ) or bool(
+        agentic_strategy_plan.get("source_discovery_cache_item_count", 0)
+        if agentic_strategy_plan
         else 0
     )
     summary: dict[str, object] = {
@@ -23826,6 +24184,8 @@ def _feedback_loop_summary(
         summary["patch_rerun_residual_followup_queue"] = (
             patch_rerun_residual_followups
         )
+    if agentic_strategy_plan:
+        summary["agentic_proof_strategy_plan"] = agentic_strategy_plan
     if resource_feedback_readiness:
         summary["resource_feedback_readiness_summary"] = resource_feedback_readiness
     if quality_control_obligations.get("present"):
@@ -24930,6 +25290,60 @@ def _feedback_next_actions(
                 ),
             }
         )
+    for row in rows_by_field.get(
+        "formal_verifier_agentic_proof_strategy_plan_rows",
+        (),
+    ):
+        residual_gap = str(row.get("residual_gap", "") or "").strip()
+        strategy_kind = str(row.get("agentic_strategy_kind", "") or "").strip()
+        followup_status = str(row.get("followup_status", "") or "").strip()
+        if not (residual_gap or strategy_kind or followup_status):
+            continue
+        if strategy_kind == "global_goal_cache_source_discovery":
+            owner = "literature_router"
+            action = "run_agentic_source_discovery_cache_item"
+        elif strategy_kind == "evolve_block_residual_patch":
+            owner = "proof_engineer"
+            action = "run_agentic_patch_evolve_block"
+        elif strategy_kind == "kernel_overlay_composition_patch_seed":
+            owner = "formal_verifier"
+            action = "compose_kernel_overlay_strategy_seed"
+        else:
+            owner = "proof_engineer"
+            action = "dispatch_agentic_proof_strategy"
+        target_primitives = _str_tuple(row.get("target_primitives", []))
+        if not target_primitives and residual_gap:
+            target_primitives = (residual_gap,)
+        actions.append(
+            {
+                "source": "formal_verifier_agentic_proof_strategy_plan",
+                "owner": owner,
+                "action": action,
+                "strategy_id": str(row.get("strategy_id", "")).strip(),
+                "followup_id": str(row.get("followup_id", "")).strip(),
+                "residual_obligation_id": str(
+                    row.get("residual_obligation_id", "")
+                ).strip(),
+                "residual_gap": residual_gap,
+                "target_primitives": list(target_primitives[:8]),
+                "agentic_strategy_kind": strategy_kind,
+                "followup_status": followup_status,
+                "candidate_database_key": str(
+                    row.get("candidate_database_key", "")
+                ).strip(),
+                "required_live_tools": list(
+                    _str_tuple(row.get("required_live_tools", []))[:8]
+                ),
+                "evaluator_gates": list(
+                    _str_tuple(row.get("evaluator_gates", []))[:8]
+                ),
+                "expected_artifacts": list(
+                    _str_tuple(row.get("expected_artifacts", []))[:8]
+                ),
+                "priority_score": _bounded_score(row.get("priority_score", 0)),
+                "rank": int(row.get("rank", 0) or 0),
+            }
+        )
     for row in rows_by_field.get("route_revision_overlay_rows", ()):
         if not (
             str(row.get("route_revision_summary", "")).strip()
@@ -25302,6 +25716,7 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "artifact_verification_id",
         "source_theorem_promotion_id",
         "residual_obligation_id",
+        "strategy_id",
         "followup_id",
         "residual_response_validation_id",
         "prompt_packet_id",
@@ -25520,6 +25935,15 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "remaining_residual_formal_gaps",
         "followup_kind",
         "followup_status",
+        "agentic_strategy_kind",
+        "paper_patterns",
+        "required_live_tools",
+        "evaluator_gates",
+        "evolve_block_scope",
+        "global_goal_cache_keys",
+        "candidate_database_key",
+        "expected_artifacts",
+        "rank",
         "expected_premises",
         "next_action",
         "priority_rank",
@@ -30008,6 +30432,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Proof execution unsupported target-prover rows: {payload.get('n_request_proof_execution_unsupported_target_prover_rows')}",
         f"- Patch-rerun residual obligations: rows={payload.get('n_request_patch_rerun_residual_obligation_rows')} source_discovery={payload.get('n_request_patch_rerun_residual_obligation_source_discovery_needed')}",
         f"- Patch-rerun residual follow-up queue: rows={payload.get('n_request_patch_rerun_residual_followup_queue_rows')} ready={payload.get('n_request_patch_rerun_residual_followup_queue_ready')} source_discovery={payload.get('n_request_patch_rerun_residual_followup_queue_source_discovery')}",
+        f"- Agentic proof strategy plan: rows={payload.get('n_request_agentic_proof_strategy_plan_rows')} ready={payload.get('n_request_agentic_proof_strategy_plan_ready')} source_discovery_cache={payload.get('n_request_agentic_proof_strategy_plan_source_discovery_cache_items')}",
         f"- Search requests: {payload.get('n_search_requests')}",
         f"- Planner next actions: {payload.get('n_planner_next_actions')}",
         f"- Formal attempt queue items: {payload.get('n_formal_attempt_queue_items')}",

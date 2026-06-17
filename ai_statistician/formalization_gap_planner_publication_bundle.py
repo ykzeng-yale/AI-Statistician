@@ -2406,6 +2406,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_patch_rerun_residual_followup_queue_rows",
             "n_request_patch_rerun_residual_followup_queue_ready",
             "n_request_patch_rerun_residual_followup_queue_source_discovery",
+            "n_requests_with_agentic_proof_strategy_plan_summary",
+            "n_request_agentic_proof_strategy_plan_rows",
+            "n_request_agentic_proof_strategy_plan_ready",
+            "n_request_agentic_proof_strategy_plan_source_discovery_cache_items",
             "n_rows",
             "n_response_present",
             "n_response_contract_ok",
@@ -2669,6 +2673,14 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_request_patch_rerun_residual_followup_queue_source_discovery": (
+                nonnegative_integer
+            ),
+            "n_requests_with_agentic_proof_strategy_plan_summary": (
+                nonnegative_integer
+            ),
+            "n_request_agentic_proof_strategy_plan_rows": nonnegative_integer,
+            "n_request_agentic_proof_strategy_plan_ready": nonnegative_integer,
+            "n_request_agentic_proof_strategy_plan_source_discovery_cache_items": (
                 nonnegative_integer
             ),
             "n_rows": nonnegative_integer,
@@ -5269,6 +5281,10 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_patch_rerun_residual_followup_queue_rows": 0,
         "n_request_patch_rerun_residual_followup_queue_ready": 0,
         "n_request_patch_rerun_residual_followup_queue_source_discovery": 0,
+        "n_requests_with_agentic_proof_strategy_plan_summary": 0,
+        "n_request_agentic_proof_strategy_plan_rows": 0,
+        "n_request_agentic_proof_strategy_plan_ready": 0,
+        "n_request_agentic_proof_strategy_plan_source_discovery_cache_items": 0,
         "n_rows": 0,
         "n_response_present": 0,
         "n_response_contract_ok": 0,
@@ -6075,6 +6091,67 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                             _dict_value(packet, "context_packet"),
                             "patch_rerun_residual_followup_queue_summary",
                         ).get("source_discovery_count", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_requests_with_agentic_proof_strategy_plan_summary": int(
+            payload.get(
+                "n_requests_with_agentic_proof_strategy_plan_summary",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_value(packet, "context_packet").get(
+                        "agentic_proof_strategy_plan_summary"
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_agentic_proof_strategy_plan_rows": int(
+            payload.get(
+                "n_request_agentic_proof_strategy_plan_rows",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "agentic_proof_strategy_plan_summary",
+                        ).get("total_rows", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_agentic_proof_strategy_plan_ready": int(
+            payload.get(
+                "n_request_agentic_proof_strategy_plan_ready",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "agentic_proof_strategy_plan_summary",
+                        ).get("ready_count", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_agentic_proof_strategy_plan_source_discovery_cache_items": int(
+            payload.get(
+                "n_request_agentic_proof_strategy_plan_source_discovery_cache_items",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "agentic_proof_strategy_plan_summary",
+                        ).get("source_discovery_cache_item_count", 0)
                         or 0
                     )
                     for packet in request_packets
