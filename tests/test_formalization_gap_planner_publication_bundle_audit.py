@@ -7822,6 +7822,8 @@ def test_publication_bundle_audit_checks_llm_seed_source_grounding_provenance() 
         llm_summary["n_request_residual_source_grounding_unresolved_rows"]
         == 1
     )
+    assert llm_summary["n_formal_attempt_queue_items"] == 1
+    assert llm_summary["n_rows_with_formal_attempt_queue"] == 1
 
     audit_payload = audit_formalization_gap_planner_publication_bundle(
         bundle_dir,
@@ -7874,6 +7876,35 @@ def test_publication_bundle_audit_checks_llm_seed_source_grounding_provenance() 
         for error in summary_checks[0]["errors"]
     )
     assert not rejected_summary_payload["all_ok"]
+    bundle_manifest_path.write_text(
+        json.dumps(bundle_manifest, indent=2),
+        encoding="utf-8",
+    )
+
+    stale_queue_summary_manifest = json.loads(json.dumps(bundle_manifest))
+    stale_queue_summary_manifest["llm_route_planner_summary"][
+        "n_formal_attempt_queue_items"
+    ] = 0
+    bundle_manifest_path.write_text(
+        json.dumps(stale_queue_summary_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_queue_summary_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_formal_attempt_queue_summary_drift",
+    )
+    queue_summary_checks = [
+        row
+        for row in rejected_queue_summary_payload["checks"]
+        if row["check_name"] == "bundle_llm_route_planner_summary_consistent"
+    ]
+    assert queue_summary_checks
+    assert not queue_summary_checks[0]["ok"]
+    assert any(
+        "n_formal_attempt_queue_items mismatch" in error
+        for error in queue_summary_checks[0]["errors"]
+    )
+    assert not rejected_queue_summary_payload["all_ok"]
     bundle_manifest_path.write_text(
         json.dumps(bundle_manifest, indent=2),
         encoding="utf-8",

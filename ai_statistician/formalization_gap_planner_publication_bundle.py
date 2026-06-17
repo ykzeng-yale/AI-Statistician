@@ -2424,6 +2424,8 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "legacy_response_field_aliases",
             "n_lean_realization_dag_nodes",
             "n_route_alignment_edges",
+            "n_formal_attempt_queue_items",
+            "n_rows_with_formal_attempt_queue",
             "n_delta_action_witness_required_primitives",
             "n_delta_action_witness_missing_primitives",
             "n_rows_with_delta_action_witness_obligations",
@@ -2659,6 +2661,8 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "legacy_response_field_aliases": {"type": "object"},
             "n_lean_realization_dag_nodes": nonnegative_integer,
             "n_route_alignment_edges": nonnegative_integer,
+            "n_formal_attempt_queue_items": nonnegative_integer,
+            "n_rows_with_formal_attempt_queue": nonnegative_integer,
             "n_delta_action_witness_required_primitives": nonnegative_integer,
             "n_delta_action_witness_missing_primitives": nonnegative_integer,
             "n_rows_with_delta_action_witness_obligations": nonnegative_integer,
@@ -5124,6 +5128,8 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "legacy_response_field_aliases": {},
         "n_lean_realization_dag_nodes": 0,
         "n_route_alignment_edges": 0,
+        "n_formal_attempt_queue_items": 0,
+        "n_rows_with_formal_attempt_queue": 0,
         "n_delta_action_witness_required_primitives": 0,
         "n_delta_action_witness_missing_primitives": 0,
         "n_rows_with_delta_action_witness_obligations": 0,
@@ -5879,6 +5885,20 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             payload.get(
                 "n_route_alignment_edges",
                 _jsonl_row_collection_count(rows, "route_alignment_edges"),
+            )
+            or 0
+        ),
+        "n_formal_attempt_queue_items": int(
+            payload.get(
+                "n_formal_attempt_queue_items",
+                _jsonl_row_collection_count(rows, "formal_attempt_queue"),
+            )
+            or 0
+        ),
+        "n_rows_with_formal_attempt_queue": int(
+            payload.get(
+                "n_rows_with_formal_attempt_queue",
+                sum(1 for row in rows if _dict_tuple(row.get("formal_attempt_queue"))),
             )
             or 0
         ),
@@ -6689,6 +6709,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"feedback={payload.get('feedback_llm_route_planner_summary', {}).get('n_request_source_grounding_rows')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_requests_with_pending_source_grounding_obligation_inventory')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_request_residual_source_grounding_unresolved_rows')}"
+        ),
+        (
+            f"- LLM formal-attempt queues primary/feedback: "
+            f"primary_items={payload.get('llm_route_planner_summary', {}).get('n_formal_attempt_queue_items')} "
+            f"primary_rows={payload.get('llm_route_planner_summary', {}).get('n_rows_with_formal_attempt_queue')} "
+            f"feedback_items={payload.get('feedback_llm_route_planner_summary', {}).get('n_formal_attempt_queue_items')} "
+            f"feedback_rows={payload.get('feedback_llm_route_planner_summary', {}).get('n_rows_with_formal_attempt_queue')}"
         ),
         (
             f"- LLM route planner provider usage rows/input/output/total: "

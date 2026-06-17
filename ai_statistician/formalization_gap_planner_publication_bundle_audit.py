@@ -3498,6 +3498,23 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_formal_attempt_queue_items": int(
+            payload.get(
+                "n_formal_attempt_queue_items",
+                sum(
+                    len(_dict_tuple(row.get("formal_attempt_queue")))
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_rows_with_formal_attempt_queue": int(
+            payload.get(
+                "n_rows_with_formal_attempt_queue",
+                sum(1 for row in rows if _dict_tuple(row.get("formal_attempt_queue"))),
+            )
+            or 0
+        ),
         "n_delta_action_witness_required_primitives": int(
             payload.get(
                 "n_delta_action_witness_required_primitives",

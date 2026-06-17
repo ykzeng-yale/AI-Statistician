@@ -670,7 +670,10 @@ definition, or new-theory work-list entries. They also
 preserve the generic informal DAG, formal realization DAG, Lean legacy
 realization alias, and route-alignment edge counts from the packaged planner
 manifests, so non-Lean prover routes remain visible in the public summary
-without relying on Lean-specific names.
+without relying on Lean-specific names. They also expose `formal_attempt_queue`
+item and row counts for primary and feedback planner artifacts, so public
+bundles and smoke runs show whether the LLM route includes a bottom-up
+prover-feedback attempt schedule rather than only a static DAG alignment.
 The publication-bundle audit recomputes those two summaries from the packaged
 route-planner manifest/JSONL files, so a reused bundle cannot silently drift
 between copied LLM planning artifacts and the top-level manifest.

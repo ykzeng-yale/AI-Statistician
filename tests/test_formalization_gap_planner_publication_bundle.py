@@ -1143,6 +1143,14 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         "n_lean_realization_dag_nodes"
     ] == 0
     assert manifest["llm_route_planner_summary"]["n_route_alignment_edges"] == 0
+    assert (
+        manifest["llm_route_planner_summary"]["n_formal_attempt_queue_items"]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"]["n_rows_with_formal_attempt_queue"]
+        == 0
+    )
     assert manifest["llm_route_planner_summary"]["n_accepted_route_plans"] == 0
     assert (
         manifest["llm_route_planner_summary"][
@@ -1270,6 +1278,11 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         in report
     )
     assert (
+        "LLM formal-attempt queues primary/feedback: primary_items=0 "
+        "primary_rows=0 feedback_items=0 feedback_rows=0"
+        in report
+    )
+    assert (
         manifest["feedback_llm_route_planner_summary"][
             "n_request_library_alignment_route_option_primitives"
         ]
@@ -1383,6 +1396,18 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     ] == 0
     assert (
         manifest["feedback_llm_route_planner_summary"]["n_route_alignment_edges"]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_formal_attempt_queue_items"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_rows_with_formal_attempt_queue"
+        ]
         == 0
     )
     assert (
@@ -3150,6 +3175,11 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "cross_prover_formal_attempt_dependency_summary"
         in publication_bundle_manifest_schema_payload["required"]
     )
+    llm_summary_schema = publication_bundle_manifest_schema_payload[
+        "properties"
+    ]["llm_route_planner_summary"]
+    assert "n_formal_attempt_queue_items" in llm_summary_schema["required"]
+    assert "n_rows_with_formal_attempt_queue" in llm_summary_schema["required"]
     validation_summary_schema = publication_bundle_manifest_schema_payload[
         "properties"
     ]["llm_route_planner_response_payload_validation_summary"]
