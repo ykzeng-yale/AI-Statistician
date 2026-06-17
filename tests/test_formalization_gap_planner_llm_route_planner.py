@@ -581,6 +581,84 @@ def _append_bridge_cost(
         )
 
 
+def _append_unselected_baseline_primitive(
+    response: dict[str, object],
+    *,
+    primitive: str = "coverage_probability",
+) -> None:
+    minimal_delta = response["minimal_delta_plan"]
+    assert isinstance(minimal_delta, dict)
+    primitive_costs = minimal_delta["primitive_costs"]
+    assert isinstance(primitive_costs, list)
+    primitive_costs.append(
+        {
+            "primitive": primitive,
+            "coverage_bucket": "already_exists",
+            "base_cost": 0,
+            "proof_difficulty_cost": 0,
+            "import_cone_cost": 0,
+            "definition_or_typeclass_cost": 0,
+            "semantic_risk_cost": 0,
+            "reuse_credit": 0,
+            "total_cost": 0,
+            "cost_rationale": (
+                "This request-known baseline primitive is not part of the "
+                "selected route."
+            ),
+        }
+    )
+    graph = minimal_delta["and_or_cost_graph"]
+    assert isinstance(graph, dict)
+    route_options = graph["route_options"]
+    assert isinstance(route_options, list)
+    option_id = "route_option:current_route_min_delta_baseline"
+    route_options.append(
+        {
+            "route_option_id": option_id,
+            "selected": False,
+            "selected_primitives": [
+                "exchangeability",
+                "rank_uniformity",
+                primitive,
+            ],
+            "route_cost": 4,
+            "cost_rationale": (
+                "The baseline route keeps the request-known primitive visible "
+                "without selecting it for prover execution."
+            ),
+        }
+    )
+    or_nodes = graph["or_nodes"]
+    assert isinstance(or_nodes, list)
+    choices = or_nodes[0]["choices"]
+    assert isinstance(choices, list)
+    choices.append(option_id)
+    and_edges = graph["and_edges"]
+    assert isinstance(and_edges, list)
+    and_edges.append(
+        {
+            "route_option_id": option_id,
+            "requires": ["exchangeability", "rank_uniformity", primitive],
+        }
+    )
+
+
+def _append_request_route_primitive(
+    input_json: Path,
+    *,
+    primitive: str = "coverage_probability",
+) -> None:
+    payload = json.loads(input_json.read_text(encoding="utf-8"))
+    payload["routes"][0]["primitives"].append(
+        {
+            "primitive": primitive,
+            "coverage_status": "exact_exists",
+            "candidate_declarations": ["Probability.coverageProbability"],
+        }
+    )
+    input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 def _make_rank_uniformity_near_exists_response() -> dict[str, object]:
     response = _llm_response_payload()
     response["lean_realization_dag_nodes"][1]["coverage_bucket"] = "near_exists"
@@ -8447,6 +8525,47 @@ def test_llm_route_planner_rejects_missing_formal_attempt_queue_node() -> None:
     )
 
 
+def test_llm_route_planner_rejects_formal_attempt_queue_unselected_route_primitive() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_unselected_attempt_queue_primitive"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    _append_request_route_primitive(input_json, primitive="coverage_probability")
+    response = _llm_response_payload()
+    _append_unselected_baseline_primitive(
+        response,
+        primitive="coverage_probability",
+    )
+    response["formal_attempt_queue"][0]["target_primitives"] = [
+        "exchangeability",
+        "coverage_probability",
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "formal_attempt_queue[0].target_primitives must stay within selected "
+        "minimal_delta_plan primitives or formal_realization_dag_nodes primitives"
+        in error
+        and "coverage_probability" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_formal_attempt_queue_order_drift() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_bad_attempt_queue_order"
@@ -8936,6 +9055,52 @@ def test_llm_route_planner_response_payload_validator_counts_formal_attempt_queu
     assert any(
         "formal_attempt_queue missing selected-route formal DAG nodes" in error
         and "formal:rank_uniformity_bridge" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_payload_validator_rejects_unselected_attempt_queue_primitive() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_payload_validate_unselected_attempt_primitive"
+    )
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response = _llm_response_payload()
+    _append_unselected_baseline_primitive(
+        response,
+        primitive="coverage_probability",
+    )
+    response["formal_attempt_queue"][0]["target_primitives"] = [
+        "exchangeability",
+        "coverage_probability",
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_payloads"] == 1
+    assert payload["n_valid_payloads"] == 0
+    assert payload["n_invalid_payloads"] == 1
+    assert payload["n_payloads_with_formal_attempt_queue"] == 1
+    assert payload["n_payload_formal_attempt_queue_items"] == 2
+    assert payload["n_payloads_with_formal_attempt_queue_errors"] == 1
+    assert payload["n_formal_attempt_queue_errors"] == 1
+    row = payload["rows"][0]
+    assert row["payload_formal_attempt_queue_present"] is True
+    assert row["payload_formal_attempt_queue_item_count"] == 2
+    assert row["n_formal_attempt_queue_errors"] == 1
+    assert row["n_schema_errors"] >= row["n_formal_attempt_queue_errors"]
+    assert any(
+        "formal_attempt_queue[0].target_primitives must stay within selected "
+        "minimal_delta_plan primitives or formal_realization_dag_nodes primitives"
+        in error
+        and "coverage_probability" in error
         for error in row["errors"]
     )
 

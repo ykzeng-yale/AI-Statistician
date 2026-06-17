@@ -13711,6 +13711,10 @@ def _response_formal_attempt_queue_errors(
         node_id: _primitive_key(node.get("primitive", ""))
         for node_id, node in formal_by_id.items()
     }
+    allowed_queue_primitives = _formal_attempt_queue_allowed_target_primitives(
+        formal_nodes=formal_nodes,
+        minimal_delta=minimal_delta,
+    )
     predecessors_by_target: dict[str, set[str]] = {}
     successors_by_source: dict[str, set[str]] = {}
     for edge in formal_edges:
@@ -13786,6 +13790,17 @@ def _response_formal_attempt_queue_errors(
             errors.append(
                 f"formal_attempt_queue[{index}].target_primitives must include "
                 f"formal node primitive {expected_primitive}"
+            )
+        unscoped_target_primitives = sorted(
+            target_primitives - allowed_queue_primitives
+        )
+        if unscoped_target_primitives:
+            errors.append(
+                f"formal_attempt_queue[{index}].target_primitives must stay "
+                "within selected minimal_delta_plan primitives or "
+                "formal_realization_dag_nodes primitives; unscoped "
+                "target_primitives: "
+                + ", ".join(unscoped_target_primitives[:8])
             )
 
         target_prover = str(item.get("target_prover_family", "")).strip()
@@ -13896,6 +13911,26 @@ def _response_formal_attempt_queue_errors(
                 )
 
     return errors
+
+
+def _formal_attempt_queue_allowed_target_primitives(
+    *,
+    formal_nodes: tuple[dict[str, object], ...],
+    minimal_delta: Mapping[str, Any],
+) -> set[str]:
+    selected = {
+        _primitive_key(primitive)
+        for primitive in _str_tuple(minimal_delta.get("selected_primitives", []))
+    }
+    selected.discard("")
+    allowed = set(selected)
+    allowed.update(_minimal_delta_primitives(minimal_delta, selected))
+    for node in formal_nodes:
+        primitive = _primitive_key(node.get("primitive", ""))
+        if primitive:
+            allowed.add(primitive)
+    allowed.discard("")
+    return allowed
 
 
 def _formal_attempt_queue_required_node_ids(

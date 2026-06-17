@@ -308,7 +308,12 @@ formal realization DAG. Each queued row names an existing formal node, target
 prover family, owner/action, attempt kind, expected feedback, target
 primitives, and immediate formal-node prerequisites; validation rejects queues
 that omit selected-route formal nodes or order attempts contrary to
-`formal_realization_dag_edges`. Minimality rationales are validated as
+`formal_realization_dag_edges`. Queue `target_primitives` must also stay within
+the selected `minimal_delta_plan` primitives or the formal realization DAG
+primitive set; request-baseline or alternative-route primitives may remain in
+the AND/OR cost graph, but they cannot be scheduled for prover execution unless
+the selected formal route actually realizes them. Minimality rationales are
+validated as
 evidence-anchored text: they
 must mention selected primitives, the selected route option, coverage/cost
 buckets, route-cost comparisons, or concrete delta work, and placeholder
@@ -1941,7 +1946,11 @@ must appear exactly once; immediate formal predecessors must be listed as
 the queue. Queue rows carry `target_prover_family`, `owner`, `action`,
 `attempt_kind`, `expected_feedback`, and `target_primitives`, so prover
 adapters can run the next bottom-up attempt and return residual goals without
-guessing the route order.
+guessing the route order. `target_primitives` are intentionally stricter than
+general planner action targets: they must be drawn from selected
+`minimal_delta_plan` primitives or `formal_realization_dag_nodes` primitives,
+so an LLM cannot smuggle an unselected request-baseline primitive from an
+alternative cost route into the prover worklist.
 
 Accepted queue rows are also materialized into `proof_state_feedback`
 interactive refinement hooks and `blocked_by_formal_side_condition` route
