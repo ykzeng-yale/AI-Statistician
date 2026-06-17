@@ -6986,6 +6986,108 @@ def test_llm_route_planner_interactive_feedback_uses_structured_target_primitive
     assert feedback_queue_row["target_primitives"] == ("rank_uniformity",)
 
 
+def test_llm_route_planner_overlay_feedback_uses_revised_delta_target_primitives() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_overlay_structured_targets"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    overlay_dir = root / "route_revision_overlay"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    (
+        overlay_dir / "formalization_gap_planner_route_revision_overlay_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_route_revision_overlay",
+                "rows": [
+                    {
+                        "route_revision_overlay_id": "overlay:rank_route",
+                        "route_id": "rank_route",
+                        "display_name": "distribution_free_rank_bound",
+                        "revision_status": "ROUTE_REVISION_APPLIED",
+                        "route_revision_summary": "apply revised source-backed route",
+                        "revised_selected_primitives": [
+                            "exchangeability",
+                            "rank_uniformity",
+                        ],
+                        "revised_delta_primitives": ["rank_uniformity"],
+                        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    response_json.write_text(
+        json.dumps(_llm_response_payload(), indent=2),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_route_revision_overlay_dir=overlay_dir,
+    )
+
+    assert payload["all_ok"]
+    feedback_action = next(
+        action
+        for action in payload["request_packets"][0]["context_packet"][
+            "feedback_loop_summary"
+        ]["recommended_next_actions"]
+        if action["source"] == "route_revision_overlay"
+    )
+    assert feedback_action["primitive"] == "rank_uniformity"
+    assert feedback_action["target_primitives"] == ["rank_uniformity"]
+    assert feedback_action["revised_delta_primitives"] == ["rank_uniformity"]
+    seed_route = payload["standalone_seed"]["routes"][0]
+    feedback_hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_feedback_next_action", {}).get("source")
+        == "route_revision_overlay"
+    )
+    assert feedback_hook["hook_kind"] == "route_revision"
+    assert feedback_hook["target_primitives"] == ["rank_uniformity"]
+    feedback_trigger = next(
+        trigger
+        for trigger in seed_route["route_revision_triggers"]
+        if trigger.get("llm_route_planner_feedback_next_action", {}).get("source")
+        == "route_revision_overlay"
+    )
+    assert feedback_trigger["target_primitives"] == ["rank_uniformity"]
+
+    plan_dir = root / "standalone_plan_from_overlay_structured_targets"
+    refinement_queue_dir = root / "refinement_queue_from_overlay_structured_targets"
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    queue_payload = export_formalization_gap_planner_refinement_queue(
+        plan_dir,
+        refinement_queue_dir,
+    )
+    assert queue_payload["all_ok"]
+    feedback_queue_row = next(
+        row
+        for row in queue_payload["rows"]
+        if row["hook_kind"] == "route_revision"
+        and row["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_feedback_next_action", {}
+        ).get("source")
+        == "route_revision_overlay"
+    )
+    assert feedback_queue_row["target_primitives"] == ("rank_uniformity",)
+
+
 def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_quality_controls"

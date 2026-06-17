@@ -26137,20 +26137,23 @@ def _feedback_next_actions(
             or _str_tuple(row.get("revised_selected_primitives", []))
         ):
             continue
-        actions.append(
-            {
-                "source": "route_revision_overlay",
-                "owner": "route_planner",
-                "action": str(row.get("route_revision_summary", "")).strip()
-                or "apply_route_revision_overlay",
-                "revised_selected_primitives": list(
-                    _str_tuple(row.get("revised_selected_primitives", []))[:12]
-                ),
-                "revised_delta_primitives": list(
-                    _str_tuple(row.get("revised_delta_primitives", []))[:12]
-                ),
-            }
-        )
+        target_primitives = _feedback_row_target_primitives(row)
+        action_row = {
+            "source": "route_revision_overlay",
+            "owner": "route_planner",
+            "action": str(row.get("route_revision_summary", "")).strip()
+            or "apply_route_revision_overlay",
+            "revised_selected_primitives": list(
+                _str_tuple(row.get("revised_selected_primitives", []))[:12]
+            ),
+            "revised_delta_primitives": list(
+                _str_tuple(row.get("revised_delta_primitives", []))[:12]
+            ),
+        }
+        if target_primitives:
+            action_row["primitive"] = target_primitives[0]
+            action_row["target_primitives"] = list(target_primitives[:8])
+        actions.append(action_row)
     for row in rows_by_field.get("route_replan_handoff_rows", ()):
         if not (
             _str_tuple(row.get("next_commands", []))
@@ -26158,6 +26161,7 @@ def _feedback_next_actions(
             or _str_tuple(row.get("applied_refinement_evidence_ids", []))
         ):
             continue
+        target_primitives = _feedback_row_target_primitives(row)
         action = {
             "source": "route_replan_handoff",
             "owner": "route_planner",
@@ -26179,6 +26183,9 @@ def _feedback_next_actions(
             "quality_controls": _dict_value(row, "quality_controls"),
             "commands": list(_str_tuple(row.get("next_commands", []))[:8]),
         }
+        if target_primitives:
+            action["primitive"] = target_primitives[0]
+            action["target_primitives"] = list(target_primitives[:8])
         readiness_summary = _resource_feedback_readiness_summary(
             {"route_replan_handoff_rows": [row]}
         )
@@ -26207,6 +26214,7 @@ def _feedback_row_target_primitives(row: Mapping[str, object]) -> tuple[str, ...
         str(row.get("primitive", "")).strip(),
         *_str_tuple(row.get("primitives", [])),
         str(row.get("residual_gap", "")).strip(),
+        *_str_tuple(row.get("revised_delta_primitives", [])),
         *_str_tuple(request_playbook.get("target_primitives", [])),
         *_str_tuple(request_playbook.get("target_primitive", [])),
         str(request_playbook.get("primitive", "")).strip(),
@@ -26218,13 +26226,18 @@ def _feedback_row_target_primitives(row: Mapping[str, object]) -> tuple[str, ...
     for field_name in (
         "resource_request_dispatch_summaries",
         "residual_goal_contexts",
+        "applied_resource_response_traces",
+        "applied_refinement_evidence_traces",
     ):
         for item in _dict_tuple(row.get(field_name, [])):
             values.extend(_str_tuple(item.get("target_primitives", [])))
             values.extend(_str_tuple(item.get("target_primitive", [])))
             values.append(str(item.get("primitive", "")).strip())
             values.append(str(item.get("residual_gap", "")).strip())
-    return _unique_strings(values)
+    scoped = _unique_strings(values)
+    if scoped:
+        return scoped
+    return _unique_strings(_str_tuple(row.get("revised_selected_primitives", [])))
 
 
 def _collect_source_snippets(
