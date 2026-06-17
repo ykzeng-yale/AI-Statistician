@@ -203,6 +203,9 @@ TARGET_THEOREM_CONTEXT_PACKET_KIND = (
 LIBRARY_ALIGNMENT_SUMMARY_KIND = (
     "formalization_gap_planner_llm_route_planner_library_alignment_summary"
 )
+ROUTE_OPTION_SELECTION_BRIEF_KIND = (
+    "formalization_gap_planner_llm_route_planner_route_option_selection_brief"
+)
 SOURCE_THEOREM_SEMANTIC_PRIMITIVE_BRIDGE_RESOURCE_ID = (
     "source_theorem_semantic_primitive_bridge"
 )
@@ -1530,6 +1533,45 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
         "by_request_library_alignment_minimum_coverage_bucket": dict(
             sorted(by_library_minimum_coverage_bucket.items())
+        ),
+        "n_requests_with_route_option_selection_brief": sum(
+            1
+            for packet in request_packets
+            if _dict_value(
+                _dict_value(packet, "context_packet"),
+                "route_option_selection_brief",
+            )
+        ),
+        "n_request_route_option_selection_candidate_options": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "route_option_selection_brief",
+                    ).get("candidate_route_options", [])
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_request_route_option_selection_candidate_primitives": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "route_option_selection_brief",
+                ).get("n_candidate_route_option_primitives", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_route_option_selection_lower_bound_options": sum(
+            1
+            for packet in request_packets
+            if str(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "route_option_selection_brief",
+                ).get("lower_bound_selected_route_option_id", "")
+            ).strip()
         ),
         "n_requests_with_legacy_context_field_aliases": sum(
             1
@@ -3751,6 +3793,7 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
                     "library_alignment_summary": {
                         "$ref": "#/$defs/library_alignment_summary"
                     },
+                    "route_option_selection_brief": {"type": "object"},
                     "route_adoption_preconditions": {"type": "object"},
                     "residual_goal_contexts": object_array,
                 },
@@ -4096,6 +4139,10 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "total_request_library_alignment_route_option_minimum_base_cost",
             "by_request_library_alignment_delta_class",
             "by_request_library_alignment_minimum_coverage_bucket",
+            "n_requests_with_route_option_selection_brief",
+            "n_request_route_option_selection_candidate_options",
+            "n_request_route_option_selection_candidate_primitives",
+            "n_request_route_option_selection_lower_bound_options",
             "n_requests_with_legacy_context_field_aliases",
             "n_request_model_tier_haiku",
             "n_request_model_tier_sonnet",
@@ -4342,6 +4389,16 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "by_request_library_alignment_minimum_coverage_bucket": {
                 "type": "object"
             },
+            "n_requests_with_route_option_selection_brief": nonnegative_integer,
+            "n_request_route_option_selection_candidate_options": (
+                nonnegative_integer
+            ),
+            "n_request_route_option_selection_candidate_primitives": (
+                nonnegative_integer
+            ),
+            "n_request_route_option_selection_lower_bound_options": (
+                nonnegative_integer
+            ),
             "n_requests_with_legacy_context_field_aliases": nonnegative_integer,
             "n_request_model_tier_haiku": nonnegative_integer,
             "n_request_model_tier_sonnet": nonnegative_integer,
@@ -5995,6 +6052,47 @@ def validate_llm_route_planner_manifest(
             "by_request_library_alignment_minimum_coverage_bucket must match "
             "request_packets"
         )
+    route_option_selection_briefs = tuple(
+        _dict_value(
+            _dict_value(packet, "context_packet"),
+            "route_option_selection_brief",
+        )
+        for packet in request_packets
+    )
+    if int(
+        manifest.get("n_requests_with_route_option_selection_brief", 0) or 0
+    ) != sum(1 for brief in route_option_selection_briefs if brief):
+        errors.append(
+            "n_requests_with_route_option_selection_brief must match request_packets"
+        )
+    if int(
+        manifest.get("n_request_route_option_selection_candidate_options", 0) or 0
+    ) != sum(
+        len(_dict_tuple(brief.get("candidate_route_options", [])))
+        for brief in route_option_selection_briefs
+    ):
+        errors.append(
+            "n_request_route_option_selection_candidate_options must match request_packets"
+        )
+    if int(
+        manifest.get("n_request_route_option_selection_candidate_primitives", 0) or 0
+    ) != sum(
+        int(brief.get("n_candidate_route_option_primitives", 0) or 0)
+        for brief in route_option_selection_briefs
+    ):
+        errors.append(
+            "n_request_route_option_selection_candidate_primitives must match request_packets"
+        )
+    if int(
+        manifest.get("n_request_route_option_selection_lower_bound_options", 0) or 0
+    ) != sum(
+        1
+        for brief in route_option_selection_briefs
+        if str(brief.get("lower_bound_selected_route_option_id", "")).strip()
+    ):
+        errors.append(
+            "n_request_route_option_selection_lower_bound_options must match request_packets"
+        )
     decision_evidence_rows = tuple(
         _dict_value(packet, "model_tier_decision_evidence")
         for packet in request_packets
@@ -7290,6 +7388,13 @@ def _request_packet(
         target_prover_family=target_prover_family,
         library_snapshot_ref=library_snapshot_ref,
     )
+    context_packet["route_option_selection_brief"] = _route_option_selection_brief(
+        context_packet,
+        route_id=route_id,
+        display_name=display_name,
+        target_prover_family=target_prover_family,
+        library_snapshot_ref=library_snapshot_ref,
+    )
     context_packet["source_grounding_rows"] = [
         dict(row) for row in _source_grounding_rows_with_inline(context_packet)
     ]
@@ -7566,6 +7671,133 @@ def _library_alignment_summary(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _route_option_selection_brief(
+    context_packet: Mapping[str, Any],
+    *,
+    route_id: str,
+    display_name: str,
+    target_prover_family: str,
+    library_snapshot_ref: str,
+) -> dict[str, object]:
+    alignment_summary = _dict_value(context_packet, "library_alignment_summary")
+    ranked_options = sorted(
+        [
+            (index, dict(row))
+            for index, row in enumerate(
+                _dict_tuple(alignment_summary.get("route_option_alignment", []))
+            )
+        ],
+        key=lambda item: _route_option_selection_sort_key(item[1], item[0]),
+    )
+    best_cost = (
+        _route_option_minimum_cost(ranked_options[0][1])
+        if ranked_options
+        else float("inf")
+    )
+    candidate_options: list[dict[str, object]] = []
+    for rank, (source_index, row) in enumerate(ranked_options, start=1):
+        option_id = str(row.get("route_option_id", "")).strip()
+        minimum_cost = _route_option_minimum_cost(row)
+        lower_bound_tied = bool(
+            option_id
+            and minimum_cost < float("inf")
+            and abs(minimum_cost - best_cost) < 1e-9
+        )
+        candidate_options.append(
+            {
+                "route_option_id": option_id,
+                "source_route_option_index": source_index,
+                "selection_rank": rank,
+                "selected_by_lower_bound_policy": rank == 1 and bool(option_id),
+                "lower_bound_tied_for_best": lower_bound_tied,
+                "option_kind": str(row.get("option_kind", "")),
+                "selected_primitives": list(
+                    _str_tuple(row.get("selected_primitives", []))
+                ),
+                "n_selected_primitives": int(
+                    row.get("n_selected_primitives", 0) or 0
+                ),
+                "minimum_route_base_cost": row.get("minimum_route_base_cost", 0),
+                "n_bridge_or_harder_primitives": int(
+                    row.get("n_bridge_or_harder_primitives", 0) or 0
+                ),
+                "n_target_compatible_reuse_declarations": int(
+                    row.get("n_target_compatible_reuse_declarations", 0) or 0
+                ),
+                "by_library_delta_class": dict(
+                    _dict_from_optional_mapping(
+                        row.get("by_library_delta_class", {})
+                    )
+                ),
+                "by_minimum_coverage_bucket": dict(
+                    _dict_from_optional_mapping(
+                        row.get("by_minimum_coverage_bucket", {})
+                    )
+                ),
+                "cost_rationale": str(row.get("cost_rationale", "")),
+            }
+        )
+    selected = candidate_options[0] if candidate_options else {}
+    return {
+        "schema_version": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
+        "brief_kind": ROUTE_OPTION_SELECTION_BRIEF_KIND,
+        "route_id": route_id,
+        "display_name": display_name,
+        "target_prover_family": target_prover_family,
+        "library_snapshot_ref": library_snapshot_ref,
+        "cost_policy_id": MINIMAL_DELTA_COST_POLICY_ID,
+        "selection_rule": (
+            "Rank route options by minimum_route_base_cost, then fewer "
+            "bridge-or-harder primitives, then more target-compatible reuse "
+            "declarations."
+        ),
+        "n_candidate_route_options": len(candidate_options),
+        "n_candidate_route_option_primitives": sum(
+            int(option.get("n_selected_primitives", 0) or 0)
+            for option in candidate_options
+        ),
+        "n_lower_bound_tied_route_options": sum(
+            1 for option in candidate_options if option.get("lower_bound_tied_for_best")
+        ),
+        "lower_bound_selected_route_option_id": str(
+            selected.get("route_option_id", "")
+        ),
+        "lower_bound_selected_route_cost": selected.get(
+            "minimum_route_base_cost",
+            0,
+        ),
+        "candidate_route_options": candidate_options,
+        "required_response_bindings": [
+            "minimal_delta_plan.and_or_cost_graph.route_options",
+            "minimal_delta_plan.and_or_cost_graph.selected_route_option_id",
+            "minimal_delta_plan.route_cost",
+            "minimal_delta_plan.primitive_costs",
+        ],
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _route_option_minimum_cost(row: Mapping[str, object]) -> float:
+    value = row.get("minimum_route_base_cost", 0)
+    if _is_nonnegative_number(value):
+        return float(value)
+    return float("inf")
+
+
+def _route_option_selection_sort_key(
+    row: Mapping[str, object],
+    source_index: int,
+) -> tuple[float, int, int, int, str]:
+    return (
+        _route_option_minimum_cost(row),
+        int(row.get("n_bridge_or_harder_primitives", 0) or 0),
+        -int(row.get("n_target_compatible_reuse_declarations", 0) or 0),
+        source_index,
+        str(row.get("route_option_id", "")),
+    )
 
 
 def _library_delta_class_for_bucket(bucket: str) -> str:
@@ -9418,6 +9650,10 @@ def _context_packet_inventory(
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
     cost_hints = _dict_value(context_packet, "minimal_delta_cost_hints")
     alignment_summary = _dict_value(context_packet, "library_alignment_summary")
+    route_option_selection_brief = _dict_value(
+        context_packet,
+        "route_option_selection_brief",
+    )
     resource_feedback_readiness = _dict_value(
         context_packet,
         "resource_feedback_readiness_summary",
@@ -9601,6 +9837,25 @@ def _context_packet_inventory(
         "library_alignment_target_compatible_reuse_declaration_count": int(
             alignment_summary.get("n_target_compatible_reuse_declarations", 0)
             or 0
+        ),
+        "route_option_selection_brief_present": bool(route_option_selection_brief),
+        "route_option_selection_candidate_count": len(
+            _dict_tuple(route_option_selection_brief.get("candidate_route_options", []))
+        ),
+        "route_option_selection_candidate_primitive_count": int(
+            route_option_selection_brief.get(
+                "n_candidate_route_option_primitives",
+                0,
+            )
+            or 0
+        ),
+        "route_option_selection_lower_bound_selected": bool(
+            str(
+                route_option_selection_brief.get(
+                    "lower_bound_selected_route_option_id",
+                    "",
+                )
+            ).strip()
         ),
         "resource_feedback_readiness_summary_present": bool(
             resource_feedback_readiness
@@ -9805,6 +10060,49 @@ def _library_alignment_summary_errors(
             errors.append(
                 "context_packet.library_alignment_summary."
                 f"{field_name} must match minimal_delta_cost_hints"
+            )
+    return errors
+
+
+def _route_option_selection_brief_errors(
+    context_packet: Mapping[str, Any],
+) -> list[str]:
+    brief = _dict_value(context_packet, "route_option_selection_brief")
+    if not brief:
+        return []
+    expected = _route_option_selection_brief(
+        context_packet,
+        route_id=str(context_packet.get("route_id", "")),
+        display_name=str(
+            context_packet.get("display_name", "")
+            or context_packet.get("route_id", "")
+        ),
+        target_prover_family=str(context_packet.get("target_prover_family", "")),
+        library_snapshot_ref=str(context_packet.get("library_snapshot_ref", "")),
+    )
+    errors: list[str] = []
+    if brief.get("brief_kind") != ROUTE_OPTION_SELECTION_BRIEF_KIND:
+        errors.append(
+            "context_packet.route_option_selection_brief.brief_kind must equal "
+            + ROUTE_OPTION_SELECTION_BRIEF_KIND
+        )
+    for field_name in (
+        "route_id",
+        "display_name",
+        "target_prover_family",
+        "library_snapshot_ref",
+        "cost_policy_id",
+        "n_candidate_route_options",
+        "n_candidate_route_option_primitives",
+        "n_lower_bound_tied_route_options",
+        "lower_bound_selected_route_option_id",
+        "lower_bound_selected_route_cost",
+        "candidate_route_options",
+    ):
+        if brief.get(field_name) != expected.get(field_name):
+            errors.append(
+                "context_packet.route_option_selection_brief."
+                f"{field_name} must match context_packet.library_alignment_summary"
             )
     return errors
 
@@ -10221,6 +10519,62 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                     "context_packet.context_packet_inventory."
                     f"{inventory_field} must match "
                     "context_packet.library_alignment_summary"
+                )
+    route_option_selection_brief = _dict_value(
+        context_packet,
+        "route_option_selection_brief",
+    )
+    if bool(
+        inventory.get("route_option_selection_brief_present", False)
+    ) != bool(route_option_selection_brief):
+        errors.append(
+            "context_packet.context_packet_inventory."
+            "route_option_selection_brief_present must match "
+            "context_packet.route_option_selection_brief"
+        )
+    if route_option_selection_brief:
+        errors.extend(_route_option_selection_brief_errors(context_packet))
+        option_rows = _dict_tuple(
+            route_option_selection_brief.get("candidate_route_options", [])
+        )
+        option_count_checks = (
+            ("route_option_selection_candidate_count", len(option_rows)),
+            (
+                "route_option_selection_candidate_primitive_count",
+                int(
+                    route_option_selection_brief.get(
+                        "n_candidate_route_option_primitives",
+                        0,
+                    )
+                    or 0
+                ),
+            ),
+            (
+                "route_option_selection_lower_bound_selected",
+                bool(
+                    str(
+                        route_option_selection_brief.get(
+                            "lower_bound_selected_route_option_id",
+                            "",
+                        )
+                    ).strip()
+                ),
+            ),
+        )
+        for field_name, expected_value in option_count_checks:
+            actual_value = inventory.get(
+                field_name,
+                False if isinstance(expected_value, bool) else 0,
+            )
+            if isinstance(expected_value, bool):
+                matches = bool(actual_value) == expected_value
+            else:
+                matches = int(actual_value or 0) == expected_value
+            if not matches:
+                errors.append(
+                    "context_packet.context_packet_inventory."
+                    f"{field_name} must match "
+                    "context_packet.route_option_selection_brief"
                 )
     route_adoption_preconditions = _dict_value(
         context_packet,
@@ -11037,6 +11391,7 @@ def _user_prompt(
             "Use context_packet.context_packet_inventory as the compact inventory of available evidence and feedback rows; raw context_packet rows remain the source of truth if a count is surprising.",
             "Use context_packet.route_adoption_preconditions as the pre-response forecast of known route-adoption blockers; if known_pre_response_blockers is nonempty, preserve blocker-specific residual interpretations, search_requests, or planner_next_actions instead of presenting the route as replay-ready.",
             "Use context_packet.legacy_context_field_aliases only as a compatibility map; prefer portable fields such as formal_library_grounding_queries and formal_declaration_hits in new route output.",
+            "Use context_packet.route_option_selection_brief as the compact route-option comparison table; its lower_bound_selected_route_option_id is a planning hint, not proof evidence, and the returned minimal_delta_plan.and_or_cost_graph.selected_route_option_id must be cost-compatible with that table or explicitly justified by response evidence.",
             "Use context_packet.component_resource_registry_context only to choose bounded search/prover next actions; registry rows are not evidence that a tool was called.",
             "Use context_packet.source_theorem_semantic_primitive_rows, context_packet.proof_body_semantic_primitive_work_order_rows, context_packet.source_theorem_formal_environment_rows, and context_packet.source_theorem_proof_body_execution_result_rows as ProofEngineer/proof-body feedback for route repair and minimal-delta planning; these rows are not theorem proof evidence and do not by themselves source-ground new mathematical side conditions.",
             "Use context_packet.formal_verifier_agentic_proof_strategy_plan_rows and context_packet.agentic_proof_strategy_plan_summary as bounded live-tool/evaluator-gated proof-search work contracts for planner_next_actions or formal_attempt_queue; these rows are planning input, not theorem proof evidence.",

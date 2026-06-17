@@ -1807,6 +1807,10 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         ]
         == 4.0
     )
+    assert payload["n_requests_with_route_option_selection_brief"] == 1
+    assert payload["n_request_route_option_selection_candidate_options"] == 1
+    assert payload["n_request_route_option_selection_candidate_primitives"] == 2
+    assert payload["n_request_route_option_selection_lower_bound_options"] == 1
     assert payload["by_request_library_alignment_delta_class"] == {
         "bridge": 1,
         "reuse_ready": 1,
@@ -2085,6 +2089,10 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert inventory["library_alignment_reuse_ready_count"] == 1
     assert inventory["library_alignment_bridge_count"] == 1
     assert inventory["library_alignment_bridge_or_harder_count"] == 1
+    assert inventory["route_option_selection_brief_present"] is True
+    assert inventory["route_option_selection_candidate_count"] == 1
+    assert inventory["route_option_selection_candidate_primitive_count"] == 2
+    assert inventory["route_option_selection_lower_bound_selected"] is True
     assert inventory["feedback_loop_summary_present"] is bool(
         context["feedback_loop_summary"]
     )
@@ -2157,6 +2165,29 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         "bridge": 1,
         "reuse_ready": 1,
     }
+    route_option_brief = context["route_option_selection_brief"]
+    assert route_option_brief["brief_kind"] == (
+        "formalization_gap_planner_llm_route_planner_route_option_selection_brief"
+    )
+    assert route_option_brief["route_id"] == "rank_route"
+    assert route_option_brief["cost_policy_id"] == (
+        "formalization_gap_planner_minimal_delta_cost_policy:1"
+    )
+    assert route_option_brief["n_candidate_route_options"] == 1
+    assert route_option_brief["n_candidate_route_option_primitives"] == 2
+    assert route_option_brief["lower_bound_selected_route_option_id"] == (
+        "route_option:current_route_min_delta_baseline"
+    )
+    assert route_option_brief["lower_bound_selected_route_cost"] == 4.0
+    assert route_option_brief["candidate_route_options"][0][
+        "selected_by_lower_bound_policy"
+    ] is True
+    assert route_option_brief["candidate_route_options"][0][
+        "selected_primitives"
+    ] == ["exchangeability", "rank_uniformity"]
+    assert route_option_brief["candidate_route_options"][0][
+        "by_library_delta_class"
+    ] == {"bridge": 1, "reuse_ready": 1}
     alignment_by_primitive = {
         row["primitive"]: row for row in alignment_summary["primitive_alignment"]
     }
@@ -2181,6 +2212,7 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert "prefer portable fields" in request["prompt_messages"]["user"]
     assert "minimal_delta_cost_hints" in request["prompt_messages"]["user"]
     assert "library_alignment_summary" in request["prompt_messages"]["user"]
+    assert "route_option_selection_brief" in request["prompt_messages"]["user"]
     assert "minimum_base_cost" in request["prompt_messages"]["user"]
     assert "context_packet_inventory" in request["prompt_messages"]["user"]
     assert "route_planning_brief" in request["prompt_messages"]["user"]
@@ -2260,6 +2292,27 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         "primitive_evidence_row_count must match "
         "context_packet.route_planning_brief.primitive_evidence_matrix"
         in validate_llm_route_planner_request(drifted_matrix_summary_request)
+    )
+    drifted_route_option_request = deepcopy(request)
+    drifted_route_option_request["context_packet"]["route_option_selection_brief"][
+        "n_candidate_route_options"
+    ] = 999
+    assert (
+        "context_packet.route_option_selection_brief.n_candidate_route_options "
+        "must match context_packet.library_alignment_summary"
+        in validate_llm_route_planner_request(drifted_route_option_request)
+    )
+    drifted_route_option_inventory_request = deepcopy(request)
+    drifted_route_option_inventory_request["context_packet"][
+        "context_packet_inventory"
+    ]["route_option_selection_candidate_count"] = 999
+    assert (
+        "context_packet.context_packet_inventory."
+        "route_option_selection_candidate_count must match "
+        "context_packet.route_option_selection_brief"
+        in validate_llm_route_planner_request(
+            drifted_route_option_inventory_request
+        )
     )
     drifted_target_context_request = deepcopy(request)
     drifted_target_context_request["context_packet"][
