@@ -503,6 +503,40 @@ def _retarget_formal_attempt_queue(
         )
 
 
+def _set_existing_candidate_declaration_rows(
+    response: dict[str, object],
+    *,
+    declaration: str,
+    target_prover_family: str,
+) -> None:
+    declaration_row = {
+        "declaration": declaration,
+        "target_prover_family": target_prover_family,
+        "source_field": "candidate_declarations",
+    }
+    for field_name in ("formal_realization_dag_nodes", "lean_realization_dag_nodes"):
+        for node in response.get(field_name, []):
+            if (
+                not isinstance(node, dict)
+                or node.get("primitive") != "exchangeability"
+            ):
+                continue
+            node["candidate_declarations"] = [declaration]
+            node["candidate_declaration_rows"] = [dict(declaration_row)]
+    route = response.get("standalone_route", {})
+    if not isinstance(route, dict):
+        return
+    route["target_prover_family"] = target_prover_family
+    for primitive in route.get("primitives", []):
+        if (
+            not isinstance(primitive, dict)
+            or primitive.get("primitive") != "exchangeability"
+        ):
+            continue
+        primitive["candidate_declarations"] = [declaration]
+        primitive["candidate_declaration_rows"] = [dict(declaration_row)]
+
+
 def _append_bridge_cost(
     response: dict[str, object],
     primitive: str,
@@ -12710,6 +12744,11 @@ def test_llm_route_planner_accepts_non_lean_generic_formal_realization_nodes() -
     response["standalone_route"]["primitives"][0]["candidate_declarations"] = [
         "Rocq.Probability.exchangeable"
     ]
+    _set_existing_candidate_declaration_rows(
+        response,
+        declaration="Rocq.Probability.exchangeable",
+        target_prover_family="rocq",
+    )
     _retarget_formal_attempt_queue(
         response,
         target_prover_family="rocq",
@@ -12847,6 +12886,11 @@ def test_llm_route_planner_target_scopes_lean_search_hooks_for_rocq() -> None:
     response["standalone_route"]["primitives"][0]["candidate_declarations"] = [
         "Rocq.Probability.exchangeable"
     ]
+    _set_existing_candidate_declaration_rows(
+        response,
+        declaration="Rocq.Probability.exchangeable",
+        target_prover_family="rocq",
+    )
     _retarget_formal_attempt_queue(
         response,
         target_prover_family="rocq",
@@ -12854,15 +12898,18 @@ def test_llm_route_planner_target_scopes_lean_search_hooks_for_rocq() -> None:
     )
     response["search_requests"] = [
         {
-            "request_kind": "lean_search",
-            "query": "LeanSearch-style rank_uniformity query for Rocq exchangeability",
-            "reason": "reuse the LLM vocabulary but search the target Rocq library",
+            "request_kind": "formal_library",
+            "query": "rank_uniformity target-library query for Rocq exchangeability",
+            "reason": (
+                "search the target Rocq library through the portable "
+                "formal-library contract"
+            ),
         }
     ]
     response["planner_next_actions"] = [
         {
             "owner": "formal_retrieval",
-            "action": "run LeanSearch-style declaration query against the Rocq adapter",
+            "action": "run target-prover declaration query against the Rocq adapter",
         }
     ]
     response_json.write_text(json.dumps(response), encoding="utf-8")
@@ -12973,6 +13020,11 @@ def test_llm_route_planner_accepts_target_filtered_registry_adapter_id() -> None
     response["standalone_route"]["primitives"][0]["candidate_declarations"] = [
         "Rocq.Probability.exchangeable"
     ]
+    _set_existing_candidate_declaration_rows(
+        response,
+        declaration="Rocq.Probability.exchangeable",
+        target_prover_family="rocq",
+    )
     _retarget_formal_attempt_queue(
         response,
         target_prover_family="rocq",
@@ -15508,10 +15560,19 @@ def test_llm_route_planner_accepts_target_specific_rocq_tools_for_rocq_target() 
     input_payload = json.loads(input_json.read_text(encoding="utf-8"))
     input_payload["target_prover_family"] = "rocq"
     input_payload["library_snapshot_ref"] = "rocq_probability_snapshot"
+    input_payload["routes"][0]["target_prover_family"] = "rocq"
+    input_payload["routes"][0]["primitives"][0]["candidate_declarations"] = [
+        "Rocq.Probability.exchangeable"
+    ]
     input_json.write_text(json.dumps(input_payload), encoding="utf-8")
     response = _llm_response_payload()
     response["formal_realization_dag_nodes"] = response.pop(
         "lean_realization_dag_nodes"
+    )
+    _set_existing_candidate_declaration_rows(
+        response,
+        declaration="Rocq.Probability.exchangeable",
+        target_prover_family="rocq",
     )
     _retarget_formal_attempt_queue(
         response,
@@ -15557,10 +15618,19 @@ def test_llm_route_planner_accepts_target_specific_hol4_tools_for_hol4_target() 
     input_payload = json.loads(input_json.read_text(encoding="utf-8"))
     input_payload["target_prover_family"] = "hol_4"
     input_payload["library_snapshot_ref"] = "hol4_probability_snapshot"
+    input_payload["routes"][0]["target_prover_family"] = "hol_4"
+    input_payload["routes"][0]["primitives"][0]["candidate_declarations"] = [
+        "HOL4.Probability.exchangeable"
+    ]
     input_json.write_text(json.dumps(input_payload), encoding="utf-8")
     response = _llm_response_payload()
     response["formal_realization_dag_nodes"] = response.pop(
         "lean_realization_dag_nodes"
+    )
+    _set_existing_candidate_declaration_rows(
+        response,
+        declaration="HOL4.Probability.exchangeable",
+        target_prover_family="hol_4",
     )
     _retarget_formal_attempt_queue(
         response,
@@ -18291,6 +18361,78 @@ def test_llm_route_planner_rejects_wrong_target_candidate_declarations() -> None
     row = payload["rows"][0]
     assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
     assert any("ungrounded candidate_declarations" in error for error in row["errors"])
+
+
+def test_llm_route_planner_rejects_non_lean_bare_candidate_declarations() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_rocq_bare_declarations"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["target_prover_family"] = "rocq"
+    input_payload["library_snapshot_ref"] = "rocq_probability_snapshot"
+    input_payload["routes"][0]["target_prover_family"] = "rocq"
+    input_payload["routes"][0]["primitives"][0]["candidate_declarations"] = [
+        "Rocq.Probability.exchangeable"
+    ]
+    input_json.write_text(json.dumps(input_payload), encoding="utf-8")
+
+    bad_response = _llm_response_payload()
+    bad_response["formal_realization_dag_nodes"] = bad_response.pop(
+        "lean_realization_dag_nodes"
+    )
+    for node in bad_response["formal_realization_dag_nodes"]:
+        if node["primitive"] == "exchangeability":
+            node["candidate_declarations"] = ["Rocq.Probability.exchangeable"]
+            node.pop("candidate_declaration_rows", None)
+    bad_response["standalone_route"]["target_prover_family"] = "rocq"
+    bad_response["standalone_route"]["primitives"][0]["candidate_declarations"] = [
+        "Rocq.Probability.exchangeable"
+    ]
+    bad_response["standalone_route"]["primitives"][0].pop(
+        "candidate_declaration_rows",
+        None,
+    )
+    _retarget_formal_attempt_queue(
+        bad_response,
+        target_prover_family="rocq",
+        owner="rocq_lsp_serapi",
+    )
+    bad_response["search_requests"] = [
+        {
+            "request_kind": "formal_library",
+            "owner": "rocq_lsp_serapi",
+            "query": "rank_uniformity Rocq declaration search",
+            "reason": "Search the Rocq library adapter for the target primitive.",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    bad_response["planner_next_actions"] = [
+        {
+            "owner": "rocq_lsp_serapi",
+            "action": "run Rocq proof-state feedback for the rank_uniformity bridge",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert "non-Lean target_prover_family rocq" in error_text
+    assert "candidate_declaration_rows" in error_text
+    assert "bare candidate_declarations are not sufficient" in error_text
 
 
 def test_llm_route_planner_keeps_legacy_lean_declaration_hits_lean_scoped() -> None:

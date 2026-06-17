@@ -17224,6 +17224,9 @@ def _response_formal_declaration_grounding_errors(
     errors.extend(
         _response_existing_coverage_declaration_support_errors(payload, request)
     )
+    errors.extend(
+        _response_non_lean_bare_candidate_declaration_errors(payload, request)
+    )
     for index, node in enumerate(
         _formal_realization_nodes_from_payload(
             payload,
@@ -17250,6 +17253,87 @@ def _response_formal_declaration_grounding_errors(
                 f"[{index}] existing-library coverage requires grounded candidate_declarations"
         )
     return errors
+
+
+def _response_non_lean_bare_candidate_declaration_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    target_prover_family = str(request.get("target_prover_family", ""))
+    target_key = _target_prover_key(target_prover_family)
+    if not target_key or target_key == "lean4":
+        return []
+
+    errors: list[str] = []
+    inherited_payload_target = str(
+        payload.get("target_prover_family", "")
+        or payload.get("target_prover", "")
+        or target_prover_family
+    )
+    for index, node in enumerate(
+        _dict_tuple(payload.get("formal_realization_dag_nodes", []))
+    ):
+        if _formal_node_claims_existing_library(
+            node
+        ) and _node_uses_bare_candidate_declarations_without_target_rows(
+            node,
+            target_prover_family=target_prover_family,
+            inherited_target_prover_family=inherited_payload_target,
+        ):
+            errors.append(
+                "formal_realization_dag_nodes"
+                f"[{index}] existing-library coverage for non-Lean "
+                f"target_prover_family {target_key} must preserve target-prover "
+                "provenance with candidate_declaration_rows; bare "
+                "candidate_declarations are not sufficient"
+            )
+
+    route = _dict_value(payload, "standalone_route")
+    inherited_route_target = str(
+        route.get("target_prover_family", "")
+        or route.get("target_prover", "")
+        or inherited_payload_target
+    )
+    for index, primitive in enumerate(_dict_tuple(route.get("primitives", []))):
+        if _route_primitive_claims_existing_library(
+            primitive
+        ) and _node_uses_bare_candidate_declarations_without_target_rows(
+            primitive,
+            target_prover_family=target_prover_family,
+            inherited_target_prover_family=inherited_route_target,
+        ):
+            errors.append(
+                "standalone_route.primitives"
+                f"[{index}] existing-library coverage for non-Lean "
+                f"target_prover_family {target_key} must preserve target-prover "
+                "provenance with candidate_declaration_rows; bare "
+                "candidate_declarations are not sufficient"
+            )
+    return errors
+
+
+def _node_uses_bare_candidate_declarations_without_target_rows(
+    node: Mapping[str, Any],
+    *,
+    target_prover_family: str,
+    inherited_target_prover_family: str,
+) -> bool:
+    if not _formal_declaration_values(node.get("candidate_declarations", [])):
+        return False
+    row_target = str(
+        node.get("target_prover_family", "")
+        or node.get("target_prover", "")
+        or inherited_target_prover_family
+    )
+    explicit_rows = _candidate_declaration_rows(
+        node.get("candidate_declaration_rows", []),
+        inherited_target_prover_family=row_target,
+        fallback_source_field="candidate_declaration_rows",
+    )
+    return not _target_compatible_formal_declaration_rows(
+        explicit_rows,
+        target_prover_family=target_prover_family,
+    )
 
 
 def _response_existing_coverage_declaration_support_errors(
