@@ -22719,7 +22719,8 @@ def _introduced_primitive_evidence_errors(
             errors.append(
                 "introduced primitive requires aligned informal evidence "
                 "(grounded source_refs with explicit primitive scope, matching "
-                f"literature search_request, or formal_gap_boundary): {primitive}"
+                "literature search_request, or formal_gap_boundary naming/scoping "
+                f"the primitive): {primitive}"
             )
         if not any(
             _formal_node_supports_introduced_primitive(
@@ -22760,8 +22761,9 @@ def _informal_node_supports_introduced_primitive(
         _informal_node_explicitly_scopes_primitive(node, primitive=primitive)
     ):
         return True
-    if _formal_gap_boundary_is_substantive(
-        str(node.get("formal_gap_boundary", "") or "")
+    if _informal_node_formal_gap_boundary_supports_primitive(
+        node,
+        primitive=primitive,
     ):
         return True
     status = _source_ref_key(node.get("source_search_status", ""))
@@ -22789,6 +22791,22 @@ def _informal_node_explicitly_scopes_primitive(
         primitive_scope_universe={primitive_key},
     )
     return primitive_key in supported
+
+
+def _informal_node_formal_gap_boundary_supports_primitive(
+    node: Mapping[str, Any],
+    *,
+    primitive: str,
+) -> bool:
+    boundary = str(node.get("formal_gap_boundary", "") or "").strip()
+    if not _formal_gap_boundary_is_substantive(boundary):
+        return False
+    primitive_key = _primitive_key(primitive)
+    if not primitive_key:
+        return False
+    if _informal_node_explicitly_scopes_primitive(node, primitive=primitive):
+        return True
+    return primitive_key in _primitive_key(boundary)
 
 
 def _formal_node_supports_introduced_primitive(
