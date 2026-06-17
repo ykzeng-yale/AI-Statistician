@@ -785,11 +785,42 @@ def _route_option_cost_graph_errors(row: dict[str, Any]) -> tuple[str, ...]:
     route_options = _dict_tuple(graph.get("route_options", []))
     if not route_options:
         return ("route_option_cost_graph.route_options missing",)
-    route_option_ids = tuple(
-        str(option.get("route_option_id", ""))
-        for option in route_options
-        if str(option.get("route_option_id", ""))
-    )
+    if str(graph.get("graph_kind", "")).strip() != "AND_OR_ROUTE_COST_GRAPH":
+        errors = ["route_option_cost_graph.graph_kind must equal AND_OR_ROUTE_COST_GRAPH"]
+    else:
+        errors = []
+    route_option_ids: set[str] = set()
+    route_option_primitives_by_id: dict[str, set[str]] = {}
+    graph_primitives = set()
+    for option_index, option in enumerate(route_options):
+        option_id = str(option.get("route_option_id", "")).strip()
+        if not option_id:
+            errors.append("route option missing route_option_id")
+        elif option_id in route_option_ids:
+            errors.append(
+                "route_option_cost_graph."
+                f"route_options[{option_index}].route_option_id duplicates "
+                "another route option: "
+                + option_id
+            )
+        else:
+            route_option_ids.add(option_id)
+        primitives = set(_str_tuple(option.get("selected_primitives", [])))
+        if not primitives:
+            errors.append(f"route option {option_id or '<missing>'} primitives missing")
+        duplicate_primitives = _duplicate_string_values(
+            option.get("selected_primitives", [])
+        )
+        if duplicate_primitives:
+            errors.append(
+                "route_option_cost_graph."
+                f"route_options[{option_index}].selected_primitives must not "
+                "contain duplicates: "
+                + ", ".join(duplicate_primitives[:8])
+            )
+        if option_id:
+            route_option_primitives_by_id[option_id] = primitives
+        graph_primitives.update(primitives)
     selected_route_option_id = str(graph.get("selected_route_option_id", ""))
     selected_options = tuple(
         option
@@ -797,10 +828,9 @@ def _route_option_cost_graph_errors(row: dict[str, Any]) -> tuple[str, ...]:
         if option.get("selected")
         or str(option.get("route_option_id", "")) == selected_route_option_id
     )
-    errors: list[str] = []
     if not selected_route_option_id:
         errors.append("selected_route_option_id missing")
-    elif selected_route_option_id not in set(route_option_ids):
+    elif selected_route_option_id not in route_option_ids:
         errors.append("selected_route_option_id not in route_options")
     if len(selected_options) != 1:
         errors.append("exactly one selected route option required")
@@ -812,15 +842,14 @@ def _route_option_cost_graph_errors(row: dict[str, Any]) -> tuple[str, ...]:
             errors.append(
                 "selected route option primitives differ from row selected_primitives"
             )
-    graph_primitives = set()
-    for option in route_options:
-        option_id = str(option.get("route_option_id", ""))
-        if not option_id:
-            errors.append("route option missing route_option_id")
-        primitives = set(_str_tuple(option.get("selected_primitives", [])))
-        if not primitives:
-            errors.append(f"route option {option_id or '<missing>'} primitives missing")
-        graph_primitives.update(primitives)
+    errors.extend(
+        _route_option_cost_graph_structure_errors(
+            graph,
+            route_option_ids=route_option_ids,
+            route_option_primitives=graph_primitives,
+            route_option_primitives_by_id=route_option_primitives_by_id,
+        )
+    )
     expected_comparison_only = graph_primitives - selected
     summary_comparison_only = set(
         _str_tuple(summary.get("comparison_only_primitives", []))
@@ -844,6 +873,141 @@ def _route_option_cost_graph_errors(row: dict[str, Any]) -> tuple[str, ...]:
     ) != len(unselected_ids):
         errors.append("n_unselected_route_options summary mismatch")
     return tuple(sorted(set(errors)))
+
+
+def _route_option_cost_graph_structure_errors(
+    graph: dict[str, Any],
+    *,
+    route_option_ids: set[str],
+    route_option_primitives: set[str],
+    route_option_primitives_by_id: dict[str, set[str]],
+) -> list[str]:
+    errors: list[str] = []
+    or_nodes = _dict_tuple(graph.get("or_nodes", []))
+    route_options_referenced_by_or_nodes: set[str] = set()
+    if not or_nodes:
+        errors.append("route_option_cost_graph.or_nodes must be non-empty")
+    for index, node in enumerate(or_nodes):
+        if not str(node.get("node_id", "")).strip():
+            errors.append(f"route_option_cost_graph.or_nodes[{index}].node_id missing")
+        choices = _str_tuple(node.get("choices", []))
+        if not choices:
+            errors.append(
+                f"route_option_cost_graph.or_nodes[{index}].choices must be non-empty"
+            )
+        duplicate_choices = _duplicate_string_values(choices)
+        if duplicate_choices:
+            errors.append(
+                f"route_option_cost_graph.or_nodes[{index}].choices must not "
+                "contain duplicates: "
+                + ", ".join(duplicate_choices[:8])
+            )
+        unknown_choices = [
+            choice for choice in choices if choice not in route_option_ids
+        ]
+        if unknown_choices:
+            errors.append(
+                f"route_option_cost_graph.or_nodes[{index}].choices reference "
+                "unknown route options: "
+                + ", ".join(unknown_choices[:8])
+            )
+        route_options_referenced_by_or_nodes.update(
+            choice for choice in choices if choice in route_option_ids
+        )
+    unreachable_route_options = sorted(
+        route_option_ids - route_options_referenced_by_or_nodes
+    )
+    if unreachable_route_options:
+        errors.append(
+            "route_option_cost_graph.or_nodes choices must reference every route "
+            "option; unreachable route options: "
+            + ", ".join(unreachable_route_options[:8])
+        )
+
+    and_edges = _dict_tuple(graph.get("and_edges", []))
+    route_options_referenced_by_and_edges: set[str] = set()
+    and_edge_count_by_route_option: dict[str, int] = {}
+    if not and_edges:
+        errors.append("route_option_cost_graph.and_edges must be non-empty")
+    for index, edge in enumerate(and_edges):
+        option_id = str(edge.get("route_option_id", "")).strip()
+        if not option_id:
+            errors.append(
+                f"route_option_cost_graph.and_edges[{index}].route_option_id missing"
+            )
+        elif option_id not in route_option_ids:
+            errors.append(
+                f"route_option_cost_graph.and_edges[{index}].route_option_id "
+                "references unknown route option: "
+                + option_id
+            )
+        else:
+            route_options_referenced_by_and_edges.add(option_id)
+            and_edge_count_by_route_option[option_id] = (
+                and_edge_count_by_route_option.get(option_id, 0) + 1
+            )
+        requires = _str_tuple(edge.get("requires", []))
+        if not requires:
+            errors.append(
+                f"route_option_cost_graph.and_edges[{index}].requires must be non-empty"
+            )
+        duplicate_requires = _duplicate_string_values(requires)
+        if duplicate_requires:
+            errors.append(
+                f"route_option_cost_graph.and_edges[{index}].requires must not "
+                "contain duplicate primitives: "
+                + ", ".join(duplicate_requires[:8])
+            )
+        require_primitives = set(requires)
+        if option_id in route_option_primitives_by_id:
+            expected_primitives = route_option_primitives_by_id[option_id]
+            if require_primitives != expected_primitives:
+                errors.append(
+                    f"route_option_cost_graph.and_edges[{index}].requires must "
+                    "match route_options selected_primitives for route_option_id "
+                    + option_id
+                )
+        unknown_requires = sorted(require_primitives - route_option_primitives)
+        if unknown_requires:
+            errors.append(
+                f"route_option_cost_graph.and_edges[{index}].requires reference "
+                "unknown primitives: "
+                + ", ".join(unknown_requires[:8])
+            )
+    route_options_without_and_edges = sorted(
+        route_option_ids - route_options_referenced_by_and_edges
+    )
+    if route_options_without_and_edges:
+        errors.append(
+            "route_option_cost_graph.and_edges must include every route option; "
+            "route options without AND edges: "
+            + ", ".join(route_options_without_and_edges[:8])
+        )
+    route_options_with_duplicate_and_edges = sorted(
+        option_id
+        for option_id, count in and_edge_count_by_route_option.items()
+        if count > 1
+    )
+    if route_options_with_duplicate_and_edges:
+        errors.append(
+            "route_option_cost_graph.and_edges must include exactly one edge per "
+            "route option; route options with duplicate AND edges: "
+            + ", ".join(route_options_with_duplicate_and_edges[:8])
+        )
+    return errors
+
+
+def _duplicate_string_values(values: Any) -> tuple[str, ...]:
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for value in _str_tuple(values):
+        key = str(value).strip()
+        if not key:
+            continue
+        if key in seen:
+            duplicates.add(key)
+        seen.add(key)
+    return tuple(sorted(duplicates))
 
 
 def _int_or_negative_one(value: object) -> int:

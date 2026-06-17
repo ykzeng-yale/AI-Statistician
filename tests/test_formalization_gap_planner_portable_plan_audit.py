@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from copy import deepcopy
 from pathlib import Path
 
 from ai_statistician.formalization_gap_planner_portable_plan_audit import (
@@ -202,6 +203,27 @@ def test_portable_plan_audit_checks_route_option_cost_graph_scope() -> None:
 
     manifest_path = plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    flat_manifest = deepcopy(manifest)
+    flat_row = flat_manifest["rows"][0]
+    flat_row["route_option_cost_graph"].pop("or_nodes", None)
+    flat_row["route_option_cost_graph"].pop("and_edges", None)
+    manifest_path.write_text(json.dumps(flat_manifest, indent=2), encoding="utf-8")
+
+    flat_rejected = audit_formalization_gap_planner_portable_plan(
+        plan_dir,
+        audit_dir,
+    )
+
+    assert not flat_rejected["all_ok"]
+    flat_failed = [row for row in flat_rejected["checks"] if not row["ok"]]
+    assert any(
+        row["check_name"].endswith("route_option_cost_graph")
+        and "route_option_cost_graph.or_nodes must be non-empty" in row["observed"]
+        and "route_option_cost_graph.and_edges must be non-empty" in row["observed"]
+        for row in flat_failed
+    )
+
     row = manifest["rows"][0]
     leaked_node = dict(row["minimal_additional_formalization_nodes"][0])
     leaked_node["primitive"] = "comparison_boundary"
