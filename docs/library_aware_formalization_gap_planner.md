@@ -269,7 +269,11 @@ provider-failure status, and repair escalation evidence, so downstream runtime,
 benchmark, and publication tools can audit cost routing without parsing full
 request packets or raw model text. The reuse-smoke manifest also mirrors
 primary, feedback, and combined ledger counts next to provider token usage, so
-public smoke runs report both API cost and the tier-routing reason surface. In
+public smoke runs report both API cost and the tier-routing reason surface.
+Those summaries aggregate resource-dispatch and interactive route-adoption
+precondition counts across primary and feedback planner runs, making Sonnet
+escalation triggers visible in publication tables without parsing per-request
+JSONL rows. In
 the same request packet, `context_packet.legacy_context_field_aliases` is
 target-aware: Lean requests map legacy context fields such as
 `lean_grounding_queries` and `lean_declaration_hits` back to portable

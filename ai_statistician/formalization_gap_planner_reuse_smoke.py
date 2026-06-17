@@ -7414,7 +7414,7 @@ def _combined_llm_provider_usage_summary(
 
 def _model_tier_decision_ledger_rows(payload: dict[str, Any]) -> tuple[dict[str, Any], ...]:
     rows = payload.get("model_tier_decision_ledger", [])
-    if not isinstance(rows, list):
+    if not isinstance(rows, (list, tuple)):
         return ()
     return tuple(row for row in rows if isinstance(row, dict))
 
@@ -7424,6 +7424,8 @@ def _llm_model_tier_decision_ledger_summary(payload: dict[str, Any]) -> dict[str
     by_selected_tier: dict[str, int] = {}
     by_effective_tier: dict[str, int] = {}
     by_decision_basis: dict[str, int] = {}
+    context_resource_dispatch_counts: dict[str, int] = {}
+    interactive_route_adoption_precondition_counts: dict[str, int] = {}
     for row in rows:
         selected_tier = str(row.get("selected_model_tier", "") or "unknown")
         effective_tier = str(row.get("effective_model_tier", "") or "unknown")
@@ -7434,6 +7436,14 @@ def _llm_model_tier_decision_ledger_summary(payload: dict[str, Any]) -> dict[str
         )
         by_decision_basis[decision_basis] = (
             by_decision_basis.get(decision_basis, 0) + 1
+        )
+        _merge_count_map(
+            context_resource_dispatch_counts,
+            row.get("context_resource_dispatch_counts", {}),
+        )
+        _merge_count_map(
+            interactive_route_adoption_precondition_counts,
+            row.get("interactive_route_adoption_precondition_counts", {}),
         )
 
     row_count = _nonnegative_int(
@@ -7461,6 +7471,12 @@ def _llm_model_tier_decision_ledger_summary(payload: dict[str, Any]) -> dict[str
         "by_selected_model_tier": dict(sorted(by_selected_tier.items())),
         "by_effective_model_tier": dict(sorted(by_effective_tier.items())),
         "by_decision_basis": dict(sorted(by_decision_basis.items())),
+        "context_resource_dispatch_counts": dict(
+            sorted(context_resource_dispatch_counts.items())
+        ),
+        "interactive_route_adoption_precondition_counts": dict(
+            sorted(interactive_route_adoption_precondition_counts.items())
+        ),
         "usage_boundary": (
             "Model-tier decision ledger rows explain Claude Haiku/Sonnet/Opus "
             "routing choices for cost control; they are not mathematical or "
@@ -7477,6 +7493,8 @@ def _combined_llm_model_tier_decision_ledger_summary(
     by_selected_tier: dict[str, int] = {}
     by_effective_tier: dict[str, int] = {}
     by_decision_basis: dict[str, int] = {}
+    context_resource_dispatch_counts: dict[str, int] = {}
+    interactive_route_adoption_precondition_counts: dict[str, int] = {}
     by_planner_run: dict[str, dict[str, object]] = {}
     row_count = 0
     escalation_count = 0
@@ -7498,6 +7516,14 @@ def _combined_llm_model_tier_decision_ledger_summary(
         _merge_count_map(by_selected_tier, normalized.get("by_selected_model_tier", {}))
         _merge_count_map(by_effective_tier, normalized.get("by_effective_model_tier", {}))
         _merge_count_map(by_decision_basis, normalized.get("by_decision_basis", {}))
+        _merge_count_map(
+            context_resource_dispatch_counts,
+            normalized.get("context_resource_dispatch_counts", {}),
+        )
+        _merge_count_map(
+            interactive_route_adoption_precondition_counts,
+            normalized.get("interactive_route_adoption_precondition_counts", {}),
+        )
     return {
         "summary_kind": (
             "formalization_gap_planner_reuse_smoke_combined_llm_model_tier_decision_ledger_summary"
@@ -7510,6 +7536,12 @@ def _combined_llm_model_tier_decision_ledger_summary(
         "by_selected_model_tier": dict(sorted(by_selected_tier.items())),
         "by_effective_model_tier": dict(sorted(by_effective_tier.items())),
         "by_decision_basis": dict(sorted(by_decision_basis.items())),
+        "context_resource_dispatch_counts": dict(
+            sorted(context_resource_dispatch_counts.items())
+        ),
+        "interactive_route_adoption_precondition_counts": dict(
+            sorted(interactive_route_adoption_precondition_counts.items())
+        ),
         "by_planner_run": dict(sorted(by_planner_run.items())),
         "usage_boundary": (
             "Combined model-tier decision ledger rows cover primary and "

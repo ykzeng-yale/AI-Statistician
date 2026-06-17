@@ -17,6 +17,20 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
 )
 
 
+def _sum_count_maps(*maps: object) -> dict[str, int]:
+    keys: set[str] = set()
+    normalized_maps: list[dict[str, object]] = []
+    for value in maps:
+        if isinstance(value, dict):
+            normalized = {str(key): raw for key, raw in value.items()}
+            normalized_maps.append(normalized)
+            keys.update(normalized)
+    return {
+        key: sum(int(mapping.get(key, 0) or 0) for mapping in normalized_maps)
+        for key in sorted(keys)
+    }
+
+
 def _reviewed_primitive_cost(
     primitive: str,
     coverage_bucket: str,
@@ -612,6 +626,20 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "proof_evidence_status"
         ]
     )
+    tier_summary = payload["llm_route_planner_model_tier_decision_ledger_summary"]
+    assert isinstance(tier_summary["context_resource_dispatch_counts"], dict)
+    assert isinstance(
+        tier_summary["interactive_route_adoption_precondition_counts"],
+        dict,
+    )
+    assert (
+        "resource_request_queue_count"
+        in tier_summary["context_resource_dispatch_counts"]
+    )
+    assert (
+        "unresolved_count"
+        in tier_summary["interactive_route_adoption_precondition_counts"]
+    )
     assert payload["llm_route_planner_max_repair_attempts"] == 1
     assert payload["llm_route_planner_by_request_model_tier"]
     assert (
@@ -1053,6 +1081,27 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_planner_runs"
         ]
         == 2
+    )
+    primary_tier_summary = (
+        payload["llm_route_planner_model_tier_decision_ledger_summary"]
+    )
+    feedback_tier_summary = (
+        payload["feedback_llm_route_planner_model_tier_decision_ledger_summary"]
+    )
+    combined_tier_summary = (
+        payload["combined_llm_route_planner_model_tier_decision_ledger_summary"]
+    )
+    assert combined_tier_summary["context_resource_dispatch_counts"] == (
+        _sum_count_maps(
+            primary_tier_summary["context_resource_dispatch_counts"],
+            feedback_tier_summary["context_resource_dispatch_counts"],
+        )
+    )
+    assert combined_tier_summary[
+        "interactive_route_adoption_precondition_counts"
+    ] == _sum_count_maps(
+        primary_tier_summary["interactive_route_adoption_precondition_counts"],
+        feedback_tier_summary["interactive_route_adoption_precondition_counts"],
     )
     assert payload["feedback_llm_route_planner_max_repair_attempts"] == 1
     assert payload["feedback_llm_route_planner_by_request_model_tier"]
