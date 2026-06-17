@@ -249,6 +249,70 @@ def audit_formalization_gap_planner_runtime_handoffs(
             int(summary.get("llm_prompt_model_tier_opus", 0) or 0)
             for summary in smoke_summaries
         ),
+        "n_llm_prompt_requests_with_model_tier_decision_evidence": sum(
+            int(
+                summary.get(
+                    "llm_prompt_requests_with_model_tier_decision_evidence",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_model_tier_decision_auto_haiku_bounded": sum(
+            int(
+                summary.get(
+                    "llm_prompt_model_tier_decision_auto_haiku_bounded",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_model_tier_decision_auto_sonnet_triggered": sum(
+            int(
+                summary.get(
+                    "llm_prompt_model_tier_decision_auto_sonnet_triggered",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_model_tier_decision_operator_override": sum(
+            int(
+                summary.get(
+                    "llm_prompt_model_tier_decision_operator_override",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_model_tier_decision_sonnet_triggers": sum(
+            int(
+                summary.get(
+                    "llm_prompt_model_tier_decision_sonnet_triggers",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_model_tier_decision_evidence_invalid": sum(
+            int(
+                summary.get(
+                    "llm_prompt_model_tier_decision_evidence_invalid",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "llm_prompt_by_model_tier_decision_basis": _summary_counter_total(
+            smoke_summaries,
+            "llm_prompt_by_model_tier_decision_basis",
+        ),
         "n_seed_routes": sum(
             int(summary.get("seed_routes", 0) or 0) for summary in smoke_summaries
         ),
@@ -449,6 +513,13 @@ def _audit_handoff_row(
         "llm_prompt_model_tier_haiku": 0,
         "llm_prompt_model_tier_sonnet": 0,
         "llm_prompt_model_tier_opus": 0,
+        "llm_prompt_requests_with_model_tier_decision_evidence": 0,
+        "llm_prompt_model_tier_decision_auto_haiku_bounded": 0,
+        "llm_prompt_model_tier_decision_auto_sonnet_triggered": 0,
+        "llm_prompt_model_tier_decision_operator_override": 0,
+        "llm_prompt_model_tier_decision_sonnet_triggers": 0,
+        "llm_prompt_model_tier_decision_evidence_invalid": 0,
+        "llm_prompt_by_model_tier_decision_basis": {},
         "seed_routes": 0,
         "seed_primitives": 0,
         "seed_residual_goals": 0,
@@ -937,6 +1008,60 @@ def _audit_handoff_row(
                 cost_hint_ok,
             )
         )
+        tier_decision_ok = (
+            llm_ok
+            and int(
+                llm_counts.get(
+                    "llm_prompt_requests_with_model_tier_decision_evidence",
+                    0,
+                )
+                or 0
+            )
+            == int(llm_counts.get("llm_prompt_packets", 0) or 0)
+            and int(
+                llm_counts.get(
+                    "llm_prompt_model_tier_decision_evidence_invalid",
+                    0,
+                )
+                or 0
+            )
+            == 0
+            and (
+                int(
+                    llm_counts.get(
+                        "llm_prompt_model_tier_decision_auto_haiku_bounded",
+                        0,
+                    )
+                    or 0
+                )
+                + int(
+                    llm_counts.get(
+                        "llm_prompt_model_tier_decision_auto_sonnet_triggered",
+                        0,
+                    )
+                    or 0
+                )
+                + int(
+                    llm_counts.get(
+                        "llm_prompt_model_tier_decision_operator_override",
+                        0,
+                    )
+                    or 0
+                )
+            )
+            == int(llm_counts.get("llm_prompt_packets", 0) or 0)
+        )
+        checks.append(
+            _row_check(
+                "row_llm_prompt_has_model_tier_decision_evidence",
+                "cost_control",
+                handoff_id,
+                bridge_id,
+                "prompt packets include valid auto-tier decision evidence",
+                llm_observed,
+                tier_decision_ok,
+            )
+        )
     elif run_smoke:
         checks.extend(
             [
@@ -982,6 +1107,15 @@ def _audit_handoff_row(
                     handoff_id,
                     bridge_id,
                     "prompt packets include minimal-delta cost hints and no tier mismatches",
+                    "skipped because seed schema invalid",
+                    False,
+                ),
+                _row_check(
+                    "row_llm_prompt_has_model_tier_decision_evidence",
+                    "cost_control",
+                    handoff_id,
+                    bridge_id,
+                    "prompt packets include valid auto-tier decision evidence",
                     "skipped because seed schema invalid",
                     False,
                 ),
@@ -1191,7 +1325,7 @@ def _run_llm_prompt_smoke(
     smoke_root: Path | None,
     target_intake_dir: Path | None = None,
     component_resource_registry_dir: Path | None = None,
-) -> tuple[bool, str, dict[str, int]]:
+) -> tuple[bool, str, dict[str, object]]:
     try:
         payload = export_formalization_gap_planner_llm_route_planner(
             seed_path,
@@ -1223,6 +1357,13 @@ def _run_llm_prompt_smoke(
                 "llm_prompt_model_tier_haiku": 0,
                 "llm_prompt_model_tier_sonnet": 0,
                 "llm_prompt_model_tier_opus": 0,
+                "llm_prompt_requests_with_model_tier_decision_evidence": 0,
+                "llm_prompt_model_tier_decision_auto_haiku_bounded": 0,
+                "llm_prompt_model_tier_decision_auto_sonnet_triggered": 0,
+                "llm_prompt_model_tier_decision_operator_override": 0,
+                "llm_prompt_model_tier_decision_sonnet_triggers": 0,
+                "llm_prompt_model_tier_decision_evidence_invalid": 0,
+                "llm_prompt_by_model_tier_decision_basis": {},
                 "llm_prompt_component_resource_registry_components": 0,
                 "llm_prompt_component_resource_registry_resources": 0,
                 "llm_prompt_component_resource_registry_contracts": 0,
@@ -1259,6 +1400,32 @@ def _run_llm_prompt_smoke(
     n_tier_sonnet = int(payload.get("n_request_model_tier_sonnet", 0) or 0)
     n_tier_opus = int(payload.get("n_request_model_tier_opus", 0) or 0)
     n_tier_accounted = n_tier_haiku + n_tier_sonnet + n_tier_opus
+    n_tier_decision_evidence = int(
+        payload.get("n_requests_with_model_tier_decision_evidence", 0) or 0
+    )
+    n_tier_decision_haiku = int(
+        payload.get("n_request_model_tier_decision_auto_haiku_bounded", 0) or 0
+    )
+    n_tier_decision_sonnet = int(
+        payload.get("n_request_model_tier_decision_auto_sonnet_triggered", 0) or 0
+    )
+    n_tier_decision_operator_override = int(
+        payload.get("n_request_model_tier_decision_operator_override", 0) or 0
+    )
+    n_tier_decision_sonnet_triggers = int(
+        payload.get("n_request_model_tier_decision_sonnet_triggers", 0) or 0
+    )
+    n_tier_decision_invalid = int(
+        payload.get("n_request_model_tier_decision_evidence_invalid", 0) or 0
+    )
+    by_tier_decision_basis = _int_counter_payload(
+        payload.get("by_request_model_tier_decision_basis", {})
+    )
+    n_tier_decision_accounted = (
+        n_tier_decision_haiku
+        + n_tier_decision_sonnet
+        + n_tier_decision_operator_override
+    )
     ok = (
         bool(payload.get("all_ok", False))
         and n_packets > 0
@@ -1278,6 +1445,9 @@ def _run_llm_prompt_smoke(
         )
         and n_model_tier_mismatches == 0
         and n_tier_accounted == n_packets
+        and n_tier_decision_evidence == n_packets
+        and n_tier_decision_invalid == 0
+        and n_tier_decision_accounted == n_packets
     )
     return ok, (
         f"all_ok={payload.get('all_ok')} provider={payload.get('provider_name')} "
@@ -1291,6 +1461,10 @@ def _run_llm_prompt_smoke(
         f"target_intake_rows={n_target_intake_rows} "
         f"model_tier_mismatches={n_model_tier_mismatches} "
         f"model_tiers=haiku:{n_tier_haiku},sonnet:{n_tier_sonnet},opus:{n_tier_opus} "
+        f"model_tier_decision_evidence={n_tier_decision_evidence} "
+        f"model_tier_decision_basis={by_tier_decision_basis} "
+        f"model_tier_decision_sonnet_triggers={n_tier_decision_sonnet_triggers} "
+        f"model_tier_decision_invalid={n_tier_decision_invalid} "
         f"registry_components={n_registry_components} "
         f"registry_resources={n_registry_resources} "
         f"registry_contracts={n_registry_contracts} "
@@ -1307,6 +1481,21 @@ def _run_llm_prompt_smoke(
         "llm_prompt_model_tier_haiku": n_tier_haiku,
         "llm_prompt_model_tier_sonnet": n_tier_sonnet,
         "llm_prompt_model_tier_opus": n_tier_opus,
+        "llm_prompt_requests_with_model_tier_decision_evidence": (
+            n_tier_decision_evidence
+        ),
+        "llm_prompt_model_tier_decision_auto_haiku_bounded": n_tier_decision_haiku,
+        "llm_prompt_model_tier_decision_auto_sonnet_triggered": (
+            n_tier_decision_sonnet
+        ),
+        "llm_prompt_model_tier_decision_operator_override": (
+            n_tier_decision_operator_override
+        ),
+        "llm_prompt_model_tier_decision_sonnet_triggers": (
+            n_tier_decision_sonnet_triggers
+        ),
+        "llm_prompt_model_tier_decision_evidence_invalid": n_tier_decision_invalid,
+        "llm_prompt_by_model_tier_decision_basis": by_tier_decision_basis,
         "llm_prompt_component_resource_registry_components": n_registry_components,
         "llm_prompt_component_resource_registry_resources": n_registry_resources,
         "llm_prompt_component_resource_registry_contracts": n_registry_contracts,
@@ -1472,6 +1661,31 @@ def _read_jsonl(path: Path, errors: list[str]) -> list[dict[str, Any]]:
 
 def _dict_value(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _int_counter_payload(value: Any) -> dict[str, int]:
+    if not isinstance(value, Mapping):
+        return {}
+    counter: dict[str, int] = {}
+    for key, count in value.items():
+        try:
+            parsed_count = int(count or 0)
+        except (TypeError, ValueError):
+            continue
+        if parsed_count:
+            counter[str(key)] = parsed_count
+    return dict(sorted(counter.items()))
+
+
+def _summary_counter_total(
+    summaries: list[Mapping[str, object]],
+    field_name: str,
+) -> dict[str, int]:
+    counter: Counter[str] = Counter()
+    for summary in summaries:
+        for key, count in _int_counter_payload(summary.get(field_name, {})).items():
+            counter[key] += count
+    return dict(sorted(counter.items()))
 
 
 def _dict_tuple(value: Any) -> tuple[dict[str, object], ...]:
@@ -1680,6 +1894,13 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
             f"haiku={payload.get('n_llm_prompt_model_tier_haiku')} "
             f"sonnet={payload.get('n_llm_prompt_model_tier_sonnet')} "
             f"opus={payload.get('n_llm_prompt_model_tier_opus')}"
+        ),
+        (
+            f"- LLM prompt model-tier decision basis: "
+            f"{payload.get('llm_prompt_by_model_tier_decision_basis')} "
+            f"evidence={payload.get('n_llm_prompt_requests_with_model_tier_decision_evidence')} "
+            f"sonnet_triggers={payload.get('n_llm_prompt_model_tier_decision_sonnet_triggers')} "
+            f"invalid={payload.get('n_llm_prompt_model_tier_decision_evidence_invalid')}"
         ),
         f"- Seed routes/primitives: {payload.get('n_seed_routes')}/{payload.get('n_seed_primitives')}",
         f"- Seed residual goals: {payload.get('n_seed_residual_goals')}",

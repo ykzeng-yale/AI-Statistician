@@ -173,6 +173,15 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     assert payload["n_llm_prompt_model_tier_haiku"] == 0
     assert payload["n_llm_prompt_model_tier_sonnet"] == 2
     assert payload["n_llm_prompt_model_tier_opus"] == 0
+    assert payload["n_llm_prompt_requests_with_model_tier_decision_evidence"] == 2
+    assert payload["n_llm_prompt_model_tier_decision_auto_haiku_bounded"] == 0
+    assert payload["n_llm_prompt_model_tier_decision_auto_sonnet_triggered"] == 2
+    assert payload["n_llm_prompt_model_tier_decision_operator_override"] == 0
+    assert payload["n_llm_prompt_model_tier_decision_sonnet_triggers"] > 0
+    assert payload["n_llm_prompt_model_tier_decision_evidence_invalid"] == 0
+    assert payload["llm_prompt_by_model_tier_decision_basis"] == {
+        "auto_sonnet_triggers": 2
+    }
     summary = payload["smoke_summaries"][0]
     assert summary["seed_declared_target_prover_family"] == ""
     assert summary["seed_target_prover_family"] == "mixed:lean4,rocq"
@@ -181,10 +190,23 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     assert summary["llm_prompt_model_tier_haiku"] == 0
     assert summary["llm_prompt_model_tier_sonnet"] == 2
     assert summary["llm_prompt_model_tier_opus"] == 0
+    assert summary["llm_prompt_requests_with_model_tier_decision_evidence"] == 2
+    assert summary["llm_prompt_model_tier_decision_auto_haiku_bounded"] == 0
+    assert summary["llm_prompt_model_tier_decision_auto_sonnet_triggered"] == 2
+    assert summary["llm_prompt_model_tier_decision_operator_override"] == 0
+    assert summary["llm_prompt_model_tier_decision_sonnet_triggers"] > 0
+    assert summary["llm_prompt_model_tier_decision_evidence_invalid"] == 0
+    assert summary["llm_prompt_by_model_tier_decision_basis"] == {
+        "auto_sonnet_triggers": 2
+    }
     report = (
         out_dir / "formalization_gap_planner_runtime_handoff_audit.md"
     ).read_text(encoding="utf-8")
     assert "- LLM prompt model tiers: haiku=0 sonnet=2 opus=0" in report
+    assert (
+        "- LLM prompt model-tier decision basis: {'auto_sonnet_triggers': 2} "
+        "evidence=2"
+    ) in report
     seed_target_checks = {
         str(check["check_name"]).split(":", 1)[0]: check
         for check in payload["checks"]
