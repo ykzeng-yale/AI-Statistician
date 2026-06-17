@@ -7943,6 +7943,11 @@ def _route_planning_brief(
         source_theorem_feedback.get("target_primitives", [])
     )
     playbooks = _dict_tuple(context_packet.get("resource_request_playbooks", []))
+    playbook_targets = _unique_strings(
+        primitive
+        for playbook in playbooks
+        for primitive in _feedback_row_target_primitives(playbook)
+    )
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     source_grounding_obligations = _source_grounding_obligation_summary(
         context_packet
@@ -8423,6 +8428,7 @@ def _route_planning_brief(
             reason="resource_request_playbooks define bounded operator prompts and acceptance checks",
             evidence_fields=("context_packet.resource_request_playbooks",),
             required_output_fields=("search_requests", "planner_next_actions"),
+            target_primitives=playbook_targets,
         )
     if bool(quality_control_obligations.get("pending", False)):
         add_focus(
@@ -26262,6 +26268,7 @@ def _feedback_row_target_primitives(row: Mapping[str, object]) -> tuple[str, ...
     request_playbook = _dict_value(row, "request_playbook")
     request_payload = _dict_value(row, "request_payload")
     input_summary = _dict_value(request_playbook, "input_summary")
+    row_input_summary = _dict_value(row, "input_summary")
     values: list[str] = [
         *_str_tuple(row.get("target_primitives", [])),
         *_str_tuple(row.get("target_primitive", [])),
@@ -26273,6 +26280,9 @@ def _feedback_row_target_primitives(row: Mapping[str, object]) -> tuple[str, ...
         *_str_tuple(request_playbook.get("target_primitive", [])),
         str(request_playbook.get("primitive", "")).strip(),
         str(input_summary.get("primitive", "")).strip(),
+        *_str_tuple(row_input_summary.get("target_primitives", [])),
+        *_str_tuple(row_input_summary.get("target_primitive", [])),
+        str(row_input_summary.get("primitive", "")).strip(),
         *_str_tuple(request_payload.get("target_primitives", [])),
         *_str_tuple(request_payload.get("target_primitive", [])),
         str(request_payload.get("primitive", "")).strip(),
@@ -26311,6 +26321,7 @@ def _resource_request_playbooks_for_context(
         request_playbook = _dict_value(row, "request_playbook")
         if not request_playbook:
             continue
+        target_primitives = _feedback_row_target_primitives(row)
         playbook = {
             "resource_request_id": str(
                 request_playbook.get("resource_request_id")
@@ -26326,6 +26337,8 @@ def _resource_request_playbooks_for_context(
                 request_playbook.get("target_prover_family")
                 or row.get("target_prover_family", "")
             ).strip(),
+            "primitive": target_primitives[0] if target_primitives else "",
+            "target_primitives": list(target_primitives[:8]),
             "operator_prompt": str(
                 request_playbook.get("operator_prompt", "")
             ).strip(),

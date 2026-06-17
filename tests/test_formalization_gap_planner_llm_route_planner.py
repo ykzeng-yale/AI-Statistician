@@ -6374,6 +6374,8 @@ def test_llm_route_planner_stages_pending_resource_request_queue() -> None:
     playbook = context["resource_request_playbooks"][0]
     assert playbook["resource_request_id"] == "resource-request:rank_route"
     assert playbook["resource_id"] == "paperclip_cli_mcp"
+    assert playbook["primitive"] == "rank_uniformity"
+    assert playbook["target_primitives"] == ["rank_uniformity"]
     assert playbook["operator_prompt"] == queue_row["request_playbook"][
         "operator_prompt"
     ]
@@ -6407,6 +6409,12 @@ def test_llm_route_planner_stages_pending_resource_request_queue() -> None:
     assert "resource_request_playbooks" in request["prompt_messages"]["user"]
     assert "operator_prompt" in request["prompt_messages"]["user"]
     assert "source_refs_and_snippets_present" in request["prompt_messages"]["user"]
+    playbook_focus = next(
+        focus
+        for focus in context["route_planning_brief"]["planner_focus"]
+        if focus["focus_id"] == "align_followup_to_resource_playbooks"
+    )
+    assert playbook_focus["target_primitives"] == ["rank_uniformity"]
     summary = context["feedback_loop_summary"]
     assert summary["evidence_counts"]["resource_request_queue_rows"] == 1
     assert summary["resource_request_playbook_count"] == 1
