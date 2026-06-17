@@ -289,7 +289,11 @@ public smoke runs report both API cost and the tier-routing reason surface.
 Those summaries aggregate resource-dispatch and interactive route-adoption
 precondition counts across primary and feedback planner runs, making Sonnet
 escalation triggers visible in publication tables without parsing per-request
-JSONL rows. In
+JSONL rows. Evaluation and reuse-smoke summaries also carry interactive
+formal-attempt queue row/item/ready/blocked/execution-command counters by model
+tier and by model-tier decision basis, making it clear when Sonnet was selected
+because a route had prover replay work rather than only because a generic
+trigger count was nonzero. In
 the same request packet, `context_packet.legacy_context_field_aliases` is
 target-aware: Lean requests map legacy context fields such as
 `lean_grounding_queries` and `lean_declaration_hits` back to portable

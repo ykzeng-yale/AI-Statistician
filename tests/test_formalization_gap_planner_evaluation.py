@@ -370,12 +370,24 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
                                         "3 source-theorem formal-environment "
                                         "blocker(s)"
                                     ),
+                                    "2 interactive formal-attempt queue item(s)",
+                                    "1 interactive formal-attempt queue ready item(s)",
+                                    "1 interactive formal-attempt queue blocked item(s)",
+                                    (
+                                        "3 interactive formal-attempt execution "
+                                        "command(s)"
+                                    ),
                                 ],
                                 "route_signal_counts": {
                                     "source_theorem_feedback_row_count": 4,
                                     "source_theorem_unverified_semantic_primitive_row_count": 2,
                                     "source_theorem_proof_body_execution_failure_count": 1,
                                     "source_theorem_formal_environment_blocker_count": 3,
+                                    "interactive_session_formal_attempt_queue_row_count": 1,
+                                    "interactive_session_formal_attempt_queue_item_count": 2,
+                                    "interactive_session_formal_attempt_queue_ready_item_count": 1,
+                                    "interactive_session_formal_attempt_queue_blocked_item_count": 1,
+                                    "interactive_session_formal_attempt_queue_execution_command_count": 3,
                                 },
                                 "source_theorem_feedback_counts": {
                                     "total_count": 4,
@@ -466,7 +478,7 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert payload["n_rows_with_llm_route_planner_trace"] == 1
     assert payload["n_rows_with_llm_route_planner_model_tier"] == 1
     assert payload["n_rows_with_llm_route_planner_model_tier_decision_basis"] == 1
-    assert payload["n_llm_route_planner_model_tier_decision_sonnet_triggers"] == 2
+    assert payload["n_llm_route_planner_model_tier_decision_sonnet_triggers"] == 6
     assert payload["n_rows_with_llm_route_planner_source_feedback_tier_signal"] == 1
     assert payload["n_llm_route_planner_source_feedback_rows"] == 4
     assert (
@@ -484,6 +496,32 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert (
         payload[
             "n_llm_route_planner_source_feedback_formal_environment_blockers"
+        ]
+        == 3
+    )
+    assert (
+        payload[
+            "n_rows_with_llm_route_planner_interactive_formal_attempt_queue_tier_signal"
+        ]
+        == 1
+    )
+    assert payload["n_llm_route_planner_interactive_formal_attempt_queue_rows"] == 1
+    assert payload["n_llm_route_planner_interactive_formal_attempt_queue_items"] == 2
+    assert (
+        payload[
+            "n_llm_route_planner_interactive_formal_attempt_queue_ready_items"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_interactive_formal_attempt_queue_blocked_items"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_interactive_formal_attempt_queue_execution_commands"
         ]
         == 3
     )
@@ -617,10 +655,15 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "provider_total_tokens": 165,
             "n_rows_with_request_contract_blocked": 0,
             "n_rows_with_errors": 0,
-            "n_sonnet_triggers": 2,
+            "n_sonnet_triggers": 6,
             "n_source_feedback_rows": 4,
             "n_source_feedback_proof_body_execution_failures": 1,
             "n_source_feedback_formal_environment_blockers": 3,
+            "n_interactive_formal_attempt_queue_rows": 1,
+            "n_interactive_formal_attempt_queue_items": 2,
+            "n_interactive_formal_attempt_queue_ready_items": 1,
+            "n_interactive_formal_attempt_queue_blocked_items": 1,
+            "n_interactive_formal_attempt_queue_execution_commands": 3,
         }
     }
     assert payload["evaluation_by_llm_model_tier_decision_basis"] == {
@@ -629,10 +672,15 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "n_ok": 0,
             "n_matched_ground_truth": 1,
             "by_model_tier": {"sonnet": 1},
-            "n_sonnet_triggers": 2,
+            "n_sonnet_triggers": 6,
             "n_source_feedback_rows": 4,
             "n_source_feedback_proof_body_execution_failures": 1,
             "n_source_feedback_formal_environment_blockers": 3,
+            "n_interactive_formal_attempt_queue_rows": 1,
+            "n_interactive_formal_attempt_queue_items": 2,
+            "n_interactive_formal_attempt_queue_ready_items": 1,
+            "n_interactive_formal_attempt_queue_blocked_items": 1,
+            "n_interactive_formal_attempt_queue_execution_commands": 3,
             "n_rows_with_provider_usage": 1,
             "provider_input_tokens": 120,
             "provider_output_tokens": 34,
@@ -706,10 +754,14 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         == "auto_sonnet_triggers"
     )
     assert row["llm_route_planner_model_tier_decision_sonnet_triggers"] == (
+        "1 interactive formal-attempt queue blocked item(s)",
+        "1 interactive formal-attempt queue ready item(s)",
         "1 source-theorem proof-body execution failure(s)",
+        "2 interactive formal-attempt queue item(s)",
+        "3 interactive formal-attempt execution command(s)",
         "3 source-theorem formal-environment blocker(s)",
     )
-    assert row["llm_route_planner_model_tier_decision_sonnet_trigger_count"] == 2
+    assert row["llm_route_planner_model_tier_decision_sonnet_trigger_count"] == 6
     assert row["llm_route_planner_source_feedback_row_count"] == 4
     assert (
         row[
@@ -726,6 +778,22 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert (
         row[
             "llm_route_planner_source_feedback_formal_environment_blocker_count"
+        ]
+        == 3
+    )
+    assert row["llm_route_planner_interactive_formal_attempt_queue_row_count"] == 1
+    assert row["llm_route_planner_interactive_formal_attempt_queue_item_count"] == 2
+    assert (
+        row["llm_route_planner_interactive_formal_attempt_queue_ready_item_count"]
+        == 1
+    )
+    assert (
+        row["llm_route_planner_interactive_formal_attempt_queue_blocked_item_count"]
+        == 1
+    )
+    assert (
+        row[
+            "llm_route_planner_interactive_formal_attempt_queue_execution_command_count"
         ]
         == 3
     )

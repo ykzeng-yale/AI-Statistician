@@ -2287,6 +2287,46 @@ def _standalone_input_trace(
                 )
             )
         ),
+        "llm_route_planner_interactive_formal_attempt_queue_row_count": (
+            _int_value(
+                llm_model_tier_route_signal_counts.get(
+                    "interactive_session_formal_attempt_queue_row_count",
+                    0,
+                )
+            )
+        ),
+        "llm_route_planner_interactive_formal_attempt_queue_item_count": (
+            _int_value(
+                llm_model_tier_route_signal_counts.get(
+                    "interactive_session_formal_attempt_queue_item_count",
+                    0,
+                )
+            )
+        ),
+        "llm_route_planner_interactive_formal_attempt_queue_ready_item_count": (
+            _int_value(
+                llm_model_tier_route_signal_counts.get(
+                    "interactive_session_formal_attempt_queue_ready_item_count",
+                    0,
+                )
+            )
+        ),
+        "llm_route_planner_interactive_formal_attempt_queue_blocked_item_count": (
+            _int_value(
+                llm_model_tier_route_signal_counts.get(
+                    "interactive_session_formal_attempt_queue_blocked_item_count",
+                    0,
+                )
+            )
+        ),
+        "llm_route_planner_interactive_formal_attempt_queue_execution_command_count": (
+            _int_value(
+                llm_model_tier_route_signal_counts.get(
+                    "interactive_session_formal_attempt_queue_execution_command_count",
+                    0,
+                )
+            )
+        ),
         "llm_route_planner_acceptance_status": str(
             metadata.get("llm_route_planner_acceptance_status", "")
         ),

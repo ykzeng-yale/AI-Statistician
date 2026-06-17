@@ -110,6 +110,11 @@ class FormalizationGapPlannerEvaluationRow:
     llm_route_planner_source_feedback_unverified_semantic_primitive_row_count: int
     llm_route_planner_source_feedback_proof_body_execution_failure_count: int
     llm_route_planner_source_feedback_formal_environment_blocker_count: int
+    llm_route_planner_interactive_formal_attempt_queue_row_count: int
+    llm_route_planner_interactive_formal_attempt_queue_item_count: int
+    llm_route_planner_interactive_formal_attempt_queue_ready_item_count: int
+    llm_route_planner_interactive_formal_attempt_queue_blocked_item_count: int
+    llm_route_planner_interactive_formal_attempt_queue_execution_command_count: int
     llm_route_planner_route_adoption_status: str
     llm_route_planner_route_adoption_blockers: tuple[str, ...]
     llm_route_planner_primitive_evidence_matrix_witness_present: bool
@@ -358,6 +363,32 @@ def evaluate_formalization_gap_planner(
         ),
         "n_llm_route_planner_source_feedback_formal_environment_blockers": sum(
             row.llm_route_planner_source_feedback_formal_environment_blocker_count
+            for row in evaluation_rows
+        ),
+        "n_rows_with_llm_route_planner_interactive_formal_attempt_queue_tier_signal": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_interactive_formal_attempt_queue_item_count
+            or row.llm_route_planner_interactive_formal_attempt_queue_execution_command_count
+        ),
+        "n_llm_route_planner_interactive_formal_attempt_queue_rows": sum(
+            row.llm_route_planner_interactive_formal_attempt_queue_row_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_interactive_formal_attempt_queue_items": sum(
+            row.llm_route_planner_interactive_formal_attempt_queue_item_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_interactive_formal_attempt_queue_ready_items": sum(
+            row.llm_route_planner_interactive_formal_attempt_queue_ready_item_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_interactive_formal_attempt_queue_blocked_items": sum(
+            row.llm_route_planner_interactive_formal_attempt_queue_blocked_item_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_interactive_formal_attempt_queue_execution_commands": sum(
+            row.llm_route_planner_interactive_formal_attempt_queue_execution_command_count
             for row in evaluation_rows
         ),
         "n_rows_with_llm_route_planner_route_adoption_status": sum(
@@ -754,6 +785,11 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "llm_route_planner_source_feedback_unverified_semantic_primitive_row_count",
             "llm_route_planner_source_feedback_proof_body_execution_failure_count",
             "llm_route_planner_source_feedback_formal_environment_blocker_count",
+            "llm_route_planner_interactive_formal_attempt_queue_row_count",
+            "llm_route_planner_interactive_formal_attempt_queue_item_count",
+            "llm_route_planner_interactive_formal_attempt_queue_ready_item_count",
+            "llm_route_planner_interactive_formal_attempt_queue_blocked_item_count",
+            "llm_route_planner_interactive_formal_attempt_queue_execution_command_count",
             "llm_route_planner_route_adoption_status",
             "llm_route_planner_route_adoption_blockers",
             "llm_route_planner_route_adoption_preconditions",
@@ -868,6 +904,26 @@ def evaluation_row_json_schema() -> dict[str, object]:
                 "minimum": 0,
             },
             "llm_route_planner_source_feedback_formal_environment_blocker_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_interactive_formal_attempt_queue_row_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_interactive_formal_attempt_queue_item_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_interactive_formal_attempt_queue_ready_item_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_interactive_formal_attempt_queue_blocked_item_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_interactive_formal_attempt_queue_execution_command_count": {
                 "type": "integer",
                 "minimum": 0,
             },
@@ -1174,6 +1230,21 @@ def _evaluate_row(
         ),
         llm_route_planner_source_feedback_formal_environment_blocker_count=int(
             llm_trace["source_feedback_formal_environment_blocker_count"]
+        ),
+        llm_route_planner_interactive_formal_attempt_queue_row_count=int(
+            llm_trace["interactive_formal_attempt_queue_row_count"]
+        ),
+        llm_route_planner_interactive_formal_attempt_queue_item_count=int(
+            llm_trace["interactive_formal_attempt_queue_item_count"]
+        ),
+        llm_route_planner_interactive_formal_attempt_queue_ready_item_count=int(
+            llm_trace["interactive_formal_attempt_queue_ready_item_count"]
+        ),
+        llm_route_planner_interactive_formal_attempt_queue_blocked_item_count=int(
+            llm_trace["interactive_formal_attempt_queue_blocked_item_count"]
+        ),
+        llm_route_planner_interactive_formal_attempt_queue_execution_command_count=int(
+            llm_trace["interactive_formal_attempt_queue_execution_command_count"]
         ),
         llm_route_planner_route_adoption_status=str(
             llm_trace["route_adoption_status"]
@@ -1885,6 +1956,51 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
                 ),
             )
         ),
+        "interactive_formal_attempt_queue_row_count": _int_value(
+            trace.get(
+                "llm_route_planner_interactive_formal_attempt_queue_row_count",
+                route_signal_counts.get(
+                    "interactive_session_formal_attempt_queue_row_count",
+                    0,
+                ),
+            )
+        ),
+        "interactive_formal_attempt_queue_item_count": _int_value(
+            trace.get(
+                "llm_route_planner_interactive_formal_attempt_queue_item_count",
+                route_signal_counts.get(
+                    "interactive_session_formal_attempt_queue_item_count",
+                    0,
+                ),
+            )
+        ),
+        "interactive_formal_attempt_queue_ready_item_count": _int_value(
+            trace.get(
+                "llm_route_planner_interactive_formal_attempt_queue_ready_item_count",
+                route_signal_counts.get(
+                    "interactive_session_formal_attempt_queue_ready_item_count",
+                    0,
+                ),
+            )
+        ),
+        "interactive_formal_attempt_queue_blocked_item_count": _int_value(
+            trace.get(
+                "llm_route_planner_interactive_formal_attempt_queue_blocked_item_count",
+                route_signal_counts.get(
+                    "interactive_session_formal_attempt_queue_blocked_item_count",
+                    0,
+                ),
+            )
+        ),
+        "interactive_formal_attempt_queue_execution_command_count": _int_value(
+            trace.get(
+                "llm_route_planner_interactive_formal_attempt_queue_execution_command_count",
+                route_signal_counts.get(
+                    "interactive_session_formal_attempt_queue_execution_command_count",
+                    0,
+                ),
+            )
+        ),
         "route_adoption_status": route_adoption_status,
         "route_adoption_blockers": _str_tuple(
             trace.get("llm_route_planner_route_adoption_blockers", [])
@@ -2322,6 +2438,26 @@ def _llm_model_tier_summary(
                 row.llm_route_planner_source_feedback_formal_environment_blocker_count
                 for row in tier_rows
             ),
+            "n_interactive_formal_attempt_queue_rows": sum(
+                row.llm_route_planner_interactive_formal_attempt_queue_row_count
+                for row in tier_rows
+            ),
+            "n_interactive_formal_attempt_queue_items": sum(
+                row.llm_route_planner_interactive_formal_attempt_queue_item_count
+                for row in tier_rows
+            ),
+            "n_interactive_formal_attempt_queue_ready_items": sum(
+                row.llm_route_planner_interactive_formal_attempt_queue_ready_item_count
+                for row in tier_rows
+            ),
+            "n_interactive_formal_attempt_queue_blocked_items": sum(
+                row.llm_route_planner_interactive_formal_attempt_queue_blocked_item_count
+                for row in tier_rows
+            ),
+            "n_interactive_formal_attempt_queue_execution_commands": sum(
+                row.llm_route_planner_interactive_formal_attempt_queue_execution_command_count
+                for row in tier_rows
+            ),
         }
         for tier in tiers
         for tier_rows in [
@@ -2368,6 +2504,26 @@ def _llm_model_tier_decision_basis_summary(
             ),
             "n_source_feedback_formal_environment_blockers": sum(
                 row.llm_route_planner_source_feedback_formal_environment_blocker_count
+                for row in basis_rows
+            ),
+            "n_interactive_formal_attempt_queue_rows": sum(
+                row.llm_route_planner_interactive_formal_attempt_queue_row_count
+                for row in basis_rows
+            ),
+            "n_interactive_formal_attempt_queue_items": sum(
+                row.llm_route_planner_interactive_formal_attempt_queue_item_count
+                for row in basis_rows
+            ),
+            "n_interactive_formal_attempt_queue_ready_items": sum(
+                row.llm_route_planner_interactive_formal_attempt_queue_ready_item_count
+                for row in basis_rows
+            ),
+            "n_interactive_formal_attempt_queue_blocked_items": sum(
+                row.llm_route_planner_interactive_formal_attempt_queue_blocked_item_count
+                for row in basis_rows
+            ),
+            "n_interactive_formal_attempt_queue_execution_commands": sum(
+                row.llm_route_planner_interactive_formal_attempt_queue_execution_command_count
                 for row in basis_rows
             ),
             "n_rows_with_provider_usage": sum(
@@ -2792,6 +2948,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Evaluation by LLM model tier: {payload.get('evaluation_by_llm_model_tier')}",
         f"- Evaluation by LLM model-tier decision basis: {payload.get('evaluation_by_llm_model_tier_decision_basis')}",
         f"- LLM source-feedback tier rows: {payload.get('n_llm_route_planner_source_feedback_rows')}",
+        (
+            "- LLM interactive formal-attempt queue tier items "
+            f"ready/blocked/total: "
+            f"{payload.get('n_llm_route_planner_interactive_formal_attempt_queue_ready_items')}/"
+            f"{payload.get('n_llm_route_planner_interactive_formal_attempt_queue_blocked_items')}/"
+            f"{payload.get('n_llm_route_planner_interactive_formal_attempt_queue_items')}"
+        ),
         f"- Evaluation by LLM route adoption status: {payload.get('evaluation_by_llm_route_adoption_status')}",
         f"- LLM route adoption blockers: {payload.get('llm_route_adoption_blockers')}",
         f"- Rows with LLM route-adoption preconditions: {payload.get('n_rows_with_llm_route_planner_route_adoption_preconditions')}",

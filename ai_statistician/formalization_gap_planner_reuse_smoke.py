@@ -6325,6 +6325,42 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_evaluation_rows_with_llm_route_planner_interactive_formal_attempt_queue_tier_signal": (
+            evaluation_payload.get(
+                "n_rows_with_llm_route_planner_interactive_formal_attempt_queue_tier_signal",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_interactive_formal_attempt_queue_rows": (
+            evaluation_payload.get(
+                "n_llm_route_planner_interactive_formal_attempt_queue_rows",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_interactive_formal_attempt_queue_items": (
+            evaluation_payload.get(
+                "n_llm_route_planner_interactive_formal_attempt_queue_items",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_interactive_formal_attempt_queue_ready_items": (
+            evaluation_payload.get(
+                "n_llm_route_planner_interactive_formal_attempt_queue_ready_items",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_interactive_formal_attempt_queue_blocked_items": (
+            evaluation_payload.get(
+                "n_llm_route_planner_interactive_formal_attempt_queue_blocked_items",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_interactive_formal_attempt_queue_execution_commands": (
+            evaluation_payload.get(
+                "n_llm_route_planner_interactive_formal_attempt_queue_execution_commands",
+                0,
+            )
+        ),
         "n_evaluation_rows_with_llm_route_planner_route_adoption_status": (
             evaluation_payload.get(
                 "n_rows_with_llm_route_planner_route_adoption_status",
@@ -10067,6 +10103,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"errors={payload.get('n_evaluation_llm_route_planner_errors')} "
             f"tier_basis={payload.get('evaluation_by_llm_model_tier_decision_basis')} "
             f"source_feedback_rows={payload.get('n_evaluation_llm_route_planner_source_feedback_rows')} "
+            f"formal_attempt_queue="
+            f"{payload.get('n_evaluation_llm_route_planner_interactive_formal_attempt_queue_ready_items')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_interactive_formal_attempt_queue_blocked_items')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_interactive_formal_attempt_queue_items')} "
+            f"formal_attempt_commands="
+            f"{payload.get('n_evaluation_llm_route_planner_interactive_formal_attempt_queue_execution_commands')} "
             f"tiers={payload.get('evaluation_by_llm_model_tier')}"
         ),
         (

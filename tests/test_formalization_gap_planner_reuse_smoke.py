@@ -2641,6 +2641,42 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == 0
     )
     assert payload["n_evaluation_llm_route_planner_source_feedback_rows"] == 0
+    assert (
+        payload[
+            "n_evaluation_rows_with_llm_route_planner_interactive_formal_attempt_queue_tier_signal"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_interactive_formal_attempt_queue_rows"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_interactive_formal_attempt_queue_items"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_interactive_formal_attempt_queue_ready_items"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_interactive_formal_attempt_queue_blocked_items"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_interactive_formal_attempt_queue_execution_commands"
+        ]
+        == 0
+    )
     assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_provider_usage"] == 0
     assert payload["total_evaluation_llm_route_planner_provider_input_tokens"] == 0
@@ -2683,6 +2719,11 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_source_feedback_rows": 0,
             "n_source_feedback_proof_body_execution_failures": 0,
             "n_source_feedback_formal_environment_blockers": 0,
+            "n_interactive_formal_attempt_queue_rows": 0,
+            "n_interactive_formal_attempt_queue_items": 0,
+            "n_interactive_formal_attempt_queue_ready_items": 0,
+            "n_interactive_formal_attempt_queue_blocked_items": 0,
+            "n_interactive_formal_attempt_queue_execution_commands": 0,
         }
     }
     assert payload["evaluation_by_llm_model_tier_decision_basis"] == {
@@ -2695,6 +2736,11 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_source_feedback_rows": 0,
             "n_source_feedback_proof_body_execution_failures": 0,
             "n_source_feedback_formal_environment_blockers": 0,
+            "n_interactive_formal_attempt_queue_rows": 0,
+            "n_interactive_formal_attempt_queue_items": 0,
+            "n_interactive_formal_attempt_queue_ready_items": 0,
+            "n_interactive_formal_attempt_queue_blocked_items": 0,
+            "n_interactive_formal_attempt_queue_execution_commands": 0,
             "n_rows_with_provider_usage": 0,
             "provider_input_tokens": 0,
             "provider_output_tokens": 0,

@@ -1436,6 +1436,11 @@ def _fixture_evaluation_row() -> dict[str, object]:
         "llm_route_planner_source_feedback_unverified_semantic_primitive_row_count": 0,
         "llm_route_planner_source_feedback_proof_body_execution_failure_count": 0,
         "llm_route_planner_source_feedback_formal_environment_blocker_count": 0,
+        "llm_route_planner_interactive_formal_attempt_queue_row_count": 0,
+        "llm_route_planner_interactive_formal_attempt_queue_item_count": 0,
+        "llm_route_planner_interactive_formal_attempt_queue_ready_item_count": 0,
+        "llm_route_planner_interactive_formal_attempt_queue_blocked_item_count": 0,
+        "llm_route_planner_interactive_formal_attempt_queue_execution_command_count": 0,
         "llm_route_planner_route_adoption_status": (
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
         ),
