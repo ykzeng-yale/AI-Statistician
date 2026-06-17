@@ -6183,16 +6183,6 @@ def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
     )
 
     replan_response = _llm_response_payload()
-    replan_response["source_snippets"] = []
-    for node in replan_response.get("informal_knowledge_dag_nodes", []):
-        if isinstance(node, dict):
-            node.pop("source_snippets", None)
-    standalone_replan_route = replan_response.get("standalone_route", {})
-    if isinstance(standalone_replan_route, dict):
-        standalone_replan_route.pop("source_snippets", None)
-        for primitive in standalone_replan_route.get("primitives", []):
-            if isinstance(primitive, dict):
-                primitive.pop("source_snippets", None)
     replan_response["residual_interpretations"] = [
         {
             "residual_goal": (
@@ -8350,8 +8340,17 @@ def test_llm_route_planner_blocks_matrix_accounted_route_missing_source_snippet(
     )
 
     assert payload["n_rows"] == 1
+    assert payload["all_ok"] is False
+    assert payload["n_response_contract_ok"] == 0
     row = payload["rows"][0]
-    assert row["response_contract_ok"] is True
+    assert row["response_contract_ok"] is False
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "primitive_evidence_matrix source-backed primitives require response source_snippets"
+        in error
+        and "rank_uniformity" in error
+        for error in row["errors"]
+    )
     matrix_witness = row["primitive_evidence_matrix_witness"]
     assert matrix_witness["matrix_accounted_primitives"] == [
         "exchangeability",
@@ -8368,13 +8367,9 @@ def test_llm_route_planner_blocks_matrix_accounted_route_missing_source_snippet(
         ]
         == 1
     )
-    assert (
-        payload["n_route_adoption_pending_primitive_evidence_matrix_blockers"]
-        == 1
-    )
-    assert ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX in row[
-        "route_adoption_blockers"
-    ]
+    assert payload["n_route_adoption_pending_primitive_evidence_matrix_blockers"] == 0
+    assert payload["n_route_adoption_rejected"] == 1
+    assert row["route_adoption_blockers"] == ("response_not_accepted",)
     assert validate_llm_route_planner_manifest(payload) == []
 
 
@@ -13950,7 +13945,7 @@ def test_llm_route_planner_allows_partial_source_snippet_with_search_request() -
             "source_ref": source_ref,
             "claim": partial_snippet["claim"],
             "excerpt": partial_snippet["excerpt"],
-            "target_primitives": ["rank_uniformity"],
+            "target_primitives": ["exchangeability"],
             "evidence_role": "partial source context requiring follow-up search",
         },
     )

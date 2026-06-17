@@ -2223,20 +2223,23 @@ The current implementation composes four existing AI Statistician artifacts:
    prompt-only mode, validate a reviewed/static LLM JSON response, or invoke a
    configured generator backend. It publishes request, wrapper response,
    structured raw response-payload, and row schemas for external validation.
-   Accepted
-   responses produce a revised standalone seed with source-grounded informal
-   DAG nodes, formal realization nodes, alignment rationales, minimal-delta
-   rationale, search requests, and the proof-evidence boundary. Request-bound
-   response-payload validation is stricter than prompt staging: it recomputes
-   the primitive-evidence matrix witness from the staged request and rejects
-   externally supplied payloads that leave selected source-backed primitives
-   without grounded source snippets, fail to account for selected
+   Request-bound response-payload validation is stricter than prompt staging:
+   it recomputes the primitive-evidence matrix witness from the staged request
+   and rejects externally supplied payloads that leave selected source-backed
+   primitives without grounded source snippets, fail to account for selected
    formal-supported primitives through direct reuse or structured
    search/revision actions, omit selected delta/action accounting, or otherwise
    select primitives outside the request matrix. Live provider generation uses
-   the same primitive-matrix errors as local repair feedback, so a schema-valid
-   Claude response that omits selected primitive evidence is repaired before it
-   can become an accepted route-plan row. The accepted
+   those full primitive-matrix errors as local repair feedback before accepting
+   a Claude response. Reviewed/static row acceptance applies the hard source
+   evidence part of the same witness: a selected source-backed request-matrix
+   primitive must carry grounded response snippets unless the row explicitly
+   issues a literature/source-grounding search for that primitive. Accepted
+   responses produce a revised standalone seed with source-grounded informal DAG
+   nodes, formal realization nodes, alignment rationales, minimal-delta
+   rationale, search requests, residual interpretations, and the
+   proof-evidence boundary.
+   The accepted
    LLM DAG, route-alignment edges,
    minimal-delta plan, search requests, residual interpretations, and provider
    provenance are also copied into the seed route's `replan_metadata`, so the

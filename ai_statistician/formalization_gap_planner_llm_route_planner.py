@@ -12661,7 +12661,12 @@ def _row_for_request(
     generation_errors = _str_tuple((response or {}).get("generation_errors", []))
     response_errors = validate_llm_route_planner_response(response or {}) if response else []
     contract_errors = (
-        _response_contract_errors(payload, request) if response_present else []
+        [
+            *_response_contract_errors(payload, request),
+            *_response_row_primitive_matrix_contract_errors(payload, request),
+        ]
+        if response_present
+        else []
     )
     effective_model_tier = _effective_response_model_tier(request, response or {})
     response_model_tier_errors = (
@@ -13481,7 +13486,7 @@ def _response_payload_validation_primitive_matrix_errors(
     payload: Mapping[str, Any],
     request: Mapping[str, Any],
 ) -> list[str]:
-    """Require public response validation to account for request matrix rows."""
+    """Require request-bound response validation to account for matrix rows."""
 
     context_packet = _dict_value(request, "context_packet")
     route_planning_brief = _dict_value(context_packet, "route_planning_brief")
@@ -13551,6 +13556,65 @@ def _response_payload_validation_primitive_matrix_errors(
         if primitives:
             errors.append(f"{message}: {', '.join(primitives[:8])}")
     return errors
+
+
+def _response_row_primitive_matrix_contract_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    """Hard row-contract checks for selected request matrix source evidence."""
+
+    context_packet = _dict_value(request, "context_packet")
+    route_planning_brief = _dict_value(context_packet, "route_planning_brief")
+    if not _dict_tuple(route_planning_brief.get("primitive_evidence_matrix", [])):
+        return []
+    target_prover_family = str(request.get("target_prover_family", ""))
+    search_requests = _dict_tuple(payload.get("search_requests", []))
+    witness = _primitive_evidence_matrix_witness(
+        request=request,
+        minimal_delta=_dict_value(payload, "minimal_delta_plan"),
+        standalone_route=_standalone_route_from_payload(
+            payload,
+            target_prover_family=target_prover_family,
+        ),
+        formal_nodes=_formal_realization_nodes_from_payload(
+            payload,
+            target_prover_family=target_prover_family,
+        ),
+        alignment_edges=_dict_tuple(payload.get("route_alignment_edges", [])),
+        residual_interpretations=_dict_tuple(
+            payload.get("residual_interpretations", [])
+        ),
+        search_requests=search_requests,
+        planner_next_actions=_dict_tuple(payload.get("planner_next_actions", [])),
+        source_snippets=_route_source_snippets(payload),
+    )
+    selected = set(_str_tuple(witness.get("selected_primitives", [])))
+    literature_search_targets = _primitive_targets_from_rows(
+        tuple(
+            row
+            for row in search_requests
+            if _primitive_key(row.get("request_kind", ""))
+            in {"literature", "source_search", "source_grounding"}
+        )
+    )
+    missing_source_snippets = tuple(
+        primitive
+        for primitive in _str_tuple(
+            witness.get(
+                "source_backed_matrix_primitives_missing_response_source_snippet",
+                [],
+            )
+        )
+        if primitive in selected and primitive not in literature_search_targets
+    )
+    if not missing_source_snippets:
+        return []
+    return [
+        "primitive_evidence_matrix source-backed primitives require response "
+        "source_snippets or a literature/source search request: "
+        + ", ".join(missing_source_snippets[:8])
+    ]
 
 
 def _node_ids(nodes: tuple[dict[str, object], ...]) -> set[str]:
