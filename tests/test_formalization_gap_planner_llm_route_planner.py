@@ -10766,11 +10766,25 @@ def test_route_adoption_taxonomy_publishes_blocker_trigger_fields() -> None:
         "rows[].realization_coverage_witness.realization_coverage_complete"
         in trigger_fields
     )
+    quality_control_trigger_fields = payload["blocker_trigger_fields"][
+        "quality_control_obligations_pending"
+    ]
+    assert (
+        "context_packet.context_packet_inventory.pending_quality_control_value_count"
+        in quality_control_trigger_fields
+    )
+    assert not any(
+        "n_pending_quality_control_values" in field
+        for field in quality_control_trigger_fields
+    )
     trigger_schema = schema["properties"]["blocker_trigger_fields"]
     assert trigger_schema["additionalProperties"] is False
     assert trigger_schema["properties"][
         ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE
     ]["const"] == trigger_fields
+    assert trigger_schema["properties"][
+        "quality_control_obligations_pending"
+    ]["const"] == quality_control_trigger_fields
 
     corrupted_payload = deepcopy(payload)
     corrupted_payload["blocker_trigger_fields"][

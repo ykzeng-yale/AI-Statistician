@@ -400,7 +400,7 @@ ROUTE_ADOPTION_BLOCKER_TRIGGER_FIELDS = {
     ),
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS: (
         "context_packet.quality_control_obligations.pending",
-        "context_packet.context_packet_inventory.n_pending_quality_control_values",
+        "context_packet.context_packet_inventory.pending_quality_control_value_count",
     ),
 }
 LLM_ROUTE_PLANNER_COMPONENT = "formalization_gap_planner_llm_route_planner"
