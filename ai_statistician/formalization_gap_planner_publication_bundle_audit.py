@@ -2992,6 +2992,9 @@ def _expected_bundle_llm_route_planner_summary(
     payload = _read_json_no_error(manifest_path)
     rows, _row_errors = _read_jsonl_dict_rows_no_error(rows_path)
     request_packets = _dict_tuple(payload.get("request_packets", []))
+    request_model_tier_counts = Counter(
+        str(packet.get("model_tier", "") or "unknown") for packet in request_packets
+    )
     request_route_adoption_preconditions = tuple(
         _dict_value(
             _dict_value(packet, "context_packet"),
@@ -3028,6 +3031,72 @@ def _expected_bundle_llm_route_planner_summary(
             payload.get(
                 "n_rows_with_context_packet_inventory",
                 sum(1 for row in rows if row.get("context_packet_inventory")),
+            )
+            or 0
+        ),
+        "n_requests_with_available_source_snippets": int(
+            payload.get(
+                "n_requests_with_available_source_snippets",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_tuple(
+                        _dict_value(packet, "context_packet").get(
+                            "available_source_snippets",
+                            [],
+                        )
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_available_source_snippets": int(
+            payload.get(
+                "n_request_available_source_snippets",
+                sum(
+                    len(
+                        _dict_tuple(
+                            _dict_value(packet, "context_packet").get(
+                                "available_source_snippets",
+                                [],
+                            )
+                        )
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_requests_with_target_intake_rows": int(
+            payload.get(
+                "n_requests_with_target_intake_rows",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_tuple(
+                        _dict_value(packet, "context_packet").get(
+                            "target_intake_rows",
+                            [],
+                        )
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_target_intake_rows": int(
+            payload.get(
+                "n_request_target_intake_rows",
+                sum(
+                    len(
+                        _dict_tuple(
+                            _dict_value(packet, "context_packet").get(
+                                "target_intake_rows",
+                                [],
+                            )
+                        )
+                    )
+                    for packet in request_packets
+                ),
             )
             or 0
         ),
@@ -3123,6 +3192,70 @@ def _expected_bundle_llm_route_planner_summary(
             payload.get(
                 "n_request_residual_source_grounding_unresolved_rows",
                 0,
+            )
+            or 0
+        ),
+        "n_request_residual_goals": int(
+            payload.get(
+                "n_request_residual_goals",
+                sum(
+                    len(_str_tuple(packet.get("residual_goals", [])))
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_requests_with_residual_goal_contexts": int(
+            payload.get(
+                "n_requests_with_residual_goal_contexts",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_tuple(packet.get("residual_goal_contexts", []))
+                ),
+            )
+            or 0
+        ),
+        "n_request_residual_goal_contexts": int(
+            payload.get(
+                "n_request_residual_goal_contexts",
+                sum(
+                    len(_dict_tuple(packet.get("residual_goal_contexts", [])))
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_context_residual_goal_contexts": int(
+            payload.get(
+                "n_request_context_residual_goal_contexts",
+                sum(
+                    len(
+                        _dict_tuple(
+                            _dict_value(packet, "context_packet").get(
+                                "residual_goal_contexts",
+                                [],
+                            )
+                        )
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_inventory_residual_goal_contexts": int(
+            payload.get(
+                "n_request_inventory_residual_goal_contexts",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "context_packet_inventory",
+                        ).get("residual_goal_context_count", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
             )
             or 0
         ),
@@ -3457,6 +3590,34 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_request_model_tier_haiku": int(
+            payload.get(
+                "n_request_model_tier_haiku",
+                request_model_tier_counts.get("haiku", 0),
+            )
+            or 0
+        ),
+        "n_request_model_tier_sonnet": int(
+            payload.get(
+                "n_request_model_tier_sonnet",
+                request_model_tier_counts.get("sonnet", 0),
+            )
+            or 0
+        ),
+        "n_request_model_tier_opus": int(
+            payload.get(
+                "n_request_model_tier_opus",
+                request_model_tier_counts.get("opus", 0),
+            )
+            or 0
+        ),
+        "by_request_model_tier": dict(
+            payload.get(
+                "by_request_model_tier",
+                dict(sorted(request_model_tier_counts.items())),
+            )
+            or {}
+        ),
         "n_request_model_tier_decision_auto_haiku_bounded": int(
             payload.get(
                 "n_request_model_tier_decision_auto_haiku_bounded",
@@ -3542,6 +3703,72 @@ def _expected_bundle_llm_route_planner_summary(
                     len(_dict_tuple(row.get("route_alignment_edges")))
                     for row in rows
                 ),
+            )
+            or 0
+        ),
+        "n_search_requests": int(
+            payload.get(
+                "n_search_requests",
+                sum(len(_dict_tuple(row.get("search_requests"))) for row in rows),
+            )
+            or 0
+        ),
+        "n_planner_next_actions": int(
+            payload.get(
+                "n_planner_next_actions",
+                sum(len(_dict_tuple(row.get("planner_next_actions"))) for row in rows),
+            )
+            or 0
+        ),
+        "n_rows_with_planner_next_actions": int(
+            payload.get(
+                "n_rows_with_planner_next_actions",
+                sum(1 for row in rows if _dict_tuple(row.get("planner_next_actions"))),
+            )
+            or 0
+        ),
+        "n_rows_with_residual_goal_contexts": int(
+            payload.get(
+                "n_rows_with_residual_goal_contexts",
+                sum(1 for row in rows if _dict_tuple(row.get("residual_goal_contexts"))),
+            )
+            or 0
+        ),
+        "n_row_residual_goal_contexts": int(
+            payload.get(
+                "n_row_residual_goal_contexts",
+                sum(
+                    len(_dict_tuple(row.get("residual_goal_contexts")))
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_uncertainty_flags": int(
+            payload.get(
+                "n_uncertainty_flags",
+                sum(len(_str_tuple(row.get("uncertainty_flags", []))) for row in rows),
+            )
+            or 0
+        ),
+        "n_residual_interpretations": int(
+            payload.get(
+                "n_residual_interpretations",
+                sum(len(_dict_tuple(row.get("residual_interpretations"))) for row in rows),
+            )
+            or 0
+        ),
+        "n_source_snippets": int(
+            payload.get(
+                "n_source_snippets",
+                sum(len(_dict_tuple(row.get("source_snippets"))) for row in rows),
+            )
+            or 0
+        ),
+        "n_rows_with_source_snippets": int(
+            payload.get(
+                "n_rows_with_source_snippets",
+                sum(1 for row in rows if _dict_tuple(row.get("source_snippets"))),
             )
             or 0
         ),

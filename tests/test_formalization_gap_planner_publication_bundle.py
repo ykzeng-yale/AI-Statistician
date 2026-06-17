@@ -164,6 +164,21 @@ def _write_llm_route_planner_fixture_input(root: Path) -> Path:
                             "A fixture theorem follows from a source-backed bridge lemma."
                         ),
                         "source_refs": ["fixture_source"],
+                        "source_snippets": [
+                            {
+                                "source_ref": "fixture_source",
+                                "claim": (
+                                    "The source-backed bridge lemma supplies "
+                                    "the route's mathematical dependency."
+                                ),
+                                "excerpt": (
+                                    "The fixture source states that the bridge "
+                                    "conclusion follows from the source "
+                                    "assumption."
+                                ),
+                                "target_primitives": ["bridge_conclusion"],
+                            }
+                        ],
                         "primitives": [
                             {
                                 "primitive": "source_assumption",
@@ -979,6 +994,23 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     )
     assert (
         manifest["llm_route_planner_summary"][
+            "n_requests_with_available_source_snippets"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_available_source_snippets"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"]["n_requests_with_target_intake_rows"]
+        == 0
+    )
+    assert manifest["llm_route_planner_summary"]["n_request_target_intake_rows"] == 0
+    assert (
+        manifest["llm_route_planner_summary"][
             "n_requests_with_route_adoption_preconditions"
         ]
         == 1
@@ -1032,6 +1064,29 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert (
         manifest["llm_route_planner_summary"][
             "n_request_pending_quality_control_values"
+        ]
+        == 0
+    )
+    assert manifest["llm_route_planner_summary"]["n_request_residual_goals"] == 0
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_requests_with_residual_goal_contexts"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"]["n_request_residual_goal_contexts"]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_context_residual_goal_contexts"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_inventory_residual_goal_contexts"
         ]
         == 0
     )
@@ -1097,6 +1152,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         == 0
     )
+    assert manifest["llm_route_planner_summary"]["n_request_model_tier_haiku"] == 0
+    assert manifest["llm_route_planner_summary"]["n_request_model_tier_sonnet"] == 1
+    assert manifest["llm_route_planner_summary"]["n_request_model_tier_opus"] == 0
+    assert manifest["llm_route_planner_summary"]["by_request_model_tier"] == {
+        "sonnet": 1
+    }
     assert (
         manifest["llm_route_planner_summary"][
             "n_requests_with_library_alignment_summary"
@@ -1164,6 +1225,21 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         "n_lean_realization_dag_nodes"
     ] == 0
     assert manifest["llm_route_planner_summary"]["n_route_alignment_edges"] == 0
+    assert manifest["llm_route_planner_summary"]["n_search_requests"] == 0
+    assert manifest["llm_route_planner_summary"]["n_planner_next_actions"] == 0
+    assert (
+        manifest["llm_route_planner_summary"]["n_rows_with_planner_next_actions"]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"]["n_rows_with_residual_goal_contexts"]
+        == 0
+    )
+    assert manifest["llm_route_planner_summary"]["n_row_residual_goal_contexts"] == 0
+    assert manifest["llm_route_planner_summary"]["n_uncertainty_flags"] == 0
+    assert manifest["llm_route_planner_summary"]["n_residual_interpretations"] == 0
+    assert manifest["llm_route_planner_summary"]["n_source_snippets"] == 0
+    assert manifest["llm_route_planner_summary"]["n_rows_with_source_snippets"] == 0
     assert (
         manifest["llm_route_planner_summary"]["n_formal_attempt_queue_items"]
         == 0
@@ -1221,6 +1297,27 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     )
     assert manifest["feedback_llm_route_planner_summary"]["requested"] is True
     assert manifest["feedback_llm_route_planner_summary"]["n_request_packets"] == 1
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_available_source_snippets"
+        ]
+        == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_available_source_snippets"
+        ]
+        == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_model_tier_sonnet"
+        ]
+        == 1
+    )
+    assert manifest["feedback_llm_route_planner_summary"][
+        "by_request_model_tier"
+    ] == {"sonnet": 1}
     assert (
         manifest["feedback_llm_route_planner_summary"][
             "n_requests_with_library_alignment_summary"
@@ -3231,6 +3328,13 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     llm_summary_schema = publication_bundle_manifest_schema_payload[
         "properties"
     ]["llm_route_planner_summary"]
+    assert "n_request_available_source_snippets" in llm_summary_schema["required"]
+    assert "n_requests_with_residual_goal_contexts" in llm_summary_schema["required"]
+    assert "n_request_model_tier_sonnet" in llm_summary_schema["required"]
+    assert "by_request_model_tier" in llm_summary_schema["required"]
+    assert "n_planner_next_actions" in llm_summary_schema["required"]
+    assert "n_row_residual_goal_contexts" in llm_summary_schema["required"]
+    assert "n_rows_with_source_snippets" in llm_summary_schema["required"]
     assert "n_formal_attempt_queue_items" in llm_summary_schema["required"]
     assert "n_rows_with_formal_attempt_queue" in llm_summary_schema["required"]
     validation_summary_schema = publication_bundle_manifest_schema_payload[

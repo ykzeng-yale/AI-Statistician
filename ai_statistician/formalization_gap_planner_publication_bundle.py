@@ -2344,6 +2344,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_context_packet_inventory",
             "n_request_context_inventory_total_rows",
             "n_rows_with_context_packet_inventory",
+            "n_requests_with_available_source_snippets",
+            "n_request_available_source_snippets",
+            "n_requests_with_target_intake_rows",
+            "n_request_target_intake_rows",
             "n_requests_with_route_adoption_preconditions",
             "n_request_route_adoption_precondition_known_blockers",
             "n_request_route_adoption_precondition_required_response_fields",
@@ -2361,6 +2365,11 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_pending_source_grounding_obligation_inventory",
             "n_request_source_grounding_unresolved_rows",
             "n_request_residual_source_grounding_unresolved_rows",
+            "n_request_residual_goals",
+            "n_requests_with_residual_goal_contexts",
+            "n_request_residual_goal_contexts",
+            "n_request_context_residual_goal_contexts",
+            "n_request_inventory_residual_goal_contexts",
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_feedback_loop_summary_interactive_resource_requests",
@@ -2399,6 +2408,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_model_tier_decision_ledger_provider_failure_rows",
             "n_rows_with_model_tier_escalation",
             "n_requests_with_model_tier_decision_evidence",
+            "n_request_model_tier_haiku",
+            "n_request_model_tier_sonnet",
+            "n_request_model_tier_opus",
+            "by_request_model_tier",
             "n_request_model_tier_decision_auto_haiku_bounded",
             "n_request_model_tier_decision_auto_sonnet_triggered",
             "n_request_model_tier_decision_operator_override",
@@ -2428,6 +2441,15 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "legacy_response_field_aliases",
             "n_lean_realization_dag_nodes",
             "n_route_alignment_edges",
+            "n_search_requests",
+            "n_planner_next_actions",
+            "n_rows_with_planner_next_actions",
+            "n_rows_with_residual_goal_contexts",
+            "n_row_residual_goal_contexts",
+            "n_uncertainty_flags",
+            "n_residual_interpretations",
+            "n_source_snippets",
+            "n_rows_with_source_snippets",
             "n_formal_attempt_queue_items",
             "n_rows_with_formal_attempt_queue",
             "n_delta_action_witness_required_primitives",
@@ -2465,6 +2487,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_context_packet_inventory": nonnegative_integer,
             "n_request_context_inventory_total_rows": nonnegative_integer,
             "n_rows_with_context_packet_inventory": nonnegative_integer,
+            "n_requests_with_available_source_snippets": nonnegative_integer,
+            "n_request_available_source_snippets": nonnegative_integer,
+            "n_requests_with_target_intake_rows": nonnegative_integer,
+            "n_request_target_intake_rows": nonnegative_integer,
             "n_requests_with_route_adoption_preconditions": nonnegative_integer,
             "n_request_route_adoption_precondition_known_blockers": (
                 nonnegative_integer
@@ -2496,6 +2522,11 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_residual_source_grounding_unresolved_rows": (
                 nonnegative_integer
             ),
+            "n_request_residual_goals": nonnegative_integer,
+            "n_requests_with_residual_goal_contexts": nonnegative_integer,
+            "n_request_residual_goal_contexts": nonnegative_integer,
+            "n_request_context_residual_goal_contexts": nonnegative_integer,
+            "n_request_inventory_residual_goal_contexts": nonnegative_integer,
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": (
                 nonnegative_integer
             ),
@@ -2607,6 +2638,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             ),
             "n_rows_with_model_tier_escalation": nonnegative_integer,
             "n_requests_with_model_tier_decision_evidence": nonnegative_integer,
+            "n_request_model_tier_haiku": nonnegative_integer,
+            "n_request_model_tier_sonnet": nonnegative_integer,
+            "n_request_model_tier_opus": nonnegative_integer,
+            "by_request_model_tier": {"type": "object"},
             "n_request_model_tier_decision_auto_haiku_bounded": (
                 nonnegative_integer
             ),
@@ -2665,6 +2700,15 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "legacy_response_field_aliases": {"type": "object"},
             "n_lean_realization_dag_nodes": nonnegative_integer,
             "n_route_alignment_edges": nonnegative_integer,
+            "n_search_requests": nonnegative_integer,
+            "n_planner_next_actions": nonnegative_integer,
+            "n_rows_with_planner_next_actions": nonnegative_integer,
+            "n_rows_with_residual_goal_contexts": nonnegative_integer,
+            "n_row_residual_goal_contexts": nonnegative_integer,
+            "n_uncertainty_flags": nonnegative_integer,
+            "n_residual_interpretations": nonnegative_integer,
+            "n_source_snippets": nonnegative_integer,
+            "n_rows_with_source_snippets": nonnegative_integer,
             "n_formal_attempt_queue_items": nonnegative_integer,
             "n_rows_with_formal_attempt_queue": nonnegative_integer,
             "n_delta_action_witness_required_primitives": nonnegative_integer,
@@ -5095,6 +5139,10 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_requests_with_context_packet_inventory": 0,
         "n_request_context_inventory_total_rows": 0,
         "n_rows_with_context_packet_inventory": 0,
+        "n_requests_with_available_source_snippets": 0,
+        "n_request_available_source_snippets": 0,
+        "n_requests_with_target_intake_rows": 0,
+        "n_request_target_intake_rows": 0,
         "n_requests_with_route_adoption_preconditions": 0,
         "n_request_route_adoption_precondition_known_blockers": 0,
         "n_request_route_adoption_precondition_required_response_fields": 0,
@@ -5112,6 +5160,11 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_requests_with_pending_source_grounding_obligation_inventory": 0,
         "n_request_source_grounding_unresolved_rows": 0,
         "n_request_residual_source_grounding_unresolved_rows": 0,
+        "n_request_residual_goals": 0,
+        "n_requests_with_residual_goal_contexts": 0,
+        "n_request_residual_goal_contexts": 0,
+        "n_request_context_residual_goal_contexts": 0,
+        "n_request_inventory_residual_goal_contexts": 0,
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_feedback_loop_summary_interactive_resource_requests": 0,
@@ -5165,6 +5218,10 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_model_tier_decision_sonnet_triggers": 0,
         "n_request_model_tier_decision_evidence_invalid": 0,
         "by_request_model_tier_decision_basis": {},
+        "n_request_model_tier_haiku": 0,
+        "n_request_model_tier_sonnet": 0,
+        "n_request_model_tier_opus": 0,
+        "by_request_model_tier": {},
         "n_requests_with_library_alignment_summary": 0,
         "n_request_library_alignment_primitives": 0,
         "n_request_library_alignment_reuse_ready_primitives": 0,
@@ -5188,6 +5245,15 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "legacy_response_field_aliases": {},
         "n_lean_realization_dag_nodes": 0,
         "n_route_alignment_edges": 0,
+        "n_search_requests": 0,
+        "n_planner_next_actions": 0,
+        "n_rows_with_planner_next_actions": 0,
+        "n_rows_with_residual_goal_contexts": 0,
+        "n_row_residual_goal_contexts": 0,
+        "n_uncertainty_flags": 0,
+        "n_residual_interpretations": 0,
+        "n_source_snippets": 0,
+        "n_rows_with_source_snippets": 0,
         "n_formal_attempt_queue_items": 0,
         "n_rows_with_formal_attempt_queue": 0,
         "n_delta_action_witness_required_primitives": 0,
@@ -5224,6 +5290,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
     payload = _read_json_no_error(manifest_path)
     rows = _read_jsonl_dict_rows_no_error(rows_path)
     request_packets = _dict_tuple(payload.get("request_packets", []))
+    request_model_tier_counts = Counter(
+        str(packet.get("model_tier", "") or "unknown") for packet in request_packets
+    )
     decision_basis_counts = _llm_route_planner_decision_basis_counts(request_packets)
     request_route_adoption_preconditions = tuple(
         _dict_value(
@@ -5281,6 +5350,72 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             payload.get(
                 "n_rows_with_context_packet_inventory",
                 sum(1 for row in rows if row.get("context_packet_inventory")),
+            )
+            or 0
+        ),
+        "n_requests_with_available_source_snippets": int(
+            payload.get(
+                "n_requests_with_available_source_snippets",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_tuple(
+                        _dict_value(packet, "context_packet").get(
+                            "available_source_snippets",
+                            [],
+                        )
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_available_source_snippets": int(
+            payload.get(
+                "n_request_available_source_snippets",
+                sum(
+                    len(
+                        _dict_tuple(
+                            _dict_value(packet, "context_packet").get(
+                                "available_source_snippets",
+                                [],
+                            )
+                        )
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_requests_with_target_intake_rows": int(
+            payload.get(
+                "n_requests_with_target_intake_rows",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_tuple(
+                        _dict_value(packet, "context_packet").get(
+                            "target_intake_rows",
+                            [],
+                        )
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_target_intake_rows": int(
+            payload.get(
+                "n_request_target_intake_rows",
+                sum(
+                    len(
+                        _dict_tuple(
+                            _dict_value(packet, "context_packet").get(
+                                "target_intake_rows",
+                                [],
+                            )
+                        )
+                    )
+                    for packet in request_packets
+                ),
             )
             or 0
         ),
@@ -5376,6 +5511,70 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             payload.get(
                 "n_request_residual_source_grounding_unresolved_rows",
                 0,
+            )
+            or 0
+        ),
+        "n_request_residual_goals": int(
+            payload.get(
+                "n_request_residual_goals",
+                sum(
+                    len(_str_tuple(packet.get("residual_goals", [])))
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_requests_with_residual_goal_contexts": int(
+            payload.get(
+                "n_requests_with_residual_goal_contexts",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_tuple(packet.get("residual_goal_contexts", []))
+                ),
+            )
+            or 0
+        ),
+        "n_request_residual_goal_contexts": int(
+            payload.get(
+                "n_request_residual_goal_contexts",
+                sum(
+                    len(_dict_tuple(packet.get("residual_goal_contexts", [])))
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_context_residual_goal_contexts": int(
+            payload.get(
+                "n_request_context_residual_goal_contexts",
+                sum(
+                    len(
+                        _dict_tuple(
+                            _dict_value(packet, "context_packet").get(
+                                "residual_goal_contexts",
+                                [],
+                            )
+                        )
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_inventory_residual_goal_contexts": int(
+            payload.get(
+                "n_request_inventory_residual_goal_contexts",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "context_packet_inventory",
+                        ).get("residual_goal_context_count", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
             )
             or 0
         ),
@@ -5710,6 +5909,34 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             )
             or 0
         ),
+        "n_request_model_tier_haiku": int(
+            payload.get(
+                "n_request_model_tier_haiku",
+                request_model_tier_counts.get("haiku", 0),
+            )
+            or 0
+        ),
+        "n_request_model_tier_sonnet": int(
+            payload.get(
+                "n_request_model_tier_sonnet",
+                request_model_tier_counts.get("sonnet", 0),
+            )
+            or 0
+        ),
+        "n_request_model_tier_opus": int(
+            payload.get(
+                "n_request_model_tier_opus",
+                request_model_tier_counts.get("opus", 0),
+            )
+            or 0
+        ),
+        "by_request_model_tier": dict(
+            payload.get(
+                "by_request_model_tier",
+                dict(sorted(request_model_tier_counts.items())),
+            )
+            or {}
+        ),
         "n_request_model_tier_decision_auto_haiku_bounded": int(
             payload.get(
                 "n_request_model_tier_decision_auto_haiku_bounded",
@@ -5945,6 +6172,69 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             payload.get(
                 "n_route_alignment_edges",
                 _jsonl_row_collection_count(rows, "route_alignment_edges"),
+            )
+            or 0
+        ),
+        "n_search_requests": int(
+            payload.get(
+                "n_search_requests",
+                _jsonl_row_collection_count(rows, "search_requests"),
+            )
+            or 0
+        ),
+        "n_planner_next_actions": int(
+            payload.get(
+                "n_planner_next_actions",
+                _jsonl_row_collection_count(rows, "planner_next_actions"),
+            )
+            or 0
+        ),
+        "n_rows_with_planner_next_actions": int(
+            payload.get(
+                "n_rows_with_planner_next_actions",
+                sum(1 for row in rows if _dict_tuple(row.get("planner_next_actions"))),
+            )
+            or 0
+        ),
+        "n_rows_with_residual_goal_contexts": int(
+            payload.get(
+                "n_rows_with_residual_goal_contexts",
+                sum(1 for row in rows if _dict_tuple(row.get("residual_goal_contexts"))),
+            )
+            or 0
+        ),
+        "n_row_residual_goal_contexts": int(
+            payload.get(
+                "n_row_residual_goal_contexts",
+                _jsonl_row_collection_count(rows, "residual_goal_contexts"),
+            )
+            or 0
+        ),
+        "n_uncertainty_flags": int(
+            payload.get(
+                "n_uncertainty_flags",
+                sum(len(_str_tuple(row.get("uncertainty_flags", []))) for row in rows),
+            )
+            or 0
+        ),
+        "n_residual_interpretations": int(
+            payload.get(
+                "n_residual_interpretations",
+                _jsonl_row_collection_count(rows, "residual_interpretations"),
+            )
+            or 0
+        ),
+        "n_source_snippets": int(
+            payload.get(
+                "n_source_snippets",
+                _jsonl_row_collection_count(rows, "source_snippets"),
+            )
+            or 0
+        ),
+        "n_rows_with_source_snippets": int(
+            payload.get(
+                "n_rows_with_source_snippets",
+                sum(1 for row in rows if _dict_tuple(row.get("source_snippets"))),
             )
             or 0
         ),

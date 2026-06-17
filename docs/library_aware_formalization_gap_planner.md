@@ -679,10 +679,16 @@ can tell whether a packaged route was blocked by source-backed obligations
 already known before any model response. They also expose
 request-inventory quality-control obligation counts, including pending and
 discharged field/value totals, so public bundles show whether route-planner
-prompts still require prover/resource evidence before adoption. They also
-expose Haiku-to-Sonnet repair-escalation counts and structured tier-decision
-evidence counts from the primary and feedback LLM route-planner manifests, so
-cost-aware routing remains auditable in public supplements. They also expose
+prompts still require prover/resource evidence before adoption. They also lift
+request-side available source-snippet counts, target-intake row counts,
+residual-goal/context counts, response-side search requests, planner next
+actions, residual interpretations, uncertainty flags, and row source-snippet
+counts, so public bundles show whether route synthesis was evidence-bounded
+and feedback-aware without requiring consumers to inspect the raw planner
+manifest. They also expose Haiku/Sonnet/Opus request-tier distribution,
+Haiku-to-Sonnet repair-escalation counts, and structured tier-decision evidence
+counts from the primary and feedback LLM route-planner manifests, so cost-aware
+routing remains auditable in public supplements. They also expose
 minimal-delta action-witness counts, so a bundle shows whether selected
 positive-delta primitives have concrete wrapper, bridge, source-port,
 definition, or new-theory work-list entries. They also
