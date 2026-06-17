@@ -9122,9 +9122,9 @@ def _residual_goal_target_primitives(
 ) -> tuple[str, ...]:
     primitives: list[str] = []
     for residual in residual_goals:
-        prefix = str(residual).split(":", 1)[0].strip()
-        if prefix and re.match(r"^[A-Za-z_][A-Za-z0-9_.'-]*$", prefix):
-            primitives.append(prefix)
+        primitive = _residual_goal_prefixed_primitive_key_from_text(str(residual))
+        if primitive:
+            primitives.append(primitive)
     return tuple(dict.fromkeys(primitives))
 
 
@@ -9136,9 +9136,9 @@ def _residual_goal_context_target_primitives(
         primitives.extend(_str_tuple(context.get("target_primitives", [])))
         primitives.extend(_str_tuple(context.get("residual_primitives", [])))
         residual_goal = str(context.get("residual_goal", "") or "").strip()
-        prefix = residual_goal.split(":", 1)[0].strip()
-        if prefix and re.match(r"^[A-Za-z_][A-Za-z0-9_.'-]*$", prefix):
-            primitives.append(prefix)
+        primitive = _residual_goal_prefixed_primitive_key_from_text(residual_goal)
+        if primitive:
+            primitives.append(primitive)
     return tuple(dict.fromkeys(primitive for primitive in primitives if primitive))
 
 
@@ -15145,14 +15145,79 @@ def _agentic_strategy_response_content_keys(
     return keys
 
 
+def _route_adoption_precondition_target_primitives(
+    preconditions: Mapping[str, Any],
+) -> set[str]:
+    return {
+        primitive
+        for primitive in (
+            _primitive_key(value)
+            for value in _str_tuple(preconditions.get("target_primitives", []))
+        )
+        if primitive
+    }
+
+
+def _resource_request_target_primitive_index(
+    context_packet: Mapping[str, Any],
+) -> dict[str, set[str]]:
+    index: dict[str, set[str]] = {}
+    rows = [
+        *_dict_tuple(context_packet.get("resource_request_queue_rows", [])),
+        *_dict_tuple(context_packet.get("resource_request_playbooks", [])),
+    ]
+    for row in rows:
+        request_playbook = _dict_value(row, "request_playbook")
+        scoped_rows = (row, request_playbook) if request_playbook else (row,)
+        target_primitives = {
+            primitive
+            for scoped_row in scoped_rows
+            for primitive in (
+                _primitive_key(value)
+                for value in _feedback_row_target_primitives(scoped_row)
+            )
+            if primitive
+        }
+        if not target_primitives:
+            continue
+        for scoped_row in scoped_rows:
+            for field_name in (
+                "resource_request_id",
+                "resource_request_ids",
+                "resource_id",
+                "resource_ids",
+            ):
+                for value in _str_tuple(scoped_row.get(field_name, [])):
+                    key = _resource_ref_key(value)
+                    if key:
+                        index.setdefault(key, set()).update(target_primitives)
+    return index
+
+
+def _route_adoption_followup_target_primitives(
+    followup_rows: tuple[dict[str, Any], ...],
+    context_packet: Mapping[str, Any],
+) -> set[str]:
+    targets: set[str] = set()
+    resource_target_index = _resource_request_target_primitive_index(context_packet)
+    for row in followup_rows:
+        targets.update(_planner_action_target_primitive_keys(row))
+        refs = _structured_resource_refs(row)
+        for value in (
+            *refs.get("resource_request_ids", []),
+            *refs.get("resource_ids", []),
+        ):
+            targets.update(resource_target_index.get(_resource_ref_key(value), set()))
+    targets.discard("")
+    return targets
+
+
 def _response_route_adoption_precondition_errors(
     payload: Mapping[str, Any],
     request: Mapping[str, Any],
 ) -> list[str]:
-    preconditions = _dict_value(
-        _dict_value(request, "context_packet"),
-        "route_adoption_preconditions",
-    )
+    context_packet = _dict_value(request, "context_packet")
+    preconditions = _dict_value(context_packet, "route_adoption_preconditions")
     if not _truthy(preconditions.get("blocked_before_response", False)):
         return []
     required_fields = set(
@@ -15171,14 +15236,31 @@ def _response_route_adoption_precondition_errors(
             "residual_interpretations"
         )
     followup_fields = required_fields & {"search_requests", "planner_next_actions"}
-    if followup_fields and not (
+    followup_rows = (
         _dict_tuple(payload.get("search_requests", []))
-        or _dict_tuple(payload.get("planner_next_actions", []))
-    ):
+        + _dict_tuple(payload.get("planner_next_actions", []))
+    )
+    if followup_fields and not followup_rows:
         errors.append(
             "route_adoption_preconditions require at least one nonempty "
             "search_requests or planner_next_actions row"
         )
+    if followup_fields and followup_rows:
+        target_primitives = _route_adoption_precondition_target_primitives(
+            preconditions
+        )
+        followup_targets = _route_adoption_followup_target_primitives(
+            followup_rows,
+            context_packet,
+        )
+        if target_primitives and (
+            not followup_targets or target_primitives.isdisjoint(followup_targets)
+        ):
+            errors.append(
+                "route_adoption_preconditions require search_requests or "
+                "planner_next_actions scoped to precondition target_primitives: "
+                + ", ".join(sorted(target_primitives)[:8])
+            )
     return errors
 
 

@@ -16483,6 +16483,18 @@ def test_response_payload_validation_enforces_route_adoption_preconditions() -> 
     silent_payload = deepcopy(valid_payload)
     silent_payload["search_requests"] = []
     silent_payload["planner_next_actions"] = []
+    wrong_scope_payload = deepcopy(valid_payload)
+    wrong_scope_payload["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": "source-backed exchangeability follow-up for the finite route",
+            "reason": (
+                "This is intentionally scoped to the wrong primitive for the "
+                "route-adoption precondition."
+            ),
+            "target_primitives": ["exchangeability"],
+        }
+    ]
     response_json.write_text(
         json.dumps(
             {
@@ -16491,6 +16503,11 @@ def test_response_payload_validation_enforces_route_adoption_preconditions() -> 
                         "request_id": request["request_id"],
                         "route_id": request["route_id"],
                         "response_payload": valid_payload,
+                    },
+                    {
+                        "request_id": request["request_id"],
+                        "route_id": request["route_id"],
+                        "response_payload": wrong_scope_payload,
                     },
                     {
                         "request_id": request["request_id"],
@@ -16511,33 +16528,33 @@ def test_response_payload_validation_enforces_route_adoption_preconditions() -> 
     )
 
     assert validation_payload["all_ok"] is False
-    assert validation_payload["n_payloads"] == 2
+    assert validation_payload["n_payloads"] == 3
     assert validation_payload["n_valid_payloads"] == 1
-    assert validation_payload["n_invalid_payloads"] == 1
-    assert validation_payload["n_request_bound_payloads"] == 2
+    assert validation_payload["n_invalid_payloads"] == 2
+    assert validation_payload["n_request_bound_payloads"] == 3
     assert (
         validation_payload[
             "n_request_bound_payloads_with_route_adoption_preconditions"
         ]
-        == 2
+        == 3
     )
     assert (
         validation_payload[
             "n_request_bound_payloads_with_blocking_route_adoption_preconditions"
         ]
-        == 2
+        == 3
     )
     assert (
         validation_payload[
             "n_request_bound_payload_route_adoption_precondition_known_blockers"
         ]
-        == preconditions["n_known_pre_response_blockers"] * 2
+        == preconditions["n_known_pre_response_blockers"] * 3
     )
     assert (
         validation_payload[
             "n_request_bound_payload_route_adoption_precondition_required_response_fields"
         ]
-        == preconditions["n_response_required_fields"] * 2
+        == preconditions["n_response_required_fields"] * 3
     )
     assert (
         validate_llm_route_planner_response_payload_validation_manifest(
@@ -16546,7 +16563,7 @@ def test_response_payload_validation_enforces_route_adoption_preconditions() -> 
         )
         == []
     )
-    valid_row, silent_row = validation_payload["rows"]
+    valid_row, wrong_scope_row, silent_row = validation_payload["rows"]
     assert valid_row["ok"] is True
     assert valid_row["n_request_context_errors"] == 0
     assert valid_row["request_context_route_adoption_precondition_present"] is True
@@ -16565,6 +16582,14 @@ def test_response_payload_validation_enforces_route_adoption_preconditions() -> 
             "request_context_route_adoption_precondition_required_response_field_count"
         ]
         == preconditions["n_response_required_fields"]
+    )
+    assert wrong_scope_row["ok"] is False
+    assert wrong_scope_row["n_request_context_errors"] == 1
+    assert any(
+        "route_adoption_preconditions require search_requests or "
+        "planner_next_actions scoped to precondition target_primitives: "
+        "rank_uniformity" in error
+        for error in wrong_scope_row["errors"]
     )
     assert silent_row["ok"] is False
     assert silent_row["n_request_context_errors"] == 1
