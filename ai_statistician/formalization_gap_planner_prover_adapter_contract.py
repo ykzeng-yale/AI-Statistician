@@ -156,6 +156,9 @@ class FormalizationGapPlannerProverAdapterPacket:
     formal_attempt_blocking_prerequisite_formal_node_ids: tuple[str, ...]
     formal_attempt_missing_prerequisite_formal_node_ids: tuple[str, ...]
     formal_attempt_dependency_protocol: str
+    minimal_delta_action_witnesses: tuple[dict[str, object], ...]
+    minimal_delta_action_witness_count: int
+    has_minimal_delta_action_witness: bool
     required_adapter_response_fields: tuple[str, ...]
     acceptance_gate: str
     proof_evidence_status: str
@@ -432,6 +435,15 @@ def export_formalization_gap_planner_prover_adapter_contract(
         "by_packet_formal_attempt_dependency_status": dict(
             sorted(by_packet_formal_attempt_dependency_status.items())
         ),
+        "n_packets_with_minimal_delta_action_witnesses": sum(
+            1 for packet in packets if packet.minimal_delta_action_witnesses
+        ),
+        "n_packet_minimal_delta_action_witnesses": sum(
+            packet.minimal_delta_action_witness_count for packet in packets
+        ),
+        "packet_minimal_delta_action_witness_fields": (
+            _packet_minimal_delta_action_witness_fields(packets)
+        ),
         "n_responses": len(response_rows_raw),
         "n_unmatched_adapter_responses": len(unmatched_response_errors),
         "n_response_present": sum(1 for row in validations if row.response_present),
@@ -609,6 +621,9 @@ def prover_adapter_packet_json_schema() -> dict[str, object]:
             "formal_attempt_blocking_prerequisite_formal_node_ids": string_array,
             "formal_attempt_missing_prerequisite_formal_node_ids": string_array,
             "formal_attempt_dependency_protocol": {"type": "string"},
+            "minimal_delta_action_witnesses": object_array,
+            "minimal_delta_action_witness_count": {"type": "integer"},
+            "has_minimal_delta_action_witness": {"type": "boolean"},
         },
     }
     return {
@@ -657,6 +672,9 @@ def prover_adapter_packet_json_schema() -> dict[str, object]:
             "formal_attempt_blocking_prerequisite_formal_node_ids",
             "formal_attempt_missing_prerequisite_formal_node_ids",
             "formal_attempt_dependency_protocol",
+            "minimal_delta_action_witnesses",
+            "minimal_delta_action_witness_count",
+            "has_minimal_delta_action_witness",
             "required_adapter_response_fields",
             "acceptance_gate",
             "proof_evidence_status",
@@ -704,6 +722,9 @@ def prover_adapter_packet_json_schema() -> dict[str, object]:
             "formal_attempt_blocking_prerequisite_formal_node_ids": string_array,
             "formal_attempt_missing_prerequisite_formal_node_ids": string_array,
             "formal_attempt_dependency_protocol": {"type": "string", "minLength": 1},
+            "minimal_delta_action_witnesses": object_array,
+            "minimal_delta_action_witness_count": {"type": "integer"},
+            "has_minimal_delta_action_witness": {"type": "boolean"},
             "required_adapter_response_fields": string_array,
             "acceptance_gate": {"type": "string", "minLength": 1},
             "proof_evidence_status": {
@@ -773,6 +794,7 @@ def validate_prover_adapter_packet_row(
     else:
         errors.append("standalone_input_trace must be an object")
     errors.extend(_packet_residual_context_field_errors(row))
+    errors.extend(_packet_minimal_delta_action_witness_field_errors(row))
     return tuple(errors)
 
 
@@ -1114,6 +1136,16 @@ def _packet_for_work_packet(
             ]
         ),
         formal_attempt_dependency_protocol=FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
+        minimal_delta_action_witnesses=_dict_tuple(
+            formal_attempt_dependency.get("minimal_delta_action_witnesses", [])
+        ),
+        minimal_delta_action_witness_count=int(
+            formal_attempt_dependency.get("minimal_delta_action_witness_count", 0)
+            or 0
+        ),
+        has_minimal_delta_action_witness=bool(
+            formal_attempt_dependency.get("has_minimal_delta_action_witness", False)
+        ),
         required_adapter_response_fields=_required_response_fields_for_packet(
             formal_attempt_dependency
         ),
@@ -1352,8 +1384,8 @@ def _standalone_trace_formal_attempt_dependency_errors(
     packet_row: dict[str, Any],
 ) -> tuple[str, ...]:
     errors: list[str] = []
-    int_fields = ("formal_attempt_queue_index",)
-    bool_fields = ("formal_attempt_initial_ready",)
+    int_fields = ("formal_attempt_queue_index", "minimal_delta_action_witness_count")
+    bool_fields = ("formal_attempt_initial_ready", "has_minimal_delta_action_witness")
     string_fields = (
         "formal_attempt_dependency_status",
         "formal_attempt_dependency_protocol",
@@ -1392,6 +1424,14 @@ def _standalone_trace_formal_attempt_dependency_errors(
                 f"standalone_input_trace.{field_name} mismatch: "
                 f"{trace_values} != {packet_values}"
             )
+    trace_witnesses = _dict_tuple(trace.get("minimal_delta_action_witnesses", []))
+    packet_witnesses = _dict_tuple(
+        packet_row.get("minimal_delta_action_witnesses", [])
+    )
+    if trace_witnesses != packet_witnesses:
+        errors.append(
+            "standalone_input_trace.minimal_delta_action_witnesses mismatch"
+        )
     return tuple(errors)
 
 
@@ -1470,6 +1510,43 @@ def _packet_residual_context_field_errors(row: dict[str, Any]) -> tuple[str, ...
     return tuple(errors)
 
 
+def _packet_minimal_delta_action_witness_field_errors(
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    raw_witnesses = row.get("minimal_delta_action_witnesses", [])
+    if not isinstance(raw_witnesses, (list, tuple)):
+        return ("minimal_delta_action_witnesses must be array",)
+    non_objects = [
+        idx for idx, item in enumerate(raw_witnesses) if not isinstance(item, dict)
+    ]
+    if non_objects:
+        errors.append(
+            "minimal_delta_action_witnesses items must be object at indexes "
+            + ",".join(str(idx) for idx in non_objects)
+        )
+    witnesses = _dict_tuple(raw_witnesses)
+    if "minimal_delta_action_witness_count" in row:
+        observed_count = row.get("minimal_delta_action_witness_count", 0)
+        if not isinstance(observed_count, int) or isinstance(observed_count, bool):
+            errors.append("minimal_delta_action_witness_count must be integer")
+        elif observed_count != len(witnesses):
+            errors.append(
+                "minimal_delta_action_witness_count mismatch: "
+                f"observed={observed_count} expected={len(witnesses)}"
+            )
+    if "has_minimal_delta_action_witness" in row:
+        observed_present = row.get("has_minimal_delta_action_witness", False)
+        if not isinstance(observed_present, bool):
+            errors.append("has_minimal_delta_action_witness must be boolean")
+        elif observed_present != bool(witnesses):
+            errors.append(
+                "has_minimal_delta_action_witness mismatch: "
+                f"observed={observed_present} expected={bool(witnesses)}"
+            )
+    return tuple(errors)
+
+
 def _normalize_trace_quality_control_fields(trace: dict[str, object]) -> None:
     controls = _quality_controls_from_trace(trace)
     trace["quality_controls"] = {
@@ -1536,6 +1613,21 @@ def _packet_quality_control_values(
                     field_name,
                     tuple(),
                 )
+            }
+        )
+    )
+
+
+def _packet_minimal_delta_action_witness_fields(
+    packets: list[FormalizationGapPlannerProverAdapterPacket],
+) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                str(witness.get("action_field", "")).strip()
+                for packet in packets
+                for witness in packet.minimal_delta_action_witnesses
+                if str(witness.get("action_field", "")).strip()
             }
         )
     )
@@ -1818,6 +1910,7 @@ def _formal_attempt_dependency_from_candidate(
             blockers = missing
         elif status == "waiting_for_formal_prerequisite_attempts":
             blockers = prerequisites
+    witnesses = _formal_attempt_minimal_delta_action_witnesses_from_candidate(row)
     return {
         "formal_attempt_queue_index": queue_index,
         "formal_attempt_initial_ready": status == "ready_no_formal_prerequisites",
@@ -1827,6 +1920,9 @@ def _formal_attempt_dependency_from_candidate(
         "formal_attempt_blocking_prerequisite_formal_node_ids": blockers,
         "formal_attempt_missing_prerequisite_formal_node_ids": missing,
         "formal_attempt_dependency_protocol": FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
+        "minimal_delta_action_witnesses": witnesses,
+        "minimal_delta_action_witness_count": len(witnesses),
+        "has_minimal_delta_action_witness": bool(witnesses),
     }
 
 
@@ -1855,6 +1951,9 @@ def _formal_attempt_dependency_default() -> dict[str, object]:
         "formal_attempt_blocking_prerequisite_formal_node_ids": (),
         "formal_attempt_missing_prerequisite_formal_node_ids": (),
         "formal_attempt_dependency_protocol": FORMAL_ATTEMPT_DEPENDENCY_PROTOCOL,
+        "minimal_delta_action_witnesses": (),
+        "minimal_delta_action_witness_count": 0,
+        "has_minimal_delta_action_witness": False,
     }
 
 
@@ -1944,6 +2043,23 @@ def _formal_attempt_candidate_target_primitives(
     )
 
 
+def _formal_attempt_minimal_delta_action_witnesses_from_candidate(
+    row: dict[str, object],
+) -> tuple[dict[str, object], ...]:
+    nested_attempt = _nested_formal_attempt(row)
+    for field_name in (
+        "minimal_delta_action_witnesses",
+        "formal_attempt_minimal_delta_action_witnesses",
+    ):
+        witnesses = _dict_tuple(row.get(field_name, []))
+        if witnesses:
+            return witnesses
+        nested_witnesses = _dict_tuple(nested_attempt.get(field_name, []))
+        if nested_witnesses:
+            return nested_witnesses
+    return tuple()
+
+
 def _nested_formal_attempt(row: dict[str, object]) -> dict[str, object]:
     nested = row.get("llm_route_planner_formal_attempt", {})
     return dict(nested) if isinstance(nested, dict) else {}
@@ -1962,6 +2078,9 @@ def _attach_formal_attempt_dependency_fields(
         "formal_attempt_blocking_prerequisite_formal_node_ids",
         "formal_attempt_missing_prerequisite_formal_node_ids",
         "formal_attempt_dependency_protocol",
+        "minimal_delta_action_witnesses",
+        "minimal_delta_action_witness_count",
+        "has_minimal_delta_action_witness",
     ):
         value = dependency.get(field_name)
         if isinstance(value, tuple):
@@ -2518,6 +2637,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"{payload.get('n_packet_llm_route_adoption_pending_quality_control_blockers')}",
         "- LLM route-adoption pending source-grounding blockers: "
         f"{payload.get('n_packet_llm_route_adoption_pending_source_grounding_blockers')}",
+        f"- Packets with minimal-delta action witnesses: {payload.get('n_packets_with_minimal_delta_action_witnesses')}",
+        f"- Minimal-delta action witnesses: {payload.get('n_packet_minimal_delta_action_witnesses')}",
+        f"- Minimal-delta action witness fields: {payload.get('packet_minimal_delta_action_witness_fields')}",
         f"- Responses: {payload.get('n_response_present')}/{payload.get('n_packets')}",
         f"- Contract OK responses: {payload.get('n_response_contract_ok')}",
         (

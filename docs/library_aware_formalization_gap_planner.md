@@ -634,9 +634,14 @@ bottom-up route order as the Lean proof-state adapter. A waiting packet cannot
 be marked `ready_for_kernel_attempt` unless the adapter response sets
 `prerequisite_feedback_satisfied=true` and names the prior
 `prerequisite_response_ids`; packets with missing prerequisite attempts must
-request route repair rather than kernel replay.
-The cross-prover matrix and target summary also roll these fields up as
-formal-attempt dependency readiness counters and status histograms, so
+request route repair rather than kernel replay. For formal-attempt rows derived
+from an LLM route queue, adapter packets also carry
+`minimal_delta_action_witnesses`, `minimal_delta_action_witness_count`, and
+`has_minimal_delta_action_witness`, so the target-prover worker can see the
+exact selected wrapper, bridge, source-port, definition, or new-theory
+obligation it is being asked to map.
+The cross-prover matrix and target summary also roll the dependency-readiness
+fields up as counters and status histograms, so
 Rocq/Isabelle/Agda adapters can identify initially ready, waiting, and
 missing-prerequisite packet queues before opening individual packet rows.
 The reuse-smoke and publication-bundle manifests/reports lift the same counters
@@ -1793,8 +1798,10 @@ claims in the mapping layer. It publishes both
 with schema-valid counts, so downstream prover adapters can validate requested
 work packets and replay-response validation rows without importing this repo.
 Those packet schemas also expose the `formal_attempt_queue` dependency/readiness
-state that the refinement queue computes locally. Cross-prover adapters should
-attempt `ready_no_formal_prerequisites` packets first, then unlock
+state that the refinement queue computes locally, plus the concrete
+`minimal_delta_action_witnesses` attached to the selected route's queued formal
+attempt. Cross-prover adapters should attempt `ready_no_formal_prerequisites`
+packets first, then unlock
 `waiting_for_formal_prerequisite_attempts` packets only after prior non-waiting
 prover-feedback rows have been recorded and referenced by
 `prerequisite_response_ids`. The validator rejects a premature

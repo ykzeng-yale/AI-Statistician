@@ -447,6 +447,21 @@ def test_prover_adapter_contract_gates_waiting_formal_attempt_dependency() -> No
                 "formal_attempt_kind": "bridge_proof",
                 "prerequisite_formal_node_ids": ["formal:exchangeability"],
                 "expected_feedback": ["residual_goals"],
+                "minimal_delta_action_witnesses": [
+                    {
+                        "primitive": "rank_uniformity",
+                        "attempt_kind": "bridge_proof",
+                        "action_field": "bridge_lemmas",
+                        "source_label": "minimal_delta_plan.bridge_lemmas",
+                        "action_item": (
+                            "rank_uniformity: prove finite rank uniformity "
+                            "from exchangeability as the target-prover bridge "
+                            "lemma"
+                        ),
+                    }
+                ],
+                "minimal_delta_action_witness_count": 1,
+                "has_minimal_delta_action_witness": True,
             },
         ],
         "portable_work_packets": [
@@ -501,6 +516,11 @@ def test_prover_adapter_contract_gates_waiting_formal_attempt_dependency() -> No
     assert blocked_payload["n_packets_with_formal_attempt_dependency"] == 1
     assert blocked_payload["n_packets_formal_attempt_waiting"] == 1
     assert blocked_payload["n_rejected_formal_attempt_dependency_gate"] == 1
+    assert blocked_payload["n_packets_with_minimal_delta_action_witnesses"] == 1
+    assert blocked_payload["n_packet_minimal_delta_action_witnesses"] == 1
+    assert blocked_payload["packet_minimal_delta_action_witness_fields"] == (
+        "bridge_lemmas",
+    )
     packet = blocked_payload["packets"][0]
     assert packet["formal_attempt_queue_index"] == 1
     assert packet["formal_attempt_initial_ready"] is False
@@ -515,6 +535,37 @@ def test_prover_adapter_contract_gates_waiting_formal_attempt_dependency() -> No
     )
     assert packet["standalone_input_trace"]["formal_attempt_dependency_status"] == (
         "waiting_for_formal_prerequisite_attempts"
+    )
+    assert packet["minimal_delta_action_witness_count"] == 1
+    assert packet["has_minimal_delta_action_witness"] is True
+    assert packet["minimal_delta_action_witnesses"][0]["primitive"] == (
+        "rank_uniformity"
+    )
+    assert packet["minimal_delta_action_witnesses"][0]["action_field"] == (
+        "bridge_lemmas"
+    )
+    assert "target-prover bridge lemma" in packet[
+        "minimal_delta_action_witnesses"
+    ][0]["action_item"]
+    assert packet["standalone_input_trace"]["minimal_delta_action_witnesses"] == (
+        list(packet["minimal_delta_action_witnesses"])
+    )
+    assert (
+        packet["standalone_input_trace"]["minimal_delta_action_witness_count"]
+        == 1
+    )
+    assert (
+        packet["standalone_input_trace"]["has_minimal_delta_action_witness"]
+        is True
+    )
+    bad_packet = dict(packet)
+    bad_packet["minimal_delta_action_witness_count"] = 0
+    assert any(
+        "minimal_delta_action_witness_count mismatch" in error
+        for error in validate_prover_adapter_packet_row(
+            bad_packet,
+            prover_adapter_packet_json_schema(),
+        )
     )
     assert "prerequisite_feedback_satisfied" in packet[
         "required_adapter_response_fields"
@@ -554,6 +605,7 @@ def test_prover_adapter_contract_gates_waiting_formal_attempt_dependency() -> No
     assert unlocked_payload["all_ok"]
     assert unlocked_payload["n_response_prerequisite_feedback_satisfied"] == 1
     assert unlocked_payload["n_responses_with_prerequisite_response_ids"] == 1
+    assert unlocked_payload["packets"][0]["minimal_delta_action_witness_count"] == 1
     assert unlocked_payload["response_validation_rows"][0][
         "prerequisite_response_ids"
     ] == ("prover_feedback:exchangeability",)
