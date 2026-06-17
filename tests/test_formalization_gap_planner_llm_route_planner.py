@@ -4370,8 +4370,17 @@ def test_llm_route_planner_materializes_formal_attempt_queue_hooks() -> None:
     )
 
     assert payload["all_ok"]
+    assert payload["by_acceptance_status"] == {
+        "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE": 1
+    }
     assert payload["n_formal_attempt_queue_items"] == 2
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE"
+    assert row["route_adoption_status"] == "READY_FOR_STANDALONE_REPLAY"
     seed_route = payload["standalone_seed"]["routes"][0]
+    assert seed_route["llm_route_planner_acceptance_status"] == (
+        "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE"
+    )
     queue_hooks = [
         hook
         for hook in seed_route["interactive_refinement_hooks"]
@@ -11540,7 +11549,7 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
         "READY_FOR_STANDALONE_REPLAY": 1
     }
     row = payload["rows"][0]
-    assert row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert row["acceptance_status"] == "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE"
     assert row["route_adoption_status"] == "READY_FOR_STANDALONE_REPLAY"
     assert row["route_adoption_blockers"] == ()
     seed_route = payload["standalone_seed"]["routes"][0]
@@ -11940,7 +11949,7 @@ def test_llm_route_planner_blocks_route_adoption_on_formal_gap_boundary() -> Non
     assert payload["n_route_adoption_pending_refinement"] == 1
     assert payload["n_route_adoption_pending_formal_gap_boundary_blockers"] == 1
     row = payload["rows"][0]
-    assert row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert row["acceptance_status"] == "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE"
     assert row["route_adoption_status"] == (
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
@@ -12634,7 +12643,7 @@ def test_llm_route_planner_blocks_route_adoption_on_feedback_redispatch_actions(
         == 1
     )
     row = payload["rows"][0]
-    assert row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert row["acceptance_status"] == "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE"
     assert row["route_adoption_status"] == (
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
@@ -17863,7 +17872,7 @@ def test_llm_route_planner_blocks_route_adoption_when_cost_hint_primitive_omitte
     )
     assert payload["n_route_adoption_omitted_cost_hint_primitives"] == 1
     row = payload["rows"][0]
-    assert row["acceptance_status"] == "ACCEPTED_LLM_ROUTE_PLAN"
+    assert row["acceptance_status"] == "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE"
     assert row["response_contract_ok"] is True
     assert row["route_adoption_status"] == (
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"

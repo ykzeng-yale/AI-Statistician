@@ -14151,6 +14151,8 @@ def _row_for_request(
         acceptance_status = "ACCEPTED_WITH_SEMANTIC_ALIGNMENT_RISKS"
     elif _dict_tuple(payload.get("residual_interpretations", [])):
         acceptance_status = "ACCEPTED_WITH_RESIDUAL_REPAIR"
+    elif _dict_tuple(payload.get("formal_attempt_queue", [])):
+        acceptance_status = "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE"
     else:
         acceptance_status = "ACCEPTED_LLM_ROUTE_PLAN"
     route_id = str(request.get("route_id", ""))
