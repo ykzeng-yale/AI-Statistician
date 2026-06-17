@@ -1894,6 +1894,9 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert ledger_row["interactive_route_adoption_precondition_counts"] == request[
         "model_tier_decision_evidence"
     ]["interactive_route_adoption_precondition_counts"]
+    assert ledger_row["source_grounding_obligations"] == request[
+        "model_tier_decision_evidence"
+    ]["source_grounding_obligations"]
     assert ledger_row["response_present"] is False
     assert ledger_row["provider_failure"] is False
     assert ledger_row["proof_evidence_status"] == (
@@ -7459,6 +7462,7 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "interactive_route_adoption_precondition_counts"
         in ledger_schema["required"]
     )
+    assert "source_grounding_obligations" in ledger_schema["required"]
     assert (
         ledger_schema["properties"]["context_resource_dispatch_counts"]["type"]
         == "object"
@@ -7467,6 +7471,10 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         ledger_schema["properties"][
             "interactive_route_adoption_precondition_counts"
         ]["type"]
+        == "object"
+    )
+    assert (
+        ledger_schema["properties"]["source_grounding_obligations"]["type"]
         == "object"
     )
     assert "standalone_replay_gate" in manifest_schema["required"]

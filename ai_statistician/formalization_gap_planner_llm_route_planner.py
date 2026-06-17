@@ -3614,6 +3614,7 @@ def llm_route_planner_model_tier_decision_ledger_json_schema() -> dict[str, obje
             "sonnet_trigger_count",
             "context_resource_dispatch_counts",
             "interactive_route_adoption_precondition_counts",
+            "source_grounding_obligations",
             "model_tier_escalated",
             "provider_failure",
             "acceptance_status",
@@ -3655,6 +3656,7 @@ def llm_route_planner_model_tier_decision_ledger_json_schema() -> dict[str, obje
             "context_resource_dispatch_counts": {"type": "object"},
             "interactive_route_adoption_precondition_counts": {"type": "object"},
             "source_theorem_feedback_counts": {"type": "object"},
+            "source_grounding_obligations": {"type": "object"},
             "model_tier_escalated": {"type": "boolean"},
             "model_tier_escalation_reason": {"type": "string"},
             "response_present": {"type": "boolean"},
@@ -12419,6 +12421,10 @@ def _model_tier_decision_ledger_row(
         evidence,
         "source_theorem_feedback_counts",
     )
+    source_grounding_obligations = _dict_value(
+        evidence,
+        "source_grounding_obligations",
+    )
     request_id = str(row.get("request_id") or request.get("request_id") or "")
     route_id = str(row.get("route_id") or request.get("route_id") or "")
     provider_name = str(row.get("provider_name") or request.get("provider_name") or "")
@@ -12435,6 +12441,7 @@ def _model_tier_decision_ledger_row(
                     effective_model_tier,
                     str(evidence.get("decision_basis", "")),
                     sonnet_triggers,
+                    source_grounding_obligations,
                     model_tier_escalated,
                 ]
             )[:20]
@@ -12466,6 +12473,7 @@ def _model_tier_decision_ledger_row(
             interactive_route_adoption_precondition_counts
         ),
         "source_theorem_feedback_counts": source_theorem_feedback_counts,
+        "source_grounding_obligations": source_grounding_obligations,
         "model_tier_escalated": model_tier_escalated,
         "model_tier_escalation_reason": escalation_reason,
         "response_present": bool(row.get("response_present", False)),
