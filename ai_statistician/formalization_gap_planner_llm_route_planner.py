@@ -7949,6 +7949,9 @@ def _route_planning_brief(
         for primitive in _feedback_row_target_primitives(playbook)
     )
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
+    quality_control_targets = _str_tuple(
+        quality_control_obligations.get("target_primitives", [])
+    )
     source_grounding_obligations = _source_grounding_obligation_summary(
         context_packet
     )
@@ -8447,6 +8450,7 @@ def _route_planning_brief(
                 "context_packet.resource_request_queue_rows",
             ),
             required_output_fields=("planner_next_actions", "search_requests"),
+            target_primitives=quality_control_targets,
         )
         add_gap(
             "pending_quality_controls",
@@ -8454,6 +8458,7 @@ def _route_planning_brief(
             reason="quality controls remain pending in the context packet",
             recommended_action="emit bounded next actions that discharge pending controls",
             evidence_fields=("context_packet.context_packet_inventory",),
+            target_primitives=quality_control_targets,
         )
     if bool(source_grounding_obligations.get("pending", False)):
         add_focus(
@@ -14548,6 +14553,11 @@ def _quality_control_obligation_summary(
     discharged = _quality_control_discharges_for_context(context_packet)
     pending = _quality_control_difference(obligations, discharged)
     present = any(obligations.values())
+    target_primitives = _quality_control_obligation_target_primitives(
+        context_packet,
+        recommended_next_actions=recommended_next_actions,
+        include_feedback_summary=include_feedback_summary,
+    )
     return {
         "present": present,
         "pending": any(pending.values()),
@@ -14559,6 +14569,7 @@ def _quality_control_obligation_summary(
             field_name for field_name, values in pending.items() if values
         ),
         "n_pending_values": sum(len(values) for values in pending.values()),
+        "target_primitives": list(target_primitives[:20]),
     }
 
 
@@ -14568,6 +14579,72 @@ def _quality_control_obligations_for_context(
     recommended_next_actions: tuple[dict[str, object], ...],
     include_feedback_summary: bool,
 ) -> dict[str, tuple[str, ...]]:
+    return _merge_quality_control_values(
+        *(
+            _quality_control_values_for_row(row)
+            for row in _quality_control_obligation_rows_for_context(
+                context_packet,
+                recommended_next_actions=recommended_next_actions,
+                include_feedback_summary=include_feedback_summary,
+            )
+        )
+    )
+
+
+def _quality_control_obligation_target_primitives(
+    context_packet: Mapping[str, Any],
+    *,
+    recommended_next_actions: tuple[dict[str, object], ...],
+    include_feedback_summary: bool,
+) -> tuple[str, ...]:
+    return _unique_strings(
+        primitive
+        for row in _quality_control_obligation_rows_for_context(
+            context_packet,
+            recommended_next_actions=recommended_next_actions,
+            include_feedback_summary=include_feedback_summary,
+        )
+        if _quality_control_values_for_row(row)
+        for primitive in _quality_control_row_target_primitives(row)
+    )
+
+
+def _quality_control_row_target_primitives(
+    row: Mapping[str, Any],
+) -> tuple[str, ...]:
+    request_playbook = _dict_value(row, "request_playbook")
+    request_payload = _dict_value(row, "request_payload")
+    input_summary = _dict_value(request_playbook, "input_summary")
+    row_input_summary = _dict_value(row, "input_summary")
+    quality_controls = _dict_value(row, "quality_controls")
+    values: list[str] = [
+        *_str_tuple(row.get("target_primitives", [])),
+        *_str_tuple(row.get("target_primitive", [])),
+        str(row.get("primitive", "")).strip(),
+        str(row.get("residual_gap", "")).strip(),
+        *_str_tuple(quality_controls.get("target_primitives", [])),
+        *_str_tuple(quality_controls.get("target_primitive", [])),
+        str(quality_controls.get("primitive", "")).strip(),
+        *_str_tuple(request_playbook.get("target_primitives", [])),
+        *_str_tuple(request_playbook.get("target_primitive", [])),
+        str(request_playbook.get("primitive", "")).strip(),
+        str(input_summary.get("primitive", "")).strip(),
+        *_str_tuple(row_input_summary.get("target_primitives", [])),
+        *_str_tuple(row_input_summary.get("target_primitive", [])),
+        str(row_input_summary.get("primitive", "")).strip(),
+        *_str_tuple(request_payload.get("target_primitives", [])),
+        *_str_tuple(request_payload.get("target_primitive", [])),
+        str(request_payload.get("primitive", "")).strip(),
+    ]
+    return _unique_strings(values)
+
+
+def _quality_control_obligation_rows_for_context(
+    context_packet: Mapping[str, Any],
+    *,
+    recommended_next_actions: tuple[dict[str, object], ...],
+    include_feedback_summary: bool,
+) -> tuple[Mapping[str, Any], ...]:
     current_route = _dict_value(context_packet, "current_route")
     replan_metadata = _dict_value(context_packet, "replan_metadata")
     rows: list[Mapping[str, Any]] = [
@@ -14592,9 +14669,7 @@ def _quality_control_obligations_for_context(
                 _dict_value(prior_replan_metadata, "quality_controls"),
             )
         )
-    return _merge_quality_control_values(
-        *(_quality_control_values_for_row(row) for row in rows)
-    )
+    return tuple(rows)
 
 
 def _quality_control_discharges_for_context(
@@ -29037,6 +29112,9 @@ def _llm_refinement_hooks_for_quality_control_obligations(
     )
     if not queries:
         return tuple()
+    target_primitives = _str_tuple(
+        quality_control_obligations.get("target_primitives", [])
+    ) or selected_primitives[:6]
     return (
         {
             "hook_kind": hook_kind,
@@ -29047,7 +29125,7 @@ def _llm_refinement_hooks_for_quality_control_obligations(
                 )
             ),
             "queries": list(queries),
-            "target_primitives": list(selected_primitives[:6]),
+            "target_primitives": list(target_primitives),
             "acceptance_record": (
                 "discharge pending quality controls with an admissible resource "
                 "response or refinement-evidence row before route adoption"
@@ -29088,6 +29166,9 @@ def _llm_route_revision_triggers_for_quality_control_obligations(
     )
     if not queries:
         return tuple()
+    target_primitives = _str_tuple(
+        quality_control_obligations.get("target_primitives", [])
+    ) or selected_primitives[:6]
     return (
         {
             "trigger_kind": "quality_control_evidence_required",
@@ -29096,7 +29177,7 @@ def _llm_route_revision_triggers_for_quality_control_obligations(
                 hook_kind,
                 query="; ".join(queries),
             ),
-            "target_primitives": list(selected_primitives[:6]),
+            "target_primitives": list(target_primitives),
             "quality_controls": dict(pending_quality_controls),
             "llm_route_planner_quality_control_obligations": dict(
                 quality_control_obligations

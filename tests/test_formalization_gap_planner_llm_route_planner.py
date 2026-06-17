@@ -12275,6 +12275,7 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     input_json = _write_input(root)
     input_payload = json.loads(input_json.read_text(encoding="utf-8"))
     quality_controls = {
+        "target_primitives": ["rank_uniformity"],
         "resource_contract_ids": ["lean_lsp:proof_state_feedback"],
         "required_quality_signals": ["diagnostic_signature"],
         "quality_gates": ["response_schema_valid"],
@@ -12358,15 +12359,13 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
         "feedback_loop_summary"
     ]["quality_control_obligations"]
     assert pending_summary["pending"] is True
+    assert pending_summary["target_primitives"] == ["rank_uniformity"]
     assert pending_summary["pending_quality_controls"]["required_quality_signals"] == [
         "diagnostic_signature"
     ]
-    pending_inventory = pending_payload["request_packets"][0]["context_packet"][
-        "context_packet_inventory"
-    ]
-    pending_preconditions = pending_payload["request_packets"][0]["context_packet"][
-        "route_adoption_preconditions"
-    ]
+    pending_context = pending_payload["request_packets"][0]["context_packet"]
+    pending_inventory = pending_context["context_packet_inventory"]
+    pending_preconditions = pending_context["route_adoption_preconditions"]
     assert pending_preconditions["blocked_before_response"] is True
     assert pending_preconditions["known_pre_response_blockers"] == [
         "quality_control_obligations_pending"
@@ -12375,6 +12374,18 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
         "search_requests",
         "planner_next_actions",
     ]
+    quality_focus = next(
+        focus
+        for focus in pending_context["route_planning_brief"]["planner_focus"]
+        if focus["focus_id"] == "discharge_pending_quality_controls"
+    )
+    assert quality_focus["target_primitives"] == ["rank_uniformity"]
+    quality_gap = next(
+        gap
+        for gap in pending_context["route_planning_brief"]["evidence_gaps"]
+        if gap["gap_id"] == "pending_quality_controls"
+    )
+    assert quality_gap["target_primitives"] == ["rank_uniformity"]
     assert pending_row["route_adoption_preconditions"] == pending_preconditions
     assert pending_payload["n_rows_with_route_adoption_preconditions"] == 1
     assert (
@@ -12417,7 +12428,14 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     assert seed_route["replan_metadata"][
         "llm_route_planner_route_adoption_preconditions"
     ] == pending_preconditions
-    assert seed_route["replan_metadata"]["quality_controls"] == quality_controls
+    expected_quality_control_gates = {
+        key: value
+        for key, value in quality_controls.items()
+        if key != "target_primitives"
+    }
+    assert seed_route["replan_metadata"]["quality_controls"] == (
+        expected_quality_control_gates
+    )
     assert seed_route["replan_metadata"][
         "llm_route_planner_quality_control_obligations"
     ]["pending"] is True
@@ -12428,12 +12446,15 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
         == "quality_control_obligations"
     )
     assert quality_hook["hook_kind"] == "proof_state_feedback"
-    assert quality_hook["quality_controls"] == quality_controls
+    assert quality_hook["quality_controls"] == expected_quality_control_gates
+    assert quality_hook["target_primitives"] == ["rank_uniformity"]
     assert "diagnostic_signature" in " ".join(quality_hook["queries"])
-    assert any(
-        trigger.get("trigger_kind") == "quality_control_evidence_required"
+    quality_trigger = next(
+        trigger
         for trigger in seed_route["route_revision_triggers"]
+        if trigger.get("trigger_kind") == "quality_control_evidence_required"
     )
+    assert quality_trigger["target_primitives"] == ["rank_uniformity"]
 
     plan_dir = root / "standalone_plan_from_pending_quality_control_seed"
     refinement_queue_dir = root / "refinement_queue_from_pending_quality_control_seed"
@@ -12462,6 +12483,7 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     assert (
         "quality_control_evidence_required" in quality_queue_row["trigger_kinds"]
     )
+    assert quality_queue_row["target_primitives"] == ("rank_uniformity",)
 
     ledger_dir.mkdir(parents=True, exist_ok=True)
     (
