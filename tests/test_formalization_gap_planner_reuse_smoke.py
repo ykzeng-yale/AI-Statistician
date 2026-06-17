@@ -3563,6 +3563,18 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "available exchangeability declaration"
         )
     ]
+    for attempt in feedback_response["formal_attempt_queue"]:
+        if attempt.get("formal_node_id") == "formal:exchangeability":
+            attempt["attempt_id"] = "formal_attempt:exchangeability_wrapper"
+            attempt["action"] = (
+                "write and check the target-prover wrapper around the "
+                "available exchangeability declaration"
+            )
+            attempt["attempt_kind"] = "wrapper_check"
+            attempt["expected_feedback"] = [
+                "wrapper_statement",
+                "residual_goals",
+            ]
     feedback_response["minimal_delta_plan"]["and_or_cost_graph"]["route_options"][0][
         "route_cost"
     ] = 6

@@ -1885,6 +1885,15 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert ledger_row["selected_model_tier"] == request["model_tier"]
     assert ledger_row["effective_model_tier"] == request["model_tier"]
     assert ledger_row["decision_basis"] == "auto_sonnet_triggers"
+    assert ledger_row["route_signal_counts"] == request[
+        "model_tier_decision_evidence"
+    ]["route_signal_counts"]
+    assert ledger_row["context_resource_dispatch_counts"] == request[
+        "model_tier_decision_evidence"
+    ]["context_resource_dispatch_counts"]
+    assert ledger_row["interactive_route_adoption_precondition_counts"] == request[
+        "model_tier_decision_evidence"
+    ]["interactive_route_adoption_precondition_counts"]
     assert ledger_row["response_present"] is False
     assert ledger_row["provider_failure"] is False
     assert ledger_row["proof_evidence_status"] == (
@@ -7439,6 +7448,22 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_model_tier_decision_ledger_rows_with_escalation"
         in manifest_schema["required"]
     )
+    ledger_schema = llm_route_planner_model_tier_decision_ledger_json_schema()
+    assert "context_resource_dispatch_counts" in ledger_schema["required"]
+    assert (
+        "interactive_route_adoption_precondition_counts"
+        in ledger_schema["required"]
+    )
+    assert (
+        ledger_schema["properties"]["context_resource_dispatch_counts"]["type"]
+        == "object"
+    )
+    assert (
+        ledger_schema["properties"][
+            "interactive_route_adoption_precondition_counts"
+        ]["type"]
+        == "object"
+    )
     assert "standalone_replay_gate" in manifest_schema["required"]
     assert "standalone_replay_gate_ok" in manifest_schema["required"]
     component_resource_manifest_fields = (
@@ -12491,6 +12516,16 @@ def test_llm_route_planner_auto_uses_sonnet_for_light_route_resource_dispatch() 
     assert evidence["context_resource_dispatch_counts"][
         "resource_request_playbook_count"
     ] == 1
+    ledger_row = payload["model_tier_decision_ledger"][0]
+    assert ledger_row["context_resource_dispatch_counts"][
+        "resource_request_queue_count"
+    ] == 1
+    assert ledger_row["context_resource_dispatch_counts"][
+        "resource_request_playbook_count"
+    ] == 1
+    assert ledger_row["interactive_route_adoption_precondition_counts"][
+        "unresolved_count"
+    ] == 0
     assert any(
         "pending resource-request queue row" in trigger
         for trigger in evidence["sonnet_triggers"]
@@ -12661,6 +12696,16 @@ def test_llm_route_planner_auto_uses_sonnet_for_light_route_interactive_precondi
     assert evidence["interactive_route_adoption_precondition_counts"][
         "required_response_field_count"
     ] == 2
+    ledger_row = payload["model_tier_decision_ledger"][0]
+    assert ledger_row["interactive_route_adoption_precondition_counts"][
+        "unresolved_count"
+    ] == 1
+    assert ledger_row["interactive_route_adoption_precondition_counts"][
+        "known_blocker_count"
+    ] == 1
+    assert ledger_row["context_resource_dispatch_counts"][
+        "resource_request_queue_count"
+    ] == 0
     context = packet["context_packet"]
     assert context["feedback_loop_summary"][
         "interactive_route_adoption_preconditions"

@@ -264,6 +264,7 @@ obligations. The planner also writes
 `formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl`
 plus its schema. Each row binds the request tier, effective response tier,
 resolved model, decision basis, Sonnet triggers, source-feedback counts,
+resource-dispatch counts, interactive route-adoption precondition counts,
 provider-failure status, and repair escalation evidence, so downstream runtime,
 benchmark, and publication tools can audit cost routing without parsing full
 request packets or raw model text. The reuse-smoke manifest also mirrors

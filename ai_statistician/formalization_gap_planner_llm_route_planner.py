@@ -3588,6 +3588,8 @@ def llm_route_planner_model_tier_decision_ledger_json_schema() -> dict[str, obje
             "decision_basis",
             "sonnet_triggers",
             "sonnet_trigger_count",
+            "context_resource_dispatch_counts",
+            "interactive_route_adoption_precondition_counts",
             "model_tier_escalated",
             "provider_failure",
             "acceptance_status",
@@ -3626,6 +3628,8 @@ def llm_route_planner_model_tier_decision_ledger_json_schema() -> dict[str, obje
             "sonnet_trigger_count": nonnegative_integer,
             "haiku_safety_checks": {"type": "object"},
             "route_signal_counts": {"type": "object"},
+            "context_resource_dispatch_counts": {"type": "object"},
+            "interactive_route_adoption_precondition_counts": {"type": "object"},
             "source_theorem_feedback_counts": {"type": "object"},
             "model_tier_escalated": {"type": "boolean"},
             "model_tier_escalation_reason": {"type": "string"},
@@ -12291,6 +12295,14 @@ def _model_tier_decision_ledger_row(
     )
     sonnet_triggers = _str_tuple(evidence.get("sonnet_triggers", []))
     route_signal_counts = _dict_value(evidence, "route_signal_counts")
+    context_resource_dispatch_counts = _dict_value(
+        evidence,
+        "context_resource_dispatch_counts",
+    )
+    interactive_route_adoption_precondition_counts = _dict_value(
+        evidence,
+        "interactive_route_adoption_precondition_counts",
+    )
     source_theorem_feedback_counts = _dict_value(
         evidence,
         "source_theorem_feedback_counts",
@@ -12337,6 +12349,10 @@ def _model_tier_decision_ledger_row(
         "sonnet_trigger_count": len(sonnet_triggers),
         "haiku_safety_checks": _dict_value(evidence, "haiku_safety_checks"),
         "route_signal_counts": route_signal_counts,
+        "context_resource_dispatch_counts": context_resource_dispatch_counts,
+        "interactive_route_adoption_precondition_counts": (
+            interactive_route_adoption_precondition_counts
+        ),
         "source_theorem_feedback_counts": source_theorem_feedback_counts,
         "model_tier_escalated": model_tier_escalated,
         "model_tier_escalation_reason": escalation_reason,
