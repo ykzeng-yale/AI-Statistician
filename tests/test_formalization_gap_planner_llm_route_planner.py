@@ -13268,6 +13268,21 @@ def test_llm_route_planner_accepts_non_lean_generic_formal_realization_nodes() -
                                     "target_primitives": ["rank_uniformity"],
                                 }
                             ],
+                            "quality_controls": {
+                                "target_primitives": ["rank_uniformity"],
+                                "resource_contract_ids": [
+                                    "lean_lsp:proof_state_feedback"
+                                ],
+                                "required_quality_signals": [
+                                    "diagnostic_signature"
+                                ],
+                                "response_validation_signals": [
+                                    "residual_goals_or_diagnostics_present"
+                                ],
+                                "stop_conditions": [
+                                    "residual interpreted or source search requested"
+                                ],
+                            },
                             "primitives": [
                             {
                                 "primitive": "exchangeability",
@@ -13326,6 +13341,7 @@ def test_llm_route_planner_accepts_non_lean_generic_formal_realization_nodes() -
         {
             "owner": "rocq_serapi",
             "action": "attempt Rocq proof-state feedback for rank_uniformity",
+            "target_primitives": ["rank_uniformity"],
         }
     ]
     response_json.write_text(json.dumps(response), encoding="utf-8")
@@ -13368,10 +13384,41 @@ def test_llm_route_planner_accepts_non_lean_generic_formal_realization_nodes() -
         hook
         for hook in seed_route["interactive_refinement_hooks"]
         if hook["hook_kind"] == "proof_state_feedback"
+        and hook.get("llm_route_planner_planner_next_action", {}).get("action")
+        == "attempt Rocq proof-state feedback for rank_uniformity"
     )
     assert "Rocq/coq-lsp proof-state adapter" in proof_hook["recommended_tools"]
     assert "lean-lsp-mcp" not in proof_hook["recommended_tools"]
     assert "lake build" not in proof_hook["recommended_tools"]
+    quality_hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_review_source")
+        == "quality_control_obligations"
+    )
+    assert quality_hook["hook_kind"] == "proof_state_feedback"
+    assert "Rocq/coq-lsp proof-state adapter" in quality_hook["recommended_tools"]
+    assert quality_hook["quality_controls"]["resource_contract_ids"] == [
+        "rocq_lsp_serapi:proof_state_feedback"
+    ]
+    assert quality_hook["source_quality_controls"]["resource_contract_ids"] == [
+        "lean_lsp:proof_state_feedback"
+    ]
+    assert quality_hook["quality_control_projection"][
+        "projected_resource_contract_ids"
+    ] == ["rocq_lsp_serapi:proof_state_feedback"]
+    quality_trigger = next(
+        trigger
+        for trigger in seed_route["route_revision_triggers"]
+        if trigger.get("llm_route_planner_review_source")
+        == "quality_control_obligations"
+    )
+    assert quality_trigger["quality_controls"]["resource_contract_ids"] == [
+        "rocq_lsp_serapi:proof_state_feedback"
+    ]
+    assert quality_trigger["source_quality_controls"]["resource_contract_ids"] == [
+        "lean_lsp:proof_state_feedback"
+    ]
 
 
 def test_llm_route_planner_target_scopes_lean_search_hooks_for_rocq() -> None:

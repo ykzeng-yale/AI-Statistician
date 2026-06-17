@@ -192,6 +192,21 @@ QUALITY_CONTROL_FIELDS = (
     "response_validation_signals",
     "stop_conditions",
 )
+PROOF_STATE_RESOURCE_CONTRACT_ID_BY_TARGET = {
+    "lean4": "lean_lsp:proof_state_feedback",
+    "rocq": "rocq_lsp_serapi:proof_state_feedback",
+    "isabelle": "isabelle_sledgehammer_afp:proof_state_feedback",
+    "agda": "agda_search_auto:proof_state_feedback",
+}
+PROVER_RESOURCE_CONTRACT_TARGETS = {
+    "lean_lsp": "lean4",
+    "lean_lsp_mcp": "lean4",
+    "local_lake_lean": "lean4",
+    "leandojo_reprover": "lean4",
+    "rocq_lsp_serapi": "rocq",
+    "isabelle_sledgehammer_afp": "isabelle",
+    "agda_search_auto": "agda",
+}
 CONTEXT_PACKET_INVENTORY_KIND = (
     "formalization_gap_planner_llm_route_planner_context_packet_inventory"
 )
@@ -28141,6 +28156,7 @@ def _accepted_route_for_seed(
         _llm_route_revision_triggers_for_residual_interpretations(
             row.residual_interpretations,
             selected_primitives=selected_primitives,
+            target_prover_family=row.target_prover_family,
         ),
         key_fields=("trigger_kind", "condition", "next_action"),
     )
@@ -28424,6 +28440,7 @@ def _llm_refinement_hooks_for_search_requests(
         resource_binding_summary = _llm_resource_binding_summary(
             request,
             planner_next_actions=planner_next_actions,
+            target_prover_family=target_prover_family,
         )
         hooks.append(
             {
@@ -28444,7 +28461,10 @@ def _llm_refinement_hooks_for_search_requests(
                 "acceptance_record": _acceptance_record_for_llm_hook(hook_kind),
                 "llm_route_planner_search_request_index": index,
                 "llm_route_planner_search_request": dict(request),
-                "quality_controls": _quality_control_payload_for_row(request),
+                **_quality_control_record_fields_for_row(
+                    request,
+                    target_prover_family=target_prover_family,
+                ),
                 "planner_next_actions": [dict(action) for action in planner_next_actions],
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
@@ -28478,7 +28498,10 @@ def _llm_route_revision_triggers_for_search_requests(
         )
         query = str(request.get("query", "")).strip()
         reason = str(request.get("reason", "")).strip()
-        resource_binding_summary = _llm_resource_binding_summary(request)
+        resource_binding_summary = _llm_resource_binding_summary(
+            request,
+            target_prover_family=target_prover_family,
+        )
         triggers.append(
             {
                 "trigger_kind": _trigger_kind_for_llm_hook(hook_kind),
@@ -28486,7 +28509,10 @@ def _llm_route_revision_triggers_for_search_requests(
                 "next_action": _next_action_for_llm_hook(hook_kind, query=query),
                 "llm_route_planner_search_request_index": index,
                 "llm_route_planner_search_request": dict(request),
-                "quality_controls": _quality_control_payload_for_row(request),
+                **_quality_control_record_fields_for_row(
+                    request,
+                    target_prover_family=target_prover_family,
+                ),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
                 ),
@@ -28526,7 +28552,10 @@ def _llm_refinement_hooks_for_planner_next_actions(
         )
         if not queries and not _planner_action_resource_refs(action):
             continue
-        resource_binding_summary = _llm_resource_binding_summary(action)
+        resource_binding_summary = _llm_resource_binding_summary(
+            action,
+            target_prover_family=target_prover_family,
+        )
         hooks.append(
             {
                 "hook_kind": hook_kind,
@@ -28546,7 +28575,10 @@ def _llm_refinement_hooks_for_planner_next_actions(
                 "acceptance_record": _acceptance_record_for_llm_hook(hook_kind),
                 "llm_route_planner_planner_next_action_index": index,
                 "llm_route_planner_planner_next_action": dict(action),
-                "quality_controls": _quality_control_payload_for_row(action),
+                **_quality_control_record_fields_for_row(
+                    action,
+                    target_prover_family=target_prover_family,
+                ),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
                 ),
@@ -28580,7 +28612,10 @@ def _llm_route_revision_triggers_for_planner_next_actions(
         query = "; ".join(_planner_action_queries(action))
         if not query and not _planner_action_resource_refs(action):
             continue
-        resource_binding_summary = _llm_resource_binding_summary(action)
+        resource_binding_summary = _llm_resource_binding_summary(
+            action,
+            target_prover_family=target_prover_family,
+        )
         triggers.append(
             {
                 "trigger_kind": _trigger_kind_for_llm_hook(hook_kind),
@@ -28590,7 +28625,10 @@ def _llm_route_revision_triggers_for_planner_next_actions(
                 "next_action": _next_action_for_llm_hook(hook_kind, query=query),
                 "llm_route_planner_planner_next_action_index": index,
                 "llm_route_planner_planner_next_action": dict(action),
-                "quality_controls": _quality_control_payload_for_row(action),
+                **_quality_control_record_fields_for_row(
+                    action,
+                    target_prover_family=target_prover_family,
+                ),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
                 ),
@@ -28639,6 +28677,7 @@ def _llm_refinement_hooks_for_formal_attempt_queue(
         resource_binding_summary = _llm_resource_binding_summary(
             attempt,
             primary_source_label=f"formal_attempt_queue[{index}]",
+            target_prover_family=target_prover_family,
         )
         hooks.append(
             {
@@ -28673,7 +28712,10 @@ def _llm_refinement_hooks_for_formal_attempt_queue(
                 ],
                 "minimal_delta_action_witness_count": len(action_witnesses),
                 "has_minimal_delta_action_witness": bool(action_witnesses),
-                "quality_controls": _quality_control_payload_for_row(attempt),
+                **_quality_control_record_fields_for_row(
+                    attempt,
+                    target_prover_family=target_prover_family,
+                ),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
                 ),
@@ -28722,6 +28764,7 @@ def _llm_route_revision_triggers_for_formal_attempt_queue(
         resource_binding_summary = _llm_resource_binding_summary(
             attempt,
             primary_source_label=f"formal_attempt_queue[{index}]",
+            target_prover_family=target_prover_family,
         )
         triggers.append(
             {
@@ -28744,7 +28787,10 @@ def _llm_route_revision_triggers_for_formal_attempt_queue(
                 ],
                 "minimal_delta_action_witness_count": len(action_witnesses),
                 "has_minimal_delta_action_witness": bool(action_witnesses),
-                "quality_controls": _quality_control_payload_for_row(attempt),
+                **_quality_control_record_fields_for_row(
+                    attempt,
+                    target_prover_family=target_prover_family,
+                ),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
                 ),
@@ -28922,7 +28968,10 @@ def _llm_refinement_hooks_for_residual_interpretations(
         queries = _residual_interpretation_queries(residual)
         if not queries:
             continue
-        resource_binding_summary = _llm_resource_binding_summary(residual)
+        resource_binding_summary = _llm_resource_binding_summary(
+            residual,
+            target_prover_family=target_prover_family,
+        )
         hooks.append(
             {
                 "hook_kind": "route_revision",
@@ -28942,7 +28991,10 @@ def _llm_refinement_hooks_for_residual_interpretations(
                 "acceptance_record": _acceptance_record_for_llm_hook("route_revision"),
                 "llm_route_planner_residual_interpretation_index": index,
                 "llm_route_planner_residual_interpretation": dict(residual),
-                "quality_controls": _quality_control_payload_for_row(residual),
+                **_quality_control_record_fields_for_row(
+                    residual,
+                    target_prover_family=target_prover_family,
+                ),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
                 ),
@@ -28966,13 +29018,17 @@ def _llm_route_revision_triggers_for_residual_interpretations(
     residual_interpretations: tuple[dict[str, object], ...],
     *,
     selected_primitives: tuple[str, ...],
+    target_prover_family: str,
 ) -> tuple[dict[str, object], ...]:
     triggers: list[dict[str, object]] = []
     for index, residual in enumerate(residual_interpretations):
         queries = _residual_interpretation_queries(residual)
         if not queries:
             continue
-        resource_binding_summary = _llm_resource_binding_summary(residual)
+        resource_binding_summary = _llm_resource_binding_summary(
+            residual,
+            target_prover_family=target_prover_family,
+        )
         residual_goal = str(residual.get("residual_goal", "")).strip()
         repair_action = str(
             residual.get("route_repair") or residual.get("repair_action") or ""
@@ -28993,7 +29049,10 @@ def _llm_route_revision_triggers_for_residual_interpretations(
                 ),
                 "llm_route_planner_residual_interpretation_index": index,
                 "llm_route_planner_residual_interpretation": dict(residual),
-                "quality_controls": _quality_control_payload_for_row(residual),
+                **_quality_control_record_fields_for_row(
+                    residual,
+                    target_prover_family=target_prover_family,
+                ),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
                 ),
@@ -29213,7 +29272,10 @@ def _llm_refinement_hooks_for_quality_control_obligations(
                 "discharge pending quality controls with an admissible resource "
                 "response or refinement-evidence row before route adoption"
             ),
-            "quality_controls": dict(pending_quality_controls),
+            **_quality_control_record_fields_for_payload(
+                pending_quality_controls,
+                target_prover_family=target_prover_family,
+            ),
             "llm_route_planner_quality_control_obligations": dict(
                 quality_control_obligations
             ),
@@ -29261,7 +29323,10 @@ def _llm_route_revision_triggers_for_quality_control_obligations(
                 query="; ".join(queries),
             ),
             "target_primitives": list(target_primitives),
-            "quality_controls": dict(pending_quality_controls),
+            **_quality_control_record_fields_for_payload(
+                pending_quality_controls,
+                target_prover_family=target_prover_family,
+            ),
             "llm_route_planner_quality_control_obligations": dict(
                 quality_control_obligations
             ),
@@ -29368,7 +29433,10 @@ def _llm_refinement_hooks_for_feedback_summary(
         )
         if not queries and not _planner_action_resource_refs(action):
             continue
-        resource_binding_summary = _llm_resource_binding_summary(action)
+        resource_binding_summary = _llm_resource_binding_summary(
+            action,
+            target_prover_family=target_prover_family,
+        )
         hooks.append(
             {
                 "hook_kind": hook_kind,
@@ -29391,8 +29459,9 @@ def _llm_refinement_hooks_for_feedback_summary(
                 ),
                 "llm_route_planner_feedback_next_action_index": index,
                 "llm_route_planner_feedback_next_action": dict(action),
-                "quality_controls": _quality_control_payload_for_feedback_action(
-                    action
+                **_quality_control_record_fields_for_payload(
+                    _quality_control_payload_for_feedback_action(action),
+                    target_prover_family=target_prover_family,
                 ),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
@@ -29434,7 +29503,10 @@ def _llm_route_revision_triggers_for_feedback_summary(
         )
         if not queries and not _planner_action_resource_refs(action):
             continue
-        resource_binding_summary = _llm_resource_binding_summary(action)
+        resource_binding_summary = _llm_resource_binding_summary(
+            action,
+            target_prover_family=target_prover_family,
+        )
         triggers.append(
             {
                 "trigger_kind": _trigger_kind_for_llm_feedback_action(action, hook_kind),
@@ -29453,8 +29525,9 @@ def _llm_route_revision_triggers_for_feedback_summary(
                 ),
                 "llm_route_planner_feedback_next_action_index": index,
                 "llm_route_planner_feedback_next_action": dict(action),
-                "quality_controls": _quality_control_payload_for_feedback_action(
-                    action
+                **_quality_control_record_fields_for_payload(
+                    _quality_control_payload_for_feedback_action(action),
+                    target_prover_family=target_prover_family,
                 ),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
@@ -30134,6 +30207,7 @@ def _llm_resource_binding_summary(
     *,
     planner_next_actions: tuple[dict[str, object], ...] = (),
     primary_source_label: str = "search_request",
+    target_prover_family: str = "",
 ) -> dict[str, tuple[object, ...]]:
     rows = [(primary_source_label, search_request)]
     rows.extend((f"planner_next_actions[{index}]", row) for index, row in enumerate(planner_next_actions))
@@ -30154,17 +30228,17 @@ def _llm_resource_binding_summary(
         for request_id in request_ids or ("",):
             for resource_id in row_resource_ids or ("",):
                 if request_id or resource_id:
-                    quality_controls = _quality_control_payload_for_row(row)
+                    quality_control_fields = _quality_control_record_fields_for_row(
+                        row,
+                        target_prover_family=target_prover_family,
+                        include_empty=False,
+                    )
                     bindings.append(
                         {
                             "source": source,
                             "resource_request_id": request_id,
                             "resource_id": resource_id,
-                            **(
-                                {"quality_controls": quality_controls}
-                                if quality_controls
-                                else {}
-                            ),
+                            **quality_control_fields,
                         }
                     )
     return {
@@ -30181,6 +30255,47 @@ def _llm_resource_binding_summary(
     }
 
 
+def _quality_control_record_fields_for_row(
+    row: Mapping[str, object],
+    *,
+    target_prover_family: str = "",
+    include_empty: bool = True,
+) -> dict[str, object]:
+    return _quality_control_record_fields_for_payload(
+        _quality_control_payload_for_row(row),
+        target_prover_family=target_prover_family,
+        include_empty=include_empty,
+    )
+
+
+def _quality_control_record_fields_for_payload(
+    payload: Mapping[str, object],
+    *,
+    target_prover_family: str = "",
+    include_empty: bool = True,
+) -> dict[str, object]:
+    source_payload = {
+        field_name: list(_str_tuple(payload.get(field_name, [])))
+        for field_name in QUALITY_CONTROL_FIELDS
+        if _str_tuple(payload.get(field_name, []))
+    }
+    if not source_payload and not include_empty:
+        return {}
+    projected_payload = _project_quality_control_payload_to_target(
+        source_payload,
+        target_prover_family=target_prover_family,
+    )
+    fields: dict[str, object] = {"quality_controls": projected_payload}
+    if projected_payload != source_payload:
+        fields["source_quality_controls"] = source_payload
+        fields["quality_control_projection"] = _quality_control_projection_trace(
+            source_controls=source_payload,
+            projected_controls=projected_payload,
+            target_prover_family=target_prover_family,
+        )
+    return fields
+
+
 def _quality_control_payload_for_row(row: Mapping[str, object]) -> dict[str, object]:
     payload: dict[str, object] = {}
     for field_name in (
@@ -30194,6 +30309,93 @@ def _quality_control_payload_for_row(row: Mapping[str, object]) -> dict[str, obj
         if values:
             payload[field_name] = list(values)
     return payload
+
+
+def _project_quality_control_payload_to_target(
+    payload: Mapping[str, object],
+    *,
+    target_prover_family: str,
+) -> dict[str, object]:
+    target_key = _target_prover_key(target_prover_family)
+    source_payload = {
+        field_name: list(_str_tuple(payload.get(field_name, [])))
+        for field_name in QUALITY_CONTROL_FIELDS
+        if _str_tuple(payload.get(field_name, []))
+    }
+    if not target_key or target_key == "other" or not source_payload:
+        return source_payload
+    resource_contract_ids = _str_tuple(
+        source_payload.get("resource_contract_ids", [])
+    )
+    if resource_contract_ids:
+        source_payload["resource_contract_ids"] = list(
+            dict.fromkeys(
+                _project_resource_contract_id_to_target(
+                    contract_id,
+                    target_prover_family=target_key,
+                )
+                for contract_id in resource_contract_ids
+            )
+        )
+    return source_payload
+
+
+def _project_resource_contract_id_to_target(
+    contract_id: str,
+    *,
+    target_prover_family: str,
+) -> str:
+    contract_target = _resource_contract_target_prover_family(contract_id)
+    if not contract_target or contract_target == target_prover_family:
+        return contract_id
+    if _resource_contract_is_proof_state_feedback(contract_id):
+        return PROOF_STATE_RESOURCE_CONTRACT_ID_BY_TARGET.get(
+            target_prover_family,
+            contract_id,
+        )
+    return contract_id
+
+
+def _resource_contract_target_prover_family(contract_id: str) -> str:
+    key = str(contract_id or "").strip().lower()
+    if not key:
+        return ""
+    head = key.split(":", 1)[0]
+    if head in PROVER_RESOURCE_CONTRACT_TARGETS:
+        return PROVER_RESOURCE_CONTRACT_TARGETS[head]
+    for resource_id, target_family in PROVER_RESOURCE_CONTRACT_TARGETS.items():
+        if key.startswith(f"{resource_id}:"):
+            return target_family
+    return ""
+
+
+def _resource_contract_is_proof_state_feedback(contract_id: str) -> bool:
+    key = str(contract_id or "").strip().lower()
+    return "proof_state_feedback" in key or key in PROVER_RESOURCE_CONTRACT_TARGETS
+
+
+def _quality_control_projection_trace(
+    *,
+    source_controls: Mapping[str, object],
+    projected_controls: Mapping[str, object],
+    target_prover_family: str,
+) -> dict[str, object]:
+    source_contract_ids = _str_tuple(source_controls.get("resource_contract_ids", []))
+    projected_contract_ids = _str_tuple(
+        projected_controls.get("resource_contract_ids", [])
+    )
+    return {
+        "projection_kind": "target_prover_quality_control_projection",
+        "target_prover_family": _target_prover_key(target_prover_family),
+        "source_resource_contract_ids": list(source_contract_ids),
+        "projected_resource_contract_ids": list(projected_contract_ids),
+        "changed_resource_contract_ids": source_contract_ids != projected_contract_ids,
+        "projection_boundary": (
+            "Quality-control resource ids are adapter-routing requirements, "
+            "not theorem proof evidence; target prover packets must use "
+            "target-compatible prover-feedback resources."
+        ),
+    }
 
 
 def _hook_kind_for_llm_planner_action(action: Mapping[str, object]) -> str:
