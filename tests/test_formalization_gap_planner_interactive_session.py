@@ -952,6 +952,157 @@ def test_interactive_session_waits_on_unresolved_route_adoption_preconditions() 
     assert "route_adoption_preconditions" in policy["evidence_inputs"]
 
 
+def test_interactive_session_exposes_ready_formal_attempt_queue_commands() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_interactive_session_formal_attempt_queue"
+    )
+    plan_dir = root / "plan"
+    stability_dir = root / "stability"
+    out_dir = root / "session"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    stability_dir.mkdir(parents=True, exist_ok=True)
+
+    formal_attempt_queue = [
+        {
+            "attempt_id": "attempt:rank_uniformity",
+            "formal_node_id": "formal:rank_uniformity",
+            "primitive": "rank_uniformity",
+            "target_primitives": ["rank_uniformity"],
+            "target_prover_family": "lean4",
+            "attempt_kind": "kernel_probe",
+            "action": "try exact rank-uniformity bridge statement",
+            "expected_feedback": ["residual_goals", "missing_imports"],
+            "prerequisite_formal_node_ids": [],
+        },
+        {
+            "attempt_id": "attempt:coverage_bridge",
+            "formal_node_id": "formal:coverage_bridge",
+            "primitive": "coverage_bridge",
+            "target_primitives": ["coverage_bridge"],
+            "target_prover_family": "lean4",
+            "attempt_kind": "bridge_lemma",
+            "action": "try coverage theorem after rank uniformity closes",
+            "expected_feedback": ["kernel_status", "residual_goals"],
+            "prerequisite_formal_node_ids": ["formal:rank_uniformity"],
+        },
+    ]
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": "library_aware_formalization_gap_planner",
+                "portable_schema_id": "urn:ai-statistician:schemas:library-aware-formalization-gap-plan:1",
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:formal-attempt",
+                        "route_id": "route:formal-attempt",
+                        "display_name": "accepted formal attempt route",
+                        "target_prover_family": "lean4",
+                        "selected_primitives": [
+                            "rank_uniformity",
+                            "coverage_bridge",
+                        ],
+                        "formal_attempt_queue": formal_attempt_queue,
+                        "replan_metadata": {
+                            "llm_route_planner_acceptance_status": (
+                                "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE"
+                            )
+                        },
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        stability_dir
+        / "formalization_gap_planner_route_stability_audit_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:formal-attempt",
+                        "route_id": "route:formal-attempt",
+                        "display_name": "accepted formal attempt route",
+                        "stability_decision": (
+                            "ROUTE_STABILIZED_FOR_CURRENT_EVIDENCE_BOUND"
+                        ),
+                        "stable_under_current_evidence_bound": True,
+                        "target_prover_families": ["lean4"],
+                        "responded_hook_kinds": [],
+                        "awaiting_hook_kinds": [],
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_interactive_session(
+        plan_dir,
+        out_dir,
+        formalization_gap_planner_route_stability_audit_dir=stability_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_rows_with_formal_attempt_queue"] == 1
+    assert payload["n_formal_attempt_queue_items"] == 2
+    assert payload["n_formal_attempt_queue_ready_items"] == 1
+    assert payload["n_formal_attempt_queue_blocked_items"] == 1
+    assert payload["n_formal_attempt_queue_execution_commands"] == 3
+    row = payload["rows"][0]
+    assert row["next_interaction_kind"] == "target_prover_replay"
+    assert row["formal_attempt_queue_item_count"] == 2
+    assert row["formal_attempt_queue_ready_item_count"] == 1
+    assert row["formal_attempt_queue_blocked_item_count"] == 1
+    assert row["formal_attempt_queue_attempt_ids"] == (
+        "attempt:rank_uniformity",
+        "attempt:coverage_bridge",
+    )
+    assert row["formal_attempt_queue_ready_attempt_ids"] == (
+        "attempt:rank_uniformity",
+    )
+    assert row["formal_attempt_queue_items"][0][
+        "formal_attempt_dependency_status"
+    ] == "ready_no_formal_prerequisites"
+    assert row["formal_attempt_queue_items"][1][
+        "formal_attempt_dependency_status"
+    ] == "waiting_for_formal_prerequisite_attempts"
+    assert "formalization_gap_planner_prover_adapter_contract" in row["next_tools"]
+    assert "target_prover_kernel_replay" in row["next_tools"]
+    assert any(
+        "formalization-gap-planner-prover-adapter-contract" in command
+        and "--target-prover-family lean4" in command
+        for command in row["next_commands"]
+    )
+    assert any(
+        "formal_attempt_queue_index=0" in command
+        and "attempt_id=attempt:rank_uniformity" in command
+        for command in row["next_commands"]
+    )
+    assert not any(
+        "attempt_id=attempt:coverage_bridge" in command
+        for command in row["formal_attempt_queue_execution_commands"]
+    )
+    assert row["evidence_summary"]["formal_attempt_queue_items"] == 2
+    assert row["evidence_summary"]["formal_attempt_queue_ready_items"] == 1
+    policy = payload["decision_policy_rows"][0]
+    assert "llm_formal_attempt_queue_present" in policy["trigger_signals"]
+    assert "formal_attempt_queue_ready_items" in policy["trigger_signals"]
+    assert "formal_attempt_queue_blocked_items" in policy["trigger_signals"]
+    assert "llm_route_planner_formal_attempt_queue" in policy["evidence_inputs"]
+    assert (
+        "formalization_gap_planner_llm_route_planner_response_payload.schema.json"
+        in policy["required_tool_contracts"]
+    )
+    assert "formalization_gap_planner_prover_adapter_packet.schema.json" in policy[
+        "required_tool_contracts"
+    ]
+
+
 def test_interactive_session_keeps_rocq_declaration_hits_portable() -> None:
     root = Path("runs/test_formalization_gap_planner_interactive_session_rocq_hits")
     plan_dir = root / "plan"

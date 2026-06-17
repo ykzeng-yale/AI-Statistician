@@ -114,6 +114,13 @@ class FormalizationGapPlannerInteractiveSessionRow:
     resource_request_queue_action_kinds: tuple[str, ...]
     resource_request_dispatch_summaries: tuple[dict[str, object], ...]
     resource_request_execution_commands: tuple[str, ...]
+    formal_attempt_queue_items: tuple[dict[str, object], ...]
+    formal_attempt_queue_item_count: int
+    formal_attempt_queue_ready_item_count: int
+    formal_attempt_queue_blocked_item_count: int
+    formal_attempt_queue_attempt_ids: tuple[str, ...]
+    formal_attempt_queue_ready_attempt_ids: tuple[str, ...]
+    formal_attempt_queue_execution_commands: tuple[str, ...]
     residual_goals: tuple[str, ...]
     source_refs: tuple[str, ...]
     formal_declaration_hits: tuple[dict[str, object], ...]
@@ -362,6 +369,21 @@ def export_formalization_gap_planner_interactive_session(
         "n_resource_request_execution_commands": sum(
             len(row.resource_request_execution_commands) for row in rows
         ),
+        "n_rows_with_formal_attempt_queue": sum(
+            1 for row in rows if row.formal_attempt_queue_items
+        ),
+        "n_formal_attempt_queue_items": sum(
+            row.formal_attempt_queue_item_count for row in rows
+        ),
+        "n_formal_attempt_queue_ready_items": sum(
+            row.formal_attempt_queue_ready_item_count for row in rows
+        ),
+        "n_formal_attempt_queue_blocked_items": sum(
+            row.formal_attempt_queue_blocked_item_count for row in rows
+        ),
+        "n_formal_attempt_queue_execution_commands": sum(
+            len(row.formal_attempt_queue_execution_commands) for row in rows
+        ),
         "n_row_schema_valid": n_row_schema_valid,
         "n_row_schema_invalid": n_row_schema_invalid,
         "n_decision_policy_rows": len(decision_policy_rows),
@@ -408,6 +430,7 @@ def export_formalization_gap_planner_interactive_session(
             "run only the next focused literature, library, proof-state, or replan action for each route",
             "do not broaden literature search when the stability audit says a route is stable under the current evidence bound",
             "do not treat route stability, local source hits, or proof-state diagnostics as kernel proof evidence",
+            "execute only dependency-ready formal_attempt_queue items and send residual failures back through prover feedback",
             "rerun the standalone planner after accepted route revisions before exporting target-prover replay tasks",
         ],
         "limitations": [
@@ -495,6 +518,13 @@ def interactive_session_row_json_schema() -> dict[str, object]:
             "responded_hook_kinds",
             "resource_response_awaiting_request_ids",
             "resource_response_rejected_request_ids",
+            "formal_attempt_queue_items",
+            "formal_attempt_queue_item_count",
+            "formal_attempt_queue_ready_item_count",
+            "formal_attempt_queue_blocked_item_count",
+            "formal_attempt_queue_attempt_ids",
+            "formal_attempt_queue_ready_attempt_ids",
+            "formal_attempt_queue_execution_commands",
             "replan_required",
             "route_cost",
             "proof_evidence_status",
@@ -551,6 +581,13 @@ def interactive_session_row_json_schema() -> dict[str, object]:
             "resource_request_queue_action_kinds": string_array,
             "resource_request_dispatch_summaries": object_array,
             "resource_request_execution_commands": string_array,
+            "formal_attempt_queue_items": object_array,
+            "formal_attempt_queue_item_count": {"type": "integer"},
+            "formal_attempt_queue_ready_item_count": {"type": "integer"},
+            "formal_attempt_queue_blocked_item_count": {"type": "integer"},
+            "formal_attempt_queue_attempt_ids": string_array,
+            "formal_attempt_queue_ready_attempt_ids": string_array,
+            "formal_attempt_queue_execution_commands": string_array,
             "residual_goals": string_array,
             "source_refs": string_array,
             "formal_declaration_hits": object_array,
@@ -1102,6 +1139,14 @@ def _decision_trigger_signals(
         signals.append("resource_requests_ready")
     if row.resource_request_dispatch_summaries:
         signals.append("resource_request_dispatch_specs_ready")
+    if row.formal_attempt_queue_items:
+        signals.append("llm_formal_attempt_queue_present")
+    if row.formal_attempt_queue_ready_item_count:
+        signals.append("formal_attempt_queue_ready_items")
+    if row.formal_attempt_queue_blocked_item_count:
+        signals.append("formal_attempt_queue_blocked_items")
+    if row.formal_attempt_queue_execution_commands:
+        signals.append("formal_attempt_queue_execution_commands_ready")
     if row.stable_under_current_evidence_bound:
         signals.append("stable_under_current_evidence_bound")
     if row.residual_goals:
@@ -1136,6 +1181,8 @@ def _decision_evidence_inputs(
         inputs.append("route_adoption_preconditions")
     if row.resource_request_ids:
         inputs.append("resource_request_queue_dispatch_specs")
+    if row.formal_attempt_queue_items:
+        inputs.append("llm_route_planner_formal_attempt_queue")
     if row.source_refs:
         inputs.append("source_refs")
     if row.formal_declaration_hits:
@@ -1213,6 +1260,7 @@ def _required_tool_contracts(next_kind: str) -> tuple[str, ...]:
                 "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json",
             ),
             "target_prover_replay": (
+                "formalization_gap_planner_llm_route_planner_response_payload.schema.json",
                 "formalization_gap_planner_prover_adapter_packet.schema.json",
                 "target_prover_kernel_replay",
             ),
@@ -1269,6 +1317,7 @@ def _stop_conditions(next_kind: str) -> tuple[str, ...]:
             ),
             "target_prover_replay": (
                 "target prover replay is attempted through its kernel or certified checker",
+                "formal_attempt_queue items are executed only when their prerequisites are ready",
                 "proof promotion is handled outside the session ledger",
             ),
             "route_stability_audit": (
@@ -1316,6 +1365,7 @@ def _fallback_actions(next_kind: str) -> tuple[str, ...]:
             ),
             "target_prover_replay": (
                 "export prover-adapter packets",
+                "rerun prover-adapter contract from formal_attempt_queue",
                 "send residual failures back to proof-state feedback",
             ),
             "route_stability_audit": (
@@ -1575,10 +1625,34 @@ def _session_row(
     resource_request_execution_commands = _resource_request_execution_commands(
         selected_resource_request_rows
     )
+    formal_attempt_queue_items = _formal_attempt_queue_items_for_session(
+        plan_row,
+        stability_row,
+    )
+    formal_attempt_queue_ready_items = _formal_attempt_queue_ready_items(
+        formal_attempt_queue_items
+    )
+    formal_attempt_queue_execution_commands = (
+        _formal_attempt_queue_execution_commands(formal_attempt_queue_ready_items)
+    )
+    formal_attempt_queue_next_commands = (
+        formal_attempt_queue_execution_commands
+        if next_kind in {"proof_state_feedback", "target_prover_replay"}
+        else ()
+    )
     next_owner = _next_owner_agent(primary_triage, selected_queue_rows, next_kind)
     next_tools = _str_tuple(
         [
             *primary_triage.get("recommended_tools", []),
+            *(
+                [
+                    "formalization_gap_planner_prover_adapter_contract",
+                    "target_prover_kernel_replay",
+                ]
+                if formal_attempt_queue_items
+                and next_kind in {"proof_state_feedback", "target_prover_replay"}
+                else []
+            ),
             *(
                 [
                     "formalization_gap_planner_llm_route_planner",
@@ -1627,6 +1701,11 @@ def _session_row(
                 for query in _resource_request_queries(row)
             ],
             *(
+                _formal_attempt_queue_queries(formal_attempt_queue_ready_items)
+                if next_kind in {"proof_state_feedback", "target_prover_replay"}
+                else ()
+            ),
+            *(
                 [
                     "resolve LLM route-adoption precondition blockers: "
                     + ", ".join(route_adoption_precondition_known_blockers)
@@ -1653,6 +1732,9 @@ def _session_row(
         ),
         route_adoption_precondition_required_response_fields=(
             route_adoption_precondition_required_response_fields
+        ),
+        formal_attempt_queue_execution_commands=(
+            formal_attempt_queue_next_commands
         ),
     )
     user_checkpoint = _user_checkpoint(next_kind, session_state)
@@ -1698,6 +1780,17 @@ def _session_row(
             ),
             "resource_request_execution_commands": len(
                 resource_request_execution_commands
+            ),
+            "formal_attempt_queue_items": len(formal_attempt_queue_items),
+            "formal_attempt_queue_ready_items": len(
+                formal_attempt_queue_ready_items
+            ),
+            "formal_attempt_queue_blocked_items": (
+                len(formal_attempt_queue_items)
+                - len(formal_attempt_queue_ready_items)
+            ),
+            "formal_attempt_queue_execution_commands": len(
+                formal_attempt_queue_next_commands
             ),
             "resource_response_awaiting_requests": len(
                 resource_response_awaiting_request_ids
@@ -1756,6 +1849,21 @@ def _session_row(
         resource_request_queue_action_kinds=resource_request_queue_action_kinds,
         resource_request_dispatch_summaries=resource_request_dispatch_summaries,
         resource_request_execution_commands=resource_request_execution_commands,
+        formal_attempt_queue_items=formal_attempt_queue_items,
+        formal_attempt_queue_item_count=len(formal_attempt_queue_items),
+        formal_attempt_queue_ready_item_count=len(formal_attempt_queue_ready_items),
+        formal_attempt_queue_blocked_item_count=(
+            len(formal_attempt_queue_items) - len(formal_attempt_queue_ready_items)
+        ),
+        formal_attempt_queue_attempt_ids=_str_tuple(
+            item.get("attempt_id", "") for item in formal_attempt_queue_items
+        ),
+        formal_attempt_queue_ready_attempt_ids=_str_tuple(
+            item.get("attempt_id", "") for item in formal_attempt_queue_ready_items
+        ),
+        formal_attempt_queue_execution_commands=(
+            formal_attempt_queue_next_commands
+        ),
         residual_goals=residual_goals,
         source_refs=source_refs,
         formal_declaration_hits=formal_hits,
@@ -1985,6 +2093,7 @@ def _next_commands(
     route_adoption_precondition_unresolved: bool = False,
     route_adoption_precondition_known_blockers: tuple[str, ...] = (),
     route_adoption_precondition_required_response_fields: tuple[str, ...] = (),
+    formal_attempt_queue_execution_commands: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
     commands: list[str] = []
     if next_kind == "route_replan":
@@ -1992,6 +2101,8 @@ def _next_commands(
         commands.extend(_route_replan_llm_route_planner_commands(commands))
     if next_kind in {"proof_state_feedback", "target_prover_replay"} and primary_triage:
         commands.extend(_str_tuple(primary_triage.get("execution_commands", [])))
+    if next_kind in {"proof_state_feedback", "target_prover_replay"}:
+        commands.extend(formal_attempt_queue_execution_commands)
     if next_kind == "await_refinement_response":
         commands.extend(
             _resource_response_status_commands(
@@ -2086,6 +2197,150 @@ def _resource_request_dispatch_summary(
     }
 
 
+def _formal_attempt_queue_items_for_session(
+    plan_row: dict[str, Any],
+    stability_row: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    for source_rows in _formal_attempt_queue_sources_for_session(
+        plan_row,
+        stability_row,
+    ):
+        for item in source_rows:
+            candidate = dict(item)
+            queue_index = _nonnegative_int(
+                candidate.get(
+                    "formal_attempt_queue_index",
+                    candidate.get(
+                        "llm_route_planner_formal_attempt_queue_index",
+                        len(rows),
+                    ),
+                ),
+                len(rows),
+            )
+            candidate["formal_attempt_queue_index"] = queue_index
+            candidate["llm_route_planner_formal_attempt_queue_index"] = queue_index
+            dependency_status = _formal_attempt_queue_dependency_status(candidate)
+            candidate["formal_attempt_dependency_status"] = dependency_status
+            candidate["formal_attempt_initial_ready"] = (
+                dependency_status == "ready_no_formal_prerequisites"
+            )
+            rows.append(candidate)
+    return _dict_tuple(rows)
+
+
+def _formal_attempt_queue_sources_for_session(
+    plan_row: dict[str, Any],
+    stability_row: dict[str, Any],
+) -> tuple[tuple[dict[str, object], ...], ...]:
+    sources: list[tuple[dict[str, object], ...]] = []
+    for container in _route_adoption_trace_containers(stability_row, plan_row):
+        for field_name in (
+            "formal_attempt_queue",
+            "llm_route_planner_formal_attempt_queue",
+        ):
+            source_rows = _dict_tuple(container.get(field_name, []))
+            if source_rows:
+                sources.append(source_rows)
+    return tuple(sources)
+
+
+def _formal_attempt_queue_dependency_status(
+    item: dict[str, object],
+) -> str:
+    raw_status = str(item.get("formal_attempt_dependency_status", "")).strip()
+    if raw_status:
+        return raw_status
+    if bool(item.get("formal_attempt_initial_ready", False)):
+        return "ready_no_formal_prerequisites"
+    prerequisites = _formal_attempt_queue_prerequisite_formal_node_ids(item)
+    blockers = _str_tuple(
+        [
+            *(_str_tuple(item.get("formal_attempt_blocking_prerequisite_formal_node_ids", []))),
+            *(_str_tuple(item.get("formal_attempt_missing_prerequisite_formal_node_ids", []))),
+        ]
+    )
+    if blockers:
+        return "missing_formal_prerequisite_attempts"
+    if prerequisites:
+        return "waiting_for_formal_prerequisite_attempts"
+    return "ready_no_formal_prerequisites"
+
+
+def _formal_attempt_queue_prerequisite_formal_node_ids(
+    item: dict[str, object],
+) -> tuple[str, ...]:
+    return (
+        _str_tuple(item.get("formal_attempt_prerequisite_formal_node_ids", []))
+        or _str_tuple(item.get("prerequisite_formal_node_ids", []))
+    )
+
+
+def _formal_attempt_queue_ready_items(
+    items: tuple[dict[str, object], ...],
+) -> tuple[dict[str, object], ...]:
+    return tuple(
+        item
+        for item in items
+        if str(item.get("formal_attempt_dependency_status", ""))
+        == "ready_no_formal_prerequisites"
+        or bool(item.get("formal_attempt_initial_ready", False))
+    )
+
+
+def _formal_attempt_queue_execution_commands(
+    items: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    if not items:
+        return tuple()
+    families = _str_tuple(
+        item.get("target_prover_family", "") for item in items
+    ) or ("other",)
+    commands = [
+        (
+            "formalization-gap-planner-prover-adapter-contract "
+            "--goal-conditioned-minimal-formalization-plan-dir "
+            "<goal_conditioned_minimal_formalization_plan_dir> "
+            f"--target-prover-family {family} "
+            "--out <formalization_gap_planner_prover_adapter_contract_dir>"
+        )
+        for family in families
+    ]
+    for item in items:
+        attempt_id = str(item.get("attempt_id", "")).strip()
+        formal_node_id = str(item.get("formal_node_id", "")).strip()
+        queue_index = _nonnegative_int(item.get("formal_attempt_queue_index"), 0)
+        attempt_kind = str(item.get("attempt_kind", "")).strip()
+        target = str(item.get("target_prover_family", "")).strip() or "other"
+        commands.append(
+            "execute formal_attempt_queue item "
+            f"formal_attempt_queue_index={queue_index}"
+            + (f" attempt_id={attempt_id}" if attempt_id else "")
+            + (f" formal_node_id={formal_node_id}" if formal_node_id else "")
+            + (f" attempt_kind={attempt_kind}" if attempt_kind else "")
+            + f" target_prover_family={target}; append adapter response JSONL"
+        )
+    commands.append(
+        "rerun formalization-gap-planner-prover-adapter-feedback and "
+        "formalization-gap-planner-route-stability-audit after adapter responses"
+    )
+    return _str_tuple(commands)
+
+
+def _formal_attempt_queue_queries(
+    items: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    queries: list[object] = []
+    for item in items:
+        queries.extend(_str_tuple(item.get("target_primitives", [])))
+        queries.extend(_str_tuple(item.get("expected_feedback", [])))
+        for field_name in ("formal_node_id", "primitive", "action", "attempt_kind"):
+            value = str(item.get(field_name, "")).strip()
+            if value:
+                queries.append(value)
+    return _str_tuple(queries)
+
+
 def _resource_request_queries(row: dict[str, Any]) -> tuple[str, ...]:
     payload = row.get("request_payload", {})
     queries: list[object] = []
@@ -2169,7 +2424,7 @@ def _user_checkpoint(next_kind: str, session_state: str) -> str:
         "lean_library_grounding": "review declaration hits for statement-shape compatibility before changing coverage labels",
         "proof_state_feedback": "review residual goals and side conditions before revising the route DAG",
         "route_replan": "rerun standalone planning from the replan seed before exporting target-prover packets",
-        "target_prover_replay": "run target-prover replay; do not promote proof status from the session ledger",
+        "target_prover_replay": "run ready formal-attempt queue items through target-prover replay; do not promote proof status from the session ledger",
         "route_stability_audit": "audit whether evidence has stabilized before replay or expansion",
         "refinement_adapter_execution": "run adapter responses and validate them through refinement evidence",
         "await_refinement_response": "wait for or rerun the missing adapter responses before route revision",
@@ -2369,6 +2624,8 @@ def _target_prover_families_for_session(
     for row in evidence_rows:
         values.append(row.get("target_prover_family", ""))
         values.extend(_target_prover_family_values_from_declaration_hits(row))
+    for attempt in _formal_attempt_queue_items_for_session(plan_row, stability_row):
+        values.append(attempt.get("target_prover_family", ""))
     values.extend(_target_prover_family_values_from_declaration_hits(stability_row))
     if not any(str(value or "").strip() for value in values):
         if any(
@@ -2642,6 +2899,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Rows with unresolved route-adoption preconditions: {payload.get('n_rows_with_unresolved_route_adoption_preconditions')}/{payload.get('n_rows_with_route_adoption_preconditions')}",
         f"- Linked resource requests: {payload.get('n_resource_requests_linked')}",
         f"- Resource request execution commands: {payload.get('n_resource_request_execution_commands')}",
+        f"- Formal attempt queue items ready/blocked/total: {payload.get('n_formal_attempt_queue_ready_items')}/{payload.get('n_formal_attempt_queue_blocked_items')}/{payload.get('n_formal_attempt_queue_items')}",
+        f"- Formal attempt queue execution commands: {payload.get('n_formal_attempt_queue_execution_commands')}",
         f"- All OK: {payload.get('all_ok')}",
         f"- Next literature searches: {payload.get('n_run_literature_search')}",
         f"- Next formal grounding actions: {payload.get('n_run_formal_grounding')}",
@@ -2669,6 +2928,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"- Next interaction: `{row.get('next_interaction_kind')}`",
                 f"- Owner: `{row.get('next_owner_agent')}`",
                 f"- Resource requests: {len(row.get('resource_request_ids', []))}",
+                f"- Formal attempt queue: {row.get('formal_attempt_queue_ready_item_count')}/{row.get('formal_attempt_queue_item_count')} ready",
                 f"- User checkpoint: {row.get('user_checkpoint')}",
                 "",
             ]
