@@ -3100,6 +3100,143 @@ def test_source_theorem_promotion_infers_mathlib_import_for_statistical_statemen
     ] == ["Mathlib"]
 
 
+def test_source_theorem_promotion_preserves_non_lean_formal_target(
+    tmp_path: Path,
+) -> None:
+    formalization_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:source_promotion_rocq",
+        "question": {
+            "id": "rocq_conformal_prediction_coverage",
+            "title": "Rocq split conformal prediction interval coverage",
+        },
+        "llm_formalizer_proof_engineer_proposal_id": (
+            "formalizer_proposal:source_promotion_rocq"
+        ),
+        "deterministic_theorem_goals": [
+            {"id": "split_conformal_finite_sample_coverage"}
+        ],
+        "proof_bank_runtime_memory_summary": {
+            "recommended_formalizer_target_mode": (
+                "source_theorem_exact_semantics_or_theorem_promotion"
+            ),
+            "source_theorem_semantic_primitive_support_already_kernel_verified": True,
+            "remaining_theorem_goal_ids": [
+                "split_conformal_finite_sample_coverage"
+            ],
+            "memory_kernel_verified_theorem_reduction_closure_work_order_ids": [
+                "theorem_reduction_closure_work_order:rocq_good_rank"
+            ],
+            "memory_kernel_verified_theorem_reduction_closure_target_ids": [
+                "split_conformal_finite_sample_coverage_reduction_closure"
+            ],
+            "memory_kernel_verified_source_theorem_semantic_primitive_ids": [
+                "rocq_split_conformal_rank_uniformity"
+            ],
+        },
+    }
+    proposal = {
+        "artifact_kind": "FormalizerProofEngineerProposalPacket",
+        "packet_id": "formalizer_proposal:source_promotion_rocq",
+        "formal_targets": [
+            {
+                "id": "split_conformal_finite_sample_coverage_rocq",
+                "target_prover_family": "rocq",
+                "source_theorem_route_id": "route:split_conformal_rocq_source",
+                "source_theorem_statement": (
+                    "Rocq split conformal finite-sample coverage source theorem"
+                ),
+                "formal_statement_sketch": (
+                    "Theorem split_conformal_coverage : True."
+                ),
+                "formal_imports": ["Coq.Init.Logic"],
+                "informal_source": "Rocq split conformal finite-sample coverage",
+                "semantic_alignment_constraints": ["marginal coverage only"],
+            }
+        ],
+    }
+
+    rows = _runtime_source_theorem_promotion_work_order_rows(
+        [
+            {
+                "blackboard": {
+                    "artifacts": {
+                        "formalization_manifest:source_promotion_rocq": (
+                            formalization_manifest
+                        ),
+                        "formalizer_proposal:source_promotion_rocq": proposal,
+                    }
+                }
+            }
+        ]
+    )
+    handoff_rows = _runtime_source_theorem_promotion_handoff_rows(rows)
+    materialization_seed_rows = (
+        _runtime_source_theorem_promotion_materialization_seed_rows(
+            handoff_rows,
+            runtime_out_dir=tmp_path,
+        )
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["target_prover_family"] == "rocq"
+    assert rows[0]["formal_statement_sketch"].startswith(
+        "Theorem split_conformal_coverage"
+    )
+    assert rows[0]["formal_imports"] == ["Coq.Init.Logic"]
+    assert rows[0]["lean_statement_sketch"] == ""
+    assert rows[0]["lean_imports"] == []
+    assert rows[0]["source_theorem_target_known"] is True
+    assert rows[0]["source_theorem_target_provenance"][
+        "target_prover_family"
+    ] == "rocq"
+    assert rows[0]["source_theorem_target_provenance"][
+        "formal_statement_sketch"
+    ].startswith("Theorem split_conformal_coverage")
+
+    assert len(handoff_rows) == 1
+    assert handoff_rows[0]["target_prover_family"] == "rocq"
+    assert handoff_rows[0]["target_lean_declaration"] == ""
+    assert handoff_rows[0]["target_resolution_status"] == (
+        "SOURCE_THEOREM_TARGET_SKETCH_PRESENT"
+    )
+    assert handoff_rows[0]["source_theorem_target_known"] is True
+    assert handoff_rows[0]["formal_statement_sketch"] == rows[0][
+        "formal_statement_sketch"
+    ]
+    assert handoff_rows[0]["formal_imports"] == ["Coq.Init.Logic"]
+    assert handoff_rows[0]["lean_imports"] == []
+
+    assert len(materialization_seed_rows) == 1
+    assert materialization_seed_rows[0]["target_prover_family"] == "rocq"
+    assert materialization_seed_rows[0]["source_theorem_target_known"] is True
+    assert materialization_seed_rows[0]["candidate_bridge_lemma_name"] == ""
+    assert materialization_seed_rows[0]["formal_statement_sketch"] == rows[0][
+        "formal_statement_sketch"
+    ]
+    assert materialization_seed_rows[0]["formal_imports"] == ["Coq.Init.Logic"]
+    assert materialization_seed_rows[0]["lean_statement_sketch"] == ""
+    assert materialization_seed_rows[0]["materialization_seed_status"] == (
+        "BLOCKED_UNSUPPORTED_TARGET_PROVER_FOR_LEAN_MATERIALIZER"
+    )
+    assert materialization_seed_rows[0]["execution_preflight_status"] == (
+        "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_MATERIALIZER"
+    )
+    target_location = materialization_seed_rows[0]["kernel_overlay_context"][
+        "target_location"
+    ]
+    assert target_location["target_prover_family"] == "rocq"
+    assert target_location["formal_statement_sketch"] == rows[0][
+        "formal_statement_sketch"
+    ]
+    assert target_location["formal_imports"] == ["Coq.Init.Logic"]
+    assert target_location["target_lean_declaration"] == ""
+    assert target_location["target_imports"] == []
+    assert materialization_seed_rows[0]["target_location_preflight"][
+        "live_goal_requested"
+    ] is False
+
+
 def test_source_theorem_promotion_bridge_exports_formal_environment_work_order(
     tmp_path: Path,
 ) -> None:
@@ -3396,6 +3533,9 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
     assert rows[0]["kernel_verified_theorem_reduction_closure_work_order_ids"] == [
         "theorem_reduction_closure_work_order:good_rank"
     ]
+    assert rows[0]["target_prover_family"] == "lean4"
+    assert rows[0]["formal_statement_sketch"] == rows[0]["lean_statement_sketch"]
+    assert rows[0]["formal_imports"] == ["Mathlib", "StatInference.Conformal"]
     assert rows[0]["lean_imports"] == ["Mathlib", "StatInference.Conformal"]
     assert len(handoff_rows) == 1
     assert handoff_rows[0]["artifact_kind"] == "RuntimeSourceTheoremPromotionHandoff"
@@ -3419,6 +3559,11 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         "ready_for_existing_source_theorem_promotion_queue"
     ] is False
     assert handoff_rows[0]["proof_evidence_status"] == "HANDOFF_NOT_PROOF_EVIDENCE"
+    assert handoff_rows[0]["target_prover_family"] == "lean4"
+    assert handoff_rows[0]["formal_statement_sketch"] == (
+        rows[0]["formal_statement_sketch"]
+    )
+    assert handoff_rows[0]["formal_imports"] == ["Mathlib", "StatInference.Conformal"]
     assert handoff_rows[0]["lean_imports"] == ["Mathlib", "StatInference.Conformal"]
     assert len(materialization_seed_rows) == 1
     assert materialization_seed_rows[0]["artifact_kind"] == (
@@ -3451,11 +3596,25 @@ def test_runtime_exports_source_theorem_promotion_queue_rows(tmp_path: Path) -> 
         "theorem split_conformal_coverage (coverage_claim : Prop) "
         "(h_coverage : coverage_claim) : coverage_claim := by exact h_coverage"
     )
+    assert materialization_seed_rows[0]["target_prover_family"] == "lean4"
+    assert materialization_seed_rows[0]["formal_statement_sketch"] == (
+        materialization_seed_rows[0]["lean_statement_sketch"]
+    )
+    assert materialization_seed_rows[0]["formal_imports"] == [
+        "Mathlib",
+        "StatInference.Conformal",
+    ]
     assert materialization_seed_rows[0]["candidate_bridge_lemma_name"] == (
         "split_conformal_coverage"
     )
     assert materialization_seed_rows[0]["kernel_overlay_context"]["target_location"][
         "target_imports"
+    ] == ["Mathlib", "StatInference.Conformal"]
+    assert materialization_seed_rows[0]["kernel_overlay_context"]["target_location"][
+        "target_prover_family"
+    ] == "lean4"
+    assert materialization_seed_rows[0]["kernel_overlay_context"]["target_location"][
+        "formal_imports"
     ] == ["Mathlib", "StatInference.Conformal"]
     assert materialization_seed_rows[0]["proof_evidence_status"] == (
         "MATERIALIZATION_SEED_NOT_PROOF_EVIDENCE"

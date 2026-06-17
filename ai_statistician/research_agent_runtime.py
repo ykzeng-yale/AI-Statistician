@@ -5147,6 +5147,8 @@ _SOURCE_THEOREM_TARGET_PROVENANCE_STRING_KEYS = (
     "source_theorem_statement",
     "source_theorem_skeleton",
     "source_theorem_lean_file",
+    "target_prover_family",
+    "formal_statement_sketch",
     "target_lean_declaration",
     "artifact_verification_id",
     "artifact_verifier_manifest",
@@ -6140,6 +6142,9 @@ def _formalizer_theorem_reduction_closure_work_orders(
         )
         if not target_id or not is_closure_target:
             continue
+        target_prover_family = _formal_target_prover_family(target)
+        formal_statement_sketch = _formal_target_statement_sketch(target)
+        formal_imports = _formal_target_generic_imports(target)
         work_order = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
             "artifact_kind": "TheoremReductionClosureWorkOrder",
@@ -6158,6 +6163,9 @@ def _formalizer_theorem_reduction_closure_work_orders(
                 or []
                 if str(row).strip()
             ],
+            "target_prover_family": target_prover_family,
+            "formal_statement_sketch": formal_statement_sketch,
+            "formal_imports": formal_imports,
             "lean_statement_sketch": str(target.get("lean_statement_sketch", "") or ""),
             "informal_source": str(target.get("informal_source", "") or ""),
             "semantic_alignment_constraints": [
@@ -6941,8 +6949,12 @@ def _formalizer_source_theorem_promotion_work_orders(
         source_formal_target_id = str(target.get("id", "") or "").strip()
         if not source_formal_target_id:
             continue
+        target_prover_family = _formal_target_prover_family(target)
+        formal_statement_sketch = _formal_target_statement_sketch(target)
+        formal_imports = _formal_target_generic_imports(target)
+        lean_statement_sketch = str(target.get("lean_statement_sketch", "") or "")
         target_lean_declaration = _lean_declaration_name(
-            str(target.get("lean_statement_sketch", "") or "")
+            lean_statement_sketch
         )
         source_target_provenance = _source_theorem_target_provenance_from_row(
             target
@@ -6966,6 +6978,20 @@ def _formalizer_source_theorem_promotion_work_orders(
                 target_lean_declaration,
             )
             source_target_provenance["source_theorem_target_known"] = True
+        if target_prover_family:
+            source_target_provenance.setdefault(
+                "target_prover_family",
+                target_prover_family,
+            )
+        if formal_statement_sketch:
+            source_target_provenance.setdefault(
+                "formal_statement_sketch",
+                formal_statement_sketch,
+            )
+            source_target_provenance.setdefault(
+                "source_theorem_target_known",
+                True,
+            )
         semantic_alignment_constraints = list(
             source_target_provenance.get("semantic_alignment_constraints", [])
             or []
@@ -7001,7 +7027,10 @@ def _formalizer_source_theorem_promotion_work_orders(
                 "unresolved_source_theorem_semantic_primitive_placeholder_symbols": (
                     unresolved_semantic_primitive_placeholder_symbols
                 ),
-                "lean_statement_sketch": str(target.get("lean_statement_sketch", "") or ""),
+                "target_prover_family": target_prover_family,
+                "formal_statement_sketch": formal_statement_sketch,
+                "formal_imports": formal_imports,
+                "lean_statement_sketch": lean_statement_sketch,
                 "lean_imports": _formal_target_imports(target),
                 "informal_source": str(target.get("informal_source", "") or ""),
                 "source_theorem_target_known": bool(
@@ -7039,7 +7068,14 @@ def _theorem_goal_id(row: Any) -> str:
 
 
 def _formal_target_imports(target: Mapping[str, Any]) -> list[str]:
-    imports = target.get("lean_imports", target.get("target_imports", []))
+    imports = target.get("lean_imports", [])
+    if isinstance(imports, list):
+        explicit_imports = [str(row).strip() for row in imports if str(row).strip()]
+        if explicit_imports:
+            return explicit_imports
+    if not _formal_target_is_lean(target):
+        return []
+    imports = target.get("target_imports", target.get("formal_imports", []))
     if isinstance(imports, list):
         explicit_imports = [str(row).strip() for row in imports if str(row).strip()]
         if explicit_imports:
@@ -7047,8 +7083,42 @@ def _formal_target_imports(target: Mapping[str, Any]) -> list[str]:
     return _infer_formal_target_imports(target)
 
 
+def _formal_target_generic_imports(target: Mapping[str, Any]) -> list[str]:
+    imports = target.get(
+        "formal_imports",
+        target.get("target_imports", target.get("lean_imports", [])),
+    )
+    if not isinstance(imports, list):
+        return []
+    return [str(row).strip() for row in imports if str(row).strip()]
+
+
+def _formal_target_statement_sketch(target: Mapping[str, Any]) -> str:
+    return str(
+        target.get("formal_statement_sketch")
+        or target.get("target_statement_sketch")
+        or target.get("lean_statement_sketch")
+        or ""
+    ).strip()
+
+
+def _formal_target_prover_family(target: Mapping[str, Any]) -> str:
+    return str(
+        target.get("target_prover_family")
+        or target.get("prover_family")
+        or target.get("target_prover")
+        or "lean4"
+    ).strip()
+
+
+def _formal_target_is_lean(target: Mapping[str, Any]) -> bool:
+    return _formal_target_prover_family(target).lower() in {"lean", "lean4"}
+
+
 def _infer_formal_target_imports(target: Mapping[str, Any]) -> list[str]:
-    statement = str(target.get("lean_statement_sketch", "") or "")
+    if not _formal_target_is_lean(target):
+        return []
+    statement = _formal_target_statement_sketch(target)
     source = str(target.get("informal_source", "") or "")
     text = f"{statement}\n{source}"
     mathlib_markers = (
@@ -7746,6 +7816,9 @@ def _runtime_source_theorem_promotion_work_order_rows(
                         "source_formalization_manifest_id",
                         "source_formalizer_packet_id",
                         "source_formal_target_id",
+                        "target_prover_family",
+                        "formal_statement_sketch",
+                        "formal_imports",
                         "lean_statement_sketch",
                         "lean_imports",
                         "informal_source",
@@ -7960,6 +8033,9 @@ def _runtime_source_theorem_promotion_work_order_rows_from_learning_rows(
                         "source_formalization_manifest_id",
                         "source_formalizer_packet_id",
                         "source_formal_target_id",
+                        "target_prover_family",
+                        "formal_statement_sketch",
+                        "formal_imports",
                         "lean_statement_sketch",
                         "lean_imports",
                         "informal_source",
@@ -7992,6 +8068,9 @@ def _runtime_source_theorem_promotion_handoff_rows(
             continue
         work_order_id = str(item.get("work_order_id", "") or "").strip()
         source_target_id = str(item.get("source_formal_target_id", "") or "").strip()
+        target_prover_family = _formal_target_prover_family(item)
+        formal_statement_sketch = _formal_target_statement_sketch(item)
+        formal_imports = _formal_target_generic_imports(item)
         lean_statement_sketch = str(item.get("lean_statement_sketch", "") or "").strip()
         target_lean_declaration = _lean_declaration_name(lean_statement_sketch)
         source_target_provenance = _source_theorem_target_provenance_from_row(item)
@@ -8006,9 +8085,23 @@ def _runtime_source_theorem_promotion_handoff_rows(
                 target_lean_declaration,
             )
             source_target_provenance["source_theorem_target_known"] = True
+        if target_prover_family:
+            source_target_provenance.setdefault(
+                "target_prover_family",
+                target_prover_family,
+            )
+        if formal_statement_sketch:
+            source_target_provenance.setdefault(
+                "formal_statement_sketch",
+                formal_statement_sketch,
+            )
+            source_target_provenance.setdefault(
+                "source_theorem_target_known",
+                True,
+            )
         target_status = (
             "SOURCE_THEOREM_TARGET_SKETCH_PRESENT"
-            if lean_statement_sketch
+            if formal_statement_sketch
             else "NEEDS_EXACT_SOURCE_THEOREM_TARGET"
         )
         handoff_status = (
@@ -8032,6 +8125,7 @@ def _runtime_source_theorem_promotion_handoff_rows(
             "target_theorem_goal_ids": list(
                 item.get("target_theorem_goal_ids", []) or []
             ),
+            "target_prover_family": target_prover_family,
             "target_lean_declaration": target_lean_declaration,
             "source_theorem_target_known": bool(
                 source_target_provenance.get("source_theorem_target_known", False)
@@ -8075,6 +8169,8 @@ def _runtime_source_theorem_promotion_handoff_rows(
                 )
                 or []
             ),
+            "formal_statement_sketch": formal_statement_sketch,
+            "formal_imports": formal_imports,
             "lean_statement_sketch": lean_statement_sketch,
             "lean_imports": list(item.get("lean_imports", []) or []),
             "semantic_alignment_constraints": list(
@@ -8131,6 +8227,9 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             item.get("target_lean_declaration", "") or ""
         ).strip()
         target_status = str(item.get("target_resolution_status", "") or "")
+        target_prover_family = _formal_target_prover_family(item)
+        formal_statement_sketch = _formal_target_statement_sketch(item)
+        formal_imports = _formal_target_generic_imports(item)
         source_target_provenance = _source_theorem_target_provenance_from_row(item)
         if work_order_id:
             source_target_provenance.setdefault(
@@ -8149,6 +8248,11 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             )
         target_known = (
             target_status == "SOURCE_THEOREM_TARGET_SKETCH_PRESENT"
+            and bool(formal_statement_sketch or target_lean_declaration)
+        )
+        lean_materializer_ready = (
+            target_known
+            and target_prover_family.lower() in {"lean", "lean4"}
             and bool(target_lean_declaration)
         )
         if target_known:
@@ -8245,11 +8349,19 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             for value in item.get("semantic_alignment_constraints", []) or []
             if str(value).strip()
         ]
-        materialization_status = (
-            "READY_FOR_AGENTIC_PROOF_EXECUTION_MATERIALIZER"
-            if target_known
-            else "BLOCKED_NEEDS_EXACT_SOURCE_THEOREM_TARGET"
-        )
+        if lean_materializer_ready:
+            materialization_status = "READY_FOR_AGENTIC_PROOF_EXECUTION_MATERIALIZER"
+            execution_preflight_status = "NEEDS_MATERIALIZED_CANDIDATE_ARTIFACT"
+        elif target_known:
+            materialization_status = (
+                "BLOCKED_UNSUPPORTED_TARGET_PROVER_FOR_LEAN_MATERIALIZER"
+            )
+            execution_preflight_status = (
+                "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_MATERIALIZER"
+            )
+        else:
+            materialization_status = "BLOCKED_NEEDS_EXACT_SOURCE_THEOREM_TARGET"
+            execution_preflight_status = "NEEDS_EXACT_SOURCE_THEOREM_TARGET"
         row = {
             "schema_version": RUNTIME_SCHEMA_VERSION,
             "artifact_kind": "RuntimeSourceTheoremPromotionMaterializationSeed",
@@ -8276,8 +8388,11 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
                 "Materialize exact source-theorem candidate for "
                 + (target_lean_declaration or source_target_id or "source theorem")
             ),
+            "target_prover_family": target_prover_family,
             "target_theorem_name": target_lean_declaration or source_target_id,
             "candidate_bridge_lemma_name": target_lean_declaration,
+            "formal_statement_sketch": formal_statement_sketch,
+            "formal_imports": formal_imports,
             "lean_statement_sketch": lean_statement_sketch,
             "source_theorem_target_provenance": source_target_provenance,
             "kernel_verified_source_theorem_semantic_support_obligation_ids": (
@@ -8322,6 +8437,9 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
                 "source_theorem_target_known": target_known,
                 "source_theorem_target_provenance": source_target_provenance,
                 "target_location": {
+                    "target_prover_family": target_prover_family,
+                    "formal_statement_sketch": formal_statement_sketch,
+                    "formal_imports": formal_imports,
                     "target_lean_declaration": target_lean_declaration,
                     "target_imports": lean_imports,
                 },
@@ -8359,13 +8477,9 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
             "candidate_artifact_path": str(candidate_artifact_path),
             "execution_transcript_path": str(execution_transcript_path),
             "target_location_preflight": {
-                "live_goal_requested": True,
+                "live_goal_requested": lean_materializer_ready,
                 "live_goal_location_ready": False,
-                "execution_preflight_status": (
-                    "NEEDS_MATERIALIZED_CANDIDATE_ARTIFACT"
-                    if target_known
-                    else "NEEDS_EXACT_SOURCE_THEOREM_TARGET"
-                ),
+                "execution_preflight_status": execution_preflight_status,
                 "target_lean_declaration": target_lean_declaration,
                 "candidate_artifact_path": str(candidate_artifact_path),
                 "next_step": (
@@ -8375,11 +8489,7 @@ def _runtime_source_theorem_promotion_materialization_seed_rows(
                 "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
             },
             "live_goal_location_ready": False,
-            "execution_preflight_status": (
-                "NEEDS_MATERIALIZED_CANDIDATE_ARTIFACT"
-                if target_known
-                else "NEEDS_EXACT_SOURCE_THEOREM_TARGET"
-            ),
+            "execution_preflight_status": execution_preflight_status,
             "proof_state_provider_plan": [
                 "lean_goal",
                 "lean_diagnostic_messages",
