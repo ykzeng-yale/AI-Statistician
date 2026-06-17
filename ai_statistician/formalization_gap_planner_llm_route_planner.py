@@ -11402,6 +11402,7 @@ def _user_prompt(
             "Resource-response ledger rows with awaiting, rejected, absent-response, failed-contract, or unmet-contract-minimum status are status-only; do not use them as residual-goal or route-repair evidence.",
             "Residual interpretations may cover only residual_goals listed in the request packet.",
             "If request residual_goals are present, every residual goal must have an interpretation and a route_repair or repair_action.",
+            "When context_packet.residual_goal_contexts is present, residual_interpretations must preserve each carried context's residual_goal and target/residual primitive scope.",
             "Every residual_interpretations row that proposes route repair must have source_refs/source_snippets, a matching literature/source search_request, or a formal_gap_boundary naming the target primitive; prover residuals alone are not source evidence for new mathematical side conditions.",
             "When search_requests or planner_next_actions include target_primitives/primitive fields, those fields are authoritative; a row scoped to another primitive cannot satisfy an obligation merely by mentioning the target primitive in free text.",
             "Every alignment edge must include a substantive alignment_rationale that names the mapped informal claim, formal primitive, declaration, coverage/action, or source-backed route anchor; placeholder text such as ok/aligned is rejected.",
@@ -15457,6 +15458,7 @@ def _response_contract_errors(
     if residual_goals and not _dict_tuple(payload.get("residual_interpretations", [])):
         errors.append("residual_interpretations required when request has residual_goals")
     errors.extend(_response_residual_interpretation_errors(payload, request))
+    errors.extend(_response_residual_goal_context_coverage_errors(payload, request))
     errors.extend(
         _response_residual_interpretation_primitive_grounding_errors(
             payload,
@@ -17692,6 +17694,96 @@ def _response_residual_interpretation_errors(
             + "; ".join(missing[:8])
         )
     return errors
+
+
+def _response_residual_goal_context_coverage_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    contexts = _dict_tuple(
+        _dict_value(request, "context_packet").get("residual_goal_contexts", [])
+    )
+    if not contexts:
+        return []
+    interpretations = _dict_tuple(payload.get("residual_interpretations", []))
+    if not interpretations:
+        return [
+            "residual_interpretations required when "
+            "context_packet.residual_goal_contexts are present"
+        ]
+
+    interpretations_by_goal: dict[str, list[dict[str, object]]] = {}
+    for interpretation in interpretations:
+        key = _residual_goal_key(interpretation.get("residual_goal", ""))
+        if key:
+            interpretations_by_goal.setdefault(key, []).append(interpretation)
+
+    errors: list[str] = []
+    for index, context in enumerate(contexts):
+        residual_goal = str(context.get("residual_goal", "") or "").strip()
+        context_key = _residual_goal_key(residual_goal)
+        context_primitives = _residual_goal_context_primitive_keys(context)
+        matches: list[dict[str, object]] = []
+        if context_key:
+            matches.extend(interpretations_by_goal.get(context_key, []))
+        if not matches and context_primitives:
+            matches.extend(
+                interpretation
+                for interpretation in interpretations
+                if (
+                    _residual_interpretation_explicit_or_prefixed_primitive_keys(
+                        interpretation
+                    )
+                    & context_primitives
+                )
+            )
+        if not matches:
+            errors.append(
+                "context_packet.residual_goal_contexts"
+                f"[{index}] must be covered by a residual_interpretations row "
+                "with the same residual_goal or target/residual primitive "
+                f"scope: residual_goal={residual_goal or '<missing>'}; "
+                f"primitives={','.join(sorted(context_primitives))}"
+            )
+            continue
+        if not context_primitives:
+            continue
+        if any(
+            _residual_interpretation_explicit_or_prefixed_primitive_keys(match)
+            & context_primitives
+            for match in matches
+        ):
+            continue
+        errors.append(
+            "context_packet.residual_goal_contexts"
+            f"[{index}] matching residual_interpretations row must preserve "
+            "target/residual primitive scope: "
+            f"residual_goal={residual_goal or '<missing>'}; "
+            f"primitives={','.join(sorted(context_primitives))}"
+        )
+    return errors
+
+
+def _residual_goal_context_primitive_keys(
+    context: Mapping[str, Any],
+) -> set[str]:
+    primitives = {
+        _primitive_key(value)
+        for value in (
+            *_str_tuple(context.get("target_primitives", [])),
+            *_str_tuple(context.get("residual_primitives", [])),
+            *_str_tuple(context.get("primitive", [])),
+            *_str_tuple(context.get("primitives", [])),
+        )
+        if _primitive_key(value)
+    }
+    prefixed = _residual_goal_prefixed_primitive_key_from_text(
+        str(context.get("residual_goal", "") or "")
+    )
+    if prefixed:
+        primitives.add(prefixed)
+    primitives.discard("")
+    return primitives
 
 
 def _response_residual_interpretation_primitive_grounding_errors(

@@ -7741,6 +7741,75 @@ def test_llm_route_planner_promotes_seed_residual_interpretations_to_context() -
     ]
 
 
+def test_llm_route_planner_rejects_residual_context_primitive_drift() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_residual_context_drift"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    residual_context = {
+        "residual_goal": "missing finite tie-breaking side condition",
+        "interpretation": (
+            "The previous proof-state feedback exposed a finite tie-breaking "
+            "side condition."
+        ),
+        "route_repair": (
+            "Carry the side condition into the rank_uniformity route before "
+            "claiming replay readiness."
+        ),
+        "target_primitives": ["rank_uniformity"],
+        "source_refs": ["conformal_prediction_textbook"],
+    }
+    input_payload["routes"][0]["replan_metadata"] = {
+        "llm_route_planner_residual_interpretations": [dict(residual_context)]
+    }
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    response = _llm_response_payload()
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": (
+                "The residual text is repeated, but the response scopes the "
+                "repair to the wrong primitive."
+            ),
+            "route_repair": (
+                "Repair the exchangeability premise instead of the carried "
+                "rank_uniformity residual."
+            ),
+            "target_primitives": ["exchangeability"],
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    ]
+    response["search_requests"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["planner_next_actions"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["response_contract_ok"] is False
+    assert any(
+        "context_packet.residual_goal_contexts[0] matching "
+        "residual_interpretations row must preserve target/residual primitive "
+        "scope" in error
+        and "rank_uniformity" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_flags_unsourced_seed_residual_context() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_unsourced_seed_residual"

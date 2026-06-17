@@ -942,6 +942,10 @@ LLM route-planner request also promotes those preserved interpretations into
 `residual_goal_contexts`, so their residual goal, route-repair text, source
 refs, diagnostics, and evidence ids remain visible to the prompt packet and
 auto Haiku/Sonnet tier decision instead of being treated as inert metadata. If
+`context_packet.residual_goal_contexts` is present, response validation requires
+`residual_interpretations` to cover each carried context by the same residual
+goal or target/residual primitive scope, and a matching interpretation may not
+drop the carried primitive scope. If
 one of those carried residual contexts lacks source refs, a bounded source-search
 hook, and a substantive formal boundary, the request packet synthesizes a
 pending `source_grounding_rows` entry and source-grounding obligation before
