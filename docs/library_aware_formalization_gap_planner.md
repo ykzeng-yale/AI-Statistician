@@ -2085,7 +2085,11 @@ use `lake`, `lean`, or `elan`; Rocq/Coq responses use `coqc`, `coqtop`, `rocq`,
 `rocqtop`, or `dune`; Isabelle responses use `isabelle`; Agda responses use
 `agda`; HOL-family responses use their configured HOL executables; Mizar
 responses use `mizar`; and Metamath responses use the configured Metamath
-verifier.
+verifier. If a packet carries `minimal_delta_action_witnesses`, a
+`ready_for_kernel_attempt` adapter response must acknowledge the selected delta
+obligation in `translated_statement`, `semantic_alignment_notes`, or
+`addressed_minimal_delta_action_witnesses`; otherwise it must report
+`residual_translation_gaps` instead of silently treating the packet as ready.
 
 Every run also writes
 `library_aware_formalization_gap_plan.schema.json` and

@@ -397,6 +397,8 @@ def test_prover_adapter_contract_gates_waiting_formal_attempt_dependency() -> No
     )
     plan_dir = root / "plan"
     out_dir = root / "contract"
+    unacknowledged_out_dir = root / "contract_unacknowledged"
+    explicit_ack_out_dir = root / "contract_explicit_ack"
     unlocked_out_dir = root / "contract_unlocked"
     response_jsonl = root / "adapter_responses.jsonl"
     shutil.rmtree(root, ignore_errors=True)
@@ -584,6 +586,53 @@ def test_prover_adapter_contract_gates_waiting_formal_attempt_dependency() -> No
     assert any(
         "prerequisite_response_ids" in error for error in validation["errors"]
     )
+
+    unacknowledged_response = {
+        **blocked_response,
+        "semantic_alignment_notes": "Maps the route alignment for the primitive.",
+        "prerequisite_feedback_satisfied": True,
+        "prerequisite_response_ids": ["prover_feedback:exchangeability"],
+    }
+    response_jsonl.write_text(
+        json.dumps(unacknowledged_response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    unacknowledged_payload = export_formalization_gap_planner_prover_adapter_contract(
+        plan_dir,
+        unacknowledged_out_dir,
+        target_prover_family="rocq",
+        library_snapshot_ref="rocq_fixture_snapshot",
+        adapter_response_jsonl=response_jsonl,
+    )
+    assert not unacknowledged_payload["all_ok"]
+    witness_validation = unacknowledged_payload["response_validation_rows"][0]
+    assert witness_validation["prerequisite_feedback_satisfied"] is True
+    assert any(
+        "minimal_delta_action_witnesses" in error
+        for error in witness_validation["errors"]
+    )
+
+    explicit_ack_response = {
+        **unacknowledged_response,
+        "addressed_minimal_delta_action_witnesses": [
+            {
+                "primitive": "rank_uniformity",
+                "action_field": "bridge_lemmas",
+            }
+        ],
+    }
+    response_jsonl.write_text(
+        json.dumps(explicit_ack_response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    explicit_ack_payload = export_formalization_gap_planner_prover_adapter_contract(
+        plan_dir,
+        explicit_ack_out_dir,
+        target_prover_family="rocq",
+        library_snapshot_ref="rocq_fixture_snapshot",
+        adapter_response_jsonl=response_jsonl,
+    )
+    assert explicit_ack_payload["all_ok"]
 
     unlocked_response = {
         **blocked_response,

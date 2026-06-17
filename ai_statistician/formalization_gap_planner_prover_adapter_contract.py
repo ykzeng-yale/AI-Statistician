@@ -7,7 +7,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 from .formalization_gap_planner_contract import (
@@ -843,6 +843,16 @@ def prover_adapter_response_json_schema() -> dict[str, object]:
             },
             "library_snapshot_ref": {"type": "string"},
             "semantic_alignment_notes": {"type": "string"},
+            "addressed_minimal_delta_action_witnesses": {
+                "type": "array",
+                "items": {"type": "object", "additionalProperties": True},
+                "description": (
+                    "Optional acknowledgments of packet "
+                    "minimal_delta_action_witnesses. Ready responses may also "
+                    "acknowledge witnesses in translated_statement or "
+                    "semantic_alignment_notes."
+                ),
+            },
             "residual_translation_gaps": {
                 "type": "array",
                 "items": {"type": "string"},
@@ -2089,6 +2099,90 @@ def _attach_formal_attempt_dependency_fields(
             container[field_name] = value
 
 
+def _response_acknowledges_minimal_delta_action_witnesses(
+    packet: FormalizationGapPlannerProverAdapterPacket,
+    response: Mapping[str, Any],
+    *,
+    translated_statement: str,
+    semantic_alignment_notes: str,
+    residual_translation_gaps: tuple[str, ...],
+) -> bool:
+    if not packet.minimal_delta_action_witnesses:
+        return True
+    if residual_translation_gaps:
+        return True
+    explicit_witnesses = _dict_tuple(
+        response.get("addressed_minimal_delta_action_witnesses", [])
+    )
+    response_text_key = _minimal_delta_action_witness_key(
+        " ".join(
+            [
+                translated_statement,
+                semantic_alignment_notes,
+                " ".join(
+                    _minimal_delta_action_witness_text(witness)
+                    for witness in explicit_witnesses
+                ),
+            ]
+        )
+    )
+    if not response_text_key:
+        return False
+    for witness in packet.minimal_delta_action_witnesses:
+        primitive = _minimal_delta_action_witness_key(witness.get("primitive", ""))
+        if primitive and primitive not in response_text_key:
+            return False
+        action_tokens = _minimal_delta_action_witness_ack_tokens(witness)
+        if action_tokens and not any(
+            token in response_text_key for token in action_tokens
+        ):
+            return False
+    return True
+
+
+def _minimal_delta_action_witness_ack_tokens(
+    witness: Mapping[str, object],
+) -> tuple[str, ...]:
+    action_field = _minimal_delta_action_witness_key(witness.get("action_field", ""))
+    if action_field == "bridge_lemmas":
+        return ("bridge", "bridge_lemma")
+    if action_field == "wrapper_lemmas":
+        return ("wrapper",)
+    if action_field == "source_port_lemmas":
+        return ("source_port", "port")
+    if action_field == "new_definitions":
+        return ("definition", "define")
+    if action_field == "new_theory_primitives":
+        return ("new_theory", "theory")
+    if action_field == "first_principles_primitives":
+        return ("first_principles", "principles")
+    return tuple()
+
+
+def _minimal_delta_action_witness_key(value: object) -> str:
+    return re.sub(
+        r"_+",
+        "_",
+        re.sub(r"[^a-z0-9]+", "_", str(value or "").lower()),
+    ).strip("_")
+
+
+def _minimal_delta_action_witness_text(
+    witness: Mapping[str, object],
+) -> str:
+    return " ".join(
+        str(witness.get(field_name, "") or "").strip()
+        for field_name in (
+            "primitive",
+            "attempt_kind",
+            "action_field",
+            "source_label",
+            "action_item",
+        )
+        if str(witness.get(field_name, "") or "").strip()
+    )
+
+
 def _required_response_fields_for_packet(
     dependency: dict[str, object],
 ) -> tuple[str, ...]:
@@ -2252,6 +2346,24 @@ def _validate_response(
         errors.append(
             "ready_for_kernel_attempt requires formal attempt prerequisite "
             f"queue entries to exist{suffix}"
+        )
+    if (
+        mapping_status == "ready_for_kernel_attempt"
+        and packet.minimal_delta_action_witnesses
+        and not _response_acknowledges_minimal_delta_action_witnesses(
+            packet,
+            response,
+            translated_statement=translated_statement,
+            semantic_alignment_notes=semantic_alignment_notes,
+            residual_translation_gaps=residual_translation_gaps,
+        )
+    ):
+        errors.append(
+            "ready_for_kernel_attempt must acknowledge "
+            "minimal_delta_action_witnesses in translated_statement, "
+            "semantic_alignment_notes, or "
+            "addressed_minimal_delta_action_witnesses, or report "
+            "residual_translation_gaps"
         )
     if (
         mapping_status == "ready_for_kernel_attempt"
