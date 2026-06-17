@@ -1077,6 +1077,10 @@ def _fixture_cross_prover_matrix_row(
         "n_response_present": 0,
         "n_awaiting_adapter_mapping": 1,
         "n_response_contract_ok": 0,
+        "n_response_minimal_delta_action_witnesses_required": 0,
+        "n_response_minimal_delta_action_witnesses_acknowledged": 0,
+        "n_response_minimal_delta_action_witnesses_unacknowledged": 0,
+        "n_response_addressed_minimal_delta_action_witnesses": 0,
         "n_rejected": 0,
         "n_kernel_verified_claims_rejected": 0,
         "packet_fingerprint": str(packet["prover_adapter_packet_id"]),
@@ -1168,6 +1172,10 @@ def _fixture_cross_prover_target_summary(
         "by_total_packet_formal_attempt_dependency_status": {
             "not_formal_attempt_queue_item": 1
         },
+        "n_total_response_minimal_delta_action_witnesses_required": 0,
+        "n_total_response_minimal_delta_action_witnesses_acknowledged": 0,
+        "n_total_response_minimal_delta_action_witnesses_unacknowledged": 0,
+        "n_total_response_addressed_minimal_delta_action_witnesses": 0,
         "target_rows": [
             {
                 "target_prover_family": target,
@@ -1247,6 +1255,10 @@ def _fixture_cross_prover_target_summary(
                     "not_formal_attempt_queue_item": 1
                 },
                 "n_response_validation_rows": 1,
+                "n_response_minimal_delta_action_witnesses_required": 0,
+                "n_response_minimal_delta_action_witnesses_acknowledged": 0,
+                "n_response_minimal_delta_action_witnesses_unacknowledged": 0,
+                "n_response_addressed_minimal_delta_action_witnesses": 0,
                 "aggregate_packet_jsonl_path": (
                     "formalization_gap_planner_cross_prover_packets.jsonl"
                 ),
@@ -2206,6 +2218,10 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "by_total_packet_formal_attempt_dependency_status": {
                     "not_formal_attempt_queue_item": 1
                 },
+                "n_response_minimal_delta_action_witnesses_required": 0,
+                "n_response_minimal_delta_action_witnesses_acknowledged": 0,
+                "n_response_minimal_delta_action_witnesses_unacknowledged": 0,
+                "n_response_addressed_minimal_delta_action_witnesses": 0,
                 "packet_count_consistent": True,
                 "alignment_packet_count_consistent": True,
                     "standalone_input_trace_packet_count_consistent": True,

@@ -2101,7 +2101,9 @@ The response-validation row and manifest expose the acknowledgement state with
 `addressed_minimal_delta_action_witnesses`, and aggregate acknowledged/
 unacknowledged counters, so downstream audits do not need to parse diagnostic
 strings to determine whether the target-prover mapping consumed the selected
-minimal delta.
+minimal delta. The cross-prover matrix and target-summary artifacts roll these
+counters up per target prover, so publication bundles can show whether each
+reusable adapter path acknowledged the selected minimal-delta obligations.
 
 Every run also writes
 `library_aware_formalization_gap_plan.schema.json` and
@@ -2577,8 +2579,9 @@ The current implementation composes four existing AI Statistician artifacts:
    prover adapters. The target summary records the target families, packet
    counts, standalone-trace counts, replan-metadata trace counts,
    target-library snapshot trace counts and mismatch counts, quality-control
-   field summaries, formal-attempt dependency readiness/status counters, and
-   per-target filter values needed to
+   field summaries, formal-attempt dependency readiness/status counters,
+   response-level minimal-delta witness acknowledgement counters, and per-target
+   filter values needed to
    consume the aggregate JSONL files from a publication
    bundle. It also writes
    `formalization_gap_planner_cross_prover_target_summary.schema.json`, and the

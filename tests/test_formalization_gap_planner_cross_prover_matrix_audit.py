@@ -208,6 +208,10 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
     assert payload["by_total_packet_formal_attempt_dependency_status"] == {
         "not_formal_attempt_queue_item": payload["n_total_packets"],
     }
+    assert payload["n_response_minimal_delta_action_witnesses_required"] == 0
+    assert payload["n_response_minimal_delta_action_witnesses_acknowledged"] == 0
+    assert payload["n_response_minimal_delta_action_witnesses_unacknowledged"] == 0
+    assert payload["n_response_addressed_minimal_delta_action_witnesses"] == 0
     assert payload["n_awaiting_adapter_mapping"] == payload["n_total_packets"]
     assert payload["n_unmatched_adapter_responses"] == 0
     assert payload["n_rejected"] == 0
@@ -311,6 +315,30 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
     ] == {
         "not_formal_attempt_queue_item": payload["n_total_packets"],
     }
+    assert (
+        payload["target_summary"][
+            "n_total_response_minimal_delta_action_witnesses_required"
+        ]
+        == 0
+    )
+    assert (
+        payload["target_summary"][
+            "n_total_response_minimal_delta_action_witnesses_acknowledged"
+        ]
+        == 0
+    )
+    assert (
+        payload["target_summary"][
+            "n_total_response_minimal_delta_action_witnesses_unacknowledged"
+        ]
+        == 0
+    )
+    assert (
+        payload["target_summary"][
+            "n_total_response_addressed_minimal_delta_action_witnesses"
+        ]
+        == 0
+    )
     assert all(
         row["n_packets_with_alignment"] == row["n_packets"]
         and row["n_packet_schema_valid"] == row["n_packets"]
@@ -348,6 +376,10 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
         and row["n_packets_formal_attempt_missing_prerequisites"] == 0
         and row["by_packet_formal_attempt_dependency_status"]
         == {"not_formal_attempt_queue_item": row["n_packets"]}
+        and row["n_response_minimal_delta_action_witnesses_required"] == 0
+        and row["n_response_minimal_delta_action_witnesses_acknowledged"] == 0
+        and row["n_response_minimal_delta_action_witnesses_unacknowledged"] == 0
+        and row["n_response_addressed_minimal_delta_action_witnesses"] == 0
         and row["n_unmatched_adapter_responses"] == 0
         for row in payload["matrix_rows"]
     )

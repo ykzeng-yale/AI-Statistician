@@ -1999,6 +1999,10 @@ def export_formalization_gap_planner_publication_bundle(
                 "n_packet_row_schema_invalid",
                 "n_response_validation_row_schema_valid",
                 "n_response_validation_row_schema_invalid",
+                "n_response_minimal_delta_action_witnesses_required",
+                "n_response_minimal_delta_action_witnesses_acknowledged",
+                "n_response_minimal_delta_action_witnesses_unacknowledged",
+                "n_response_addressed_minimal_delta_action_witnesses",
                 "n_total_packets_with_alignment",
                 "n_total_packets_missing_alignment",
                 "packet_count_consistent",
@@ -2797,6 +2801,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_total_packets_formal_attempt_waiting",
             "n_total_packets_formal_attempt_missing_prerequisites",
             "by_total_packet_formal_attempt_dependency_status",
+            "n_total_response_minimal_delta_action_witnesses_required",
+            "n_total_response_minimal_delta_action_witnesses_acknowledged",
+            "n_total_response_minimal_delta_action_witnesses_unacknowledged",
+            "n_total_response_addressed_minimal_delta_action_witnesses",
             "target_summary_consistent",
         ],
         "properties": {
@@ -2814,6 +2822,18 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 "type": "object",
                 "additionalProperties": nonnegative_integer,
             },
+            "n_total_response_minimal_delta_action_witnesses_required": (
+                nonnegative_integer
+            ),
+            "n_total_response_minimal_delta_action_witnesses_acknowledged": (
+                nonnegative_integer
+            ),
+            "n_total_response_minimal_delta_action_witnesses_unacknowledged": (
+                nonnegative_integer
+            ),
+            "n_total_response_addressed_minimal_delta_action_witnesses": (
+                nonnegative_integer
+            ),
             "target_summary_consistent": {"type": "boolean"},
         },
     }
@@ -4504,6 +4524,10 @@ def _cross_prover_formal_attempt_dependency_summary(
         "n_total_packets_formal_attempt_waiting": 0,
         "n_total_packets_formal_attempt_missing_prerequisites": 0,
         "by_total_packet_formal_attempt_dependency_status": {},
+        "n_total_response_minimal_delta_action_witnesses_required": 0,
+        "n_total_response_minimal_delta_action_witnesses_acknowledged": 0,
+        "n_total_response_minimal_delta_action_witnesses_unacknowledged": 0,
+        "n_total_response_addressed_minimal_delta_action_witnesses": 0,
         "target_summary_consistent": False,
     }
     if source_dir is None:
@@ -4523,6 +4547,24 @@ def _cross_prover_formal_attempt_dependency_summary(
         "n_total_packets_formal_attempt_waiting",
         "n_total_packets_formal_attempt_missing_prerequisites",
     )
+    witness_counter_fields = (
+        (
+            "n_response_minimal_delta_action_witnesses_required",
+            "n_total_response_minimal_delta_action_witnesses_required",
+        ),
+        (
+            "n_response_minimal_delta_action_witnesses_acknowledged",
+            "n_total_response_minimal_delta_action_witnesses_acknowledged",
+        ),
+        (
+            "n_response_minimal_delta_action_witnesses_unacknowledged",
+            "n_total_response_minimal_delta_action_witnesses_unacknowledged",
+        ),
+        (
+            "n_response_addressed_minimal_delta_action_witnesses",
+            "n_total_response_addressed_minimal_delta_action_witnesses",
+        ),
+    )
     manifest_counters = {
         field_name: _int_or_zero(manifest.get(field_name))
         for field_name in counter_fields
@@ -4530,6 +4572,14 @@ def _cross_prover_formal_attempt_dependency_summary(
     target_summary_counters = {
         field_name: _int_or_zero(target_summary.get(field_name))
         for field_name in counter_fields
+    }
+    manifest_witness_counters = {
+        target_field_name: _int_or_zero(manifest.get(manifest_field_name))
+        for manifest_field_name, target_field_name in witness_counter_fields
+    }
+    target_summary_witness_counters = {
+        target_field_name: _int_or_zero(target_summary.get(target_field_name))
+        for _, target_field_name in witness_counter_fields
     }
     manifest_histogram = _count_map(
         manifest.get("by_total_packet_formal_attempt_dependency_status")
@@ -4546,10 +4596,12 @@ def _cross_prover_formal_attempt_dependency_summary(
         "target_summary_path": str(target_summary_path),
         "n_total_packets": total_packets,
         **manifest_counters,
+        **manifest_witness_counters,
         "by_total_packet_formal_attempt_dependency_status": manifest_histogram,
         "target_summary_consistent": (
             total_packets == target_total_packets
             and manifest_counters == target_summary_counters
+            and manifest_witness_counters == target_summary_witness_counters
             and manifest_histogram == target_summary_histogram
         ),
     }
@@ -6735,6 +6787,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('cross_prover_formal_attempt_dependency_summary', {}).get('n_total_packets_formal_attempt_waiting')} "
             f"missing="
             f"{payload.get('cross_prover_formal_attempt_dependency_summary', {}).get('n_total_packets_formal_attempt_missing_prerequisites')} "
+            f"witness_ack="
+            f"{payload.get('cross_prover_formal_attempt_dependency_summary', {}).get('n_total_response_minimal_delta_action_witnesses_acknowledged')}/"
+            f"{payload.get('cross_prover_formal_attempt_dependency_summary', {}).get('n_total_response_minimal_delta_action_witnesses_required')} "
             f"target_summary_consistent="
             f"{payload.get('cross_prover_formal_attempt_dependency_summary', {}).get('target_summary_consistent')}"
         ),

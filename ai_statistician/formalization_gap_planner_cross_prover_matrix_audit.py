@@ -94,6 +94,10 @@ class FormalizationGapPlannerCrossProverMatrixRow:
     n_response_present: int
     n_awaiting_adapter_mapping: int
     n_response_contract_ok: int
+    n_response_minimal_delta_action_witnesses_required: int
+    n_response_minimal_delta_action_witnesses_acknowledged: int
+    n_response_minimal_delta_action_witnesses_unacknowledged: int
+    n_response_addressed_minimal_delta_action_witnesses: int
     n_unmatched_adapter_responses: int
     n_rejected: int
     n_kernel_verified_claims_rejected: int
@@ -368,6 +372,22 @@ def audit_formalization_gap_planner_cross_prover_matrix(
             row.n_awaiting_adapter_mapping for row in rows
         ),
         "n_response_contract_ok": sum(row.n_response_contract_ok for row in rows),
+        "n_response_minimal_delta_action_witnesses_required": sum(
+            row.n_response_minimal_delta_action_witnesses_required
+            for row in rows
+        ),
+        "n_response_minimal_delta_action_witnesses_acknowledged": sum(
+            row.n_response_minimal_delta_action_witnesses_acknowledged
+            for row in rows
+        ),
+        "n_response_minimal_delta_action_witnesses_unacknowledged": sum(
+            row.n_response_minimal_delta_action_witnesses_unacknowledged
+            for row in rows
+        ),
+        "n_response_addressed_minimal_delta_action_witnesses": sum(
+            row.n_response_addressed_minimal_delta_action_witnesses
+            for row in rows
+        ),
         "n_unmatched_adapter_responses": sum(
             row.n_unmatched_adapter_responses for row in rows
         ),
@@ -588,6 +608,10 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
             "n_total_packets_formal_attempt_waiting",
             "n_total_packets_formal_attempt_missing_prerequisites",
             "by_total_packet_formal_attempt_dependency_status",
+            "n_total_response_minimal_delta_action_witnesses_required",
+            "n_total_response_minimal_delta_action_witnesses_acknowledged",
+            "n_total_response_minimal_delta_action_witnesses_unacknowledged",
+            "n_total_response_addressed_minimal_delta_action_witnesses",
             "proof_evidence_status",
             "proof_evidence_boundary",
             "all_ok",
@@ -652,6 +676,18 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                 "type": "integer"
             },
             "by_total_packet_formal_attempt_dependency_status": {"type": "object"},
+            "n_total_response_minimal_delta_action_witnesses_required": {
+                "type": "integer"
+            },
+            "n_total_response_minimal_delta_action_witnesses_acknowledged": {
+                "type": "integer"
+            },
+            "n_total_response_minimal_delta_action_witnesses_unacknowledged": {
+                "type": "integer"
+            },
+            "n_total_response_addressed_minimal_delta_action_witnesses": {
+                "type": "integer"
+            },
             "n_unmatched_adapter_responses": {"type": "integer"},
             "target_rows": {
                 "type": "array",
@@ -706,6 +742,10 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                     "n_packets_formal_attempt_waiting",
                     "n_packets_formal_attempt_missing_prerequisites",
                     "by_packet_formal_attempt_dependency_status",
+                    "n_response_minimal_delta_action_witnesses_required",
+                    "n_response_minimal_delta_action_witnesses_acknowledged",
+                    "n_response_minimal_delta_action_witnesses_unacknowledged",
+                    "n_response_addressed_minimal_delta_action_witnesses",
                     "aggregate_packet_jsonl_path",
                     "aggregate_response_validation_jsonl_path",
                     "packet_filter_field",
@@ -770,6 +810,18 @@ def cross_prover_target_summary_json_schema() -> dict[str, object]:
                     },
                     "by_packet_formal_attempt_dependency_status": {
                         "type": "object"
+                    },
+                    "n_response_minimal_delta_action_witnesses_required": {
+                        "type": "integer"
+                    },
+                    "n_response_minimal_delta_action_witnesses_acknowledged": {
+                        "type": "integer"
+                    },
+                    "n_response_minimal_delta_action_witnesses_unacknowledged": {
+                        "type": "integer"
+                    },
+                    "n_response_addressed_minimal_delta_action_witnesses": {
+                        "type": "integer"
                     },
                     "n_response_validation_rows": {"type": "integer"},
                     "n_unmatched_adapter_responses": {"type": "integer"},
@@ -1133,6 +1185,42 @@ def validate_cross_prover_target_summary_payload(
         errors.append(
             "by_total_packet_formal_attempt_dependency_status must equal target formal-attempt dependency status counts"
         )
+    if payload.get(
+        "n_total_response_minimal_delta_action_witnesses_required"
+    ) != sum(
+        _int(row.get("n_response_minimal_delta_action_witnesses_required"))
+        for row in rows
+    ):
+        errors.append(
+            "n_total_response_minimal_delta_action_witnesses_required must equal target response witness total"
+        )
+    if payload.get(
+        "n_total_response_minimal_delta_action_witnesses_acknowledged"
+    ) != sum(
+        _int(row.get("n_response_minimal_delta_action_witnesses_acknowledged"))
+        for row in rows
+    ):
+        errors.append(
+            "n_total_response_minimal_delta_action_witnesses_acknowledged must equal target response witness acknowledgement total"
+        )
+    if payload.get(
+        "n_total_response_minimal_delta_action_witnesses_unacknowledged"
+    ) != sum(
+        _int(row.get("n_response_minimal_delta_action_witnesses_unacknowledged"))
+        for row in rows
+    ):
+        errors.append(
+            "n_total_response_minimal_delta_action_witnesses_unacknowledged must equal target unacknowledged response witness total"
+        )
+    if payload.get(
+        "n_total_response_addressed_minimal_delta_action_witnesses"
+    ) != sum(
+        _int(row.get("n_response_addressed_minimal_delta_action_witnesses"))
+        for row in rows
+    ):
+        errors.append(
+            "n_total_response_addressed_minimal_delta_action_witnesses must equal target addressed witness total"
+        )
     if "n_unmatched_adapter_responses" in payload and payload.get(
         "n_unmatched_adapter_responses"
     ) != sum(_int(row.get("n_unmatched_adapter_responses")) for row in rows):
@@ -1234,6 +1322,10 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
             "n_response_present",
             "n_awaiting_adapter_mapping",
             "n_response_contract_ok",
+            "n_response_minimal_delta_action_witnesses_required",
+            "n_response_minimal_delta_action_witnesses_acknowledged",
+            "n_response_minimal_delta_action_witnesses_unacknowledged",
+            "n_response_addressed_minimal_delta_action_witnesses",
             "n_rejected",
             "n_kernel_verified_claims_rejected",
             "packet_fingerprint",
@@ -1303,6 +1395,18 @@ def cross_prover_matrix_audit_row_json_schema() -> dict[str, object]:
             "n_response_present": {"type": "integer"},
             "n_awaiting_adapter_mapping": {"type": "integer"},
             "n_response_contract_ok": {"type": "integer"},
+            "n_response_minimal_delta_action_witnesses_required": {
+                "type": "integer"
+            },
+            "n_response_minimal_delta_action_witnesses_acknowledged": {
+                "type": "integer"
+            },
+            "n_response_minimal_delta_action_witnesses_unacknowledged": {
+                "type": "integer"
+            },
+            "n_response_addressed_minimal_delta_action_witnesses": {
+                "type": "integer"
+            },
             "n_unmatched_adapter_responses": {"type": "integer"},
             "n_rejected": {"type": "integer"},
             "n_kernel_verified_claims_rejected": {"type": "integer"},
@@ -1523,6 +1627,26 @@ def _matrix_row(
             contract_payload.get("n_awaiting_adapter_mapping")
         ),
         n_response_contract_ok=_int(contract_payload.get("n_response_contract_ok")),
+        n_response_minimal_delta_action_witnesses_required=_int(
+            contract_payload.get(
+                "n_response_minimal_delta_action_witnesses_required"
+            )
+        ),
+        n_response_minimal_delta_action_witnesses_acknowledged=_int(
+            contract_payload.get(
+                "n_response_minimal_delta_action_witnesses_acknowledged"
+            )
+        ),
+        n_response_minimal_delta_action_witnesses_unacknowledged=_int(
+            contract_payload.get(
+                "n_response_minimal_delta_action_witnesses_unacknowledged"
+            )
+        ),
+        n_response_addressed_minimal_delta_action_witnesses=_int(
+            contract_payload.get(
+                "n_response_addressed_minimal_delta_action_witnesses"
+            )
+        ),
         n_unmatched_adapter_responses=_int(
             contract_payload.get("n_unmatched_adapter_responses")
         ),
@@ -1614,6 +1738,31 @@ def _target_summary_payload(
             str(packet.get("formal_attempt_dependency_status", ""))
             for packet in target_packet_rows
             if str(packet.get("formal_attempt_dependency_status", ""))
+        )
+        n_response_minimal_delta_action_witnesses_required = sum(
+            1
+            for response in target_response_rows
+            if response.get("response_present") is True
+            and _int(response.get("minimal_delta_action_witness_count"))
+        )
+        n_response_minimal_delta_action_witnesses_acknowledged = sum(
+            1
+            for response in target_response_rows
+            if response.get("response_present") is True
+            and _int(response.get("minimal_delta_action_witness_count"))
+            and response.get("minimal_delta_action_witness_acknowledged") is True
+        )
+        n_response_minimal_delta_action_witnesses_unacknowledged = sum(
+            1
+            for response in target_response_rows
+            if response.get("response_present") is True
+            and _int(response.get("minimal_delta_action_witness_count"))
+            and response.get("minimal_delta_action_witness_acknowledged") is not True
+        )
+        n_response_addressed_minimal_delta_action_witnesses = sum(
+            len(_str_tuple(response.get("addressed_minimal_delta_action_witnesses", [])))
+            for response in target_response_rows
+            if response.get("response_present") is True
         )
         n_route_adoption_quality_control_blockers = sum(
             1
@@ -1778,6 +1927,18 @@ def _target_summary_payload(
                     sorted(formal_attempt_dependency_status_counts.items())
                 ),
                 "n_response_validation_rows": len(target_response_rows),
+                "n_response_minimal_delta_action_witnesses_required": (
+                    n_response_minimal_delta_action_witnesses_required
+                ),
+                "n_response_minimal_delta_action_witnesses_acknowledged": (
+                    n_response_minimal_delta_action_witnesses_acknowledged
+                ),
+                "n_response_minimal_delta_action_witnesses_unacknowledged": (
+                    n_response_minimal_delta_action_witnesses_unacknowledged
+                ),
+                "n_response_addressed_minimal_delta_action_witnesses": (
+                    n_response_addressed_minimal_delta_action_witnesses
+                ),
                 "n_unmatched_adapter_responses": row.n_unmatched_adapter_responses,
                 "aggregate_packet_jsonl_path": (
                     "formalization_gap_planner_cross_prover_packets.jsonl"
@@ -1811,6 +1972,22 @@ def _target_summary_payload(
                 "n_packets_formal_attempt_missing_prerequisites"
             ]
             == row.n_packets_formal_attempt_missing_prerequisites
+            and target_rows[-1][
+                "n_response_minimal_delta_action_witnesses_required"
+            ]
+            == row.n_response_minimal_delta_action_witnesses_required
+            and target_rows[-1][
+                "n_response_minimal_delta_action_witnesses_acknowledged"
+            ]
+            == row.n_response_minimal_delta_action_witnesses_acknowledged
+            and target_rows[-1][
+                "n_response_minimal_delta_action_witnesses_unacknowledged"
+            ]
+            == row.n_response_minimal_delta_action_witnesses_unacknowledged
+            and target_rows[-1][
+                "n_response_addressed_minimal_delta_action_witnesses"
+            ]
+            == row.n_response_addressed_minimal_delta_action_witnesses
         )
         if (
             n_packets_with_residual_goal_contexts
@@ -1844,6 +2021,27 @@ def _target_summary_payload(
         ):
             target_rows[-1]["errors"].append(
                 "formal-attempt dependency status mismatch between contract manifest and packet rows"
+            )
+        if (
+            target_rows[-1][
+                "n_response_minimal_delta_action_witnesses_required"
+            ]
+            != row.n_response_minimal_delta_action_witnesses_required
+            or target_rows[-1][
+                "n_response_minimal_delta_action_witnesses_acknowledged"
+            ]
+            != row.n_response_minimal_delta_action_witnesses_acknowledged
+            or target_rows[-1][
+                "n_response_minimal_delta_action_witnesses_unacknowledged"
+            ]
+            != row.n_response_minimal_delta_action_witnesses_unacknowledged
+            or target_rows[-1][
+                "n_response_addressed_minimal_delta_action_witnesses"
+            ]
+            != row.n_response_addressed_minimal_delta_action_witnesses
+        ):
+            target_rows[-1]["errors"].append(
+                "minimal-delta witness response count mismatch between contract manifest and response rows"
             )
     summary_errors = [
         f"{target_row['target_prover_family']}: " + "; ".join(
@@ -1995,6 +2193,22 @@ def _target_summary_payload(
         ),
         "by_total_packet_formal_attempt_dependency_status": (
             _sum_formal_attempt_dependency_status_counts(target_rows)
+        ),
+        "n_total_response_minimal_delta_action_witnesses_required": sum(
+            _int(row["n_response_minimal_delta_action_witnesses_required"])
+            for row in target_rows
+        ),
+        "n_total_response_minimal_delta_action_witnesses_acknowledged": sum(
+            _int(row["n_response_minimal_delta_action_witnesses_acknowledged"])
+            for row in target_rows
+        ),
+        "n_total_response_minimal_delta_action_witnesses_unacknowledged": sum(
+            _int(row["n_response_minimal_delta_action_witnesses_unacknowledged"])
+            for row in target_rows
+        ),
+        "n_total_response_addressed_minimal_delta_action_witnesses": sum(
+            _int(row["n_response_addressed_minimal_delta_action_witnesses"])
+            for row in target_rows
         ),
         "n_unmatched_adapter_responses": sum(
             _int(row.get("n_unmatched_adapter_responses")) for row in target_rows
@@ -2547,6 +2761,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Formal-attempt initially ready packets: {payload.get('n_total_packets_formal_attempt_initial_ready')}",
         f"- Formal-attempt waiting packets: {payload.get('n_total_packets_formal_attempt_waiting')}",
         f"- Formal-attempt missing-prerequisite packets: {payload.get('n_total_packets_formal_attempt_missing_prerequisites')}",
+        "- Response minimal-delta witness acknowledgements: "
+        f"{payload.get('n_response_minimal_delta_action_witnesses_acknowledged')}/"
+        f"{payload.get('n_response_minimal_delta_action_witnesses_required')}",
+        "- Response minimal-delta witness unacknowledged: "
+        f"{payload.get('n_response_minimal_delta_action_witnesses_unacknowledged')}",
+        "- Response addressed minimal-delta witnesses: "
+        f"{payload.get('n_response_addressed_minimal_delta_action_witnesses')}",
         f"- Awaiting adapter mappings: {payload.get('n_awaiting_adapter_mapping')}",
         f"- Rejected mappings: {payload.get('n_rejected')}",
         f"- Packet count consistent: {payload.get('packet_count_consistent')}",
