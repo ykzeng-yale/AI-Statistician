@@ -13819,8 +13819,23 @@ def _response_formal_attempt_queue_errors(
             errors.append(f"formal_attempt_queue[{index}].owner missing")
         if not str(item.get("action", "")).strip():
             errors.append(f"formal_attempt_queue[{index}].action missing")
-        if not str(item.get("attempt_kind", "")).strip():
+        attempt_kind = _primitive_key(item.get("attempt_kind", ""))
+        if not attempt_kind:
             errors.append(f"formal_attempt_queue[{index}].attempt_kind missing")
+        else:
+            attempt_bucket, allowed_attempt_kinds = (
+                _formal_attempt_queue_allowed_attempt_kind_bucket(
+                    formal_by_id[formal_node_id]
+                )
+            )
+            if allowed_attempt_kinds and attempt_kind not in allowed_attempt_kinds:
+                errors.append(
+                    f"formal_attempt_queue[{index}].attempt_kind {attempt_kind} "
+                    f"is inconsistent with formal node {formal_node_id} "
+                    f"coverage/action bucket {attempt_bucket}; allowed "
+                    "attempt_kind values: "
+                    + ", ".join(sorted(allowed_attempt_kinds))
+                )
         if not _planner_next_action_has_supported_hook(item):
             errors.append(
                 f"formal_attempt_queue[{index}] does not resolve to a supported "
@@ -13911,6 +13926,48 @@ def _response_formal_attempt_queue_errors(
                 )
 
     return errors
+
+
+def _formal_attempt_queue_allowed_attempt_kind_bucket(
+    formal_node: Mapping[str, object],
+) -> tuple[str, set[str]]:
+    bucket = _highest_cost_coverage_bucket(formal_node)
+    if not bucket:
+        return "", set()
+    if bucket in {"already_exists", "exact_exists"}:
+        return bucket, {"reuse_check", "proof_state_feedback"}
+    if bucket in {"different_formulation", "near_exists"}:
+        return bucket, {"reuse_check", "wrapper_check", "proof_state_feedback"}
+    if bucket in {"wrapper", "wrapper_needed"}:
+        return bucket, {"wrapper_check", "proof_state_feedback"}
+    if bucket in {"bridge", "bridge_needed"}:
+        return bucket, {"bridge_proof", "proof_state_feedback"}
+    if bucket in {"source_port", "source_port_needed"}:
+        return bucket, {"source_port_probe", "proof_state_feedback"}
+    if bucket in {"new_definition", "new_theory", "new_theory_needed", "unknown"}:
+        return bucket, {"definition_probe", "proof_state_feedback"}
+    return bucket, set()
+
+
+def _highest_cost_coverage_bucket(row: Mapping[str, object]) -> str:
+    best: tuple[float, str] | None = None
+    for field_name in (
+        "coverage_bucket",
+        "coverage_status",
+        "formalization_action",
+        "alignment_status",
+        "action_class",
+    ):
+        marker = _primitive_key(row.get(field_name, ""))
+        bucket = _coverage_marker_policy_bucket(marker)
+        if not bucket:
+            continue
+        cost = _coverage_bucket_base_cost(bucket)
+        if cost is None:
+            continue
+        if best is None or cost > best[0]:
+            best = (cost, bucket)
+    return best[1] if best else ""
 
 
 def _formal_attempt_queue_allowed_target_primitives(

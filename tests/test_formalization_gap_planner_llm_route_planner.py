@@ -694,6 +694,13 @@ def _make_rank_uniformity_near_exists_response() -> dict[str, object]:
     assert isinstance(standalone_rank, dict)
     standalone_rank["coverage_status"] = "near_exists"
     standalone_rank["candidate_declarations"] = ["Probability.exchangeable"]
+    rank_attempt = response["formal_attempt_queue"][1]
+    assert isinstance(rank_attempt, dict)
+    rank_attempt["attempt_kind"] = "reuse_check"
+    rank_attempt["expected_feedback"] = [
+        "closed_by_existing_declaration",
+        "residual_goals",
+    ]
     return response
 
 
@@ -801,6 +808,10 @@ def _make_rank_uniformity_reuse_response(
     standalone_rank["coverage_status"] = "exact_exists"
     standalone_rank.pop("candidate_declarations", None)
     standalone_rank["candidate_declaration_rows"] = [dict(declaration_row)]
+    rank_attempt = response["formal_attempt_queue"][1]
+    assert isinstance(rank_attempt, dict)
+    rank_attempt["attempt_kind"] = "reuse_check"
+    rank_attempt["expected_feedback"] = ["closed_by_existing_declaration"]
     return response
 
 
@@ -952,6 +963,14 @@ def _promote_response_to_source_port_costs(response: dict[str, object]) -> None:
         if isinstance(node, dict):
             node["coverage_bucket"] = "source_port_needed"
             node["formalization_action"] = "port_external_source"
+    for attempt in response.get("formal_attempt_queue", []):
+        if isinstance(attempt, dict):
+            attempt["attempt_kind"] = "source_port_probe"
+            attempt["expected_feedback"] = [
+                "source_port_targets",
+                "residual_goals",
+                "missing_side_conditions",
+            ]
     for edge in response.get("route_alignment_edges", []):
         if isinstance(edge, dict):
             edge["alignment_status"] = "source_port_needed"
@@ -8600,6 +8619,39 @@ def test_llm_route_planner_rejects_formal_attempt_queue_unselected_route_primiti
     )
 
 
+def test_llm_route_planner_rejects_formal_attempt_queue_attempt_kind_drift() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_bad_attempt_queue_kind"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"][1]["attempt_kind"] = "reuse_check"
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "formal_attempt_queue[1].attempt_kind reuse_check is inconsistent "
+        "with formal node formal:rank_uniformity_bridge coverage/action bucket "
+        "bridge" in error
+        and "bridge_proof" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_rejects_formal_attempt_queue_order_drift() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_bad_attempt_queue_order"
@@ -9135,6 +9187,42 @@ def test_llm_route_planner_payload_validator_rejects_unselected_attempt_queue_pr
         "minimal_delta_plan primitives or formal_realization_dag_nodes primitives"
         in error
         and "coverage_probability" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_payload_validator_rejects_attempt_queue_kind_drift() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_payload_validate_attempt_kind_drift"
+    )
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response = _llm_response_payload()
+    response["formal_attempt_queue"][1]["attempt_kind"] = "reuse_check"
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_payloads"] == 1
+    assert payload["n_valid_payloads"] == 0
+    assert payload["n_invalid_payloads"] == 1
+    assert payload["n_payloads_with_formal_attempt_queue"] == 1
+    assert payload["n_payload_formal_attempt_queue_items"] == 2
+    assert payload["n_payloads_with_formal_attempt_queue_errors"] == 1
+    assert payload["n_formal_attempt_queue_errors"] == 1
+    row = payload["rows"][0]
+    assert row["n_formal_attempt_queue_errors"] == 1
+    assert any(
+        "formal_attempt_queue[1].attempt_kind reuse_check is inconsistent "
+        "with formal node formal:rank_uniformity_bridge coverage/action bucket "
+        "bridge" in error
+        and "bridge_proof" in error
         for error in row["errors"]
     )
 

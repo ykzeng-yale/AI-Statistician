@@ -1955,7 +1955,12 @@ a resource queue or component-resource registry, queue `resource_id`,
 `adapter_id`, `resource_contract_ids`, and quality-control fields are validated
 against that context before the row can be exported as a prover worklist item;
 `owner` remains an execution label unless the row also provides an explicit
-resource binding.
+resource binding. Queue `attempt_kind` must also match the formal node's
+coverage/action bucket: exact or already-existing nodes schedule reuse checks,
+wrapper or different-formulation nodes schedule wrapper checks, bridge nodes
+schedule bridge proofs, source-port nodes schedule source-port probes, and new
+definition/theory or unknown nodes schedule definition probes; explicit
+`proof_state_feedback` remains a generic feedback attempt kind.
 
 Accepted queue rows are also materialized into `proof_state_feedback`
 interactive refinement hooks and `blocked_by_formal_side_condition` route
