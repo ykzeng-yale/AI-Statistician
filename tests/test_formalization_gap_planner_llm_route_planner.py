@@ -3500,6 +3500,25 @@ def test_llm_route_planner_materializes_formal_attempt_queue_hooks() -> None:
         "formal:exchangeability"
     ]
     assert "residual_goals" in queue_hooks[1]["expected_feedback"]
+    assert queue_hooks[0]["minimal_delta_action_witness_count"] == 0
+    assert queue_hooks[0]["has_minimal_delta_action_witness"] is False
+    assert queue_hooks[1]["minimal_delta_action_witness_count"] == 1
+    assert queue_hooks[1]["has_minimal_delta_action_witness"] is True
+    rank_action_witness = queue_hooks[1]["minimal_delta_action_witnesses"][0]
+    assert rank_action_witness["primitive"] == "rank_uniformity"
+    assert rank_action_witness["attempt_kind"] == "bridge_proof"
+    assert rank_action_witness["action_field"] == "bridge_lemmas"
+    assert rank_action_witness["source_label"] == "minimal_delta_plan.bridge_lemmas"
+    assert rank_action_witness["action_item"] == (
+        "rank_uniformity: prove finite rank uniformity from exchangeability "
+        "as the target-prover bridge lemma"
+    )
+    assert "rank_uniformity" in rank_action_witness["action_item_key"]
+    assert "exchangeability" in rank_action_witness["action_item_key"]
+    assert any(
+        query.startswith("minimal_delta_action_witness: rank_uniformity: prove")
+        for query in queue_hooks[1]["queries"]
+    )
     queue_triggers = [
         trigger
         for trigger in seed_route["route_revision_triggers"]
@@ -3513,6 +3532,10 @@ def test_llm_route_planner_materializes_formal_attempt_queue_hooks() -> None:
         trigger["trigger_kind"] == "blocked_by_formal_side_condition"
         for trigger in queue_triggers
     )
+    assert queue_triggers[1]["minimal_delta_action_witness_count"] == 1
+    assert "minimal_delta_action_witness: rank_uniformity: prove" in queue_triggers[
+        1
+    ]["condition"]
 
     plan_dir = root / "standalone_plan_from_formal_attempt_queue_seed"
     refinement_queue_dir = root / "refinement_queue_from_formal_attempt_queue_seed"
@@ -3570,6 +3593,15 @@ def test_llm_route_planner_materializes_formal_attempt_queue_hooks() -> None:
     assert rank_attempt_row["llm_route_planner_hook_trace"][
         "prerequisite_formal_node_ids"
     ] == ["formal:exchangeability"]
+    assert rank_attempt_row["llm_route_planner_hook_trace"][
+        "minimal_delta_action_witnesses"
+    ] == queue_hooks[1]["minimal_delta_action_witnesses"]
+    assert (
+        rank_attempt_row["llm_route_planner_hook_trace"][
+            "minimal_delta_action_witness_count"
+        ]
+        == 1
+    )
     assert tuple(rank_attempt_row["formal_attempt_prerequisite_formal_node_ids"]) == (
         "formal:exchangeability",
     )

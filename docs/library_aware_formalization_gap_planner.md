@@ -1971,9 +1971,13 @@ Accepted queue rows are also materialized into `proof_state_feedback`
 interactive refinement hooks and `blocked_by_formal_side_condition` route
 revision triggers. The refinement queue preserves each row's attempt id, formal
 node id, attempt kind, prerequisites, expected feedback, target primitives, and
-resource bindings in `llm_route_planner_hook_trace`, so proof-state adapters can
-consume the LLM schedule directly and later feedback can be traced back to the
-specific formal DAG attempt that caused a route repair.
+resource bindings in `llm_route_planner_hook_trace`. For non-reuse attempts,
+the trace also carries `minimal_delta_action_witnesses`: the concrete wrapper,
+bridge, source-port, definition, or new-theory work items from the selected
+`minimal_delta_plan` that match the queued primitive. Proof-state adapters can
+therefore consume the LLM schedule directly, see the exact delta obligation they
+are being asked to replay, and later trace feedback back to the specific formal
+DAG attempt that caused a route repair.
 The queue exporter also computes dependency-readiness metadata:
 `formal_attempt_initial_ready`, `formal_attempt_dependency_status`,
 `formal_attempt_prerequisite_refinement_item_ids`, and

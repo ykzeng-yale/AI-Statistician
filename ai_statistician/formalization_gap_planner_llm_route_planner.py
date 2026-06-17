@@ -24993,6 +24993,7 @@ def _accepted_route_for_seed(
         llm_refinement_hooks,
         _llm_refinement_hooks_for_formal_attempt_queue(
             row.formal_attempt_queue,
+            minimal_delta_plan=row.minimal_delta_plan,
             selected_primitives=selected_primitives,
             theorem_statement=str(route.get("theorem_statement", "")),
             target_prover_family=row.target_prover_family,
@@ -25077,6 +25078,7 @@ def _accepted_route_for_seed(
         llm_route_revision_triggers,
         _llm_route_revision_triggers_for_formal_attempt_queue(
             row.formal_attempt_queue,
+            minimal_delta_plan=row.minimal_delta_plan,
             target_prover_family=row.target_prover_family,
         ),
         key_fields=("trigger_kind", "condition", "next_action"),
@@ -25557,12 +25559,17 @@ def _llm_route_revision_triggers_for_planner_next_actions(
 def _llm_refinement_hooks_for_formal_attempt_queue(
     formal_attempt_queue: tuple[dict[str, object], ...],
     *,
+    minimal_delta_plan: Mapping[str, object],
     selected_primitives: tuple[str, ...],
     theorem_statement: str,
     target_prover_family: str,
 ) -> tuple[dict[str, object], ...]:
     hooks: list[dict[str, object]] = []
     for index, attempt in enumerate(formal_attempt_queue):
+        action_witnesses = _formal_attempt_queue_minimal_delta_action_witnesses(
+            attempt,
+            minimal_delta_plan=minimal_delta_plan,
+        )
         hook_kind = _target_scoped_llm_hook_kind(
             "proof_state_feedback",
             target_prover_family=target_prover_family,
@@ -25570,6 +25577,7 @@ def _llm_refinement_hooks_for_formal_attempt_queue(
         queries = _str_tuple(
             [
                 *_formal_attempt_queue_queries(attempt),
+                *_formal_attempt_queue_action_witness_queries(action_witnesses),
                 theorem_statement,
             ]
         )
@@ -25607,6 +25615,11 @@ def _llm_refinement_hooks_for_formal_attempt_queue(
                 "expected_feedback": list(
                     _str_tuple(attempt.get("expected_feedback", []))
                 ),
+                "minimal_delta_action_witnesses": [
+                    dict(item) for item in action_witnesses
+                ],
+                "minimal_delta_action_witness_count": len(action_witnesses),
+                "has_minimal_delta_action_witness": bool(action_witnesses),
                 "quality_controls": _quality_control_payload_for_row(attempt),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
@@ -25630,15 +25643,27 @@ def _llm_refinement_hooks_for_formal_attempt_queue(
 def _llm_route_revision_triggers_for_formal_attempt_queue(
     formal_attempt_queue: tuple[dict[str, object], ...],
     *,
+    minimal_delta_plan: Mapping[str, object],
     target_prover_family: str,
 ) -> tuple[dict[str, object], ...]:
     triggers: list[dict[str, object]] = []
     for index, attempt in enumerate(formal_attempt_queue):
+        action_witnesses = _formal_attempt_queue_minimal_delta_action_witnesses(
+            attempt,
+            minimal_delta_plan=minimal_delta_plan,
+        )
         hook_kind = _target_scoped_llm_hook_kind(
             "proof_state_feedback",
             target_prover_family=target_prover_family,
         )
-        query = "; ".join(_formal_attempt_queue_queries(attempt))
+        query = "; ".join(
+            _str_tuple(
+                [
+                    *_formal_attempt_queue_queries(attempt),
+                    *_formal_attempt_queue_action_witness_queries(action_witnesses),
+                ]
+            )
+        )
         if not query:
             continue
         resource_binding_summary = _llm_resource_binding_summary(
@@ -25661,6 +25686,11 @@ def _llm_route_revision_triggers_for_formal_attempt_queue(
                 "expected_feedback": list(
                     _str_tuple(attempt.get("expected_feedback", []))
                 ),
+                "minimal_delta_action_witnesses": [
+                    dict(item) for item in action_witnesses
+                ],
+                "minimal_delta_action_witness_count": len(action_witnesses),
+                "has_minimal_delta_action_witness": bool(action_witnesses),
                 "quality_controls": _quality_control_payload_for_row(attempt),
                 "resource_request_ids": list(
                     resource_binding_summary["resource_request_ids"]
@@ -25677,6 +25707,125 @@ def _llm_route_revision_triggers_for_formal_attempt_queue(
         tuple(triggers),
         tuple(),
         key_fields=("trigger_kind", "condition", "next_action"),
+    )
+
+
+def _formal_attempt_queue_minimal_delta_action_witnesses(
+    attempt: Mapping[str, object],
+    *,
+    minimal_delta_plan: Mapping[str, object],
+) -> tuple[dict[str, object], ...]:
+    target_primitives = _planner_action_target_primitive_keys(attempt)
+    if not target_primitives:
+        primitive = _primitive_key(attempt.get("primitive", ""))
+        target_primitives = {primitive} if primitive else set()
+    action_fields = _formal_attempt_queue_action_witness_fields(
+        str(attempt.get("attempt_kind", ""))
+    )
+    if not target_primitives or not action_fields:
+        return tuple()
+
+    rows: list[dict[str, object]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for primitive in sorted(target_primitives):
+        for field_name in action_fields:
+            for source_label, values in _formal_attempt_queue_action_witness_sources(
+                minimal_delta_plan,
+                field_name=field_name,
+            ):
+                match = _minimal_delta_action_list_match_status(values, primitive)
+                for item_text in match["actionable_items"]:
+                    key = (
+                        primitive,
+                        field_name,
+                        source_label,
+                        _primitive_key(item_text),
+                    )
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    rows.append(
+                        {
+                            "primitive": primitive,
+                            "attempt_kind": _primitive_key(
+                                attempt.get("attempt_kind", "")
+                            ),
+                            "action_field": field_name,
+                            "source_label": source_label,
+                            "action_item": item_text,
+                            "action_item_key": _primitive_key(item_text),
+                        }
+                    )
+    return tuple(rows)
+
+
+def _formal_attempt_queue_action_witness_fields(
+    attempt_kind: str,
+) -> tuple[str, ...]:
+    kind = _primitive_key(attempt_kind)
+    if kind == "wrapper_check":
+        return ("wrapper_lemmas",)
+    if kind == "bridge_proof":
+        return ("bridge_lemmas",)
+    if kind == "source_port_probe":
+        return ("source_port_lemmas",)
+    if kind == "definition_probe":
+        return (
+            "new_definitions",
+            "new_theory_primitives",
+            "first_principles_primitives",
+        )
+    if kind == "proof_state_feedback":
+        return (
+            "wrapper_lemmas",
+            "bridge_lemmas",
+            "source_port_lemmas",
+            "new_definitions",
+            "new_theory_primitives",
+            "first_principles_primitives",
+        )
+    return tuple()
+
+
+def _formal_attempt_queue_action_witness_sources(
+    minimal_delta_plan: Mapping[str, object],
+    *,
+    field_name: str,
+) -> tuple[tuple[str, object], ...]:
+    sources: list[tuple[str, object]] = [
+        (f"minimal_delta_plan.{field_name}", minimal_delta_plan.get(field_name, []))
+    ]
+    graph = _dict_value(minimal_delta_plan, "and_or_cost_graph")
+    for option_index, option in enumerate(_dict_tuple(graph.get("route_options", []))):
+        if not bool(option.get("selected", False)):
+            continue
+        sources.append(
+            (
+                "minimal_delta_plan.and_or_cost_graph.route_options"
+                f"[{option_index}].{field_name}",
+                option.get(field_name, []),
+            )
+        )
+        action_witnesses = _dict_value(option, "action_witnesses")
+        if action_witnesses:
+            sources.append(
+                (
+                    "minimal_delta_plan.and_or_cost_graph.route_options"
+                    f"[{option_index}].action_witnesses.{field_name}",
+                    action_witnesses.get(field_name, []),
+                )
+            )
+    return tuple(sources)
+
+
+def _formal_attempt_queue_action_witness_queries(
+    action_witnesses: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    return tuple(
+        "minimal_delta_action_witness: "
+        + str(row.get("action_item", "")).strip()
+        for row in action_witnesses
+        if str(row.get("action_item", "")).strip()
     )
 
 
