@@ -17,6 +17,13 @@ from .formalization_gap_planner_contract import (
     route_alignment_edge_json_schema,
     validate_route_alignment_edge,
 )
+from .formalization_gap_planner_quality_controls import (
+    QUALITY_CONTROL_FIELDS,
+    normalize_target_prover_family,
+    project_quality_control_payload_to_target,
+    quality_control_projection_trace,
+    resource_contract_target_prover_family,
+)
 
 
 FORMALIZATION_GAP_PLANNER_PROVER_ADAPTER_CONTRACT_SCHEMA_VERSION = 1
@@ -88,28 +95,6 @@ FORBIDDEN_PLACEHOLDER_RE = re.compile(
     r"\b(sorry|admit|axiom|admitted|undefined|todo|placeholder)\b",
     flags=re.IGNORECASE,
 )
-QUALITY_CONTROL_FIELDS = (
-    "resource_contract_ids",
-    "required_quality_signals",
-    "quality_gates",
-    "response_validation_signals",
-    "stop_conditions",
-)
-PROOF_STATE_RESOURCE_CONTRACT_ID_BY_TARGET = {
-    "lean4": "lean_lsp:proof_state_feedback",
-    "rocq": "rocq_lsp_serapi:proof_state_feedback",
-    "isabelle": "isabelle_sledgehammer_afp:proof_state_feedback",
-    "agda": "agda_search_auto:proof_state_feedback",
-}
-PROVER_RESOURCE_CONTRACT_TARGETS = {
-    "lean_lsp": "lean4",
-    "lean_lsp_mcp": "lean4",
-    "local_lake_lean": "lean4",
-    "leandojo_reprover": "lean4",
-    "rocq_lsp_serapi": "rocq",
-    "isabelle_sledgehammer_afp": "isabelle",
-    "agda_search_auto": "agda",
-}
 RESIDUAL_CONTEXT_STRING_ARRAY_FIELDS = (
     "residual_goals",
     "residual_primitives",
@@ -1404,7 +1389,7 @@ def _standalone_trace_quality_control_errors(
         target_prover_family or str(trace.get("target_prover_family", ""))
     )
     for contract_id in controls.get("resource_contract_ids", ()):
-        contract_target = _resource_contract_target_prover_family(contract_id)
+        contract_target = resource_contract_target_prover_family(contract_id)
         if contract_target and target_key and contract_target != target_key:
             errors.append(
                 "standalone_input_trace.quality_controls.resource_contract_ids "
@@ -1649,7 +1634,7 @@ def _normalize_trace_quality_control_fields(
         trace["source_quality_controls"] = {
             field_name: list(values) for field_name, values in controls.items()
         }
-        trace["quality_control_projection"] = _quality_control_projection_trace(
+        trace["quality_control_projection"] = quality_control_projection_trace(
             source_controls=controls,
             projected_controls=projected_controls,
             target_prover_family=target_prover_family
@@ -1668,78 +1653,10 @@ def _project_quality_controls_to_target(
     *,
     target_prover_family: str,
 ) -> dict[str, tuple[str, ...]]:
-    target_key = _normalize_prover_family(target_prover_family)
-    if not target_key or target_key == "other" or not controls:
-        return controls
-    projected: dict[str, tuple[str, ...]] = dict(controls)
-    resource_contract_ids = controls.get("resource_contract_ids", ())
-    if resource_contract_ids:
-        projected["resource_contract_ids"] = tuple(
-            dict.fromkeys(
-                _project_resource_contract_id_to_target(
-                    contract_id,
-                    target_prover_family=target_key,
-                )
-                for contract_id in resource_contract_ids
-            )
-        )
-    return {field_name: values for field_name, values in projected.items() if values}
-
-
-def _project_resource_contract_id_to_target(
-    contract_id: str,
-    *,
-    target_prover_family: str,
-) -> str:
-    contract_target = _resource_contract_target_prover_family(contract_id)
-    if not contract_target or contract_target == target_prover_family:
-        return contract_id
-    if _resource_contract_is_proof_state_feedback(contract_id):
-        return PROOF_STATE_RESOURCE_CONTRACT_ID_BY_TARGET.get(
-            target_prover_family,
-            contract_id,
-        )
-    return contract_id
-
-
-def _resource_contract_target_prover_family(contract_id: str) -> str:
-    key = str(contract_id or "").strip().lower()
-    if not key:
-        return ""
-    head = key.split(":", 1)[0]
-    if head in PROVER_RESOURCE_CONTRACT_TARGETS:
-        return PROVER_RESOURCE_CONTRACT_TARGETS[head]
-    for resource_id, target_family in PROVER_RESOURCE_CONTRACT_TARGETS.items():
-        if key.startswith(f"{resource_id}:"):
-            return target_family
-    return ""
-
-
-def _resource_contract_is_proof_state_feedback(contract_id: str) -> bool:
-    key = str(contract_id or "").strip().lower()
-    return "proof_state_feedback" in key or key in PROVER_RESOURCE_CONTRACT_TARGETS
-
-
-def _quality_control_projection_trace(
-    *,
-    source_controls: dict[str, tuple[str, ...]],
-    projected_controls: dict[str, tuple[str, ...]],
-    target_prover_family: str,
-) -> dict[str, object]:
-    source_contract_ids = source_controls.get("resource_contract_ids", ())
-    projected_contract_ids = projected_controls.get("resource_contract_ids", ())
-    return {
-        "projection_kind": "target_prover_quality_control_projection",
-        "target_prover_family": _normalize_prover_family(target_prover_family),
-        "source_resource_contract_ids": list(source_contract_ids),
-        "projected_resource_contract_ids": list(projected_contract_ids),
-        "changed_resource_contract_ids": source_contract_ids != projected_contract_ids,
-        "projection_boundary": (
-            "Quality-control resource ids are adapter-routing requirements, "
-            "not theorem proof evidence; target prover packets must use "
-            "target-compatible prover-feedback resources."
-        ),
-    }
+    return project_quality_control_payload_to_target(
+        controls,
+        target_prover_family=target_prover_family,
+    )
 
 
 def _normalize_trace_residual_context_fields(trace: dict[str, object]) -> None:
@@ -2834,23 +2751,7 @@ def _schema_property_errors(
 
 
 def _normalize_prover_family(value: str) -> str:
-    lowered = value.strip().lower().replace("-", "_")
-    aliases = {
-        "lean": "lean4",
-        "lean4": "lean4",
-        "coq": "rocq",
-        "coq8": "rocq",
-        "coq_8": "rocq",
-        "coq_rocq": "rocq",
-        "rocq_coq": "rocq",
-        "rocq": "rocq",
-        "isabelle": "isabelle",
-        "isabelle/hol": "isabelle",
-        "isabelle_hol": "isabelle",
-        "agda": "agda",
-        "other": "other",
-    }
-    return aliases.get(lowered, lowered)
+    return normalize_target_prover_family(value)
 
 
 def _read_json(path: Path, errors: list[str]) -> dict[str, Any]:

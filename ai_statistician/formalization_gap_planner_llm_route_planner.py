@@ -16,6 +16,12 @@ from .formalization_gap_planner_contract import (
 from .formalization_gap_planner_local_formal_source_adapter import (
     LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
 )
+from .formalization_gap_planner_quality_controls import (
+    QUALITY_CONTROL_FIELDS,
+    project_quality_control_payload_to_target,
+    quality_control_payload_from_mapping,
+    quality_control_projection_trace,
+)
 from .formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT,
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_VERSION,
@@ -185,28 +191,6 @@ ROUTE_ADOPTION_BLOCKER_VALUES = (
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS,
 )
-QUALITY_CONTROL_FIELDS = (
-    "resource_contract_ids",
-    "required_quality_signals",
-    "quality_gates",
-    "response_validation_signals",
-    "stop_conditions",
-)
-PROOF_STATE_RESOURCE_CONTRACT_ID_BY_TARGET = {
-    "lean4": "lean_lsp:proof_state_feedback",
-    "rocq": "rocq_lsp_serapi:proof_state_feedback",
-    "isabelle": "isabelle_sledgehammer_afp:proof_state_feedback",
-    "agda": "agda_search_auto:proof_state_feedback",
-}
-PROVER_RESOURCE_CONTRACT_TARGETS = {
-    "lean_lsp": "lean4",
-    "lean_lsp_mcp": "lean4",
-    "local_lake_lean": "lean4",
-    "leandojo_reprover": "lean4",
-    "rocq_lsp_serapi": "rocq",
-    "isabelle_sledgehammer_afp": "isabelle",
-    "agda_search_auto": "agda",
-}
 CONTEXT_PACKET_INVENTORY_KIND = (
     "formalization_gap_planner_llm_route_planner_context_packet_inventory"
 )
@@ -30275,9 +30259,8 @@ def _quality_control_record_fields_for_payload(
     include_empty: bool = True,
 ) -> dict[str, object]:
     source_payload = {
-        field_name: list(_str_tuple(payload.get(field_name, [])))
-        for field_name in QUALITY_CONTROL_FIELDS
-        if _str_tuple(payload.get(field_name, []))
+        field_name: list(values)
+        for field_name, values in quality_control_payload_from_mapping(payload).items()
     }
     if not source_payload and not include_empty:
         return {}
@@ -30288,7 +30271,7 @@ def _quality_control_record_fields_for_payload(
     fields: dict[str, object] = {"quality_controls": projected_payload}
     if projected_payload != source_payload:
         fields["source_quality_controls"] = source_payload
-        fields["quality_control_projection"] = _quality_control_projection_trace(
+        fields["quality_control_projection"] = quality_control_projection_trace(
             source_controls=source_payload,
             projected_controls=projected_payload,
             target_prover_family=target_prover_family,
@@ -30297,18 +30280,10 @@ def _quality_control_record_fields_for_payload(
 
 
 def _quality_control_payload_for_row(row: Mapping[str, object]) -> dict[str, object]:
-    payload: dict[str, object] = {}
-    for field_name in (
-        "resource_contract_ids",
-        "required_quality_signals",
-        "quality_gates",
-        "response_validation_signals",
-        "stop_conditions",
-    ):
-        values = _str_tuple(row.get(field_name, []))
-        if values:
-            payload[field_name] = list(values)
-    return payload
+    return {
+        field_name: list(values)
+        for field_name, values in quality_control_payload_from_mapping(row).items()
+    }
 
 
 def _project_quality_control_payload_to_target(
@@ -30316,85 +30291,12 @@ def _project_quality_control_payload_to_target(
     *,
     target_prover_family: str,
 ) -> dict[str, object]:
-    target_key = _target_prover_key(target_prover_family)
-    source_payload = {
-        field_name: list(_str_tuple(payload.get(field_name, [])))
-        for field_name in QUALITY_CONTROL_FIELDS
-        if _str_tuple(payload.get(field_name, []))
-    }
-    if not target_key or target_key == "other" or not source_payload:
-        return source_payload
-    resource_contract_ids = _str_tuple(
-        source_payload.get("resource_contract_ids", [])
-    )
-    if resource_contract_ids:
-        source_payload["resource_contract_ids"] = list(
-            dict.fromkeys(
-                _project_resource_contract_id_to_target(
-                    contract_id,
-                    target_prover_family=target_key,
-                )
-                for contract_id in resource_contract_ids
-            )
-        )
-    return source_payload
-
-
-def _project_resource_contract_id_to_target(
-    contract_id: str,
-    *,
-    target_prover_family: str,
-) -> str:
-    contract_target = _resource_contract_target_prover_family(contract_id)
-    if not contract_target or contract_target == target_prover_family:
-        return contract_id
-    if _resource_contract_is_proof_state_feedback(contract_id):
-        return PROOF_STATE_RESOURCE_CONTRACT_ID_BY_TARGET.get(
-            target_prover_family,
-            contract_id,
-        )
-    return contract_id
-
-
-def _resource_contract_target_prover_family(contract_id: str) -> str:
-    key = str(contract_id or "").strip().lower()
-    if not key:
-        return ""
-    head = key.split(":", 1)[0]
-    if head in PROVER_RESOURCE_CONTRACT_TARGETS:
-        return PROVER_RESOURCE_CONTRACT_TARGETS[head]
-    for resource_id, target_family in PROVER_RESOURCE_CONTRACT_TARGETS.items():
-        if key.startswith(f"{resource_id}:"):
-            return target_family
-    return ""
-
-
-def _resource_contract_is_proof_state_feedback(contract_id: str) -> bool:
-    key = str(contract_id or "").strip().lower()
-    return "proof_state_feedback" in key or key in PROVER_RESOURCE_CONTRACT_TARGETS
-
-
-def _quality_control_projection_trace(
-    *,
-    source_controls: Mapping[str, object],
-    projected_controls: Mapping[str, object],
-    target_prover_family: str,
-) -> dict[str, object]:
-    source_contract_ids = _str_tuple(source_controls.get("resource_contract_ids", []))
-    projected_contract_ids = _str_tuple(
-        projected_controls.get("resource_contract_ids", [])
-    )
     return {
-        "projection_kind": "target_prover_quality_control_projection",
-        "target_prover_family": _target_prover_key(target_prover_family),
-        "source_resource_contract_ids": list(source_contract_ids),
-        "projected_resource_contract_ids": list(projected_contract_ids),
-        "changed_resource_contract_ids": source_contract_ids != projected_contract_ids,
-        "projection_boundary": (
-            "Quality-control resource ids are adapter-routing requirements, "
-            "not theorem proof evidence; target prover packets must use "
-            "target-compatible prover-feedback resources."
-        ),
+        field_name: list(values)
+        for field_name, values in project_quality_control_payload_to_target(
+            payload,
+            target_prover_family=target_prover_family,
+        ).items()
     }
 
 
