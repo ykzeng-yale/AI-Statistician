@@ -8941,6 +8941,64 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         and row["ok"]
         for row in audit_payload["checks"]
     )
+    requests_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner"
+        / "formalization_gap_planner_llm_route_planner_requests.jsonl"
+    )
+    original_requests = [
+        json.loads(line)
+        for line in requests_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    policy_corrupted_requests = json.loads(json.dumps(original_requests))
+    auto_rules = policy_corrupted_requests[0]["llm_generation_policy"][
+        "auto_tier_rules"
+    ]
+    policy_corrupted_requests[0]["llm_generation_policy"]["auto_tier_rules"] = [
+        rule for rule in auto_rules if "source-grounding" not in str(rule).lower()
+    ]
+    assert len(
+        policy_corrupted_requests[0]["llm_generation_policy"]["auto_tier_rules"]
+    ) < len(auto_rules)
+    requests_path.write_text(
+        "\n".join(
+            json.dumps(request, sort_keys=True)
+            for request in policy_corrupted_requests
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    rejected_generation_policy_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_request_generation_policy_missing_source_grounding_tier_rule",
+        )
+    )
+    generation_policy_checks = [
+        row
+        for row in rejected_generation_policy_payload["checks"]
+        if row["check_name"] == "optional_llm_route_planner_request_0_generation_policy"
+    ]
+    assert generation_policy_checks
+    assert not generation_policy_checks[0]["ok"]
+    assert any(
+        "source-grounding obligations to Sonnet" in error
+        for error in generation_policy_checks[0]["errors"]
+    )
+    assert (
+        rejected_generation_policy_payload[
+            "n_optional_llm_route_planner_request_generation_policy_valid"
+        ]
+        == 0
+    )
+    assert not rejected_generation_policy_payload["all_ok"]
+    requests_path.write_text(
+        "\n".join(json.dumps(request, sort_keys=True) for request in original_requests)
+        + "\n",
+        encoding="utf-8",
+    )
     assert (
         audit_payload[
             "n_optional_llm_route_planner_request_model_tier_mismatch_checked"
