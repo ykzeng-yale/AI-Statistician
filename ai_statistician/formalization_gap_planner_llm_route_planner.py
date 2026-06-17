@@ -7952,6 +7952,9 @@ def _route_planning_brief(
     source_grounding_obligations = _source_grounding_obligation_summary(
         context_packet
     )
+    source_grounding_targets = _str_tuple(
+        source_grounding_obligations.get("target_primitives", [])
+    )
     route_adoption_preconditions = _dict_value(
         context_packet,
         "route_adoption_preconditions",
@@ -8466,6 +8469,7 @@ def _route_planning_brief(
                 "context_packet.source_grounding_rows",
             ),
             required_output_fields=("search_requests", "planner_next_actions"),
+            target_primitives=source_grounding_targets,
         )
         add_gap(
             "pending_source_grounding",
@@ -8478,6 +8482,7 @@ def _route_planning_brief(
                 "emit bounded source-search or route-repair next actions"
             ),
             evidence_fields=("context_packet.source_grounding_obligations",),
+            target_primitives=source_grounding_targets,
         )
     precondition_blockers = _str_tuple(
         route_adoption_preconditions.get("known_pre_response_blockers", [])
@@ -9170,6 +9175,11 @@ def _source_grounding_obligation_summary(
         for row in unresolved_rows
         if _source_grounding_row_from_residual(row)
     )
+    target_primitives = _unique_strings(
+        primitive
+        for row in unresolved_rows
+        for primitive in _source_grounding_row_target_primitives(row)
+    )
     return {
         "present": bool(rows),
         "pending": bool(unresolved_rows),
@@ -9199,9 +9209,24 @@ def _source_grounding_obligation_summary(
             _source_grounding_row_id(row)
             for row in residual_unresolved_rows[:25]
         ],
+        "target_primitives": list(target_primitives[:20]),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _source_grounding_row_target_primitives(
+    row: Mapping[str, object],
+) -> tuple[str, ...]:
+    values: list[str] = []
+    values.extend(_feedback_row_target_primitives(row))
+    values.extend(_str_tuple(row.get("residual_primitives", [])))
+    values.extend(
+        _residual_goal_target_primitives(
+            _str_tuple(row.get("residual_goals", []))
+        )
+    )
+    return _unique_strings(values)
 
 
 def _source_grounding_rows_with_inline(

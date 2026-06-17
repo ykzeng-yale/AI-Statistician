@@ -7760,10 +7760,24 @@ def test_llm_route_planner_flags_unsourced_seed_residual_context() -> None:
     assert obligations["pending"] is True
     assert obligations["n_inline_residual_context_rows"] == 1
     assert obligations["n_residual_unresolved_rows"] == 1
+    assert obligations["target_primitives"] == ["rank_uniformity"]
     assert obligations["unresolved_grounding_statuses"] == ["unaccounted"]
     assert obligations["residual_unresolved_row_ids"][0].startswith(
         "inline_residual_context_source_grounding:"
     )
+    route_brief = context_packet["route_planning_brief"]
+    grounding_focus = next(
+        focus
+        for focus in route_brief["planner_focus"]
+        if focus["focus_id"] == "resolve_source_grounding_obligations"
+    )
+    assert grounding_focus["target_primitives"] == ["rank_uniformity"]
+    grounding_gap = next(
+        gap
+        for gap in route_brief["evidence_gaps"]
+        if gap["gap_id"] == "pending_source_grounding"
+    )
+    assert grounding_gap["target_primitives"] == ["rank_uniformity"]
     inventory = context_packet["context_packet_inventory"]
     assert inventory["row_counts"]["source_grounding_rows"] == 1
     assert inventory["source_grounding_obligation_pending"] is True
