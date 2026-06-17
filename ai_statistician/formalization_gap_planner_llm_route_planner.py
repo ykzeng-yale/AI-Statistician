@@ -25783,6 +25783,7 @@ def _feedback_next_actions(
             or precondition_unresolved
         ):
             continue
+        target_primitives = _feedback_row_target_primitives(row)
         action_row: dict[str, object] = {
             "source": "interactive_session",
             "owner": str(row.get("next_owner_agent", "")).strip(),
@@ -25810,6 +25811,9 @@ def _feedback_next_actions(
             ),
             "gate": str(row.get("triage_required_gate", "")).strip(),
         }
+        if target_primitives:
+            action_row["primitive"] = target_primitives[0]
+            action_row["target_primitives"] = list(target_primitives[:8])
         if precondition_unresolved:
             action_row["route_adoption_precondition_unresolved"] = True
         if precondition_blockers:
@@ -25829,20 +25833,23 @@ def _feedback_next_actions(
         )
         if not action_text and not _str_tuple(row.get("resource_contract_ids", [])):
             continue
-        actions.append(
-            {
-                "source": "interactive_decision_policy",
-                "owner": "planner",
-                "action": action_text,
-                "resource_contracts": list(
-                    _str_tuple(row.get("resource_contract_ids", []))[:8]
-                ),
-                "quality_gates": list(_str_tuple(row.get("quality_gates", []))[:8]),
-                "stop_conditions": list(
-                    _str_tuple(row.get("stop_conditions", []))[:8]
-                ),
-            }
-        )
+        target_primitives = _feedback_row_target_primitives(row)
+        action_row = {
+            "source": "interactive_decision_policy",
+            "owner": "planner",
+            "action": action_text,
+            "resource_contracts": list(
+                _str_tuple(row.get("resource_contract_ids", []))[:8]
+            ),
+            "quality_gates": list(_str_tuple(row.get("quality_gates", []))[:8]),
+            "stop_conditions": list(
+                _str_tuple(row.get("stop_conditions", []))[:8]
+            ),
+        }
+        if target_primitives:
+            action_row["primitive"] = target_primitives[0]
+            action_row["target_primitives"] = list(target_primitives[:8])
+        actions.append(action_row)
     for row in rows_by_field.get("resource_request_queue_rows", ()):
         if not (
             str(row.get("resource_request_id", "")).strip()
@@ -26194,21 +26201,30 @@ def _feedback_row_target_primitives(row: Mapping[str, object]) -> tuple[str, ...
     request_playbook = _dict_value(row, "request_playbook")
     request_payload = _dict_value(row, "request_payload")
     input_summary = _dict_value(request_playbook, "input_summary")
-    return _unique_strings(
-        [
-            *_str_tuple(row.get("target_primitives", [])),
-            *_str_tuple(row.get("target_primitive", [])),
-            str(row.get("primitive", "")).strip(),
-            *_str_tuple(row.get("primitives", [])),
-            *_str_tuple(request_playbook.get("target_primitives", [])),
-            *_str_tuple(request_playbook.get("target_primitive", [])),
-            str(request_playbook.get("primitive", "")).strip(),
-            str(input_summary.get("primitive", "")).strip(),
-            *_str_tuple(request_payload.get("target_primitives", [])),
-            *_str_tuple(request_payload.get("target_primitive", [])),
-            str(request_payload.get("primitive", "")).strip(),
-        ]
-    )
+    values: list[str] = [
+        *_str_tuple(row.get("target_primitives", [])),
+        *_str_tuple(row.get("target_primitive", [])),
+        str(row.get("primitive", "")).strip(),
+        *_str_tuple(row.get("primitives", [])),
+        str(row.get("residual_gap", "")).strip(),
+        *_str_tuple(request_playbook.get("target_primitives", [])),
+        *_str_tuple(request_playbook.get("target_primitive", [])),
+        str(request_playbook.get("primitive", "")).strip(),
+        str(input_summary.get("primitive", "")).strip(),
+        *_str_tuple(request_payload.get("target_primitives", [])),
+        *_str_tuple(request_payload.get("target_primitive", [])),
+        str(request_payload.get("primitive", "")).strip(),
+    ]
+    for field_name in (
+        "resource_request_dispatch_summaries",
+        "residual_goal_contexts",
+    ):
+        for item in _dict_tuple(row.get(field_name, [])):
+            values.extend(_str_tuple(item.get("target_primitives", [])))
+            values.extend(_str_tuple(item.get("target_primitive", [])))
+            values.append(str(item.get("primitive", "")).strip())
+            values.append(str(item.get("residual_gap", "")).strip())
+    return _unique_strings(values)
 
 
 def _collect_source_snippets(

@@ -6891,6 +6891,101 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
     assert "resource_request_dispatch_summaries" in request["prompt_messages"]["user"]
 
 
+def test_llm_route_planner_interactive_feedback_uses_structured_target_primitives() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_interactive_structured_targets"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    interactive_manifest_path = (
+        interactive_session_dir
+        / "formalization_gap_planner_interactive_session_manifest.json"
+    )
+    manifest = json.loads(interactive_manifest_path.read_text(encoding="utf-8"))
+    session_row = manifest["rows"][0]
+    session_row["next_queries"] = ["inspect residual side conditions"]
+    session_row["next_commands"] = ["lake build"]
+    session_row["resource_request_execution_commands"] = [
+        "lean-lsp-mcp goal current"
+    ]
+    session_row["resource_request_dispatch_summaries"][0][
+        "target_primitives"
+    ] = ["rank_uniformity"]
+    interactive_manifest_path.write_text(
+        json.dumps(manifest, indent=2),
+        encoding="utf-8",
+    )
+    response = _llm_response_payload()
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": (
+                "The proof-state residual needs a bounded side-condition "
+                "repair before route adoption."
+            ),
+            "route_repair": (
+                "Keep the repair scoped to the rank_uniformity proof-state "
+                "feedback path."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+        }
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    feedback_action = payload["request_packets"][0]["context_packet"][
+        "feedback_loop_summary"
+    ]["recommended_next_actions"][0]
+    assert feedback_action["source"] == "interactive_session"
+    assert feedback_action["primitive"] == "rank_uniformity"
+    assert feedback_action["target_primitives"] == ["rank_uniformity"]
+    seed_route = payload["standalone_seed"]["routes"][0]
+    feedback_hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_feedback_next_action", {}).get("source")
+        == "interactive_session"
+    )
+    assert feedback_hook["hook_kind"] == "proof_state_feedback"
+    assert feedback_hook["target_primitives"] == ["rank_uniformity"]
+
+    plan_dir = root / "standalone_plan_from_interactive_structured_targets"
+    refinement_queue_dir = root / "refinement_queue_from_interactive_structured_targets"
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    queue_payload = export_formalization_gap_planner_refinement_queue(
+        plan_dir,
+        refinement_queue_dir,
+    )
+    assert queue_payload["all_ok"]
+    feedback_queue_row = next(
+        row
+        for row in queue_payload["rows"]
+        if row["hook_kind"] == "proof_state_feedback"
+        and row["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_feedback_next_action", {}
+        ).get("source")
+        == "interactive_session"
+    )
+    assert feedback_queue_row["target_primitives"] == ("rank_uniformity",)
+
+
 def test_llm_route_planner_accepts_policy_grounded_quality_controls() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_quality_controls"
