@@ -574,6 +574,12 @@ def _plan_row(
         selected_primitives=selected_primitives,
         best_route_cost=best_route_cost,
     )
+    errors.extend(
+        _route_option_cost_graph_errors(
+            route_option_cost_graph,
+            selected_primitives=selected_primitives,
+        )
+    )
     route_option_cost_graph_summary = _route_option_cost_graph_summary(
         route_option_cost_graph,
         selected_primitives=selected_primitives,
@@ -939,6 +945,14 @@ def _dict_tuple(value: Any) -> tuple[dict[str, object], ...]:
     if not isinstance(value, (list, tuple, set)):
         return ()
     return tuple(dict(item) for item in value if isinstance(item, dict))
+
+
+def _is_nonnegative_number(value: object) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and value >= 0
+    )
 
 
 def _merge_dict_rows(
@@ -1422,6 +1436,10 @@ def _route_option_cost_graph_summary(
         for option in route_options
         if str(option.get("route_option_id", "")) not in set(selected_option_ids)
     )
+    graph_errors = _route_option_cost_graph_errors(
+        graph,
+        selected_primitives=selected_primitives,
+    )
     return {
         "graph_kind": str(graph.get("graph_kind", "")),
         "source": str(graph.get("source", "")),
@@ -1437,9 +1455,101 @@ def _route_option_cost_graph_summary(
         "comparison_only_primitives": list(comparison_only_primitives),
         "n_route_option_primitives": len(unique_route_option_primitives),
         "n_comparison_only_primitives": len(comparison_only_primitives),
+        "cost_graph_ok": not graph_errors,
+        "cost_graph_errors": list(graph_errors),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "boundary": str(graph.get("boundary", "")),
     }
+
+
+def _route_option_cost_graph_errors(
+    graph: dict[str, object],
+    *,
+    selected_primitives: tuple[str, ...],
+) -> tuple[str, ...]:
+    if not graph:
+        return tuple()
+    source = str(graph.get("source", "")).strip()
+    graph_kind = str(graph.get("graph_kind", "")).strip()
+    if (
+        source == "goal_conditioned_minimal_formalization_plan"
+        and graph_kind == "SELECTED_ROUTE_ONLY_COST_GRAPH"
+    ):
+        return tuple()
+
+    errors: list[str] = []
+    route_options = _dict_tuple(graph.get("route_options", []))
+    selected_route_option_id = str(graph.get("selected_route_option_id", "")).strip()
+    if not selected_route_option_id:
+        errors.append("route_option_cost_graph.selected_route_option_id missing")
+    if not route_options:
+        errors.append("route_option_cost_graph.route_options must be non-empty")
+        return tuple(errors)
+
+    route_option_ids = {
+        str(option.get("route_option_id", "")).strip()
+        for option in route_options
+        if str(option.get("route_option_id", "")).strip()
+    }
+    if selected_route_option_id and selected_route_option_id not in route_option_ids:
+        errors.append(
+            "route_option_cost_graph.selected_route_option_id references unknown "
+            "route option: "
+            + selected_route_option_id
+        )
+
+    marked_selected = [
+        option for option in route_options if bool(option.get("selected", False))
+    ]
+    if len(marked_selected) != 1:
+        errors.append(
+            "route_option_cost_graph must mark exactly one selected route option"
+        )
+        return tuple(errors)
+
+    selected_option = marked_selected[0]
+    selected_option_id = str(selected_option.get("route_option_id", "")).strip()
+    if selected_route_option_id and selected_option_id != selected_route_option_id:
+        errors.append(
+            "route_option_cost_graph selected option id does not match "
+            "selected_route_option_id"
+        )
+    selected_option_primitives = {
+        str(primitive).strip()
+        for primitive in _str_tuple(selected_option.get("selected_primitives", []))
+        if str(primitive).strip()
+    }
+    selected_primitive_set = {
+        str(primitive).strip()
+        for primitive in selected_primitives
+        if str(primitive).strip()
+    }
+    if selected_option_primitives != selected_primitive_set:
+        errors.append(
+            "route_option_cost_graph selected route option selected_primitives "
+            "must match selected_primitives"
+        )
+
+    selected_cost = selected_option.get("route_cost")
+    if not _is_nonnegative_number(selected_cost):
+        errors.append(
+            "route_option_cost_graph selected route option route_cost must be "
+            "a nonnegative number"
+        )
+        return tuple(errors)
+    cheaper = [
+        str(option.get("route_option_id", "")).strip() or f"route_options[{index}]"
+        for index, option in enumerate(route_options)
+        if _is_nonnegative_number(option.get("route_cost"))
+        and float(option.get("route_cost", 0)) + 1e-9 < float(selected_cost)
+    ]
+    if cheaper:
+        errors.append(
+            "route_option_cost_graph selected route option is not minimal; "
+            "cheaper options: "
+            + ", ".join(cheaper[:8])
+        )
+    return tuple(errors)
 
 
 def _informal_knowledge_dag(
