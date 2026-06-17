@@ -5013,6 +5013,7 @@ def test_llm_route_planner_stages_source_theorem_feedback_rows() -> None:
         "exchangeability_to_uniform_rank_semantics",
         "order_statistic_quantile_semantics",
     ]
+    assert source_theorem_feedback["target_primitives"] == ["rank_uniformity"]
     assert source_theorem_feedback["placeholder_symbols"] == [
         "OrderStatisticQuantileSemantics"
     ]
@@ -5050,12 +5051,24 @@ def test_llm_route_planner_stages_source_theorem_feedback_rows() -> None:
     assert brief["evidence_summary"][
         "source_theorem_feedback_replan_required"
     ] is True
-    assert "repair_source_theorem_feedback" in {
-        focus["focus_id"] for focus in brief["planner_focus"]
-    }
-    assert "source_theorem_feedback_requires_repair" in {
-        gap["gap_id"] for gap in brief["evidence_gaps"]
-    }
+    source_theorem_focus = next(
+        focus
+        for focus in brief["planner_focus"]
+        if focus["focus_id"] == "repair_source_theorem_feedback"
+    )
+    assert source_theorem_focus["target_primitives"] == ["rank_uniformity"]
+    assert "exchangeability_to_uniform_rank_semantics" not in (
+        source_theorem_focus["target_primitives"]
+    )
+    source_theorem_gap = next(
+        gap
+        for gap in brief["evidence_gaps"]
+        if gap["gap_id"] == "source_theorem_feedback_requires_repair"
+    )
+    assert source_theorem_gap["target_primitives"] == ["rank_uniformity"]
+    assert "order_statistic_quantile_semantics" not in (
+        source_theorem_gap["target_primitives"]
+    )
     decision_evidence = request["model_tier_decision_evidence"]
     assert decision_evidence["decision_basis"] == "auto_sonnet_triggers"
     assert decision_evidence["route_signal_counts"][

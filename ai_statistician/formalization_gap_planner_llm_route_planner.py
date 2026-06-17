@@ -7938,6 +7938,9 @@ def _route_planning_brief(
         feedback_summary,
         "source_theorem_feedback",
     )
+    source_theorem_feedback_targets = _str_tuple(
+        source_theorem_feedback.get("target_primitives", [])
+    )
     playbooks = _dict_tuple(context_packet.get("resource_request_playbooks", []))
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     source_grounding_obligations = _source_grounding_obligation_summary(
@@ -8391,9 +8394,7 @@ def _route_planning_brief(
                 "planner_next_actions",
                 "formal_realization_dag_nodes",
             ),
-            target_primitives=_str_tuple(
-                source_theorem_feedback.get("semantic_primitive_ids", [])
-            ),
+            target_primitives=source_theorem_feedback_targets,
         )
         if bool(source_theorem_feedback.get("replan_required", False)):
             add_gap(
@@ -8410,9 +8411,7 @@ def _route_planning_brief(
                 evidence_fields=(
                     "context_packet.feedback_loop_summary.source_theorem_feedback",
                 ),
-                target_primitives=_str_tuple(
-                    source_theorem_feedback.get("semantic_primitive_ids", [])
-                ),
+                target_primitives=source_theorem_feedback_targets,
             )
     if playbooks:
         add_focus(
@@ -25068,6 +25067,21 @@ def _source_theorem_feedback_summary(
         + len(typeclass_blockers)
         + len(placeholder_symbols)
     )
+    recommended_next_actions = _source_theorem_feedback_next_actions(rows_by_field)
+    target_primitives = _unique_strings(
+        [
+            *[
+                primitive
+                for row in all_rows
+                for primitive in _feedback_row_target_primitives(row)
+            ],
+            *[
+                primitive
+                for action in recommended_next_actions
+                for primitive in _str_tuple(action.get("target_primitives", []))
+            ],
+        ]
+    )
     replan_required = bool(
         unverified_semantic_rows
         or proof_body_semantic_rows
@@ -25095,12 +25109,11 @@ def _source_theorem_feedback_summary(
         "failure_classifications": list(failure_classifications[:20]),
         "semantic_primitive_ids": list(semantic_primitive_ids[:20]),
         "semantic_primitive_gaps": list(semantic_primitive_gaps[:20]),
+        "target_primitives": list(target_primitives[:20]),
         "target_theorem_names": list(target_theorem_names[:12]),
         "source_theorem_route_ids": list(source_route_ids[:12]),
         "replan_required": replan_required,
-        "recommended_next_actions": _source_theorem_feedback_next_actions(
-            rows_by_field
-        ),
+        "recommended_next_actions": recommended_next_actions,
         "boundary": (
             "source-theorem feedback rows are planning feedback for route repair "
             "and minimal-delta selection; they are not source grounding and not "
