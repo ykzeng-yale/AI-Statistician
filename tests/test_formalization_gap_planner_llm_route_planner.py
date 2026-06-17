@@ -2315,6 +2315,219 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     )
 
 
+def test_llm_route_planner_stages_agentic_proof_execution_feedback() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_proof_execution_feedback"
+    )
+    out_dir = root / "llm_route_planner"
+    materializer_dir = root / "materializer"
+    artifact_verifier_dir = root / "artifact_verifier"
+    source_promotion_dir = root / "source_theorem_promotion"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    for directory in (materializer_dir, artifact_verifier_dir, source_promotion_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    input_payload["target_prover_family"] = "rocq"
+    input_payload["routes"][0]["target_prover_family"] = "rocq"
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    provenance = {
+        "source_route_id": "rank_route",
+        "target_prover_family": "rocq",
+    }
+    common_row = {
+        "schema_version": 1,
+        "execution_queue_id": "agentic-proof-execution:rank_route",
+        "display_name": "distribution_free_rank_bound",
+        "target_theorem_name": "distribution_free_rank_bound",
+        "target_prover_family": "rocq",
+        "formal_statement_sketch": "Theorem distribution_free_rank_bound : True.",
+        "formal_imports": ["Coq.Init.Logic"],
+        "candidate_artifact_path": "",
+        "target_lean_declaration": "",
+        "source_theorem_target_known": False,
+        "source_theorem_target_provenance": provenance,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "ok": True,
+        "errors": [],
+    }
+    (
+        materializer_dir
+        / "formal_verifier_agentic_proof_execution_materializer_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "n_materializer_rows": 1,
+                "n_unsupported_target_prover_rows": 1,
+                "by_target_prover_family": {"rocq": 1},
+                "rows": [
+                    {
+                        **common_row,
+                        "materialization_id": "materialization:rank_route",
+                        "materialization_status": (
+                            "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_MATERIALIZER"
+                        ),
+                        "proof_evidence_status": (
+                            "AGENTIC_PROOF_EXECUTION_MATERIALIZER_NOT_PROOF_EVIDENCE"
+                        ),
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        artifact_verifier_dir
+        / "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "n_verifier_rows": 1,
+                "n_unsupported_target_prover_rows": 1,
+                "by_target_prover_family": {"rocq": 1},
+                "rows": [
+                    {
+                        **common_row,
+                        "artifact_verification_id": (
+                            "artifact-verification:rank_route"
+                        ),
+                        "materialization_id": "materialization:rank_route",
+                        "materialization_status": (
+                            "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_MATERIALIZER"
+                        ),
+                        "verification_status": (
+                            "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_ARTIFACT_VERIFIER"
+                        ),
+                        "artifact_kernel_verified": False,
+                        "source_theorem_kernel_verified": False,
+                        "local_lean_checked": False,
+                        "local_lean_compiled": False,
+                        "proof_evidence_status": (
+                            "AGENTIC_ARTIFACT_KERNEL_CHECK_NOT_SOURCE_THEOREM_PROOF"
+                        ),
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        source_promotion_dir
+        / "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "n_promotion_rows": 1,
+                "n_unsupported_target_prover_rows": 1,
+                "by_target_prover_family": {"rocq": 1},
+                "rows": [
+                    {
+                        **common_row,
+                        "source_theorem_promotion_id": (
+                            "source-theorem-promotion:rank_route"
+                        ),
+                        "artifact_verification_id": (
+                            "artifact-verification:rank_route"
+                        ),
+                        "materialization_id": "materialization:rank_route",
+                        "source_verification_status": (
+                            "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_ARTIFACT_VERIFIER"
+                        ),
+                        "promotion_status": (
+                            "UNSUPPORTED_TARGET_PROVER_FOR_SOURCE_THEOREM_PROMOTION_QUEUE"
+                        ),
+                        "artifact_kernel_verified": False,
+                        "source_theorem_kernel_verified": False,
+                        "owner_agent": "formal_verifier_source_theorem_integrator",
+                        "action_type": "dispatch_compatible_target_prover_adapter",
+                        "required_gate": "compatible Rocq proof replay",
+                        "required_inputs": ["rocq_statement", "rocq_adapter"],
+                        "command_plan": ["dispatch Rocq adapter before promotion"],
+                        "proof_evidence_status": (
+                            "SOURCE_THEOREM_PROMOTION_QUEUE_NOT_PROOF_EVIDENCE"
+                        ),
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formal_verifier_agentic_proof_execution_materializer_dir=materializer_dir,
+        formal_verifier_agentic_proof_execution_artifact_verifier_dir=(
+            artifact_verifier_dir
+        ),
+        formal_verifier_agentic_proof_source_theorem_promotion_queue_dir=(
+            source_promotion_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_request_agentic_proof_execution_materializer_rows"] == 1
+    assert payload["n_request_agentic_proof_execution_artifact_verifier_rows"] == 1
+    assert payload["n_request_agentic_proof_source_theorem_promotion_rows"] == 1
+    assert payload["n_requests_with_proof_execution_feedback_summary"] == 1
+    assert payload["n_request_proof_execution_feedback_rows"] == 3
+    assert payload["n_request_proof_execution_unsupported_target_prover_rows"] == 3
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    assert context["target_prover_family"] == "rocq"
+    assert context["agentic_proof_execution_materializer_rows"][0][
+        "materialization_status"
+    ] == "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_MATERIALIZER"
+    assert context["agentic_proof_execution_artifact_verifier_rows"][0][
+        "verification_status"
+    ] == "UNSUPPORTED_TARGET_PROVER_FOR_LEAN_ARTIFACT_VERIFIER"
+    assert context["agentic_proof_source_theorem_promotion_rows"][0][
+        "promotion_status"
+    ] == "UNSUPPORTED_TARGET_PROVER_FOR_SOURCE_THEOREM_PROMOTION_QUEUE"
+    assert context["agentic_proof_execution_materializer_rows"][0][
+        "formal_imports"
+    ] == ["Coq.Init.Logic"]
+    proof_execution_summary = context["proof_execution_feedback_summary"]
+    assert proof_execution_summary["total_rows"] == 3
+    assert proof_execution_summary["unsupported_target_prover_rows"] == 3
+    assert proof_execution_summary["by_target_prover_family"] == {"rocq": 3}
+    assert proof_execution_summary["by_stage"]["materializer"][
+        "unsupported_target_prover_rows"
+    ] == 1
+    assert proof_execution_summary["by_stage"]["artifact_verifier"][
+        "unsupported_target_prover_rows"
+    ] == 1
+    assert proof_execution_summary["by_stage"]["source_theorem_promotion"][
+        "unsupported_target_prover_rows"
+    ] == 1
+    inventory = context["context_packet_inventory"]
+    assert inventory["row_counts"]["agentic_proof_execution_materializer_rows"] == 1
+    assert inventory["row_counts"][
+        "agentic_proof_execution_artifact_verifier_rows"
+    ] == 1
+    assert inventory["row_counts"][
+        "agentic_proof_source_theorem_promotion_rows"
+    ] == 1
+    assert inventory["proof_execution_feedback_summary_present"] is True
+    assert inventory["proof_execution_feedback_row_count"] == 3
+    assert inventory["proof_execution_feedback_unsupported_target_prover_count"] == 3
+    brief = context["route_planning_brief"]
+    assert brief["proof_execution_feedback_summary"] == proof_execution_summary
+    assert brief["evidence_summary"]["proof_execution_feedback_row_count"] == 3
+    assert brief["evidence_summary"][
+        "proof_execution_feedback_unsupported_target_prover_count"
+    ] == 3
+    report = (out_dir / "formalization_gap_planner_llm_route_planner.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Agentic proof execution context rows" in report
+    assert "Proof execution unsupported target-prover rows: 3" in report
+
+
 def test_llm_route_planner_matches_context_rows_by_route_aliases() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_alias_context")
     out_dir = root / "llm_route_planner"

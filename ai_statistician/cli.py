@@ -2723,6 +2723,21 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
             if args.exact_source_theorem_proof_body_executor_dir
             else None
         ),
+        formal_verifier_agentic_proof_execution_materializer_dir=(
+            Path(args.formal_verifier_agentic_proof_execution_materializer_dir)
+            if args.formal_verifier_agentic_proof_execution_materializer_dir
+            else None
+        ),
+        formal_verifier_agentic_proof_execution_artifact_verifier_dir=(
+            Path(args.formal_verifier_agentic_proof_execution_artifact_verifier_dir)
+            if args.formal_verifier_agentic_proof_execution_artifact_verifier_dir
+            else None
+        ),
+        formal_verifier_agentic_proof_source_theorem_promotion_queue_dir=(
+            Path(args.formal_verifier_agentic_proof_source_theorem_promotion_queue_dir)
+            if args.formal_verifier_agentic_proof_source_theorem_promotion_queue_dir
+            else None
+        ),
         formalization_gap_planner_refinement_evidence_dir=(
             Path(args.formalization_gap_planner_refinement_evidence_dir)
             if args.formalization_gap_planner_refinement_evidence_dir
@@ -8579,6 +8594,27 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "optional exact source-theorem proof-body executor output directory "
             "carrying local Lean execution results"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formal-verifier-agentic-proof-execution-materializer-dir",
+        help=(
+            "optional agentic proof execution materializer directory carrying "
+            "target-prover materialization feedback"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formal-verifier-agentic-proof-execution-artifact-verifier-dir",
+        help=(
+            "optional agentic proof artifact verifier directory carrying "
+            "target-prover verification feedback"
+        ),
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--formal-verifier-agentic-proof-source-theorem-promotion-queue-dir",
+        help=(
+            "optional agentic source-theorem promotion queue directory carrying "
+            "target-prover promotion feedback"
         ),
     )
     formalization_gap_planner_llm_route_planner.add_argument(

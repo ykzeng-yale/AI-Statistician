@@ -226,6 +226,9 @@ CONTEXT_PACKET_ROW_FIELDS = (
     "proof_body_semantic_primitive_work_order_rows",
     "source_theorem_formal_environment_rows",
     "source_theorem_proof_body_execution_result_rows",
+    "agentic_proof_execution_materializer_rows",
+    "agentic_proof_execution_artifact_verifier_rows",
+    "agentic_proof_source_theorem_promotion_rows",
     "refinement_evidence_rows",
     "route_revision_overlay_rows",
     "route_replan_handoff_rows",
@@ -241,6 +244,11 @@ ROUTE_MATCH_SCALAR_FIELDS = (
     "request_route_id",
     "selected_route_id",
     "standalone_route_id",
+    "execution_queue_id",
+    "materialization_id",
+    "artifact_verification_id",
+    "source_theorem_promotion_id",
+    "population_entry_id",
     "target_id",
     "target_theorem_id",
     "target_theorem_name",
@@ -1073,6 +1081,11 @@ def export_formalization_gap_planner_llm_route_planner(
     ) = None,
     source_theorem_formal_environment_bridge_dir: Path | None = None,
     exact_source_theorem_proof_body_executor_dir: Path | None = None,
+    formal_verifier_agentic_proof_execution_materializer_dir: Path | None = None,
+    formal_verifier_agentic_proof_execution_artifact_verifier_dir: Path | None = None,
+    formal_verifier_agentic_proof_source_theorem_promotion_queue_dir: (
+        Path | None
+    ) = None,
     formalization_gap_planner_refinement_evidence_dir: Path | None = None,
     formalization_gap_planner_route_revision_overlay_dir: Path | None = None,
     formalization_gap_planner_route_replan_handoff_dir: Path | None = None,
@@ -1115,6 +1128,15 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
         exact_source_theorem_proof_body_executor_dir=(
             exact_source_theorem_proof_body_executor_dir
+        ),
+        formal_verifier_agentic_proof_execution_materializer_dir=(
+            formal_verifier_agentic_proof_execution_materializer_dir
+        ),
+        formal_verifier_agentic_proof_execution_artifact_verifier_dir=(
+            formal_verifier_agentic_proof_execution_artifact_verifier_dir
+        ),
+        formal_verifier_agentic_proof_source_theorem_promotion_queue_dir=(
+            formal_verifier_agentic_proof_source_theorem_promotion_queue_dir
         ),
         formalization_gap_planner_refinement_evidence_dir=(
             formalization_gap_planner_refinement_evidence_dir
@@ -1819,6 +1841,96 @@ def export_formalization_gap_planner_llm_route_planner(
                         [],
                     )
                 )
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_agentic_proof_execution_materializer_rows": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "agentic_proof_execution_materializer_rows",
+                    [],
+                )
+            )
+        ),
+        "n_request_agentic_proof_execution_materializer_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "agentic_proof_execution_materializer_rows",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_agentic_proof_execution_artifact_verifier_rows": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "agentic_proof_execution_artifact_verifier_rows",
+                    [],
+                )
+            )
+        ),
+        "n_request_agentic_proof_execution_artifact_verifier_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "agentic_proof_execution_artifact_verifier_rows",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_agentic_proof_source_theorem_promotion_rows": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "agentic_proof_source_theorem_promotion_rows",
+                    [],
+                )
+            )
+        ),
+        "n_request_agentic_proof_source_theorem_promotion_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "agentic_proof_source_theorem_promotion_rows",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_requests_with_proof_execution_feedback_summary": sum(
+            1
+            for packet in request_packets
+            if _dict_value(packet, "context_packet").get(
+                "proof_execution_feedback_summary"
+            )
+        ),
+        "n_request_proof_execution_feedback_rows": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "proof_execution_feedback_summary",
+                ).get("total_rows", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_proof_execution_unsupported_target_prover_rows": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "proof_execution_feedback_summary",
+                ).get("unsupported_target_prover_rows", 0)
+                or 0
             )
             for packet in request_packets
         ),
@@ -6685,6 +6797,18 @@ def _request_packet(
             route_match_ids,
             target_prover_family=target_prover_family,
         ),
+        "agentic_proof_execution_materializer_rows": _rows_for_route(
+            context_payloads.get("agentic_proof_execution_materializer", {}),
+            route_match_ids,
+        ),
+        "agentic_proof_execution_artifact_verifier_rows": _rows_for_route(
+            context_payloads.get("agentic_proof_execution_artifact_verifier", {}),
+            route_match_ids,
+        ),
+        "agentic_proof_source_theorem_promotion_rows": _rows_for_route(
+            context_payloads.get("agentic_proof_source_theorem_promotion", {}),
+            route_match_ids,
+        ),
         "refinement_evidence_rows": _rows_for_route(
             context_payloads.get("refinement_evidence", {}),
             route_match_ids,
@@ -6768,6 +6892,9 @@ def _request_packet(
     )
     context_packet["resource_feedback_readiness_summary"] = (
         _resource_feedback_readiness_summary(context_packet)
+    )
+    context_packet["proof_execution_feedback_summary"] = (
+        _proof_execution_feedback_summary(context_packet)
     )
     context_packet["target_theorem_context_packet"] = (
         _target_theorem_context_packet(
@@ -7418,6 +7545,10 @@ def _route_planning_brief(
         context_packet,
         "resource_feedback_readiness_summary",
     )
+    proof_execution_feedback = _dict_value(
+        context_packet,
+        "proof_execution_feedback_summary",
+    )
     target_theorem_context = _dict_value(
         context_packet,
         "target_theorem_context_packet",
@@ -7877,6 +8008,13 @@ def _route_planning_brief(
             resource_feedback_readiness.get("average_evidence_readiness_score", 0)
             or 0
         ),
+        "proof_execution_feedback_row_count": int(
+            proof_execution_feedback.get("total_rows", 0) or 0
+        ),
+        "proof_execution_feedback_unsupported_target_prover_count": int(
+            proof_execution_feedback.get("unsupported_target_prover_rows", 0)
+            or 0
+        ),
         "feedback_replan_required": bool(feedback_summary.get("replan_required", False)),
         "pending_quality_control_value_count": int(
             quality_control_obligations.get("n_pending_values", 0) or 0
@@ -7944,6 +8082,7 @@ def _route_planning_brief(
         "library_snapshot_ref": library_snapshot_ref,
         "target_context": target_context,
         "evidence_summary": evidence_summary,
+        "proof_execution_feedback_summary": dict(proof_execution_feedback),
         "primitive_evidence_matrix": [dict(row) for row in primitive_evidence_matrix],
         "planner_focus": sorted(
             planner_focus,
@@ -8580,6 +8719,10 @@ def _context_packet_inventory(
         context_packet,
         "resource_feedback_readiness_summary",
     )
+    proof_execution_feedback = _dict_value(
+        context_packet,
+        "proof_execution_feedback_summary",
+    )
     route_adoption_preconditions = _dict_value(
         context_packet,
         "route_adoption_preconditions",
@@ -8737,6 +8880,16 @@ def _context_packet_inventory(
         ),
         "resource_feedback_readiness_reuse_ready_count": int(
             resource_feedback_readiness.get("reuse_ready_count", 0) or 0
+        ),
+        "proof_execution_feedback_summary_present": bool(
+            proof_execution_feedback
+        ),
+        "proof_execution_feedback_row_count": int(
+            proof_execution_feedback.get("total_rows", 0) or 0
+        ),
+        "proof_execution_feedback_unsupported_target_prover_count": int(
+            proof_execution_feedback.get("unsupported_target_prover_rows", 0)
+            or 0
         ),
         "route_adoption_precondition_present": bool(
             route_adoption_preconditions
@@ -8904,6 +9057,10 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
         context_packet,
         "resource_feedback_readiness_summary",
     )
+    proof_execution_feedback = _dict_value(
+        context_packet,
+        "proof_execution_feedback_summary",
+    )
     total_context_rows = 0
     for field_name in CONTEXT_PACKET_ROW_FIELDS:
         expected_count = len(_dict_tuple(context_packet.get(field_name, [])))
@@ -8961,6 +9118,17 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             int(resource_feedback_readiness.get("reuse_ready_count", 0) or 0),
         ),
         (
+            "proof_execution_feedback_row_count",
+            int(proof_execution_feedback.get("total_rows", 0) or 0),
+        ),
+        (
+            "proof_execution_feedback_unsupported_target_prover_count",
+            int(
+                proof_execution_feedback.get("unsupported_target_prover_rows", 0)
+                or 0
+            ),
+        ),
+        (
             "interactive_session_resource_request_count",
             int(
                 _interactive_session_resource_request_summary(
@@ -9012,6 +9180,13 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
         errors.append(
             "context_packet.context_packet_inventory."
             "resource_feedback_readiness_summary_present must match context_packet"
+        )
+    if bool(
+        inventory.get("proof_execution_feedback_summary_present", False)
+    ) != bool(proof_execution_feedback):
+        errors.append(
+            "context_packet.context_packet_inventory."
+            "proof_execution_feedback_summary_present must match context_packet"
         )
     target_theorem_context = _dict_value(
         context_packet,
@@ -9340,8 +9515,12 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                 "context_packet.context_packet_inventory."
                 "route_planning_brief_primitive_evidence_row_count must match "
                 "context_packet.route_planning_brief"
-            )
+        )
         brief_summary = _dict_value(route_planning_brief, "evidence_summary")
+        proof_execution_feedback = _dict_value(
+            context_packet,
+            "proof_execution_feedback_summary",
+        )
         brief_count_checks = (
             (
                 "source_ref_count",
@@ -9492,6 +9671,20 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                 ),
             ),
             (
+                "proof_execution_feedback_row_count",
+                int(proof_execution_feedback.get("total_rows", 0) or 0),
+            ),
+            (
+                "proof_execution_feedback_unsupported_target_prover_count",
+                int(
+                    proof_execution_feedback.get(
+                        "unsupported_target_prover_rows",
+                        0,
+                    )
+                    or 0
+                ),
+            ),
+            (
                 "source_grounding_unresolved_count",
                 int(
                     _source_grounding_obligation_summary(context_packet).get(
@@ -9602,6 +9795,17 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                     f"{field_name} must match "
                     "context_packet.route_planning_brief.primitive_evidence_matrix"
                 )
+        if (
+            _dict_value(
+                route_planning_brief,
+                "proof_execution_feedback_summary",
+            )
+            != proof_execution_feedback
+        ):
+            errors.append(
+                "context_packet.route_planning_brief.proof_execution_feedback_summary "
+                "must match context_packet.proof_execution_feedback_summary"
+            )
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     quality_controls = _dict_value(quality_control_obligations, "quality_controls")
     pending_quality_controls = _dict_value(
@@ -21889,6 +22093,9 @@ def _context_payloads(
     ),
     source_theorem_formal_environment_bridge_dir: Path | None,
     exact_source_theorem_proof_body_executor_dir: Path | None,
+    formal_verifier_agentic_proof_execution_materializer_dir: Path | None,
+    formal_verifier_agentic_proof_execution_artifact_verifier_dir: Path | None,
+    formal_verifier_agentic_proof_source_theorem_promotion_queue_dir: Path | None,
     formalization_gap_planner_refinement_evidence_dir: Path | None,
     formalization_gap_planner_route_revision_overlay_dir: Path | None,
     formalization_gap_planner_route_replan_handoff_dir: Path | None,
@@ -21957,6 +22164,36 @@ def _context_payloads(
             errors,
             embedded_row_keys=("rows",),
             jsonl_fields=("execution_results_jsonl", "runtime_learning_rows_jsonl"),
+        ),
+        "agentic_proof_execution_materializer": _optional_rows_payload(
+            formal_verifier_agentic_proof_execution_materializer_dir,
+            "formal_verifier_agentic_proof_execution_materializer_manifest.json",
+            errors,
+            embedded_row_keys=("rows",),
+            jsonl_fields=("materializer_jsonl",),
+            fallback_jsonl_filenames=(
+                "formal_verifier_agentic_proof_execution_materializer.jsonl",
+            ),
+        ),
+        "agentic_proof_execution_artifact_verifier": _optional_rows_payload(
+            formal_verifier_agentic_proof_execution_artifact_verifier_dir,
+            "formal_verifier_agentic_proof_execution_artifact_verifier_manifest.json",
+            errors,
+            embedded_row_keys=("rows",),
+            jsonl_fields=("artifact_verifier_jsonl",),
+            fallback_jsonl_filenames=(
+                "formal_verifier_agentic_proof_execution_artifact_verifier.jsonl",
+            ),
+        ),
+        "agentic_proof_source_theorem_promotion": _optional_rows_payload(
+            formal_verifier_agentic_proof_source_theorem_promotion_queue_dir,
+            "formal_verifier_agentic_proof_source_theorem_promotion_queue_manifest.json",
+            errors,
+            embedded_row_keys=("rows",),
+            jsonl_fields=("source_theorem_promotion_queue_jsonl",),
+            fallback_jsonl_filenames=(
+                "formal_verifier_agentic_proof_source_theorem_promotion_queue.jsonl",
+            ),
         ),
         "refinement_evidence": _optional_manifest(
             formalization_gap_planner_refinement_evidence_dir,
@@ -22447,6 +22684,107 @@ def _request_library_alignment_summary(
     context = _dict_value(request, "context_packet")
     summary = context.get("library_alignment_summary", {})
     return dict(summary) if isinstance(summary, Mapping) else {}
+
+
+def _proof_execution_feedback_summary(
+    context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    stage_specs = (
+        (
+            "materializer",
+            "agentic_proof_execution_materializer_rows",
+            "materialization_status",
+        ),
+        (
+            "artifact_verifier",
+            "agentic_proof_execution_artifact_verifier_rows",
+            "verification_status",
+        ),
+        (
+            "source_theorem_promotion",
+            "agentic_proof_source_theorem_promotion_rows",
+            "promotion_status",
+        ),
+    )
+    stage_rows: dict[str, tuple[dict[str, object], ...]] = {
+        stage_name: _dict_tuple(context_packet.get(field_name, []))
+        for stage_name, field_name, _ in stage_specs
+    }
+    if not any(stage_rows.values()):
+        return {}
+    by_target_prover_family: Counter[str] = Counter()
+    by_stage: dict[str, dict[str, object]] = {}
+    unsupported_rows: list[dict[str, object]] = []
+    for stage_name, _field_name, status_field in stage_specs:
+        rows = stage_rows[stage_name]
+        by_status = Counter(str(row.get(status_field, "") or "") for row in rows)
+        unsupported = [
+            row for row in rows if _proof_execution_row_unsupported_target(row)
+        ]
+        for row in rows:
+            target = str(row.get("target_prover_family", "") or "").strip()
+            if target:
+                by_target_prover_family[target] += 1
+        for row in unsupported:
+            unsupported_rows.append(
+                {
+                    "stage": stage_name,
+                    "target_prover_family": str(
+                        row.get("target_prover_family", "") or ""
+                    ),
+                    "target_theorem_name": str(
+                        row.get("target_theorem_name", "") or ""
+                    ),
+                    "status": str(row.get(status_field, "") or ""),
+                    "execution_queue_id": str(row.get("execution_queue_id", "") or ""),
+                    "candidate_artifact_path": str(
+                        row.get("candidate_artifact_path", "") or ""
+                    ),
+                    "proof_evidence_status": str(
+                        row.get("proof_evidence_status", PROOF_EVIDENCE_STATUS)
+                    ),
+                    "proof_evidence_boundary": str(
+                        row.get("proof_evidence_boundary", PROOF_EVIDENCE_BOUNDARY)
+                    ),
+                }
+            )
+        by_stage[stage_name] = {
+            "row_count": len(rows),
+            "unsupported_target_prover_rows": len(unsupported),
+            "by_status": dict(sorted(by_status.items())),
+        }
+    return {
+        "summary_kind": (
+            "formalization_gap_planner_llm_route_planner_"
+            "proof_execution_feedback_summary"
+        ),
+        "total_rows": sum(len(rows) for rows in stage_rows.values()),
+        "unsupported_target_prover_rows": len(unsupported_rows),
+        "by_target_prover_family": dict(sorted(by_target_prover_family.items())),
+        "by_stage": by_stage,
+        "unsupported_target_prover_row_preview": unsupported_rows[:12],
+        "planner_instruction": (
+            "Treat unsupported target-prover proof execution rows as adapter "
+            "coverage feedback, not failed theorem proofs. Route repair should "
+            "preserve target_prover_family and dispatch to a compatible prover "
+            "adapter/resource before requesting Lean-only materialization."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _proof_execution_row_unsupported_target(row: Mapping[str, object]) -> bool:
+    statuses = [
+        str(row.get(field_name, "") or "")
+        for field_name in (
+            "materialization_status",
+            "verification_status",
+            "promotion_status",
+            "source_verification_status",
+        )
+    ]
+    return any("UNSUPPORTED_TARGET_PROVER" in status for status in statuses)
 
 
 def _resource_feedback_readiness_summary(
@@ -24169,6 +24507,10 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "work_order_id",
         "execution_queue_id",
         "execution_result_id",
+        "materialization_id",
+        "artifact_verification_id",
+        "source_theorem_promotion_id",
+        "population_entry_id",
         "route_replan_handoff_id",
         "route_revision_overlay_id",
         "refinement_evidence_id",
@@ -24176,6 +24518,8 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "display_name",
         "domain",
         "target_prover_family",
+        "formal_statement_sketch",
+        "formal_imports",
         "library_snapshot_ref",
         "theorem_statement",
         "theorem_skeleton",
@@ -24353,6 +24697,10 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "source_formal_environment_work_order_id",
         "semantic_alignment_constraints",
         "candidate_artifact_path",
+        "materialization_status",
+        "verification_status",
+        "promotion_status",
+        "source_verification_status",
         "placeholder_symbol",
         "failure_classification",
         "diagnostics",
@@ -24369,12 +24717,26 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "runtime_queue_status",
         "runtime_queue_boundary",
         "source_theorem_kernel_verified",
+        "artifact_kernel_verified",
         "source_theorem_kernel_status",
+        "local_lean_checked",
+        "local_lean_compiled",
         "candidate_live_proof_state_request",
         "live_goal_location_ready",
+        "live_proof_state_request",
+        "live_proof_state_request_id",
+        "live_proof_state_request_valid",
+        "live_proof_state_request_status",
         "proof_body_execution_status",
         "execution_status",
         "proof_body_error",
+        "owner_agent",
+        "action_type",
+        "priority",
+        "required_gate",
+        "required_inputs",
+        "command_plan",
+        "evidence_paths",
         "request_phase",
         "request_rank",
         "queue_action_kind",
@@ -28815,6 +29177,8 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Source-theorem semantic primitive bridge from proof-body feedback resources/contracts: {payload.get('n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt')}/{payload.get('n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt')}",
         f"- Source-theorem formal-environment bridge resources/contracts: {payload.get('n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt')}/{payload.get('n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt')}",
         f"- Exact source-theorem proof-body executor resources/contracts: {payload.get('n_component_resource_registry_exact_source_theorem_proof_body_executor_resources_in_prompt')}/{payload.get('n_component_resource_registry_exact_source_theorem_proof_body_executor_contracts_in_prompt')}",
+        f"- Agentic proof execution context rows: materializer={payload.get('n_request_agentic_proof_execution_materializer_rows')} artifact_verifier={payload.get('n_request_agentic_proof_execution_artifact_verifier_rows')} source_promotion={payload.get('n_request_agentic_proof_source_theorem_promotion_rows')}",
+        f"- Proof execution unsupported target-prover rows: {payload.get('n_request_proof_execution_unsupported_target_prover_rows')}",
         f"- Search requests: {payload.get('n_search_requests')}",
         f"- Planner next actions: {payload.get('n_planner_next_actions')}",
         f"- Formal attempt queue items: {payload.get('n_formal_attempt_queue_items')}",
