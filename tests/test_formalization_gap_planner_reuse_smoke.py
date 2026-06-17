@@ -182,6 +182,110 @@ def _write_agentic_proof_execution_feedback_dirs(
     return materializer_dir, artifact_verifier_dir, source_promotion_dir
 
 
+def _write_agentic_proof_strategy_plan_dir(
+    root: Path,
+    *,
+    target_id: str,
+    target_prover_family: str,
+) -> Path:
+    strategy_plan_dir = root / "agentic_proof_strategy_plan"
+    strategy_plan_dir.mkdir(parents=True, exist_ok=True)
+    route_match_ids = (
+        target_id,
+        f"route:{target_id}",
+        f"formalization_gap_planner_route:{target_id}",
+    )
+    common_row = {
+        "schema_version": 1,
+        "route_id": target_id,
+        "source_route_id": target_id,
+        "target_id": target_id,
+        "target_theorem_id": target_id,
+        "route_match_ids": list(route_match_ids),
+        "display_name": target_id,
+        "target_theorem_name": target_id,
+        "target_prover_family": target_prover_family,
+        "proof_evidence_status": "AGENTIC_STRATEGY_PLAN_NOT_PROOF_EVIDENCE",
+        "proof_evidence_boundary": LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
+        "ok": True,
+        "errors": [],
+    }
+    rows = [
+        {
+            **common_row,
+            "strategy_id": f"strategy:{target_id}:patch",
+            "followup_id": f"followup:{target_id}:patch",
+            "residual_response_validation_id": f"validation:{target_id}:patch",
+            "prompt_packet_id": f"packet:{target_id}:patch",
+            "residual_obligation_id": f"residual-obligation:{target_id}:exchangeability",
+            "candidate_bridge_lemma_name": "exchangeability_bridge",
+            "residual_gap": "exchangeability",
+            "action_class": "reuse_exact_proof_bank_obligation",
+            "followup_kind": "residual_patch_rerun",
+            "followup_status": "READY_FOR_AGENTIC_PROOF_STRATEGY",
+            "agentic_strategy_kind": "evolve_block_residual_patch",
+            "paper_patterns": ["exchangeable calibration scores"],
+            "required_live_tools": ["lean_goal", "lean_multi_attempt"],
+            "evaluator_gates": [
+                "patch-rerun calibration",
+                "target prover kernel replay",
+            ],
+            "evolve_block_scope": "residual bridge candidate for exchangeability",
+            "global_goal_cache_keys": [],
+            "candidate_database_key": f"candidate-db:{target_id}:exchangeability",
+            "expected_artifacts": ["patched/Rank.lean", "strategy_trace.json"],
+            "priority_score": 130,
+            "rank": 1,
+        },
+        {
+            **common_row,
+            "strategy_id": f"strategy:{target_id}:source",
+            "followup_id": f"followup:{target_id}:source",
+            "residual_response_validation_id": f"validation:{target_id}:source",
+            "prompt_packet_id": f"packet:{target_id}:source",
+            "residual_obligation_id": f"residual-obligation:{target_id}:rank_uniformity",
+            "candidate_bridge_lemma_name": "rank_uniformity_bridge",
+            "residual_gap": "rank_uniformity",
+            "action_class": "source_discovery_needed",
+            "followup_kind": "residual_source_discovery",
+            "followup_status": "READY_FOR_AGENTIC_PROOF_STRATEGY",
+            "agentic_strategy_kind": "global_goal_cache_source_discovery",
+            "paper_patterns": ["uniform rank statistic"],
+            "required_live_tools": ["paperqa", "lean_leansearch"],
+            "evaluator_gates": ["primitive-source coverage expansion"],
+            "evolve_block_scope": "",
+            "global_goal_cache_keys": ["rank_uniformity:exchangeable_scores"],
+            "candidate_database_key": f"candidate-db:{target_id}:rank_uniformity",
+            "expected_artifacts": ["source_cache/rank_uniformity.json"],
+            "priority_score": 80,
+            "rank": 2,
+        },
+    ]
+    (
+        strategy_plan_dir / "formal_verifier_agentic_proof_strategy_plan_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "n_strategy_rows": len(rows),
+                "n_ready": 2,
+                "n_patch_evolve_blocks": 1,
+                "n_source_discovery_cache_items": 1,
+                "n_kernel_overlay_composition_seeds": 0,
+                "n_with_live_tool_plan": 2,
+                "all_ok": True,
+                "rows": rows,
+                "limitations": [
+                    "agentic proof strategy rows are proof-search contracts, not theorem proof evidence"
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return strategy_plan_dir
+
+
 def _reviewed_primitive_cost(
     primitive: str,
     coverage_bucket: str,
@@ -3777,6 +3881,113 @@ def test_reuse_smoke_surfaces_agentic_proof_execution_feedback_end_to_end() -> N
     assert (
         "Bundle LLM proof-execution feedback summaries: primary=3/3 "
         "feedback=3/3 combined=6/6"
+    ) in report_text
+
+
+def test_reuse_smoke_surfaces_agentic_proof_strategy_plan_end_to_end() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_reuse_smoke_agentic_strategy_plan"
+    )
+    input_path = root / "target_request.json"
+    out_dir = root / "reuse_smoke"
+    target_id = "split_conformal_finite_sample_coverage_strategy_plan"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_target_intake",
+                "target_prover_family": "rocq",
+                "library_snapshot_ref": "rocq:reuse-smoke-strategy-plan",
+                "target_id": target_id,
+                "title": "Split conformal finite-sample coverage strategy plan",
+                "domain": "distribution-free prediction",
+                "theorem_statement": (
+                    "For exchangeable calibration and test scores, split "
+                    "conformal prediction has finite sample marginal coverage."
+                ),
+                "objects": ["calibration scores", "test score"],
+                "assumptions": [
+                    "exchangeable calibration and test scores",
+                    "finite calibration sample",
+                ],
+                "statistical_procedure": "split conformal prediction set",
+                "desired_conclusion": "finite sample marginal coverage inequality",
+                "desired_theorem_shape": "coverage probability lower bound",
+                "known_proof_sources": ["Lei-Wasserman distribution-free prediction"],
+                "candidate_primitives": [
+                    {
+                        "primitive": "rank uniformity",
+                        "coverage_status": "bridge_needed",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    strategy_plan_dir = _write_agentic_proof_strategy_plan_dir(
+        root,
+        target_id=target_id,
+        target_prover_family="rocq",
+    )
+
+    payload = run_formalization_gap_planner_reuse_smoke(
+        input_path,
+        out_dir,
+        target_prover_family="rocq",
+        target_library_snapshot_ref="rocq:reuse-smoke-strategy-plan",
+        formal_verifier_agentic_proof_strategy_plan_dir=strategy_plan_dir,
+    )
+
+    assert payload["all_ok"]
+    assert (
+        payload["n_llm_route_planner_requests_with_agentic_proof_strategy_plan_summary"]
+        == 1
+    )
+    assert payload["n_llm_route_planner_request_agentic_proof_strategy_plan_rows"] == 2
+    assert payload["n_llm_route_planner_request_agentic_proof_strategy_plan_ready"] == 2
+    assert (
+        payload[
+            "n_llm_route_planner_request_agentic_proof_strategy_plan_source_discovery_cache_items"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_request_agentic_proof_strategy_plan_rows"
+        ]
+        == 2
+    )
+    assert (
+        payload["n_combined_llm_route_planner_request_agentic_proof_strategy_plan_rows"]
+        == 4
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_agentic_proof_strategy_plan_rows"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_agentic_proof_strategy_plan_rows"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_agentic_proof_strategy_plan_rows"
+        ]
+        == 4
+    )
+    report_text = (
+        out_dir / "formalization_gap_planner_reuse_smoke.md"
+    ).read_text(encoding="utf-8")
+    assert (
+        "Bundle LLM agentic proof strategy plan summaries: primary=2/2/1 "
+        "feedback=2/2/1 combined=4/4/2"
     ) in report_text
 
 

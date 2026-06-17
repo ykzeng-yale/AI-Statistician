@@ -3058,6 +3058,14 @@ def test_llm_route_planner_stages_agentic_proof_strategy_plan() -> None:
     )
     request = payload["request_packets"][0]
     context = request["context_packet"]
+    prompt_text = request["prompt_messages"]["user"]
+    assert "context_packet.formal_verifier_agentic_proof_strategy_plan_rows" in (
+        prompt_text
+    )
+    assert "context_packet.agentic_proof_strategy_plan_summary" in prompt_text
+    assert "global_goal_cache_source_discovery" in prompt_text
+    assert "evolve_block_residual_patch" in prompt_text
+    assert "kernel_overlay_composition_patch_seed" in prompt_text
     assert len(context["formal_verifier_agentic_proof_strategy_plan_rows"]) == 2
     strategy_summary = context["agentic_proof_strategy_plan_summary"]
     assert strategy_summary["total_rows"] == 2
