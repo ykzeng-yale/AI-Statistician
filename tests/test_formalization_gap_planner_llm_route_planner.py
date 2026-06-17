@@ -4373,6 +4373,8 @@ def test_llm_route_planner_materializes_formal_attempt_queue_hooks() -> None:
     assert payload["by_acceptance_status"] == {
         "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE": 1
     }
+    assert payload["n_accepted_route_plans"] == 1
+    assert payload["n_accepted_with_formal_attempt_queue"] == 1
     assert payload["n_formal_attempt_queue_items"] == 2
     row = payload["rows"][0]
     assert row["acceptance_status"] == "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE"

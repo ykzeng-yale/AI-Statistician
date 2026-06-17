@@ -2479,6 +2479,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_rows_with_route_adoption_preconditions",
             "n_row_route_adoption_precondition_known_blockers",
             "n_accepted_route_plans",
+            "n_accepted_with_formal_attempt_queue",
             "n_route_adoption_ready",
             "n_route_adoption_pending_refinement",
             "n_route_adoption_awaiting_llm_response",
@@ -2792,6 +2793,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_accepted_route_plans": nonnegative_integer,
+            "n_accepted_with_formal_attempt_queue": nonnegative_integer,
             "n_route_adoption_ready": nonnegative_integer,
             "n_route_adoption_pending_refinement": nonnegative_integer,
             "n_route_adoption_awaiting_llm_response": nonnegative_integer,
@@ -5373,6 +5375,7 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_rows_with_route_adoption_preconditions": 0,
         "n_row_route_adoption_precondition_known_blockers": 0,
         "n_accepted_route_plans": 0,
+        "n_accepted_with_formal_attempt_queue": 0,
         "n_route_adoption_ready": 0,
         "n_route_adoption_pending_refinement": 0,
         "n_route_adoption_awaiting_llm_response": 0,
@@ -5435,6 +5438,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
     library_minimum_bucket_counts = Counter(
         str(row.get("minimum_coverage_bucket", "") or "unknown")
         for row in library_alignment_rows
+    )
+    acceptance_status_counts = Counter(
+        str(row.get("acceptance_status", "") or "unknown") for row in rows
     )
     route_adoption_status_counts = _llm_route_planner_status_counts(payload, rows)
     route_adoption_blocker_counts = _llm_route_planner_blocker_counts(payload, rows)
@@ -6775,6 +6781,16 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                     1
                     for row in rows
                     if str(row.get("acceptance_status", "")).startswith("ACCEPTED_")
+                ),
+            )
+            or 0
+        ),
+        "n_accepted_with_formal_attempt_queue": int(
+            payload.get(
+                "n_accepted_with_formal_attempt_queue",
+                acceptance_status_counts.get(
+                    "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE",
+                    0,
                 ),
             )
             or 0

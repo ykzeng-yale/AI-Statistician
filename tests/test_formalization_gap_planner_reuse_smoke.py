@@ -5104,6 +5104,13 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_llm_route_planner_summary_accepted_with_formal_attempt_queue"
+        ]
+        == payload["n_llm_route_planner_accepted_with_formal_attempt_queue"]
+        == 0
+    )
+    assert (
+        payload[
             "n_publication_bundle_llm_route_planner_summary_route_adoption_pending_refinement"
         ]
         == payload["n_llm_route_planner_route_adoption_pending_refinement"]
@@ -5491,6 +5498,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert payload["n_combined_llm_route_planner_formal_attempt_queue_items"] == 4
     assert payload["n_combined_llm_route_planner_rows_with_formal_attempt_queue"] == 2
+    assert payload["n_combined_llm_route_planner_accepted_with_formal_attempt_queue"] == 0
     assert payload["n_combined_llm_route_planner_request_proof_execution_feedback_rows"] == 0
     assert (
         payload[
@@ -5512,6 +5520,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_accepted_with_formal_attempt_queue"
+        ]
+        == 0
+    )
+    assert (
+        payload[
             "n_publication_bundle_combined_llm_route_planner_summary_proof_execution_feedback_rows"
         ]
         == 0
@@ -5528,6 +5542,13 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload["n_feedback_llm_route_planner_accepted_route_plans"]
         == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_accepted_with_formal_attempt_queue"
+        ]
+        == payload["n_feedback_llm_route_planner_accepted_with_formal_attempt_queue"]
+        == 0
     )
     assert (
         payload[

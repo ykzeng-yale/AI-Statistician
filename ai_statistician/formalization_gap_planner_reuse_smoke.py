@@ -176,6 +176,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_awaiting_llm_response",
         "n_response_contract_ok",
         "n_accepted_route_plans",
+        "n_accepted_with_formal_attempt_queue",
         "n_route_adoption_ready",
         "n_route_adoption_pending_refinement",
         "n_route_adoption_awaiting_llm_response",
@@ -256,6 +257,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_awaiting_llm_response",
         "n_response_contract_ok",
         "n_accepted_route_plans",
+        "n_accepted_with_formal_attempt_queue",
         "n_route_adoption_ready",
         "n_route_adoption_pending_refinement",
         "n_route_adoption_awaiting_llm_response",
@@ -2251,6 +2253,20 @@ def run_formalization_gap_planner_reuse_smoke(
             )
             or 0
         ),
+        "n_combined_llm_route_planner_accepted_with_formal_attempt_queue": int(
+            llm_route_planner_payload.get(
+                "n_accepted_with_formal_attempt_queue",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_accepted_with_formal_attempt_queue",
+                0,
+            )
+            or 0
+        ),
         "n_combined_llm_route_planner_request_proof_execution_feedback_rows": int(
             llm_route_planner_payload.get(
                 "n_request_proof_execution_feedback_rows",
@@ -2415,6 +2431,20 @@ def run_formalization_gap_planner_reuse_smoke(
         + int(
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_rows_with_formal_attempt_queue",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_accepted_with_formal_attempt_queue": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_accepted_with_formal_attempt_queue",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_accepted_with_formal_attempt_queue",
                 0,
             )
             or 0
@@ -3044,6 +3074,12 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_publication_bundle_llm_route_planner_summary_accepted_with_formal_attempt_queue": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_accepted_with_formal_attempt_queue",
+                0,
+            )
+        ),
         "n_publication_bundle_llm_route_planner_summary_route_adoption_ready": (
             publication_bundle_llm_route_planner_summary.get(
                 "n_route_adoption_ready",
@@ -3622,6 +3658,12 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_feedback_llm_route_planner_summary_accepted_route_plans": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_accepted_route_plans",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_accepted_with_formal_attempt_queue": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_accepted_with_formal_attempt_queue",
                 0,
             )
         ),
@@ -4304,6 +4346,12 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_llm_route_planner_accepted_route_plans": llm_route_planner_payload.get(
             "n_accepted_route_plans",
             0,
+        ),
+        "n_llm_route_planner_accepted_with_formal_attempt_queue": (
+            llm_route_planner_payload.get(
+                "n_accepted_with_formal_attempt_queue",
+                0,
+            )
         ),
         "n_llm_route_planner_route_adoption_ready": llm_route_planner_payload.get(
             "n_route_adoption_ready",
@@ -5142,6 +5190,12 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_accepted_route_plans": feedback_llm_route_planner_payload.get(
             "n_accepted_route_plans",
             0,
+        ),
+        "n_feedback_llm_route_planner_accepted_with_formal_attempt_queue": (
+            feedback_llm_route_planner_payload.get(
+                "n_accepted_with_formal_attempt_queue",
+                0,
+            )
         ),
         "n_feedback_llm_route_planner_route_adoption_ready": (
             feedback_llm_route_planner_payload.get("n_route_adoption_ready", 0)

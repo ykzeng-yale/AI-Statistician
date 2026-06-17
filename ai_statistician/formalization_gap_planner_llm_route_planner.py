@@ -2842,6 +2842,10 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_accepted_route_plans": sum(
             1 for row in rows if row.acceptance_status.startswith("ACCEPTED_")
         ),
+        "n_accepted_with_formal_attempt_queue": by_acceptance_status.get(
+            "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE",
+            0,
+        ),
         "n_route_adoption_ready": by_route_adoption_status.get(
             ROUTE_ADOPTION_READY_STATUS,
             0,
@@ -4181,6 +4185,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "total_provider_total_tokens",
             "n_response_contract_ok",
             "n_accepted_route_plans",
+            "n_accepted_with_formal_attempt_queue",
             "n_route_adoption_ready",
             "n_route_adoption_pending_refinement",
             "n_route_adoption_awaiting_llm_response",
@@ -4537,6 +4542,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_rows_with_generation_errors": nonnegative_integer,
             "n_response_contract_ok": nonnegative_integer,
             "n_accepted_route_plans": nonnegative_integer,
+            "n_accepted_with_formal_attempt_queue": nonnegative_integer,
             "n_route_adoption_ready": nonnegative_integer,
             "n_route_adoption_pending_refinement": nonnegative_integer,
             "n_route_adoption_awaiting_llm_response": nonnegative_integer,
@@ -31657,6 +31663,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Rows with provider usage: {payload.get('n_rows_with_provider_usage')}",
         f"- Provider tokens input/output/total: {payload.get('total_provider_input_tokens')}/{payload.get('total_provider_output_tokens')}/{payload.get('total_provider_total_tokens')}",
         f"- Accepted route plans: {payload.get('n_accepted_route_plans')}",
+        f"- Accepted with formal attempt queue: {payload.get('n_accepted_with_formal_attempt_queue')}",
         f"- Route adoption ready: {payload.get('n_route_adoption_ready')}",
         f"- Route adoption pending refinement: {payload.get('n_route_adoption_pending_refinement')}",
         f"- Standalone replay gate OK: {payload.get('standalone_replay_gate_ok')}",

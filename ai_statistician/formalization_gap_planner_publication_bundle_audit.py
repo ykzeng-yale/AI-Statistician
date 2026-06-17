@@ -3009,6 +3009,9 @@ def _expected_bundle_llm_route_planner_summary(
         payload.get("model_tier_decision_ledger", [])
     )
     decision_basis_counts = _llm_route_planner_decision_basis_counts(request_packets)
+    acceptance_status_counts = Counter(
+        str(row.get("acceptance_status", "") or "unknown") for row in rows
+    )
     route_adoption_status_counts = _llm_route_planner_status_counts_for_summary(
         payload,
         rows,
@@ -4058,6 +4061,16 @@ def _expected_bundle_llm_route_planner_summary(
                     1
                     for row in rows
                     if str(row.get("acceptance_status", "")).startswith("ACCEPTED_")
+                ),
+            )
+            or 0
+        ),
+        "n_accepted_with_formal_attempt_queue": int(
+            payload.get(
+                "n_accepted_with_formal_attempt_queue",
+                acceptance_status_counts.get(
+                    "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE",
+                    0,
                 ),
             )
             or 0
