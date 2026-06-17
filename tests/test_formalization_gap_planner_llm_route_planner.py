@@ -8029,6 +8029,59 @@ def test_llm_route_planner_rejects_unsourced_residual_repair() -> None:
     )
 
 
+def test_llm_route_planner_rejects_primitive_residual_repair_with_vague_search_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejects_vague_residual_search"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    bad_response = _llm_response_payload()
+    bad_response["residual_interpretations"] = [
+        {
+            "residual_goal": "missing finite tie-breaking side condition",
+            "interpretation": (
+                "The proof route has not fixed deterministic tie handling."
+            ),
+            "route_repair": "Add a tie-breaking side condition before replay.",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    bad_response["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": "finite tie-breaking side condition source",
+            "reason": (
+                "This vague request overlaps residual words but does not name "
+                "or target the repaired primitive."
+            ),
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "residual_interpretations[0] route repair requires source_refs/source_snippets"
+        in error
+        and "matching literature/source search_request" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_cli_rejects_codex_generator_alias() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_cli_codex")
     out_dir = root / "out"

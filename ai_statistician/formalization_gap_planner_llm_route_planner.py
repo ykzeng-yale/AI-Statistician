@@ -17105,11 +17105,11 @@ def _has_literature_search_request_for_residual_interpretation(
     interpretation: Mapping[str, Any],
 ) -> bool:
     primitives = _residual_interpretation_search_primitives(interpretation)
-    if primitives and _has_literature_search_request_for_obligation(
-        search_requests,
-        primitives=primitives,
-    ):
-        return True
+    if primitives:
+        return _has_literature_search_request_for_obligation(
+            search_requests,
+            primitives=primitives,
+        )
     residual_tokens = _residual_interpretation_search_tokens(interpretation)
     if not residual_tokens:
         return False
