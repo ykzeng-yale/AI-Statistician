@@ -272,14 +272,18 @@ addition, unresolved interactive-session route-adoption preconditions and their
 known pre-response blockers are counted in request-scoped tier-decision
 evidence and force Sonnet under `--model-tier auto`, so cost-saving Haiku calls
 are still used only for bounded routes that are not waiting on route-repair
-obligations. The planner also writes
+obligations. Interactive-session `formal_attempt_queue` rows are also Sonnet
+triggers under auto mode: ready or blocked formal attempts and their prover
+replay commands are bottom-up proof-planning context, not cheap intake triage.
+The planner also writes
 `formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl`
 plus its schema. Each row binds the request tier, effective response tier,
 resolved model, decision basis, Sonnet triggers, source-feedback counts,
-resource-dispatch counts, interactive route-adoption precondition counts,
-provider-failure status, and repair escalation evidence, so downstream runtime,
-benchmark, and publication tools can audit cost routing without parsing full
-request packets or raw model text. The reuse-smoke manifest also mirrors
+resource-dispatch counts, interactive formal-attempt queue counts, interactive
+route-adoption precondition counts, provider-failure status, and repair
+escalation evidence, so downstream runtime, benchmark, and publication tools
+can audit cost routing without parsing full request packets or raw model text.
+The reuse-smoke manifest also mirrors
 primary, feedback, and combined ledger counts next to provider token usage, so
 public smoke runs report both API cost and the tier-routing reason surface.
 Those summaries aggregate resource-dispatch and interactive route-adoption

@@ -14046,6 +14046,8 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         "no_interactive_resource_requests": True,
         "no_interactive_dispatch_summaries": True,
         "no_interactive_execution_commands": True,
+        "no_interactive_formal_attempt_queue": True,
+        "no_interactive_formal_attempt_execution_commands": True,
         "no_unresolved_interactive_route_adoption_preconditions": True,
         "no_interactive_route_adoption_blockers": True,
         "no_source_theorem_feedback": True,
@@ -14060,6 +14062,8 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     stale_haiku_checks.pop("no_pending_source_grounding_obligations")
     stale_haiku_checks.pop("no_residual_source_grounding_obligations")
     stale_haiku_checks.pop("no_agentic_proof_strategy_plan_ready")
+    stale_haiku_checks.pop("no_interactive_formal_attempt_queue")
+    stale_haiku_checks.pop("no_interactive_formal_attempt_execution_commands")
     stale_haiku_errors = validate_llm_route_planner_request(
         stale_haiku_safety_request
     )
@@ -14068,6 +14072,8 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         and "no_pending_source_grounding_obligations" in error
         and "no_residual_source_grounding_obligations" in error
         and "no_agentic_proof_strategy_plan_ready" in error
+        and "no_interactive_formal_attempt_queue" in error
+        and "no_interactive_formal_attempt_execution_commands" in error
         for error in stale_haiku_errors
     )
     assert packet["model_tier_decision_evidence"]["route_signal_counts"][
@@ -14521,6 +14527,179 @@ def test_llm_route_planner_auto_uses_sonnet_for_interactive_execution_commands_o
         "interactive execution command" in trigger
         for trigger in evidence["sonnet_triggers"]
     )
+
+
+def test_llm_route_planner_auto_uses_sonnet_for_interactive_formal_attempt_queue() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_interactive_formal_attempt_queue_tier"
+    )
+    out_dir = root / "llm_route_planner"
+    interactive_session_dir = root / "interactive_session"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    interactive_session_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    (
+        interactive_session_dir
+        / "formalization_gap_planner_interactive_session_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_interactive_session",
+                "rows": [
+                    {
+                        "interactive_session_row_id": (
+                            "session:rank_route_light_formal_attempt_queue"
+                        ),
+                        "goal_plan_id": "goal:rank_route_light",
+                        "route_id": "rank_route_light",
+                        "display_name": "distribution_free_rank_bound_light",
+                        "session_state": "EXPAND_TARGET_PROVER_REPLAY",
+                        "next_interaction_kind": "target_prover_replay",
+                        "next_owner_agent": "formal_verifier",
+                        "next_tools": [
+                            "formalization_gap_planner_prover_adapter_contract",
+                            "target_prover_kernel_replay",
+                        ],
+                        "formal_attempt_queue_items": [
+                            {
+                                "attempt_id": "attempt:rank_uniformity",
+                                "formal_node_id": "formal:rank_uniformity",
+                                "primitive": "rank_uniformity",
+                                "target_primitives": ["rank_uniformity"],
+                                "target_prover_family": "lean4",
+                                "attempt_kind": "kernel_probe",
+                                "formal_attempt_dependency_status": (
+                                    "ready_no_formal_prerequisites"
+                                ),
+                                "formal_attempt_initial_ready": True,
+                            },
+                            {
+                                "attempt_id": "attempt:coverage_bridge",
+                                "formal_node_id": "formal:coverage_bridge",
+                                "primitive": "coverage_bridge",
+                                "target_primitives": ["coverage_bridge"],
+                                "target_prover_family": "lean4",
+                                "attempt_kind": "bridge_lemma",
+                                "formal_attempt_dependency_status": (
+                                    "waiting_for_formal_prerequisite_attempts"
+                                ),
+                                "formal_attempt_initial_ready": False,
+                            },
+                        ],
+                        "formal_attempt_queue_item_count": 2,
+                        "formal_attempt_queue_ready_item_count": 1,
+                        "formal_attempt_queue_blocked_item_count": 1,
+                        "formal_attempt_queue_attempt_ids": [
+                            "attempt:rank_uniformity",
+                            "attempt:coverage_bridge",
+                        ],
+                        "formal_attempt_queue_ready_attempt_ids": [
+                            "attempt:rank_uniformity"
+                        ],
+                        "formal_attempt_queue_execution_commands": [
+                            (
+                                "formalization-gap-planner-prover-adapter-contract "
+                                "--target-prover-family lean4"
+                            ),
+                            (
+                                "execute formal_attempt_queue item "
+                                "formal_attempt_queue_index=0 "
+                                "attempt_id=attempt:rank_uniformity "
+                                "target_prover_family=lean4"
+                            ),
+                        ],
+                        "needs_more_proof_state_feedback": False,
+                        "residual_goals": [],
+                        "replan_required": False,
+                    }
+                ],
+                "decision_policy_rows": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 0
+    assert any(
+        "formal-attempt queues" in rule
+        for rule in payload["llm_route_planner_model_tier_policy"][
+            "auto_tier_rules"
+        ]
+    )
+    packet = payload["request_packets"][0]
+    evidence = packet["model_tier_decision_evidence"]
+    signal_counts = evidence["route_signal_counts"]
+    dispatch_counts = evidence["context_resource_dispatch_counts"]
+    assert packet["model"] == "claude-sonnet-4-6"
+    assert packet["model_tier"] == "sonnet"
+    assert evidence["decision_basis"] == "auto_sonnet_triggers"
+    assert signal_counts["residual_goal_count"] == 0
+    assert signal_counts["interactive_session_resource_request_count"] == 0
+    assert signal_counts["interactive_session_formal_attempt_queue_row_count"] == 1
+    assert signal_counts["interactive_session_formal_attempt_queue_item_count"] == 2
+    assert (
+        signal_counts["interactive_session_formal_attempt_queue_ready_item_count"]
+        == 1
+    )
+    assert (
+        signal_counts["interactive_session_formal_attempt_queue_blocked_item_count"]
+        == 1
+    )
+    assert (
+        signal_counts[
+            "interactive_session_formal_attempt_queue_execution_command_count"
+        ]
+        == 2
+    )
+    assert dispatch_counts["interactive_session_formal_attempt_queue_item_count"] == 2
+    assert any(
+        "interactive formal-attempt queue item" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
+    assert any(
+        "interactive formal-attempt execution command" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
+    queue_summary = packet["context_packet"]["feedback_loop_summary"][
+        "interactive_session_formal_attempt_queue"
+    ]
+    inventory = packet["context_packet"]["context_packet_inventory"]
+    assert inventory["interactive_session_formal_attempt_queue_row_count"] == 1
+    assert inventory["interactive_session_formal_attempt_queue_item_count"] == 2
+    assert (
+        inventory["interactive_session_formal_attempt_queue_ready_item_count"]
+        == 1
+    )
+    assert (
+        inventory["interactive_session_formal_attempt_queue_blocked_item_count"]
+        == 1
+    )
+    assert (
+        inventory[
+            "interactive_session_formal_attempt_queue_execution_command_count"
+        ]
+        == 2
+    )
+    assert queue_summary["item_count"] == 2
+    assert queue_summary["ready_item_count"] == 1
+    assert queue_summary["blocked_item_count"] == 1
+    assert queue_summary["execution_command_count"] == 2
+    ledger_row = payload["model_tier_decision_ledger"][0]
+    assert ledger_row["context_resource_dispatch_counts"][
+        "interactive_session_formal_attempt_queue_execution_command_count"
+    ] == 2
 
 
 def test_llm_route_planner_auto_uses_sonnet_for_light_route_interactive_preconditions() -> None:

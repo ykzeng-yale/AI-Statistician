@@ -664,6 +664,7 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
         "Use sonnet when prover residual goals, feedback-loop replan signals, or incomplete realization-coverage witnesses are present.",
         "Use sonnet when source-grounding audit obligations are pending, especially residual goals without source-backed route repair.",
         "Use sonnet when resource-request queue rows, resource-request playbooks, interactive-session resource dispatch bindings, or interactive execution commands are present.",
+        "Use sonnet when interactive-session formal-attempt queues, ready prover replay items, blocked formal-attempt dependencies, or formal-attempt execution commands are present.",
         "Use sonnet when interactive-session route-adoption preconditions remain unresolved or carry known pre-response blockers.",
         "Use sonnet when formal-verifier agentic proof-strategy plan rows are ready for patch-evolve, source-discovery, or kernel-overlay dispatch.",
         "Use sonnet when target-intake rows expose missing proof sources, library-search requirements, proof-state probes, complex theorem shape, or large normalized theorem context.",
@@ -687,6 +688,8 @@ REQUIRED_HAIKU_SAFETY_CHECK_KEYS = frozenset(
         "no_interactive_resource_requests",
         "no_interactive_dispatch_summaries",
         "no_interactive_execution_commands",
+        "no_interactive_formal_attempt_queue",
+        "no_interactive_formal_attempt_execution_commands",
         "no_unresolved_interactive_route_adoption_preconditions",
         "no_interactive_route_adoption_blockers",
         "no_source_theorem_feedback",
@@ -7991,6 +7994,11 @@ def _route_planning_brief(
         context_packet,
         "agentic_proof_strategy_plan_summary",
     )
+    interactive_formal_attempt_queue = (
+        _interactive_session_formal_attempt_queue_summary(
+            _dict_tuple(context_packet.get("interactive_session_rows", []))
+        )
+    )
     target_theorem_context = _dict_value(
         context_packet,
         "target_theorem_context_packet",
@@ -9445,6 +9453,11 @@ def _context_packet_inventory(
     interactive_resource_requests = _interactive_session_resource_request_summary(
         _dict_tuple(context_packet.get("interactive_session_rows", []))
     )
+    interactive_formal_attempt_queue = (
+        _interactive_session_formal_attempt_queue_summary(
+            _dict_tuple(context_packet.get("interactive_session_rows", []))
+        )
+    )
     interactive_route_adoption_preconditions = _dict_value(
         feedback_summary,
         "interactive_route_adoption_preconditions",
@@ -9512,6 +9525,21 @@ def _context_packet_inventory(
         ),
         "interactive_session_resource_request_execution_command_count": int(
             interactive_resource_requests.get("execution_command_count", 0) or 0
+        ),
+        "interactive_session_formal_attempt_queue_row_count": int(
+            interactive_formal_attempt_queue.get("row_count", 0) or 0
+        ),
+        "interactive_session_formal_attempt_queue_item_count": int(
+            interactive_formal_attempt_queue.get("item_count", 0) or 0
+        ),
+        "interactive_session_formal_attempt_queue_ready_item_count": int(
+            interactive_formal_attempt_queue.get("ready_item_count", 0) or 0
+        ),
+        "interactive_session_formal_attempt_queue_blocked_item_count": int(
+            interactive_formal_attempt_queue.get("blocked_item_count", 0) or 0
+        ),
+        "interactive_session_formal_attempt_queue_execution_command_count": int(
+            interactive_formal_attempt_queue.get("execution_command_count", 0) or 0
         ),
         "interactive_route_adoption_precondition_count": int(
             interactive_route_adoption_preconditions.get("total_count", 0) or 0
@@ -9813,6 +9841,11 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
         context_packet,
         "agentic_proof_strategy_plan_summary",
     )
+    interactive_formal_attempt_queue = (
+        _interactive_session_formal_attempt_queue_summary(
+            _dict_tuple(context_packet.get("interactive_session_rows", []))
+        )
+    )
     total_context_rows = 0
     for field_name in CONTEXT_PACKET_ROW_FIELDS:
         expected_count = len(_dict_tuple(context_packet.get(field_name, [])))
@@ -9954,6 +9987,29 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                 _interactive_session_resource_request_summary(
                     _dict_tuple(context_packet.get("interactive_session_rows", []))
                 ).get("execution_command_count", 0)
+                or 0
+            ),
+        ),
+        (
+            "interactive_session_formal_attempt_queue_row_count",
+            int(interactive_formal_attempt_queue.get("row_count", 0) or 0),
+        ),
+        (
+            "interactive_session_formal_attempt_queue_item_count",
+            int(interactive_formal_attempt_queue.get("item_count", 0) or 0),
+        ),
+        (
+            "interactive_session_formal_attempt_queue_ready_item_count",
+            int(interactive_formal_attempt_queue.get("ready_item_count", 0) or 0),
+        ),
+        (
+            "interactive_session_formal_attempt_queue_blocked_item_count",
+            int(interactive_formal_attempt_queue.get("blocked_item_count", 0) or 0),
+        ),
+        (
+            "interactive_session_formal_attempt_queue_execution_command_count",
+            int(
+                interactive_formal_attempt_queue.get("execution_command_count", 0)
                 or 0
             ),
         ),
@@ -12809,6 +12865,32 @@ def _llm_route_planner_model_tier_decision(
             f"{resource_dispatch_counts['interactive_session_resource_request_execution_command_count']} "
             "interactive execution command(s)"
         )
+    if resource_dispatch_counts["interactive_session_formal_attempt_queue_item_count"]:
+        sonnet_reasons.append(
+            f"{resource_dispatch_counts['interactive_session_formal_attempt_queue_item_count']} "
+            "interactive formal-attempt queue item(s)"
+        )
+    if resource_dispatch_counts[
+        "interactive_session_formal_attempt_queue_ready_item_count"
+    ]:
+        sonnet_reasons.append(
+            f"{resource_dispatch_counts['interactive_session_formal_attempt_queue_ready_item_count']} "
+            "interactive formal-attempt queue ready item(s)"
+        )
+    if resource_dispatch_counts[
+        "interactive_session_formal_attempt_queue_blocked_item_count"
+    ]:
+        sonnet_reasons.append(
+            f"{resource_dispatch_counts['interactive_session_formal_attempt_queue_blocked_item_count']} "
+            "interactive formal-attempt queue blocked item(s)"
+        )
+    if resource_dispatch_counts[
+        "interactive_session_formal_attempt_queue_execution_command_count"
+    ]:
+        sonnet_reasons.append(
+            f"{resource_dispatch_counts['interactive_session_formal_attempt_queue_execution_command_count']} "
+            "interactive formal-attempt execution command(s)"
+        )
     if hard_markers:
         sonnet_reasons.append(
             "complex coverage/action marker(s): " + ", ".join(hard_markers[:6])
@@ -12861,6 +12943,18 @@ def _llm_route_planner_model_tier_decision(
         "no_interactive_execution_commands": (
             resource_dispatch_counts[
                 "interactive_session_resource_request_execution_command_count"
+            ]
+            == 0
+        ),
+        "no_interactive_formal_attempt_queue": (
+            resource_dispatch_counts[
+                "interactive_session_formal_attempt_queue_item_count"
+            ]
+            == 0
+        ),
+        "no_interactive_formal_attempt_execution_commands": (
+            resource_dispatch_counts[
+                "interactive_session_formal_attempt_queue_execution_command_count"
             ]
             == 0
         ),
@@ -12940,6 +13034,9 @@ def _context_resource_dispatch_counts(
         interactive_resource_requests = _interactive_session_resource_request_summary(
             _dict_tuple(context_packet.get("interactive_session_rows", []))
         )
+    formal_attempt_queue = _interactive_session_formal_attempt_queue_summary(
+        _dict_tuple(context_packet.get("interactive_session_rows", []))
+    )
     return {
         "resource_request_queue_count": len(
             _dict_tuple(context_packet.get("resource_request_queue_rows", []))
@@ -12955,6 +13052,21 @@ def _context_resource_dispatch_counts(
         ),
         "interactive_session_resource_request_execution_command_count": int(
             interactive_resource_requests.get("execution_command_count", 0) or 0
+        ),
+        "interactive_session_formal_attempt_queue_row_count": int(
+            formal_attempt_queue.get("row_count", 0) or 0
+        ),
+        "interactive_session_formal_attempt_queue_item_count": int(
+            formal_attempt_queue.get("item_count", 0) or 0
+        ),
+        "interactive_session_formal_attempt_queue_ready_item_count": int(
+            formal_attempt_queue.get("ready_item_count", 0) or 0
+        ),
+        "interactive_session_formal_attempt_queue_blocked_item_count": int(
+            formal_attempt_queue.get("blocked_item_count", 0) or 0
+        ),
+        "interactive_session_formal_attempt_queue_execution_command_count": int(
+            formal_attempt_queue.get("execution_command_count", 0) or 0
         ),
     }
 
@@ -13217,6 +13329,41 @@ def _model_tier_decision_evidence_base(
             "interactive_session_resource_request_execution_command_count": int(
                 resource_dispatch_counts.get(
                     "interactive_session_resource_request_execution_command_count",
+                    0,
+                )
+                or 0
+            ),
+            "interactive_session_formal_attempt_queue_row_count": int(
+                resource_dispatch_counts.get(
+                    "interactive_session_formal_attempt_queue_row_count",
+                    0,
+                )
+                or 0
+            ),
+            "interactive_session_formal_attempt_queue_item_count": int(
+                resource_dispatch_counts.get(
+                    "interactive_session_formal_attempt_queue_item_count",
+                    0,
+                )
+                or 0
+            ),
+            "interactive_session_formal_attempt_queue_ready_item_count": int(
+                resource_dispatch_counts.get(
+                    "interactive_session_formal_attempt_queue_ready_item_count",
+                    0,
+                )
+                or 0
+            ),
+            "interactive_session_formal_attempt_queue_blocked_item_count": int(
+                resource_dispatch_counts.get(
+                    "interactive_session_formal_attempt_queue_blocked_item_count",
+                    0,
+                )
+                or 0
+            ),
+            "interactive_session_formal_attempt_queue_execution_command_count": int(
+                resource_dispatch_counts.get(
+                    "interactive_session_formal_attempt_queue_execution_command_count",
                     0,
                 )
                 or 0
@@ -25208,6 +25355,11 @@ def _feedback_loop_summary(
     )
     if interactive_resource_requests.get("resource_request_count"):
         summary["interactive_session_resource_requests"] = interactive_resource_requests
+    formal_attempt_queue = _interactive_session_formal_attempt_queue_summary(
+        rows_by_field.get("interactive_session_rows", ())
+    )
+    if formal_attempt_queue.get("item_count"):
+        summary["interactive_session_formal_attempt_queue"] = formal_attempt_queue
     if interactive_route_adoption_preconditions:
         summary["interactive_route_adoption_preconditions"] = (
             interactive_route_adoption_preconditions
@@ -25963,6 +26115,96 @@ def _interactive_session_resource_request_summary(
         "dispatch_summaries": dispatch_summaries[:12],
         "execution_command_count": len(_unique_strings(execution_commands)),
         "execution_commands": list(_unique_strings(execution_commands)[:12]),
+    }
+
+
+def _interactive_session_formal_attempt_queue_summary(
+    rows: tuple[dict[str, object], ...],
+) -> dict[str, object]:
+    summary_rows: list[dict[str, object]] = []
+    attempt_ids: list[str] = []
+    ready_attempt_ids: list[str] = []
+    execution_commands: list[str] = []
+    item_count = 0
+    ready_item_count = 0
+    blocked_item_count = 0
+    for row in rows:
+        items = _dict_tuple(row.get("formal_attempt_queue_items", []))
+        row_item_count = _nonnegative_int(
+            row.get("formal_attempt_queue_item_count"),
+            default=len(items),
+        )
+        row_ready_count = _nonnegative_int(
+            row.get("formal_attempt_queue_ready_item_count"),
+            default=len(
+                [
+                    item
+                    for item in items
+                    if str(item.get("formal_attempt_dependency_status", ""))
+                    == "ready_no_formal_prerequisites"
+                    or bool(item.get("formal_attempt_initial_ready", False))
+                ]
+            ),
+        )
+        row_blocked_count = _nonnegative_int(
+            row.get("formal_attempt_queue_blocked_item_count"),
+            default=max(0, row_item_count - row_ready_count),
+        )
+        row_attempt_ids = _str_tuple(row.get("formal_attempt_queue_attempt_ids", []))
+        row_ready_attempt_ids = _str_tuple(
+            row.get("formal_attempt_queue_ready_attempt_ids", [])
+        )
+        row_execution_commands = _str_tuple(
+            row.get("formal_attempt_queue_execution_commands", [])
+        )
+        if not (
+            row_item_count
+            or row_ready_count
+            or row_blocked_count
+            or row_attempt_ids
+            or row_ready_attempt_ids
+            or row_execution_commands
+        ):
+            continue
+        item_count += row_item_count
+        ready_item_count += row_ready_count
+        blocked_item_count += row_blocked_count
+        attempt_ids.extend(row_attempt_ids)
+        ready_attempt_ids.extend(row_ready_attempt_ids)
+        execution_commands.extend(row_execution_commands)
+        summary_rows.append(
+            {
+                "interactive_session_row_id": str(
+                    row.get("interactive_session_row_id", "")
+                ).strip(),
+                "route_id": str(row.get("route_id", "")).strip(),
+                "goal_plan_id": str(row.get("goal_plan_id", "")).strip(),
+                "next_interaction_kind": str(
+                    row.get("next_interaction_kind", "")
+                ).strip(),
+                "item_count": row_item_count,
+                "ready_item_count": row_ready_count,
+                "blocked_item_count": row_blocked_count,
+                "attempt_ids": list(row_attempt_ids[:12]),
+                "ready_attempt_ids": list(row_ready_attempt_ids[:12]),
+                "execution_command_count": len(row_execution_commands),
+            }
+        )
+    if not summary_rows:
+        return {}
+    return {
+        "summary_kind": "interactive_session_formal_attempt_queue_summary",
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "row_count": len(summary_rows),
+        "item_count": item_count,
+        "ready_item_count": ready_item_count,
+        "blocked_item_count": blocked_item_count,
+        "attempt_ids": list(_unique_strings(attempt_ids)[:25]),
+        "ready_attempt_ids": list(_unique_strings(ready_attempt_ids)[:25]),
+        "execution_command_count": len(_unique_strings(execution_commands)),
+        "execution_commands": list(_unique_strings(execution_commands)[:12]),
+        "rows": summary_rows[:12],
     }
 
 
@@ -27005,6 +27247,14 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "route_adoption_precondition_required_response_fields",
         "route_adoption_precondition_known_blocker_count",
         "route_adoption_precondition_required_response_field_count",
+        "formal_attempt_queue_items",
+        "formal_attempt_queue_item_count",
+        "formal_attempt_queue_ready_item_count",
+        "formal_attempt_queue_blocked_item_count",
+        "formal_attempt_queue_attempt_ids",
+        "formal_attempt_queue_ready_attempt_ids",
+        "formal_attempt_queue_execution_commands",
+        "formal_attempt_queue_execution_command_count",
         "needs_more_literature",
         "needs_more_lean_grounding",
         "needs_more_proof_state_feedback",
