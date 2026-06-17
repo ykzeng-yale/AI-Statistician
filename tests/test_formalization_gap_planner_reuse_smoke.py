@@ -369,6 +369,7 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
                 "request_kind": "prover_feedback",
                 "query": "try the rank_uniformity bridge against exchangeability",
                 "reason": "confirm side conditions before route adoption",
+                "target_primitives": ["rank_uniformity"],
             }
         ],
         "uncertainty_flags": ["tie-breaking convention requires review"],
@@ -377,6 +378,7 @@ def _reviewed_llm_route_response_payload() -> dict[str, object]:
             {
                 "owner": "lean_lsp_mcp",
                 "action": "attempt a focused rank_uniformity bridge lemma",
+                "target_primitives": ["rank_uniformity"],
             }
         ],
         "formal_attempt_queue": [

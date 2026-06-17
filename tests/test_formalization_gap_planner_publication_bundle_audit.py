@@ -514,6 +514,15 @@ def _write_accepted_llm_route_planner_artifact(
     include_unsourced_residual_context: bool = False,
 ) -> Path:
     root.mkdir(parents=True, exist_ok=True)
+    rank_uniformity_snippet = {
+        "source_ref": "fixture_source",
+        "claim": "Fixture source backs the finite rank-uniformity bridge.",
+        "excerpt": (
+            "Under exchangeability, the finite rank statistic is uniform after "
+            "the stated tie convention."
+        ),
+        "target_primitives": ["rank_uniformity"],
+    }
     target_intake_dir = root / "target_intake"
     raw_target_json = root / "target_intake_request.json"
     raw_target_json.write_text(
@@ -534,6 +543,8 @@ def _write_accepted_llm_route_planner_artifact(
                     {
                         "primitive": "rank_uniformity",
                         "coverage_status": "bridge_needed",
+                        "source_refs": ["fixture_source"],
+                        "source_snippets": [rank_uniformity_snippet],
                     }
                 ],
             },
@@ -578,12 +589,14 @@ def _write_accepted_llm_route_planner_artifact(
     response_json.write_text(
         json.dumps(
             {
+                "source_snippets": [rank_uniformity_snippet],
                 "informal_knowledge_dag_nodes": [
                     {
                         "node_id": "informal:rank_uniformity",
                         "claim": "Exchangeability gives a uniform finite rank.",
                         "depends_on": [],
                         "source_refs": ["fixture_source"],
+                        "source_snippets": [rank_uniformity_snippet],
                         "source_search_status": "SOURCE_BACKED",
                         "semantic_role": "lemma",
                     },
@@ -849,7 +862,33 @@ def _write_accepted_llm_route_planner_artifact(
                 ],
                 "uncertainty_flags": [],
                 "semantic_alignment_risks": [],
-                "planner_next_actions": [],
+                "planner_next_actions": [
+                    {
+                        "owner": "route_revision_overlay",
+                        "adapter_id": "route_revision_overlay",
+                        "action": (
+                            "record that the request-derived statement keyword "
+                            "primitive remains outside the selected rank bridge "
+                            "route and should stay in the baseline route option"
+                        ),
+                        "target_primitives": [
+                            (
+                                "a_source_backed_rank_uniformity_bridge_"
+                                "closes_the"
+                            )
+                        ],
+                    },
+                    {
+                        "owner": "route_revision_overlay",
+                        "adapter_id": "route_revision_overlay",
+                        "action": (
+                            "record that the request-derived uniform-bound "
+                            "primitive remains outside the selected rank bridge "
+                            "route and should stay in the baseline route option"
+                        ),
+                        "target_primitives": ["uniform_bound"],
+                    },
+                ],
                 "standalone_route": {
                     "route_id": "rank_route_llm_revision",
                     "display_name": "distribution_free_rank_bound_llm_revision",
@@ -863,6 +902,7 @@ def _write_accepted_llm_route_planner_artifact(
                             "primitive": "rank_uniformity",
                             "coverage_status": "bridge_needed",
                             "source_refs": ["fixture_source"],
+                            "source_snippets": [rank_uniformity_snippet],
                         },
                         {
                             "primitive": (

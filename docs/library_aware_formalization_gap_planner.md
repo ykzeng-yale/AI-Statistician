@@ -2226,7 +2226,14 @@ The current implementation composes four existing AI Statistician artifacts:
    Accepted
    responses produce a revised standalone seed with source-grounded informal
    DAG nodes, formal realization nodes, alignment rationales, minimal-delta
-   rationale, search requests, and the proof-evidence boundary. The accepted
+   rationale, search requests, and the proof-evidence boundary. Request-bound
+   response-payload validation is stricter than prompt staging: it recomputes
+   the primitive-evidence matrix witness from the staged request and rejects
+   externally supplied payloads that leave selected source-backed primitives
+   without grounded source snippets, fail to account for selected
+   formal-supported primitives through direct reuse or structured
+   search/revision actions, omit selected delta/action accounting, or otherwise
+   select primitives outside the request matrix. The accepted
    LLM DAG, route-alignment edges,
    minimal-delta plan, search requests, residual interpretations, and provider
    provenance are also copied into the seed route's `replan_metadata`, so the

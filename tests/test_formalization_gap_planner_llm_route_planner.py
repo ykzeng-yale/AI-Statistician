@@ -9577,6 +9577,105 @@ def test_llm_route_planner_response_payload_validator_request_context_accepts_pa
     assert row["n_request_context_errors"] == 0
 
 
+def test_response_payload_validator_accepts_formal_supported_route_revision_action() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_payload_validate_route_revision_action"
+    )
+    planner_dir = root / "llm_route_planner"
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    staged = export_formalization_gap_planner_llm_route_planner(
+        _write_input_with_rank_bridge_candidate(root),
+        planner_dir,
+        provider_name="prompt_only",
+    )
+    request = staged["request_packets"][0]
+    response = _llm_response_payload()
+    response_json.write_text(
+        json.dumps(
+            {
+                "request_id": request["request_id"],
+                "route_id": request["route_id"],
+                "response_payload": response,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+        request_context_json=planner_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_valid_payloads"] == 1
+    row = payload["rows"][0]
+    assert row["n_schema_errors"] == 0
+    assert row["n_request_context_errors"] == 0
+
+
+def test_response_payload_validator_rejects_incomplete_primitive_matrix_accounting() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_payload_validate_primitive_matrix"
+    )
+    planner_dir = root / "llm_route_planner"
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    staged = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        planner_dir,
+        provider_name="prompt_only",
+    )
+    request = staged["request_packets"][0]
+    response_json.write_text(
+        json.dumps(
+            {
+                "request_id": request["request_id"],
+                "route_id": request["route_id"],
+                "response_payload": _drop_source_snippets(_llm_response_payload()),
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+        request_context_json=planner_dir,
+    )
+
+    assert payload["all_ok"] is False
+    assert payload["n_payloads"] == 1
+    assert payload["n_invalid_payloads"] == 1
+    assert payload["n_request_bound_payloads"] == 1
+    row = payload["rows"][0]
+    assert row["request_context_validation_mode"] == "request_bound"
+    assert row["n_schema_errors"] == 0
+    assert row["n_request_context_errors"] == 1
+    assert any(
+        "primitive_evidence_matrix source-backed primitives require response source_snippets"
+        in error
+        and "rank_uniformity" in error
+        for error in row["errors"]
+    )
+    assert (
+        validate_llm_route_planner_response_payload_validation_manifest(
+            payload,
+            payload["response_payload_validation_manifest_schema"],
+        )
+        == []
+    )
+
+
 def test_llm_route_planner_response_payload_validator_rejects_failed_context_source_ref_fallback() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_payload_validate_rejected_source_fallback"

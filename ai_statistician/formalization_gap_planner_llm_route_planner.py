@@ -3036,6 +3036,10 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
                 *request_schema_errors_by_id.get(request_id, []),
                 *request_context_errors,
                 *_response_contract_errors(payload, request_context),
+                *_response_payload_validation_primitive_matrix_errors(
+                    payload,
+                    request_context,
+                ),
             ]
             request_context_validation_mode = "request_bound"
             request_context_id = request_id
@@ -13446,6 +13450,82 @@ def _response_route_adoption_precondition_errors(
             "route_adoption_preconditions require at least one nonempty "
             "search_requests or planner_next_actions row"
         )
+    return errors
+
+
+def _response_payload_validation_primitive_matrix_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    """Require public response validation to account for request matrix rows."""
+
+    context_packet = _dict_value(request, "context_packet")
+    route_planning_brief = _dict_value(context_packet, "route_planning_brief")
+    if not _dict_tuple(route_planning_brief.get("primitive_evidence_matrix", [])):
+        return []
+    target_prover_family = str(request.get("target_prover_family", ""))
+    witness = _primitive_evidence_matrix_witness(
+        request=request,
+        minimal_delta=_dict_value(payload, "minimal_delta_plan"),
+        standalone_route=_standalone_route_from_payload(
+            payload,
+            target_prover_family=target_prover_family,
+        ),
+        formal_nodes=_formal_realization_nodes_from_payload(
+            payload,
+            target_prover_family=target_prover_family,
+        ),
+        alignment_edges=_dict_tuple(payload.get("route_alignment_edges", [])),
+        residual_interpretations=_dict_tuple(
+            payload.get("residual_interpretations", [])
+        ),
+        search_requests=_dict_tuple(payload.get("search_requests", [])),
+        planner_next_actions=_dict_tuple(payload.get("planner_next_actions", [])),
+        source_snippets=_route_source_snippets(payload),
+    )
+    if bool(witness.get("matrix_accounting_complete", False)):
+        return []
+    selected = set(_str_tuple(witness.get("selected_primitives", [])))
+    revision_targets = _primitive_targets_from_rows(
+        _dict_tuple(payload.get("search_requests", []))
+    ) | _primitive_targets_from_rows(
+        _dict_tuple(payload.get("planner_next_actions", []))
+    )
+    errors: list[str] = []
+    issue_fields = (
+        (
+            "matrix_unaccounted_primitives",
+            "primitive_evidence_matrix requires response to account for selected request matrix primitives",
+        ),
+        (
+            "selected_primitives_without_matrix_row",
+            "primitive_evidence_matrix selected primitives lack request matrix rows",
+        ),
+        (
+            "source_backed_matrix_primitives_missing_response_source_snippet",
+            "primitive_evidence_matrix source-backed primitives require response source_snippets",
+        ),
+        (
+            "formal_supported_matrix_primitives_missing_reuse",
+            "primitive_evidence_matrix formal-supported primitives require reuse of target-compatible declarations or a route revision",
+        ),
+        (
+            "delta_needed_matrix_primitives_missing_accounting",
+            "primitive_evidence_matrix delta-needed primitives require delta actions, search_requests, or planner_next_actions",
+        ),
+    )
+    for field_name, message in issue_fields:
+        primitives = _str_tuple(witness.get(field_name, []))
+        if field_name != "selected_primitives_without_matrix_row":
+            primitives = tuple(
+                primitive for primitive in primitives if primitive in selected
+            )
+        if field_name == "formal_supported_matrix_primitives_missing_reuse":
+            primitives = tuple(
+                primitive for primitive in primitives if primitive not in revision_targets
+            )
+        if primitives:
+            errors.append(f"{message}: {', '.join(primitives[:8])}")
     return errors
 
 
