@@ -5051,6 +5051,15 @@ def test_llm_route_planner_stages_source_theorem_feedback_rows() -> None:
     assert brief["evidence_summary"][
         "source_theorem_feedback_replan_required"
     ] is True
+    generic_feedback_focus = next(
+        focus
+        for focus in brief["planner_focus"]
+        if focus["focus_id"] == "revise_route_from_feedback"
+    )
+    assert generic_feedback_focus["target_primitives"] == ["rank_uniformity"]
+    assert "exchangeability_to_uniform_rank_semantics" not in (
+        generic_feedback_focus["target_primitives"]
+    )
     source_theorem_focus = next(
         focus
         for focus in brief["planner_focus"]

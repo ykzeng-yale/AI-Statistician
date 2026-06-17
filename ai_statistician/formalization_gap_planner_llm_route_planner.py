@@ -7934,6 +7934,7 @@ def _route_planning_brief(
     primitive_cost_hints = _dict_tuple(cost_hints.get("primitive_cost_hints", []))
     route_option_hints = _dict_tuple(cost_hints.get("route_option_hints", []))
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    feedback_summary_targets = _feedback_summary_target_primitives(feedback_summary)
     source_theorem_feedback = _dict_value(
         feedback_summary,
         "source_theorem_feedback",
@@ -8370,6 +8371,7 @@ def _route_planning_brief(
                 "planner_next_actions",
                 "residual_interpretations",
             ),
+            target_primitives=feedback_summary_targets,
         )
     if source_theorem_feedback:
         add_focus(
@@ -9117,6 +9119,33 @@ def _residual_goal_context_target_primitives(
         if prefix and re.match(r"^[A-Za-z_][A-Za-z0-9_.'-]*$", prefix):
             primitives.append(prefix)
     return tuple(dict.fromkeys(primitive for primitive in primitives if primitive))
+
+
+def _feedback_summary_target_primitives(
+    feedback_summary: Mapping[str, object],
+) -> tuple[str, ...]:
+    if not feedback_summary:
+        return tuple()
+    primitives: list[str] = []
+    for action in _dict_tuple(feedback_summary.get("recommended_next_actions", [])):
+        primitives.extend(_feedback_row_target_primitives(action))
+    source_theorem_feedback = _dict_value(feedback_summary, "source_theorem_feedback")
+    primitives.extend(_str_tuple(source_theorem_feedback.get("target_primitives", [])))
+    realization_coverage = _dict_value(feedback_summary, "realization_coverage")
+    for field_name in (
+        "missing_selected_formal_primitives",
+        "missing_delta_alignment_primitives",
+        "missing_delta_action_witness_primitives",
+        "missing_route_option_action_witness_primitives",
+        "omitted_cost_hint_primitives",
+    ):
+        primitives.extend(_str_tuple(realization_coverage.get(field_name, [])))
+    primitives.extend(
+        _residual_goal_target_primitives(
+            _str_tuple(feedback_summary.get("residual_goals", []))
+        )
+    )
+    return _unique_strings(primitives)
 
 
 def _source_grounding_obligation_summary(
