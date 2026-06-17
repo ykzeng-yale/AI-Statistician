@@ -15,10 +15,10 @@ FORMALIZER_SCHEMA_VERSION = 1
 FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE = "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE"
 FORMALIZER_BOUNDARY = (
     "LLM Formalizer/ProofEngineer packets are formalization and proof-search "
-    "proposals only. They do not count as Lean proof evidence, do not certify "
-    "source theorem faithfulness, and cannot claim kernel verification. Proof "
-    "evidence requires AgentRuntime to run AXLE/local Lean/kernel verification "
-    "on the intended formal claim."
+    "proposals only. They do not count as target-prover proof evidence, do not "
+    "certify source theorem faithfulness, and cannot claim kernel verification. "
+    "Proof evidence requires AgentRuntime to run AXLE/local Lean or another "
+    "target-prover kernel verification on the intended formal claim."
 )
 FORMALIZER_MAX_THEORY_ROWS = 3
 FORMALIZER_MAX_THEOREM_GOALS = 4
@@ -160,7 +160,7 @@ def build_formalizer_prompt(
         },
         "prompt_mode": {
             "mode": "compact_minimal_proof_target_triage",
-            "purpose": "choose minimal Lean/formal targets and proof-bank obligations before kernel gates",
+            "purpose": "choose minimal formal targets and proof-bank obligations before kernel gates",
             "max_items_per_list": 3,
             "do_not_expand_full_derivations": True,
         },
@@ -203,7 +203,10 @@ def build_formalizer_prompt(
             "use_only_registered_catalog_ids_when_possible": True,
             "request_effect": "priority_only_for_kernel_smoke_selection",
             "runtime_filter": "AgentRuntime rejects unknown obligation IDs and filters against the current candidate set",
-            "not_evidence": "A proof-bank obligation request is not Lean proof evidence and does not prove the frontier theorem.",
+            "not_evidence": (
+                "A proof-bank obligation request is not target-prover proof "
+                "evidence and does not prove the frontier theorem."
+            ),
             "when_catalog_exhausted_by_kernel_memory": (
                 "Do not request already-kernel-verified bridge obligations again. "
                 "Target the theorem-level reduction closure that connects those "
@@ -216,7 +219,7 @@ def build_formalizer_prompt(
     return (
         "Design formalization and proof-search artifacts for the Formalizer/ProofEngineer subsystem. "
         "Return ONLY compact JSON matching required_output_contract. Keep each list to at most 3 items. "
-        "Prefer one minimal Lean target plus one or two registered proof-bank obligations over a broad "
+        "Prefer one minimal formal target plus one or two registered proof-bank obligations over a broad "
         "formalization essay. You may propose Lean statement sketches, lemma dependency plans, source "
         "retrieval queries, and kernel-check work orders, but do not claim the theorem is proved, do not "
         "claim kernel verification, and do not hide formal gaps. "
@@ -233,10 +236,10 @@ def build_formalizer_prompt(
 FORMALIZER_SYSTEM_PROMPT = """\
 You are the LLM Formalizer/ProofEngineer inside an AI Statistician AgentRuntime.
 
-Your job is to translate statistical theorem proposals into Lean target plans,
+Your job is to translate statistical theorem proposals into Lean/formal target plans,
 dependency DAGs, proof-search tasks, and kernel-verification work orders. You
-are a generator, not the verifier. Do not report Lean proofs as checked unless
-AgentRuntime provides AXLE/local Lean evidence.
+are a generator, not the verifier. Do not report target-prover proofs as checked
+unless AgentRuntime provides AXLE/local Lean or target-prover kernel evidence.
 """
 
 
