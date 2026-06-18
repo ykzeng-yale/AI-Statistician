@@ -72,6 +72,53 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
             "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
         ),
     }
+    route_option_selection_brief = {
+        "brief_kind": (
+            "formalization_gap_planner_llm_route_planner_route_option_selection_brief"
+        ),
+        "route_id": "route:split_conformal_seed",
+        "display_name": "split_conformal_finite_sample_coverage",
+        "target_prover_family": "lean4",
+        "library_snapshot_ref": "mathlib4:replan-fixture",
+        "cost_policy_id": (
+            "formalization_gap_planner_minimal_delta_cost_policy:1"
+        ),
+        "selection_rule": (
+            "Choose the route option with the lowest library-aware route cost."
+        ),
+        "n_candidate_route_options": 1,
+        "n_candidate_route_option_primitives": 2,
+        "n_lower_bound_tied_route_options": 1,
+        "lower_bound_selected_route_option_id": "route_option:rank_bridge",
+        "lower_bound_selected_route_cost": 6.0,
+        "candidate_route_options": [
+            {
+                "route_option_id": "route_option:rank_bridge",
+                "route_cost": 6.0,
+                "selected_primitives": ["exchangeability", "rank_uniformity"],
+                "primitive_costs": [
+                    {"primitive": "exchangeability", "cost": 1.0},
+                    {"primitive": "rank_uniformity", "cost": 5.0},
+                ],
+                "cost_rationale": (
+                    "Reuse exchangeability and add one rank-uniformity bridge."
+                ),
+            }
+        ],
+        "required_response_bindings": [
+            {
+                "field": (
+                    "minimal_delta_plan.and_or_cost_graph."
+                    "selected_route_option_id"
+                ),
+                "required_value": "route_option:rank_bridge",
+            }
+        ],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
     input_json.write_text(
         json.dumps(
             {
@@ -84,6 +131,9 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
                         "display_name": "split_conformal_finite_sample_coverage",
                         "theorem_statement": "Split conformal has finite sample coverage.",
                         "llm_route_planner_route_planning_brief": route_planning_brief,
+                        "llm_route_planner_route_option_selection_brief": (
+                            route_option_selection_brief
+                        ),
                         "llm_route_planner_route_adoption_preconditions": (
                             route_adoption_preconditions
                         ),
@@ -112,6 +162,12 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     plan_payload = export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
     assert (
         plan_payload["n_standalone_input_traces_with_llm_route_planning_brief"]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_llm_route_option_selection_brief"
+        ]
         == 1
     )
     assert (
@@ -372,6 +428,11 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert payload["n_routes_with_source_snippets"] == 1
     assert payload["n_routes_with_llm_route_planning_brief"] == 1
     assert payload["n_standalone_seed_routes_with_llm_route_planning_brief"] == 1
+    assert payload["n_routes_with_llm_route_option_selection_brief"] == 1
+    assert (
+        payload["n_standalone_seed_routes_with_llm_route_option_selection_brief"]
+        == 1
+    )
     assert payload["n_routes_with_llm_route_adoption_preconditions"] == 1
     assert (
         payload["n_standalone_seed_routes_with_llm_route_adoption_preconditions"]
@@ -476,16 +537,23 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert row["standalone_route"]["target_prover_family"] == "lean4"
     assert row["standalone_route"]["replan_metadata"]["target_prover_family"] == "lean4"
     assert row["route_planning_brief"] == route_planning_brief
+    assert row["route_option_selection_brief"] == route_option_selection_brief
     assert row["route_adoption_preconditions"] == route_adoption_preconditions
     assert row["standalone_route"]["llm_route_planner_route_planning_brief"] == (
         route_planning_brief
     )
+    assert row["standalone_route"][
+        "llm_route_planner_route_option_selection_brief"
+    ] == route_option_selection_brief
     assert row["standalone_route"][
         "llm_route_planner_route_adoption_preconditions"
     ] == route_adoption_preconditions
     assert row["standalone_route"]["replan_metadata"][
         "llm_route_planner_route_planning_brief"
     ] == route_planning_brief
+    assert row["standalone_route"]["replan_metadata"][
+        "llm_route_planner_route_option_selection_brief"
+    ] == route_option_selection_brief
     assert row["standalone_route"]["replan_metadata"][
         "llm_route_planner_route_adoption_preconditions"
     ] == route_adoption_preconditions
@@ -501,12 +569,18 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert seed["routes"][0]["llm_route_planner_route_planning_brief"] == (
         route_planning_brief
     )
+    assert seed["routes"][0]["llm_route_planner_route_option_selection_brief"] == (
+        route_option_selection_brief
+    )
     assert seed["routes"][0]["llm_route_planner_route_adoption_preconditions"] == (
         route_adoption_preconditions
     )
     assert seed["routes"][0]["replan_metadata"][
         "llm_route_planner_route_planning_brief"
     ] == route_planning_brief
+    assert seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_route_option_selection_brief"
+    ] == route_option_selection_brief
     assert seed["routes"][0]["replan_metadata"][
         "llm_route_planner_route_adoption_preconditions"
     ] == route_adoption_preconditions
@@ -526,6 +600,7 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert seed["routes"][0]["replan_metadata"]["alignment_edge_primitives"]
     handoff_schema = route_replan_handoff_row_json_schema()
     assert "route_planning_brief" in handoff_schema["properties"]
+    assert "route_option_selection_brief" in handoff_schema["properties"]
     assert "route_adoption_preconditions" in handoff_schema["properties"]
     assert "source_snippets" in handoff_schema["properties"]
     assert "source_snippets" not in handoff_schema["required"]
@@ -551,6 +626,22 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         "standalone_route.llm_route_planner_route_planning_brief missing"
         in validate_route_replan_handoff_row(
             dropped_brief_row,
+            handoff_schema,
+        )
+    )
+    dropped_route_option_brief_row = dict(row)
+    dropped_route_option_brief_route = dict(row["standalone_route"])
+    dropped_route_option_brief_route.pop(
+        "llm_route_planner_route_option_selection_brief",
+        None,
+    )
+    dropped_route_option_brief_row["standalone_route"] = (
+        dropped_route_option_brief_route
+    )
+    assert (
+        "standalone_route.llm_route_planner_route_option_selection_brief missing"
+        in validate_route_replan_handoff_row(
+            dropped_route_option_brief_row,
             handoff_schema,
         )
     )
@@ -702,6 +793,12 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert next_plan["n_standalone_input_traces_with_llm_route_planning_brief"] == 1
     assert (
         next_plan[
+            "n_standalone_input_traces_with_llm_route_option_selection_brief"
+        ]
+        == 1
+    )
+    assert (
+        next_plan[
             "n_standalone_input_traces_with_llm_route_adoption_preconditions"
         ]
         == 1
@@ -721,6 +818,10 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert trace["has_replan_metadata"]
     assert trace["has_llm_route_planner_route_planning_brief"]
     assert trace["llm_route_planner_route_planning_brief"] == route_planning_brief
+    assert trace["has_llm_route_planner_route_option_selection_brief"]
+    assert trace["llm_route_planner_route_option_selection_brief"] == (
+        route_option_selection_brief
+    )
     assert trace["has_llm_route_planner_route_adoption_preconditions"]
     assert trace["llm_route_planner_route_adoption_preconditions"] == (
         route_adoption_preconditions
@@ -728,6 +829,9 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert trace["replan_metadata"][
         "llm_route_planner_route_planning_brief"
     ] == route_planning_brief
+    assert trace["replan_metadata"][
+        "llm_route_planner_route_option_selection_brief"
+    ] == route_option_selection_brief
     assert trace["replan_metadata"][
         "llm_route_planner_route_adoption_preconditions"
     ] == route_adoption_preconditions

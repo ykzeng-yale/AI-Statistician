@@ -68,6 +68,50 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
             "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
         ),
     }
+    route_option_selection_brief = {
+        "brief_kind": (
+            "formalization_gap_planner_llm_route_planner_route_option_selection_brief"
+        ),
+        "route_id": "rank_uniformity_fixture",
+        "display_name": "split_conformal_rank_uniformity",
+        "target_prover_family": "lean4",
+        "library_snapshot_ref": "mathlib4:replan-audit-fixture",
+        "cost_policy_id": (
+            "formalization_gap_planner_minimal_delta_cost_policy:1"
+        ),
+        "selection_rule": (
+            "Choose the route option with the lowest library-aware route cost."
+        ),
+        "n_candidate_route_options": 1,
+        "n_candidate_route_option_primitives": 1,
+        "n_lower_bound_tied_route_options": 1,
+        "lower_bound_selected_route_option_id": "route_option:rank_bridge",
+        "lower_bound_selected_route_cost": 5.0,
+        "candidate_route_options": [
+            {
+                "route_option_id": "route_option:rank_bridge",
+                "route_cost": 5.0,
+                "selected_primitives": ["rank_uniformity"],
+                "primitive_costs": [
+                    {"primitive": "rank_uniformity", "cost": 5.0}
+                ],
+                "cost_rationale": "Add one rank-uniformity bridge.",
+            }
+        ],
+        "required_response_bindings": [
+            {
+                "field": (
+                    "minimal_delta_plan.and_or_cost_graph."
+                    "selected_route_option_id"
+                ),
+                "required_value": "route_option:rank_bridge",
+            }
+        ],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
     alignment_edges = [
         {
             "source": "informal:rank_uniformity",
@@ -149,6 +193,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "route_class": "bridge_or_wrapper",
         "recommended_action": "rerun standalone planning on revised rank route",
         "llm_route_planner_route_planning_brief": route_planning_brief,
+        "llm_route_planner_route_option_selection_brief": (
+            route_option_selection_brief
+        ),
         "llm_route_planner_route_adoption_preconditions": (
             route_adoption_preconditions
         ),
@@ -191,6 +238,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
             "source_snippets": [source_snippet],
             "quality_controls": quality_controls,
             "llm_route_planner_route_planning_brief": route_planning_brief,
+            "llm_route_planner_route_option_selection_brief": (
+                route_option_selection_brief
+            ),
             "llm_route_planner_route_adoption_preconditions": (
                 route_adoption_preconditions
             ),
@@ -240,6 +290,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "route_revision_reasons": ["proof-state feedback exposed rank bridge"],
         "route_revision_summaries": ["add rank-uniformity bridge before replay"],
         "route_planning_brief": route_planning_brief,
+        "route_option_selection_brief": route_option_selection_brief,
         "route_adoption_preconditions": route_adoption_preconditions,
         "source_refs": ["Lei-Wasserman distribution-free prediction"],
         "source_snippets": [source_snippet],
@@ -360,6 +411,12 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     )
     assert (
         payload[
+            "n_roundtrip_standalone_input_traces_with_llm_route_option_selection_brief"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_roundtrip_standalone_input_traces_with_llm_route_adoption_preconditions"
         ]
         == 1
@@ -394,8 +451,10 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "row_0_seed_route_source_snippets" in ok_checks
     assert "row_0_seed_route_quality_controls" in ok_checks
     assert "row_0_seed_route_llm_route_planning_brief" in ok_checks
+    assert "row_0_seed_route_llm_route_option_selection_brief" in ok_checks
     assert "row_0_seed_route_llm_route_adoption_preconditions" in ok_checks
     assert "roundtrip_llm_route_planning_brief_trace" in ok_checks
+    assert "roundtrip_llm_route_option_selection_brief_trace" in ok_checks
     assert "roundtrip_llm_route_adoption_preconditions_trace" in ok_checks
     provenance_check = next(
         check
@@ -435,6 +494,15 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "row=True" in brief_check["observed"]
     assert "route=True" in brief_check["observed"]
     assert "metadata=True" in brief_check["observed"]
+    route_option_brief_check = next(
+        check
+        for check in payload["checks"]
+        if check["check_name"] == "row_0_seed_route_llm_route_option_selection_brief"
+    )
+    assert "row=True" in route_option_brief_check["observed"]
+    assert "route=True" in route_option_brief_check["observed"]
+    assert "metadata=True" in route_option_brief_check["observed"]
+    assert "candidate_options=1" in route_option_brief_check["observed"]
     precondition_check = next(
         check
         for check in payload["checks"]
@@ -452,6 +520,18 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "seed_routes_with_brief=1" in brief_roundtrip_check["observed"]
     assert "trace_matches=1" in brief_roundtrip_check["observed"]
     assert "metadata_matches=1" in brief_roundtrip_check["observed"]
+    route_option_brief_roundtrip_check = next(
+        check
+        for check in payload["checks"]
+        if check["check_name"]
+        == "roundtrip_llm_route_option_selection_brief_trace"
+    )
+    assert (
+        "seed_routes_with_brief=1"
+        in route_option_brief_roundtrip_check["observed"]
+    )
+    assert "trace_matches=1" in route_option_brief_roundtrip_check["observed"]
+    assert "metadata_matches=1" in route_option_brief_roundtrip_check["observed"]
     precondition_roundtrip_check = next(
         check
         for check in payload["checks"]
@@ -558,6 +638,35 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         if not check["ok"]
     }
     assert "row_0_seed_route_llm_route_planning_brief" in brief_failed
+
+    route_option_brief_rejected_seed = json.loads(json.dumps(seed))
+    route_option_brief_rejected_seed["routes"][0]["replan_metadata"].pop(
+        "llm_route_planner_route_option_selection_brief",
+        None,
+    )
+    (
+        handoff_dir
+        / "formalization_gap_planner_route_replan_standalone_seed.json"
+    ).write_text(
+        json.dumps(route_option_brief_rejected_seed, indent=2),
+        encoding="utf-8",
+    )
+    route_option_brief_rejected = (
+        audit_formalization_gap_planner_route_replan_handoff(
+            handoff_dir,
+            root / "route_option_brief_audit",
+        )
+    )
+
+    assert not route_option_brief_rejected["all_ok"]
+    route_option_brief_failed = {
+        check["check_name"]
+        for check in route_option_brief_rejected["checks"]
+        if not check["ok"]
+    }
+    assert "row_0_seed_route_llm_route_option_selection_brief" in (
+        route_option_brief_failed
+    )
 
     precondition_rejected_seed = json.loads(json.dumps(seed))
     precondition_rejected_seed["routes"][0]["replan_metadata"].pop(

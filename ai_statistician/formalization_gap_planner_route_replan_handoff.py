@@ -81,6 +81,7 @@ class FormalizationGapPlannerRouteReplanHandoffRow:
     route_revision_summaries: tuple[str, ...]
     target_theorem_context_packet: dict[str, object]
     route_planning_brief: dict[str, object]
+    route_option_selection_brief: dict[str, object]
     route_adoption_preconditions: dict[str, object]
     source_refs: tuple[str, ...]
     source_snippets: tuple[dict[str, object], ...]
@@ -218,6 +219,9 @@ def export_formalization_gap_planner_route_replan_handoff(
         "n_routes_with_llm_route_planning_brief": sum(
             1 for row in rows if row.route_planning_brief
         ),
+        "n_routes_with_llm_route_option_selection_brief": sum(
+            1 for row in rows if row.route_option_selection_brief
+        ),
         "n_routes_with_llm_route_adoption_preconditions": sum(
             1 for row in rows if row.route_adoption_preconditions
         ),
@@ -236,6 +240,22 @@ def export_formalization_gap_planner_route_replan_handoff(
                 or _dict_value(
                     _dict_value(route.get("replan_metadata", {})).get(
                         "llm_route_planner_route_planning_brief",
+                        {},
+                    )
+                )
+            )
+        ),
+        "n_standalone_seed_routes_with_llm_route_option_selection_brief": sum(
+            1
+            for route in standalone_seed.get("routes", [])
+            if isinstance(route, dict)
+            and (
+                _dict_value(
+                    route.get("llm_route_planner_route_option_selection_brief", {})
+                )
+                or _dict_value(
+                    _dict_value(route.get("replan_metadata", {})).get(
+                        "llm_route_planner_route_option_selection_brief",
                         {},
                     )
                 )
@@ -495,6 +515,7 @@ def route_replan_handoff_row_json_schema() -> dict[str, object]:
             "route_revision_summaries": string_array,
             "target_theorem_context_packet": {"type": "object"},
             "route_planning_brief": {"type": "object"},
+            "route_option_selection_brief": {"type": "object"},
             "route_adoption_preconditions": {"type": "object"},
             "source_refs": string_array,
             "source_snippets": object_array,
@@ -551,6 +572,7 @@ def validate_route_replan_handoff_row(
         errors.append("resource_response_ledger hook missing applied_resource_response_traces")
     errors.extend(_target_theorem_context_packet_consistency_errors(row))
     errors.extend(_route_planning_brief_consistency_errors(row))
+    errors.extend(_route_option_selection_brief_consistency_errors(row))
     errors.extend(_route_adoption_preconditions_consistency_errors(row))
     errors.extend(_declaration_hit_scope_errors(row))
     return tuple(errors)
@@ -685,6 +707,48 @@ def _route_adoption_preconditions_consistency_errors(
         errors.append(
             "standalone_route llm_route_planner_route_adoption_preconditions and "
             "replan_metadata llm_route_planner_route_adoption_preconditions mismatch"
+        )
+    return tuple(errors)
+
+
+def _route_option_selection_brief_consistency_errors(
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    brief = _dict_value(row.get("route_option_selection_brief", {}))
+    standalone_route = _dict_value(row.get("standalone_route", {}))
+    metadata = _dict_value(standalone_route.get("replan_metadata", {}))
+    route_brief = _dict_value(
+        standalone_route.get("llm_route_planner_route_option_selection_brief", {})
+    )
+    metadata_brief = _dict_value(
+        metadata.get("llm_route_planner_route_option_selection_brief", {})
+    )
+    if brief:
+        if not route_brief:
+            errors.append(
+                "standalone_route.llm_route_planner_route_option_selection_brief "
+                "missing"
+            )
+        elif route_brief != brief:
+            errors.append(
+                "standalone_route.llm_route_planner_route_option_selection_brief "
+                "mismatch"
+            )
+        if not metadata_brief:
+            errors.append(
+                "standalone_route.replan_metadata."
+                "llm_route_planner_route_option_selection_brief missing"
+            )
+        elif metadata_brief != brief:
+            errors.append(
+                "standalone_route.replan_metadata."
+                "llm_route_planner_route_option_selection_brief mismatch"
+            )
+    elif route_brief and metadata_brief and route_brief != metadata_brief:
+        errors.append(
+            "standalone_route llm_route_planner_route_option_selection_brief and "
+            "replan_metadata llm_route_planner_route_option_selection_brief mismatch"
         )
     return tuple(errors)
 
@@ -851,6 +915,10 @@ def _handoff_row(
         plan_row,
         overlay_row,
     )
+    route_option_selection_brief = _route_option_selection_brief_for_handoff(
+        plan_row,
+        overlay_row,
+    )
     route_adoption_preconditions = _route_adoption_preconditions_for_handoff(
         plan_row,
         overlay_row,
@@ -924,6 +992,7 @@ def _handoff_row(
         quality_controls=quality_controls,
         target_theorem_context_packet=target_theorem_context_packet,
         route_planning_brief=route_planning_brief,
+        route_option_selection_brief=route_option_selection_brief,
         route_adoption_preconditions=route_adoption_preconditions,
     )
     if not standalone_route.get("primitives"):
@@ -961,6 +1030,7 @@ def _handoff_row(
         route_revision_summaries=route_revision_summaries,
         target_theorem_context_packet=target_theorem_context_packet,
         route_planning_brief=route_planning_brief,
+        route_option_selection_brief=route_option_selection_brief,
         route_adoption_preconditions=route_adoption_preconditions,
         source_refs=source_refs,
         source_snippets=source_snippets,
@@ -1093,6 +1163,7 @@ def _standalone_route(
     quality_controls: dict[str, tuple[str, ...]],
     target_theorem_context_packet: dict[str, object],
     route_planning_brief: dict[str, object],
+    route_option_selection_brief: dict[str, object],
     route_adoption_preconditions: dict[str, object],
 ) -> dict[str, object]:
     node_index = _node_index(plan_row)
@@ -1151,6 +1222,9 @@ def _standalone_route(
                 target_theorem_context_packet
             ),
             "llm_route_planner_route_planning_brief": dict(route_planning_brief),
+            "llm_route_planner_route_option_selection_brief": dict(
+                route_option_selection_brief
+            ),
             "llm_route_planner_route_adoption_preconditions": dict(
                 route_adoption_preconditions
             ),
@@ -1230,6 +1304,10 @@ def _standalone_route(
     }
     if route_planning_brief:
         route["llm_route_planner_route_planning_brief"] = dict(route_planning_brief)
+    if route_option_selection_brief:
+        route["llm_route_planner_route_option_selection_brief"] = dict(
+            route_option_selection_brief
+        )
     if route_adoption_preconditions:
         route["llm_route_planner_route_adoption_preconditions"] = dict(
             route_adoption_preconditions
@@ -1602,6 +1680,32 @@ def _route_adoption_preconditions_for_handoff(
         preconditions = _dict_value(source)
         if preconditions:
             return dict(preconditions)
+    return {}
+
+
+def _route_option_selection_brief_for_handoff(
+    plan_row: dict[str, Any],
+    overlay_row: dict[str, Any],
+) -> dict[str, object]:
+    trace = _dict_value(plan_row.get("standalone_input_trace", {}))
+    trace_metadata = _dict_value(trace.get("replan_metadata", {}))
+    plan_metadata = _dict_value(plan_row.get("replan_metadata", {}))
+    overlay_metadata = _dict_value(overlay_row.get("replan_metadata", {}))
+    for source in (
+        overlay_row.get("route_option_selection_brief", {}),
+        overlay_row.get("llm_route_planner_route_option_selection_brief", {}),
+        overlay_metadata.get("route_option_selection_brief", {}),
+        overlay_metadata.get("llm_route_planner_route_option_selection_brief", {}),
+        trace.get("route_option_selection_brief", {}),
+        trace.get("llm_route_planner_route_option_selection_brief", {}),
+        trace_metadata.get("route_option_selection_brief", {}),
+        trace_metadata.get("llm_route_planner_route_option_selection_brief", {}),
+        plan_metadata.get("route_option_selection_brief", {}),
+        plan_metadata.get("llm_route_planner_route_option_selection_brief", {}),
+    ):
+        brief = _dict_value(source)
+        if brief:
+            return dict(brief)
     return {}
 
 
@@ -2003,6 +2107,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Seed routes with target theorem context packets: {payload.get('n_standalone_seed_routes_with_target_theorem_context_packet')}/{payload.get('n_standalone_seed_routes')}",
         f"- LLM route-planning briefs: {payload.get('n_routes_with_llm_route_planning_brief')}/{payload.get('n_handoff_rows')}",
         f"- Seed routes with LLM route-planning briefs: {payload.get('n_standalone_seed_routes_with_llm_route_planning_brief')}/{payload.get('n_standalone_seed_routes')}",
+        f"- LLM route-option selection briefs: {payload.get('n_routes_with_llm_route_option_selection_brief')}/{payload.get('n_handoff_rows')}",
+        f"- Seed routes with LLM route-option selection briefs: {payload.get('n_standalone_seed_routes_with_llm_route_option_selection_brief')}/{payload.get('n_standalone_seed_routes')}",
         f"- LLM route-adoption preconditions: {payload.get('n_routes_with_llm_route_adoption_preconditions')}/{payload.get('n_handoff_rows')}",
         f"- Seed routes with LLM route-adoption preconditions: {payload.get('n_standalone_seed_routes_with_llm_route_adoption_preconditions')}/{payload.get('n_standalone_seed_routes')}",
         f"- Residual-goal routes: {payload.get('n_routes_with_residual_goals')}",
