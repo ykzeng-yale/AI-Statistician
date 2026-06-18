@@ -16,6 +16,7 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     target_intake_path = root / "target_intake.json"
     handoffs_path = root / "handoffs.jsonl"
     out_dir = root / "audit"
+    standalone_plan_dir = root / "standalone_plan"
     target_intake_dir = root / "target_intake_dir"
     registry_dir = root / "component_resource_registry"
     shutil.rmtree(root, ignore_errors=True)
@@ -98,6 +99,7 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
         "handoff_id": "runtime_formalization_gap_planner_handoff:mixed_seed",
         "bridge_id": "runtime_formalization_gap_planner_bridge:mixed_seed",
         "standalone_seed_path": str(seed_path),
+        "standalone_plan_dir": str(standalone_plan_dir),
         "target_intake_path": str(target_intake_path),
         "target_intake_dir": str(target_intake_dir),
         "target_prover_family": handoff_target,
@@ -113,7 +115,7 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
         "standalone_plan_cli": (
             "python3 -m ai_statistician.cli "
             f"formalization-gap-planner-standalone-plan --input {seed_path} "
-            f"--out {root / 'standalone_plan'}"
+            f"--out {standalone_plan_dir}"
         ),
         "target_intake_cli": (
             "python3 -m ai_statistician.cli "
@@ -124,6 +126,8 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
             "python3 -m ai_statistician.cli "
             f"formalization-gap-planner-llm-route-planner --input {seed_path} "
             "--provider anthropic --model-tier auto --max-repair-attempts 1 "
+            "--goal-conditioned-minimal-formalization-plan-dir "
+            f"{standalone_plan_dir} "
             f"--formalization-gap-planner-target-intake-dir {target_intake_dir} "
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{registry_dir} --out {root / 'llm_prompt'}"
@@ -132,6 +136,8 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
             "python3 -m ai_statistician.cli "
             f"formalization-gap-planner-llm-route-planner --input {seed_path} "
             "--provider anthropic --model-tier auto --max-repair-attempts 1 "
+            "--goal-conditioned-minimal-formalization-plan-dir "
+            f"{standalone_plan_dir} "
             f"--formalization-gap-planner-target-intake-dir {target_intake_dir} "
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{registry_dir} --invoke-provider --out {root / 'llm_live'}"
@@ -170,6 +176,8 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     assert payload["n_seed_target_prover_family_compatible_with_handoff"] == 1
     assert payload["n_llm_prompt_packets"] == 2
     assert payload["n_llm_prompt_model_tier_mismatches"] == 0
+    assert payload["n_llm_prompt_requests_with_current_goal_plan_rows"] == 2
+    assert payload["n_llm_prompt_current_goal_plan_rows"] == 2
     assert payload["n_llm_prompt_model_tier_haiku"] == 0
     assert payload["n_llm_prompt_model_tier_sonnet"] == 2
     assert payload["n_llm_prompt_model_tier_opus"] == 0
@@ -188,6 +196,9 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     assert summary["seed_n_target_prover_families"] == 2
     assert summary["seed_by_target_prover_family"] == {"lean4": 1, "rocq": 1}
     assert summary["llm_prompt_model_tier_haiku"] == 0
+    assert summary["standalone_plan_dir"] == str(standalone_plan_dir)
+    assert summary["llm_prompt_requests_with_current_goal_plan_rows"] == 2
+    assert summary["llm_prompt_current_goal_plan_rows"] == 2
     assert summary["llm_prompt_model_tier_sonnet"] == 2
     assert summary["llm_prompt_model_tier_opus"] == 0
     assert summary["llm_prompt_requests_with_model_tier_decision_evidence"] == 2
@@ -203,6 +214,7 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
         out_dir / "formalization_gap_planner_runtime_handoff_audit.md"
     ).read_text(encoding="utf-8")
     assert "- LLM prompt model tiers: haiku=0 sonnet=2 opus=0" in report
+    assert "- Standalone goal-plan context in prompts: requests=2 rows=2" in report
     assert (
         "- LLM prompt model-tier decision basis: {'auto_sonnet_triggers': 2} "
         "evidence=2"

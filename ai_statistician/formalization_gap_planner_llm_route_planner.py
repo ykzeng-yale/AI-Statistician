@@ -1677,6 +1677,27 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for packet in request_packets
         ),
+        "n_requests_with_current_goal_plan_rows": sum(
+            1
+            for packet in request_packets
+            if _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "current_goal_plan_rows",
+                    [],
+                )
+            )
+        ),
+        "n_request_current_goal_plan_rows": sum(
+            len(
+                _dict_tuple(
+                    _dict_value(packet, "context_packet").get(
+                        "current_goal_plan_rows",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
         "n_request_model_tier_haiku": by_model_tier.get("haiku", 0),
         "n_request_model_tier_sonnet": by_model_tier.get("sonnet", 0),
         "n_request_model_tier_opus": by_model_tier.get("opus", 0),

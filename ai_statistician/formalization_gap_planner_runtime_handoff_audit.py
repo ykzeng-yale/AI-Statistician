@@ -233,6 +233,20 @@ def audit_formalization_gap_planner_runtime_handoffs(
             int(summary.get("llm_prompt_target_intake_rows", 0) or 0)
             for summary in smoke_summaries
         ),
+        "n_llm_prompt_requests_with_current_goal_plan_rows": sum(
+            int(
+                summary.get(
+                    "llm_prompt_requests_with_current_goal_plan_rows",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_current_goal_plan_rows": sum(
+            int(summary.get("llm_prompt_current_goal_plan_rows", 0) or 0)
+            for summary in smoke_summaries
+        ),
         "n_llm_prompt_model_tier_mismatches": sum(
             int(summary.get("llm_prompt_model_tier_mismatches", 0) or 0)
             for summary in smoke_summaries
@@ -460,9 +474,11 @@ def _audit_handoff_row(
     seed_path_text = str(handoff.get("standalone_seed_path", "")).strip()
     target_intake_path_text = str(handoff.get("target_intake_path", "")).strip()
     target_intake_dir_text = str(handoff.get("target_intake_dir", "")).strip()
+    standalone_plan_dir_text = str(handoff.get("standalone_plan_dir", "")).strip()
     seed_path = Path(seed_path_text)
     target_intake_path = Path(target_intake_path_text)
     target_intake_dir = Path(target_intake_dir_text)
+    standalone_plan_dir = Path(standalone_plan_dir_text)
     standalone_plan_cli = str(handoff.get("standalone_plan_cli", ""))
     target_intake_cli = str(handoff.get("target_intake_cli", ""))
     prompt_cli = str(handoff.get("llm_route_planner_prompt_cli", ""))
@@ -479,6 +495,7 @@ def _audit_handoff_row(
         "handoff_id": handoff_id,
         "bridge_id": bridge_id,
         "standalone_seed_path": seed_path_text,
+        "standalone_plan_dir": standalone_plan_dir_text,
         "target_intake_path": target_intake_path_text,
         "target_intake_dir": target_intake_dir_text,
         "target_prover_family": handoff_target,
@@ -488,6 +505,9 @@ def _audit_handoff_row(
         ),
         "target_intake_dir_exists": (
             bool(target_intake_dir_text) and target_intake_dir.exists()
+        ),
+        "standalone_plan_dir_exists": (
+            bool(standalone_plan_dir_text) and standalone_plan_dir.exists()
         ),
         "seed_schema_ok": False,
         "cost_control_ok": False,
@@ -509,6 +529,8 @@ def _audit_handoff_row(
         "llm_prompt_route_option_cost_hints": 0,
         "llm_prompt_requests_with_target_intake_rows": 0,
         "llm_prompt_target_intake_rows": 0,
+        "llm_prompt_requests_with_current_goal_plan_rows": 0,
+        "llm_prompt_current_goal_plan_rows": 0,
         "llm_prompt_model_tier_mismatches": 0,
         "llm_prompt_model_tier_haiku": 0,
         "llm_prompt_model_tier_sonnet": 0,
@@ -545,11 +567,13 @@ def _audit_handoff_row(
     seed_snapshot = str(seed_payload.get("library_snapshot_ref", "")).strip()
     cost_control_ok = _prompt_cli_cost_control_ok(
         prompt_cli,
+        standalone_plan_dir_text=standalone_plan_dir_text,
         target_intake_dir_text=target_intake_dir_text,
         component_resource_registry_dir_text=component_resource_registry_dir_text,
     )
     live_explicit_ok = _live_cli_explicit_ok(
         live_cli,
+        standalone_plan_dir_text=standalone_plan_dir_text,
         target_intake_dir_text=target_intake_dir_text,
         component_resource_registry_dir_text=component_resource_registry_dir_text,
     )
@@ -682,6 +706,16 @@ def _audit_handoff_row(
             "formalization-gap-planner-standalone-plan" in standalone_plan_cli,
         ),
         _row_check(
+            "row_standalone_cli_has_plan_dir",
+            "cost_control",
+            handoff_id,
+            bridge_id,
+            "standalone_plan_dir is the standalone planner --out directory",
+            standalone_plan_cli,
+            bool(standalone_plan_dir_text)
+            and standalone_plan_dir_text in standalone_plan_cli,
+        ),
+        _row_check(
             "row_target_intake_cli_present",
             "target_intake",
             handoff_id,
@@ -725,6 +759,19 @@ def _audit_handoff_row(
             and (not target_intake_dir_text or target_intake_dir_text in prompt_cli),
         ),
         _row_check(
+            "row_prompt_cli_has_minimal_plan_context",
+            "cost_control",
+            handoff_id,
+            bridge_id,
+            "--goal-conditioned-minimal-formalization-plan-dir",
+            prompt_cli,
+            "--goal-conditioned-minimal-formalization-plan-dir" in prompt_cli
+            and (
+                bool(standalone_plan_dir_text)
+                and standalone_plan_dir_text in prompt_cli
+            ),
+        ),
+        _row_check(
             "row_live_cli_has_target_intake_context",
             "target_intake",
             handoff_id,
@@ -733,6 +780,19 @@ def _audit_handoff_row(
             live_cli,
             "--formalization-gap-planner-target-intake-dir" in live_cli
             and (not target_intake_dir_text or target_intake_dir_text in live_cli),
+        ),
+        _row_check(
+            "row_live_cli_has_minimal_plan_context",
+            "cost_control",
+            handoff_id,
+            bridge_id,
+            "--goal-conditioned-minimal-formalization-plan-dir",
+            live_cli,
+            "--goal-conditioned-minimal-formalization-plan-dir" in live_cli
+            and (
+                bool(standalone_plan_dir_text)
+                and standalone_plan_dir_text in live_cli
+            ),
         ),
         _row_check(
             "row_prompt_cli_has_component_resource_registry_context",
@@ -886,10 +946,12 @@ def _audit_handoff_row(
                 registry_ok,
             )
         )
-        standalone_ok, standalone_observed = _run_standalone_smoke(
-            seed_path,
-            handoff_id=handoff_id,
-            smoke_root=smoke_root,
+        standalone_ok, standalone_observed, standalone_smoke_plan_dir = (
+            _run_standalone_smoke(
+                seed_path,
+                handoff_id=handoff_id,
+                smoke_root=smoke_root,
+            )
         )
         summary["standalone_smoke_ok"] = standalone_ok
         checks.append(
@@ -907,6 +969,9 @@ def _audit_handoff_row(
             seed_path,
             handoff_id=handoff_id,
             smoke_root=smoke_root,
+            goal_conditioned_minimal_formalization_plan_dir=(
+                standalone_smoke_plan_dir if standalone_ok else None
+            ),
             target_intake_dir=llm_prompt_target_intake_dir,
             component_resource_registry_dir=registry_dir if registry_ok else None,
         )
@@ -979,6 +1044,29 @@ def _audit_handoff_row(
                 "prompt packets include normalized target-intake rows",
                 llm_observed,
                 target_intake_context_ok,
+            )
+        )
+        goal_plan_context_ok = (
+            llm_ok
+            and int(
+                llm_counts.get(
+                    "llm_prompt_requests_with_current_goal_plan_rows",
+                    0,
+                )
+                or 0
+            )
+            == int(llm_counts.get("llm_prompt_packets", 0) or 0)
+            and int(llm_counts.get("llm_prompt_current_goal_plan_rows", 0) or 0) > 0
+        )
+        checks.append(
+            _row_check(
+                "row_llm_prompt_has_current_goal_plan_context",
+                "cost_control",
+                handoff_id,
+                bridge_id,
+                "prompt packets include standalone minimal-delta goal-plan rows",
+                llm_observed,
+                goal_plan_context_ok,
             )
         )
         cost_hint_ok = (
@@ -1300,22 +1388,25 @@ def _run_standalone_smoke(
     *,
     handoff_id: str,
     smoke_root: Path | None,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, Path | None]:
+    plan_dir = (
+        _smoke_dir(smoke_root, handoff_id) / "standalone_plan"
+        if smoke_root is not None
+        else Path(tempfile.mkdtemp(prefix="fgp_runtime_standalone_plan_"))
+    )
     try:
         payload = export_formalization_gap_planner_standalone_plan(
             seed_path,
-            _smoke_dir(smoke_root, handoff_id) / "standalone_plan"
-            if smoke_root is not None
-            else None,
+            plan_dir,
             max_routes=20,
         )
     except Exception as exc:  # pragma: no cover - defensive audit surface
-        return False, f"{type(exc).__name__}: {exc}"
+        return False, f"{type(exc).__name__}: {exc}", plan_dir
     return bool(payload.get("all_ok", False)), (
         f"all_ok={payload.get('all_ok')} "
         f"goal_plans={payload.get('n_goal_plans')} "
         f"errors={payload.get('errors')}"
-    )
+    ), plan_dir
 
 
 def _run_llm_prompt_smoke(
@@ -1323,6 +1414,7 @@ def _run_llm_prompt_smoke(
     *,
     handoff_id: str,
     smoke_root: Path | None,
+    goal_conditioned_minimal_formalization_plan_dir: Path | None = None,
     target_intake_dir: Path | None = None,
     component_resource_registry_dir: Path | None = None,
 ) -> tuple[bool, str, dict[str, object]]:
@@ -1336,6 +1428,9 @@ def _run_llm_prompt_smoke(
             model_tier="auto",
             max_repair_attempts=1,
             invoke_provider=False,
+            goal_conditioned_minimal_formalization_plan_dir=(
+                goal_conditioned_minimal_formalization_plan_dir
+            ),
             formalization_gap_planner_target_intake_dir=target_intake_dir,
             formalization_gap_planner_component_resource_registry_dir=(
                 component_resource_registry_dir
@@ -1353,6 +1448,8 @@ def _run_llm_prompt_smoke(
                 "llm_prompt_route_option_cost_hints": 0,
                 "llm_prompt_requests_with_target_intake_rows": 0,
                 "llm_prompt_target_intake_rows": 0,
+                "llm_prompt_requests_with_current_goal_plan_rows": 0,
+                "llm_prompt_current_goal_plan_rows": 0,
                 "llm_prompt_model_tier_mismatches": 0,
                 "llm_prompt_model_tier_haiku": 0,
                 "llm_prompt_model_tier_sonnet": 0,
@@ -1393,6 +1490,12 @@ def _run_llm_prompt_smoke(
         payload.get("n_requests_with_target_intake_rows", 0) or 0
     )
     n_target_intake_rows = int(payload.get("n_request_target_intake_rows", 0) or 0)
+    n_requests_with_current_goal_plan = int(
+        payload.get("n_requests_with_current_goal_plan_rows", 0) or 0
+    )
+    n_current_goal_plan_rows = int(
+        payload.get("n_request_current_goal_plan_rows", 0) or 0
+    )
     n_model_tier_mismatches = int(
         payload.get("n_request_model_tier_mismatches", 0) or 0
     )
@@ -1443,6 +1546,13 @@ def _run_llm_prompt_smoke(
                 and n_target_intake_rows > 0
             )
         )
+        and (
+            goal_conditioned_minimal_formalization_plan_dir is None
+            or (
+                n_requests_with_current_goal_plan == n_packets
+                and n_current_goal_plan_rows > 0
+            )
+        )
         and n_model_tier_mismatches == 0
         and n_tier_accounted == n_packets
         and n_tier_decision_evidence == n_packets
@@ -1459,6 +1569,8 @@ def _run_llm_prompt_smoke(
         f"route_option_cost_hints={n_route_option_cost_hints} "
         f"target_intake_requests={n_requests_with_target_intake} "
         f"target_intake_rows={n_target_intake_rows} "
+        f"current_goal_plan_requests={n_requests_with_current_goal_plan} "
+        f"current_goal_plan_rows={n_current_goal_plan_rows} "
         f"model_tier_mismatches={n_model_tier_mismatches} "
         f"model_tiers=haiku:{n_tier_haiku},sonnet:{n_tier_sonnet},opus:{n_tier_opus} "
         f"model_tier_decision_evidence={n_tier_decision_evidence} "
@@ -1477,6 +1589,10 @@ def _run_llm_prompt_smoke(
         "llm_prompt_route_option_cost_hints": n_route_option_cost_hints,
         "llm_prompt_requests_with_target_intake_rows": n_requests_with_target_intake,
         "llm_prompt_target_intake_rows": n_target_intake_rows,
+        "llm_prompt_requests_with_current_goal_plan_rows": (
+            n_requests_with_current_goal_plan
+        ),
+        "llm_prompt_current_goal_plan_rows": n_current_goal_plan_rows,
         "llm_prompt_model_tier_mismatches": n_model_tier_mismatches,
         "llm_prompt_model_tier_haiku": n_tier_haiku,
         "llm_prompt_model_tier_sonnet": n_tier_sonnet,
@@ -1550,6 +1666,7 @@ def _run_target_intake_smoke(
 def _prompt_cli_cost_control_ok(
     prompt_cli: str,
     *,
+    standalone_plan_dir_text: str,
     target_intake_dir_text: str,
     component_resource_registry_dir_text: str,
 ) -> bool:
@@ -1558,6 +1675,9 @@ def _prompt_cli_cost_control_ok(
         and "--provider anthropic" in prompt_cli
         and "--model-tier auto" in prompt_cli
         and "--max-repair-attempts 1" in prompt_cli
+        and "--goal-conditioned-minimal-formalization-plan-dir" in prompt_cli
+        and bool(standalone_plan_dir_text)
+        and standalone_plan_dir_text in prompt_cli
         and "--formalization-gap-planner-target-intake-dir" in prompt_cli
         and (
             not target_intake_dir_text
@@ -1598,6 +1718,7 @@ def _reuse_smoke_cli_cost_control_ok(
 def _live_cli_explicit_ok(
     live_cli: str,
     *,
+    standalone_plan_dir_text: str,
     target_intake_dir_text: str,
     component_resource_registry_dir_text: str,
 ) -> bool:
@@ -1606,6 +1727,9 @@ def _live_cli_explicit_ok(
         and "--provider anthropic" in live_cli
         and "--model-tier auto" in live_cli
         and "--max-repair-attempts 1" in live_cli
+        and "--goal-conditioned-minimal-formalization-plan-dir" in live_cli
+        and bool(standalone_plan_dir_text)
+        and standalone_plan_dir_text in live_cli
         and "--formalization-gap-planner-target-intake-dir" in live_cli
         and (not target_intake_dir_text or target_intake_dir_text in live_cli)
         and "--formalization-gap-planner-component-resource-registry-dir" in live_cli
@@ -1876,6 +2000,11 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
             f"- Target-intake context in prompts: "
             f"requests={payload.get('n_llm_prompt_requests_with_target_intake_rows')} "
             f"rows={payload.get('n_llm_prompt_target_intake_rows')}"
+        ),
+        (
+            f"- Standalone goal-plan context in prompts: "
+            f"requests={payload.get('n_llm_prompt_requests_with_current_goal_plan_rows')} "
+            f"rows={payload.get('n_llm_prompt_current_goal_plan_rows')}"
         ),
         f"- Prompt packets: {payload.get('n_llm_prompt_packets')}",
         f"- Awaiting LLM response: {payload.get('n_llm_prompt_awaiting_response')}",

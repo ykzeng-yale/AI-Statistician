@@ -9663,10 +9663,11 @@ def _runtime_formalization_gap_planner_handoff_rows(
         component_resource_registry_arg = shlex.quote(
             str(component_resource_registry_out)
         )
+        standalone_plan_dir_arg = shlex.quote(str(standalone_out))
         target_intake_dir_arg = shlex.quote(str(target_intake_out))
         standalone_plan_cli = (
             "python3 -m ai_statistician.cli formalization-gap-planner-standalone-plan "
-            f"--input {seed_arg} --out {shlex.quote(str(standalone_out))}"
+            f"--input {seed_arg} --out {standalone_plan_dir_arg}"
         )
         target_intake_cli = (
             "python3 -m ai_statistician.cli formalization-gap-planner-target-intake "
@@ -9681,6 +9682,8 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
             f"--input {seed_arg} --provider anthropic --model-tier auto "
             "--max-repair-attempts 1 "
+            "--goal-conditioned-minimal-formalization-plan-dir "
+            f"{standalone_plan_dir_arg} "
             f"--formalization-gap-planner-target-intake-dir {target_intake_dir_arg} "
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{component_resource_registry_arg} "
@@ -9690,6 +9693,8 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
             f"--input {seed_arg} --provider anthropic --model-tier auto "
             "--max-repair-attempts 1 "
+            "--goal-conditioned-minimal-formalization-plan-dir "
+            f"{standalone_plan_dir_arg} "
             f"--formalization-gap-planner-target-intake-dir {target_intake_dir_arg} "
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{component_resource_registry_arg} "
@@ -9730,6 +9735,7 @@ def _runtime_formalization_gap_planner_handoff_rows(
                 "routes and Claude Sonnet for residual, bridge, source-port, "
                 "or new-theory routes"
             ),
+            "standalone_plan_dir": str(standalone_out),
             "target_intake_dir": str(target_intake_out),
             "target_intake_cli": target_intake_cli,
             "component_resource_registry_dir": str(component_resource_registry_out),
@@ -9740,7 +9746,9 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "reuse_smoke_cli": reuse_smoke_cli,
             "cost_control": (
                 "Use reuse_smoke_cli or llm_route_planner_prompt_cli first; "
-                "they write request packets without calling the Anthropic API. "
+                "standalone_plan_cli writes minimal-delta cost hints that are "
+                "fed into the staged route-planner prompt packets without "
+                "calling the Anthropic API. "
                 "Add live execution only after inspecting the staged prompts "
                 "or run llm_route_planner_live_cli explicitly."
             ),
@@ -9750,6 +9758,7 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "proof_evidence_boundary": RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_BOUNDARY,
         }
         bridge["handoff_id"] = row["handoff_id"]
+        bridge["standalone_plan_dir"] = str(standalone_out)
         bridge["standalone_plan_cli"] = standalone_plan_cli
         bridge["target_intake_dir"] = str(target_intake_out)
         bridge["target_intake_cli"] = target_intake_cli
@@ -9893,6 +9902,8 @@ def _runtime_formalization_gap_planner_bridge(
             "--input <runtime_formalization_gap_planner_standalone_seed.json> "
             "--provider anthropic --model-tier auto "
             "--max-repair-attempts 1 "
+            "--goal-conditioned-minimal-formalization-plan-dir "
+            "<runtime_formalization_gap_planner_standalone_plan_dir> "
             "--formalization-gap-planner-target-intake-dir "
             "<runtime_formalization_gap_planner_target_intake_dir> "
             "--formalization-gap-planner-component-resource-registry-dir "
@@ -9903,6 +9914,8 @@ def _runtime_formalization_gap_planner_bridge(
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
             "--input <runtime_formalization_gap_planner_standalone_seed.json> "
             "--provider anthropic --model-tier auto --max-repair-attempts 1 "
+            "--goal-conditioned-minimal-formalization-plan-dir "
+            "<runtime_formalization_gap_planner_standalone_plan_dir> "
             "--formalization-gap-planner-target-intake-dir "
             "<runtime_formalization_gap_planner_target_intake_dir> "
             "--formalization-gap-planner-component-resource-registry-dir "

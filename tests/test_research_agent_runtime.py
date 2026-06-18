@@ -6295,6 +6295,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
     )
     assert (
+        "--goal-conditioned-minimal-formalization-plan-dir"
+        in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
+    )
+    assert (
         "--formalization-gap-planner-component-resource-registry-dir"
         in gap_planner_bridge["next_llm_route_planner_prompt_cli"]
     )
@@ -6302,6 +6306,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "--invoke-provider" in gap_planner_bridge["next_llm_route_planner_live_cli"]
     assert (
         "--formalization-gap-planner-target-intake-dir"
+        in gap_planner_bridge["next_llm_route_planner_live_cli"]
+    )
+    assert (
+        "--goal-conditioned-minimal-formalization-plan-dir"
         in gap_planner_bridge["next_llm_route_planner_live_cli"]
     )
     assert (
@@ -6328,6 +6336,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     ]
     assert len(persisted_bridge_rows) == 2
     assert persisted_bridge_rows[0]["standalone_seed_path"].endswith(".json")
+    assert persisted_bridge_rows[0]["standalone_plan_dir"].endswith("standalone_plan")
     assert persisted_bridge_rows[0]["target_intake_path"].endswith(".json")
     assert persisted_bridge_rows[0]["target_intake_dir"].endswith("target_intake")
     assert (
@@ -6346,6 +6355,14 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "--model-tier auto" in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
     assert "--max-repair-attempts 1" in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
     assert (
+        "--goal-conditioned-minimal-formalization-plan-dir"
+        in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
+    )
+    assert (
+        persisted_bridge_rows[0]["standalone_plan_dir"]
+        in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
+    )
+    assert (
         persisted_bridge_rows[0]["target_intake_dir"]
         in persisted_bridge_rows[0]["llm_route_planner_prompt_cli"]
     )
@@ -6363,6 +6380,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     handoff = handoff_rows[0]
     assert handoff["artifact_kind"] == "RuntimeFormalizationGapPlannerHandoff"
     assert handoff["target_prover_family"] == "lean4"
+    assert handoff["standalone_plan_dir"].endswith("standalone_plan")
     assert handoff["target_intake_path"].endswith(".json")
     assert handoff["target_intake_dir"].endswith("target_intake")
     assert "formalization-gap-planner-target-intake" in handoff["target_intake_cli"]
@@ -6378,6 +6396,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "--model-tier auto" in handoff["llm_route_planner_prompt_cli"]
     assert "--max-repair-attempts 1" in handoff["llm_route_planner_prompt_cli"]
     assert "--provider anthropic" in handoff["llm_route_planner_prompt_cli"]
+    assert "--goal-conditioned-minimal-formalization-plan-dir" in handoff[
+        "llm_route_planner_prompt_cli"
+    ]
+    assert handoff["standalone_plan_dir"] in handoff["llm_route_planner_prompt_cli"]
     assert "--formalization-gap-planner-target-intake-dir" in handoff[
         "llm_route_planner_prompt_cli"
     ]
@@ -6388,6 +6410,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     )
     assert "--invoke-provider" not in handoff["llm_route_planner_prompt_cli"]
     assert "--invoke-provider" in handoff["llm_route_planner_live_cli"]
+    assert "--goal-conditioned-minimal-formalization-plan-dir" in handoff[
+        "llm_route_planner_live_cli"
+    ]
+    assert handoff["standalone_plan_dir"] in handoff["llm_route_planner_live_cli"]
     assert "--formalization-gap-planner-target-intake-dir" in handoff[
         "llm_route_planner_live_cli"
     ]
@@ -6440,6 +6466,11 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         == runtime_handoff_audit["n_llm_prompt_packets"]
     )
     assert runtime_handoff_audit["n_llm_prompt_target_intake_rows"] > 0
+    assert (
+        runtime_handoff_audit["n_llm_prompt_requests_with_current_goal_plan_rows"]
+        == runtime_handoff_audit["n_llm_prompt_packets"]
+    )
+    assert runtime_handoff_audit["n_llm_prompt_current_goal_plan_rows"] > 0
     assert (
         runtime_handoff_audit[
             "n_llm_prompt_requests_with_minimal_delta_cost_hints"
