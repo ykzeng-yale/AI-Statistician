@@ -1104,6 +1104,18 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == 0
     )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_requests_with_current_goal_plan_rows"
+        ]
+        == payload["n_llm_route_planner_requests_with_current_goal_plan_rows"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_request_current_goal_plan_rows"
+        ]
+        == payload["n_llm_route_planner_request_current_goal_plan_rows"]
+    )
     primary_alignment_rows = [
         json.loads(line)
         for line in Path(
@@ -1721,6 +1733,48 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == 0
     )
     assert payload["n_feedback_llm_route_planner_request_residual_goals"] > 0
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_current_goal_plan_rows"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_requests_with_current_goal_plan_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_current_goal_plan_rows"
+        ]
+        == payload["n_feedback_llm_route_planner_request_current_goal_plan_rows"]
+        >= 1
+    )
+    assert (
+        payload["n_combined_llm_route_planner_requests_with_current_goal_plan_rows"]
+        == payload["n_llm_route_planner_requests_with_current_goal_plan_rows"]
+        + payload[
+            "n_feedback_llm_route_planner_requests_with_current_goal_plan_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload["n_combined_llm_route_planner_request_current_goal_plan_rows"]
+        == payload["n_llm_route_planner_request_current_goal_plan_rows"]
+        + payload["n_feedback_llm_route_planner_request_current_goal_plan_rows"]
+        >= 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_requests_with_current_goal_plan_rows"
+        ]
+        == payload["n_combined_llm_route_planner_requests_with_current_goal_plan_rows"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_request_current_goal_plan_rows"
+        ]
+        == payload["n_combined_llm_route_planner_request_current_goal_plan_rows"]
+    )
     assert (
         payload["n_feedback_llm_route_planner_requests_with_library_coverage_rows"]
         > 0
@@ -5255,6 +5309,18 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_llm_route_planner_summary_requests_with_current_goal_plan_rows"
+        ]
+        == payload["n_llm_route_planner_requests_with_current_goal_plan_rows"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_request_current_goal_plan_rows"
+        ]
+        == payload["n_llm_route_planner_request_current_goal_plan_rows"]
+    )
+    assert (
+        payload[
             "n_publication_bundle_llm_route_planner_summary_quality_control_obligation_inventories"
         ]
         == payload["n_llm_route_planner_quality_control_obligation_inventories"]
@@ -5676,6 +5742,22 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_current_goal_plan_rows"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_requests_with_current_goal_plan_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_current_goal_plan_rows"
+        ]
+        == payload["n_feedback_llm_route_planner_request_current_goal_plan_rows"]
+        >= 1
+    )
+    assert (
+        payload[
             "n_publication_bundle_feedback_llm_route_planner_summary_quality_control_obligation_inventories"
         ]
         == payload[
@@ -5796,6 +5878,32 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "n_combined_llm_route_planner_request_proof_execution_unsupported_target_prover_rows"
         ]
         == 0
+    )
+    assert (
+        payload["n_combined_llm_route_planner_requests_with_current_goal_plan_rows"]
+        == payload["n_llm_route_planner_requests_with_current_goal_plan_rows"]
+        + payload[
+            "n_feedback_llm_route_planner_requests_with_current_goal_plan_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload["n_combined_llm_route_planner_request_current_goal_plan_rows"]
+        == payload["n_llm_route_planner_request_current_goal_plan_rows"]
+        + payload["n_feedback_llm_route_planner_request_current_goal_plan_rows"]
+        >= 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_requests_with_current_goal_plan_rows"
+        ]
+        == payload["n_combined_llm_route_planner_requests_with_current_goal_plan_rows"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_request_current_goal_plan_rows"
+        ]
+        == payload["n_combined_llm_route_planner_request_current_goal_plan_rows"]
     )
     assert (
         payload[
