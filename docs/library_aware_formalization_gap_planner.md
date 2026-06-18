@@ -936,6 +936,9 @@ silent response is rejected instead of being accepted and repaired only by local
 post-processing. The standalone response-payload validator applies the same
 rule in request-bound mode, so external prover integrations cannot bypass the
 route-adoption gate by validating only the reusable JSON payload artifact.
+When a precondition requires `formal_attempt_queue`, the request packet and
+interactive-session rows preserve the same target-primitive scope, and response
+validation rejects an empty or off-scope queue before route adoption can proceed.
 Residual-only repair responses are labeled `ACCEPTED_WITH_RESIDUAL_REPAIR` and
 remain pending with `residual_interpretations_require_route_replay` until the
 repair is replayed or discharged by later evidence. The standalone seed also
@@ -1676,6 +1679,9 @@ and folded back into `context_packet.route_adoption_preconditions`. This keeps
 the next Haiku/Sonnet/Opus planner turn from treating a route as replay-ready
 when the interactive loop is still waiting for source search, proof-state
 feedback, or route-repair obligations.
+The compacted rows also preserve precondition `target_primitives`, so a queued
+`formal_attempt_queue` obligation remains tied to the exact informal/formal
+primitive that blocked adoption rather than becoming a generic prover task.
 
 python3 -m ai_statistician.cli formalization-gap-planner-route-replan-handoff \
   --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \
@@ -1844,10 +1850,10 @@ When route stability reports unresolved LLM `route_adoption_preconditions`, the
 interactive-session row now keeps the route in
 `AWAITING_REFINEMENT_RESPONSES` even if no hook is explicitly awaiting. The row
 copies the precondition object, blocker counts, required-response-field counts,
-and `route_adoption_precondition_unresolved`, adds the signal to decision-policy
-trigger/evidence fields, and emits next commands to materialize the missing
-precondition responses before rerunning the resource queue, response ledger, and
-stability audit.
+target-primitive counts, and `route_adoption_precondition_unresolved`, adds the
+signal to decision-policy trigger/evidence fields, and emits next commands to
+materialize the missing precondition responses before rerunning the resource
+queue, response ledger, and stability audit.
 Those session and decision-policy rows can be passed back into
 `formalization_gap_planner_llm_route_planner`, so the next LLM route-planning
 packet sees the current bounded interaction state, selected tools, quality

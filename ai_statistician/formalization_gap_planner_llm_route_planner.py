@@ -16114,6 +16114,29 @@ def _response_route_adoption_precondition_errors(
                 "planner_next_actions scoped to precondition target_primitives: "
                 + ", ".join(sorted(target_primitives)[:8])
             )
+    formal_attempt_rows = _dict_tuple(payload.get("formal_attempt_queue", []))
+    if "formal_attempt_queue" in required_fields and not formal_attempt_rows:
+        errors.append(
+            "route_adoption_preconditions require at least one nonempty "
+            "formal_attempt_queue row"
+        )
+    if "formal_attempt_queue" in required_fields and formal_attempt_rows:
+        target_primitives = _route_adoption_precondition_target_primitives(
+            preconditions
+        )
+        formal_attempt_targets = _route_adoption_followup_target_primitives(
+            formal_attempt_rows,
+            context_packet,
+        )
+        if target_primitives and (
+            not formal_attempt_targets
+            or target_primitives.isdisjoint(formal_attempt_targets)
+        ):
+            errors.append(
+                "route_adoption_preconditions require formal_attempt_queue "
+                "scoped to precondition target_primitives: "
+                + ", ".join(sorted(target_primitives)[:8])
+            )
     return errors
 
 
@@ -27326,6 +27349,7 @@ def _interactive_route_adoption_precondition_summary(
     summary_rows: list[dict[str, object]] = []
     blockers: list[str] = []
     required_fields: list[str] = []
+    target_primitives: list[str] = []
     unresolved_row_ids: list[str] = []
     blocked_row_ids: list[str] = []
     for row in rows:
@@ -27336,6 +27360,9 @@ def _interactive_route_adoption_precondition_summary(
         row_required_fields = _str_tuple(
             row.get("route_adoption_precondition_required_response_fields", [])
         ) or _str_tuple(preconditions.get("response_required_fields", []))
+        row_target_primitives = _str_tuple(
+            row.get("route_adoption_precondition_target_primitives", [])
+        ) or _str_tuple(preconditions.get("target_primitives", []))
         blocked_before_response = bool(
             _truthy(row.get("route_adoption_precondition_blocked_before_response"))
             or _truthy(preconditions.get("blocked_before_response"))
@@ -27358,6 +27385,7 @@ def _interactive_route_adoption_precondition_summary(
             blocked_row_ids.append(row_id)
         blockers.extend(row_blockers)
         required_fields.extend(row_required_fields)
+        target_primitives.extend(row_target_primitives)
         summary_rows.append(
             {
                 "interactive_session_row_id": row_id,
@@ -27368,6 +27396,7 @@ def _interactive_route_adoption_precondition_summary(
                 "unresolved": unresolved,
                 "known_pre_response_blockers": list(row_blockers[:12]),
                 "response_required_fields": list(row_required_fields[:12]),
+                "target_primitives": list(row_target_primitives[:12]),
                 "next_interaction_kind": str(
                     row.get("next_interaction_kind", "")
                 ).strip(),
@@ -27378,6 +27407,7 @@ def _interactive_route_adoption_precondition_summary(
         return {}
     unique_blockers = _unique_strings(blockers)
     unique_required_fields = _unique_strings(required_fields)
+    unique_target_primitives = _unique_strings(target_primitives)
     return {
         "summary_kind": "interactive_route_adoption_precondition_summary",
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
@@ -27397,6 +27427,8 @@ def _interactive_route_adoption_precondition_summary(
         "n_known_pre_response_blockers": len(unique_blockers),
         "response_required_fields": list(unique_required_fields[:20]),
         "n_response_required_fields": len(unique_required_fields),
+        "target_primitives": list(unique_target_primitives[:20]),
+        "n_target_primitives": len(unique_target_primitives),
         "rows": summary_rows[:12],
     }
 
@@ -28357,6 +28389,7 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "route_adoption_precondition_unresolved",
         "route_adoption_precondition_known_blockers",
         "route_adoption_precondition_required_response_fields",
+        "route_adoption_precondition_target_primitives",
         "route_adoption_precondition_known_blocker_count",
         "route_adoption_precondition_required_response_field_count",
         "formal_attempt_queue_items",

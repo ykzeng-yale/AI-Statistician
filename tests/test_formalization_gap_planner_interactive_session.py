@@ -845,6 +845,8 @@ def test_interactive_session_waits_on_unresolved_route_adoption_preconditions() 
         "n_known_pre_response_blockers": 1,
         "response_required_fields": ["search_requests", "planner_next_actions"],
         "n_response_required_fields": 2,
+        "target_primitives": ["rank_uniformity"],
+        "n_target_primitives": 1,
     }
     (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
         json.dumps(
@@ -901,6 +903,9 @@ def test_interactive_session_waits_on_unresolved_route_adoption_preconditions() 
                             "search_requests",
                             "planner_next_actions",
                         ],
+                        "route_adoption_precondition_target_primitives": [
+                            "rank_uniformity"
+                        ],
                         "route_adoption_precondition_known_blocker_count": 1,
                         "route_adoption_precondition_required_response_field_count": 2,
                     }
@@ -924,6 +929,7 @@ def test_interactive_session_waits_on_unresolved_route_adoption_preconditions() 
     assert payload["n_rows_with_unresolved_route_adoption_preconditions"] == 1
     assert payload["n_route_adoption_precondition_known_blockers"] == 1
     assert payload["n_route_adoption_precondition_required_response_fields"] == 2
+    assert payload["n_route_adoption_precondition_target_primitives"] == 1
     row = payload["rows"][0]
     assert row["session_state"] == "AWAITING_REFINEMENT_RESPONSES"
     assert row["next_interaction_kind"] == "await_refinement_response"
@@ -936,6 +942,9 @@ def test_interactive_session_waits_on_unresolved_route_adoption_preconditions() 
         "search_requests",
         "planner_next_actions",
     )
+    assert row["route_adoption_precondition_target_primitives"] == (
+        "rank_uniformity",
+    )
     assert "resource_response_ledger" in row["next_tools"]
     assert "formalization_gap_planner_resource_request_queue" in row["next_tools"]
     assert any(
@@ -945,6 +954,12 @@ def test_interactive_session_waits_on_unresolved_route_adoption_preconditions() 
     assert row["evidence_summary"]["route_adoption_precondition_unresolved"] == 1
     assert (
         row["evidence_summary"]["route_adoption_precondition_known_blockers"]
+        == 1
+    )
+    assert (
+        row["evidence_summary"][
+            "route_adoption_precondition_target_primitives"
+        ]
         == 1
     )
     policy = payload["decision_policy_rows"][0]

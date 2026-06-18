@@ -17859,6 +17859,122 @@ def test_response_payload_validation_enforces_route_adoption_preconditions() -> 
     )
 
 
+def test_response_payload_validation_enforces_formal_attempt_queue_precondition() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_response_validation_formal_attempt_precondition"
+    )
+    out_dir = root / "llm_route_planner"
+    interactive_session_dir = root / "interactive_session"
+    response_json = root / "responses.json"
+    request_context_json = root / "request_context.json"
+    validation_out_dir = root / "response_payload_validation"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    interactive_session_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    (
+        interactive_session_dir
+        / "formalization_gap_planner_interactive_session_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_interactive_session",
+                "rows": [
+                    {
+                        "interactive_session_row_id": (
+                            "session:rank_route_formal_attempt_precondition"
+                        ),
+                        "goal_plan_id": "goal:rank_route",
+                        "route_id": "rank_route",
+                        "display_name": "distribution_free_rank_bound",
+                        "session_state": "AWAITING_REFINEMENT_RESPONSES",
+                        "next_interaction_kind": "target_prover_replay",
+                        "next_owner_agent": "formal_verifier",
+                        "route_adoption_precondition_blocked_before_response": True,
+                        "route_adoption_precondition_unresolved": True,
+                        "route_adoption_precondition_known_blockers": [
+                            ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE
+                        ],
+                        "route_adoption_precondition_required_response_fields": [
+                            "formal_attempt_queue"
+                        ],
+                        "route_adoption_precondition_target_primitives": [
+                            "rank_uniformity"
+                        ],
+                    }
+                ],
+                "decision_policy_rows": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    prompt_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="prompt_only",
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+    request = prompt_payload["request_packets"][0]
+    preconditions = request["context_packet"]["route_adoption_preconditions"]
+    assert preconditions["blocked_before_response"] is True
+    assert "formal_attempt_queue" in preconditions["response_required_fields"]
+    assert preconditions["target_primitives"] == ["rank_uniformity"]
+    request_context_json.write_text(
+        json.dumps({"request_packets": [request]}, indent=2),
+        encoding="utf-8",
+    )
+
+    valid_payload = _llm_response_payload()
+    valid_payload["search_requests"] = []
+    valid_payload["planner_next_actions"] = []
+    valid_payload["uncertainty_flags"] = []
+    valid_payload["semantic_alignment_risks"] = []
+    missing_queue_payload = deepcopy(valid_payload)
+    missing_queue_payload["formal_attempt_queue"] = []
+    response_json.write_text(
+        json.dumps(
+            {
+                "responses": [
+                    {
+                        "request_id": request["request_id"],
+                        "route_id": request["route_id"],
+                        "response_payload": valid_payload,
+                    },
+                    {
+                        "request_id": request["request_id"],
+                        "route_id": request["route_id"],
+                        "response_payload": missing_queue_payload,
+                    },
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    validation_payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        validation_out_dir,
+        request_context_json=request_context_json,
+    )
+
+    assert validation_payload["all_ok"] is False
+    assert validation_payload["n_payloads"] == 2
+    assert validation_payload["n_valid_payloads"] == 1
+    assert validation_payload["n_invalid_payloads"] == 1
+    valid_row, missing_queue_row = validation_payload["rows"]
+    assert valid_row["ok"] is True
+    assert valid_row["n_request_context_errors"] == 0
+    assert missing_queue_row["ok"] is False
+    assert missing_queue_row["n_request_context_errors"] >= 1
+    assert any(
+        "route_adoption_preconditions require at least one nonempty "
+        "formal_attempt_queue row" in error
+        for error in missing_queue_row["errors"]
+    )
+
+
 def test_response_payload_validation_enforces_agentic_strategy_plan_obligations() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_response_validation_agentic_strategy_obligations"

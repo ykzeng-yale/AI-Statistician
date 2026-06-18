@@ -107,6 +107,7 @@ class FormalizationGapPlannerInteractiveSessionRow:
     route_adoption_precondition_unresolved: bool
     route_adoption_precondition_known_blockers: tuple[str, ...]
     route_adoption_precondition_required_response_fields: tuple[str, ...]
+    route_adoption_precondition_target_primitives: tuple[str, ...]
     route_adoption_precondition_known_blocker_count: int
     route_adoption_precondition_required_response_field_count: int
     resource_request_ids: tuple[str, ...]
@@ -360,6 +361,9 @@ def export_formalization_gap_planner_interactive_session(
             row.route_adoption_precondition_required_response_field_count
             for row in rows
         ),
+        "n_route_adoption_precondition_target_primitives": sum(
+            len(row.route_adoption_precondition_target_primitives) for row in rows
+        ),
         "n_resource_requests_linked": sum(
             len(row.resource_request_ids) for row in rows
         ),
@@ -572,6 +576,7 @@ def interactive_session_row_json_schema() -> dict[str, object]:
             "route_adoption_precondition_unresolved": {"type": "boolean"},
             "route_adoption_precondition_known_blockers": string_array,
             "route_adoption_precondition_required_response_fields": string_array,
+            "route_adoption_precondition_target_primitives": string_array,
             "route_adoption_precondition_known_blocker_count": {"type": "integer"},
             "route_adoption_precondition_required_response_field_count": {
                 "type": "integer"
@@ -1542,6 +1547,12 @@ def _session_row(
             route_adoption_preconditions.get("response_required_fields", []),
         )
     )
+    route_adoption_precondition_target_primitives = _str_tuple(
+        stability_row.get(
+            "route_adoption_precondition_target_primitives",
+            route_adoption_preconditions.get("target_primitives", []),
+        )
+    )
     route_adoption_precondition_known_blocker_count = _nonnegative_int(
         stability_row.get("route_adoption_precondition_known_blocker_count"),
         len(route_adoption_precondition_known_blockers),
@@ -1804,6 +1815,9 @@ def _session_row(
             "route_adoption_precondition_required_response_fields": (
                 route_adoption_precondition_required_response_field_count
             ),
+            "route_adoption_precondition_target_primitives": len(
+                route_adoption_precondition_target_primitives
+            ),
             "route_adoption_precondition_unresolved": int(
                 route_adoption_precondition_unresolved
             ),
@@ -1837,6 +1851,9 @@ def _session_row(
         ),
         route_adoption_precondition_required_response_fields=(
             route_adoption_precondition_required_response_fields
+        ),
+        route_adoption_precondition_target_primitives=(
+            route_adoption_precondition_target_primitives
         ),
         route_adoption_precondition_known_blocker_count=(
             route_adoption_precondition_known_blocker_count
