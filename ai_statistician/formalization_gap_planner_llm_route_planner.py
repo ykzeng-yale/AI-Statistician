@@ -4289,6 +4289,10 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_route_option_selection_candidate_primitives",
             "n_request_route_option_selection_lower_bound_options",
             "n_requests_with_legacy_context_field_aliases",
+            "n_requests_with_target_intake_rows",
+            "n_request_target_intake_rows",
+            "n_requests_with_current_goal_plan_rows",
+            "n_request_current_goal_plan_rows",
             "n_request_model_tier_haiku",
             "n_request_model_tier_sonnet",
             "n_request_model_tier_opus",
@@ -4561,6 +4565,10 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_requests_with_legacy_context_field_aliases": nonnegative_integer,
+            "n_requests_with_target_intake_rows": nonnegative_integer,
+            "n_request_target_intake_rows": nonnegative_integer,
+            "n_requests_with_current_goal_plan_rows": nonnegative_integer,
+            "n_request_current_goal_plan_rows": nonnegative_integer,
             "n_request_model_tier_haiku": nonnegative_integer,
             "n_request_model_tier_sonnet": nonnegative_integer,
             "n_request_model_tier_opus": nonnegative_integer,
@@ -5723,6 +5731,67 @@ def validate_llm_route_planner_manifest(
     ) != n_requests_with_context_aliases:
         errors.append(
             "n_requests_with_legacy_context_field_aliases must match request_packets"
+        )
+    n_requests_with_target_intake_rows = sum(
+        1
+        for packet in request_packets
+        if _dict_tuple(
+            _dict_value(packet, "context_packet").get("target_intake_rows", [])
+        )
+    )
+    if int(
+        manifest.get("n_requests_with_target_intake_rows", 0) or 0
+    ) != n_requests_with_target_intake_rows:
+        errors.append(
+            "n_requests_with_target_intake_rows must match request_packets"
+        )
+    n_request_target_intake_rows = sum(
+        len(
+            _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "target_intake_rows",
+                    [],
+                )
+            )
+        )
+        for packet in request_packets
+    )
+    if int(
+        manifest.get("n_request_target_intake_rows", 0) or 0
+    ) != n_request_target_intake_rows:
+        errors.append("n_request_target_intake_rows must match request_packets")
+    n_requests_with_current_goal_plan_rows = sum(
+        1
+        for packet in request_packets
+        if _dict_tuple(
+            _dict_value(packet, "context_packet").get(
+                "current_goal_plan_rows",
+                [],
+            )
+        )
+    )
+    if int(
+        manifest.get("n_requests_with_current_goal_plan_rows", 0) or 0
+    ) != n_requests_with_current_goal_plan_rows:
+        errors.append(
+            "n_requests_with_current_goal_plan_rows must match request_packets"
+        )
+    n_request_current_goal_plan_rows = sum(
+        len(
+            _dict_tuple(
+                _dict_value(packet, "context_packet").get(
+                    "current_goal_plan_rows",
+                    [],
+                )
+            )
+        )
+        for packet in request_packets
+    )
+    if int(
+        manifest.get("n_request_current_goal_plan_rows", 0) or 0
+    ) != n_request_current_goal_plan_rows:
+        errors.append(
+            "n_request_current_goal_plan_rows must match request_packets"
         )
     n_requests_with_route_planning_brief = sum(
         1

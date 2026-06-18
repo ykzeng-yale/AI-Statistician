@@ -9630,6 +9630,16 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         assert field_name in manifest_schema["required"]
         assert manifest_schema["properties"][field_name]["type"] == "integer"
         assert manifest_schema["properties"][field_name]["minimum"] == 0
+    staged_context_manifest_fields = (
+        "n_requests_with_target_intake_rows",
+        "n_request_target_intake_rows",
+        "n_requests_with_current_goal_plan_rows",
+        "n_request_current_goal_plan_rows",
+    )
+    for field_name in staged_context_manifest_fields:
+        assert field_name in manifest_schema["required"]
+        assert manifest_schema["properties"][field_name]["type"] == "integer"
+        assert manifest_schema["properties"][field_name]["minimum"] == 0
     assert payload["repair_attempt_ledger"] == ()
     assert payload["n_repair_attempt_ledger_rows"] == 0
     assert payload["n_requests_with_repair_attempt_ledger"] == 0
@@ -9709,6 +9719,42 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_requests_with_legacy_context_field_aliases must match request_packets"
         in validate_llm_route_planner_manifest(
             drifted_alias_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_target_intake_count_manifest = deepcopy(payload)
+    drifted_target_intake_count_manifest["n_requests_with_target_intake_rows"] = 999
+    assert (
+        "n_requests_with_target_intake_rows must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_target_intake_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_target_intake_rows_manifest = deepcopy(payload)
+    drifted_target_intake_rows_manifest["n_request_target_intake_rows"] = 999
+    assert (
+        "n_request_target_intake_rows must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_target_intake_rows_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_goal_plan_count_manifest = deepcopy(payload)
+    drifted_goal_plan_count_manifest["n_requests_with_current_goal_plan_rows"] = 999
+    assert (
+        "n_requests_with_current_goal_plan_rows must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_goal_plan_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_goal_plan_rows_manifest = deepcopy(payload)
+    drifted_goal_plan_rows_manifest["n_request_current_goal_plan_rows"] = 999
+    assert (
+        "n_request_current_goal_plan_rows must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_goal_plan_rows_manifest,
             manifest_schema,
         )
     )
