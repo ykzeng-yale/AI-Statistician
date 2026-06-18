@@ -1043,6 +1043,16 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert manifest["llm_route_planner_summary"]["n_request_target_intake_rows"] == 0
     assert (
         manifest["llm_route_planner_summary"][
+            "n_requests_with_current_goal_plan_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"]["n_request_current_goal_plan_rows"]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
             "n_requests_with_route_adoption_preconditions"
         ]
         == 1

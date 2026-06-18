@@ -1011,6 +1011,12 @@ def _write_accepted_llm_route_planner_artifact(
             encoding="utf-8",
         )
     out_dir = root / "llm_route_planner"
+    goal_plan_dir = root / "standalone_plan"
+    goal_plan_payload = export_formalization_gap_planner_standalone_plan(
+        input_json,
+        goal_plan_dir,
+    )
+    assert goal_plan_payload["all_ok"]
     component_resource_registry_dir = root / "component_resource_registry"
     export_formalization_gap_planner_component_resource_registry(
         component_resource_registry_dir
@@ -1050,6 +1056,7 @@ def _write_accepted_llm_route_planner_artifact(
         model_tier="haiku",
         max_repair_attempts=1,
         formalization_gap_planner_target_intake_dir=target_intake_dir,
+        goal_conditioned_minimal_formalization_plan_dir=goal_plan_dir,
         formalization_gap_planner_component_resource_registry_dir=(
             component_resource_registry_dir
         ),
@@ -8666,6 +8673,8 @@ def test_publication_bundle_audit_checks_llm_seed_source_grounding_provenance() 
         llm_summary["n_request_residual_source_grounding_unresolved_rows"]
         == 1
     )
+    assert llm_summary["n_requests_with_current_goal_plan_rows"] == 1
+    assert llm_summary["n_request_current_goal_plan_rows"] == 1
     assert llm_summary["n_formal_attempt_queue_items"] == 1
     assert llm_summary["n_rows_with_formal_attempt_queue"] == 1
 
@@ -8720,6 +8729,37 @@ def test_publication_bundle_audit_checks_llm_seed_source_grounding_provenance() 
         for error in summary_checks[0]["errors"]
     )
     assert not rejected_summary_payload["all_ok"]
+    bundle_manifest_path.write_text(
+        json.dumps(bundle_manifest, indent=2),
+        encoding="utf-8",
+    )
+
+    stale_goal_plan_summary_manifest = json.loads(json.dumps(bundle_manifest))
+    stale_goal_plan_summary_manifest["llm_route_planner_summary"][
+        "n_request_current_goal_plan_rows"
+    ] = 0
+    bundle_manifest_path.write_text(
+        json.dumps(stale_goal_plan_summary_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_goal_plan_summary_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_current_goal_plan_summary_drift",
+        )
+    )
+    goal_plan_summary_checks = [
+        row
+        for row in rejected_goal_plan_summary_payload["checks"]
+        if row["check_name"] == "bundle_llm_route_planner_summary_consistent"
+    ]
+    assert goal_plan_summary_checks
+    assert not goal_plan_summary_checks[0]["ok"]
+    assert any(
+        "n_request_current_goal_plan_rows mismatch" in error
+        for error in goal_plan_summary_checks[0]["errors"]
+    )
+    assert not rejected_goal_plan_summary_payload["all_ok"]
     bundle_manifest_path.write_text(
         json.dumps(bundle_manifest, indent=2),
         encoding="utf-8",
@@ -8913,6 +8953,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         bundle_manifest["llm_route_planner_summary"][
             "n_requests_with_component_resource_registry_context"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_requests_with_current_goal_plan_rows"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_request_current_goal_plan_rows"
         ]
         == 1
     )
@@ -9112,6 +9164,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert (
         bundle_manifest["feedback_llm_route_planner_summary"][
             "n_requests_with_context_packet_inventory"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_current_goal_plan_rows"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_request_current_goal_plan_rows"
         ]
         == 1
     )

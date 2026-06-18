@@ -2395,6 +2395,8 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_available_source_snippets",
             "n_requests_with_target_intake_rows",
             "n_request_target_intake_rows",
+            "n_requests_with_current_goal_plan_rows",
+            "n_request_current_goal_plan_rows",
             "n_requests_with_route_adoption_preconditions",
             "n_request_route_adoption_precondition_known_blockers",
             "n_request_route_adoption_precondition_required_response_fields",
@@ -2572,6 +2574,8 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_available_source_snippets": nonnegative_integer,
             "n_requests_with_target_intake_rows": nonnegative_integer,
             "n_request_target_intake_rows": nonnegative_integer,
+            "n_requests_with_current_goal_plan_rows": nonnegative_integer,
+            "n_request_current_goal_plan_rows": nonnegative_integer,
             "n_requests_with_route_adoption_preconditions": nonnegative_integer,
             "n_request_route_adoption_precondition_known_blockers": (
                 nonnegative_integer
@@ -5425,6 +5429,8 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_available_source_snippets": 0,
         "n_requests_with_target_intake_rows": 0,
         "n_request_target_intake_rows": 0,
+        "n_requests_with_current_goal_plan_rows": 0,
+        "n_request_current_goal_plan_rows": 0,
         "n_requests_with_route_adoption_preconditions": 0,
         "n_request_route_adoption_precondition_known_blockers": 0,
         "n_request_route_adoption_precondition_required_response_fields": 0,
@@ -5738,6 +5744,39 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                         _dict_tuple(
                             _dict_value(packet, "context_packet").get(
                                 "target_intake_rows",
+                                [],
+                            )
+                        )
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_requests_with_current_goal_plan_rows": int(
+            payload.get(
+                "n_requests_with_current_goal_plan_rows",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_tuple(
+                        _dict_value(packet, "context_packet").get(
+                            "current_goal_plan_rows",
+                            [],
+                        )
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_current_goal_plan_rows": int(
+            payload.get(
+                "n_request_current_goal_plan_rows",
+                sum(
+                    len(
+                        _dict_tuple(
+                            _dict_value(packet, "context_packet").get(
+                                "current_goal_plan_rows",
                                 [],
                             )
                         )

@@ -3260,6 +3260,39 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_requests_with_current_goal_plan_rows": int(
+            payload.get(
+                "n_requests_with_current_goal_plan_rows",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _dict_tuple(
+                        _dict_value(packet, "context_packet").get(
+                            "current_goal_plan_rows",
+                            [],
+                        )
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_current_goal_plan_rows": int(
+            payload.get(
+                "n_request_current_goal_plan_rows",
+                sum(
+                    len(
+                        _dict_tuple(
+                            _dict_value(packet, "context_packet").get(
+                                "current_goal_plan_rows",
+                                [],
+                            )
+                        )
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
         "n_requests_with_route_adoption_preconditions": int(
             payload.get(
                 "n_requests_with_route_adoption_preconditions",
