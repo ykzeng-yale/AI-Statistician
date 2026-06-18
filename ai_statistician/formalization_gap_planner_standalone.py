@@ -51,6 +51,9 @@ FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_KIND = (
 FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS = (
     "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
 )
+FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_ROUTE_OPTION_SELECTION_BRIEF_KIND = (
+    "formalization_gap_planner_llm_route_planner_route_option_selection_brief"
+)
 LLM_ROUTE_PLANNER_READY_FOR_STANDALONE_REPLAY = "READY_FOR_STANDALONE_REPLAY"
 FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT = (
     "formalization_gap_planner_standalone_input"
@@ -845,6 +848,40 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
                 f"routes[{idx}].llm_route_planner_route_option_selection_brief must match "
                 f"routes[{idx}].replan_metadata.llm_route_planner_route_option_selection_brief"
             )
+        effective_library_snapshot_ref = str(
+            route.get(
+                "library_snapshot_ref",
+                metadata.get(
+                    "library_snapshot_ref",
+                    payload.get("library_snapshot_ref", ""),
+                ),
+            )
+            or ""
+        ).strip()
+        errors.extend(
+            _route_option_selection_brief_input_errors(
+                route_option_selection_brief,
+                location=(
+                    f"routes[{idx}]."
+                    "llm_route_planner_route_option_selection_brief"
+                ),
+                route_id=str(route.get("route_id", "")).strip(),
+                target_prover_family=effective_target,
+                library_snapshot_ref=effective_library_snapshot_ref,
+            )
+        )
+        errors.extend(
+            _route_option_selection_brief_input_errors(
+                metadata_route_option_selection_brief,
+                location=(
+                    f"routes[{idx}].replan_metadata."
+                    "llm_route_planner_route_option_selection_brief"
+                ),
+                route_id=str(route.get("route_id", "")).strip(),
+                target_prover_family=effective_target,
+                library_snapshot_ref=effective_library_snapshot_ref,
+            )
+        )
         route_adoption_preconditions = _dict_value(
             route.get("llm_route_planner_route_adoption_preconditions", {})
         )
@@ -1281,6 +1318,165 @@ def _target_theorem_context_packet_input_errors(
         errors.append(
             f"{location}.target_prover_family {packet_target} does not match "
             f"target_prover_family {target_prover_family}"
+        )
+    return errors
+
+
+def _route_option_selection_brief_input_errors(
+    brief: Any,
+    *,
+    location: str,
+    route_id: str,
+    target_prover_family: str,
+    library_snapshot_ref: str,
+) -> list[str]:
+    brief_dict = _dict_value(brief)
+    if not brief_dict:
+        return []
+    _ = route_id
+    errors: list[str] = []
+    if (
+        brief_dict.get("brief_kind")
+        != FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_ROUTE_OPTION_SELECTION_BRIEF_KIND
+    ):
+        errors.append(
+            f"{location}.brief_kind must equal "
+            + FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_ROUTE_OPTION_SELECTION_BRIEF_KIND
+        )
+    target_key = _target_prover_key(target_prover_family)
+    brief_target = str(brief_dict.get("target_prover_family", "") or "").strip()
+    brief_target_key = _target_prover_key(brief_target)
+    if target_key and brief_target_key and target_key != brief_target_key:
+        errors.append(
+            f"{location}.target_prover_family {brief_target} does not match "
+            f"target_prover_family {target_prover_family}"
+        )
+    brief_library_snapshot_ref = str(
+        brief_dict.get("library_snapshot_ref", "") or ""
+    ).strip()
+    if (
+        library_snapshot_ref
+        and brief_library_snapshot_ref
+        and brief_library_snapshot_ref != library_snapshot_ref
+    ):
+        errors.append(
+            f"{location}.library_snapshot_ref {brief_library_snapshot_ref} "
+            f"does not match library_snapshot_ref {library_snapshot_ref}"
+        )
+
+    candidate_options = _dict_list(brief_dict.get("candidate_route_options", []))
+    reported_candidate_count = _int_or_none(
+        brief_dict.get("n_candidate_route_options")
+    )
+    if (
+        reported_candidate_count is None
+        or reported_candidate_count != len(candidate_options)
+    ):
+        errors.append(
+            f"{location}.n_candidate_route_options must match "
+            "candidate_route_options"
+        )
+
+    candidate_primitive_total = 0
+    for option_index, option in enumerate(candidate_options):
+        selected_primitives = _str_tuple(option.get("selected_primitives", []))
+        candidate_primitive_total += len(selected_primitives)
+        reported_option_primitives = _int_or_none(
+            option.get("n_selected_primitives")
+        )
+        if (
+            reported_option_primitives is None
+            or reported_option_primitives != len(selected_primitives)
+        ):
+            errors.append(
+                f"{location}.candidate_route_options[{option_index}]."
+                "n_selected_primitives must match selected_primitives"
+            )
+
+    reported_primitive_total = _int_or_none(
+        brief_dict.get("n_candidate_route_option_primitives")
+    )
+    if (
+        reported_primitive_total is None
+        or reported_primitive_total != candidate_primitive_total
+    ):
+        errors.append(
+            f"{location}.n_candidate_route_option_primitives must match "
+            "candidate_route_options selected_primitives"
+        )
+
+    candidate_ids = {
+        str(option.get("route_option_id", "") or "").strip()
+        for option in candidate_options
+        if str(option.get("route_option_id", "") or "").strip()
+    }
+    lower_bound_id = str(
+        brief_dict.get("lower_bound_selected_route_option_id", "") or ""
+    ).strip()
+    if lower_bound_id and lower_bound_id not in candidate_ids:
+        errors.append(
+            f"{location}.lower_bound_selected_route_option_id must name a "
+            "candidate_route_options route_option_id"
+        )
+    selected_by_policy_options = [
+        option
+        for option in candidate_options
+        if bool(option.get("selected_by_lower_bound_policy", False))
+    ]
+    if candidate_options and len(selected_by_policy_options) != 1:
+        errors.append(
+            f"{location}.candidate_route_options must mark exactly one "
+            "selected_by_lower_bound_policy option"
+        )
+    if selected_by_policy_options and lower_bound_id:
+        selected_option_id = str(
+            selected_by_policy_options[0].get("route_option_id", "") or ""
+        ).strip()
+        if selected_option_id and selected_option_id != lower_bound_id:
+            errors.append(
+                f"{location}.lower_bound_selected_route_option_id must match "
+                "the selected_by_lower_bound_policy option"
+            )
+
+    reported_tied_count = _int_or_none(
+        brief_dict.get("n_lower_bound_tied_route_options")
+    )
+    if reported_tied_count is not None:
+        observed_tied_count = sum(
+            1
+            for option in candidate_options
+            if bool(option.get("lower_bound_tied_for_best", False))
+        )
+        if reported_tied_count != observed_tied_count:
+            errors.append(
+                f"{location}.n_lower_bound_tied_route_options must match "
+                "candidate_route_options"
+            )
+
+    selected_option = next(
+        (
+            option
+            for option in candidate_options
+            if str(option.get("route_option_id", "") or "").strip()
+            == lower_bound_id
+        ),
+        {},
+    )
+    reported_selected_cost = _float_or_none(
+        brief_dict.get("lower_bound_selected_route_cost")
+    )
+    observed_selected_cost = _float_or_none(
+        selected_option.get("minimum_route_base_cost")
+    )
+    if (
+        lower_bound_id
+        and reported_selected_cost is not None
+        and observed_selected_cost is not None
+        and abs(reported_selected_cost - observed_selected_cost) > 1e-9
+    ):
+        errors.append(
+            f"{location}.lower_bound_selected_route_cost must match selected "
+            "candidate_route_options minimum_route_base_cost"
         )
     return errors
 

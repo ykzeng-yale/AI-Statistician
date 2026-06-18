@@ -10114,6 +10114,37 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "routes[0].replan_metadata.llm_route_planner_route_option_selection_brief"
         in validate_standalone_input_payload(drifted_route_option_seed)
     )
+    consistently_drifted_route_option_seed = deepcopy(payload["standalone_seed"])
+    seed_route_brief = consistently_drifted_route_option_seed["routes"][0][
+        "llm_route_planner_route_option_selection_brief"
+    ]
+    seed_metadata_brief = consistently_drifted_route_option_seed["routes"][0][
+        "replan_metadata"
+    ]["llm_route_planner_route_option_selection_brief"]
+    for brief in (seed_route_brief, seed_metadata_brief):
+        brief["lower_bound_selected_route_option_id"] = "route_option:missing"
+        brief["n_candidate_route_options"] = 99
+        brief["candidate_route_options"][0]["n_selected_primitives"] = 99
+    standalone_route_option_errors = validate_standalone_input_payload(
+        consistently_drifted_route_option_seed
+    )
+    assert (
+        "routes[0].llm_route_planner_route_option_selection_brief."
+        "lower_bound_selected_route_option_id must name a "
+        "candidate_route_options route_option_id"
+        in standalone_route_option_errors
+    )
+    assert (
+        "routes[0].llm_route_planner_route_option_selection_brief."
+        "n_candidate_route_options must match candidate_route_options"
+        in standalone_route_option_errors
+    )
+    assert (
+        "routes[0].llm_route_planner_route_option_selection_brief."
+        "candidate_route_options[0].n_selected_primitives must match "
+        "selected_primitives"
+        in standalone_route_option_errors
+    )
     assert metadata["revised_informal_knowledge_dag_nodes"][0]["node_source"] == (
         "llm_route_planner_revised_informal_dag"
     )
