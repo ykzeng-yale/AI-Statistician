@@ -3329,6 +3329,26 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "residual_goals": ["rank_uniformity"],
         "source_refs": ["fixture source"],
     }
+    handoff_target_context_summary = {
+        "summary_kind": (
+            "formalization_gap_planner_llm_route_planner_target_context_summary"
+        ),
+        "route_id": "route:fixture",
+        "normalized_objects": ["calibration scores", "test score rank"],
+        "normalized_assumptions": [
+            "exchangeable calibration and test scores"
+        ],
+        "normalized_statistical_procedures": [
+            "rank-based conformal calibration"
+        ],
+        "normalized_desired_conclusions": ["rank uniformity"],
+        "normalized_theorem_shapes": ["finite sample rank identity"],
+        "proof_source_refs": ["fixture source"],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
     handoff_route_planning_brief = {
         "brief_kind": "formalization_gap_planner_llm_route_planner_route_planning_brief",
         "route_id": "route:fixture",
@@ -3467,6 +3487,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "route_revision_reasons": ["proof-state feedback exposed missing bridge"],
         "route_revision_summaries": ["add rank uniformity bridge"],
         "target_theorem_context_packet": handoff_target_theorem_context_packet,
+        "target_context_summary": handoff_target_context_summary,
         "route_planning_brief": handoff_route_planning_brief,
         "route_option_selection_brief": handoff_route_option_selection_brief,
         "primitive_evidence_matrix_witness": (
@@ -3490,6 +3511,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "route_id": "replan_route:rank_uniformity",
             "target_prover_family": "lean4",
             "target_theorem_context_packet": handoff_target_theorem_context_packet,
+            "llm_route_planner_target_context_summary": (
+                handoff_target_context_summary
+            ),
             "llm_route_planner_route_planning_brief": (
                 handoff_route_planning_brief
             ),
@@ -3506,6 +3530,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "target_theorem_context_packet": handoff_target_theorem_context_packet,
                 "llm_route_planner_target_theorem_context_packet": (
                     handoff_target_theorem_context_packet
+                ),
+                "llm_route_planner_target_context_summary": (
+                    handoff_target_context_summary
                 ),
                 "llm_route_planner_route_planning_brief": (
                     handoff_route_planning_brief
@@ -3572,6 +3599,8 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_distinct_prover_diagnostic_signatures": 1,
                 "n_routes_with_target_theorem_context_packet": 1,
                 "n_standalone_seed_routes_with_target_theorem_context_packet": 1,
+                "n_routes_with_llm_target_context_summary": 1,
+                "n_standalone_seed_routes_with_llm_target_context_summary": 1,
                 "n_routes_with_llm_route_planning_brief": 1,
                 "n_standalone_seed_routes_with_llm_route_planning_brief": 1,
                 "n_routes_with_llm_route_option_selection_brief": 1,
@@ -3608,6 +3637,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                         "target_theorem_context_packet": (
                             handoff_target_theorem_context_packet
                         ),
+                        "llm_route_planner_target_context_summary": (
+                            handoff_target_context_summary
+                        ),
                         "llm_route_planner_route_planning_brief": (
                             handoff_route_planning_brief
                         ),
@@ -3630,6 +3662,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                             ),
                             "llm_route_planner_target_theorem_context_packet": (
                                 handoff_target_theorem_context_packet
+                            ),
+                            "llm_route_planner_target_context_summary": (
+                                handoff_target_context_summary
                             ),
                             "llm_route_planner_route_planning_brief": (
                                 handoff_route_planning_brief
@@ -3850,6 +3885,23 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         },
         {
             "schema_version": 1,
+            "check_id": "check:roundtrip_llm_target_context_summary_trace",
+            "check_name": "roundtrip_llm_target_context_summary_trace",
+            "category": "roundtrip",
+            "expected": (
+                "roundtrip standalone-input traces preserve LLM target "
+                "context summaries"
+            ),
+            "observed": (
+                "seed_routes_with_summary=1; roundtrip_traces_with_summary=1; "
+                "trace_matches=1; metadata_matches=1"
+            ),
+            "ok": True,
+            "severity": "error",
+            "errors": [],
+        },
+        {
+            "schema_version": 1,
             "check_id": "check:row_0_seed_route_provenance_metadata",
             "check_name": "row_0_seed_route_provenance_metadata",
             "category": "provenance",
@@ -3921,14 +3973,30 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "severity": "error",
             "errors": [],
         },
+        {
+            "schema_version": 1,
+            "check_id": "check:row_0_seed_route_llm_target_context_summary",
+            "check_name": "row_0_seed_route_llm_target_context_summary",
+            "category": "provenance",
+            "expected": (
+                "seed route and replan metadata preserve the LLM target "
+                "context summary"
+            ),
+            "observed": (
+                "row=True route=True metadata=True objects=2 assumptions=1"
+            ),
+            "ok": True,
+            "severity": "error",
+            "errors": [],
+        },
     ]
     (replan_handoff_audit_dir / "formalization_gap_planner_route_replan_handoff_audit_manifest.json").write_text(
         json.dumps(
             {
                 "component_name": "formalization_gap_planner_route_replan_handoff_audit",
-                "n_checks": 15,
+                "n_checks": 17,
                 "n_failed": 0,
-                "n_row_schema_valid": 15,
+                "n_row_schema_valid": 17,
                 "n_row_schema_invalid": 0,
                 "n_seed_routes": 1,
                 "n_roundtrip_goal_plans": 1,
@@ -3940,6 +4008,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_roundtrip_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations": 0,
                 "n_roundtrip_standalone_input_trace_llm_primitive_evidence_matrix_unaccounted_primitives": 0,
                 "n_roundtrip_standalone_input_traces_with_llm_route_adoption_preconditions": 1,
+                "n_roundtrip_standalone_input_traces_with_llm_target_context_summary": 1,
                 "roundtrip_all_ok": True,
                 "all_ok": True,
                 "checks": audit_checks,
@@ -5311,6 +5380,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert any(
         row["check_name"]
+        == "optional_route_replan_handoff_row_0_seed_target_context_summary_preservation"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
         == "optional_route_replan_handoff_row_0_seed_route_adoption_preconditions_preservation"
         and row["ok"]
         for row in audit_payload["checks"]
@@ -5393,6 +5468,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         and row["ok"]
         for row in audit_payload["checks"]
     )
+    assert any(
+        row["check_name"]
+        == "optional_route_replan_handoff_audit_roundtrip_target_context_summary_trace"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
     assert audit_payload["n_optional_route_revision_overlay_row_schema_checked"] == 1
     assert audit_payload["n_optional_route_revision_overlay_row_schema_valid"] == 1
     assert audit_payload["n_optional_route_replan_handoff_row_schema_checked"] == 1
@@ -5449,12 +5530,24 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         ]
         == 1
     )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_seed_target_context_summary_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_seed_target_context_summary_valid"
+        ]
+        == 1
+    )
     assert audit_payload["n_optional_route_revision_generic_formal_dag_checked"] == 1
     assert audit_payload["n_optional_route_revision_generic_formal_dag_valid"] == 1
     assert audit_payload["n_optional_route_replan_handoff_generic_formal_dag_checked"] == 1
     assert audit_payload["n_optional_route_replan_handoff_generic_formal_dag_valid"] == 1
-    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_checked"] == 15
-    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_valid"] == 15
+    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_checked"] == 17
+    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_valid"] == 17
     assert (
         audit_payload[
             "n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_checked"
@@ -5500,6 +5593,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert (
         audit_payload[
             "n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_audit_roundtrip_target_context_summary_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_audit_roundtrip_target_context_summary_valid"
         ]
         == 1
     )

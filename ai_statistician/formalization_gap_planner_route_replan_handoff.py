@@ -80,6 +80,7 @@ class FormalizationGapPlannerRouteReplanHandoffRow:
     route_revision_reasons: tuple[str, ...]
     route_revision_summaries: tuple[str, ...]
     target_theorem_context_packet: dict[str, object]
+    target_context_summary: dict[str, object]
     route_planning_brief: dict[str, object]
     route_option_selection_brief: dict[str, object]
     primitive_evidence_matrix_witness: dict[str, object]
@@ -217,6 +218,9 @@ def export_formalization_gap_planner_route_replan_handoff(
         "n_routes_with_target_theorem_context_packet": sum(
             1 for row in rows if row.target_theorem_context_packet
         ),
+        "n_routes_with_llm_target_context_summary": sum(
+            1 for row in rows if row.target_context_summary
+        ),
         "n_routes_with_llm_route_planning_brief": sum(
             1 for row in rows if row.route_planning_brief
         ),
@@ -234,6 +238,20 @@ def export_formalization_gap_planner_route_replan_handoff(
             for route in standalone_seed.get("routes", [])
             if isinstance(route, dict)
             and _dict_value(route.get("target_theorem_context_packet", {}))
+        ),
+        "n_standalone_seed_routes_with_llm_target_context_summary": sum(
+            1
+            for route in standalone_seed.get("routes", [])
+            if isinstance(route, dict)
+            and (
+                _dict_value(route.get("llm_route_planner_target_context_summary", {}))
+                or _dict_value(
+                    _dict_value(route.get("replan_metadata", {})).get(
+                        "llm_route_planner_target_context_summary",
+                        {},
+                    )
+                )
+            )
         ),
         "n_standalone_seed_routes_with_llm_route_planning_brief": sum(
             1
@@ -487,6 +505,7 @@ def route_replan_handoff_row_json_schema() -> dict[str, object]:
             "route_revision_reasons",
             "route_revision_summaries",
             "target_theorem_context_packet",
+            "target_context_summary",
             "route_planning_brief",
             "route_adoption_preconditions",
             "formal_declaration_hits",
@@ -534,6 +553,7 @@ def route_replan_handoff_row_json_schema() -> dict[str, object]:
             "route_revision_reasons": string_array,
             "route_revision_summaries": string_array,
             "target_theorem_context_packet": {"type": "object"},
+            "target_context_summary": {"type": "object"},
             "route_planning_brief": {"type": "object"},
             "route_option_selection_brief": {"type": "object"},
             "primitive_evidence_matrix_witness": {"type": "object"},
@@ -592,6 +612,7 @@ def validate_route_replan_handoff_row(
     ):
         errors.append("resource_response_ledger hook missing applied_resource_response_traces")
     errors.extend(_target_theorem_context_packet_consistency_errors(row))
+    errors.extend(_target_context_summary_consistency_errors(row))
     errors.extend(_route_planning_brief_consistency_errors(row))
     errors.extend(_route_option_selection_brief_consistency_errors(row))
     errors.extend(_primitive_evidence_matrix_witness_consistency_errors(row))
@@ -643,6 +664,46 @@ def _target_theorem_context_packet_consistency_errors(
         errors.append(
             "standalone_route target_theorem_context_packet and replan_metadata "
             "target_theorem_context_packet mismatch"
+        )
+    return tuple(errors)
+
+
+def _target_context_summary_consistency_errors(
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    summary = _dict_value(row.get("target_context_summary", {}))
+    standalone_route = _dict_value(row.get("standalone_route", {}))
+    metadata = _dict_value(standalone_route.get("replan_metadata", {}))
+    route_summary = _dict_value(
+        standalone_route.get("llm_route_planner_target_context_summary", {})
+    )
+    metadata_summary = _dict_value(
+        metadata.get("llm_route_planner_target_context_summary", {})
+    )
+    if summary:
+        if not route_summary:
+            errors.append(
+                "standalone_route.llm_route_planner_target_context_summary missing"
+            )
+        elif route_summary != summary:
+            errors.append(
+                "standalone_route.llm_route_planner_target_context_summary mismatch"
+            )
+        if not metadata_summary:
+            errors.append(
+                "standalone_route.replan_metadata."
+                "llm_route_planner_target_context_summary missing"
+            )
+        elif metadata_summary != summary:
+            errors.append(
+                "standalone_route.replan_metadata."
+                "llm_route_planner_target_context_summary mismatch"
+            )
+    elif route_summary and metadata_summary and route_summary != metadata_summary:
+        errors.append(
+            "standalone_route llm_route_planner_target_context_summary and "
+            "replan_metadata llm_route_planner_target_context_summary mismatch"
         )
     return tuple(errors)
 
@@ -979,6 +1040,10 @@ def _handoff_row(
         plan_row,
         overlay_row,
     )
+    target_context_summary = _target_context_summary_for_handoff(
+        plan_row,
+        overlay_row,
+    )
     route_planning_brief = _route_planning_brief_for_handoff(
         plan_row,
         overlay_row,
@@ -1065,6 +1130,7 @@ def _handoff_row(
         target_prover_family=target_prover_family,
         quality_controls=quality_controls,
         target_theorem_context_packet=target_theorem_context_packet,
+        target_context_summary=target_context_summary,
         route_planning_brief=route_planning_brief,
         route_option_selection_brief=route_option_selection_brief,
         primitive_evidence_matrix_witness=primitive_evidence_matrix_witness,
@@ -1104,6 +1170,7 @@ def _handoff_row(
         route_revision_reasons=route_revision_reasons,
         route_revision_summaries=route_revision_summaries,
         target_theorem_context_packet=target_theorem_context_packet,
+        target_context_summary=target_context_summary,
         route_planning_brief=route_planning_brief,
         route_option_selection_brief=route_option_selection_brief,
         primitive_evidence_matrix_witness=primitive_evidence_matrix_witness,
@@ -1238,6 +1305,7 @@ def _standalone_route(
     target_prover_family: str,
     quality_controls: dict[str, tuple[str, ...]],
     target_theorem_context_packet: dict[str, object],
+    target_context_summary: dict[str, object],
     route_planning_brief: dict[str, object],
     route_option_selection_brief: dict[str, object],
     primitive_evidence_matrix_witness: dict[str, object],
@@ -1297,6 +1365,9 @@ def _standalone_route(
             "target_theorem_context_packet": dict(target_theorem_context_packet),
             "llm_route_planner_target_theorem_context_packet": dict(
                 target_theorem_context_packet
+            ),
+            "llm_route_planner_target_context_summary": dict(
+                target_context_summary
             ),
             "llm_route_planner_route_planning_brief": dict(route_planning_brief),
             "llm_route_planner_route_option_selection_brief": dict(
@@ -1384,6 +1455,10 @@ def _standalone_route(
     }
     if route_planning_brief:
         route["llm_route_planner_route_planning_brief"] = dict(route_planning_brief)
+    if target_context_summary:
+        route["llm_route_planner_target_context_summary"] = dict(
+            target_context_summary
+        )
     if route_option_selection_brief:
         route["llm_route_planner_route_option_selection_brief"] = dict(
             route_option_selection_brief
@@ -1712,6 +1787,32 @@ def _target_theorem_context_packet_for_handoff(
         packet = _dict_value(source)
         if packet:
             return dict(packet)
+    return {}
+
+
+def _target_context_summary_for_handoff(
+    plan_row: dict[str, Any],
+    overlay_row: dict[str, Any],
+) -> dict[str, object]:
+    trace = _dict_value(plan_row.get("standalone_input_trace", {}))
+    trace_metadata = _dict_value(trace.get("replan_metadata", {}))
+    plan_metadata = _dict_value(plan_row.get("replan_metadata", {}))
+    overlay_metadata = _dict_value(overlay_row.get("replan_metadata", {}))
+    for source in (
+        overlay_row.get("target_context_summary", {}),
+        overlay_row.get("llm_route_planner_target_context_summary", {}),
+        overlay_metadata.get("target_context_summary", {}),
+        overlay_metadata.get("llm_route_planner_target_context_summary", {}),
+        trace.get("target_context_summary", {}),
+        trace.get("llm_route_planner_target_context_summary", {}),
+        trace_metadata.get("target_context_summary", {}),
+        trace_metadata.get("llm_route_planner_target_context_summary", {}),
+        plan_metadata.get("target_context_summary", {}),
+        plan_metadata.get("llm_route_planner_target_context_summary", {}),
+    ):
+        summary = _dict_value(source)
+        if summary:
+            return dict(summary)
     return {}
 
 
@@ -2224,6 +2325,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Standalone seed routes: {payload.get('n_standalone_seed_routes')}",
         f"- Target theorem context packets: {payload.get('n_routes_with_target_theorem_context_packet')}/{payload.get('n_handoff_rows')}",
         f"- Seed routes with target theorem context packets: {payload.get('n_standalone_seed_routes_with_target_theorem_context_packet')}/{payload.get('n_standalone_seed_routes')}",
+        f"- LLM target context summaries: {payload.get('n_routes_with_llm_target_context_summary')}/{payload.get('n_handoff_rows')}",
+        f"- Seed routes with LLM target context summaries: {payload.get('n_standalone_seed_routes_with_llm_target_context_summary')}/{payload.get('n_standalone_seed_routes')}",
         f"- LLM route-planning briefs: {payload.get('n_routes_with_llm_route_planning_brief')}/{payload.get('n_handoff_rows')}",
         f"- Seed routes with LLM route-planning briefs: {payload.get('n_standalone_seed_routes_with_llm_route_planning_brief')}/{payload.get('n_standalone_seed_routes')}",
         f"- LLM route-option selection briefs: {payload.get('n_routes_with_llm_route_option_selection_brief')}/{payload.get('n_handoff_rows')}",

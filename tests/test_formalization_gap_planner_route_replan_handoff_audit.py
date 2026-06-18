@@ -209,6 +209,24 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "response_validation_signals": ["residual_goals_or_diagnostics_present"],
         "stop_conditions": ["residual interpreted or source search requested"],
     }
+    target_context_summary = {
+        "summary_kind": (
+            "formalization_gap_planner_llm_route_planner_target_context_summary"
+        ),
+        "route_id": route_id,
+        "normalized_objects": ["calibration scores", "test score rank"],
+        "normalized_assumptions": [
+            "exchangeable calibration and test scores"
+        ],
+        "normalized_statistical_procedures": [
+            "rank-based conformal calibration"
+        ],
+        "normalized_desired_conclusions": ["rank uniformity"],
+        "normalized_theorem_shapes": ["finite sample rank identity"],
+        "proof_source_refs": ["Lei-Wasserman distribution-free prediction"],
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
     route = {
         "route_id": route_id,
         "display_name": "split_conformal_rank_uniformity",
@@ -226,6 +244,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "llm_route_planner_route_adoption_preconditions": (
             route_adoption_preconditions
         ),
+        "llm_route_planner_target_context_summary": target_context_summary,
         "source_refs": ["Lei-Wasserman distribution-free prediction"],
         "source_snippets": [source_snippet],
         "quality_controls": quality_controls,
@@ -273,6 +292,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
             ),
             "llm_route_planner_route_adoption_preconditions": (
                 route_adoption_preconditions
+            ),
+            "llm_route_planner_target_context_summary": (
+                target_context_summary
             ),
             "lean_declaration_hits": [
                 {"primitive": "rank_uniformity", "declaration": "Fintype.card"}
@@ -323,6 +345,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "route_option_selection_brief": route_option_selection_brief,
         "primitive_evidence_matrix_witness": primitive_evidence_matrix_witness,
         "route_adoption_preconditions": route_adoption_preconditions,
+        "target_context_summary": target_context_summary,
         "source_refs": ["Lei-Wasserman distribution-free prediction"],
         "source_snippets": [source_snippet],
         "quality_controls": quality_controls,
@@ -466,6 +489,12 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     )
     assert (
         payload[
+            "n_roundtrip_standalone_input_traces_with_llm_target_context_summary"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_roundtrip_standalone_input_trace_llm_route_adoption_precondition_blockers"
         ]
         == 1
@@ -497,10 +526,12 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "row_0_seed_route_llm_route_option_selection_brief" in ok_checks
     assert "row_0_seed_route_llm_primitive_evidence_matrix_witness" in ok_checks
     assert "row_0_seed_route_llm_route_adoption_preconditions" in ok_checks
+    assert "row_0_seed_route_llm_target_context_summary" in ok_checks
     assert "roundtrip_llm_route_planning_brief_trace" in ok_checks
     assert "roundtrip_llm_route_option_selection_brief_trace" in ok_checks
     assert "roundtrip_llm_primitive_evidence_matrix_witness_trace" in ok_checks
     assert "roundtrip_llm_route_adoption_preconditions_trace" in ok_checks
+    assert "roundtrip_llm_target_context_summary_trace" in ok_checks
     provenance_check = next(
         check
         for check in payload["checks"]
@@ -568,6 +599,16 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "route=True" in precondition_check["observed"]
     assert "metadata=True" in precondition_check["observed"]
     assert "blockers=1" in precondition_check["observed"]
+    target_summary_check = next(
+        check
+        for check in payload["checks"]
+        if check["check_name"] == "row_0_seed_route_llm_target_context_summary"
+    )
+    assert "row=True" in target_summary_check["observed"]
+    assert "route=True" in target_summary_check["observed"]
+    assert "metadata=True" in target_summary_check["observed"]
+    assert "objects=2" in target_summary_check["observed"]
+    assert "assumptions=1" in target_summary_check["observed"]
     brief_roundtrip_check = next(
         check
         for check in payload["checks"]
@@ -612,6 +653,16 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     ]
     assert "trace_matches=1" in precondition_roundtrip_check["observed"]
     assert "metadata_matches=1" in precondition_roundtrip_check["observed"]
+    target_summary_roundtrip_check = next(
+        check
+        for check in payload["checks"]
+        if check["check_name"] == "roundtrip_llm_target_context_summary_trace"
+    )
+    assert "seed_routes_with_summary=1" in target_summary_roundtrip_check[
+        "observed"
+    ]
+    assert "trace_matches=1" in target_summary_roundtrip_check["observed"]
+    assert "metadata_matches=1" in target_summary_roundtrip_check["observed"]
     assert (
         audit_dir
         / "formalization_gap_planner_route_replan_handoff_audit_row.schema.json"
@@ -788,6 +839,33 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         if not check["ok"]
     }
     assert "row_0_seed_route_llm_route_adoption_preconditions" in precondition_failed
+
+    target_summary_rejected_seed = json.loads(json.dumps(seed))
+    target_summary_rejected_seed["routes"][0]["replan_metadata"].pop(
+        "llm_route_planner_target_context_summary",
+        None,
+    )
+    (
+        handoff_dir
+        / "formalization_gap_planner_route_replan_standalone_seed.json"
+    ).write_text(
+        json.dumps(target_summary_rejected_seed, indent=2),
+        encoding="utf-8",
+    )
+    target_summary_rejected = audit_formalization_gap_planner_route_replan_handoff(
+        handoff_dir,
+        root / "target_summary_audit",
+    )
+
+    assert not target_summary_rejected["all_ok"]
+    target_summary_failed = {
+        check["check_name"]
+        for check in target_summary_rejected["checks"]
+        if not check["ok"]
+    }
+    assert "row_0_seed_route_llm_target_context_summary" in (
+        target_summary_failed
+    )
 
     llm_hook_rejected_seed = json.loads(json.dumps(seed))
     llm_hook_rejected_seed["routes"][0]["replan_metadata"][
