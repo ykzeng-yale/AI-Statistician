@@ -43,6 +43,7 @@ from .formalization_gap_planner_library_coverage_map import (
     export_formalization_gap_planner_library_coverage_map,
 )
 from .formalization_gap_planner_llm_route_planner import (
+    PROVIDER_EXECUTION_MODE_LIVE_PROVIDER_BACKEND,
     export_formalization_gap_planner_llm_route_planner,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
 )
@@ -1926,6 +1927,7 @@ def run_formalization_gap_planner_reuse_smoke(
         "llm_route_planner_invoke_provider": llm_route_planner_invoke_provider,
         "llm_route_planner_provider_execution_mode": (
             _llm_provider_execution_mode(
+                llm_route_planner_payload,
                 llm_route_planner_provider,
                 invoke_provider=llm_route_planner_invoke_provider,
             )
@@ -1933,8 +1935,6 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_llm_route_planner_live_provider_calls_requested": (
             _llm_live_provider_call_count(
                 llm_route_planner_payload,
-                provider_name=llm_route_planner_provider,
-                invoke_provider=llm_route_planner_invoke_provider,
             )
         ),
         "llm_route_planner_provider_usage_summary": (
@@ -1999,6 +1999,7 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "feedback_llm_route_planner_provider_execution_mode": (
             _llm_provider_execution_mode(
+                feedback_llm_route_planner_payload,
                 feedback_llm_route_planner_provider,
                 invoke_provider=feedback_llm_route_planner_invoke_provider,
             )
@@ -2006,8 +2007,6 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_live_provider_calls_requested": (
             _llm_live_provider_call_count(
                 feedback_llm_route_planner_payload,
-                provider_name=feedback_llm_route_planner_provider,
-                invoke_provider=feedback_llm_route_planner_invoke_provider,
             )
         ),
         "feedback_llm_route_planner_provider_usage_summary": (
@@ -2598,13 +2597,9 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_total_llm_route_planner_live_provider_calls_requested": (
             _llm_live_provider_call_count(
                 llm_route_planner_payload,
-                provider_name=llm_route_planner_provider,
-                invoke_provider=llm_route_planner_invoke_provider,
             )
             + _llm_live_provider_call_count(
                 feedback_llm_route_planner_payload,
-                provider_name=feedback_llm_route_planner_provider,
-                invoke_provider=feedback_llm_route_planner_invoke_provider,
             )
         ),
         "combined_llm_route_planner_provider_usage_summary": (
@@ -8633,7 +8628,15 @@ def _summary(stage_name: str, payload: dict[str, Any]) -> dict[str, object]:
     }
 
 
-def _llm_provider_execution_mode(provider_name: str, *, invoke_provider: bool) -> str:
+def _llm_provider_execution_mode(
+    payload: dict[str, Any],
+    provider_name: str,
+    *,
+    invoke_provider: bool,
+) -> str:
+    exact_mode = str(payload.get("provider_execution_mode", "") or "").strip()
+    if exact_mode:
+        return exact_mode
     provider = str(provider_name or "").strip().lower()
     if provider in {"anthropic", "openai"}:
         if invoke_provider:
@@ -8648,15 +8651,13 @@ def _llm_provider_execution_mode(provider_name: str, *, invoke_provider: bool) -
 
 def _llm_live_provider_call_count(
     payload: dict[str, Any],
-    *,
-    provider_name: str,
-    invoke_provider: bool,
 ) -> int:
-    if str(provider_name or "").strip().lower() not in {"anthropic", "openai"}:
-        return 0
-    if not invoke_provider:
-        return 0
-    return int(payload.get("n_request_packets", 0) or 0)
+    if (
+        str(payload.get("provider_execution_mode", "") or "").strip()
+        == PROVIDER_EXECUTION_MODE_LIVE_PROVIDER_BACKEND
+    ):
+        return int(payload.get("n_request_packets", 0) or 0)
+    return int(payload.get("n_live_provider_backend_requests", 0) or 0)
 
 
 def _proof_boundary_ok(payload: dict[str, Any]) -> bool:

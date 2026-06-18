@@ -6,6 +6,8 @@ from pathlib import Path
 
 from ai_statistician.formalization_gap_planner_reuse_smoke import (
     FORMALIZATION_GAP_PLANNER_REUSE_SMOKE_COMPONENT,
+    _llm_live_provider_call_count,
+    _llm_provider_execution_mode,
     run_formalization_gap_planner_reuse_smoke,
 )
 from ai_statistician.formalization_gap_planner_local_formal_source_adapter import (
@@ -29,6 +31,34 @@ def _sum_count_maps(*maps: object) -> dict[str, int]:
         key: sum(int(mapping.get(key, 0) or 0) for mapping in normalized_maps)
         for key in sorted(keys)
     }
+
+
+def test_reuse_smoke_llm_execution_mode_uses_planner_manifest_before_provider_flags() -> None:
+    payload = {
+        "provider_execution_mode": "static_generator_backend",
+        "provider_name": "anthropic",
+        "invoke_provider": True,
+        "n_request_packets": 3,
+    }
+
+    assert (
+        _llm_provider_execution_mode(
+            payload,
+            "anthropic",
+            invoke_provider=True,
+        )
+        == "static_generator_backend"
+    )
+    assert _llm_live_provider_call_count(payload) == 0
+    assert (
+        _llm_live_provider_call_count(
+            {
+                **payload,
+                "provider_execution_mode": "live_provider_backend",
+            }
+        )
+        == 3
+    )
 
 
 def _write_agentic_proof_execution_feedback_dirs(
@@ -898,7 +928,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["llm_route_planner_model_tier_selection_mode"] == "auto"
     assert (
         payload["llm_route_planner_provider_execution_mode"]
-        == "staged_live_provider_prompt_no_api_call"
+        == "prompt_only_staged"
     )
     assert payload["n_llm_route_planner_live_provider_calls_requested"] == 0
     assert payload["n_llm_route_planner_rows_with_provider_usage"] == 0
@@ -1341,7 +1371,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["feedback_llm_route_planner_model_tier_selection_mode"] == "auto"
     assert (
         payload["feedback_llm_route_planner_provider_execution_mode"]
-        == "staged_live_provider_prompt_no_api_call"
+        == "prompt_only_staged"
     )
     assert payload["n_feedback_llm_route_planner_live_provider_calls_requested"] == 0
     assert payload["n_total_llm_route_planner_live_provider_calls_requested"] == 0
@@ -4376,6 +4406,17 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
 
     assert payload["n_llm_route_planner_response_present"] == 1
+    assert (
+        payload["llm_route_planner_provider_execution_mode"]
+        == "static_generator_backend"
+    )
+    assert (
+        payload["feedback_llm_route_planner_provider_execution_mode"]
+        == "static_generator_backend"
+    )
+    assert payload["n_llm_route_planner_live_provider_calls_requested"] == 0
+    assert payload["n_feedback_llm_route_planner_live_provider_calls_requested"] == 0
+    assert payload["n_total_llm_route_planner_live_provider_calls_requested"] == 0
     assert payload["has_llm_route_planner_response_payload_validation"]
     assert payload["n_llm_route_planner_response_payload_validation_payloads"] == 2
     assert (

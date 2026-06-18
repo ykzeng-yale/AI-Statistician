@@ -1092,9 +1092,12 @@ post-feedback rerun over the route-replan seed, residual goals, and
 interactive-session context uses `--feedback-llm-route-planner-provider`. Both
 default to Anthropic/Claude staging with `--*-model-tier auto`, but they do not
 call the API unless the matching `--*-invoke-provider` flag is set. The
-reuse-smoke manifest records `staged_live_provider_prompt_no_api_call` versus
-`live_provider_invoked`, plus the number of requested live provider calls and
-the Haiku/Sonnet/Opus request-tier distribution. Auto tiering keeps small,
+reuse-smoke manifest lifts each underlying route-planner
+`provider_execution_mode`, so `prompt_only_staged`, reviewed response replay,
+static generator replay, supplied generator backends, and real
+`live_provider_backend` calls stay distinguishable next to the number of
+requested live provider calls and the Haiku/Sonnet/Opus request-tier
+distribution. Auto tiering keeps small,
 source-backed reuse/wrapper routes on Haiku, but upgrades target-intake rows
 with missing proof sources, library search requirements, proof-state probes, or
 larger theorem context to Sonnet. It also upgrades source-theorem/proof-body
