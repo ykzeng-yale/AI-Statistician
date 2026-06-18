@@ -1246,6 +1246,10 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert "LLM route planner provider usage rows/input/output/total" in report_text
     assert "Evaluation LLM provider usage rows/input/output/total" in report_text
     assert (
+        "Evaluation LLM residual-goal contexts rows/contexts/source-refs/provenance/without-context: 0/0/0/0/9"
+        in report_text
+    )
+    assert (
         "Combined LLM route planner provider usage rows/input/output/total"
         in report_text
     )
@@ -2778,6 +2782,27 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == 0
     )
+    assert (
+        payload[
+            "n_evaluation_rows_with_llm_route_planner_residual_goal_contexts"
+        ]
+        == 0
+    )
+    assert payload[
+        "n_evaluation_llm_route_planner_residual_goal_contexts"
+    ] == 0
+    assert payload[
+        "n_evaluation_llm_route_planner_residual_goal_context_source_refs"
+    ] == 0
+    assert payload[
+        "n_evaluation_llm_route_planner_residual_goal_context_provenance_values"
+    ] == 0
+    assert payload[
+        "n_evaluation_llm_route_planner_residual_goals_with_context"
+    ] == 0
+    assert payload[
+        "n_evaluation_llm_route_planner_residual_goals_without_context"
+    ] == 9
     assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_provider_usage"] == 0
     assert payload["total_evaluation_llm_route_planner_provider_input_tokens"] == 0
@@ -4670,6 +4695,27 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == 8
     )
+    assert (
+        payload[
+            "n_evaluation_rows_with_llm_route_planner_residual_goal_contexts"
+        ]
+        == 0
+    )
+    assert payload[
+        "n_evaluation_llm_route_planner_residual_goal_contexts"
+    ] == 0
+    assert payload[
+        "n_evaluation_llm_route_planner_residual_goal_context_source_refs"
+    ] == 0
+    assert payload[
+        "n_evaluation_llm_route_planner_residual_goal_context_provenance_values"
+    ] == 0
+    assert payload[
+        "n_evaluation_llm_route_planner_residual_goals_with_context"
+    ] == 0
+    assert payload[
+        "n_evaluation_llm_route_planner_residual_goals_without_context"
+    ] == 4
     assert (
         payload[
             "n_evaluation_llm_route_adoption_pending_primitive_evidence_matrix_blockers"

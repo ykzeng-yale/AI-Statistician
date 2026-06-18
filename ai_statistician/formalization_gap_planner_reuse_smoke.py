@@ -427,6 +427,12 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_alignment_contract_ok",
         "n_feedback_loop_ready",
         "n_unaligned_primitives",
+        "n_rows_with_llm_route_planner_residual_goal_contexts",
+        "n_llm_route_planner_residual_goal_contexts",
+        "n_llm_route_planner_residual_goal_context_source_refs",
+        "n_llm_route_planner_residual_goal_context_provenance_values",
+        "n_llm_route_planner_residual_goals_with_context",
+        "n_llm_route_planner_residual_goals_without_context",
         "mean_route_recall",
         "mean_delta_precision",
         "mean_alignment_coverage",
@@ -6412,6 +6418,42 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_evaluation_rows_with_llm_route_planner_residual_goal_contexts": (
+            evaluation_payload.get(
+                "n_rows_with_llm_route_planner_residual_goal_contexts",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_residual_goal_contexts": (
+            evaluation_payload.get(
+                "n_llm_route_planner_residual_goal_contexts",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_residual_goal_context_source_refs": (
+            evaluation_payload.get(
+                "n_llm_route_planner_residual_goal_context_source_refs",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_residual_goal_context_provenance_values": (
+            evaluation_payload.get(
+                "n_llm_route_planner_residual_goal_context_provenance_values",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_residual_goals_with_context": (
+            evaluation_payload.get(
+                "n_llm_route_planner_residual_goals_with_context",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_residual_goals_without_context": (
+            evaluation_payload.get(
+                "n_llm_route_planner_residual_goals_without_context",
+                0,
+            )
+        ),
         "n_evaluation_rows_with_llm_route_planner_route_adoption_status": (
             evaluation_payload.get(
                 "n_rows_with_llm_route_planner_route_adoption_status",
@@ -10200,6 +10242,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"formal_attempt_commands="
             f"{payload.get('n_evaluation_llm_route_planner_interactive_formal_attempt_queue_execution_commands')} "
             f"tiers={payload.get('evaluation_by_llm_model_tier')}"
+        ),
+        (
+            f"- Evaluation LLM residual-goal contexts "
+            f"rows/contexts/source-refs/provenance/without-context: "
+            f"{payload.get('n_evaluation_rows_with_llm_route_planner_residual_goal_contexts')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_residual_goal_contexts')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_residual_goal_context_source_refs')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_residual_goal_context_provenance_values')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_residual_goals_without_context')}"
         ),
         (
             f"- Evaluation LLM provider usage rows/input/output/total: "
