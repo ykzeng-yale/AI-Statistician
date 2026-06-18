@@ -1483,6 +1483,14 @@ def _fixture_evaluation_row() -> dict[str, object]:
         "llm_route_planner_interactive_formal_attempt_queue_ready_item_count": 0,
         "llm_route_planner_interactive_formal_attempt_queue_blocked_item_count": 0,
         "llm_route_planner_interactive_formal_attempt_queue_execution_command_count": 0,
+        "llm_route_planner_residual_goal_context_count": 1,
+        "llm_route_planner_residual_goal_context_residual_goals": [
+            "rank_uniformity"
+        ],
+        "llm_route_planner_residual_goal_context_source_ref_count": 1,
+        "llm_route_planner_residual_goal_context_provenance_count": 2,
+        "llm_route_planner_residual_goals_with_context_count": 1,
+        "llm_route_planner_residual_goals_without_context": [],
         "llm_route_planner_route_adoption_status": (
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
         ),
@@ -2445,6 +2453,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "realization_missing_primitives_by_route": (
                     evaluation_realization_missing_by_route
                 ),
+                "n_rows_with_llm_route_planner_residual_goal_contexts": 1,
+                "n_llm_route_planner_residual_goal_contexts": 1,
+                "n_llm_route_planner_residual_goal_context_source_refs": 1,
+                "n_llm_route_planner_residual_goal_context_provenance_values": 2,
+                "n_llm_route_planner_residual_goals_with_context": 1,
+                "n_llm_route_planner_residual_goals_without_context": 0,
                 "n_rows_with_llm_route_planner_route_adoption_status": 1,
                 "n_rows_ready_for_route_adoption": 0,
                 "n_rows_pending_refinement_before_route_adoption": 1,
@@ -5860,6 +5874,24 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert (
         bundle_manifest_payload["evaluation_summary"]["mean_alignment_coverage"]
         == 1.0
+    )
+    assert (
+        bundle_manifest_payload["evaluation_summary"][
+            "n_rows_with_llm_route_planner_residual_goal_contexts"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest_payload["evaluation_summary"][
+            "n_llm_route_planner_residual_goal_contexts"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest_payload["evaluation_summary"][
+            "n_llm_route_planner_residual_goal_context_provenance_values"
+        ]
+        == 2
     )
     assert (
         bundle_manifest_payload["evaluation_summary"][

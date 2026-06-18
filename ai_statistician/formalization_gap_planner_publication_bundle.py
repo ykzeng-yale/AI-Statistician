@@ -2221,6 +2221,12 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_kernel_verification_witnesses",
             "n_kernel_verified_ground_truth_with_witnesses",
             "mean_alignment_coverage",
+            "n_rows_with_llm_route_planner_residual_goal_contexts",
+            "n_llm_route_planner_residual_goal_contexts",
+            "n_llm_route_planner_residual_goal_context_source_refs",
+            "n_llm_route_planner_residual_goal_context_provenance_values",
+            "n_llm_route_planner_residual_goals_with_context",
+            "n_llm_route_planner_residual_goals_without_context",
             "n_rows_with_llm_route_planner_route_adoption_status",
             "n_rows_ready_for_route_adoption",
             "n_rows_pending_refinement_before_route_adoption",
@@ -2271,6 +2277,22 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_kernel_verification_witnesses": nonnegative_integer,
             "n_kernel_verified_ground_truth_with_witnesses": nonnegative_integer,
             "mean_alignment_coverage": {"type": "number"},
+            "n_rows_with_llm_route_planner_residual_goal_contexts": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_residual_goal_contexts": nonnegative_integer,
+            "n_llm_route_planner_residual_goal_context_source_refs": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_residual_goal_context_provenance_values": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_residual_goals_with_context": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_residual_goals_without_context": (
+                nonnegative_integer
+            ),
             "n_realization_missing_selected_formal_primitives": nonnegative_integer,
             "n_realization_missing_delta_alignment_primitives": nonnegative_integer,
             "n_rows_with_incomplete_cost_hint_baseline_coverage": nonnegative_integer,
@@ -4820,6 +4842,12 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         "realization_missing_delta_alignment_primitives": (),
         "realization_cost_hint_baseline_primitives": (),
         "realization_omitted_cost_hint_primitives": (),
+        "n_rows_with_llm_route_planner_residual_goal_contexts": 0,
+        "n_llm_route_planner_residual_goal_contexts": 0,
+        "n_llm_route_planner_residual_goal_context_source_refs": 0,
+        "n_llm_route_planner_residual_goal_context_provenance_values": 0,
+        "n_llm_route_planner_residual_goals_with_context": 0,
+        "n_llm_route_planner_residual_goals_without_context": 0,
         "n_rows_with_llm_route_planner_route_adoption_status": 0,
         "n_rows_ready_for_route_adoption": 0,
         "n_rows_pending_refinement_before_route_adoption": 0,
@@ -4996,6 +5024,93 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
             payload,
             rows,
             "realization_omitted_cost_hint_primitives",
+        ),
+        "n_rows_with_llm_route_planner_residual_goal_contexts": int(
+            payload.get(
+                "n_rows_with_llm_route_planner_residual_goal_contexts",
+                sum(
+                    1
+                    for row in rows
+                    if int(
+                        row.get(
+                            "llm_route_planner_residual_goal_context_count",
+                            0,
+                        )
+                        or 0
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_residual_goal_contexts": int(
+            payload.get(
+                "n_llm_route_planner_residual_goal_contexts",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_residual_goal_context_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_residual_goal_context_source_refs": int(
+            payload.get(
+                "n_llm_route_planner_residual_goal_context_source_refs",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_residual_goal_context_source_ref_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_residual_goal_context_provenance_values": int(
+            payload.get(
+                "n_llm_route_planner_residual_goal_context_provenance_values",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_residual_goal_context_provenance_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_residual_goals_with_context": int(
+            payload.get(
+                "n_llm_route_planner_residual_goals_with_context",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_residual_goals_with_context_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_residual_goals_without_context": _manifest_count_or_rows(
+            payload,
+            rows,
+            "n_llm_route_planner_residual_goals_without_context",
+            "llm_route_planner_residual_goals_without_context",
         ),
         "n_rows_with_llm_route_planner_route_adoption_status": int(
             payload.get(

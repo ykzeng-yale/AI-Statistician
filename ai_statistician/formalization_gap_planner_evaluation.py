@@ -115,6 +115,12 @@ class FormalizationGapPlannerEvaluationRow:
     llm_route_planner_interactive_formal_attempt_queue_ready_item_count: int
     llm_route_planner_interactive_formal_attempt_queue_blocked_item_count: int
     llm_route_planner_interactive_formal_attempt_queue_execution_command_count: int
+    llm_route_planner_residual_goal_context_count: int
+    llm_route_planner_residual_goal_context_residual_goals: tuple[str, ...]
+    llm_route_planner_residual_goal_context_source_ref_count: int
+    llm_route_planner_residual_goal_context_provenance_count: int
+    llm_route_planner_residual_goals_with_context_count: int
+    llm_route_planner_residual_goals_without_context: tuple[str, ...]
     llm_route_planner_route_adoption_status: str
     llm_route_planner_route_adoption_blockers: tuple[str, ...]
     llm_route_planner_primitive_evidence_matrix_witness_present: bool
@@ -395,6 +401,31 @@ def evaluate_formalization_gap_planner(
         ),
         "n_llm_route_planner_interactive_formal_attempt_queue_execution_commands": sum(
             row.llm_route_planner_interactive_formal_attempt_queue_execution_command_count
+            for row in evaluation_rows
+        ),
+        "n_rows_with_llm_route_planner_residual_goal_contexts": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_residual_goal_context_count
+        ),
+        "n_llm_route_planner_residual_goal_contexts": sum(
+            row.llm_route_planner_residual_goal_context_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_residual_goal_context_source_refs": sum(
+            row.llm_route_planner_residual_goal_context_source_ref_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_residual_goal_context_provenance_values": sum(
+            row.llm_route_planner_residual_goal_context_provenance_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_residual_goals_with_context": sum(
+            row.llm_route_planner_residual_goals_with_context_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_residual_goals_without_context": sum(
+            len(row.llm_route_planner_residual_goals_without_context)
             for row in evaluation_rows
         ),
         "n_rows_with_llm_route_planner_route_adoption_status": sum(
@@ -803,6 +834,12 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "llm_route_planner_interactive_formal_attempt_queue_ready_item_count",
             "llm_route_planner_interactive_formal_attempt_queue_blocked_item_count",
             "llm_route_planner_interactive_formal_attempt_queue_execution_command_count",
+            "llm_route_planner_residual_goal_context_count",
+            "llm_route_planner_residual_goal_context_residual_goals",
+            "llm_route_planner_residual_goal_context_source_ref_count",
+            "llm_route_planner_residual_goal_context_provenance_count",
+            "llm_route_planner_residual_goals_with_context_count",
+            "llm_route_planner_residual_goals_without_context",
             "llm_route_planner_route_adoption_status",
             "llm_route_planner_route_adoption_blockers",
             "llm_route_planner_route_adoption_preconditions",
@@ -942,6 +979,24 @@ def evaluation_row_json_schema() -> dict[str, object]:
                 "type": "integer",
                 "minimum": 0,
             },
+            "llm_route_planner_residual_goal_context_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_residual_goal_context_residual_goals": string_array,
+            "llm_route_planner_residual_goal_context_source_ref_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_residual_goal_context_provenance_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_residual_goals_with_context_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_residual_goals_without_context": string_array,
             "llm_route_planner_route_adoption_status": {"type": "string"},
             "llm_route_planner_route_adoption_blockers": string_array,
             "llm_route_planner_primitive_evidence_matrix_witness_present": {
@@ -1122,7 +1177,10 @@ def _evaluate_row(
     feedback_ready = _feedback_loop_ready(row)
     cost_graph_trace = _minimal_delta_cost_graph_trace(row)
     realization_trace = _realization_coverage_witness_trace(row)
-    llm_trace = _llm_route_planner_trace(row)
+    llm_trace = _llm_route_planner_trace(
+        row,
+        predicted_residual_goals=predicted_residual_goals,
+    )
     quality_trace = _quality_control_trace(row)
     portable_schema_id = str(plan_payload.get("portable_schema_id", ""))
     proof_boundary_ok = "not theorem proof evidence" in str(
@@ -1267,6 +1325,24 @@ def _evaluate_row(
         ),
         llm_route_planner_interactive_formal_attempt_queue_execution_command_count=int(
             llm_trace["interactive_formal_attempt_queue_execution_command_count"]
+        ),
+        llm_route_planner_residual_goal_context_count=int(
+            llm_trace["residual_goal_context_count"]
+        ),
+        llm_route_planner_residual_goal_context_residual_goals=_str_tuple(
+            llm_trace["residual_goal_context_residual_goals"]
+        ),
+        llm_route_planner_residual_goal_context_source_ref_count=int(
+            llm_trace["residual_goal_context_source_ref_count"]
+        ),
+        llm_route_planner_residual_goal_context_provenance_count=int(
+            llm_trace["residual_goal_context_provenance_count"]
+        ),
+        llm_route_planner_residual_goals_with_context_count=int(
+            llm_trace["residual_goals_with_context_count"]
+        ),
+        llm_route_planner_residual_goals_without_context=_str_tuple(
+            llm_trace["residual_goals_without_context"]
         ),
         llm_route_planner_route_adoption_status=str(
             llm_trace["route_adoption_status"]
@@ -1771,7 +1847,11 @@ def _merge_quality_controls(
     }
 
 
-def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
+def _llm_route_planner_trace(
+    row: dict[str, Any],
+    *,
+    predicted_residual_goals: tuple[str, ...] = (),
+) -> dict[str, object]:
     trace = row.get("standalone_input_trace", {})
     trace = trace if isinstance(trace, dict) else {}
     generator_metadata = trace.get("llm_route_planner_generator_metadata", {})
@@ -1929,6 +2009,25 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
             + matrix_delta_missing_accounting_count,
         )
     )
+    residual_goal_contexts = _llm_route_planner_residual_goal_contexts(row, trace)
+    residual_context_goals = _residual_goal_context_goal_strings(
+        residual_goal_contexts
+    )
+    residual_context_source_refs = _residual_goal_context_source_refs(
+        residual_goal_contexts
+    )
+    residual_context_provenance = _residual_goal_context_provenance_values(
+        residual_goal_contexts
+    )
+    residual_goals_with_context = _residual_goals_with_context(
+        predicted_residual_goals,
+        residual_context_goals,
+    )
+    residual_goals_without_context = tuple(
+        goal
+        for goal in predicted_residual_goals
+        if goal not in set(residual_goals_with_context)
+    )
     return {
         "trace_present": bool(
             row_id
@@ -1938,6 +2037,7 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
             or route_adoption_status
             or route_adoption_preconditions
             or provider_usage
+            or residual_goal_contexts
         ),
         "row_id": row_id,
         "provider": provider,
@@ -2049,6 +2149,14 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
                 ),
             )
         ),
+        "residual_goal_context_count": len(residual_goal_contexts),
+        "residual_goal_context_residual_goals": residual_context_goals,
+        "residual_goal_context_source_ref_count": len(residual_context_source_refs),
+        "residual_goal_context_provenance_count": len(
+            residual_context_provenance
+        ),
+        "residual_goals_with_context_count": len(residual_goals_with_context),
+        "residual_goals_without_context": residual_goals_without_context,
         "route_adoption_status": route_adoption_status,
         "route_adoption_blockers": _str_tuple(
             trace.get("llm_route_planner_route_adoption_blockers", [])
@@ -2133,6 +2241,173 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
             trace.get("llm_route_planner_generation_errors", [])
         ),
     }
+
+
+def _llm_route_planner_residual_goal_contexts(
+    row: dict[str, Any],
+    trace: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    contexts: list[dict[str, object]] = []
+    metadata = _dict_value(trace, "replan_metadata")
+    row_metadata = _dict_value(row, "replan_metadata")
+    for source in (
+        trace.get("residual_goal_context", {}),
+        *_dict_tuple(trace.get("residual_goal_contexts", [])),
+        *_dict_tuple(trace.get("llm_route_planner_residual_goal_contexts", [])),
+        *_dict_tuple(metadata.get("residual_goal_contexts", [])),
+        *_dict_tuple(metadata.get("llm_route_planner_residual_goal_contexts", [])),
+        row.get("residual_goal_context", {}),
+        *_dict_tuple(row.get("residual_goal_contexts", [])),
+        *_dict_tuple(row.get("llm_route_planner_residual_goal_contexts", [])),
+        *_dict_tuple(row_metadata.get("residual_goal_contexts", [])),
+        *_dict_tuple(row_metadata.get("llm_route_planner_residual_goal_contexts", [])),
+    ):
+        context = _residual_goal_context_value(source)
+        if context:
+            contexts.append(context)
+    seen: set[str] = set()
+    deduped: list[dict[str, object]] = []
+    for context in contexts:
+        key = stable_hash(context)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(context)
+    return tuple(deduped)
+
+
+def _residual_goal_context_value(value: Any) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    context: dict[str, object] = dict(value)
+    for field_name in (
+        "residual_goals",
+        "residual_primitives",
+        "target_primitives",
+        "source_refs",
+        "queries",
+        "source_search_queries",
+        "literature_queries",
+        "evidence_ids",
+        "residual_evidence_ids",
+        "refinement_evidence_ids",
+        "prover_attempt_ids",
+        "resource_response_ledger_ids",
+        "resource_request_ids",
+        "applied_refinement_evidence_ids",
+        "applied_prover_diagnostic_signatures",
+    ):
+        if field_name in context:
+            context[field_name] = _str_tuple(context.get(field_name, []))
+    if "source_snippets" in context:
+        context["source_snippets"] = _dict_tuple(context.get("source_snippets", []))
+    for field_name in (
+        "source_kind",
+        "residual_goal",
+        "interpretation",
+        "route_repair",
+        "repair_action",
+        "source_search_status",
+        "formal_gap_boundary",
+        "resource_response_ledger_id",
+        "resource_request_id",
+        "refinement_evidence_id",
+        "prover_attempt_id",
+        "diagnostic_signature",
+        "residual_diagnostic_signature",
+        "provider_diagnostic_signature",
+        "prover_diagnostic_signature",
+    ):
+        if field_name in context:
+            context[field_name] = str(context.get(field_name, "") or "")
+    return context
+
+
+def _residual_goal_context_goal_strings(
+    contexts: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    goals: list[str] = []
+    for context in contexts:
+        goals.extend(_str_tuple(context.get("residual_goal", "")))
+        goals.extend(_str_tuple(context.get("residual_goals", [])))
+    return _str_tuple(goals)
+
+
+def _residual_goal_context_source_refs(
+    contexts: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    refs: list[str] = []
+    for context in contexts:
+        refs.extend(_source_refs(context))
+        refs.extend(_source_refs_from_snippets(context.get("source_snippets", [])))
+    return _str_tuple(refs)
+
+
+def _residual_goal_context_provenance_values(
+    contexts: tuple[dict[str, object], ...],
+) -> tuple[str, ...]:
+    provenance: list[str] = []
+    for context in contexts:
+        for field_name in (
+            "evidence_ids",
+            "residual_evidence_ids",
+            "refinement_evidence_ids",
+            "prover_attempt_ids",
+            "resource_response_ledger_ids",
+            "resource_request_ids",
+            "applied_refinement_evidence_ids",
+            "applied_prover_diagnostic_signatures",
+        ):
+            provenance.extend(_str_tuple(context.get(field_name, [])))
+        for field_name in (
+            "resource_response_ledger_id",
+            "resource_request_id",
+            "refinement_evidence_id",
+            "prover_attempt_id",
+            "diagnostic_signature",
+            "residual_diagnostic_signature",
+            "provider_diagnostic_signature",
+            "prover_diagnostic_signature",
+        ):
+            provenance.extend(_str_tuple(context.get(field_name, "")))
+    return _str_tuple(provenance)
+
+
+def _residual_goals_with_context(
+    residual_goals: tuple[str, ...],
+    context_goals: tuple[str, ...],
+) -> tuple[str, ...]:
+    context_keys = {_residual_goal_key(goal) for goal in context_goals}
+    context_prefixes = {_residual_goal_prefix(goal) for goal in context_goals}
+    matched: list[str] = []
+    for goal in residual_goals:
+        key = _residual_goal_key(goal)
+        prefix = _residual_goal_prefix(goal)
+        if key in context_keys or (prefix and prefix in context_prefixes):
+            matched.append(goal)
+    return _str_tuple(matched)
+
+
+def _residual_goal_key(value: str) -> str:
+    return " ".join(str(value or "").strip().lower().split())
+
+
+def _residual_goal_prefix(value: str) -> str:
+    return _residual_goal_key(str(value or "").split(":", 1)[0])
+
+
+def _source_refs(node: dict[str, object]) -> tuple[str, ...]:
+    refs: list[str] = []
+    for field_name in ("source_refs", "source_ref", "source_gap_ids", "source_task_ids"):
+        refs.extend(_str_tuple(node.get(field_name, [])))
+    return _str_tuple(refs)
+
+
+def _source_refs_from_snippets(value: Any) -> tuple[str, ...]:
+    refs: list[str] = []
+    for snippet in _dict_tuple(value):
+        refs.extend(_source_refs(snippet))
+    return _str_tuple(refs)
 
 
 def _llm_provider_usage_from_trace(
@@ -2864,6 +3139,21 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     return tuple(sorted(dict.fromkeys(str(item) for item in values if str(item))))
 
 
+def _dict_tuple(values: Any) -> tuple[dict[str, Any], ...]:
+    if isinstance(values, dict):
+        values = (values,)
+    if not isinstance(values, (list, tuple, set)):
+        return tuple()
+    rows: list[dict[str, Any]] = []
+    for value in values:
+        if not isinstance(value, dict):
+            continue
+        row = {str(key): item for key, item in value.items() if str(key)}
+        if row:
+            rows.append(row)
+    return tuple(rows)
+
+
 def _dict_value(row: Any, key: str) -> dict[str, Any]:
     if not isinstance(row, dict):
         return {}
@@ -3008,6 +3298,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_llm_route_planner_interactive_formal_attempt_queue_ready_items')}/"
             f"{payload.get('n_llm_route_planner_interactive_formal_attempt_queue_blocked_items')}/"
             f"{payload.get('n_llm_route_planner_interactive_formal_attempt_queue_items')}"
+        ),
+        (
+            "- LLM residual-goal contexts "
+            f"rows/contexts/source-refs/provenance/without-context: "
+            f"{payload.get('n_rows_with_llm_route_planner_residual_goal_contexts')}/"
+            f"{payload.get('n_llm_route_planner_residual_goal_contexts')}/"
+            f"{payload.get('n_llm_route_planner_residual_goal_context_source_refs')}/"
+            f"{payload.get('n_llm_route_planner_residual_goal_context_provenance_values')}/"
+            f"{payload.get('n_llm_route_planner_residual_goals_without_context')}"
         ),
         f"- Evaluation by LLM route adoption status: {payload.get('evaluation_by_llm_route_adoption_status')}",
         f"- LLM route adoption blockers: {payload.get('llm_route_adoption_blockers')}",

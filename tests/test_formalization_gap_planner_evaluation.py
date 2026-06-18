@@ -104,6 +104,31 @@ def test_evaluation_scores_route_alignment_contract() -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     for row in manifest["rows"]:
         row.pop("lean_realization_dag_nodes", None)
+        trace = row.setdefault("standalone_input_trace", {})
+        trace["llm_route_planner_row_id"] = "llm-route-row:alignment"
+        trace["llm_route_planner_model_tier"] = "sonnet"
+        trace["llm_route_planner_residual_goal_contexts"] = [
+            {
+                "source_kind": "lean_lsp_proof_state_feedback",
+                "residual_goal": (
+                    "rank_bridge: missing order-statistic side condition"
+                ),
+                "target_primitives": ["rank_bridge"],
+                "source_refs": ["fixture#coverage"],
+                "source_snippets": [
+                    {
+                        "source_ref": "fixture#coverage",
+                        "quote": "rank bridge requires the side condition",
+                    }
+                ],
+                "evidence_ids": ["evidence:rank-bridge-side-condition"],
+                "resource_response_ledger_id": "ledger:rank-bridge",
+                "resource_request_id": "request:rank-bridge",
+                "prover_diagnostic_signature": (
+                    "prover_diagnostic_signature:rank-bridge"
+                ),
+            }
+        ]
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     payload = evaluate_formalization_gap_planner(plan_dir, truth_json, out_dir)
@@ -128,12 +153,27 @@ def test_evaluation_scores_route_alignment_contract() -> None:
     assert payload["n_kernel_verified_ground_truth"] == 1
     assert payload["n_kernel_verification_witnesses"] == 1
     assert payload["n_kernel_verified_ground_truth_with_witnesses"] == 1
+    assert payload["n_rows_with_llm_route_planner_residual_goal_contexts"] == 1
+    assert payload["n_llm_route_planner_residual_goal_contexts"] == 1
+    assert payload["n_llm_route_planner_residual_goal_context_source_refs"] == 1
+    assert (
+        payload["n_llm_route_planner_residual_goal_context_provenance_values"]
+        == 4
+    )
+    assert payload["n_llm_route_planner_residual_goals_with_context"] == 1
+    assert payload["n_llm_route_planner_residual_goals_without_context"] == 0
     row = payload["rows"][0]
     assert row["alignment_contract_ok"]
     assert not validate_evaluation_row(row)
     broken_row = dict(row)
     broken_row.pop("proof_evidence_boundary")
     assert "proof_evidence_boundary required" in validate_evaluation_row(broken_row)
+    broken_context_row = dict(row)
+    broken_context_row.pop("llm_route_planner_residual_goal_context_count")
+    assert (
+        "llm_route_planner_residual_goal_context_count required"
+        in validate_evaluation_row(broken_context_row)
+    )
     assert row["alignment_coverage"] == 1.0
     assert set(row["aligned_primitives"]) == set(row["predicted_route_primitives"])
     assert row["predicted_residual_primitives"] == ("rank_bridge",)
@@ -148,6 +188,14 @@ def test_evaluation_scores_route_alignment_contract() -> None:
     assert row["predicted_residual_goals"] == (
         "rank_bridge: missing order-statistic side condition",
     )
+    assert row["llm_route_planner_residual_goal_context_count"] == 1
+    assert row["llm_route_planner_residual_goal_context_residual_goals"] == (
+        "rank_bridge: missing order-statistic side condition",
+    )
+    assert row["llm_route_planner_residual_goal_context_source_ref_count"] == 1
+    assert row["llm_route_planner_residual_goal_context_provenance_count"] == 4
+    assert row["llm_route_planner_residual_goals_with_context_count"] == 1
+    assert row["llm_route_planner_residual_goals_without_context"] == ()
     assert not row["unaligned_primitives"]
     assert (
         out_dir / "formalization_gap_planner_evaluation_manifest.json"
@@ -162,6 +210,7 @@ def test_evaluation_scores_route_alignment_contract() -> None:
         out_dir / "formalization_gap_planner_evaluation.md"
     ).read_text(encoding="utf-8")
     assert "Kernel verification witnesses: 1" in report
+    assert "LLM residual-goal contexts rows/contexts/source-refs/provenance/without-context: 1/1/1/4/0" in report
 
 
 def test_evaluation_rejects_non_lean_legacy_lean_realization_alias() -> None:

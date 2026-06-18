@@ -2041,6 +2041,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "llm_route_planner_interactive_formal_attempt_queue_ready_item_count": 0,
         "llm_route_planner_interactive_formal_attempt_queue_blocked_item_count": 0,
         "llm_route_planner_interactive_formal_attempt_queue_execution_command_count": 0,
+        "llm_route_planner_residual_goal_context_count": 0,
+        "llm_route_planner_residual_goal_context_residual_goals": [],
+        "llm_route_planner_residual_goal_context_source_ref_count": 0,
+        "llm_route_planner_residual_goal_context_provenance_count": 0,
+        "llm_route_planner_residual_goals_with_context_count": 0,
+        "llm_route_planner_residual_goals_without_context": ["rank_uniformity"],
         "llm_route_planner_route_adoption_status": "",
         "llm_route_planner_route_adoption_blockers": [],
         "llm_route_planner_route_adoption_preconditions": {},
@@ -2084,6 +2090,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
                 "bundled_ground_truth_filename": (
                     "formalization_gap_planner_evaluation_ground_truth.json"
                 ),
+                "n_rows_with_llm_route_planner_residual_goal_contexts": 0,
+                "n_llm_route_planner_residual_goal_contexts": 0,
+                "n_llm_route_planner_residual_goal_context_source_refs": 0,
+                "n_llm_route_planner_residual_goal_context_provenance_values": 0,
+                "n_llm_route_planner_residual_goals_with_context": 0,
+                "n_llm_route_planner_residual_goals_without_context": 1,
                 "n_rows_with_llm_route_planner_request_contract_blocked": 0,
                 "n_rows_with_llm_route_planner_errors": 0,
                 "n_llm_route_planner_errors": 0,
@@ -2927,6 +2939,34 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         == 0
     )
     assert payload["evaluation_summary"]["mean_alignment_coverage"] == 1.0
+    assert (
+        payload["evaluation_summary"][
+            "n_rows_with_llm_route_planner_residual_goal_contexts"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"]["n_llm_route_planner_residual_goal_contexts"]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_llm_route_planner_residual_goal_context_source_refs"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_llm_route_planner_residual_goal_context_provenance_values"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_llm_route_planner_residual_goals_without_context"
+        ]
+        == 1
+    )
     assert (
         payload["evaluation_summary"][
             "n_rows_with_incomplete_cost_hint_baseline_coverage"

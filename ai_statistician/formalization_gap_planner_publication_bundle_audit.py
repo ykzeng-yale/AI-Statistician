@@ -4499,6 +4499,104 @@ def _expected_bundle_evaluation_summary(bundle_dir: Path) -> dict[str, object]:
         "realization_omitted_cost_hint_primitives": (
             _evaluation_realization_omitted_cost_hint_from_rows(rows)
         ),
+        "n_rows_with_llm_route_planner_residual_goal_contexts": int(
+            evaluation_manifest.get(
+                "n_rows_with_llm_route_planner_residual_goal_contexts",
+                sum(
+                    1
+                    for row in rows
+                    if int(
+                        row.get(
+                            "llm_route_planner_residual_goal_context_count",
+                            0,
+                        )
+                        or 0
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_residual_goal_contexts": int(
+            evaluation_manifest.get(
+                "n_llm_route_planner_residual_goal_contexts",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_residual_goal_context_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_residual_goal_context_source_refs": int(
+            evaluation_manifest.get(
+                "n_llm_route_planner_residual_goal_context_source_refs",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_residual_goal_context_source_ref_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_residual_goal_context_provenance_values": int(
+            evaluation_manifest.get(
+                "n_llm_route_planner_residual_goal_context_provenance_values",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_residual_goal_context_provenance_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_residual_goals_with_context": int(
+            evaluation_manifest.get(
+                "n_llm_route_planner_residual_goals_with_context",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_residual_goals_with_context_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_residual_goals_without_context": int(
+            evaluation_manifest.get(
+                "n_llm_route_planner_residual_goals_without_context",
+                sum(
+                    len(
+                        _str_tuple(
+                            row.get(
+                                "llm_route_planner_residual_goals_without_context",
+                                [],
+                            )
+                        )
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
         "n_rows_with_llm_route_planner_route_adoption_status": sum(
             1
             for row in rows
