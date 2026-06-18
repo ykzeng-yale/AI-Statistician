@@ -7157,7 +7157,7 @@ def validate_llm_route_planner_row(
             )
     target_context_summary = _dict_value(row, "target_context_summary")
     has_normalized_target_context = any(
-        _str_tuple(target_context.get(field_name, []))
+        _target_context_packet_values(target_context, field_name)
         for field_name in TARGET_CONTEXT_SUMMARY_REQUIRED_FIELDS
     )
     if (
@@ -7169,13 +7169,19 @@ def validate_llm_route_planner_row(
             "target_context_summary required for accepted rows with normalized target theorem context"
         )
     if target_context_summary:
+        normalized_target_context_summary = _canonical_target_context_summary(
+            target_context_summary
+        )
         for field_name in TARGET_CONTEXT_SUMMARY_FIELDS:
-            expected_values = _str_tuple(target_context.get(field_name, []))
+            expected_values = _target_context_packet_values(
+                target_context,
+                field_name,
+            )
             if not expected_values:
                 continue
             missing = _missing_target_context_summary_values(
                 expected_values,
-                _str_tuple(target_context_summary.get(field_name, [])),
+                _str_tuple(normalized_target_context_summary.get(field_name, [])),
             )
             if missing:
                 errors.append(
@@ -18813,6 +18819,22 @@ TARGET_CONTEXT_SUMMARY_REQUIRED_FIELDS = (
 )
 
 
+TARGET_CONTEXT_SUMMARY_FIELD_ALIASES = {
+    "normalized_procedures": (
+        "normalized_procedures",
+        "normalized_statistical_procedures",
+    ),
+    "desired_conclusions": (
+        "desired_conclusions",
+        "normalized_desired_conclusions",
+    ),
+    "desired_theorem_shapes": (
+        "desired_theorem_shapes",
+        "normalized_theorem_shapes",
+    ),
+}
+
+
 def _response_target_context_summary_errors(
     payload: Mapping[str, Any],
     request: Mapping[str, Any],
@@ -18822,14 +18844,14 @@ def _response_target_context_summary_errors(
         "target_theorem_context_packet",
     )
     has_normalized_target_context = any(
-        _str_tuple(target_context.get(field_name, []))
+        _target_context_packet_values(target_context, field_name)
         for field_name in TARGET_CONTEXT_SUMMARY_REQUIRED_FIELDS
     )
     if not has_normalized_target_context:
         return []
 
     expected = {
-        field_name: _str_tuple(target_context.get(field_name, []))
+        field_name: _target_context_packet_values(target_context, field_name)
         for field_name in TARGET_CONTEXT_SUMMARY_FIELDS
     }
     expected = {
@@ -18857,9 +18879,10 @@ def _response_target_context_summary_errors(
             "shapes, or target intake ids"
         ]
 
+    normalized_summary = _canonical_target_context_summary(summary)
     errors: list[str] = []
     for field_name, expected_values in expected.items():
-        actual_values = _str_tuple(summary.get(field_name, []))
+        actual_values = _str_tuple(normalized_summary.get(field_name, []))
         missing = _missing_target_context_summary_values(
             expected_values,
             actual_values,
@@ -18871,7 +18894,7 @@ def _response_target_context_summary_errors(
                 + "; ".join(missing[:8])
             )
     if "not theorem proof evidence" not in str(
-        summary.get("proof_evidence_boundary", PROOF_EVIDENCE_BOUNDARY)
+        normalized_summary.get("proof_evidence_boundary", PROOF_EVIDENCE_BOUNDARY)
     ).lower():
         errors.append(
             "target_context_summary.proof_evidence_boundary must say not theorem proof evidence"
@@ -18889,7 +18912,57 @@ def _payload_target_context_summary(payload: Mapping[str, Any]) -> dict[str, obj
                 standalone_route,
                 "llm_route_planner_target_context_summary",
             )
-    return dict(summary)
+    return _canonical_target_context_summary(summary)
+
+
+def _target_context_packet_values(
+    packet: Mapping[str, object],
+    field_name: str,
+) -> tuple[str, ...]:
+    aliases = TARGET_CONTEXT_SUMMARY_FIELD_ALIASES.get(
+        field_name,
+        (field_name,),
+    )
+    values: list[str] = []
+    seen: set[str] = set()
+    for alias in aliases:
+        for value in _str_tuple(packet.get(alias, [])):
+            key = _target_context_summary_value_key(value)
+            if key in seen:
+                continue
+            seen.add(key)
+            values.append(value)
+    return tuple(values)
+
+
+def _canonical_target_context_summary(
+    summary: Mapping[str, object],
+) -> dict[str, object]:
+    if not summary:
+        return {}
+    legacy_aliases = {
+        alias
+        for aliases in TARGET_CONTEXT_SUMMARY_FIELD_ALIASES.values()
+        for alias in aliases
+    } - set(TARGET_CONTEXT_SUMMARY_FIELD_ALIASES)
+    normalized: dict[str, object] = {
+        str(key): value
+        for key, value in summary.items()
+        if str(key) not in legacy_aliases
+    }
+    for canonical_field, aliases in TARGET_CONTEXT_SUMMARY_FIELD_ALIASES.items():
+        values: list[str] = []
+        seen: set[str] = set()
+        for alias in aliases:
+            for value in _str_tuple(summary.get(alias, [])):
+                key = _target_context_summary_value_key(value)
+                if key in seen:
+                    continue
+                seen.add(key)
+                values.append(value)
+        if values:
+            normalized[canonical_field] = values
+    return normalized
 
 
 def _missing_target_context_summary_values(

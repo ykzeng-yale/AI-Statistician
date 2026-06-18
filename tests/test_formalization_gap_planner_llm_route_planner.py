@@ -3923,6 +3923,60 @@ def test_llm_route_planner_accepts_target_context_summary() -> None:
     assert trace["has_llm_route_planner_target_context_summary"] is True
 
 
+def test_llm_route_planner_accepts_legacy_alias_target_context_summary_response() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_legacy_target_context_summary"
+    )
+    out_dir = root / "llm_route_planner"
+    target_intake_dir = root / "target_intake"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    _write_rank_target_intake_manifest(target_intake_dir)
+    response = _llm_response_payload()
+    response["target_context_summary"] = {
+        "normalized_objects": [
+            "calibration scores",
+            "test score",
+            "rank statistic",
+        ],
+        "normalized_assumptions": [
+            "exchangeability",
+            "deterministic tie handling",
+        ],
+        "normalized_statistical_procedures": ["split conformal prediction"],
+        "normalized_desired_conclusions": ["finite-sample rank coverage"],
+        "normalized_theorem_shapes": ["finite_sample_rank_coverage"],
+        "target_intake_ids": ["target-intake:rank-context"],
+        "proof_source_refs": ["conformal_prediction_textbook"],
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["target_context_summary"]["normalized_procedures"] == [
+        "split conformal prediction"
+    ]
+    assert row["target_context_summary"]["desired_conclusions"] == [
+        "finite-sample rank coverage"
+    ]
+    assert row["target_context_summary"]["desired_theorem_shapes"] == [
+        "finite_sample_rank_coverage"
+    ]
+    assert "normalized_statistical_procedures" not in row["target_context_summary"]
+    assert validate_llm_route_planner_row(row, llm_route_planner_row_json_schema()) == []
+    assert validate_standalone_input_payload(payload["standalone_seed"]) == []
+
+
 def test_llm_route_planner_accepts_standalone_route_target_context_summary() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_accepts_standalone_target_context_summary"
@@ -11644,6 +11698,69 @@ def test_llm_route_planner_response_payload_validator_request_context_accepts_pa
     ]["total_context_rows"]
     assert row["n_schema_errors"] == 0
     assert row["n_request_context_errors"] == 0
+
+
+def test_llm_route_planner_response_payload_validator_accepts_legacy_target_summary_aliases() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_payload_validate_legacy_target_summary"
+    )
+    planner_dir = root / "llm_route_planner"
+    target_intake_dir = root / "target_intake"
+    out_dir = root / "out"
+    response_json = root / "response_payload.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    _write_rank_target_intake_manifest(target_intake_dir)
+    staged = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        planner_dir,
+        provider_name="prompt_only",
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
+    )
+    request = staged["request_packets"][0]
+    response = _llm_response_payload()
+    response["target_context_summary"] = {
+        "normalized_objects": [
+            "calibration scores",
+            "test score",
+            "rank statistic",
+        ],
+        "normalized_assumptions": [
+            "exchangeability",
+            "deterministic tie handling",
+        ],
+        "normalized_statistical_procedures": ["split conformal prediction"],
+        "normalized_desired_conclusions": ["finite-sample rank coverage"],
+        "normalized_theorem_shapes": ["finite_sample_rank_coverage"],
+        "target_intake_ids": ["target-intake:rank-context"],
+        "proof_source_refs": ["conformal_prediction_textbook"],
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+    response_json.write_text(
+        json.dumps(
+            {
+                "request_id": request["request_id"],
+                "route_id": request["route_id"],
+                "response_payload": response,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        out_dir,
+        request_context_json=planner_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["request_context_validation_mode"] == "request_bound"
+    assert row["n_schema_errors"] == 0
+    assert row["n_request_context_errors"] == 0
+    assert validate_llm_route_planner_response_payload_validation_manifest(payload) == []
 
 
 def test_response_payload_validator_accepts_formal_supported_route_revision_action() -> None:
