@@ -1294,9 +1294,10 @@ preserves `residual_goal_context` in both `request_payload` and
 generic search. LLM-derived resource-request packets also preserve
 `llm_route_planner_route_adoption_preconditions` in the request payload,
 request playbook, and playbook input summary, and expose manifest counters for
-rows, known pre-response blockers, required response fields, and generated
-request packets. This keeps Paperclip/PaperQA/formal-library/prover operators
-aware of the exact blocker forecast the LLM planner must discharge before route
+rows, known pre-response blockers, required response fields, target primitives,
+generated request packets, and request-payload target scopes. This keeps
+Paperclip/PaperQA/formal-library/prover operators aware of the exact blocker
+forecast and primitive scope the LLM planner must discharge before route
 adoption. The resource-response ledger treats that residual packet as
 request-bound context: `residual_goal_context` is copied from the request into
 the validated ledger row and then into both applied resource-response traces

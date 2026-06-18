@@ -579,6 +579,8 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
                                 "planner_next_actions",
                             ],
                             "n_response_required_fields": 2,
+                            "target_primitives": ["rank_uniformity"],
+                            "n_target_primitives": 1,
                             "proof_evidence_status": (
                                 "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
                             ),
@@ -678,6 +680,12 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
         ]
         == 2
     )
+    assert (
+        payload[
+            "n_llm_route_planner_route_adoption_precondition_target_primitives"
+        ]
+        == 1
+    )
     assert payload["n_llm_route_planner_search_request_rows"] == 3
     assert payload["n_llm_route_planner_planner_next_action_rows"] == 3
     assert payload["n_llm_route_planner_residual_interpretation_rows"] == 2
@@ -685,6 +693,12 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
     assert (
         payload[
             "n_llm_route_planner_resource_request_rows_with_route_adoption_preconditions"
+        ]
+        == payload["n_llm_route_planner_resource_request_rows"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_resource_request_route_adoption_precondition_target_primitives"
         ]
         == payload["n_llm_route_planner_resource_request_rows"]
     )
@@ -750,6 +764,18 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
             "llm_route_planner_route_adoption_preconditions"
         ]["n_known_pre_response_blockers"]
         == 2
+    )
+    assert (
+        paperclip_row["request_payload"][
+            "llm_route_planner_route_adoption_preconditions"
+        ]["target_primitives"]
+        == ["rank_uniformity"]
+    )
+    assert (
+        paperclip_row["request_payload"][
+            "llm_route_planner_route_adoption_preconditions"
+        ]["n_target_primitives"]
+        == 1
     )
     assert (
         "llm_route_planner_route_adoption_preconditions"

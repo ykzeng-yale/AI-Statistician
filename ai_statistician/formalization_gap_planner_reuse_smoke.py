@@ -7165,8 +7165,16 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_llm_route_planner_route_adoption_precondition_required_response_fields",
             0,
         ),
+        "n_resource_request_llm_route_planner_route_adoption_precondition_target_primitives": resource_request_queue_payload.get(
+            "n_llm_route_planner_route_adoption_precondition_target_primitives",
+            0,
+        ),
         "n_resource_request_llm_route_planner_resource_request_rows_with_route_adoption_preconditions": resource_request_queue_payload.get(
             "n_llm_route_planner_resource_request_rows_with_route_adoption_preconditions",
+            0,
+        ),
+        "n_resource_request_llm_route_planner_resource_request_route_adoption_precondition_target_primitives": resource_request_queue_payload.get(
+            "n_llm_route_planner_resource_request_route_adoption_precondition_target_primitives",
             0,
         ),
         "n_resource_request_self_contained_payloads": resource_request_queue_payload.get(
@@ -10075,11 +10083,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_resource_request_llm_route_planner_residual_interpretation_rows')}"
         ),
         (
-            f"- Resource request LLM route-adoption preconditions rows/blockers/required-fields/request-packets: "
+            f"- Resource request LLM route-adoption preconditions rows/blockers/required-fields/target-primitives/request-packets/request-targets: "
             f"{payload.get('n_resource_request_llm_route_planner_rows_with_route_adoption_preconditions')}/"
             f"{payload.get('n_resource_request_llm_route_planner_route_adoption_precondition_known_blockers')}/"
             f"{payload.get('n_resource_request_llm_route_planner_route_adoption_precondition_required_response_fields')}/"
-            f"{payload.get('n_resource_request_llm_route_planner_resource_request_rows_with_route_adoption_preconditions')}"
+            f"{payload.get('n_resource_request_llm_route_planner_route_adoption_precondition_target_primitives')}/"
+            f"{payload.get('n_resource_request_llm_route_planner_resource_request_rows_with_route_adoption_preconditions')}/"
+            f"{payload.get('n_resource_request_llm_route_planner_resource_request_route_adoption_precondition_target_primitives')}"
         ),
         (
             f"- Bundle resource request contract alignment valid: "
