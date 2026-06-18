@@ -3809,6 +3809,61 @@ def test_llm_route_planner_accepts_target_context_summary() -> None:
     assert trace["has_llm_route_planner_target_context_summary"] is True
 
 
+def test_llm_route_planner_accepts_standalone_route_target_context_summary() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_accepts_standalone_target_context_summary"
+    )
+    out_dir = root / "llm_route_planner"
+    target_intake_dir = root / "target_intake"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    _write_rank_target_intake_manifest(target_intake_dir)
+    response = _llm_response_payload()
+    target_context_summary = {
+        "normalized_objects": [
+            "calibration scores",
+            "test score",
+            "rank statistic",
+        ],
+        "normalized_assumptions": [
+            "exchangeability",
+            "deterministic tie handling",
+        ],
+        "normalized_procedures": ["split conformal prediction"],
+        "desired_conclusions": ["finite-sample rank coverage"],
+        "desired_theorem_shapes": ["finite_sample_rank_coverage"],
+        "target_intake_ids": ["target-intake:rank-context"],
+        "proof_source_refs": ["conformal_prediction_textbook"],
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+    response["standalone_route"]["llm_route_planner_target_context_summary"] = (
+        target_context_summary
+    )
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_target_intake_dir=target_intake_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["response_contract_ok"] is True
+    assert row["target_context_summary"] == target_context_summary
+    assert payload["n_rows_with_target_context_summary"] == 1
+    seed_route = payload["standalone_seed"]["routes"][0]
+    assert seed_route["llm_route_planner_target_context_summary"] == (
+        target_context_summary
+    )
+    assert seed_route["replan_metadata"][
+        "llm_route_planner_target_context_summary"
+    ] == target_context_summary
+
+
 def test_llm_route_planner_auto_uses_sonnet_for_source_unbacked_target_intake() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_target_intake_tier"

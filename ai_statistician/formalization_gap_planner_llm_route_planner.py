@@ -18842,10 +18842,13 @@ def _response_target_context_summary_errors(
 
     summary = _dict_value(payload, "target_context_summary")
     if not summary:
-        summary = _dict_value(
-            _dict_value(payload, "standalone_route"),
-            "target_context_summary",
-        )
+        standalone_route = _dict_value(payload, "standalone_route")
+        summary = _dict_value(standalone_route, "target_context_summary")
+        if not summary:
+            summary = _dict_value(
+                standalone_route,
+                "llm_route_planner_target_context_summary",
+            )
     if not summary:
         return [
             "target_context_summary required when "
@@ -18879,10 +18882,13 @@ def _response_target_context_summary_errors(
 def _payload_target_context_summary(payload: Mapping[str, Any]) -> dict[str, object]:
     summary = _dict_value(payload, "target_context_summary")
     if not summary:
-        summary = _dict_value(
-            _dict_value(payload, "standalone_route"),
-            "target_context_summary",
-        )
+        standalone_route = _dict_value(payload, "standalone_route")
+        summary = _dict_value(standalone_route, "target_context_summary")
+        if not summary:
+            summary = _dict_value(
+                standalone_route,
+                "llm_route_planner_target_context_summary",
+            )
     return dict(summary)
 
 
