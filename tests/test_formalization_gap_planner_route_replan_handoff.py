@@ -158,17 +158,25 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         "normalized_assumptions": [
             "exchangeable calibration and test scores"
         ],
-        "normalized_statistical_procedures": [
-            "rank-based conformal calibration"
-        ],
-        "normalized_desired_conclusions": ["rank uniformity"],
-        "normalized_theorem_shapes": ["finite sample rank identity"],
+        "normalized_procedures": ["rank-based conformal calibration"],
+        "desired_conclusions": ["rank uniformity"],
+        "desired_theorem_shapes": ["finite sample rank identity"],
         "proof_source_refs": ["Lei-Wasserman distribution-free prediction"],
         "proof_evidence_status": (
             "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
         ),
         "proof_evidence_boundary": "not theorem proof evidence",
     }
+    legacy_target_context_summary = dict(target_context_summary)
+    legacy_target_context_summary["normalized_statistical_procedures"] = (
+        legacy_target_context_summary.pop("normalized_procedures")
+    )
+    legacy_target_context_summary["normalized_desired_conclusions"] = (
+        legacy_target_context_summary.pop("desired_conclusions")
+    )
+    legacy_target_context_summary["normalized_theorem_shapes"] = (
+        legacy_target_context_summary.pop("desired_theorem_shapes")
+    )
     input_json.write_text(
         json.dumps(
             {
@@ -191,7 +199,7 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
                             route_adoption_preconditions
                         ),
                         "llm_route_planner_target_context_summary": (
-                            target_context_summary
+                            legacy_target_context_summary
                         ),
                         "source_refs": ["Lei-Wasserman distribution-free prediction"],
                         "primitives": [

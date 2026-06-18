@@ -3338,11 +3338,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "normalized_assumptions": [
             "exchangeable calibration and test scores"
         ],
-        "normalized_statistical_procedures": [
-            "rank-based conformal calibration"
-        ],
-        "normalized_desired_conclusions": ["rank uniformity"],
-        "normalized_theorem_shapes": ["finite sample rank identity"],
+        "normalized_procedures": ["rank-based conformal calibration"],
+        "desired_conclusions": ["rank uniformity"],
+        "desired_theorem_shapes": ["finite sample rank identity"],
         "proof_source_refs": ["fixture source"],
         "proof_evidence_status": (
             "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"

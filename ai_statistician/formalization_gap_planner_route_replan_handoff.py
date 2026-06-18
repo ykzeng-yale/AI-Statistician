@@ -672,14 +672,18 @@ def _target_context_summary_consistency_errors(
     row: dict[str, Any],
 ) -> tuple[str, ...]:
     errors: list[str] = []
-    summary = _dict_value(row.get("target_context_summary", {}))
+    summary = _canonical_target_context_summary(
+        _dict_value(row.get("target_context_summary", {}))
+    )
     standalone_route = _dict_value(row.get("standalone_route", {}))
     metadata = _dict_value(standalone_route.get("replan_metadata", {}))
-    route_summary = _dict_value(
-        standalone_route.get("llm_route_planner_target_context_summary", {})
+    route_summary = _canonical_target_context_summary(
+        _dict_value(
+            standalone_route.get("llm_route_planner_target_context_summary", {})
+        )
     )
-    metadata_summary = _dict_value(
-        metadata.get("llm_route_planner_target_context_summary", {})
+    metadata_summary = _canonical_target_context_summary(
+        _dict_value(metadata.get("llm_route_planner_target_context_summary", {}))
     )
     if summary:
         if not route_summary:
@@ -1812,8 +1816,54 @@ def _target_context_summary_for_handoff(
     ):
         summary = _dict_value(source)
         if summary:
-            return dict(summary)
+            return _canonical_target_context_summary(summary)
     return {}
+
+
+_TARGET_CONTEXT_SUMMARY_FIELD_ALIASES = {
+    "normalized_procedures": (
+        "normalized_procedures",
+        "normalized_statistical_procedures",
+    ),
+    "desired_conclusions": (
+        "desired_conclusions",
+        "normalized_desired_conclusions",
+    ),
+    "desired_theorem_shapes": (
+        "desired_theorem_shapes",
+        "normalized_theorem_shapes",
+    ),
+}
+
+
+def _canonical_target_context_summary(
+    summary: dict[str, Any],
+) -> dict[str, object]:
+    if not summary:
+        return {}
+    legacy_aliases = {
+        alias
+        for aliases in _TARGET_CONTEXT_SUMMARY_FIELD_ALIASES.values()
+        for alias in aliases
+    } - set(_TARGET_CONTEXT_SUMMARY_FIELD_ALIASES)
+    normalized: dict[str, object] = {
+        str(key): value
+        for key, value in summary.items()
+        if str(key) not in legacy_aliases
+    }
+    for canonical_field, aliases in _TARGET_CONTEXT_SUMMARY_FIELD_ALIASES.items():
+        values: list[str] = []
+        seen: set[str] = set()
+        for alias in aliases:
+            for value in _str_tuple(summary.get(alias, [])):
+                value_key = re.sub(r"\s+", " ", value.strip().lower())
+                if value_key in seen:
+                    continue
+                seen.add(value_key)
+                values.append(value)
+        if values:
+            normalized[canonical_field] = values
+    return normalized
 
 
 def _route_planning_brief_for_handoff(

@@ -218,11 +218,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "normalized_assumptions": [
             "exchangeable calibration and test scores"
         ],
-        "normalized_statistical_procedures": [
-            "rank-based conformal calibration"
-        ],
-        "normalized_desired_conclusions": ["rank uniformity"],
-        "normalized_theorem_shapes": ["finite sample rank identity"],
+        "normalized_procedures": ["rank-based conformal calibration"],
+        "desired_conclusions": ["rank uniformity"],
+        "desired_theorem_shapes": ["finite sample rank identity"],
         "proof_source_refs": ["Lei-Wasserman distribution-free prediction"],
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
