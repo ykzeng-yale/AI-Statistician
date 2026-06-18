@@ -1059,6 +1059,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         >= 0
     )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_route_adoption_precondition_target_primitives"
+        ]
+        >= 0
+    )
     assert manifest["llm_route_planner_summary"]["n_rows_with_provider_usage"] == 0
     assert manifest["llm_route_planner_summary"]["total_provider_input_tokens"] == 0
     assert manifest["llm_route_planner_summary"]["total_provider_output_tokens"] == 0
@@ -1363,6 +1369,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         >= 0
     )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_row_route_adoption_precondition_target_primitives"
+        ]
+        >= 0
+    )
     assert manifest["feedback_llm_route_planner_summary"]["requested"] is True
     _assert_prompt_only_staged_route_planner_summary(
         manifest["feedback_llm_route_planner_summary"]
@@ -1519,6 +1531,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert (
         manifest["feedback_llm_route_planner_summary"][
             "n_request_route_adoption_precondition_required_response_fields"
+        ]
+        >= 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_route_adoption_precondition_target_primitives"
         ]
         >= 0
     )
@@ -1718,6 +1736,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert (
         validation_summary[
             "n_request_bound_payload_route_adoption_precondition_required_response_fields"
+        ]
+        == 0
+    )
+    assert (
+        validation_summary[
+            "n_request_bound_payload_route_adoption_precondition_target_primitives"
         ]
         == 0
     )

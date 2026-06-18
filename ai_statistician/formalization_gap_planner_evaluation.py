@@ -130,8 +130,10 @@ class FormalizationGapPlannerEvaluationRow:
     llm_route_planner_route_adoption_precondition_blocked_before_response: bool
     llm_route_planner_route_adoption_precondition_known_blockers: tuple[str, ...]
     llm_route_planner_route_adoption_precondition_required_response_fields: tuple[str, ...]
+    llm_route_planner_route_adoption_precondition_target_primitives: tuple[str, ...]
     llm_route_planner_route_adoption_precondition_known_blocker_count: int
     llm_route_planner_route_adoption_precondition_required_response_field_count: int
+    llm_route_planner_route_adoption_precondition_target_primitive_count: int
     llm_route_planner_acceptance_status: str
     llm_route_planner_model_selection_rationale: str
     llm_route_planner_has_generator_metadata: bool
@@ -241,6 +243,10 @@ def evaluate_formalization_gap_planner(
     llm_route_adoption_precondition_required_fields = _unique_row_attr_strings(
         evaluation_rows,
         "llm_route_planner_route_adoption_precondition_required_response_fields",
+    )
+    llm_route_adoption_precondition_target_primitives = _unique_row_attr_strings(
+        evaluation_rows,
+        "llm_route_planner_route_adoption_precondition_target_primitives",
     )
     quality_control_fields = _unique_row_attr_strings(
         evaluation_rows,
@@ -494,11 +500,18 @@ def evaluate_formalization_gap_planner(
             row.llm_route_planner_route_adoption_precondition_required_response_field_count
             for row in evaluation_rows
         ),
+        "n_llm_route_planner_route_adoption_precondition_target_primitives": sum(
+            row.llm_route_planner_route_adoption_precondition_target_primitive_count
+            for row in evaluation_rows
+        ),
         "llm_route_planner_route_adoption_precondition_known_blockers": (
             llm_route_adoption_precondition_blockers
         ),
         "llm_route_planner_route_adoption_precondition_required_response_fields": (
             llm_route_adoption_precondition_required_fields
+        ),
+        "llm_route_planner_route_adoption_precondition_target_primitives": (
+            llm_route_adoption_precondition_target_primitives
         ),
         "llm_route_adoption_blockers": llm_route_adoption_blockers,
         "llm_route_adoption_blocker_counts": llm_route_adoption_blocker_counts,
@@ -797,8 +810,10 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "llm_route_planner_route_adoption_precondition_blocked_before_response",
             "llm_route_planner_route_adoption_precondition_known_blockers",
             "llm_route_planner_route_adoption_precondition_required_response_fields",
+            "llm_route_planner_route_adoption_precondition_target_primitives",
             "llm_route_planner_route_adoption_precondition_known_blocker_count",
             "llm_route_planner_route_adoption_precondition_required_response_field_count",
+            "llm_route_planner_route_adoption_precondition_target_primitive_count",
             "llm_route_planner_acceptance_status",
             "llm_route_planner_model_selection_rationale",
             "llm_route_planner_has_generator_metadata",
@@ -972,11 +987,18 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "llm_route_planner_route_adoption_precondition_required_response_fields": (
                 string_array
             ),
+            "llm_route_planner_route_adoption_precondition_target_primitives": (
+                string_array
+            ),
             "llm_route_planner_route_adoption_precondition_known_blocker_count": {
                 "type": "integer",
                 "minimum": 0,
             },
             "llm_route_planner_route_adoption_precondition_required_response_field_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_route_adoption_precondition_target_primitive_count": {
                 "type": "integer",
                 "minimum": 0,
             },
@@ -1303,12 +1325,24 @@ def _evaluate_row(
                 ]
             )
         ),
+        llm_route_planner_route_adoption_precondition_target_primitives=(
+            _str_tuple(
+                llm_trace[
+                    "route_adoption_precondition_target_primitives"
+                ]
+            )
+        ),
         llm_route_planner_route_adoption_precondition_known_blocker_count=int(
             llm_trace["route_adoption_precondition_known_blocker_count"]
         ),
         llm_route_planner_route_adoption_precondition_required_response_field_count=int(
             llm_trace[
                 "route_adoption_precondition_required_response_field_count"
+            ]
+        ),
+        llm_route_planner_route_adoption_precondition_target_primitive_count=int(
+            llm_trace[
+                "route_adoption_precondition_target_primitive_count"
             ]
         ),
         llm_route_planner_acceptance_status=str(llm_trace["acceptance_status"]),
@@ -1788,6 +1822,9 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
     precondition_required_fields = _str_tuple(
         route_adoption_preconditions.get("response_required_fields", [])
     )
+    precondition_target_primitives = _str_tuple(
+        route_adoption_preconditions.get("target_primitives", [])
+    )
     precondition_known_count = _int_value(
         route_adoption_preconditions.get(
             "n_known_pre_response_blockers",
@@ -1810,6 +1847,17 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
     )
     if not precondition_required_count:
         precondition_required_count = len(precondition_required_fields)
+    precondition_target_count = _int_value(
+        route_adoption_preconditions.get(
+            "n_target_primitives",
+            trace.get(
+                "llm_route_adoption_precondition_target_primitive_count",
+                len(precondition_target_primitives),
+            ),
+        )
+    )
+    if not precondition_target_count:
+        precondition_target_count = len(precondition_target_primitives)
     primitive_matrix_witness = _dict_value(
         trace,
         "llm_route_planner_primitive_evidence_matrix_witness",
@@ -2042,11 +2090,17 @@ def _llm_route_planner_trace(row: dict[str, Any]) -> dict[str, object]:
         "route_adoption_precondition_required_response_fields": (
             precondition_required_fields
         ),
+        "route_adoption_precondition_target_primitives": (
+            precondition_target_primitives
+        ),
         "route_adoption_precondition_known_blocker_count": (
             precondition_known_count
         ),
         "route_adoption_precondition_required_response_field_count": (
             precondition_required_count
+        ),
+        "route_adoption_precondition_target_primitive_count": (
+            precondition_target_count
         ),
         "acceptance_status": str(
             trace.get("llm_route_planner_acceptance_status", "")
@@ -2958,6 +3012,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Evaluation by LLM route adoption status: {payload.get('evaluation_by_llm_route_adoption_status')}",
         f"- LLM route adoption blockers: {payload.get('llm_route_adoption_blockers')}",
         f"- Rows with LLM route-adoption preconditions: {payload.get('n_rows_with_llm_route_planner_route_adoption_preconditions')}",
+        (
+            "- LLM route-adoption precondition blockers/fields/target primitives: "
+            f"{payload.get('n_llm_route_planner_route_adoption_precondition_known_blockers')}/"
+            f"{payload.get('n_llm_route_planner_route_adoption_precondition_required_response_fields')}/"
+            f"{payload.get('n_llm_route_planner_route_adoption_precondition_target_primitives')}"
+        ),
         (
             f"- LLM primitive matrix complete/repair/source/reuse/delta gaps: "
             f"{payload.get('n_rows_with_complete_llm_route_planner_primitive_evidence_matrix_accounting')}/"

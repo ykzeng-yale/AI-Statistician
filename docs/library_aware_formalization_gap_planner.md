@@ -717,9 +717,10 @@ route-planner prompts carried the compact `context_packet_inventory` needed for
 evidence-bounded LLM route repair, and whether the planner JSONL rows preserved
 that same request-context snapshot for standalone reuse. They also expose
 request-side and row-side `route_adoption_preconditions` counts, including
-known pre-response blockers and required LLM response fields, so replay users
-can tell whether a packaged route was blocked by source-backed obligations
-already known before any model response. They also expose
+known pre-response blockers, required LLM response fields, and scoped target
+primitives, so replay users can tell whether a packaged route was blocked by
+source-backed obligations already known before any model response and which
+primitive the follow-up must address. They also expose
 request-inventory quality-control obligation counts, including pending and
 discharged field/value totals, so public bundles show whether route-planner
 prompts still require prover/resource evidence before adoption. They also lift
@@ -1521,9 +1522,10 @@ show when readiness loss reflects unmet resource/response-validation policy or
 source-grounding obligations rather than missing literature, formal-library,
 proof-state, or route-planner signals. The same rows also report
 `mean_route_adoption_precondition_known_blockers` and
-`mean_route_adoption_precondition_required_response_fields`, preserving the
-LLM route planner's recorded pre-response adoption obligations through
-counterfactual evaluation. It is not theorem proof evidence.
+`mean_route_adoption_precondition_required_response_fields` together with
+`mean_route_adoption_precondition_target_primitives`, preserving the LLM route
+planner's recorded pre-response adoption obligations and their primitive scope
+through counterfactual evaluation. It is not theorem proof evidence.
 `research-system-audit` promotes the evaluation and ablation
 route-adoption counts into its top-level `counts` payload so AI Statistician
 runs can be filtered by adoption readiness without parsing nested planner
@@ -1964,7 +1966,11 @@ target-intake row schema, standalone seed contracts, packaged goal-plan rows
 against the published gap-plan row schema, minimal-delta decision rows,
 source-grounding rows, refinement work-item rows, adapter-registry audit checks, and
 component-resource-registry audit checks against their public contracts or
-schemas. For optional interactive-session artifacts, it resolves
+schemas. It now also checks route-adoption precondition target-primitive
+accounting in optional evaluation, route-planner, response-validation, and
+bundle-summary artifacts, so public reuse audits can catch a scoped
+formal-attempt obligation becoming an unscoped queue entry.
+For optional interactive-session artifacts, it resolves
 decision-policy component ids, local/frontier resource ids, and
 resource-contract ids against the bundled component-resource registry. It also
 checks optional LLM route-planner request packets for target-intake theorem

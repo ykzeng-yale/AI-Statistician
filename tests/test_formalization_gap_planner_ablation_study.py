@@ -182,6 +182,12 @@ def test_ablation_study_compares_literature_lean_feedback_and_null_baselines() -
     )
     assert (
         by_variant["full_planner_observed"][
+            "mean_route_adoption_precondition_target_primitives"
+        ]
+        == 0.0
+    )
+    assert (
+        by_variant["full_planner_observed"][
             "mean_route_adoption_pending_quality_control_blockers"
         ]
         == 0.0
@@ -254,6 +260,12 @@ def test_ablation_study_compares_literature_lean_feedback_and_null_baselines() -
     assert (
         by_variant["no_route_planner"][
             "mean_route_adoption_precondition_required_response_fields"
+        ]
+        == 0.0
+    )
+    assert (
+        by_variant["no_route_planner"][
+            "mean_route_adoption_precondition_target_primitives"
         ]
         == 0.0
     )
@@ -355,6 +367,8 @@ def test_ablation_study_tracks_quality_control_route_adoption_blockers() -> None
                                 "planner_next_actions",
                             ],
                             "n_response_required_fields": 2,
+                            "target_primitives": ["rank_uniformity"],
+                            "n_target_primitives": 1,
                         },
                         "llm_route_planner_route_adoption_precondition_present": True,
                         "llm_route_planner_route_adoption_precondition_blocked_before_response": True,
@@ -365,8 +379,12 @@ def test_ablation_study_tracks_quality_control_route_adoption_blockers() -> None
                             "planner_next_actions",
                             "search_requests",
                         ],
+                        "llm_route_planner_route_adoption_precondition_target_primitives": [
+                            "rank_uniformity"
+                        ],
                         "llm_route_planner_route_adoption_precondition_known_blocker_count": 1,
                         "llm_route_planner_route_adoption_precondition_required_response_field_count": 2,
+                        "llm_route_planner_route_adoption_precondition_target_primitive_count": 1,
                     }
                 ],
             },
@@ -400,6 +418,7 @@ def test_ablation_study_tracks_quality_control_route_adoption_blockers() -> None
         full["mean_route_adoption_precondition_required_response_fields"]
         == 2.0
     )
+    assert full["mean_route_adoption_precondition_target_primitives"] == 1.0
     assert (
         by_variant["no_route_planner"][
             "mean_route_adoption_precondition_known_blockers"
@@ -409,6 +428,12 @@ def test_ablation_study_tracks_quality_control_route_adoption_blockers() -> None
     assert (
         by_variant["no_route_planner"][
             "mean_route_adoption_precondition_required_response_fields"
+        ]
+        == 0.0
+    )
+    assert (
+        by_variant["no_route_planner"][
+            "mean_route_adoption_precondition_target_primitives"
         ]
         == 0.0
     )

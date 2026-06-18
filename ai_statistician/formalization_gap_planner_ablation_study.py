@@ -69,6 +69,7 @@ class FormalizationGapPlannerAblationStudyRow:
     mean_route_adoption_pending_source_grounding_blockers: float
     mean_route_adoption_precondition_known_blockers: float
     mean_route_adoption_precondition_required_response_fields: float
+    mean_route_adoption_precondition_target_primitives: float
     relative_route_recall_drop: float
     relative_delta_recall_drop: float
     relative_residual_recall_drop: float
@@ -275,6 +276,7 @@ def ablation_study_row_json_schema() -> dict[str, object]:
         "mean_route_adoption_pending_source_grounding_blockers",
         "mean_route_adoption_precondition_known_blockers",
         "mean_route_adoption_precondition_required_response_fields",
+        "mean_route_adoption_precondition_target_primitives",
         "relative_route_recall_drop",
         "relative_delta_recall_drop",
         "relative_residual_recall_drop",
@@ -332,6 +334,9 @@ def ablation_study_row_json_schema() -> dict[str, object]:
             ),
             "mean_route_adoption_precondition_known_blockers": nonnegative_number,
             "mean_route_adoption_precondition_required_response_fields": (
+                nonnegative_number
+            ),
+            "mean_route_adoption_precondition_target_primitives": (
                 nonnegative_number
             ),
             "relative_route_recall_drop": nonnegative_number,
@@ -437,6 +442,7 @@ def _ablation_row(
         (
             adoption_precondition_known_blockers,
             adoption_precondition_required_fields,
+            adoption_precondition_target_primitives,
         ) = _route_adoption_precondition_metrics(variant, row)
         if removed:
             impacted_routes += 1
@@ -469,6 +475,9 @@ def _ablation_row(
                 ),
                 "route_adoption_precondition_required_response_fields": (
                     adoption_precondition_required_fields
+                ),
+                "route_adoption_precondition_target_primitives": (
+                    adoption_precondition_target_primitives
                 ),
             }
         )
@@ -530,6 +539,10 @@ def _ablation_row(
         ),
         mean_route_adoption_precondition_required_response_fields=_mean(
             metric["route_adoption_precondition_required_response_fields"]
+            for metric in metrics
+        ),
+        mean_route_adoption_precondition_target_primitives=_mean(
+            metric["route_adoption_precondition_target_primitives"]
             for metric in metrics
         ),
         relative_route_recall_drop=0.0,
@@ -691,9 +704,9 @@ def _route_adoption_metrics(
 def _route_adoption_precondition_metrics(
     variant: str,
     evaluation_row: dict[str, Any],
-) -> tuple[float, float]:
+) -> tuple[float, float, float]:
     if variant == "no_route_planner":
-        return (0.0, 0.0)
+        return (0.0, 0.0, 0.0)
     preconditions = (
         evaluation_row.get("llm_route_planner_route_adoption_preconditions", {})
         if isinstance(
@@ -720,7 +733,16 @@ def _route_adoption_precondition_metrics(
             preconditions.get("response_required_fields", []),
         ),
     )
-    return (float(known_blockers), float(required_fields))
+    target_primitives = _count_or_len(
+        evaluation_row.get(
+            "llm_route_planner_route_adoption_precondition_target_primitive_count"
+        ),
+        evaluation_row.get(
+            "llm_route_planner_route_adoption_precondition_target_primitives",
+            preconditions.get("target_primitives", []),
+        ),
+    )
+    return (float(known_blockers), float(required_fields), float(target_primitives))
 
 
 def _next_action_rate(
@@ -954,9 +976,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"{row.get('mean_route_adoption_pending_quality_control_blockers')}",
                 "- Route-adoption pending source-grounding blockers: "
                 f"{row.get('mean_route_adoption_pending_source_grounding_blockers')}",
-                "- Route-adoption precondition known blockers / required response fields: "
+                "- Route-adoption precondition known blockers / required response fields / target primitives: "
                 f"{row.get('mean_route_adoption_precondition_known_blockers')}/"
-                f"{row.get('mean_route_adoption_precondition_required_response_fields')}",
+                f"{row.get('mean_route_adoption_precondition_required_response_fields')}/"
+                f"{row.get('mean_route_adoption_precondition_target_primitives')}",
                 f"- Impacted routes: {row.get('n_impacted_routes')}",
                 f"- Interpretation: {row.get('interpretation')}",
                 "",

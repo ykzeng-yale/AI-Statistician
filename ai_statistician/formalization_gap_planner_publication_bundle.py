@@ -2223,8 +2223,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions",
             "n_llm_route_planner_route_adoption_precondition_known_blockers",
             "n_llm_route_planner_route_adoption_precondition_required_response_fields",
+            "n_llm_route_planner_route_adoption_precondition_target_primitives",
             "llm_route_planner_route_adoption_precondition_known_blockers",
             "llm_route_planner_route_adoption_precondition_required_response_fields",
+            "llm_route_planner_route_adoption_precondition_target_primitives",
             "llm_route_adoption_blockers",
             "llm_route_adoption_blocker_counts",
             "llm_route_adoption_status_counts",
@@ -2294,10 +2296,16 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_llm_route_planner_route_adoption_precondition_required_response_fields": (
                 nonnegative_integer
             ),
+            "n_llm_route_planner_route_adoption_precondition_target_primitives": (
+                nonnegative_integer
+            ),
             "llm_route_planner_route_adoption_precondition_known_blockers": (
                 string_array
             ),
             "llm_route_planner_route_adoption_precondition_required_response_fields": (
+                string_array
+            ),
+            "llm_route_planner_route_adoption_precondition_target_primitives": (
                 string_array
             ),
             "llm_route_adoption_blockers": string_array,
@@ -2360,6 +2368,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_route_adoption_preconditions",
             "n_request_route_adoption_precondition_known_blockers",
             "n_request_route_adoption_precondition_required_response_fields",
+            "n_request_route_adoption_precondition_target_primitives",
             "n_requests_with_quality_control_obligation_inventory",
             "n_requests_with_pending_quality_control_obligation_inventory",
             "n_request_quality_control_obligation_fields",
@@ -2487,6 +2496,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_rows_with_complete_delta_action_witness",
             "n_rows_with_route_adoption_preconditions",
             "n_row_route_adoption_precondition_known_blockers",
+            "n_row_route_adoption_precondition_target_primitives",
             "n_accepted_route_plans",
             "n_accepted_with_formal_attempt_queue",
             "n_route_adoption_ready",
@@ -2537,6 +2547,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_request_route_adoption_precondition_required_response_fields": (
+                nonnegative_integer
+            ),
+            "n_request_route_adoption_precondition_target_primitives": (
                 nonnegative_integer
             ),
             "n_requests_with_quality_control_obligation_inventory": (
@@ -2812,6 +2825,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_row_route_adoption_precondition_known_blockers": (
                 nonnegative_integer
             ),
+            "n_row_route_adoption_precondition_target_primitives": (
+                nonnegative_integer
+            ),
             "n_accepted_route_plans": nonnegative_integer,
             "n_accepted_with_formal_attempt_queue": nonnegative_integer,
             "n_route_adoption_ready": nonnegative_integer,
@@ -2864,6 +2880,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_bound_payloads_with_blocking_route_adoption_preconditions",
             "n_request_bound_payload_route_adoption_precondition_known_blockers",
             "n_request_bound_payload_route_adoption_precondition_required_response_fields",
+            "n_request_bound_payload_route_adoption_precondition_target_primitives",
             "n_request_bound_payloads_with_agentic_proof_strategy_plan",
             "n_request_bound_payload_agentic_proof_strategy_plan_rows",
             "n_request_bound_payload_agentic_proof_strategy_plan_ready",
@@ -2908,6 +2925,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_request_bound_payload_route_adoption_precondition_required_response_fields": (
+                nonnegative_integer
+            ),
+            "n_request_bound_payload_route_adoption_precondition_target_primitives": (
                 nonnegative_integer
             ),
             "n_request_bound_payloads_with_agentic_proof_strategy_plan": (
@@ -4804,8 +4824,10 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions": 0,
         "n_llm_route_planner_route_adoption_precondition_known_blockers": 0,
         "n_llm_route_planner_route_adoption_precondition_required_response_fields": 0,
+        "n_llm_route_planner_route_adoption_precondition_target_primitives": 0,
         "llm_route_planner_route_adoption_precondition_known_blockers": (),
         "llm_route_planner_route_adoption_precondition_required_response_fields": (),
+        "llm_route_planner_route_adoption_precondition_target_primitives": (),
         "llm_route_adoption_blockers": (),
         "llm_route_adoption_blocker_counts": {},
         "llm_route_adoption_status_counts": {},
@@ -5100,6 +5122,14 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
                 "llm_route_planner_route_adoption_precondition_required_response_fields",
             )
         ),
+        "n_llm_route_planner_route_adoption_precondition_target_primitives": (
+            _manifest_count_or_rows(
+                payload,
+                rows,
+                "n_llm_route_planner_route_adoption_precondition_target_primitives",
+                "llm_route_planner_route_adoption_precondition_target_primitives",
+            )
+        ),
         "llm_route_planner_route_adoption_precondition_known_blockers": (
             _manifest_values_or_rows(
                 payload,
@@ -5112,6 +5142,13 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
                 payload,
                 rows,
                 "llm_route_planner_route_adoption_precondition_required_response_fields",
+            )
+        ),
+        "llm_route_planner_route_adoption_precondition_target_primitives": (
+            _manifest_values_or_rows(
+                payload,
+                rows,
+                "llm_route_planner_route_adoption_precondition_target_primitives",
             )
         ),
         "llm_route_adoption_blockers": _manifest_values_or_row_field(
@@ -5268,6 +5305,7 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_requests_with_route_adoption_preconditions": 0,
         "n_request_route_adoption_precondition_known_blockers": 0,
         "n_request_route_adoption_precondition_required_response_fields": 0,
+        "n_request_route_adoption_precondition_target_primitives": 0,
         "n_requests_with_quality_control_obligation_inventory": 0,
         "n_requests_with_pending_quality_control_obligation_inventory": 0,
         "n_request_quality_control_obligation_fields": 0,
@@ -5404,6 +5442,7 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_rows_with_complete_delta_action_witness": 0,
         "n_rows_with_route_adoption_preconditions": 0,
         "n_row_route_adoption_precondition_known_blockers": 0,
+        "n_row_route_adoption_precondition_target_primitives": 0,
         "n_accepted_route_plans": 0,
         "n_accepted_with_formal_attempt_queue": 0,
         "n_route_adoption_ready": 0,
@@ -5613,6 +5652,16 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                 "n_request_route_adoption_precondition_required_response_fields",
                 sum(
                     len(_str_tuple(value.get("response_required_fields", [])))
+                    for value in request_route_adoption_preconditions
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_adoption_precondition_target_primitives": int(
+            payload.get(
+                "n_request_route_adoption_precondition_target_primitives",
+                sum(
+                    len(_str_tuple(value.get("target_primitives", [])))
                     for value in request_route_adoption_preconditions
                 ),
             )
@@ -6824,6 +6873,16 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             )
             or 0
         ),
+        "n_row_route_adoption_precondition_target_primitives": int(
+            payload.get(
+                "n_row_route_adoption_precondition_target_primitives",
+                sum(
+                    len(_str_tuple(value.get("target_primitives", [])))
+                    for value in row_route_adoption_preconditions
+                ),
+            )
+            or 0
+        ),
         "n_accepted_route_plans": int(
             payload.get(
                 "n_accepted_route_plans",
@@ -6939,6 +6998,7 @@ def _llm_route_planner_response_payload_validation_summary(
         "n_request_bound_payloads_with_blocking_route_adoption_preconditions": 0,
         "n_request_bound_payload_route_adoption_precondition_known_blockers": 0,
         "n_request_bound_payload_route_adoption_precondition_required_response_fields": 0,
+        "n_request_bound_payload_route_adoption_precondition_target_primitives": 0,
         "n_request_bound_payloads_with_agentic_proof_strategy_plan": 0,
         "n_request_bound_payload_agentic_proof_strategy_plan_rows": 0,
         "n_request_bound_payload_agentic_proof_strategy_plan_ready": 0,
@@ -7026,6 +7086,13 @@ def _llm_route_planner_response_payload_validation_summary(
         "n_request_bound_payload_route_adoption_precondition_required_response_fields": int(
             payload.get(
                 "n_request_bound_payload_route_adoption_precondition_required_response_fields",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payload_route_adoption_precondition_target_primitives": int(
+            payload.get(
+                "n_request_bound_payload_route_adoption_precondition_target_primitives",
                 0,
             )
             or 0
@@ -7654,9 +7721,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('llm_route_planner_summary', {}).get('n_route_adoption_blockers')} "
             f"preconditions={payload.get('llm_route_planner_summary', {}).get('n_requests_with_route_adoption_preconditions')}/"
             f"{payload.get('llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_known_blockers')}/"
-            f"{payload.get('llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_required_response_fields')} "
+            f"{payload.get('llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_required_response_fields')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_target_primitives')} "
             f"row_preconditions={payload.get('llm_route_planner_summary', {}).get('n_rows_with_route_adoption_preconditions')}/"
-            f"{payload.get('llm_route_planner_summary', {}).get('n_row_route_adoption_precondition_known_blockers')}"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_row_route_adoption_precondition_known_blockers')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_row_route_adoption_precondition_target_primitives')}"
         ),
         (
             f"- LLM standalone replay gate: "
@@ -7694,6 +7763,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"items={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_payload_formal_attempt_queue_items')} "
             f"error_payloads={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_payloads_with_formal_attempt_queue_errors')} "
             f"errors={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_formal_attempt_queue_errors')} "
+            f"precondition_targets={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_request_bound_payload_route_adoption_precondition_target_primitives')} "
             f"agentic_strategy_ready={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_request_bound_payload_agentic_proof_strategy_plan_ready')}/"
             f"{payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_request_bound_payload_agentic_proof_strategy_plan_rows')} "
             f"agentic_strategy_errors={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_agentic_proof_strategy_plan_obligation_errors')}/"
@@ -7719,9 +7789,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_route_adoption_blockers')} "
             f"preconditions={payload.get('feedback_llm_route_planner_summary', {}).get('n_requests_with_route_adoption_preconditions')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_known_blockers')}/"
-            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_required_response_fields')} "
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_required_response_fields')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_request_route_adoption_precondition_target_primitives')} "
             f"row_preconditions={payload.get('feedback_llm_route_planner_summary', {}).get('n_rows_with_route_adoption_preconditions')}/"
-            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_row_route_adoption_precondition_known_blockers')}"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_row_route_adoption_precondition_known_blockers')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_row_route_adoption_precondition_target_primitives')}"
         ),
         (
             f"- Feedback LLM standalone replay gate: "

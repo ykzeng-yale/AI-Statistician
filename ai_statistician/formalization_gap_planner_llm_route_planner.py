@@ -1523,6 +1523,17 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for packet in request_packets
         ),
+        "n_request_route_adoption_precondition_target_primitives": sum(
+            len(
+                _str_tuple(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "route_adoption_preconditions",
+                    ).get("target_primitives", [])
+                )
+            )
+            for packet in request_packets
+        ),
         "n_requests_with_library_alignment_summary": sum(
             1 for summary in library_alignment_summaries if summary
         ),
@@ -3322,6 +3333,17 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for row in rows
         ),
+        "n_row_route_adoption_precondition_target_primitives": sum(
+            len(
+                _str_tuple(
+                    row.route_adoption_preconditions.get(
+                        "target_primitives",
+                        [],
+                    )
+                )
+            )
+            for row in rows
+        ),
         "n_rows_with_residual_goal_contexts": sum(
             1 for row in rows if row.residual_goal_contexts
         ),
@@ -3588,6 +3610,20 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
                     )
                     or 0
                 ),
+                "request_context_route_adoption_precondition_target_primitive_count": int(
+                    request_context_route_adoption_preconditions.get(
+                        "n_target_primitives",
+                        len(
+                            _str_tuple(
+                                request_context_route_adoption_preconditions.get(
+                                    "target_primitives",
+                                    [],
+                                )
+                            )
+                        ),
+                    )
+                    or 0
+                ),
                 "request_context_agentic_proof_strategy_plan_present": bool(
                     request_context_agentic_strategy_plan_rows
                 ),
@@ -3703,6 +3739,16 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
             int(
                 row[
                     "request_context_route_adoption_precondition_required_response_field_count"
+                ]
+                or 0
+            )
+            for row in rows
+            if row["request_context_validation_mode"] == "request_bound"
+        ),
+        "n_request_bound_payload_route_adoption_precondition_target_primitives": sum(
+            int(
+                row[
+                    "request_context_route_adoption_precondition_target_primitive_count"
                 ]
                 or 0
             )
@@ -4185,6 +4231,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_route_adoption_preconditions",
             "n_request_route_adoption_precondition_known_blockers",
             "n_request_route_adoption_precondition_required_response_fields",
+            "n_request_route_adoption_precondition_target_primitives",
             "n_requests_with_library_alignment_summary",
             "n_request_library_alignment_primitives",
             "n_request_library_alignment_reuse_ready_primitives",
@@ -4341,6 +4388,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_rows_with_route_option_selection_brief",
             "n_rows_with_route_adoption_preconditions",
             "n_row_route_adoption_precondition_known_blockers",
+            "n_row_route_adoption_precondition_target_primitives",
             "n_row_schema_valid",
             "n_row_schema_invalid",
             "request_schema",
@@ -4427,6 +4475,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_request_route_adoption_precondition_required_response_fields": (
+                nonnegative_integer
+            ),
+            "n_request_route_adoption_precondition_target_primitives": (
                 nonnegative_integer
             ),
             "n_requests_with_library_alignment_summary": nonnegative_integer,
@@ -4744,6 +4795,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_rows_with_context_packet_inventory": nonnegative_integer,
             "n_rows_with_route_adoption_preconditions": nonnegative_integer,
             "n_row_route_adoption_precondition_known_blockers": nonnegative_integer,
+            "n_row_route_adoption_precondition_target_primitives": (
+                nonnegative_integer
+            ),
             "n_row_schema_valid": nonnegative_integer,
             "n_row_schema_invalid": nonnegative_integer,
             "request_schema": {
@@ -5391,6 +5445,27 @@ def validate_llm_route_planner_manifest(
         errors.append(
             "n_row_route_adoption_precondition_known_blockers must match rows"
         )
+    n_row_route_adoption_precondition_target_primitives = sum(
+        len(
+            _str_tuple(
+                _dict_value(row, "route_adoption_preconditions").get(
+                    "target_primitives",
+                    [],
+                )
+            )
+        )
+        for row in manifest_rows
+    )
+    if int(
+        manifest.get(
+            "n_row_route_adoption_precondition_target_primitives",
+            0,
+        )
+        or 0
+    ) != n_row_route_adoption_precondition_target_primitives:
+        errors.append(
+            "n_row_route_adoption_precondition_target_primitives must match rows"
+        )
     n_rows_with_matrix_witness = sum(
         1
         for row in manifest_rows
@@ -5769,6 +5844,28 @@ def validate_llm_route_planner_manifest(
     ) != n_request_route_adoption_precondition_required_response_fields:
         errors.append(
             "n_request_route_adoption_precondition_required_response_fields "
+            "must match request_packets"
+        )
+    n_request_route_adoption_precondition_target_primitives = sum(
+        len(
+            _str_tuple(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "route_adoption_preconditions",
+                ).get("target_primitives", [])
+            )
+        )
+        for packet in request_packets
+    )
+    if int(
+        manifest.get(
+            "n_request_route_adoption_precondition_target_primitives",
+            0,
+        )
+        or 0
+    ) != n_request_route_adoption_precondition_target_primitives:
+        errors.append(
+            "n_request_route_adoption_precondition_target_primitives "
             "must match request_packets"
         )
     component_resource_count_checks = (
@@ -6645,6 +6742,16 @@ def validate_llm_route_planner_response_payload_validation_manifest(
         )
         for row in request_bound_rows
     )
+    request_bound_precondition_target_primitives = sum(
+        int(
+            row.get(
+                "request_context_route_adoption_precondition_target_primitive_count",
+                0,
+            )
+            or 0
+        )
+        for row in request_bound_rows
+    )
     request_bound_rows_with_agentic_strategy_plan = tuple(
         row
         for row in request_bound_rows
@@ -6788,6 +6895,17 @@ def validate_llm_route_planner_response_payload_validation_manifest(
         errors.append(
             "n_request_bound_payload_route_adoption_precondition_required_response_fields "
             "must match request_bound row precondition required-field counts"
+        )
+    if int(
+        manifest.get(
+            "n_request_bound_payload_route_adoption_precondition_target_primitives",
+            0,
+        )
+        or 0
+    ) != request_bound_precondition_target_primitives:
+        errors.append(
+            "n_request_bound_payload_route_adoption_precondition_target_primitives "
+            "must match request_bound row precondition target-primitive counts"
         )
     if int(
         manifest.get(
@@ -6948,6 +7066,7 @@ def validate_llm_route_planner_response_payload_validation_row(
         "request_context_inventory_total_rows",
         "request_context_route_adoption_precondition_known_blocker_count",
         "request_context_route_adoption_precondition_required_response_field_count",
+        "request_context_route_adoption_precondition_target_primitive_count",
         "request_context_agentic_proof_strategy_plan_row_count",
         "request_context_agentic_proof_strategy_plan_ready_count",
         "payload_formal_attempt_queue_item_count",
@@ -7041,10 +7160,14 @@ def validate_llm_route_planner_response_payload_validation_row(
     precondition_required_count = count_values[
         "request_context_route_adoption_precondition_required_response_field_count"
     ]
+    precondition_target_count = count_values[
+        "request_context_route_adoption_precondition_target_primitive_count"
+    ]
     if not precondition_present and (
         precondition_blocked
         or precondition_known_count
         or precondition_required_count
+        or precondition_target_count
     ):
         errors.append(
             "request_context_route_adoption_precondition_present must be true "
@@ -12745,6 +12868,7 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
             "request_context_route_adoption_precondition_blocked_before_response",
             "request_context_route_adoption_precondition_known_blocker_count",
             "request_context_route_adoption_precondition_required_response_field_count",
+            "request_context_route_adoption_precondition_target_primitive_count",
             "request_context_agentic_proof_strategy_plan_present",
             "request_context_agentic_proof_strategy_plan_row_count",
             "request_context_agentic_proof_strategy_plan_ready_count",
@@ -12801,6 +12925,9 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
                 nonnegative_integer
             ),
             "request_context_route_adoption_precondition_required_response_field_count": (
+                nonnegative_integer
+            ),
+            "request_context_route_adoption_precondition_target_primitive_count": (
                 nonnegative_integer
             ),
             "request_context_agentic_proof_strategy_plan_present": {
@@ -12867,6 +12994,7 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
             "n_request_bound_payloads_with_blocking_route_adoption_preconditions",
             "n_request_bound_payload_route_adoption_precondition_known_blockers",
             "n_request_bound_payload_route_adoption_precondition_required_response_fields",
+            "n_request_bound_payload_route_adoption_precondition_target_primitives",
             "n_request_bound_payloads_with_agentic_proof_strategy_plan",
             "n_request_bound_payload_agentic_proof_strategy_plan_rows",
             "n_request_bound_payload_agentic_proof_strategy_plan_ready",
@@ -12962,6 +13090,9 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
                 "type": "integer"
             },
             "n_request_bound_payload_route_adoption_precondition_required_response_fields": {
+                "type": "integer"
+            },
+            "n_request_bound_payload_route_adoption_precondition_target_primitives": {
                 "type": "integer"
             },
             "n_request_bound_payloads_with_agentic_proof_strategy_plan": {

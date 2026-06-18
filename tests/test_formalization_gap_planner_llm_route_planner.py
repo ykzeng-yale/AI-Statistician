@@ -17917,6 +17917,18 @@ def test_response_payload_validation_enforces_formal_attempt_queue_precondition(
     )
     request = prompt_payload["request_packets"][0]
     preconditions = request["context_packet"]["route_adoption_preconditions"]
+    assert (
+        prompt_payload[
+            "n_request_route_adoption_precondition_target_primitives"
+        ]
+        == 1
+    )
+    assert (
+        prompt_payload[
+            "n_row_route_adoption_precondition_target_primitives"
+        ]
+        == 1
+    )
     assert preconditions["blocked_before_response"] is True
     assert "formal_attempt_queue" in preconditions["response_required_fields"]
     assert preconditions["target_primitives"] == ["rank_uniformity"]

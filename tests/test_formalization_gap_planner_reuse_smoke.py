@@ -3417,6 +3417,14 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
     )
     assert (
+        payload[
+            "ablation_full_planner_observed_route_adoption_precondition_target_primitives"
+        ]
+        == payload[
+            "n_evaluation_llm_route_planner_route_adoption_precondition_target_primitives"
+        ]
+    )
+    assert (
         payload["n_publication_bundle_optional_ablation_study_row_schema_valid"]
         == payload["n_publication_bundle_optional_ablation_study_row_schema_checked"]
         == payload["n_ablation_variants"]
@@ -4489,6 +4497,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_llm_route_planner_response_payload_validation_route_adoption_precondition_target_primitives"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
             "n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue"
         ]
         == 2
@@ -4676,6 +4690,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         >= 0
     )
     assert (
+        payload[
+            "n_evaluation_llm_route_planner_route_adoption_precondition_target_primitives"
+        ]
+        >= 0
+    )
+    assert (
         len(
             payload[
                 "evaluation_llm_route_planner_route_adoption_precondition_known_blockers"
@@ -4693,6 +4713,16 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         )
         == payload[
             "n_evaluation_llm_route_planner_route_adoption_precondition_required_response_fields"
+        ]
+    )
+    assert (
+        len(
+            payload[
+                "evaluation_llm_route_planner_route_adoption_precondition_target_primitives"
+            ]
+        )
+        == payload[
+            "n_evaluation_llm_route_planner_route_adoption_precondition_target_primitives"
         ]
     )
     assert (
@@ -5325,6 +5355,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_llm_route_planner_summary_request_route_adoption_precondition_target_primitives"
+        ]
+        == payload[
+            "n_llm_route_planner_request_route_adoption_precondition_target_primitives"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
             "n_publication_bundle_llm_route_planner_summary_rows_with_route_adoption_preconditions"
         ]
         == payload["n_llm_route_planner_rows_with_route_adoption_preconditions"]
@@ -5336,6 +5375,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload[
             "n_llm_route_planner_row_route_adoption_precondition_known_blockers"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_row_route_adoption_precondition_target_primitives"
+        ]
+        == payload[
+            "n_llm_route_planner_row_route_adoption_precondition_target_primitives"
         ]
         >= 0
     )
@@ -5766,6 +5814,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_route_adoption_precondition_target_primitives"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_request_route_adoption_precondition_target_primitives"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
             "n_publication_bundle_feedback_llm_route_planner_summary_rows_with_route_adoption_preconditions"
         ]
         == payload[
@@ -5779,6 +5836,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload[
             "n_feedback_llm_route_planner_row_route_adoption_precondition_known_blockers"
+        ]
+        >= 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_row_route_adoption_precondition_target_primitives"
+        ]
+        == payload[
+            "n_feedback_llm_route_planner_row_route_adoption_precondition_target_primitives"
         ]
         >= 0
     )

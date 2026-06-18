@@ -312,6 +312,8 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "planner_next_actions",
         ],
         "n_response_required_fields": 2,
+        "target_primitives": ["rank_uniformity"],
+        "n_target_primitives": 1,
     }
     expected_quality_controls = {
         field_name: tuple(values)
@@ -554,6 +556,12 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         ]
         == 2
     )
+    assert (
+        payload[
+            "n_llm_route_planner_route_adoption_precondition_target_primitives"
+        ]
+        == 1
+    )
     assert payload[
         "llm_route_planner_route_adoption_precondition_known_blockers"
     ] == (
@@ -566,6 +574,9 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         "planner_next_actions",
         "search_requests",
     )
+    assert payload[
+        "llm_route_planner_route_adoption_precondition_target_primitives"
+    ] == ("rank_uniformity",)
     assert payload["llm_route_adoption_blockers"] == (
         "quality_control_obligations_pending",
         "search_requests_pending_evidence",
@@ -828,6 +839,9 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         "planner_next_actions",
         "search_requests",
     )
+    assert row[
+        "llm_route_planner_route_adoption_precondition_target_primitives"
+    ] == ("rank_uniformity",)
     assert (
         row[
             "llm_route_planner_route_adoption_precondition_known_blocker_count"
@@ -839,6 +853,12 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "llm_route_planner_route_adoption_precondition_required_response_field_count"
         ]
         == 2
+    )
+    assert (
+        row[
+            "llm_route_planner_route_adoption_precondition_target_primitive_count"
+        ]
+        == 1
     )
     assert row["llm_route_planner_has_generator_metadata"] is True
     assert row["llm_route_planner_generator_metadata_keys"] == (
