@@ -66,6 +66,7 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    PROVIDER_EXECUTION_MODES,
     ROUTE_ADOPTION_AWAITING_STATUS,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
     ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES,
@@ -2340,6 +2341,14 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
         "additionalProperties": True,
         "required": [
             "requested",
+            "provider_execution_mode",
+            "invoke_provider",
+            "response_json_supplied",
+            "static_response_json_supplied",
+            "generator_backend_supplied",
+            "live_provider_backend_requested",
+            "static_generator_backend_requested",
+            "provider_generation_requested",
             "n_request_packets",
             "n_requests_with_context_packet_inventory",
             "n_request_context_inventory_total_rows",
@@ -2504,6 +2513,17 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "requested": {"type": "boolean"},
             "manifest_path": {"type": "string"},
             "jsonl_path": {"type": "string"},
+            "provider_execution_mode": {
+                "type": "string",
+                "enum": ["", *PROVIDER_EXECUTION_MODES],
+            },
+            "invoke_provider": {"type": "boolean"},
+            "response_json_supplied": {"type": "boolean"},
+            "static_response_json_supplied": {"type": "boolean"},
+            "generator_backend_supplied": {"type": "boolean"},
+            "live_provider_backend_requested": {"type": "boolean"},
+            "static_generator_backend_requested": {"type": "boolean"},
+            "provider_generation_requested": {"type": "boolean"},
             "n_request_packets": nonnegative_integer,
             "n_requests_with_context_packet_inventory": nonnegative_integer,
             "n_request_context_inventory_total_rows": nonnegative_integer,
@@ -5229,6 +5249,14 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "requested": False,
         "manifest_path": "",
         "jsonl_path": "",
+        "provider_execution_mode": "",
+        "invoke_provider": False,
+        "response_json_supplied": False,
+        "static_response_json_supplied": False,
+        "generator_backend_supplied": False,
+        "live_provider_backend_requested": False,
+        "static_generator_backend_requested": False,
+        "provider_generation_requested": False,
         "n_request_packets": 0,
         "n_requests_with_context_packet_inventory": 0,
         "n_request_context_inventory_total_rows": 0,
@@ -5455,6 +5483,26 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "requested": True,
         "manifest_path": str(manifest_path),
         "jsonl_path": str(rows_path),
+        "provider_execution_mode": str(
+            payload.get("provider_execution_mode", "") or ""
+        ),
+        "invoke_provider": bool(payload.get("invoke_provider", False)),
+        "response_json_supplied": bool(payload.get("response_json_supplied", False)),
+        "static_response_json_supplied": bool(
+            payload.get("static_response_json_supplied", False)
+        ),
+        "generator_backend_supplied": bool(
+            payload.get("generator_backend_supplied", False)
+        ),
+        "live_provider_backend_requested": bool(
+            payload.get("live_provider_backend_requested", False)
+        ),
+        "static_generator_backend_requested": bool(
+            payload.get("static_generator_backend_requested", False)
+        ),
+        "provider_generation_requested": bool(
+            payload.get("provider_generation_requested", False)
+        ),
         "n_request_packets": int(
             payload.get("n_request_packets", len(rows)) or 0
         ),

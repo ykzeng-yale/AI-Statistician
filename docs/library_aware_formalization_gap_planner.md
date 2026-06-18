@@ -122,6 +122,9 @@ call the configured generator backend. The planner manifest records
 `live_provider_backend`, or `mixed_response_json_and_provider_generation`.
 This separates paid live Claude/OpenAI calls from prompt staging, reviewed
 offline replay, and fake/static generator tests in publication artifacts.
+Publication bundle summaries lift the same execution mode and provider-request
+booleans for both the primary and feedback route planners, so public consumers
+can audit LLM provenance without opening the nested planner manifests.
 Each staged request also writes
 `formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl`.
 Those rows are self-identifying with `schema_id`, `schema_version`, `route_id`,

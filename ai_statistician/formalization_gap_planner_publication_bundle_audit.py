@@ -3123,6 +3123,26 @@ def _expected_bundle_llm_route_planner_summary(
     standalone_replay_gate = _dict_value(payload, "standalone_replay_gate")
     return {
         "requested": manifest_path.exists(),
+        "provider_execution_mode": str(
+            payload.get("provider_execution_mode", "") or ""
+        ),
+        "invoke_provider": bool(payload.get("invoke_provider", False)),
+        "response_json_supplied": bool(payload.get("response_json_supplied", False)),
+        "static_response_json_supplied": bool(
+            payload.get("static_response_json_supplied", False)
+        ),
+        "generator_backend_supplied": bool(
+            payload.get("generator_backend_supplied", False)
+        ),
+        "live_provider_backend_requested": bool(
+            payload.get("live_provider_backend_requested", False)
+        ),
+        "static_generator_backend_requested": bool(
+            payload.get("static_generator_backend_requested", False)
+        ),
+        "provider_generation_requested": bool(
+            payload.get("provider_generation_requested", False)
+        ),
         "n_request_packets": int(payload.get("n_request_packets", len(rows)) or 0),
         "n_requests_with_context_packet_inventory": int(
             payload.get("n_requests_with_context_packet_inventory", 0) or 0

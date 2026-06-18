@@ -49,6 +49,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    PROVIDER_EXECUTION_MODE_PROMPT_ONLY_STAGED,
     PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
@@ -145,6 +146,33 @@ from ai_statistician.model_backend import (
     DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
     PROHIBITED_AGENT_GENERATOR_PROVIDERS,
 )
+
+
+def _assert_prompt_only_staged_route_planner_summary(
+    summary: dict[str, object],
+) -> None:
+    assert (
+        summary["provider_execution_mode"]
+        == PROVIDER_EXECUTION_MODE_PROMPT_ONLY_STAGED
+    )
+    assert summary["invoke_provider"] is False
+    assert summary["response_json_supplied"] is False
+    assert summary["static_response_json_supplied"] is False
+    assert summary["generator_backend_supplied"] is False
+    assert summary["live_provider_backend_requested"] is False
+    assert summary["static_generator_backend_requested"] is False
+    assert summary["provider_generation_requested"] is False
+
+
+def _assert_no_route_planner_execution_summary(summary: dict[str, object]) -> None:
+    assert summary["provider_execution_mode"] == ""
+    assert summary["invoke_provider"] is False
+    assert summary["response_json_supplied"] is False
+    assert summary["static_response_json_supplied"] is False
+    assert summary["generator_backend_supplied"] is False
+    assert summary["live_provider_backend_requested"] is False
+    assert summary["static_generator_backend_requested"] is False
+    assert summary["provider_generation_requested"] is False
 
 
 def _write_llm_route_planner_fixture_input(root: Path) -> Path:
@@ -974,6 +1002,9 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     ]
     assert optional_by_name["formalization_gap_planner_feedback_llm_route_planner"]["ok"]
     assert manifest["llm_route_planner_summary"]["requested"] is True
+    _assert_prompt_only_staged_route_planner_summary(
+        manifest["llm_route_planner_summary"]
+    )
     assert manifest["llm_route_planner_summary"]["n_request_packets"] == 1
     assert (
         manifest["llm_route_planner_summary"][
@@ -1333,6 +1364,9 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         >= 0
     )
     assert manifest["feedback_llm_route_planner_summary"]["requested"] is True
+    _assert_prompt_only_staged_route_planner_summary(
+        manifest["feedback_llm_route_planner_summary"]
+    )
     assert manifest["feedback_llm_route_planner_summary"]["n_request_packets"] == 1
     assert (
         manifest["feedback_llm_route_planner_summary"][
@@ -3047,6 +3081,7 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert cross_prover_attempt_summary["target_summary_consistent"] is True
     assert payload["llm_route_planner_summary"]["requested"] is False
+    _assert_no_route_planner_execution_summary(payload["llm_route_planner_summary"])
     assert payload["llm_route_planner_summary"]["n_request_packets"] == 0
     assert payload["llm_route_planner_summary"]["n_rows"] == 0
     assert (
@@ -3070,6 +3105,9 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert payload["llm_route_planner_summary"]["by_route_adoption_status"] == {}
     assert payload["feedback_llm_route_planner_summary"]["requested"] is False
+    _assert_no_route_planner_execution_summary(
+        payload["feedback_llm_route_planner_summary"]
+    )
     assert payload["feedback_llm_route_planner_summary"]["n_request_packets"] == 0
     assert payload["feedback_llm_route_planner_summary"]["n_rows"] == 0
     assert (
