@@ -39,6 +39,7 @@ from .model_backend import (
     GeneratorRequest,
     OpenAIResponsesGeneratorBackend,
     StaticJSONGeneratorBackend,
+    PROHIBITED_AGENT_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     claude_model_tier_mismatch,
     default_generator_model,
@@ -1661,7 +1662,7 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_request_llm_generation_policy_codex_exclusions": sum(
             1
             for packet in request_packets
-            if {"codex", "codex_exec"}.issubset(
+            if set(PROHIBITED_AGENT_GENERATOR_PROVIDERS).issubset(
                 set(
                     _str_tuple(
                         _dict_value(packet, "llm_generation_policy").get(
@@ -6213,7 +6214,7 @@ def validate_llm_route_planner_manifest(
     generation_policy_codex_exclusions = sum(
         1
         for packet in request_packets
-        if {"codex", "codex_exec"}.issubset(
+        if set(PROHIBITED_AGENT_GENERATOR_PROVIDERS).issubset(
             set(
                 _str_tuple(
                     _dict_value(packet, "llm_generation_policy").get(
@@ -12973,7 +12974,8 @@ def _normalize_provider_name(provider_name: str) -> str:
         raise ValueError(
             "provider_name must be one of "
             + ", ".join(LLM_ROUTE_PLANNER_PROVIDER_NAMES)
-            + "; Codex/Codex exec are not accepted as pure LLM route-planner providers"
+            + "; agent-style CLI providers are not accepted as pure LLM "
+            "route-planner providers"
         )
     return provider
 
@@ -13025,11 +13027,12 @@ def _llm_generation_policy_snapshot(
         "auto_tier_rules": list(LLM_ROUTE_PLANNER_MODEL_TIER_POLICY["auto_tier_rules"]),
         "route_planner_provider_names": list(LLM_ROUTE_PLANNER_PROVIDER_NAMES),
         "supported_live_generator_providers": list(SUPPORTED_LIVE_GENERATOR_PROVIDERS),
-        "prohibited_generator_providers": ["codex", "codex_exec"],
+        "prohibited_generator_providers": list(PROHIBITED_AGENT_GENERATOR_PROVIDERS),
         "codex_policy": (
-            "Codex/Codex exec are not accepted as pure LLM route-planner "
-            "providers because this system requires a stable generator-only "
-            "API boundary."
+            "Codex, Codex exec, Claude Code, Cursor, Gemini CLI, and other "
+            "agent-style CLI providers are not accepted as pure LLM "
+            "route-planner providers because this system requires a stable "
+            "generator-only API boundary."
         ),
         "claude_model_selection": claude_selection,
         "claude_models_by_tier": dict(claude_selection.get("models_by_tier", {})),
@@ -13066,16 +13069,17 @@ def _llm_generation_policy_errors(row: Mapping[str, object]) -> list[str]:
     ).strip():
         errors.append("llm_generation_policy.selected_model_tier must match model_tier")
     prohibited = set(_str_tuple(policy.get("prohibited_generator_providers", [])))
-    if not {"codex", "codex_exec"}.issubset(prohibited):
+    expected_prohibited = set(PROHIBITED_AGENT_GENERATOR_PROVIDERS)
+    if not expected_prohibited.issubset(prohibited):
         errors.append(
             "llm_generation_policy.prohibited_generator_providers must include "
-            "codex and codex_exec"
+            "all known agent-style CLI providers"
         )
     supported = set(_str_tuple(policy.get("supported_live_generator_providers", [])))
-    if supported and {"codex", "codex_exec"}.intersection(supported):
+    if supported and expected_prohibited.intersection(supported):
         errors.append(
             "llm_generation_policy.supported_live_generator_providers must not "
-            "include codex or codex_exec"
+            "include agent-style CLI providers"
         )
     auto_rules = policy.get("auto_tier_rules", [])
     if not isinstance(auto_rules, list) or not auto_rules:

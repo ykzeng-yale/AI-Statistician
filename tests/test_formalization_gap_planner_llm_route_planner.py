@@ -5,6 +5,8 @@ import shutil
 from copy import deepcopy
 from pathlib import Path
 
+import pytest
+
 from ai_statistician.cli import main
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES,
@@ -2361,10 +2363,22 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         "opus": "claude-opus-4-8",
     }
     assert "not evergreen aliases" in generation_policy["claude_model_id_versioning"]
-    assert {"codex", "codex_exec"}.issubset(
+    assert {
+        "codex",
+        "codex_exec",
+        "claude_code",
+        "cursor",
+        "gemini_cli",
+    }.issubset(
         set(generation_policy["prohibited_generator_providers"])
     )
-    assert {"codex", "codex_exec"}.isdisjoint(
+    assert {
+        "codex",
+        "codex_exec",
+        "claude_code",
+        "cursor",
+        "gemini_cli",
+    }.isdisjoint(
         set(generation_policy["supported_live_generator_providers"])
     )
     assert any(
@@ -9167,8 +9181,13 @@ def test_llm_route_planner_cli_rejects_codex_generator_alias() -> None:
     ).exists()
 
 
-def test_llm_route_planner_api_rejects_codex_generator_alias() -> None:
-    root = Path("runs/test_formalization_gap_planner_llm_route_planner_api_codex")
+@pytest.mark.parametrize("provider_name", ("codex_exec", "claude_code"))
+def test_llm_route_planner_api_rejects_agent_generator_alias(
+    provider_name: str,
+) -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_api_agent_provider"
+    )
     out_dir = root / "out"
     shutil.rmtree(root, ignore_errors=True)
     root.mkdir(parents=True, exist_ok=True)
@@ -9178,12 +9197,12 @@ def test_llm_route_planner_api_rejects_codex_generator_alias() -> None:
         export_formalization_gap_planner_llm_route_planner(
             input_json,
             out_dir,
-            provider_name="codex_exec",
+            provider_name=provider_name,
         )
     except ValueError as exc:
-        assert "Codex/Codex exec are not accepted as pure LLM" in str(exc)
+        assert "agent-style CLI providers are not accepted as pure LLM" in str(exc)
     else:
-        raise AssertionError("Codex exec must not be accepted through the API")
+        raise AssertionError("agent-style providers must not be accepted through the API")
     assert not (
         out_dir / "formalization_gap_planner_llm_route_planner_requests.jsonl"
     ).exists()

@@ -182,6 +182,7 @@ from .model_backend import (
     DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
     DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     DEFAULT_LIVE_GENERATOR_PROVIDER,
+    PROHIBITED_AGENT_GENERATOR_PROVIDERS,
 )
 
 
@@ -5230,10 +5231,14 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         _check(
             "llm_model_policy_rejects_codex",
             "contract",
-            "codex,codex_exec excluded from supported providers",
+            "agent-style CLI providers excluded from supported providers",
             ",".join(sorted(supported_llm_providers | prohibited_llm_providers)),
-            {"codex", "codex_exec"}.issubset(prohibited_llm_providers)
-            and not {"codex", "codex_exec"}.intersection(supported_llm_providers),
+            set(PROHIBITED_AGENT_GENERATOR_PROVIDERS).issubset(
+                prohibited_llm_providers
+            )
+            and not set(PROHIBITED_AGENT_GENERATOR_PROVIDERS).intersection(
+                supported_llm_providers
+            ),
         ),
         _check(
             "llm_model_policy_latest_claude_tiers",
@@ -5282,10 +5287,10 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             and llm_model_ids_and_versioning_url
             == ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL
             and str(ANTHROPIC_MODELS_OVERVIEW_URL).startswith(
-                "https://platform.claude.com/docs/"
+                "https://docs.anthropic.com/"
             )
             and str(ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL).startswith(
-                "https://platform.claude.com/docs/"
+                "https://docs.anthropic.com/"
             ),
         ),
         _check(
@@ -9603,15 +9608,16 @@ def _llm_request_generation_policy_errors(
             "anthropic/openai/static"
         )
     prohibited = set(_str_tuple(policy.get("prohibited_generator_providers", [])))
-    if not {"codex", "codex_exec"}.issubset(prohibited):
+    expected_prohibited = set(PROHIBITED_AGENT_GENERATOR_PROVIDERS)
+    if not expected_prohibited.issubset(prohibited):
         errors.append(
             "llm_generation_policy.prohibited_generator_providers must include "
-            "codex and codex_exec"
+            "all known agent-style CLI providers"
         )
-    if {"codex", "codex_exec"}.intersection(supported):
+    if expected_prohibited.intersection(supported):
         errors.append(
             "llm_generation_policy.supported_live_generator_providers must exclude "
-            "codex and codex_exec"
+            "agent-style CLI providers"
         )
     claude_models = policy.get("claude_models_by_tier", {})
     if not isinstance(claude_models, dict):

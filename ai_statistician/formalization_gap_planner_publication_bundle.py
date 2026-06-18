@@ -3346,7 +3346,7 @@ def _llm_model_policy_payload() -> dict[str, object]:
     )
     outside_cost_tier_models = dict(CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS)
     supported_providers = tuple(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
-    prohibited_providers = tuple(PROHIBITED_AGENT_GENERATOR_PROVIDERS[:2])
+    prohibited_providers = tuple(PROHIBITED_AGENT_GENERATOR_PROVIDERS)
     all_ok = (
         DEFAULT_LIVE_GENERATOR_PROVIDER == "anthropic"
         and models_by_tier
@@ -3434,8 +3434,10 @@ def _llm_model_policy_payload() -> dict[str, object]:
             "by AI Statistician runtime components."
         ),
         "codex_policy": (
-            "Codex is not accepted as a normal live LLM provider because it "
-            "cannot be made a stable pure-generator API boundary in this system."
+            "Codex, Codex exec, Claude Code, Cursor, Gemini CLI, and other "
+            "agent-style CLI providers are not accepted as normal live LLM "
+            "providers because they cannot be made a stable pure-generator API "
+            "boundary in this system."
         ),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": (

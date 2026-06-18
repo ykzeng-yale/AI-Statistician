@@ -585,6 +585,45 @@ def _write_accepted_llm_route_planner_artifact(
         target_intake_dir
         / "formalization_gap_planner_target_intake_standalone_seed.json"
     )
+    target_intake_manifest = json.loads(
+        (
+            target_intake_dir
+            / "formalization_gap_planner_target_intake_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    target_intake_row = target_intake_manifest["rows"][0]
+    target_context_summary = {
+        "summary_kind": (
+            "formalization_gap_planner_llm_route_planner_target_context_summary"
+        ),
+        "route_id": target_intake_row["standalone_route_id"],
+        "normalized_objects": target_intake_row.get("normalized_objects", []),
+        "normalized_assumptions": target_intake_row.get(
+            "normalized_assumptions",
+            [],
+        ),
+        "normalized_procedures": (
+            [target_intake_row["normalized_procedure"]]
+            if target_intake_row.get("normalized_procedure")
+            else []
+        ),
+        "desired_conclusions": (
+            [target_intake_row["normalized_claim"]]
+            if target_intake_row.get("normalized_claim")
+            else []
+        ),
+        "desired_theorem_shapes": (
+            [target_intake_row["desired_theorem_shape"]]
+            if target_intake_row.get("desired_theorem_shape")
+            else []
+        ),
+        "target_intake_ids": [target_intake_row["target_intake_id"]],
+        "proof_source_refs": target_intake_row.get("proof_source_refs", []),
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
     residual_context: dict[str, object] | None = None
     if include_unsourced_residual_context:
         residual_context = {
@@ -615,6 +654,7 @@ def _write_accepted_llm_route_planner_artifact(
         json.dumps(
             {
                 "source_snippets": [rank_uniformity_snippet],
+                "target_context_summary": target_context_summary,
                 "informal_knowledge_dag_nodes": [
                     {
                         "node_id": "informal:rank_uniformity",
@@ -4730,7 +4770,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert any(
         row["check_name"] == "llm_model_policy_official_source_urls"
-        and "platform.claude.com/docs" in row["observed"]
+        and "docs.anthropic.com" in row["observed"]
         and row["ok"]
         for row in audit_payload["checks"]
     )

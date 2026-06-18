@@ -143,6 +143,7 @@ from ai_statistician.model_backend import (
     ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
     ANTHROPIC_MODEL_SOURCE_EVIDENCE,
     DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
+    PROHIBITED_AGENT_GENERATOR_PROVIDERS,
 )
 
 
@@ -3985,10 +3986,9 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     }
     assert "codex" not in llm_model_policy["supported_live_generator_providers"]
     assert "codex_exec" not in llm_model_policy["supported_live_generator_providers"]
-    assert set(llm_model_policy["prohibited_generator_providers"]) == {
-        "codex",
-        "codex_exec",
-    }
+    assert set(llm_model_policy["prohibited_generator_providers"]) == set(
+        PROHIBITED_AGENT_GENERATOR_PROVIDERS
+    )
     llm_model_policy_report = (
         out_dir / "contract" / "ai_statistician_llm_model_policy.md"
     )
