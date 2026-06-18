@@ -908,6 +908,7 @@ def test_interactive_session_waits_on_unresolved_route_adoption_preconditions() 
                         ],
                         "route_adoption_precondition_known_blocker_count": 1,
                         "route_adoption_precondition_required_response_field_count": 2,
+                        "route_adoption_precondition_target_primitive_count": 1,
                     }
                 ]
             },
@@ -945,6 +946,7 @@ def test_interactive_session_waits_on_unresolved_route_adoption_preconditions() 
     assert row["route_adoption_precondition_target_primitives"] == (
         "rank_uniformity",
     )
+    assert row["route_adoption_precondition_target_primitive_count"] == 1
     assert "resource_response_ledger" in row["next_tools"]
     assert "formalization_gap_planner_resource_request_queue" in row["next_tools"]
     assert any(
@@ -965,6 +967,15 @@ def test_interactive_session_waits_on_unresolved_route_adoption_preconditions() 
     policy = payload["decision_policy_rows"][0]
     assert "route_adoption_precondition_unresolved" in policy["trigger_signals"]
     assert "route_adoption_preconditions" in policy["evidence_inputs"]
+    bad_target_count_row = dict(row)
+    bad_target_count_row["route_adoption_precondition_target_primitive_count"] = 2
+    assert (
+        "route_adoption_precondition_target_primitive_count must match "
+        "route_adoption_precondition_target_primitives"
+    ) in validate_interactive_session_row(
+        bad_target_count_row,
+        interactive_session_row_json_schema(),
+    )
 
 
 def test_interactive_session_exposes_ready_formal_attempt_queue_commands() -> None:

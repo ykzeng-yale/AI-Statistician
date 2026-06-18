@@ -1855,7 +1855,9 @@ copies the precondition object, blocker counts, required-response-field counts,
 target-primitive counts, and `route_adoption_precondition_unresolved`, adds the
 signal to decision-policy trigger/evidence fields, and emits next commands to
 materialize the missing precondition responses before rerunning the resource
-queue, response ledger, and stability audit.
+queue, response ledger, and stability audit. The public row validator checks
+that the target-primitive count matches the copied target-primitive list, so a
+stale interactive ledger cannot silently narrow the scoped repair obligation.
 Those session and decision-policy rows can be passed back into
 `formalization_gap_planner_llm_route_planner`, so the next LLM route-planning
 packet sees the current bounded interaction state, selected tools, quality

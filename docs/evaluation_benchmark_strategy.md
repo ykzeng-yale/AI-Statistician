@@ -805,7 +805,10 @@ proof-state feedback, route replanning, or target-prover replay next. It also
 emits decision-policy rows that record trigger signals, evidence inputs,
 required tool contracts, component/resource ids, required quality signals,
 quality gates, response-validation signals, stop conditions, and fallback
-actions for each next action; these are session orchestration evidence only.
+actions for each next action. Its row schema preserves and validates scoped
+route-adoption-precondition target primitive counts, so unresolved pre-response
+obligations stay tied to the theorem primitives they block. These are session
+orchestration evidence only.
 The ablation study can consume that session ledger to quantify what is lost
 when proof-state feedback is unavailable, while keeping route-quality evidence
 separate from kernel proof status.
