@@ -4832,6 +4832,13 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"]
+        == "llm_model_policy_embedded_source_evidence_consistent"
+        and "claude-sonnet-4-6" in row["observed"]
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "llm_model_policy_pinned_snapshot_versioning"
         and "not evergreen" in row["observed"]
         and row["ok"]
@@ -5828,6 +5835,55 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         audit_dir
         / "formalization_gap_planner_publication_bundle_audit_manifest.json"
     ).exists()
+
+    llm_model_policy_path = (
+        bundle_dir / "contract" / "ai_statistician_llm_model_policy.json"
+    )
+    llm_model_policy_payload = json.loads(
+        llm_model_policy_path.read_text(encoding="utf-8")
+    )
+    corrupted_llm_model_policy = json.loads(json.dumps(llm_model_policy_payload))
+    corrupted_llm_model_policy["source_evidence"][
+        "verified_latest_cost_tier_api_ids"
+    ]["sonnet"] = "claude-sonnet-4-5"
+    corrupted_llm_model_policy["claude_model_selection"]["models_by_tier"][
+        "haiku"
+    ] = "claude-haiku-4-5"
+    corrupted_llm_model_policy["claude_model_selection"]["source_evidence"][
+        "verified_latest_cost_tier_api_ids"
+    ]["opus"] = "claude-opus-4-7"
+    llm_model_policy_path.write_text(
+        json.dumps(corrupted_llm_model_policy, indent=2),
+        encoding="utf-8",
+    )
+    rejected_llm_model_policy_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_llm_model_policy_source_evidence_drift",
+        )
+    )
+    llm_model_policy_failed_names = {
+        row["check_name"]
+        for row in rejected_llm_model_policy_payload["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_llm_model_policy_payload["all_ok"]
+    assert (
+        "llm_model_policy_embedded_source_evidence_consistent"
+        in llm_model_policy_failed_names
+    )
+    llm_model_policy_drift_check = next(
+        row
+        for row in rejected_llm_model_policy_payload["checks"]
+        if row["check_name"]
+        == "llm_model_policy_embedded_source_evidence_consistent"
+    )
+    assert "claude-sonnet-4-5" in llm_model_policy_drift_check["observed"]
+    assert "claude-opus-4-7" in llm_model_policy_drift_check["observed"]
+    llm_model_policy_path.write_text(
+        json.dumps(llm_model_policy_payload, indent=2),
+        encoding="utf-8",
+    )
 
     evaluation_manifest_path = (
         bundle_dir

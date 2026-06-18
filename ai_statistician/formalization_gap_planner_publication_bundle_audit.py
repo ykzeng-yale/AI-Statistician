@@ -5258,6 +5258,11 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         if isinstance(llm_model_policy.get("claude_model_selection", {}), dict)
         else {}
     )
+    llm_model_selection_source_evidence = (
+        llm_model_selection_policy.get("source_evidence", {})
+        if isinstance(llm_model_selection_policy.get("source_evidence", {}), dict)
+        else {}
+    )
     llm_models_overview_url = str(
         llm_model_policy_source_evidence.get("models_overview_url", "")
     )
@@ -5276,6 +5281,36 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         if isinstance(llm_model_policy.get("latest_claude_models_by_tier", {}), dict)
         else {}
     )
+    llm_source_evidence_models_by_tier = (
+        llm_model_policy_source_evidence.get("verified_latest_cost_tier_api_ids", {})
+        if isinstance(
+            llm_model_policy_source_evidence.get(
+                "verified_latest_cost_tier_api_ids",
+                {},
+            ),
+            dict,
+        )
+        else {}
+    )
+    llm_selection_models_by_tier = (
+        llm_model_selection_policy.get("models_by_tier", {})
+        if isinstance(llm_model_selection_policy.get("models_by_tier", {}), dict)
+        else {}
+    )
+    llm_selection_source_evidence_models_by_tier = (
+        llm_model_selection_source_evidence.get(
+            "verified_latest_cost_tier_api_ids",
+            {},
+        )
+        if isinstance(
+            llm_model_selection_source_evidence.get(
+                "verified_latest_cost_tier_api_ids",
+                {},
+            ),
+            dict,
+        )
+        else {}
+    )
     llm_outside_cost_tier_models = (
         llm_model_policy.get("latest_claude_family_models_outside_cost_tiers", {})
         if isinstance(
@@ -5291,6 +5326,25 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         llm_model_policy.get("latest_claude_api_aliases_by_tier", {})
         if isinstance(
             llm_model_policy.get("latest_claude_api_aliases_by_tier", {}),
+            dict,
+        )
+        else {}
+    )
+    llm_source_evidence_api_aliases_by_tier = (
+        llm_model_policy_source_evidence.get("verified_api_aliases_by_tier", {})
+        if isinstance(
+            llm_model_policy_source_evidence.get(
+                "verified_api_aliases_by_tier",
+                {},
+            ),
+            dict,
+        )
+        else {}
+    )
+    llm_selection_api_aliases_by_tier = (
+        llm_model_selection_policy.get("api_aliases_by_tier", {})
+        if isinstance(
+            llm_model_selection_policy.get("api_aliases_by_tier", {}),
             dict,
         )
         else {}
@@ -5460,6 +5514,38 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
             str(llm_model_policy.get("source_checked_date", "")),
             llm_model_policy.get("source_checked_date")
+            == ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
+        ),
+        _check(
+            "llm_model_policy_embedded_source_evidence_consistent",
+            "contract",
+            "embedded Claude source evidence agrees with top-level tier policy",
+            json.dumps(
+                {
+                    "top_level_models": llm_models_by_tier,
+                    "source_evidence_models": llm_source_evidence_models_by_tier,
+                    "selection_models": llm_selection_models_by_tier,
+                    "selection_source_evidence_models": (
+                        llm_selection_source_evidence_models_by_tier
+                    ),
+                    "top_level_aliases": llm_api_aliases_by_tier,
+                    "source_evidence_aliases": (
+                        llm_source_evidence_api_aliases_by_tier
+                    ),
+                    "selection_aliases": llm_selection_api_aliases_by_tier,
+                },
+                sort_keys=True,
+            ),
+            llm_source_evidence_models_by_tier == llm_models_by_tier
+            and llm_selection_models_by_tier == llm_models_by_tier
+            and llm_selection_source_evidence_models_by_tier == llm_models_by_tier
+            and llm_api_aliases_by_tier
+            == DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER
+            and llm_source_evidence_api_aliases_by_tier
+            == DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER
+            and llm_selection_api_aliases_by_tier
+            == DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER
+            and str(llm_model_selection_policy.get("source_checked_date", ""))
             == ANTHROPIC_MODEL_SOURCE_CHECKED_DATE,
         ),
         _check(
