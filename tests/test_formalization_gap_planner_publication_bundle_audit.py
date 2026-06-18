@@ -3434,6 +3434,8 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "n_known_pre_response_blockers": 1,
         "response_required_fields": ["search_requests", "planner_next_actions"],
         "n_response_required_fields": 2,
+        "target_primitives": ["rank_uniformity"],
+        "n_target_primitives": 1,
         "proof_evidence_status": (
             "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
         ),
@@ -3462,6 +3464,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "route_option_id": "route_option:rank_bridge",
                 "route_cost": 4.0,
                 "selected_primitives": ["rank_uniformity"],
+                "n_selected_primitives": 1,
+                "selected_by_lower_bound_policy": True,
+                "lower_bound_tied_for_best": True,
                 "primitive_costs": [
                     {"primitive": "rank_uniformity", "cost": 4.0}
                 ],
@@ -7636,6 +7641,8 @@ def test_publication_bundle_audit_rejects_stale_interactive_route_preconditions(
         "n_known_pre_response_blockers": 1,
         "response_required_fields": ["search_requests", "planner_next_actions"],
         "n_response_required_fields": 2,
+        "target_primitives": ["rank_uniformity"],
+        "n_target_primitives": 1,
     }
     plan_row = {
         "goal_plan_id": "goal:precondition",
@@ -7676,8 +7683,10 @@ def test_publication_bundle_audit_rejects_stale_interactive_route_preconditions(
             "search_requests",
             "planner_next_actions",
         ],
+        "route_adoption_precondition_target_primitives": ["rank_uniformity"],
         "route_adoption_precondition_known_blocker_count": 1,
         "route_adoption_precondition_required_response_field_count": 2,
+        "route_adoption_precondition_target_primitive_count": 1,
         "revision_status": "NO_ROUTE_REVISION_PROPOSAL",
         "original_selected_primitives": ["rank_uniformity"],
         "revised_selected_primitives": ["rank_uniformity"],
@@ -8203,8 +8212,10 @@ def test_publication_bundle_audit_rejects_stale_generic_prover_fields() -> None:
         "route_adoption_precondition_unresolved": False,
         "route_adoption_precondition_known_blockers": [],
         "route_adoption_precondition_required_response_fields": [],
+        "route_adoption_precondition_target_primitives": [],
         "route_adoption_precondition_known_blocker_count": 0,
         "route_adoption_precondition_required_response_field_count": 0,
+        "route_adoption_precondition_target_primitive_count": 0,
         "revision_status": "ROUTE_REVISION_APPLIED",
         "original_selected_primitives": [],
         "revised_selected_primitives": ["rank_uniformity"],

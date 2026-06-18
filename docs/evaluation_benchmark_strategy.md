@@ -757,9 +757,12 @@ stabilized under the current evidence bound or should expand literature search,
 Lean-library grounding, proof-state feedback, resource-response execution or
 repair, or route replanning. Awaiting and rejected resource-response request
 ids are preserved on the stability rows so interactive sessions can name the
-specific external adapter requests to run or repair. A route that needs
-expansion can still be a valid audit row; stability is a stop/expand planning
-decision, not theorem proof evidence.
+specific external adapter requests to run or repair. Route-adoption
+precondition rows also preserve their target primitive scope, so a blocked or
+unresolved precondition remains tied to the informal theorem objects that need
+more source, library, or proof-state evidence. A route that needs expansion can
+still be a valid audit row; stability is a stop/expand planning decision, not
+theorem proof evidence.
 The `formalization-gap-planner-route-replan-handoff` gate converts route
 overlays and stability decisions into a replayable standalone seed for the next
 planner round. It preserves revised informal DAG nodes, revised
@@ -867,8 +870,9 @@ optional route-revision overlay rows satisfy the published overlay-row schema
 and preserve alignment/resource-response-ledger proposal counts plus
 ledger-derived resource-response status summaries,
 optional route-stability rows satisfy the published stability-row schema and
-their awaiting/rejected resource-response decisions agree with the packaged
-overlay status summaries,
+their awaiting/rejected resource-response decisions and scoped
+route-adoption-precondition target primitives agree with the packaged overlay
+status summaries,
 optional route-replan handoff rows satisfy the published handoff-row schema,
 optional route-replan handoff-audit rows satisfy the published audit-row
 schema, optional route-replan standalone seed schemas carry the published

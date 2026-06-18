@@ -64,6 +64,8 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "n_known_pre_response_blockers": 1,
         "response_required_fields": ["search_requests", "planner_next_actions"],
         "n_response_required_fields": 2,
+        "target_primitives": ["rank_uniformity"],
+        "n_target_primitives": 1,
         "proof_evidence_status": (
             "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
         ),
@@ -92,6 +94,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
                 "route_option_id": "route_option:rank_bridge",
                 "route_cost": 5.0,
                 "selected_primitives": ["rank_uniformity"],
+                "n_selected_primitives": 1,
+                "selected_by_lower_bound_policy": True,
+                "lower_bound_tied_for_best": True,
                 "primitive_costs": [
                     {"primitive": "rank_uniformity", "cost": 5.0}
                 ],

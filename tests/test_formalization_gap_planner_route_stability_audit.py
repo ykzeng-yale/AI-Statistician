@@ -77,6 +77,8 @@ def test_route_stability_audit_separates_stop_and_expand_decisions() -> None:
                         "planner_next_actions",
                     ],
                     "n_response_required_fields": 2,
+                    "target_primitives": ["rank_uniformity"],
+                    "n_target_primitives": 1,
                 },
             },
         },
@@ -293,6 +295,10 @@ def test_route_stability_audit_separates_stop_and_expand_decisions() -> None:
     assert payload["n_routes_with_unresolved_route_adoption_preconditions"] == 1
     assert payload["n_route_adoption_precondition_known_blockers"] == 1
     assert payload["n_route_adoption_precondition_required_response_fields"] == 2
+    assert payload["n_route_adoption_precondition_target_primitives"] == 1
+    assert payload["route_adoption_precondition_target_primitives"] == (
+        "rank_uniformity",
+    )
     by_route = {row["route_id"]: row for row in payload["rows"]}
     assert (
         by_route["route:stable"]["stability_decision"]
@@ -334,15 +340,24 @@ def test_route_stability_audit_separates_stop_and_expand_decisions() -> None:
         "route_adoption_precondition_required_response_fields"
     ] == ("search_requests", "planner_next_actions")
     assert by_route["route:precondition"][
+        "route_adoption_precondition_target_primitives"
+    ] == ("rank_uniformity",)
+    assert by_route["route:precondition"][
         "route_adoption_precondition_known_blocker_count"
     ] == 1
     assert by_route["route:precondition"][
         "route_adoption_precondition_required_response_field_count"
     ] == 2
+    assert by_route["route:precondition"][
+        "route_adoption_precondition_target_primitive_count"
+    ] == 1
     assert any(
         "route_adoption_preconditions remain unresolved" in item
         for item in by_route["route:precondition"]["stopping_rule_evidence"]
     )
+    assert "route_adoption_precondition_target_primitives=1" in by_route[
+        "route:precondition"
+    ]["stopping_rule_evidence"]
     assert by_route["route:precondition"]["next_actions"][0].startswith(
         "resolve LLM route-adoption precondition blockers"
     )
@@ -368,6 +383,18 @@ def test_route_stability_audit_separates_stop_and_expand_decisions() -> None:
         "stable_under_current_evidence_bound must be false when "
         "route_adoption_precondition_unresolved is true"
     ) in stale_errors
+    stale_precondition_count_row = dict(by_route["route:precondition"])
+    stale_precondition_count_row[
+        "route_adoption_precondition_target_primitive_count"
+    ] = 2
+    stale_count_errors = validate_route_stability_audit_row(
+        stale_precondition_count_row,
+        route_stability_audit_row_json_schema(),
+    )
+    assert (
+        "route_adoption_precondition_target_primitive_count must match "
+        "route_adoption_precondition_target_primitives"
+    ) in stale_count_errors
     assert (
         out_dir / "formalization_gap_planner_route_stability_audit_manifest.json"
     ).exists()

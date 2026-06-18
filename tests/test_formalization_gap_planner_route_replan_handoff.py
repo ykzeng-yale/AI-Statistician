@@ -68,6 +68,8 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         "n_known_pre_response_blockers": 1,
         "response_required_fields": ["search_requests", "planner_next_actions"],
         "n_response_required_fields": 2,
+        "target_primitives": ["rank_uniformity"],
+        "n_target_primitives": 1,
         "proof_evidence_status": (
             "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
         ),
@@ -96,6 +98,9 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
                 "route_option_id": "route_option:rank_bridge",
                 "route_cost": 6.0,
                 "selected_primitives": ["exchangeability", "rank_uniformity"],
+                "n_selected_primitives": 2,
+                "selected_by_lower_bound_policy": True,
+                "lower_bound_tied_for_best": True,
                 "primitive_costs": [
                     {"primitive": "exchangeability", "cost": 1.0},
                     {"primitive": "rank_uniformity", "cost": 5.0},
