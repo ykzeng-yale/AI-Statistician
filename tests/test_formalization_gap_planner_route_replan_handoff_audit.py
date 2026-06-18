@@ -502,6 +502,19 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         ]
         == 1
     )
+    assert (
+        payload[
+            "n_roundtrip_standalone_input_trace_llm_route_adoption_precondition_target_primitives"
+        ]
+        == 1
+    )
+    route_adoption_check = next(
+        check
+        for check in payload["checks"]
+        if check["check_name"] == "roundtrip_llm_route_adoption_preconditions_trace"
+    )
+    assert "expected_target_primitives=1" in route_adoption_check["observed"]
+    assert "roundtrip_target_primitives=1" in route_adoption_check["observed"]
     assert any(
         check["check_name"] == "standalone_seed_no_kernel_verified_claims" and check["ok"]
         for check in payload["checks"]

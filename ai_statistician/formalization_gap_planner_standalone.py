@@ -400,6 +400,15 @@ def export_formalization_gap_planner_standalone_plan(
             )
             for row in rows
         ),
+        "n_standalone_input_trace_llm_route_adoption_precondition_target_primitives": sum(
+            int(
+                row.standalone_input_trace.get(
+                    "llm_route_adoption_precondition_target_primitive_count",
+                    0,
+                )
+            )
+            for row in rows
+        ),
         "n_standalone_input_trace_target_theorem_context_target_mismatches": sum(
             1
             for row in rows
@@ -2606,6 +2615,14 @@ def _standalone_input_trace(
             _str_tuple(
                 llm_route_adoption_preconditions.get(
                     "response_required_fields",
+                    [],
+                )
+            )
+        ),
+        "llm_route_adoption_precondition_target_primitive_count": len(
+            _str_tuple(
+                llm_route_adoption_preconditions.get(
+                    "target_primitives",
                     [],
                 )
             )

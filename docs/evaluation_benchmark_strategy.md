@@ -789,7 +789,9 @@ promoted kernel-proof claim, verifies the standalone seed schema id, verifies
 preserved selected-primitive alignment, checks exact row-to-seed preservation
 of revised DAG and alignment payloads, checks row-to-seed provenance
 continuity, and reruns the standalone planner on the seed to ensure alignment
-is regenerated and `standalone_input_trace` survives. It is replayability
+is regenerated and `standalone_input_trace` survives. The audit also reports
+roundtrip route-adoption-precondition target primitive counts so scoped
+pre-response blockers remain visible after replay. It is replayability
 evidence, not theorem proof evidence.
 The `formalization-gap-planner-proof-state-triage` gate ranks route-overlay
 prover statuses into next work items such as non-placeholder theorem

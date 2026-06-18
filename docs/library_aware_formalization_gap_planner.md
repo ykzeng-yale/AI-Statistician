@@ -2594,8 +2594,9 @@ The current implementation composes four existing AI Statistician artifacts:
    carries the seed provenance forward in `standalone_input_trace`, checks
    that `llm_route_planner_route_adoption_preconditions` survives
    row-to-seed preservation and roundtrip standalone traces, so the next LLM
-   planner call keeps known pre-response blockers visible, and checks that each
-   row exposes prompt-only and live LLM route-planner commands
+   planner call keeps known pre-response blockers and their target primitive
+   scope visible, and checks that each row exposes prompt-only and live LLM
+   route-planner commands
    with route-revision overlay context, route-replan handoff context, and
    component-resource registry context.
    It is a replayability audit, not theorem proof evidence. It exports

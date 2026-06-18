@@ -259,6 +259,12 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     )
     assert (
         plan_payload[
+            "n_standalone_input_trace_llm_route_adoption_precondition_target_primitives"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
             "n_standalone_input_traces_with_llm_target_context_summary"
         ]
         == 1
@@ -968,6 +974,12 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert (
         next_plan[
             "n_standalone_input_traces_with_llm_route_adoption_preconditions"
+        ]
+        == 1
+    )
+    assert (
+        next_plan[
+            "n_standalone_input_trace_llm_route_adoption_precondition_target_primitives"
         ]
         == 1
     )

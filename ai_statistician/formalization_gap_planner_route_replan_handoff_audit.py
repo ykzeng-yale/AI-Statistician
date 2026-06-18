@@ -221,6 +221,13 @@ def audit_formalization_gap_planner_route_replan_handoff(
             )
             or 0
         ),
+        "n_roundtrip_standalone_input_trace_llm_route_adoption_precondition_target_primitives": int(
+            roundtrip_payload.get(
+                "n_standalone_input_trace_llm_route_adoption_precondition_target_primitives",
+                0,
+            )
+            or 0
+        ),
         "n_roundtrip_standalone_input_trace_target_theorem_context_target_mismatches": int(
             roundtrip_payload.get(
                 "n_standalone_input_trace_target_theorem_context_target_mismatches",
@@ -1028,6 +1035,10 @@ def _roundtrip_summary(payload: dict[str, Any]) -> dict[str, object]:
             "n_standalone_input_trace_llm_route_adoption_precondition_required_response_fields",
             0,
         ),
+        "n_standalone_input_trace_llm_route_adoption_precondition_target_primitives": payload.get(
+            "n_standalone_input_trace_llm_route_adoption_precondition_target_primitives",
+            0,
+        ),
         "n_standalone_input_trace_target_theorem_context_target_mismatches": payload.get(
             "n_standalone_input_trace_target_theorem_context_target_mismatches",
             0,
@@ -1610,12 +1621,16 @@ def _roundtrip_route_adoption_preconditions_observed(
     metadata_matches = 0
     expected_blockers = 0
     expected_required_fields = 0
+    expected_target_primitives = 0
     for route_id, expected_preconditions in expected.items():
         expected_blockers += len(
             _str_tuple(expected_preconditions.get("known_pre_response_blockers", []))
         )
         expected_required_fields += len(
             _str_tuple(expected_preconditions.get("response_required_fields", []))
+        )
+        expected_target_primitives += len(
+            _str_tuple(expected_preconditions.get("target_primitives", []))
         )
         row = rows.get(route_id, {})
         trace = row.get("standalone_input_trace", {}) if isinstance(row, dict) else {}
@@ -1646,7 +1661,10 @@ def _roundtrip_route_adoption_preconditions_observed(
         f"{payload.get('n_standalone_input_trace_llm_route_adoption_precondition_blockers', 0)}; "
         f"expected_required_fields={expected_required_fields}; "
         "roundtrip_required_fields="
-        f"{payload.get('n_standalone_input_trace_llm_route_adoption_precondition_required_response_fields', 0)}"
+        f"{payload.get('n_standalone_input_trace_llm_route_adoption_precondition_required_response_fields', 0)}; "
+        f"expected_target_primitives={expected_target_primitives}; "
+        "roundtrip_target_primitives="
+        f"{payload.get('n_standalone_input_trace_llm_route_adoption_precondition_target_primitives', 0)}"
     )
 
 
@@ -2569,13 +2587,15 @@ def _seed_route_adoption_preconditions_observed(
     required_fields = _str_tuple(
         row_preconditions.get("response_required_fields", [])
     )
+    target_primitives = _str_tuple(row_preconditions.get("target_primitives", []))
     return (
         f"row={bool(row_preconditions)} "
         "route="
         f"{route_preconditions == row_preconditions if row_preconditions else bool(route_preconditions)} "
         "metadata="
         f"{metadata_preconditions == row_preconditions if row_preconditions else bool(metadata_preconditions)} "
-        f"blockers={len(blockers)} required_fields={len(required_fields)}"
+        f"blockers={len(blockers)} required_fields={len(required_fields)} "
+        f"target_primitives={len(target_primitives)}"
     )
 
 
@@ -2866,6 +2886,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Roundtrip traces with LLM route-option selection brief: {payload.get('n_roundtrip_standalone_input_traces_with_llm_route_option_selection_brief')}",
         f"- Roundtrip traces with LLM primitive-evidence matrix witness: {payload.get('n_roundtrip_standalone_input_traces_with_llm_primitive_evidence_matrix_witness')}",
         f"- Roundtrip traces with LLM route-adoption preconditions: {payload.get('n_roundtrip_standalone_input_traces_with_llm_route_adoption_preconditions')}",
+        f"- Roundtrip LLM route-adoption precondition target primitives: {payload.get('n_roundtrip_standalone_input_trace_llm_route_adoption_precondition_target_primitives')}",
         f"- Roundtrip OK: {payload.get('roundtrip_all_ok')}",
         f"- All OK: {payload.get('all_ok')}",
         "",
