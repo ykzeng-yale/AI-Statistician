@@ -2480,6 +2480,90 @@ def run_formalization_gap_planner_reuse_smoke(
             )
             or 0
         ),
+        "n_combined_llm_route_planner_requests_with_resource_feedback_readiness_summary": int(
+            llm_route_planner_payload.get(
+                "n_requests_with_resource_feedback_readiness_summary",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_requests_with_resource_feedback_readiness_summary",
+                0,
+            )
+            or 0
+        ),
+        "n_combined_llm_route_planner_request_resource_feedback_readiness_rows": int(
+            llm_route_planner_payload.get(
+                "n_request_resource_feedback_readiness_rows",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_request_resource_feedback_readiness_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_combined_llm_route_planner_request_resource_feedback_reuse_ready_rows": int(
+            llm_route_planner_payload.get(
+                "n_request_resource_feedback_reuse_ready_rows",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_request_resource_feedback_reuse_ready_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_requests_with_resource_feedback_readiness_summary": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_requests_with_resource_feedback_readiness_summary",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_requests_with_resource_feedback_readiness_summary",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_request_resource_feedback_readiness_rows": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_resource_feedback_readiness_rows",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_resource_feedback_readiness_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_request_resource_feedback_reuse_ready_rows": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_resource_feedback_reuse_ready_rows",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_resource_feedback_reuse_ready_rows",
+                0,
+            )
+            or 0
+        ),
         "n_publication_bundle_combined_llm_route_planner_summary_formal_attempt_queue_items": int(
             publication_bundle_llm_route_planner_summary.get(
                 "n_formal_attempt_queue_items",
@@ -2816,6 +2900,24 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_llm_route_planner_summary_request_current_goal_plan_rows": (
             publication_bundle_llm_route_planner_summary.get(
                 "n_request_current_goal_plan_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_requests_with_resource_feedback_readiness_summary": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_requests_with_resource_feedback_readiness_summary",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_resource_feedback_readiness_rows": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_resource_feedback_readiness_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_resource_feedback_reuse_ready_rows": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_resource_feedback_reuse_ready_rows",
                 0,
             )
         ),
@@ -3427,6 +3529,24 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_resource_feedback_readiness_summary": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_requests_with_resource_feedback_readiness_summary",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_resource_feedback_readiness_rows": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_resource_feedback_readiness_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_resource_feedback_reuse_ready_rows": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_resource_feedback_reuse_ready_rows",
+                0,
+            )
+        ),
         "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_route_adoption_preconditions": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_requests_with_route_adoption_preconditions",
@@ -4034,6 +4154,18 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_llm_route_planner_request_current_goal_plan_rows": llm_route_planner_payload.get(
             "n_request_current_goal_plan_rows",
+            0,
+        ),
+        "n_llm_route_planner_requests_with_resource_feedback_readiness_summary": llm_route_planner_payload.get(
+            "n_requests_with_resource_feedback_readiness_summary",
+            0,
+        ),
+        "n_llm_route_planner_request_resource_feedback_readiness_rows": llm_route_planner_payload.get(
+            "n_request_resource_feedback_readiness_rows",
+            0,
+        ),
+        "n_llm_route_planner_request_resource_feedback_reuse_ready_rows": llm_route_planner_payload.get(
+            "n_request_resource_feedback_reuse_ready_rows",
             0,
         ),
         "n_llm_route_planner_requests_with_route_adoption_preconditions": llm_route_planner_payload.get(
@@ -4840,6 +4972,24 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_request_current_goal_plan_rows": (
             feedback_llm_route_planner_payload.get(
                 "n_request_current_goal_plan_rows",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_requests_with_resource_feedback_readiness_summary": (
+            feedback_llm_route_planner_payload.get(
+                "n_requests_with_resource_feedback_readiness_summary",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_resource_feedback_readiness_rows": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_resource_feedback_readiness_rows",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_resource_feedback_reuse_ready_rows": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_resource_feedback_reuse_ready_rows",
                 0,
             )
         ),
@@ -9815,6 +9965,21 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_combined_llm_route_planner_request_current_goal_plan_rows')} "
             f"bundle={payload.get('n_publication_bundle_combined_llm_route_planner_summary_requests_with_current_goal_plan_rows')}/"
             f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_request_current_goal_plan_rows')}"
+        ),
+        (
+            f"- LLM route planner resource-feedback readiness requests/rows/reuse-ready: "
+            f"primary={payload.get('n_llm_route_planner_requests_with_resource_feedback_readiness_summary')}/"
+            f"{payload.get('n_llm_route_planner_request_resource_feedback_readiness_rows')}/"
+            f"{payload.get('n_llm_route_planner_request_resource_feedback_reuse_ready_rows')} "
+            f"feedback={payload.get('n_feedback_llm_route_planner_requests_with_resource_feedback_readiness_summary')}/"
+            f"{payload.get('n_feedback_llm_route_planner_request_resource_feedback_readiness_rows')}/"
+            f"{payload.get('n_feedback_llm_route_planner_request_resource_feedback_reuse_ready_rows')} "
+            f"combined={payload.get('n_combined_llm_route_planner_requests_with_resource_feedback_readiness_summary')}/"
+            f"{payload.get('n_combined_llm_route_planner_request_resource_feedback_readiness_rows')}/"
+            f"{payload.get('n_combined_llm_route_planner_request_resource_feedback_reuse_ready_rows')} "
+            f"bundle={payload.get('n_publication_bundle_combined_llm_route_planner_summary_requests_with_resource_feedback_readiness_summary')}/"
+            f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_request_resource_feedback_readiness_rows')}/"
+            f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_request_resource_feedback_reuse_ready_rows')}"
         ),
         (
             f"- LLM route planner adoption ready/pending/search-blockers/action-blockers: "

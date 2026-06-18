@@ -33,6 +33,69 @@ def _sum_count_maps(*maps: object) -> dict[str, int]:
     }
 
 
+def _assert_llm_resource_feedback_readiness_summary(payload: dict[str, object]) -> None:
+    for bundle_key, raw_key in (
+        (
+            "n_publication_bundle_llm_route_planner_summary_requests_with_resource_feedback_readiness_summary",
+            "n_llm_route_planner_requests_with_resource_feedback_readiness_summary",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_request_resource_feedback_readiness_rows",
+            "n_llm_route_planner_request_resource_feedback_readiness_rows",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_request_resource_feedback_reuse_ready_rows",
+            "n_llm_route_planner_request_resource_feedback_reuse_ready_rows",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_resource_feedback_readiness_summary",
+            "n_feedback_llm_route_planner_requests_with_resource_feedback_readiness_summary",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_resource_feedback_readiness_rows",
+            "n_feedback_llm_route_planner_request_resource_feedback_readiness_rows",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_resource_feedback_reuse_ready_rows",
+            "n_feedback_llm_route_planner_request_resource_feedback_reuse_ready_rows",
+        ),
+    ):
+        assert payload[bundle_key] == payload[raw_key]
+    for combined_key, primary_key, feedback_key in (
+        (
+            "n_combined_llm_route_planner_requests_with_resource_feedback_readiness_summary",
+            "n_llm_route_planner_requests_with_resource_feedback_readiness_summary",
+            "n_feedback_llm_route_planner_requests_with_resource_feedback_readiness_summary",
+        ),
+        (
+            "n_combined_llm_route_planner_request_resource_feedback_readiness_rows",
+            "n_llm_route_planner_request_resource_feedback_readiness_rows",
+            "n_feedback_llm_route_planner_request_resource_feedback_readiness_rows",
+        ),
+        (
+            "n_combined_llm_route_planner_request_resource_feedback_reuse_ready_rows",
+            "n_llm_route_planner_request_resource_feedback_reuse_ready_rows",
+            "n_feedback_llm_route_planner_request_resource_feedback_reuse_ready_rows",
+        ),
+    ):
+        assert payload[combined_key] == payload[primary_key] + payload[feedback_key]
+    for bundle_combined_key, combined_key in (
+        (
+            "n_publication_bundle_combined_llm_route_planner_summary_requests_with_resource_feedback_readiness_summary",
+            "n_combined_llm_route_planner_requests_with_resource_feedback_readiness_summary",
+        ),
+        (
+            "n_publication_bundle_combined_llm_route_planner_summary_request_resource_feedback_readiness_rows",
+            "n_combined_llm_route_planner_request_resource_feedback_readiness_rows",
+        ),
+        (
+            "n_publication_bundle_combined_llm_route_planner_summary_request_resource_feedback_reuse_ready_rows",
+            "n_combined_llm_route_planner_request_resource_feedback_reuse_ready_rows",
+        ),
+    ):
+        assert payload[bundle_combined_key] == payload[combined_key]
+
+
 def test_reuse_smoke_llm_execution_mode_uses_planner_manifest_before_provider_flags() -> None:
     payload = {
         "provider_execution_mode": "static_generator_backend",
@@ -1775,6 +1838,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == payload["n_combined_llm_route_planner_request_current_goal_plan_rows"]
     )
+    _assert_llm_resource_feedback_readiness_summary(payload)
     assert (
         payload["n_feedback_llm_route_planner_requests_with_library_coverage_rows"]
         > 0
@@ -5905,6 +5969,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == payload["n_combined_llm_route_planner_request_current_goal_plan_rows"]
     )
+    _assert_llm_resource_feedback_readiness_summary(payload)
     assert (
         payload[
             "n_publication_bundle_combined_llm_route_planner_summary_formal_attempt_queue_items"

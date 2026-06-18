@@ -3462,6 +3462,55 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_requests_with_resource_feedback_readiness_summary": int(
+            payload.get(
+                "n_requests_with_resource_feedback_readiness_summary",
+                sum(
+                    1
+                    for packet in request_packets
+                    if int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "resource_feedback_readiness_summary",
+                        ).get("total_count", 0)
+                        or 0
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_resource_feedback_readiness_rows": int(
+            payload.get(
+                "n_request_resource_feedback_readiness_rows",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "resource_feedback_readiness_summary",
+                        ).get("total_count", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_resource_feedback_reuse_ready_rows": int(
+            payload.get(
+                "n_request_resource_feedback_reuse_ready_rows",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "resource_feedback_readiness_summary",
+                        ).get("reuse_ready_count", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": int(
             payload.get(
                 "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",

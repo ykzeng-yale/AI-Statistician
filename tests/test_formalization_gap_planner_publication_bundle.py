@@ -230,12 +230,121 @@ def _write_llm_route_planner_fixture_input(root: Path) -> Path:
     return input_json
 
 
-def _write_prompt_only_llm_route_planner_artifact(root: Path) -> Path:
+def _write_prompt_only_llm_route_planner_artifact(
+    root: Path,
+    *,
+    resource_response_ledger_dir: Path | None = None,
+) -> Path:
     input_json = _write_llm_route_planner_fixture_input(root)
     out_dir = root / "llm_route_planner"
-    payload = export_formalization_gap_planner_llm_route_planner(input_json, out_dir)
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
     assert payload["all_ok"]
     return out_dir
+
+
+def _write_resource_feedback_response_ledger(root: Path) -> Path:
+    ledger_dir = root / "resource_response_ledger"
+    ledger_dir.mkdir(parents=True, exist_ok=True)
+    (
+        ledger_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_resource_response_ledger",
+                "n_ledger_rows": 1,
+                "rows": [
+                    {
+                        "resource_response_ledger_id": (
+                            "resource-response:fixture-route"
+                        ),
+                        "resource_request_id": "resource-request:fixture-route",
+                        "goal_plan_id": "goal:fixture-route",
+                        "route_id": "route:fixture",
+                        "display_name": "fixture formalization route",
+                        "primitive": "bridge_conclusion",
+                        "target_primitives": ["bridge_conclusion"],
+                        "resource_id": "paperclip_mcp",
+                        "expected_response_artifact": "source_evidence",
+                        "priority_score": 88,
+                        "minimal_delta_cost_score": 40,
+                        "reuse_readiness_score": 70,
+                        "evidence_readiness_score": 90,
+                        "priority_rationale": [
+                            "coverage_status=bridge_needed",
+                            "minimal_delta_cost_score=40",
+                            "reuse_readiness_score=70",
+                            "evidence_readiness_score=90",
+                        ],
+                        "acceptance_gate": (
+                            "source evidence must satisfy queued contract fields"
+                        ),
+                        "response_present": True,
+                        "response_contract_minimum_met": True,
+                        "response_contract_ok": True,
+                        "response_summary": (
+                            "Paperclip extracted source-backed bridge evidence "
+                            "for the fixture route."
+                        ),
+                        "response_payload": {
+                            "source_snippets": [
+                                {
+                                    "source_ref": "fixture_source",
+                                    "claim": (
+                                        "the bridge conclusion follows after "
+                                        "the source assumption is available"
+                                    ),
+                                }
+                            ],
+                            "route_revision_recommended": True,
+                        },
+                        "response_artifacts": ["paperclip://fixture-bridge"],
+                        "source_refs": ["fixture_source"],
+                        "request_playbook_present": True,
+                        "response_playbook_grounded": True,
+                        "response_playbook_grounding_terms": [
+                            "bridge_conclusion",
+                            "source_assumption",
+                        ],
+                        "route_evidence_nodes": [
+                            {
+                                "node_id": "paperclip:bridge_conclusion",
+                                "claim": (
+                                    "the bridge conclusion needs the source "
+                                    "assumption as an explicit premise"
+                                ),
+                            }
+                        ],
+                        "formal_declaration_hits": [
+                            {
+                                "declaration": "Fixture.bridgeConclusion",
+                                "target_prover_family": "lean4",
+                                "source_field": "formal_declaration_hits",
+                            }
+                        ],
+                        "coverage_updates": {"bridge_conclusion": "bridge_needed"},
+                        "residual_goals": [
+                            "bridge_conclusion: expose source_assumption premise"
+                        ],
+                        "route_revision_recommended": True,
+                        "route_revision_reasons": [
+                            "add source_assumption as an explicit bridge premise"
+                        ],
+                        "acceptance_status": "ACCEPTED_WITH_ROUTE_REVISION",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return ledger_dir
 
 
 def _write_llm_response_payload_validation_artifact(root: Path) -> Path:
@@ -1053,6 +1162,24 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     )
     assert (
         manifest["llm_route_planner_summary"][
+            "n_requests_with_resource_feedback_readiness_summary"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_resource_feedback_readiness_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_resource_feedback_reuse_ready_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
             "n_requests_with_route_adoption_preconditions"
         ]
         == 1
@@ -1844,6 +1971,45 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         / "formalization_gap_planner_llm_route_planner_response_payload_validation"
         / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
     ).exists()
+
+
+def test_publication_bundle_summarizes_llm_resource_feedback_readiness() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_resource_feedback"
+    )
+    shutil.rmtree(root, ignore_errors=True)
+    resource_response_ledger_dir = _write_resource_feedback_response_ledger(
+        root / "resource_feedback"
+    )
+    primary_dir = _write_prompt_only_llm_route_planner_artifact(
+        root / "primary",
+        resource_response_ledger_dir=resource_response_ledger_dir,
+    )
+    out_dir = root / "bundle"
+
+    payload = export_formalization_gap_planner_publication_bundle(
+        out_dir,
+        formalization_gap_planner_llm_route_planner_dir=primary_dir,
+    )
+
+    assert payload["all_ok"]
+    raw_manifest = json.loads(
+        (
+            primary_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    manifest = json.loads(
+        (
+            out_dir / "formalization_gap_planner_publication_bundle_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    summary = manifest["llm_route_planner_summary"]
+    assert raw_manifest["n_requests_with_resource_feedback_readiness_summary"] == 1
+    assert raw_manifest["n_request_resource_feedback_readiness_rows"] == 1
+    assert raw_manifest["n_request_resource_feedback_reuse_ready_rows"] == 0
+    assert summary["n_requests_with_resource_feedback_readiness_summary"] == 1
+    assert summary["n_request_resource_feedback_readiness_rows"] == 1
+    assert summary["n_request_resource_feedback_reuse_ready_rows"] == 0
 
 
 def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts() -> None:

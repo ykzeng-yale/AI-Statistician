@@ -2420,6 +2420,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_residual_goal_contexts",
             "n_request_context_residual_goal_contexts",
             "n_request_inventory_residual_goal_contexts",
+            "n_requests_with_resource_feedback_readiness_summary",
+            "n_request_resource_feedback_readiness_rows",
+            "n_request_resource_feedback_reuse_ready_rows",
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_feedback_loop_summary_interactive_resource_requests",
@@ -2615,6 +2618,11 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_residual_goal_contexts": nonnegative_integer,
             "n_request_context_residual_goal_contexts": nonnegative_integer,
             "n_request_inventory_residual_goal_contexts": nonnegative_integer,
+            "n_requests_with_resource_feedback_readiness_summary": (
+                nonnegative_integer
+            ),
+            "n_request_resource_feedback_readiness_rows": nonnegative_integer,
+            "n_request_resource_feedback_reuse_ready_rows": nonnegative_integer,
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": (
                 nonnegative_integer
             ),
@@ -5454,6 +5462,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_residual_goal_contexts": 0,
         "n_request_context_residual_goal_contexts": 0,
         "n_request_inventory_residual_goal_contexts": 0,
+        "n_requests_with_resource_feedback_readiness_summary": 0,
+        "n_request_resource_feedback_readiness_rows": 0,
+        "n_request_resource_feedback_reuse_ready_rows": 0,
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_feedback_loop_summary_interactive_resource_requests": 0,
@@ -5948,6 +5959,55 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                             _dict_value(packet, "context_packet"),
                             "context_packet_inventory",
                         ).get("residual_goal_context_count", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_requests_with_resource_feedback_readiness_summary": int(
+            payload.get(
+                "n_requests_with_resource_feedback_readiness_summary",
+                sum(
+                    1
+                    for packet in request_packets
+                    if int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "resource_feedback_readiness_summary",
+                        ).get("total_count", 0)
+                        or 0
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_resource_feedback_readiness_rows": int(
+            payload.get(
+                "n_request_resource_feedback_readiness_rows",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "resource_feedback_readiness_summary",
+                        ).get("total_count", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_resource_feedback_reuse_ready_rows": int(
+            payload.get(
+                "n_request_resource_feedback_reuse_ready_rows",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "resource_feedback_readiness_summary",
+                        ).get("reuse_ready_count", 0)
                         or 0
                     )
                     for packet in request_packets
