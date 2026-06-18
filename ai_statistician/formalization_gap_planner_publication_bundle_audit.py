@@ -748,6 +748,19 @@ def audit_formalization_gap_planner_publication_bundle(
             if check.check_name == "optional_evaluation_quality_control_manifest"
             and check.ok
         ),
+        "n_optional_evaluation_residual_goal_context_manifest_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_evaluation_residual_goal_context_manifest"
+        ),
+        "n_optional_evaluation_residual_goal_context_manifest_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_evaluation_residual_goal_context_manifest"
+            and check.ok
+        ),
         "n_optional_evaluation_rows_with_route_adoption_status": sum(
             1
             for row in optional_evaluation_rows
@@ -17283,6 +17296,12 @@ def _evaluation_optional_checks(
         manifest,
         rows,
     )
+    residual_goal_context_manifest_errors = (
+        _evaluation_residual_goal_context_manifest_errors(
+            manifest,
+            rows,
+        )
+    )
     checks.append(
         _check(
             "optional_evaluation_realization_missing_manifest",
@@ -17319,6 +17338,20 @@ def _evaluation_optional_checks(
             ),
             not quality_control_manifest_errors,
             errors=quality_control_manifest_errors,
+        )
+    )
+    checks.append(
+        _check(
+            "optional_evaluation_residual_goal_context_manifest",
+            "optional_artifacts",
+            "evaluation manifest preserves residual-goal context aggregates",
+            (
+                "; ".join(residual_goal_context_manifest_errors)
+                if residual_goal_context_manifest_errors
+                else "ok"
+            ),
+            not residual_goal_context_manifest_errors,
+            errors=residual_goal_context_manifest_errors,
         )
     )
     for idx, row in enumerate(rows):
@@ -17699,6 +17732,62 @@ def _evaluation_realization_missing_manifest_errors(
             "realization_missing_primitives_by_route mismatch: "
             f"observed={sorted(observed_by_route)} expected={sorted(expected_by_route)}"
         )
+    return tuple(errors)
+
+
+def _evaluation_residual_goal_context_manifest_errors(
+    manifest: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    row_tuple = _dict_tuple(rows)
+
+    def row_count(row: dict[str, Any], field_name: str) -> int:
+        value = _int_or_none(row.get(field_name))
+        if value is None or value < 0:
+            return 0
+        return value
+
+    expected_counts = {
+        "n_rows_with_llm_route_planner_residual_goal_contexts": sum(
+            1
+            for row in row_tuple
+            if row_count(row, "llm_route_planner_residual_goal_context_count") > 0
+        ),
+        "n_llm_route_planner_residual_goal_contexts": sum(
+            row_count(row, "llm_route_planner_residual_goal_context_count")
+            for row in row_tuple
+        ),
+        "n_llm_route_planner_residual_goal_context_source_refs": sum(
+            row_count(row, "llm_route_planner_residual_goal_context_source_ref_count")
+            for row in row_tuple
+        ),
+        "n_llm_route_planner_residual_goal_context_provenance_values": sum(
+            row_count(row, "llm_route_planner_residual_goal_context_provenance_count")
+            for row in row_tuple
+        ),
+        "n_llm_route_planner_residual_goals_with_context": sum(
+            row_count(row, "llm_route_planner_residual_goals_with_context_count")
+            for row in row_tuple
+        ),
+        "n_llm_route_planner_residual_goals_without_context": sum(
+            len(
+                _str_tuple(
+                    row.get(
+                        "llm_route_planner_residual_goals_without_context",
+                        [],
+                    )
+                )
+            )
+            for row in row_tuple
+        ),
+    }
+    for field_name, expected in expected_counts.items():
+        observed = _int_or_none(manifest.get(field_name))
+        if observed != expected:
+            errors.append(
+                f"{field_name} mismatch: observed={observed} expected={expected}"
+            )
     return tuple(errors)
 
 
@@ -21575,6 +21664,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional evaluation route-adoption manifest valid: {payload.get('n_optional_evaluation_route_adoption_manifest_valid')}/{payload.get('n_optional_evaluation_route_adoption_manifest_checked')}",
         f"- Optional evaluation quality-control rows valid: {payload.get('n_optional_evaluation_quality_control_row_valid')}/{payload.get('n_optional_evaluation_quality_control_row_checked')}",
         f"- Optional evaluation quality-control manifest valid: {payload.get('n_optional_evaluation_quality_control_manifest_valid')}/{payload.get('n_optional_evaluation_quality_control_manifest_checked')}",
+        f"- Optional evaluation residual-goal context manifest valid: {payload.get('n_optional_evaluation_residual_goal_context_manifest_valid')}/{payload.get('n_optional_evaluation_residual_goal_context_manifest_checked')}",
         f"- Bundle LLM route-planner summary valid: {payload.get('n_bundle_llm_route_planner_summary_valid')}/{payload.get('n_bundle_llm_route_planner_summary_checked')}",
         f"- Bundle feedback LLM route-planner summary valid: {payload.get('n_bundle_feedback_llm_route_planner_summary_valid')}/{payload.get('n_bundle_feedback_llm_route_planner_summary_checked')}",
         (

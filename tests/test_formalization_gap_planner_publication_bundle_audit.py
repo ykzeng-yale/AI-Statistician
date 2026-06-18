@@ -4329,6 +4329,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         audit_payload["n_optional_evaluation_quality_control_manifest_valid"]
         == 1
     )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_residual_goal_context_manifest_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_residual_goal_context_manifest_valid"
+        ]
+        == 1
+    )
     assert audit_payload["n_optional_evaluation_rows_with_route_adoption_status"] == 1
     assert audit_payload["optional_evaluation_route_adoption_status_counts"] == {
         "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
@@ -4510,6 +4522,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert any(
         row["check_name"] == "optional_evaluation_route_adoption_manifest"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_evaluation_residual_goal_context_manifest"
         and row["ok"]
         for row in audit_payload["checks"]
     )
@@ -5991,6 +6009,63 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "n_optional_evaluation_quality_control_manifest_valid"
         ]
         == 0
+    )
+    evaluation_manifest_path.write_text(
+        json.dumps(evaluation_manifest_payload, indent=2),
+        encoding="utf-8",
+    )
+
+    corrupted_residual_context_manifest = json.loads(
+        json.dumps(evaluation_manifest_payload)
+    )
+    corrupted_residual_context_manifest[
+        "n_llm_route_planner_residual_goal_context_source_refs"
+    ] = 0
+    corrupted_residual_context_manifest[
+        "n_llm_route_planner_residual_goal_context_provenance_values"
+    ] = 0
+    corrupted_residual_context_manifest[
+        "n_llm_route_planner_residual_goals_without_context"
+    ] = 99
+    evaluation_manifest_path.write_text(
+        json.dumps(corrupted_residual_context_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_residual_context_evaluation_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_evaluation_residual_context_loss",
+        )
+    )
+    residual_context_evaluation_failed_names = {
+        row["check_name"]
+        for row in rejected_residual_context_evaluation_payload["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_residual_context_evaluation_payload["all_ok"]
+    assert (
+        "optional_evaluation_residual_goal_context_manifest"
+        in residual_context_evaluation_failed_names
+    )
+    assert (
+        rejected_residual_context_evaluation_payload[
+            "n_optional_evaluation_residual_goal_context_manifest_valid"
+        ]
+        == 0
+    )
+    residual_context_manifest_check = next(
+        row
+        for row in rejected_residual_context_evaluation_payload["checks"]
+        if row["check_name"]
+        == "optional_evaluation_residual_goal_context_manifest"
+    )
+    assert any(
+        "n_llm_route_planner_residual_goal_context_provenance_values" in error
+        for error in residual_context_manifest_check["errors"]
+    )
+    assert any(
+        "n_llm_route_planner_residual_goals_without_context" in error
+        for error in residual_context_manifest_check["errors"]
     )
     evaluation_manifest_path.write_text(
         json.dumps(evaluation_manifest_payload, indent=2),
