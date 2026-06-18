@@ -688,8 +688,9 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
         "bridge/source-port/new-theory decisions, or larger proof DAGs."
     ),
     "auto_tier_rules": [
-        "Use haiku for small routes whose primitives are already-exists, exact, near, wrapper, or different-formulation coverage and have no residual goals or pending resource dispatch.",
+        "Use haiku for small routes whose primitives are already-exists, exact, near, wrapper, or different-formulation coverage and have no residual goals, resource-feedback readiness context, or pending resource dispatch.",
         "Use sonnet when prover residual goals, feedback-loop replan signals, or incomplete realization-coverage witnesses are present.",
+        "Use sonnet when resource-feedback readiness rows from prior tool responses are present, even if the current route is otherwise small.",
         "Use sonnet when source-grounding audit obligations are pending, especially residual goals without source-backed route repair.",
         "Use sonnet when resource-request queue rows, resource-request playbooks, interactive-session resource dispatch bindings, or interactive execution commands are present.",
         "Use sonnet when interactive-session formal-attempt queues, ready prover replay items, blocked formal-attempt dependencies, or formal-attempt execution commands are present.",
@@ -720,6 +721,7 @@ REQUIRED_HAIKU_SAFETY_CHECK_KEYS = frozenset(
         "no_interactive_formal_attempt_execution_commands",
         "no_unresolved_interactive_route_adoption_preconditions",
         "no_interactive_route_adoption_blockers",
+        "no_resource_feedback_readiness_context",
         "no_source_theorem_feedback",
         "no_pending_source_grounding_obligations",
         "no_residual_source_grounding_obligations",
@@ -4160,6 +4162,7 @@ def llm_route_planner_model_tier_decision_ledger_json_schema() -> dict[str, obje
             "sonnet_triggers",
             "sonnet_trigger_count",
             "context_resource_dispatch_counts",
+            "resource_feedback_readiness_counts",
             "interactive_route_adoption_precondition_counts",
             "source_grounding_obligations",
             "model_tier_escalated",
@@ -4201,6 +4204,7 @@ def llm_route_planner_model_tier_decision_ledger_json_schema() -> dict[str, obje
             "haiku_safety_checks": {"type": "object"},
             "route_signal_counts": {"type": "object"},
             "context_resource_dispatch_counts": {"type": "object"},
+            "resource_feedback_readiness_counts": {"type": "object"},
             "interactive_route_adoption_precondition_counts": {"type": "object"},
             "source_theorem_feedback_counts": {"type": "object"},
             "source_grounding_obligations": {"type": "object"},
@@ -13676,6 +13680,25 @@ def _llm_route_planner_model_tier_decision(
     hard_markers = sorted(route_markers & _complex_route_markers())
     resource_dispatch_counts = _context_resource_dispatch_counts(context_packet)
     feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    resource_feedback_readiness = _dict_value(
+        context_packet,
+        "resource_feedback_readiness_summary",
+    ) or _dict_value(feedback_summary, "resource_feedback_readiness_summary")
+    resource_feedback_readiness_counts = {
+        "total_count": int(resource_feedback_readiness.get("total_count", 0) or 0),
+        "reuse_ready_count": int(
+            resource_feedback_readiness.get("reuse_ready_count", 0) or 0
+        ),
+        "light_bridge_or_wrapper_count": int(
+            resource_feedback_readiness.get("light_bridge_or_wrapper_count", 0) or 0
+        ),
+        "source_or_new_theory_count": int(
+            resource_feedback_readiness.get("source_or_new_theory_count", 0) or 0
+        ),
+        "alignment_blocked_count": int(
+            resource_feedback_readiness.get("alignment_blocked_count", 0) or 0
+        ),
+    }
     source_theorem_feedback_counts = _context_source_theorem_feedback_counts(
         context_packet,
         feedback_summary=feedback_summary,
@@ -13702,6 +13725,7 @@ def _llm_route_planner_model_tier_decision(
         route_markers=route_markers,
         hard_markers=hard_markers,
         resource_dispatch_counts=resource_dispatch_counts,
+        resource_feedback_readiness_counts=resource_feedback_readiness_counts,
         source_theorem_feedback_counts=source_theorem_feedback_counts,
         source_grounding_obligations=source_grounding_obligations,
         agentic_strategy_plan_counts=agentic_strategy_plan_counts,
@@ -13735,6 +13759,11 @@ def _llm_route_planner_model_tier_decision(
         sonnet_reasons.append("omitted cost-hint primitive(s) require route review")
     if bool(feedback_summary.get("replan_required", False)):
         sonnet_reasons.append("feedback-loop summary requires route repair")
+    if resource_feedback_readiness_counts["total_count"]:
+        sonnet_reasons.append(
+            f"{resource_feedback_readiness_counts['total_count']} "
+            "resource-feedback readiness row(s) from prior tool response(s)"
+        )
     if interactive_precondition_counts["unresolved_count"]:
         sonnet_reasons.append(
             f"{interactive_precondition_counts['unresolved_count']} unresolved "
@@ -13885,6 +13914,9 @@ def _llm_route_planner_model_tier_decision(
         ),
         "no_interactive_route_adoption_blockers": (
             interactive_precondition_counts["known_blocker_count"] == 0
+        ),
+        "no_resource_feedback_readiness_context": (
+            resource_feedback_readiness_counts["total_count"] == 0
         ),
         "no_source_theorem_feedback": (
             source_theorem_feedback_counts["total_count"] == 0
@@ -14208,6 +14240,7 @@ def _model_tier_decision_evidence_base(
     route_markers: set[str],
     hard_markers: list[str],
     resource_dispatch_counts: Mapping[str, int],
+    resource_feedback_readiness_counts: Mapping[str, int],
     source_theorem_feedback_counts: Mapping[str, int | bool],
     source_grounding_obligations: Mapping[str, object],
     agentic_strategy_plan_counts: Mapping[str, int],
@@ -14311,6 +14344,33 @@ def _model_tier_decision_evidence_base(
                 interactive_precondition_counts.get("target_primitive_count", 0)
                 or 0
             ),
+            "resource_feedback_readiness_row_count": int(
+                resource_feedback_readiness_counts.get("total_count", 0) or 0
+            ),
+            "resource_feedback_readiness_reuse_ready_count": int(
+                resource_feedback_readiness_counts.get("reuse_ready_count", 0) or 0
+            ),
+            "resource_feedback_readiness_light_bridge_or_wrapper_count": int(
+                resource_feedback_readiness_counts.get(
+                    "light_bridge_or_wrapper_count",
+                    0,
+                )
+                or 0
+            ),
+            "resource_feedback_readiness_source_or_new_theory_count": int(
+                resource_feedback_readiness_counts.get(
+                    "source_or_new_theory_count",
+                    0,
+                )
+                or 0
+            ),
+            "resource_feedback_readiness_alignment_blocked_count": int(
+                resource_feedback_readiness_counts.get(
+                    "alignment_blocked_count",
+                    0,
+                )
+                or 0
+            ),
             "source_theorem_feedback_row_count": int(
                 source_theorem_feedback_counts.get("total_count", 0) or 0
             ),
@@ -14405,6 +14465,9 @@ def _model_tier_decision_evidence_base(
             ),
         },
         "context_resource_dispatch_counts": dict(resource_dispatch_counts),
+        "resource_feedback_readiness_counts": dict(
+            resource_feedback_readiness_counts
+        ),
         "interactive_route_adoption_precondition_counts": dict(
             interactive_precondition_counts
         ),
@@ -14828,6 +14891,10 @@ def _model_tier_decision_ledger_row(
         evidence,
         "context_resource_dispatch_counts",
     )
+    resource_feedback_readiness_counts = _dict_value(
+        evidence,
+        "resource_feedback_readiness_counts",
+    )
     interactive_route_adoption_precondition_counts = _dict_value(
         evidence,
         "interactive_route_adoption_precondition_counts",
@@ -14884,6 +14951,7 @@ def _model_tier_decision_ledger_row(
         "haiku_safety_checks": _dict_value(evidence, "haiku_safety_checks"),
         "route_signal_counts": route_signal_counts,
         "context_resource_dispatch_counts": context_resource_dispatch_counts,
+        "resource_feedback_readiness_counts": resource_feedback_readiness_counts,
         "interactive_route_adoption_precondition_counts": (
             interactive_route_adoption_precondition_counts
         ),

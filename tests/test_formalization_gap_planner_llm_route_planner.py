@@ -15145,6 +15145,7 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         "no_interactive_formal_attempt_execution_commands": True,
         "no_unresolved_interactive_route_adoption_preconditions": True,
         "no_interactive_route_adoption_blockers": True,
+        "no_resource_feedback_readiness_context": True,
         "no_source_theorem_feedback": True,
         "no_pending_source_grounding_obligations": True,
         "no_residual_source_grounding_obligations": True,
@@ -15159,6 +15160,7 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     stale_haiku_checks.pop("no_agentic_proof_strategy_plan_ready")
     stale_haiku_checks.pop("no_interactive_formal_attempt_queue")
     stale_haiku_checks.pop("no_interactive_formal_attempt_execution_commands")
+    stale_haiku_checks.pop("no_resource_feedback_readiness_context")
     stale_haiku_errors = validate_llm_route_planner_request(
         stale_haiku_safety_request
     )
@@ -15169,6 +15171,7 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         and "no_agentic_proof_strategy_plan_ready" in error
         and "no_interactive_formal_attempt_queue" in error
         and "no_interactive_formal_attempt_execution_commands" in error
+        and "no_resource_feedback_readiness_context" in error
         for error in stale_haiku_errors
     )
     assert packet["model_tier_decision_evidence"]["route_signal_counts"][
@@ -15183,6 +15186,92 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     request = captured["request"]
     assert request.model == "claude-haiku-4-5-20251001"
     assert request.metadata["model_tier"] == "haiku"
+
+
+def test_llm_route_planner_auto_uses_sonnet_for_light_route_resource_feedback_readiness() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_light_resource_feedback_tier"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    ledger_manifest_path = (
+        resource_response_ledger_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    )
+    ledger_manifest = json.loads(ledger_manifest_path.read_text(encoding="utf-8"))
+    for row in ledger_manifest["rows"]:
+        row["resource_response_ledger_id"] = (
+            "resource-response:rank_route_light"
+        )
+        row["resource_request_id"] = "resource-request:rank_route_light"
+        row["goal_plan_id"] = "goal:rank_route_light"
+        row["route_id"] = "rank_route_light"
+        row["display_name"] = "distribution_free_rank_bound_light"
+        row["minimal_delta_cost_score"] = 10
+        row["reuse_readiness_score"] = 95
+        row["evidence_readiness_score"] = 85
+        row["coverage_updates"] = {"rank_uniformity": "near_exists"}
+        row["residual_goals"] = []
+        row["route_revision_recommended"] = False
+        row["route_revision_reasons"] = []
+        row["response_payload"]["route_revision_recommended"] = False
+        row["acceptance_status"] = "ACCEPTED_RESOURCE_RESPONSE"
+    ledger_manifest_path.write_text(
+        json.dumps(ledger_manifest, indent=2),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 0
+    assert payload["n_requests_with_resource_feedback_readiness_summary"] == 1
+    assert payload["n_request_resource_feedback_readiness_rows"] == 1
+    assert payload["n_request_resource_feedback_reuse_ready_rows"] == 1
+    packet = payload["request_packets"][0]
+    assert packet["model_tier"] == "sonnet"
+    assert packet["model"] == "claude-sonnet-4-6"
+    evidence = packet["model_tier_decision_evidence"]
+    assert evidence["decision_basis"] == "auto_sonnet_triggers"
+    assert evidence["route_signal_counts"][
+        "resource_feedback_readiness_row_count"
+    ] == 1
+    assert evidence["route_signal_counts"][
+        "resource_feedback_readiness_reuse_ready_count"
+    ] == 1
+    assert evidence["resource_feedback_readiness_counts"] == {
+        "total_count": 1,
+        "reuse_ready_count": 1,
+        "light_bridge_or_wrapper_count": 0,
+        "source_or_new_theory_count": 0,
+        "alignment_blocked_count": 0,
+    }
+    assert any(
+        "resource-feedback readiness row" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
+    context = packet["context_packet"]
+    assert context["feedback_loop_summary"]["replan_required"] is False
+    assert context["feedback_loop_summary"]["recommended_next_actions"] == []
+    ledger_row = payload["model_tier_decision_ledger"][0]
+    assert ledger_row["resource_feedback_readiness_counts"] == (
+        evidence["resource_feedback_readiness_counts"]
+    )
+    assert ledger_row["route_signal_counts"][
+        "resource_feedback_readiness_row_count"
+    ] == 1
 
 
 def test_llm_route_planner_auto_uses_sonnet_for_ready_agentic_strategy_plan() -> None:
