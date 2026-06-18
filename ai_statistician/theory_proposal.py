@@ -10,13 +10,14 @@ from .model_backend import (
     AnthropicGeneratorBackend,
     GeneratorBackend,
     GeneratorRequest,
+    PROHIBITED_AGENT_GENERATOR_PROVIDERS,
     resolve_generator_model,
 )
 
 
 SUPPORTED_DGP_FAMILIES = ("normal", "bernoulli", "constant")
 SUPPORTED_ESTIMATOR_FAMILIES = ("sample_mean", "sample_proportion", "constant_estimator")
-PROHIBITED_THEORY_PROPOSER_PROVIDERS = ("codex", "codex_exec")
+PROHIBITED_THEORY_PROPOSER_PROVIDERS = PROHIBITED_AGENT_GENERATOR_PROVIDERS
 
 
 @dataclass(frozen=True)
@@ -222,7 +223,8 @@ def _resolved_provider_name(
         )
     if provider_name in PROHIBITED_THEORY_PROPOSER_PROVIDERS:
         raise ValueError(
-            "Codex/Codex exec are not accepted as pure LLM theory proposer providers"
+            "Agent-style CLI providers are not accepted as pure LLM theory "
+            "proposer providers"
         )
     return provider_name
 

@@ -364,7 +364,10 @@ def test_generator_theory_proposer_requires_provider_identity() -> None:
         proposer.propose({"question": "estimate a normal mean"})
 
 
-def test_generator_theory_proposer_rejects_codex_provider_alias() -> None:
+@pytest.mark.parametrize("provider_name", ("codex_exec", "claude_code"))
+def test_generator_theory_proposer_rejects_agent_provider_alias(
+    provider_name: str,
+) -> None:
     provider = SequentialGeneratorBackend(
         [
             {
@@ -376,10 +379,10 @@ def test_generator_theory_proposer_rejects_codex_provider_alias() -> None:
     )
     proposer = GeneratorTheoryProposer(
         provider=provider,
-        provider_name="codex_exec",
+        provider_name=provider_name,
     )
 
-    with pytest.raises(ValueError, match="Codex/Codex exec are not accepted"):
+    with pytest.raises(ValueError, match="Agent-style CLI providers"):
         proposer.propose({"question": "estimate a normal mean"})
 
     assert provider.requests == []

@@ -55,12 +55,12 @@ ANTHROPIC_CLAUDE_TIER_ENV_VARS = {
         "AI_STATISTICIAN_ANTHROPIC_OPUS_MODEL",
     ),
 }
-ANTHROPIC_MODEL_SOURCE_CHECKED_DATE = "2026-06-17"
+ANTHROPIC_MODEL_SOURCE_CHECKED_DATE = "2026-06-18"
 ANTHROPIC_MODELS_OVERVIEW_URL = (
-    "https://platform.claude.com/docs/en/about-claude/models/overview"
+    "https://docs.anthropic.com/en/docs/about-claude/models/overview"
 )
 ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL = (
-    "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions"
+    "https://docs.anthropic.com/en/docs/about-claude/models/model-ids-and-versions"
 )
 ANTHROPIC_MODEL_ID_VERSIONING_POLICY = (
     "Claude model IDs are pinned snapshots. Starting with Claude 4.6, dateless "
