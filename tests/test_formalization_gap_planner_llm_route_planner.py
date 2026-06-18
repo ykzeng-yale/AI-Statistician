@@ -5295,12 +5295,45 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     assert payload["n_feedback_loop_summary_source_snippets"] == 1
     assert payload["n_requests_with_available_source_snippets"] == 1
     assert payload["n_request_available_source_snippets"] >= 2
+    assert payload["n_requests_with_residual_goal_contexts"] == 1
+    assert payload["n_request_residual_goal_contexts"] == 1
+    assert payload["n_request_context_residual_goal_contexts"] == 1
+    assert payload["n_request_inventory_residual_goal_contexts"] == 1
     request = payload["request_packets"][0]
     context = request["context_packet"]
     inventory = context["context_packet_inventory"]
     assert inventory["row_counts"]["resource_response_ledger_rows"] == 1
     assert inventory["residual_goal_count"] == 1
+    assert inventory["residual_goal_context_count"] == 1
     assert inventory["feedback_loop_summary_replan_required"] is True
+    residual_contexts = context["residual_goal_contexts"]
+    assert len(residual_contexts) == 1
+    residual_context = residual_contexts[0]
+    assert residual_context["source_kind"] == "resource_response_ledger"
+    assert residual_context["residual_goal"] == (
+        "rank_uniformity: deterministic tie handling"
+    )
+    assert residual_context["resource_response_ledger_id"] == (
+        "resource-response:rank_route"
+    )
+    assert residual_context["resource_request_id"] == (
+        "resource-request:rank_route"
+    )
+    assert residual_context["target_primitives"] == ("rank_uniformity",)
+    assert residual_context["source_refs"] == ("conformal_prediction_textbook",)
+    assert residual_context["evidence_ids"] == ("resource-response:rank_route",)
+    assert residual_context["route_repair"].startswith(
+        "Apply accepted resource_response_ledger route revision"
+    )
+    assert residual_context["source_snippets"][0]["source_ref"] == (
+        "conformal_prediction_textbook"
+    )
+    assert "exchangeability implies rank uniformity" in residual_context[
+        "source_snippets"
+    ][0]["claim"]
+    target_context = context["target_theorem_context_packet"]
+    assert target_context["residual_goal_context_count"] == 1
+    assert target_context["residual_goal_contexts"] == [dict(residual_context)]
     ledger_row = context["resource_response_ledger_rows"][0]
     assert ledger_row["response_present"] is True
     assert ledger_row["response_contract_ok"] is True
@@ -5383,6 +5416,7 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     assert summary["recommended_next_actions"][0]["minimal_delta_cost_score"] == 40
     assert summary["recommended_next_actions"][0]["reuse_readiness_score"] == 70
     route_brief = context["route_planning_brief"]
+    assert route_brief["evidence_summary"]["residual_goal_context_count"] == 1
     assert route_brief["evidence_summary"]["resource_feedback_readiness_row_count"] == 1
     assert route_brief["evidence_summary"][
         "resource_feedback_light_bridge_or_wrapper_count"
@@ -5392,7 +5426,10 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     ] == 90
     assert {
         focus["focus_id"] for focus in route_brief["planner_focus"]
-    } >= {"preserve_resource_feedback_minimal_delta_priority"}
+    } >= {
+        "preserve_resource_feedback_minimal_delta_priority",
+        "repair_from_residual_goal_contexts",
+    }
     assert inventory["resource_feedback_readiness_summary_present"] is True
     assert inventory["resource_feedback_readiness_row_count"] == 1
     assert inventory["resource_feedback_readiness_reuse_ready_count"] == 0
@@ -5404,6 +5441,7 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
         "admissible_source_snippets"
     ][0]["claim"]
     assert "feedback_loop_summary" in request["prompt_messages"]["user"]
+    assert "residual_goal_contexts" in request["prompt_messages"]["user"]
     assert "resource_feedback_readiness_summary" in request["prompt_messages"]["user"]
     assert "status-only; do not use them as residual-goal" in request[
         "prompt_messages"
@@ -6734,6 +6772,16 @@ def test_llm_route_planner_accepts_source_from_admissible_refinement_evidence() 
             "evidence_role": "source-backed informal route evidence",
         },
     )
+    residual_source_snippet = {
+        "source_ref": source_ref,
+        "claim": "refinement evidence supports finite-rank uniformity",
+        "excerpt": (
+            "A refinement-evidence snippet states that exchangeability "
+            "supports finite-rank uniformity once tie handling is fixed."
+        ),
+        "target_primitives": ["rank_uniformity"],
+        "evidence_role": "source-backed informal route evidence",
+    }
     response["residual_interpretations"] = [
         {
             "residual_goal": (
@@ -6741,7 +6789,12 @@ def test_llm_route_planner_accepts_source_from_admissible_refinement_evidence() 
             ),
             "interpretation": "The refinement evidence identifies deterministic tie handling as a missing side condition.",
             "route_repair": "Add deterministic tie handling as a source-backed assumption before proving the bridge lemma.",
+            "target_primitives": ["rank_uniformity"],
             "source_refs": [source_ref],
+            "source_snippets": [residual_source_snippet],
+            "source_search_status": "SOURCE_BACKED",
+            "refinement_evidence_id": "refinement-evidence:rank_route:accepted",
+            "evidence_ids": ["refinement-evidence:rank_route:accepted"],
         }
     ]
     response_json.write_text(json.dumps(response), encoding="utf-8")
@@ -6779,6 +6832,18 @@ def test_llm_route_planner_accepts_source_from_admissible_refinement_evidence() 
     assert source_snippet["unsupported_target_primitives"] == ()
     assert tuple(request["residual_goals"]) == (
         "rank_uniformity: tie handling side condition from refinement evidence",
+    )
+    assert payload["n_requests_with_residual_goal_contexts"] == 1
+    assert payload["n_request_residual_goal_contexts"] == 1
+    residual_context = context["residual_goal_contexts"][0]
+    assert residual_context["source_kind"] == "refinement_evidence"
+    assert residual_context["target_primitives"] == ("rank_uniformity",)
+    assert residual_context["source_refs"] == (source_ref,)
+    assert residual_context["refinement_evidence_id"] == (
+        "refinement-evidence:rank_route:accepted"
+    )
+    assert residual_context["evidence_ids"] == (
+        "refinement-evidence:rank_route:accepted",
     )
     summary = context["feedback_loop_summary"]
     assert summary["refinement_evidence_admissibility"]["admissible_count"] == 1

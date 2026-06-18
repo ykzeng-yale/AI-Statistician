@@ -4396,6 +4396,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     feedback_response["standalone_route"]["primitives"][0][
         "coverage_status"
     ] = "wrapper_needed"
+    rank_adapter_residual = _reviewed_target_adapter_boundary_residual(
+        "rank_uniformity"
+    )
+    rank_adapter_residual["prover_diagnostic_signature"] = (
+        "prover_diagnostic_signature:eeb72ab055ebf6ae"
+    )
     feedback_response["residual_interpretations"] = [
         {
             "residual_goal": "exchangeability: non-Lean theorem skeleton",
@@ -4409,8 +4415,11 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
                 "The missing exchangeability wrapper is a formalization boundary "
                 "reported by the prover-feedback loop, not new source evidence."
             ),
+            "prover_diagnostic_signature": (
+                "prover_diagnostic_signature:8c73dbe715c999ff"
+            ),
         },
-        _reviewed_target_adapter_boundary_residual("rank_uniformity"),
+        rank_adapter_residual,
     ]
     feedback_response_path.write_text(
         json.dumps(feedback_response, indent=2),

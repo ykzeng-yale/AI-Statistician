@@ -18348,9 +18348,14 @@ def _residual_context_source_refs(row: Mapping[str, Any]) -> set[str]:
 def _residual_context_provenance_values(row: Mapping[str, Any]) -> set[str]:
     values: list[str] = []
     for field_name in (
+        "resource_response_ledger_id",
+        "resource_response_ledger_ids",
+        "resource_request_id",
+        "resource_request_ids",
+        "refinement_evidence_id",
+        "refinement_evidence_ids",
         "evidence_ids",
         "residual_evidence_ids",
-        "refinement_evidence_ids",
         "prover_attempt_ids",
         "diagnostic_signature",
         "residual_diagnostic_signature",
@@ -28049,6 +28054,7 @@ def _feedback_next_actions(
 def _feedback_row_target_primitives(row: Mapping[str, object]) -> tuple[str, ...]:
     request_playbook = _dict_value(row, "request_playbook")
     request_payload = _dict_value(row, "request_payload")
+    response_payload = _dict_value(row, "response_payload")
     input_summary = _dict_value(request_playbook, "input_summary")
     row_input_summary = _dict_value(row, "input_summary")
     values: list[str] = [
@@ -28068,18 +28074,33 @@ def _feedback_row_target_primitives(row: Mapping[str, object]) -> tuple[str, ...
         *_str_tuple(request_payload.get("target_primitives", [])),
         *_str_tuple(request_payload.get("target_primitive", [])),
         str(request_payload.get("primitive", "")).strip(),
+        *_str_tuple(response_payload.get("target_primitives", [])),
+        *_str_tuple(response_payload.get("target_primitive", [])),
+        str(response_payload.get("primitive", "")).strip(),
     ]
     for field_name in (
         "resource_request_dispatch_summaries",
         "residual_goal_contexts",
         "applied_resource_response_traces",
         "applied_refinement_evidence_traces",
+        "source_snippets",
+        "route_evidence_nodes",
+        "formal_declaration_hits",
+        "lean_declaration_hits",
+        "candidate_declaration_rows",
     ):
         for item in _dict_tuple(row.get(field_name, [])):
             values.extend(_str_tuple(item.get("target_primitives", [])))
             values.extend(_str_tuple(item.get("target_primitive", [])))
+            values.extend(_str_tuple(item.get("supported_target_primitives", [])))
+            values.extend(_str_tuple(item.get("residual_primitives", [])))
             values.append(str(item.get("primitive", "")).strip())
             values.append(str(item.get("residual_gap", "")).strip())
+    for item in _dict_tuple(response_payload.get("source_snippets", [])):
+        values.extend(_str_tuple(item.get("target_primitives", [])))
+        values.extend(_str_tuple(item.get("target_primitive", [])))
+        values.extend(_str_tuple(item.get("supported_target_primitives", [])))
+        values.append(str(item.get("primitive", "")).strip())
     scoped = _unique_strings(values)
     if scoped:
         return scoped
@@ -28445,6 +28466,7 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "required_capabilities",
         "resource_id",
         "resource_request_id",
+        "resource_response_ledger_id",
         "resource_name",
         "resource_kind",
         "surface",
@@ -28851,7 +28873,10 @@ def _residual_goal_contexts_for_request(
                 and not _refinement_evidence_row_is_admissible_feedback(row)
             ):
                 continue
-            contexts.extend(_residual_goal_contexts_for_route(row))
+            if not _feedback_row_residual_context_synthesis_allowed(source_name, row):
+                contexts.extend(_residual_goal_contexts_for_route(row))
+                continue
+            contexts.extend(_residual_goal_contexts_for_feedback_row(source_name, row))
     return _merge_dict_rows(
         (),
         tuple(contexts),
@@ -28903,6 +28928,134 @@ def _residual_goal_contexts_for_route(route: Mapping[str, Any]) -> tuple[dict[st
         tuple(contexts),
         key_fields=("residual_goal", "route_repair"),
     )
+
+
+def _residual_goal_contexts_for_feedback_row(
+    source_name: str,
+    row: Mapping[str, Any],
+) -> tuple[dict[str, object], ...]:
+    contexts = list(_residual_goal_contexts_for_route(row))
+    covered_goals = {
+        _residual_goal_key(context.get("residual_goal", ""))
+        for context in contexts
+        if _residual_goal_key(context.get("residual_goal", ""))
+    }
+    for residual_goal in _str_tuple(row.get("residual_goals", [])):
+        if _residual_goal_key(residual_goal) in covered_goals:
+            continue
+        context = _residual_goal_context_from_feedback_row(
+            source_name,
+            row,
+            residual_goal=residual_goal,
+        )
+        if context:
+            contexts.append(context)
+    return _merge_dict_rows(
+        (),
+        tuple(contexts),
+        key_fields=("residual_goal", "route_repair", "repair_action"),
+    )
+
+
+def _feedback_row_residual_context_synthesis_allowed(
+    source_name: str,
+    row: Mapping[str, Any],
+) -> bool:
+    if source_name in {"resource_response_ledger", "refinement_evidence"}:
+        return True
+    if source_name != "source_grounding_audit":
+        return False
+    if _residual_context_source_refs(row):
+        return True
+    if _residual_context_literature_queries(row):
+        return True
+    status = _source_grounding_status(row)
+    if status in {
+        "source_backed",
+        "source_search_pending",
+        "formal_boundary_declared",
+    }:
+        return True
+    if _formal_gap_boundary_is_substantive(
+        str(row.get("formal_gap_boundary", "") or "")
+    ):
+        return True
+    return False
+
+
+def _residual_goal_context_from_feedback_row(
+    source_name: str,
+    row: Mapping[str, Any],
+    *,
+    residual_goal: str,
+) -> dict[str, object]:
+    residual_goal = str(residual_goal or "").strip()
+    if not residual_goal:
+        return {}
+    source_snippets = tuple(
+        _compact_source_snippets(list(_row_source_snippet_candidates(row)))[:6]
+    )
+    source_refs = _unique_strings(
+        [
+            *_str_tuple(row.get("source_refs", [])),
+            *_source_refs_from_snippets(source_snippets),
+        ]
+    )
+    route_revision_reasons = _str_tuple(row.get("route_revision_reasons", []))
+    response_payload = _dict_value(row, "response_payload")
+    route_repair = (
+        str(row.get("route_repair", "") or "").strip()
+        or str(response_payload.get("route_repair", "") or "").strip()
+    )
+    if not route_repair and route_revision_reasons:
+        route_repair = (
+            f"Apply accepted {source_name} route revision: "
+            + "; ".join(route_revision_reasons[:3])
+        )
+    if not route_repair:
+        route_repair = (
+            f"Use accepted {source_name} feedback to repair this residual "
+            "before route adoption."
+        )
+    interpretation = (
+        str(row.get("interpretation", "") or "").strip()
+        or str(row.get("response_summary", "") or "").strip()
+        or str(response_payload.get("interpretation", "") or "").strip()
+        or f"Accepted {source_name} feedback exposed a residual route obligation."
+    )
+    evidence_ids = _unique_strings(
+        [
+            str(row.get("resource_response_ledger_id", "") or "").strip(),
+            str(row.get("refinement_evidence_id", "") or "").strip(),
+        ]
+    )
+    context: dict[str, object] = {
+        "source_kind": source_name,
+        "residual_goal": residual_goal,
+        "interpretation": interpretation,
+        "route_repair": route_repair,
+        "target_primitives": _feedback_row_target_primitives(row),
+        "source_refs": source_refs,
+        "source_snippets": source_snippets,
+        "resource_response_ledger_id": str(
+            row.get("resource_response_ledger_id", "") or ""
+        ).strip(),
+        "refinement_evidence_id": str(
+            row.get("refinement_evidence_id", "") or ""
+        ).strip(),
+        "resource_request_id": str(row.get("resource_request_id", "") or "").strip(),
+        "evidence_ids": evidence_ids,
+    }
+    for field_name in (
+        "diagnostic_signature",
+        "residual_diagnostic_signature",
+        "provider_diagnostic_signature",
+        "prover_diagnostic_signature",
+        "prover_attempt_ids",
+    ):
+        if row.get(field_name):
+            context[field_name] = row.get(field_name)
+    return _residual_goal_context_value(context)
 
 
 def _residual_goal_context_value(value: Any) -> dict[str, object]:
