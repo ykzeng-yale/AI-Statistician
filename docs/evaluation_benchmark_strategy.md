@@ -641,6 +641,11 @@ context, so the
 accepted response row can be audited after it becomes route-revision state,
 while missing and rejected responses remain explicit capacity or contract gaps
 through per-route resource-response status summaries.
+The LLM route planner uses the same boundary in its prompt contract: accepted
+ledger or refinement-evidence feedback may guide residual interpretations,
+search requests, planner actions, or formal-attempt items only when available
+ledger/evidence ids, resource request ids, target primitives, source
+refs/snippets, and prover diagnostic provenance are preserved.
 The `formalization-gap-planner-minimal-delta-audit` gate separately checks the
 planner's minimal formalization-delta discipline: cost arithmetic, selected cut versus
 work packets, `do_not_formalize_now` exclusions, AND/OR connectivity for delta

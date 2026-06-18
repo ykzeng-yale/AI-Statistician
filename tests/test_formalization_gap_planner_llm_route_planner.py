@@ -5408,6 +5408,15 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     assert "status-only; do not use them as residual-goal" in request[
         "prompt_messages"
     ]["user"]
+    assert "Accepted context_packet.resource_response_ledger_rows" in request[
+        "prompt_messages"
+    ]["user"]
+    assert "preserve available resource_response_ledger_id" in request[
+        "prompt_messages"
+    ]["user"]
+    assert "prover-feedback provenance ids or diagnostic signatures" in request[
+        "prompt_messages"
+    ]["user"]
 
 
 def test_llm_route_planner_stages_source_theorem_feedback_rows() -> None:

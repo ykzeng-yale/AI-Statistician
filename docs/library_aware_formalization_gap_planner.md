@@ -1376,6 +1376,13 @@ They also carry forward the queued `minimal_delta_cost_score`,
 `reuse_readiness_score`, `evidence_readiness_score`, and `priority_rationale`,
 so feedback-loop route repair keeps the same preference for cheap library reuse
 over source ports or new theory.
+The LLM route-planner prompt treats accepted resource-response ledger and
+refinement-evidence rows as bounded feedback only: residual interpretations,
+search requests, planner actions, or formal-attempt items derived from them
+must preserve available ledger/evidence ids, resource request ids, target
+primitives, source refs/snippets, and prover diagnostic provenance. Awaiting,
+rejected, absent-response, failed-contract, or unmet-contract rows remain
+status-only and cannot become mathematical route-repair evidence.
 Present responses that echo the
 wrong resource, expected artifact, dispatch spec, or declaration provenance are
 rejected before they can become accepted planner feedback. When supplied to the
