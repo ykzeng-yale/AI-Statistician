@@ -165,6 +165,34 @@ def audit_formalization_gap_planner_route_replan_handoff(
             )
             or 0
         ),
+        "n_roundtrip_standalone_input_traces_with_llm_primitive_evidence_matrix_witness": int(
+            roundtrip_payload.get(
+                "n_standalone_input_traces_with_llm_primitive_evidence_matrix_witness",
+                0,
+            )
+            or 0
+        ),
+        "n_roundtrip_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting": int(
+            roundtrip_payload.get(
+                "n_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting",
+                0,
+            )
+            or 0
+        ),
+        "n_roundtrip_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations": int(
+            roundtrip_payload.get(
+                "n_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations",
+                0,
+            )
+            or 0
+        ),
+        "n_roundtrip_standalone_input_trace_llm_primitive_evidence_matrix_unaccounted_primitives": int(
+            roundtrip_payload.get(
+                "n_standalone_input_trace_llm_primitive_evidence_matrix_unaccounted_primitives",
+                0,
+            )
+            or 0
+        ),
         "n_roundtrip_standalone_input_traces_with_llm_route_adoption_preconditions": int(
             roundtrip_payload.get(
                 "n_standalone_input_traces_with_llm_route_adoption_preconditions",
@@ -642,6 +670,18 @@ def _row_checks(
         )
         checks.append(
             _check(
+                f"row_{idx}_seed_route_llm_primitive_evidence_matrix_witness",
+                "provenance",
+                "seed route and replan metadata preserve the LLM primitive-evidence matrix witness",
+                _seed_route_primitive_evidence_matrix_witness_observed(
+                    row,
+                    seed_route,
+                ),
+                _seed_route_primitive_evidence_matrix_witness_ok(row, seed_route),
+            )
+        )
+        checks.append(
+            _check(
                 f"row_{idx}_seed_route_llm_route_adoption_preconditions",
                 "provenance",
                 "seed route and replan metadata preserve LLM route-adoption preconditions",
@@ -793,6 +833,19 @@ def _roundtrip_checks(
             _roundtrip_route_option_selection_brief_ok(roundtrip_payload, seed),
         ),
         _check(
+            "roundtrip_llm_primitive_evidence_matrix_witness_trace",
+            "roundtrip",
+            "roundtrip standalone-input traces preserve LLM primitive-evidence matrix witnesses",
+            _roundtrip_primitive_evidence_matrix_witness_observed(
+                roundtrip_payload,
+                seed,
+            ),
+            _roundtrip_primitive_evidence_matrix_witness_ok(
+                roundtrip_payload,
+                seed,
+            ),
+        ),
+        _check(
             "roundtrip_llm_route_adoption_preconditions_trace",
             "roundtrip",
             "roundtrip standalone-input traces preserve LLM route-adoption preconditions",
@@ -918,6 +971,22 @@ def _roundtrip_summary(payload: dict[str, Any]) -> dict[str, object]:
         ),
         "n_standalone_input_traces_with_llm_route_option_selection_brief": payload.get(
             "n_standalone_input_traces_with_llm_route_option_selection_brief",
+            0,
+        ),
+        "n_standalone_input_traces_with_llm_primitive_evidence_matrix_witness": payload.get(
+            "n_standalone_input_traces_with_llm_primitive_evidence_matrix_witness",
+            0,
+        ),
+        "n_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting": payload.get(
+            "n_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting",
+            0,
+        ),
+        "n_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations": payload.get(
+            "n_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations",
+            0,
+        ),
+        "n_standalone_input_trace_llm_primitive_evidence_matrix_unaccounted_primitives": payload.get(
+            "n_standalone_input_trace_llm_primitive_evidence_matrix_unaccounted_primitives",
             0,
         ),
         "n_standalone_input_traces_with_llm_route_adoption_preconditions": payload.get(
@@ -1266,6 +1335,112 @@ def _roundtrip_route_option_selection_brief_observed(
     )
 
 
+def _roundtrip_primitive_evidence_matrix_witness_ok(
+    payload: dict[str, Any],
+    seed: dict[str, Any],
+) -> bool:
+    rows = {
+        str(row.get("route_id", "")): row
+        for row in payload.get("rows", [])
+        if isinstance(row, dict)
+    }
+    expected_routes = _seed_route_primitive_evidence_matrix_witnesses(seed)
+    if not expected_routes:
+        return True
+    if (
+        int(
+            payload.get(
+                "n_standalone_input_traces_with_llm_primitive_evidence_matrix_witness",
+                0,
+            )
+            or 0
+        )
+        < len(expected_routes)
+    ):
+        return False
+    for route_id, expected_witness in expected_routes.items():
+        row = rows.get(route_id, {})
+        trace = row.get("standalone_input_trace", {}) if isinstance(row, dict) else {}
+        if not isinstance(trace, dict):
+            return False
+        if (
+            _dict_value(
+                trace.get("llm_route_planner_primitive_evidence_matrix_witness", {})
+            )
+            != expected_witness
+        ):
+            return False
+        metadata = _dict_value(trace.get("replan_metadata", {}))
+        if (
+            _dict_value(
+                metadata.get(
+                    "llm_route_planner_primitive_evidence_matrix_witness",
+                    {},
+                )
+            )
+            != expected_witness
+        ):
+            return False
+    return True
+
+
+def _roundtrip_primitive_evidence_matrix_witness_observed(
+    payload: dict[str, Any],
+    seed: dict[str, Any],
+) -> str:
+    expected = _seed_route_primitive_evidence_matrix_witnesses(seed)
+    rows = {
+        str(row.get("route_id", "")): row
+        for row in payload.get("rows", [])
+        if isinstance(row, dict)
+    }
+    trace_matches = 0
+    metadata_matches = 0
+    for route_id, expected_witness in expected.items():
+        row = rows.get(route_id, {})
+        trace = row.get("standalone_input_trace", {}) if isinstance(row, dict) else {}
+        if not isinstance(trace, dict):
+            continue
+        if (
+            _dict_value(
+                trace.get("llm_route_planner_primitive_evidence_matrix_witness", {})
+            )
+            == expected_witness
+        ):
+            trace_matches += 1
+        metadata = _dict_value(trace.get("replan_metadata", {}))
+        if (
+            _dict_value(
+                metadata.get(
+                    "llm_route_planner_primitive_evidence_matrix_witness",
+                    {},
+                )
+            )
+            == expected_witness
+        ):
+            metadata_matches += 1
+    expected_repair_obligations = sum(
+        _primitive_evidence_matrix_repair_obligation_count(witness)
+        for witness in expected.values()
+    )
+    expected_unaccounted = sum(
+        len(_str_tuple(witness.get("matrix_unaccounted_primitives", [])))
+        for witness in expected.values()
+    )
+    return (
+        f"seed_routes_with_witness={len(expected)}; "
+        "roundtrip_traces_with_witness="
+        f"{payload.get('n_standalone_input_traces_with_llm_primitive_evidence_matrix_witness', 0)}; "
+        f"trace_matches={trace_matches}; metadata_matches={metadata_matches}; "
+        f"expected_repair_obligations={expected_repair_obligations}; "
+        "roundtrip_repair_obligations="
+        f"{payload.get('n_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations', 0)}; "
+        f"expected_unaccounted={expected_unaccounted}; "
+        "roundtrip_unaccounted="
+        f"{payload.get('n_standalone_input_trace_llm_primitive_evidence_matrix_unaccounted_primitives', 0)}"
+    )
+
+
 def _roundtrip_route_adoption_preconditions_ok(
     payload: dict[str, Any],
     seed: dict[str, Any],
@@ -1406,6 +1581,43 @@ def _seed_route_option_selection_briefs(
         if brief:
             result[route_id] = brief
     return result
+
+
+def _seed_route_primitive_evidence_matrix_witnesses(
+    seed: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for route in seed.get("routes", []):
+        if not isinstance(route, dict):
+            continue
+        route_id = str(route.get("route_id", ""))
+        if not route_id:
+            continue
+        metadata = route.get("replan_metadata", {})
+        metadata = metadata if isinstance(metadata, dict) else {}
+        witness = _dict_value(
+            route.get("llm_route_planner_primitive_evidence_matrix_witness", {})
+        ) or _dict_value(
+            metadata.get("llm_route_planner_primitive_evidence_matrix_witness", {})
+        )
+        if witness:
+            result[route_id] = witness
+    return result
+
+
+def _primitive_evidence_matrix_repair_obligation_count(
+    witness: dict[str, Any],
+) -> int:
+    return sum(
+        len(_str_tuple(witness.get(field_name, [])))
+        for field_name in (
+            "matrix_unaccounted_primitives",
+            "selected_primitives_without_matrix_row",
+            "source_backed_matrix_primitives_missing_response_source_snippet",
+            "formal_supported_matrix_primitives_missing_reuse",
+            "delta_needed_matrix_primitives_missing_accounting",
+        )
+    )
 
 
 def _seed_route_adoption_preconditions(
@@ -2070,6 +2282,59 @@ def _seed_route_option_selection_brief_observed(
     )
 
 
+def _seed_route_primitive_evidence_matrix_witness_ok(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> bool:
+    row_witness = _dict_value(row.get("primitive_evidence_matrix_witness", {}))
+    if not row_witness:
+        return True
+    if not isinstance(seed_route, dict):
+        return False
+    metadata = seed_route.get("replan_metadata", {})
+    if not isinstance(metadata, dict):
+        return False
+    return (
+        _dict_value(
+            seed_route.get("llm_route_planner_primitive_evidence_matrix_witness", {})
+        )
+        == row_witness
+        and _dict_value(
+            metadata.get("llm_route_planner_primitive_evidence_matrix_witness", {})
+        )
+        == row_witness
+    )
+
+
+def _seed_route_primitive_evidence_matrix_witness_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    if not isinstance(seed_route, dict):
+        return "missing seed route"
+    metadata = seed_route.get("replan_metadata", {})
+    metadata = metadata if isinstance(metadata, dict) else {}
+    row_witness = _dict_value(row.get("primitive_evidence_matrix_witness", {}))
+    route_witness = _dict_value(
+        seed_route.get("llm_route_planner_primitive_evidence_matrix_witness", {})
+    )
+    metadata_witness = _dict_value(
+        metadata.get("llm_route_planner_primitive_evidence_matrix_witness", {})
+    )
+    matrix_rows = _dict_tuple(row_witness.get("primitive_evidence_matrix", []))
+    return (
+        f"row={bool(row_witness)} "
+        f"route={route_witness == row_witness if row_witness else bool(route_witness)} "
+        f"metadata={metadata_witness == row_witness if row_witness else bool(metadata_witness)} "
+        "matrix_rows="
+        f"{len(matrix_rows)} "
+        "accounting_complete="
+        f"{bool(row_witness.get('matrix_accounting_complete', False))} "
+        "repair_obligations="
+        f"{_primitive_evidence_matrix_repair_obligation_count(row_witness)}"
+    )
+
+
 def _seed_route_adoption_preconditions_ok(
     row: dict[str, Any],
     seed_route: dict[str, Any],
@@ -2420,6 +2685,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Roundtrip traces with target theorem context: {payload.get('n_roundtrip_standalone_input_traces_with_target_theorem_context_packet')}",
         f"- Roundtrip traces with LLM route-planning brief: {payload.get('n_roundtrip_standalone_input_traces_with_llm_route_planning_brief')}",
         f"- Roundtrip traces with LLM route-option selection brief: {payload.get('n_roundtrip_standalone_input_traces_with_llm_route_option_selection_brief')}",
+        f"- Roundtrip traces with LLM primitive-evidence matrix witness: {payload.get('n_roundtrip_standalone_input_traces_with_llm_primitive_evidence_matrix_witness')}",
         f"- Roundtrip traces with LLM route-adoption preconditions: {payload.get('n_roundtrip_standalone_input_traces_with_llm_route_adoption_preconditions')}",
         f"- Roundtrip OK: {payload.get('roundtrip_all_ok')}",
         f"- All OK: {payload.get('all_ok')}",

@@ -2120,6 +2120,23 @@ def audit_formalization_gap_planner_publication_bundle(
             )
             and check.ok
         ),
+        "n_optional_route_replan_handoff_seed_primitive_evidence_matrix_witness_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith(
+                "_seed_primitive_evidence_matrix_witness_preservation"
+            )
+        ),
+        "n_optional_route_replan_handoff_seed_primitive_evidence_matrix_witness_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith("optional_route_replan_handoff_row_")
+            and check.check_name.endswith(
+                "_seed_primitive_evidence_matrix_witness_preservation"
+            )
+            and check.ok
+        ),
         "n_optional_route_replan_handoff_seed_route_adoption_preconditions_checked": sum(
             1
             for check in checks
@@ -2185,6 +2202,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name
             == "optional_route_replan_handoff_audit_roundtrip_route_option_selection_brief_trace"
+            and check.ok
+        ),
+        "n_optional_route_replan_handoff_audit_roundtrip_primitive_evidence_matrix_witness_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_route_replan_handoff_audit_roundtrip_primitive_evidence_matrix_witness_trace"
+        ),
+        "n_optional_route_replan_handoff_audit_roundtrip_primitive_evidence_matrix_witness_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_route_replan_handoff_audit_roundtrip_primitive_evidence_matrix_witness_trace"
             and check.ok
         ),
         "n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_checked": sum(
@@ -19044,6 +19074,25 @@ def _route_replan_handoff_optional_checks(
                 errors=route_option_brief_errors,
             )
         )
+        matrix_witness_errors = (
+            _handoff_seed_primitive_evidence_matrix_witness_errors(
+                row,
+                seed_route,
+            )
+        )
+        checks.append(
+            _check(
+                f"optional_route_replan_handoff_row_{idx}_seed_primitive_evidence_matrix_witness_preservation",
+                "optional_artifacts",
+                "seed route and replan metadata preserve LLM primitive-evidence matrix witness",
+                _handoff_seed_primitive_evidence_matrix_witness_observed(
+                    row,
+                    seed_route,
+                ),
+                not matrix_witness_errors,
+                errors=matrix_witness_errors,
+            )
+        )
         precondition_errors = _handoff_seed_route_adoption_preconditions_errors(
             row,
             seed_route,
@@ -19107,6 +19156,7 @@ def _route_replan_handoff_audit_optional_checks(
         "roundtrip_standalone_input_trace",
         "roundtrip_llm_route_planning_brief_trace",
         "roundtrip_llm_route_option_selection_brief_trace",
+        "roundtrip_llm_primitive_evidence_matrix_witness_trace",
         "roundtrip_llm_route_adoption_preconditions_trace",
         "roundtrip_llm_route_planner_hook_trace",
     }
@@ -19221,6 +19271,30 @@ def _route_replan_handoff_audit_optional_checks(
             and int(
                 manifest.get(
                     "n_roundtrip_standalone_input_traces_with_llm_route_option_selection_brief",
+                    0,
+                )
+                or 0
+            )
+            >= 0,
+        ),
+        _check(
+            "optional_route_replan_handoff_audit_roundtrip_primitive_evidence_matrix_witness_trace",
+            "optional_artifacts",
+            "handoff audit manifest exposes roundtrip primitive-evidence-matrix witness trace count",
+            (
+                "traces_with_witness="
+                f"{manifest.get('n_roundtrip_standalone_input_traces_with_llm_primitive_evidence_matrix_witness', 'missing')}; "
+                f"seed_routes={n_seed_routes}; "
+                "repair_obligations="
+                f"{manifest.get('n_roundtrip_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations', 'missing')}"
+            ),
+            "n_roundtrip_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
+            in manifest
+            and "n_roundtrip_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations"
+            in manifest
+            and int(
+                manifest.get(
+                    "n_roundtrip_standalone_input_traces_with_llm_primitive_evidence_matrix_witness",
                     0,
                 )
                 or 0
@@ -19473,6 +19547,7 @@ _HANDOFF_SEED_SCHEMA_ROUTE_FIELDS = (
     "minimal_delta_and_or_cost_graph",
     "llm_route_planner_route_planning_brief",
     "llm_route_planner_route_option_selection_brief",
+    "llm_route_planner_primitive_evidence_matrix_witness",
     "llm_route_planner_route_adoption_preconditions",
     "replan_metadata",
 )
@@ -19496,6 +19571,7 @@ _HANDOFF_SEED_SCHEMA_METADATA_FIELDS = (
     "minimal_delta_and_or_cost_graph",
     "llm_route_planner_route_planning_brief",
     "llm_route_planner_route_option_selection_brief",
+    "llm_route_planner_primitive_evidence_matrix_witness",
     "llm_route_planner_route_adoption_preconditions",
     "alignment_edge_primitives",
 )
@@ -20242,6 +20318,65 @@ def _handoff_seed_route_option_selection_brief_observed(
         f"metadata_brief={bool(metadata_brief)}; "
         f"route_matches={route_brief == row_brief if row_brief else not route_brief}; "
         f"metadata_matches={metadata_brief == row_brief if row_brief else not metadata_brief}"
+    )
+
+
+def _handoff_seed_primitive_evidence_matrix_witness_errors(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    metadata = _seed_route_metadata(seed_route)
+    if not seed_route:
+        errors.append("seed route missing")
+    if not isinstance(metadata, dict):
+        errors.append("seed route replan_metadata missing")
+        return tuple(errors)
+    row_witness = _as_dict(row.get("primitive_evidence_matrix_witness", {}))
+    route_witness = _as_dict(
+        seed_route.get("llm_route_planner_primitive_evidence_matrix_witness", {})
+    )
+    metadata_witness = _as_dict(
+        metadata.get("llm_route_planner_primitive_evidence_matrix_witness", {})
+    )
+    if not row_witness:
+        if route_witness or metadata_witness:
+            errors.append(
+                "seed route carries primitive-evidence matrix witness absent from "
+                "handoff row"
+            )
+        return tuple(errors)
+    if route_witness != row_witness:
+        errors.append(
+            "seed route llm_route_planner_primitive_evidence_matrix_witness mismatch"
+        )
+    if metadata_witness != row_witness:
+        errors.append(
+            "seed metadata llm_route_planner_primitive_evidence_matrix_witness mismatch"
+        )
+    return tuple(errors)
+
+
+def _handoff_seed_primitive_evidence_matrix_witness_observed(
+    row: dict[str, Any],
+    seed_route: dict[str, Any],
+) -> str:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    row_witness = _as_dict(row.get("primitive_evidence_matrix_witness", {}))
+    route_witness = _as_dict(
+        seed_route.get("llm_route_planner_primitive_evidence_matrix_witness", {})
+    )
+    metadata_witness = _as_dict(
+        metadata.get("llm_route_planner_primitive_evidence_matrix_witness", {})
+    )
+    return (
+        f"row_witness={bool(row_witness)}; "
+        f"seed_route_witness={bool(route_witness)}; "
+        f"metadata_witness={bool(metadata_witness)}; "
+        f"route_matches={route_witness == row_witness if row_witness else not route_witness}; "
+        "metadata_matches="
+        f"{metadata_witness == row_witness if row_witness else not metadata_witness}"
     )
 
 
@@ -21150,11 +21285,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional route-replan handoff target context preserved: {payload.get('n_optional_route_replan_handoff_seed_target_context_valid')}/{payload.get('n_optional_route_replan_handoff_seed_target_context_checked')}",
         f"- Optional route-replan handoff route-planning brief preserved: {payload.get('n_optional_route_replan_handoff_seed_route_planning_brief_valid')}/{payload.get('n_optional_route_replan_handoff_seed_route_planning_brief_checked')}",
         f"- Optional route-replan handoff route-option selection brief preserved: {payload.get('n_optional_route_replan_handoff_seed_route_option_selection_brief_valid')}/{payload.get('n_optional_route_replan_handoff_seed_route_option_selection_brief_checked')}",
+        f"- Optional route-replan handoff primitive-evidence matrix witness preserved: {payload.get('n_optional_route_replan_handoff_seed_primitive_evidence_matrix_witness_valid')}/{payload.get('n_optional_route_replan_handoff_seed_primitive_evidence_matrix_witness_checked')}",
         f"- Optional route-replan handoff route-adoption preconditions preserved: {payload.get('n_optional_route_replan_handoff_seed_route_adoption_preconditions_valid')}/{payload.get('n_optional_route_replan_handoff_seed_route_adoption_preconditions_checked')}",
         f"- Optional route-replan handoff generic formal DAG valid: {payload.get('n_optional_route_replan_handoff_generic_formal_dag_valid')}/{payload.get('n_optional_route_replan_handoff_generic_formal_dag_checked')}",
         f"- Optional route-replan handoff-audit schema valid: {payload.get('n_optional_route_replan_handoff_audit_row_schema_valid')}/{payload.get('n_optional_route_replan_handoff_audit_row_schema_checked')}",
         f"- Optional route-replan handoff-audit route-planning brief trace valid: {payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_valid')}/{payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_checked')}",
         f"- Optional route-replan handoff-audit route-option selection brief trace valid: {payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_option_selection_brief_valid')}/{payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_option_selection_brief_checked')}",
+        f"- Optional route-replan handoff-audit primitive-evidence matrix witness trace valid: {payload.get('n_optional_route_replan_handoff_audit_roundtrip_primitive_evidence_matrix_witness_valid')}/{payload.get('n_optional_route_replan_handoff_audit_roundtrip_primitive_evidence_matrix_witness_checked')}",
         f"- Optional route-replan handoff-audit route-adoption precondition trace valid: {payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_valid')}/{payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_checked')}",
         f"- Optional runtime handoff-audit schema valid: {payload.get('n_optional_runtime_handoff_audit_row_schema_valid')}/{payload.get('n_optional_runtime_handoff_audit_row_schema_checked')}",
         f"- Optional runtime handoff-audit cost controls valid: {payload.get('n_optional_runtime_handoff_audit_cost_control_valid')}/{payload.get('n_optional_runtime_handoff_audit_cost_control_checked')}",

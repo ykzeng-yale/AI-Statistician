@@ -119,6 +119,36 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         ),
         "proof_evidence_boundary": "not theorem proof evidence",
     }
+    primitive_evidence_matrix_witness = {
+        "witness_kind": (
+            "formalization_gap_planner_llm_route_planner_primitive_evidence_matrix_witness"
+        ),
+        "route_id": "route:split_conformal_seed",
+        "primitive_evidence_matrix": [
+            {
+                "primitive": "exchangeability",
+                "source_evidence_status": "source_backed",
+                "formal_reuse_status": "exact_exists",
+                "delta_status": "reuse_only",
+            },
+            {
+                "primitive": "rank_uniformity",
+                "source_evidence_status": "source_backed",
+                "formal_reuse_status": "bridge_needed",
+                "delta_status": "delta_needed",
+            },
+        ],
+        "matrix_accounting_complete": True,
+        "matrix_unaccounted_primitives": [],
+        "selected_primitives_without_matrix_row": [],
+        "source_backed_matrix_primitives_missing_response_source_snippet": [],
+        "formal_supported_matrix_primitives_missing_reuse": [],
+        "delta_needed_matrix_primitives_missing_accounting": [],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
     input_json.write_text(
         json.dumps(
             {
@@ -133,6 +163,9 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
                         "llm_route_planner_route_planning_brief": route_planning_brief,
                         "llm_route_planner_route_option_selection_brief": (
                             route_option_selection_brief
+                        ),
+                        "llm_route_planner_primitive_evidence_matrix_witness": (
+                            primitive_evidence_matrix_witness
                         ),
                         "llm_route_planner_route_adoption_preconditions": (
                             route_adoption_preconditions
@@ -167,6 +200,18 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert (
         plan_payload[
             "n_standalone_input_traces_with_llm_route_option_selection_brief"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting"
         ]
         == 1
     )
@@ -433,6 +478,13 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         payload["n_standalone_seed_routes_with_llm_route_option_selection_brief"]
         == 1
     )
+    assert payload["n_routes_with_llm_primitive_evidence_matrix_witness"] == 1
+    assert (
+        payload[
+            "n_standalone_seed_routes_with_llm_primitive_evidence_matrix_witness"
+        ]
+        == 1
+    )
     assert payload["n_routes_with_llm_route_adoption_preconditions"] == 1
     assert (
         payload["n_standalone_seed_routes_with_llm_route_adoption_preconditions"]
@@ -538,6 +590,9 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert row["standalone_route"]["replan_metadata"]["target_prover_family"] == "lean4"
     assert row["route_planning_brief"] == route_planning_brief
     assert row["route_option_selection_brief"] == route_option_selection_brief
+    assert row["primitive_evidence_matrix_witness"] == (
+        primitive_evidence_matrix_witness
+    )
     assert row["route_adoption_preconditions"] == route_adoption_preconditions
     assert row["standalone_route"]["llm_route_planner_route_planning_brief"] == (
         route_planning_brief
@@ -545,6 +600,9 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert row["standalone_route"][
         "llm_route_planner_route_option_selection_brief"
     ] == route_option_selection_brief
+    assert row["standalone_route"][
+        "llm_route_planner_primitive_evidence_matrix_witness"
+    ] == primitive_evidence_matrix_witness
     assert row["standalone_route"][
         "llm_route_planner_route_adoption_preconditions"
     ] == route_adoption_preconditions
@@ -554,6 +612,9 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert row["standalone_route"]["replan_metadata"][
         "llm_route_planner_route_option_selection_brief"
     ] == route_option_selection_brief
+    assert row["standalone_route"]["replan_metadata"][
+        "llm_route_planner_primitive_evidence_matrix_witness"
+    ] == primitive_evidence_matrix_witness
     assert row["standalone_route"]["replan_metadata"][
         "llm_route_planner_route_adoption_preconditions"
     ] == route_adoption_preconditions
@@ -572,6 +633,9 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert seed["routes"][0]["llm_route_planner_route_option_selection_brief"] == (
         route_option_selection_brief
     )
+    assert seed["routes"][0][
+        "llm_route_planner_primitive_evidence_matrix_witness"
+    ] == primitive_evidence_matrix_witness
     assert seed["routes"][0]["llm_route_planner_route_adoption_preconditions"] == (
         route_adoption_preconditions
     )
@@ -581,6 +645,9 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert seed["routes"][0]["replan_metadata"][
         "llm_route_planner_route_option_selection_brief"
     ] == route_option_selection_brief
+    assert seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_primitive_evidence_matrix_witness"
+    ] == primitive_evidence_matrix_witness
     assert seed["routes"][0]["replan_metadata"][
         "llm_route_planner_route_adoption_preconditions"
     ] == route_adoption_preconditions
@@ -601,6 +668,7 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     handoff_schema = route_replan_handoff_row_json_schema()
     assert "route_planning_brief" in handoff_schema["properties"]
     assert "route_option_selection_brief" in handoff_schema["properties"]
+    assert "primitive_evidence_matrix_witness" in handoff_schema["properties"]
     assert "route_adoption_preconditions" in handoff_schema["properties"]
     assert "source_snippets" in handoff_schema["properties"]
     assert "source_snippets" not in handoff_schema["required"]
@@ -642,6 +710,20 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         "standalone_route.llm_route_planner_route_option_selection_brief missing"
         in validate_route_replan_handoff_row(
             dropped_route_option_brief_row,
+            handoff_schema,
+        )
+    )
+    dropped_matrix_witness_row = dict(row)
+    dropped_matrix_witness_route = dict(row["standalone_route"])
+    dropped_matrix_witness_route.pop(
+        "llm_route_planner_primitive_evidence_matrix_witness",
+        None,
+    )
+    dropped_matrix_witness_row["standalone_route"] = dropped_matrix_witness_route
+    assert (
+        "standalone_route.llm_route_planner_primitive_evidence_matrix_witness missing"
+        in validate_route_replan_handoff_row(
+            dropped_matrix_witness_row,
             handoff_schema,
         )
     )
@@ -799,6 +881,18 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     )
     assert (
         next_plan[
+            "n_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
+        ]
+        == 1
+    )
+    assert (
+        next_plan[
+            "n_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting"
+        ]
+        == 1
+    )
+    assert (
+        next_plan[
             "n_standalone_input_traces_with_llm_route_adoption_preconditions"
         ]
         == 1
@@ -822,6 +916,16 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert trace["llm_route_planner_route_option_selection_brief"] == (
         route_option_selection_brief
     )
+    assert trace["has_llm_route_planner_primitive_evidence_matrix_witness"]
+    assert trace["llm_route_planner_primitive_evidence_matrix_witness"] == (
+        primitive_evidence_matrix_witness
+    )
+    assert (
+        trace[
+            "llm_route_planner_primitive_evidence_matrix_accounting_complete"
+        ]
+        is True
+    )
     assert trace["has_llm_route_planner_route_adoption_preconditions"]
     assert trace["llm_route_planner_route_adoption_preconditions"] == (
         route_adoption_preconditions
@@ -832,6 +936,9 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert trace["replan_metadata"][
         "llm_route_planner_route_option_selection_brief"
     ] == route_option_selection_brief
+    assert trace["replan_metadata"][
+        "llm_route_planner_primitive_evidence_matrix_witness"
+    ] == primitive_evidence_matrix_witness
     assert trace["replan_metadata"][
         "llm_route_planner_route_adoption_preconditions"
     ] == route_adoption_preconditions

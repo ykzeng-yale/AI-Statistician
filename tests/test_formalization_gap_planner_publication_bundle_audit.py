@@ -3413,6 +3413,30 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         ),
         "proof_evidence_boundary": "not theorem proof evidence",
     }
+    handoff_primitive_evidence_matrix_witness = {
+        "witness_kind": (
+            "formalization_gap_planner_llm_route_planner_primitive_evidence_matrix_witness"
+        ),
+        "route_id": "route:fixture",
+        "primitive_evidence_matrix": [
+            {
+                "primitive": "rank_uniformity",
+                "source_evidence_status": "source_backed",
+                "formal_reuse_status": "bridge_needed",
+                "delta_status": "delta_needed",
+            }
+        ],
+        "matrix_accounting_complete": True,
+        "matrix_unaccounted_primitives": [],
+        "selected_primitives_without_matrix_row": [],
+        "source_backed_matrix_primitives_missing_response_source_snippet": [],
+        "formal_supported_matrix_primitives_missing_reuse": [],
+        "delta_needed_matrix_primitives_missing_accounting": [],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
     handoff_row = {
         "schema_version": 1,
         "route_replan_handoff_id": "handoff:rank_uniformity",
@@ -3445,6 +3469,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         "target_theorem_context_packet": handoff_target_theorem_context_packet,
         "route_planning_brief": handoff_route_planning_brief,
         "route_option_selection_brief": handoff_route_option_selection_brief,
+        "primitive_evidence_matrix_witness": (
+            handoff_primitive_evidence_matrix_witness
+        ),
         "route_adoption_preconditions": handoff_route_adoption_preconditions,
         "source_refs": ["fixture source"],
         "formal_declaration_hits": [
@@ -3469,6 +3496,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "llm_route_planner_route_option_selection_brief": (
                 handoff_route_option_selection_brief
             ),
+            "llm_route_planner_primitive_evidence_matrix_witness": (
+                handoff_primitive_evidence_matrix_witness
+            ),
             "llm_route_planner_route_adoption_preconditions": (
                 handoff_route_adoption_preconditions
             ),
@@ -3482,6 +3512,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 ),
                 "llm_route_planner_route_option_selection_brief": (
                     handoff_route_option_selection_brief
+                ),
+                "llm_route_planner_primitive_evidence_matrix_witness": (
+                    handoff_primitive_evidence_matrix_witness
                 ),
                 "llm_route_planner_route_adoption_preconditions": (
                     handoff_route_adoption_preconditions
@@ -3543,6 +3576,8 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_standalone_seed_routes_with_llm_route_planning_brief": 1,
                 "n_routes_with_llm_route_option_selection_brief": 1,
                 "n_standalone_seed_routes_with_llm_route_option_selection_brief": 1,
+                "n_routes_with_llm_primitive_evidence_matrix_witness": 1,
+                "n_standalone_seed_routes_with_llm_primitive_evidence_matrix_witness": 1,
                 "n_routes_with_llm_route_adoption_preconditions": 1,
                 "n_standalone_seed_routes_with_llm_route_adoption_preconditions": 1,
                 "all_ok": True,
@@ -3579,6 +3614,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                         "llm_route_planner_route_option_selection_brief": (
                             handoff_route_option_selection_brief
                         ),
+                        "llm_route_planner_primitive_evidence_matrix_witness": (
+                            handoff_primitive_evidence_matrix_witness
+                        ),
                         "llm_route_planner_route_adoption_preconditions": (
                             handoff_route_adoption_preconditions
                         ),
@@ -3598,6 +3636,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                             ),
                             "llm_route_planner_route_option_selection_brief": (
                                 handoff_route_option_selection_brief
+                            ),
+                            "llm_route_planner_primitive_evidence_matrix_witness": (
+                                handoff_primitive_evidence_matrix_witness
                             ),
                             "llm_route_planner_route_adoption_preconditions": (
                                 handoff_route_adoption_preconditions
@@ -3769,6 +3810,26 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         },
         {
             "schema_version": 1,
+            "check_id": "check:roundtrip_llm_primitive_evidence_matrix_witness_trace",
+            "check_name": "roundtrip_llm_primitive_evidence_matrix_witness_trace",
+            "category": "roundtrip",
+            "expected": (
+                "roundtrip standalone-input traces preserve LLM "
+                "primitive-evidence matrix witnesses"
+            ),
+            "observed": (
+                "seed_routes_with_witness=1; "
+                "roundtrip_traces_with_witness=1; trace_matches=1; "
+                "metadata_matches=1; expected_repair_obligations=0; "
+                "roundtrip_repair_obligations=0; expected_unaccounted=0; "
+                "roundtrip_unaccounted=0"
+            ),
+            "ok": True,
+            "severity": "error",
+            "errors": [],
+        },
+        {
+            "schema_version": 1,
             "check_id": "check:roundtrip_llm_route_adoption_preconditions_trace",
             "check_name": "roundtrip_llm_route_adoption_preconditions_trace",
             "category": "roundtrip",
@@ -3831,6 +3892,23 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         },
         {
             "schema_version": 1,
+            "check_id": "check:row_0_seed_route_llm_primitive_evidence_matrix_witness",
+            "check_name": "row_0_seed_route_llm_primitive_evidence_matrix_witness",
+            "category": "provenance",
+            "expected": (
+                "seed route and replan metadata preserve the LLM "
+                "primitive-evidence matrix witness"
+            ),
+            "observed": (
+                "row=True route=True metadata=True matrix_rows=1 "
+                "accounting_complete=True repair_obligations=0"
+            ),
+            "ok": True,
+            "severity": "error",
+            "errors": [],
+        },
+        {
+            "schema_version": 1,
             "check_id": "check:row_0_seed_route_llm_route_adoption_preconditions",
             "check_name": "row_0_seed_route_llm_route_adoption_preconditions",
             "category": "provenance",
@@ -3848,15 +3926,19 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         json.dumps(
             {
                 "component_name": "formalization_gap_planner_route_replan_handoff_audit",
-                "n_checks": 13,
+                "n_checks": 15,
                 "n_failed": 0,
-                "n_row_schema_valid": 13,
+                "n_row_schema_valid": 15,
                 "n_row_schema_invalid": 0,
                 "n_seed_routes": 1,
                 "n_roundtrip_goal_plans": 1,
                 "n_roundtrip_route_alignment_edges": 1,
                 "n_roundtrip_standalone_input_traces_with_llm_route_planning_brief": 1,
                 "n_roundtrip_standalone_input_traces_with_llm_route_option_selection_brief": 1,
+                "n_roundtrip_standalone_input_traces_with_llm_primitive_evidence_matrix_witness": 1,
+                "n_roundtrip_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting": 1,
+                "n_roundtrip_standalone_input_trace_llm_primitive_evidence_matrix_repair_obligations": 0,
+                "n_roundtrip_standalone_input_trace_llm_primitive_evidence_matrix_unaccounted_primitives": 0,
                 "n_roundtrip_standalone_input_traces_with_llm_route_adoption_preconditions": 1,
                 "roundtrip_all_ok": True,
                 "all_ok": True,
@@ -5301,6 +5383,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert any(
         row["check_name"]
+        == "optional_route_replan_handoff_audit_roundtrip_primitive_evidence_matrix_witness_trace"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
         == "optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_trace"
         and row["ok"]
         for row in audit_payload["checks"]
@@ -5339,6 +5427,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert (
         audit_payload[
+            "n_optional_route_replan_handoff_seed_primitive_evidence_matrix_witness_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_seed_primitive_evidence_matrix_witness_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
             "n_optional_route_replan_handoff_seed_route_adoption_preconditions_checked"
         ]
         == 1
@@ -5353,8 +5453,8 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert audit_payload["n_optional_route_revision_generic_formal_dag_valid"] == 1
     assert audit_payload["n_optional_route_replan_handoff_generic_formal_dag_checked"] == 1
     assert audit_payload["n_optional_route_replan_handoff_generic_formal_dag_valid"] == 1
-    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_checked"] == 13
-    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_valid"] == 13
+    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_checked"] == 15
+    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_valid"] == 15
     assert (
         audit_payload[
             "n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_checked"
@@ -5376,6 +5476,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert (
         audit_payload[
             "n_optional_route_replan_handoff_audit_roundtrip_route_option_selection_brief_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_audit_roundtrip_primitive_evidence_matrix_witness_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_audit_roundtrip_primitive_evidence_matrix_witness_valid"
         ]
         == 1
     )

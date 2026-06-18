@@ -112,6 +112,30 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         ),
         "proof_evidence_boundary": "not theorem proof evidence",
     }
+    primitive_evidence_matrix_witness = {
+        "witness_kind": (
+            "formalization_gap_planner_llm_route_planner_primitive_evidence_matrix_witness"
+        ),
+        "route_id": "rank_uniformity_fixture",
+        "primitive_evidence_matrix": [
+            {
+                "primitive": "rank_uniformity",
+                "source_evidence_status": "source_backed",
+                "formal_reuse_status": "bridge_needed",
+                "delta_status": "delta_needed",
+            }
+        ],
+        "matrix_accounting_complete": True,
+        "matrix_unaccounted_primitives": [],
+        "selected_primitives_without_matrix_row": [],
+        "source_backed_matrix_primitives_missing_response_source_snippet": [],
+        "formal_supported_matrix_primitives_missing_reuse": [],
+        "delta_needed_matrix_primitives_missing_accounting": [],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
     alignment_edges = [
         {
             "source": "informal:rank_uniformity",
@@ -196,6 +220,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "llm_route_planner_route_option_selection_brief": (
             route_option_selection_brief
         ),
+        "llm_route_planner_primitive_evidence_matrix_witness": (
+            primitive_evidence_matrix_witness
+        ),
         "llm_route_planner_route_adoption_preconditions": (
             route_adoption_preconditions
         ),
@@ -240,6 +267,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
             "llm_route_planner_route_planning_brief": route_planning_brief,
             "llm_route_planner_route_option_selection_brief": (
                 route_option_selection_brief
+            ),
+            "llm_route_planner_primitive_evidence_matrix_witness": (
+                primitive_evidence_matrix_witness
             ),
             "llm_route_planner_route_adoption_preconditions": (
                 route_adoption_preconditions
@@ -291,6 +321,7 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "route_revision_summaries": ["add rank-uniformity bridge before replay"],
         "route_planning_brief": route_planning_brief,
         "route_option_selection_brief": route_option_selection_brief,
+        "primitive_evidence_matrix_witness": primitive_evidence_matrix_witness,
         "route_adoption_preconditions": route_adoption_preconditions,
         "source_refs": ["Lei-Wasserman distribution-free prediction"],
         "source_snippets": [source_snippet],
@@ -417,6 +448,18 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     )
     assert (
         payload[
+            "n_roundtrip_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_roundtrip_standalone_input_traces_with_complete_llm_primitive_evidence_matrix_accounting"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_roundtrip_standalone_input_traces_with_llm_route_adoption_preconditions"
         ]
         == 1
@@ -452,9 +495,11 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "row_0_seed_route_quality_controls" in ok_checks
     assert "row_0_seed_route_llm_route_planning_brief" in ok_checks
     assert "row_0_seed_route_llm_route_option_selection_brief" in ok_checks
+    assert "row_0_seed_route_llm_primitive_evidence_matrix_witness" in ok_checks
     assert "row_0_seed_route_llm_route_adoption_preconditions" in ok_checks
     assert "roundtrip_llm_route_planning_brief_trace" in ok_checks
     assert "roundtrip_llm_route_option_selection_brief_trace" in ok_checks
+    assert "roundtrip_llm_primitive_evidence_matrix_witness_trace" in ok_checks
     assert "roundtrip_llm_route_adoption_preconditions_trace" in ok_checks
     provenance_check = next(
         check
@@ -503,6 +548,17 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "route=True" in route_option_brief_check["observed"]
     assert "metadata=True" in route_option_brief_check["observed"]
     assert "candidate_options=1" in route_option_brief_check["observed"]
+    matrix_witness_check = next(
+        check
+        for check in payload["checks"]
+        if check["check_name"]
+        == "row_0_seed_route_llm_primitive_evidence_matrix_witness"
+    )
+    assert "row=True" in matrix_witness_check["observed"]
+    assert "route=True" in matrix_witness_check["observed"]
+    assert "metadata=True" in matrix_witness_check["observed"]
+    assert "matrix_rows=1" in matrix_witness_check["observed"]
+    assert "accounting_complete=True" in matrix_witness_check["observed"]
     precondition_check = next(
         check
         for check in payload["checks"]
@@ -532,6 +588,20 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     )
     assert "trace_matches=1" in route_option_brief_roundtrip_check["observed"]
     assert "metadata_matches=1" in route_option_brief_roundtrip_check["observed"]
+    matrix_witness_roundtrip_check = next(
+        check
+        for check in payload["checks"]
+        if check["check_name"]
+        == "roundtrip_llm_primitive_evidence_matrix_witness_trace"
+    )
+    assert "seed_routes_with_witness=1" in matrix_witness_roundtrip_check[
+        "observed"
+    ]
+    assert "trace_matches=1" in matrix_witness_roundtrip_check["observed"]
+    assert "metadata_matches=1" in matrix_witness_roundtrip_check["observed"]
+    assert "expected_repair_obligations=0" in matrix_witness_roundtrip_check[
+        "observed"
+    ]
     precondition_roundtrip_check = next(
         check
         for check in payload["checks"]
@@ -666,6 +736,35 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     }
     assert "row_0_seed_route_llm_route_option_selection_brief" in (
         route_option_brief_failed
+    )
+
+    matrix_witness_rejected_seed = json.loads(json.dumps(seed))
+    matrix_witness_rejected_seed["routes"][0]["replan_metadata"].pop(
+        "llm_route_planner_primitive_evidence_matrix_witness",
+        None,
+    )
+    (
+        handoff_dir
+        / "formalization_gap_planner_route_replan_standalone_seed.json"
+    ).write_text(
+        json.dumps(matrix_witness_rejected_seed, indent=2),
+        encoding="utf-8",
+    )
+    matrix_witness_rejected = (
+        audit_formalization_gap_planner_route_replan_handoff(
+            handoff_dir,
+            root / "matrix_witness_audit",
+        )
+    )
+
+    assert not matrix_witness_rejected["all_ok"]
+    matrix_witness_failed = {
+        check["check_name"]
+        for check in matrix_witness_rejected["checks"]
+        if not check["ok"]
+    }
+    assert "row_0_seed_route_llm_primitive_evidence_matrix_witness" in (
+        matrix_witness_failed
     )
 
     precondition_rejected_seed = json.loads(json.dumps(seed))
