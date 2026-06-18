@@ -955,7 +955,10 @@ accepting them as reusable planning signals. Bundled stability rows are also
 checked against those overlay request-id lists, and interactive-session rows
 carry the same ids into their next-command guidance. Bundle audits compare
 interactive rows back to stability rows so stale UI/orchestration state cannot
-hide awaiting or rejected resource-response work. The integrated
+hide awaiting or rejected resource-response work. Feedback LLM route-planner
+request packets also publish interactive route-adoption-precondition
+target-primitive counts, keeping scoped repair obligations visible through
+prompt staging, model-tier selection, and public bundle audits. The integrated
 `research-system-audit` republishes these bundle-audit counters, including
 resource request payload/dispatch checks, route-revision traces,
 route-stability status consistency, and interactive-session status consistency,

@@ -2460,6 +2460,19 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for packet in request_packets
         ),
+        "n_feedback_loop_summary_interactive_route_adoption_precondition_target_primitives": sum(
+            int(
+                _dict_value(
+                    _dict_value(
+                        _dict_value(packet, "context_packet"),
+                        "feedback_loop_summary",
+                    ),
+                    "interactive_route_adoption_preconditions",
+                ).get("n_target_primitives", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
         "n_feedback_loop_summary_resource_response_admissible": sum(
             int(
                 _dict_value(
@@ -4657,6 +4670,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_feedback_loop_summary_interactive_route_adoption_precondition_required_response_fields": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_interactive_route_adoption_precondition_target_primitives": (
                 nonnegative_integer
             ),
             "n_request_source_grounding_rows": nonnegative_integer,
@@ -10135,6 +10151,13 @@ def _context_packet_inventory(
             )
             or 0
         ),
+        "interactive_route_adoption_precondition_target_primitive_count": int(
+            interactive_route_adoption_preconditions.get(
+                "n_target_primitives",
+                0,
+            )
+            or 0
+        ),
         "legacy_context_field_alias_count": len(
             _dict_value(context_packet, "legacy_context_field_aliases")
         ),
@@ -11736,7 +11759,7 @@ def _user_prompt(
             "Use context_packet.formal_verifier_agentic_proof_strategy_plan_rows and context_packet.agentic_proof_strategy_plan_summary as bounded live-tool/evaluator-gated proof-search work contracts for planner_next_actions or formal_attempt_queue; these rows are planning input, not theorem proof evidence.",
             "For agentic_strategy_kind=global_goal_cache_source_discovery emit literature/source/RAG search_requests or planner_next_actions; for agentic_strategy_kind=evolve_block_residual_patch emit bounded proof-candidate or patch-evolve formal_attempt_queue/planner_next_actions; for agentic_strategy_kind=kernel_overlay_composition_patch_seed emit evaluator-gated overlay-composition actions that require later kernel replay.",
             "When context_packet.feedback_loop_summary is present, treat it as the route-repair brief derived from raw residual/resource/interactive rows; it is planning context, not proof evidence.",
-            "When context_packet.feedback_loop_summary.interactive_route_adoption_preconditions is present, preserve its known_pre_response_blockers and response_required_fields as blocking route-repair obligations for the next LLM plan.",
+            "When context_packet.feedback_loop_summary.interactive_route_adoption_preconditions is present, preserve its known_pre_response_blockers, response_required_fields, and target_primitives as blocking route-repair obligations for the next LLM plan.",
             "When context_packet.route_replan_handoff_rows is present, preserve its applied evidence ids, quality controls, and next_commands as prior handoff context; route-replan handoff rows are planning input, not proof evidence.",
             "Resource-response ledger rows with awaiting, rejected, absent-response, failed-contract, or unmet-contract-minimum status are status-only; do not use them as residual-goal or route-repair evidence.",
             "Residual interpretations may cover only residual_goals listed in the request packet.",
@@ -13904,6 +13927,7 @@ def _context_interactive_route_adoption_precondition_counts(
         "required_response_field_count": int(
             summary.get("n_response_required_fields", 0) or 0
         ),
+        "target_primitive_count": int(summary.get("n_target_primitives", 0) or 0),
     }
 
 
@@ -14190,6 +14214,10 @@ def _model_tier_decision_evidence_base(
                     "required_response_field_count",
                     0,
                 )
+                or 0
+            ),
+            "interactive_route_adoption_precondition_target_primitive_count": int(
+                interactive_precondition_counts.get("target_primitive_count", 0)
                 or 0
             ),
             "source_theorem_feedback_row_count": int(

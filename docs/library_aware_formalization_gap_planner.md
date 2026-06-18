@@ -1684,6 +1684,10 @@ feedback, or route-repair obligations.
 The compacted rows also preserve precondition `target_primitives`, so a queued
 `formal_attempt_queue` obligation remains tied to the exact informal/formal
 primitive that blocked adoption rather than becoming a generic prover task.
+The route-planner manifest, context inventory, and model-tier decision ledger
+publish the corresponding interactive route-adoption target-primitive counts,
+so public bundles can audit that scoped repair obligations survived the
+feedback prompt packet.
 
 python3 -m ai_statistician.cli formalization-gap-planner-route-replan-handoff \
   --goal-conditioned-minimal-formalization-plan-dir runs/current/goal_conditioned_minimal_formalization_plan \

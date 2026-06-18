@@ -7315,6 +7315,8 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
         "n_known_pre_response_blockers": 1,
         "response_required_fields": ["search_requests", "planner_next_actions"],
         "n_response_required_fields": 2,
+        "target_primitives": ["rank_uniformity"],
+        "n_target_primitives": 1,
     }
     interactive_manifest["rows"][0].update(
         {
@@ -7330,8 +7332,10 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
                 "search_requests",
                 "planner_next_actions",
             ],
+            "route_adoption_precondition_target_primitives": ["rank_uniformity"],
             "route_adoption_precondition_known_blocker_count": 1,
             "route_adoption_precondition_required_response_field_count": 2,
+            "route_adoption_precondition_target_primitive_count": 1,
         }
     )
     interactive_manifest_path.write_text(
@@ -7374,6 +7378,12 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
             "n_feedback_loop_summary_interactive_route_adoption_precondition_required_response_fields"
         ]
         == 2
+    )
+    assert (
+        payload[
+            "n_feedback_loop_summary_interactive_route_adoption_precondition_target_primitives"
+        ]
+        == 1
     )
     assert (
         payload[
@@ -7424,6 +7434,12 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
         ]
         == 2
     )
+    assert (
+        inventory[
+            "interactive_route_adoption_precondition_target_primitive_count"
+        ]
+        == 1
+    )
     assert context["feedback_loop_summary"]["needs_more_proof_state_feedback"] is True
     precondition_summary = context["feedback_loop_summary"][
         "interactive_route_adoption_preconditions"
@@ -7436,12 +7452,20 @@ def test_llm_route_planner_stages_interactive_session_context() -> None:
         "search_requests",
         "planner_next_actions",
     }
+    assert precondition_summary["target_primitives"] == ["rank_uniformity"]
+    assert precondition_summary["n_target_primitives"] == 1
     assert ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING in context[
         "route_adoption_preconditions"
     ]["known_pre_response_blockers"]
     assert set(
         context["route_adoption_preconditions"]["response_required_fields"]
     ) >= {"search_requests", "planner_next_actions"}
+    assert context["route_adoption_preconditions"]["target_primitives"] == [
+        "rank_uniformity"
+    ]
+    assert "target_primitives as blocking route-repair obligations" in request[
+        "prompt_messages"
+    ]["user"]
     assert context["feedback_loop_summary"]["interactive_session_resource_requests"][
         "resource_request_ids"
     ] == ["resource-request:rank_route"]
@@ -15692,6 +15716,8 @@ def test_llm_route_planner_auto_uses_sonnet_for_light_route_interactive_precondi
                                 "planner_next_actions",
                             ],
                             "n_response_required_fields": 2,
+                            "target_primitives": ["rank_uniformity"],
+                            "n_target_primitives": 1,
                         },
                         "route_adoption_precondition_present": True,
                         "route_adoption_precondition_blocked_before_response": True,
@@ -15703,8 +15729,12 @@ def test_llm_route_planner_auto_uses_sonnet_for_light_route_interactive_precondi
                             "search_requests",
                             "planner_next_actions",
                         ],
+                        "route_adoption_precondition_target_primitives": [
+                            "rank_uniformity"
+                        ],
                         "route_adoption_precondition_known_blocker_count": 1,
                         "route_adoption_precondition_required_response_field_count": 2,
+                        "route_adoption_precondition_target_primitive_count": 1,
                     }
                 ],
                 "decision_policy_rows": [],
@@ -15746,12 +15776,21 @@ def test_llm_route_planner_auto_uses_sonnet_for_light_route_interactive_precondi
     assert evidence["interactive_route_adoption_precondition_counts"][
         "required_response_field_count"
     ] == 2
+    assert evidence["interactive_route_adoption_precondition_counts"][
+        "target_primitive_count"
+    ] == 1
     ledger_row = payload["model_tier_decision_ledger"][0]
     assert ledger_row["interactive_route_adoption_precondition_counts"][
         "unresolved_count"
     ] == 1
     assert ledger_row["interactive_route_adoption_precondition_counts"][
         "known_blocker_count"
+    ] == 1
+    assert ledger_row["interactive_route_adoption_precondition_counts"][
+        "target_primitive_count"
+    ] == 1
+    assert evidence["route_signal_counts"][
+        "interactive_route_adoption_precondition_target_primitive_count"
     ] == 1
     assert ledger_row["context_resource_dispatch_counts"][
         "resource_request_queue_count"
