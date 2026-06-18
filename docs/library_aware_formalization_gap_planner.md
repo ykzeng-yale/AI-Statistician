@@ -115,7 +115,14 @@ stages Anthropic/Claude request packets and prompts without calling a model.
 `prompt_only` remains an explicit no-provider mode. With a reviewed
 `--response-json` or `--static-response-file`, it validates the LLM route
 proposal and emits a revised standalone seed. With `--invoke-provider`, it can
-call the configured generator backend. Each staged request also writes
+call the configured generator backend. The planner manifest records
+`provider_execution_mode` as one of `prompt_only_staged`,
+`reviewed_response_json`, `static_response_replay`,
+`static_generator_backend`, `supplied_generator_backend`,
+`live_provider_backend`, or `mixed_response_json_and_provider_generation`.
+This separates paid live Claude/OpenAI calls from prompt staging, reviewed
+offline replay, and fake/static generator tests in publication artifacts.
+Each staged request also writes
 `formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl`.
 Those rows are self-identifying with `schema_id`, `schema_version`, `route_id`,
 and `display_name`, and they are validated by the published

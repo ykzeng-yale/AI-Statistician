@@ -435,6 +435,30 @@ LLM_ROUTE_PLANNER_PROVIDER_NAMES = (
     "anthropic",
     "openai",
 )
+PROVIDER_EXECUTION_MODE_PROMPT_ONLY_STAGED = "prompt_only_staged"
+PROVIDER_EXECUTION_MODE_REVIEWED_RESPONSE_JSON = "reviewed_response_json"
+PROVIDER_EXECUTION_MODE_STATIC_RESPONSE_REPLAY = "static_response_replay"
+PROVIDER_EXECUTION_MODE_STATIC_GENERATOR_BACKEND = "static_generator_backend"
+PROVIDER_EXECUTION_MODE_SUPPLIED_GENERATOR_BACKEND = "supplied_generator_backend"
+PROVIDER_EXECUTION_MODE_LIVE_PROVIDER_BACKEND = "live_provider_backend"
+PROVIDER_EXECUTION_MODE_MIXED_RESPONSE_AND_PROVIDER = (
+    "mixed_response_json_and_provider_generation"
+)
+PROVIDER_EXECUTION_MODES = (
+    PROVIDER_EXECUTION_MODE_PROMPT_ONLY_STAGED,
+    PROVIDER_EXECUTION_MODE_REVIEWED_RESPONSE_JSON,
+    PROVIDER_EXECUTION_MODE_STATIC_RESPONSE_REPLAY,
+    PROVIDER_EXECUTION_MODE_STATIC_GENERATOR_BACKEND,
+    PROVIDER_EXECUTION_MODE_SUPPLIED_GENERATOR_BACKEND,
+    PROVIDER_EXECUTION_MODE_LIVE_PROVIDER_BACKEND,
+    PROVIDER_EXECUTION_MODE_MIXED_RESPONSE_AND_PROVIDER,
+)
+PROVIDER_EXECUTION_GENERATION_MODES = (
+    PROVIDER_EXECUTION_MODE_STATIC_GENERATOR_BACKEND,
+    PROVIDER_EXECUTION_MODE_SUPPLIED_GENERATOR_BACKEND,
+    PROVIDER_EXECUTION_MODE_LIVE_PROVIDER_BACKEND,
+    PROVIDER_EXECUTION_MODE_MIXED_RESPONSE_AND_PROVIDER,
+)
 MINIMAL_DELTA_COST_POLICY_ID = (
     "formalization_gap_planner_minimal_delta_cost_policy:1"
 )
@@ -1268,6 +1292,19 @@ def export_formalization_gap_planner_llm_route_planner(
         validate_llm_route_planner_request(packet, request_schema)
         for packet in request_packets
     ]
+    response_json_supplied = response_json is not None
+    static_response_json_supplied = static_response_json is not None
+    generator_backend_supplied = generator_backend is not None
+    provider_execution_mode = _provider_execution_mode(
+        invoke_provider=invoke_provider,
+        response_json_supplied=response_json_supplied,
+        static_response_json_supplied=static_response_json_supplied,
+        generator_backend_supplied=generator_backend_supplied,
+    )
+    provider_generation_requested = (
+        invoke_provider
+        and provider_execution_mode in PROVIDER_EXECUTION_GENERATION_MODES
+    )
     raw_responses: list[dict[str, Any]] = []
     if response_json is not None:
         raw_responses.extend(_read_response_json(response_json, errors))
@@ -1359,6 +1396,17 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
         "max_repair_attempts": max(0, int(max_repair_attempts)),
         "invoke_provider": invoke_provider,
+        "provider_execution_mode": provider_execution_mode,
+        "response_json_supplied": response_json_supplied,
+        "static_response_json_supplied": static_response_json_supplied,
+        "generator_backend_supplied": generator_backend_supplied,
+        "live_provider_backend_requested": (
+            provider_execution_mode == PROVIDER_EXECUTION_MODE_LIVE_PROVIDER_BACKEND
+        ),
+        "static_generator_backend_requested": (
+            provider_execution_mode == PROVIDER_EXECUTION_MODE_STATIC_GENERATOR_BACKEND
+        ),
+        "provider_generation_requested": provider_generation_requested,
         "n_routes": len(routes),
         "n_request_packets": len(request_packets),
         "n_requests_with_context_packet_inventory": sum(
@@ -4117,6 +4165,13 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "legacy_response_field_aliases",
             "legacy_context_field_aliases",
             "invoke_provider",
+            "provider_execution_mode",
+            "response_json_supplied",
+            "static_response_json_supplied",
+            "generator_backend_supplied",
+            "live_provider_backend_requested",
+            "static_generator_backend_requested",
+            "provider_generation_requested",
             "n_routes",
             "n_request_packets",
             "n_requests_with_context_packet_inventory",
@@ -4341,6 +4396,16 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             },
             "max_repair_attempts": nonnegative_integer,
             "invoke_provider": {"type": "boolean"},
+            "provider_execution_mode": {
+                "type": "string",
+                "enum": list(PROVIDER_EXECUTION_MODES),
+            },
+            "response_json_supplied": {"type": "boolean"},
+            "static_response_json_supplied": {"type": "boolean"},
+            "generator_backend_supplied": {"type": "boolean"},
+            "live_provider_backend_requested": {"type": "boolean"},
+            "static_generator_backend_requested": {"type": "boolean"},
+            "provider_generation_requested": {"type": "boolean"},
             "n_routes": nonnegative_integer,
             "n_request_packets": nonnegative_integer,
             "n_requests_with_context_packet_inventory": nonnegative_integer,
@@ -5289,6 +5354,7 @@ def validate_llm_route_planner_manifest(
         manifest,
         schema or llm_route_planner_manifest_json_schema(),
     )
+    errors.extend(_provider_execution_mode_errors(manifest))
     manifest_rows = _dict_tuple(manifest.get("rows", []))
     if int(manifest.get("n_request_packets", 0) or 0) != len(
         _dict_tuple(manifest.get("request_packets", []))
@@ -12966,6 +13032,86 @@ def _provider_backend(provider_name: str) -> GeneratorBackend:
         "invoke_provider requires provider_name in {anthropic, openai} "
         "or a supplied generator_backend/static_response_json"
     )
+
+
+def _provider_execution_mode(
+    *,
+    invoke_provider: bool,
+    response_json_supplied: bool,
+    static_response_json_supplied: bool,
+    generator_backend_supplied: bool,
+) -> str:
+    if invoke_provider:
+        if response_json_supplied:
+            return PROVIDER_EXECUTION_MODE_MIXED_RESPONSE_AND_PROVIDER
+        if static_response_json_supplied:
+            return PROVIDER_EXECUTION_MODE_STATIC_GENERATOR_BACKEND
+        if generator_backend_supplied:
+            return PROVIDER_EXECUTION_MODE_SUPPLIED_GENERATOR_BACKEND
+        return PROVIDER_EXECUTION_MODE_LIVE_PROVIDER_BACKEND
+    if response_json_supplied:
+        return PROVIDER_EXECUTION_MODE_REVIEWED_RESPONSE_JSON
+    if static_response_json_supplied:
+        return PROVIDER_EXECUTION_MODE_STATIC_RESPONSE_REPLAY
+    return PROVIDER_EXECUTION_MODE_PROMPT_ONLY_STAGED
+
+
+def _provider_execution_mode_errors(manifest: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
+    mode = str(manifest.get("provider_execution_mode", "") or "")
+    if mode not in PROVIDER_EXECUTION_MODES:
+        errors.append("provider_execution_mode must be a known route-planner mode")
+        return errors
+    invoke_provider = bool(manifest.get("invoke_provider", False))
+    response_json_supplied = bool(manifest.get("response_json_supplied", False))
+    static_response_json_supplied = bool(
+        manifest.get("static_response_json_supplied", False)
+    )
+    generator_backend_supplied = bool(
+        manifest.get("generator_backend_supplied", False)
+    )
+    expected_mode = _provider_execution_mode(
+        invoke_provider=invoke_provider,
+        response_json_supplied=response_json_supplied,
+        static_response_json_supplied=static_response_json_supplied,
+        generator_backend_supplied=generator_backend_supplied,
+    )
+    if mode != expected_mode:
+        errors.append(
+            "provider_execution_mode must match invoke_provider and supplied inputs"
+        )
+    live_requested = mode == PROVIDER_EXECUTION_MODE_LIVE_PROVIDER_BACKEND
+    if bool(manifest.get("live_provider_backend_requested", False)) != live_requested:
+        errors.append(
+            "live_provider_backend_requested must match provider_execution_mode"
+        )
+    static_generator_requested = (
+        mode == PROVIDER_EXECUTION_MODE_STATIC_GENERATOR_BACKEND
+    )
+    if bool(
+        manifest.get("static_generator_backend_requested", False)
+    ) != static_generator_requested:
+        errors.append(
+            "static_generator_backend_requested must match provider_execution_mode"
+        )
+    provider_generation_requested = (
+        invoke_provider and mode in PROVIDER_EXECUTION_GENERATION_MODES
+    )
+    if bool(
+        manifest.get("provider_generation_requested", False)
+    ) != provider_generation_requested:
+        errors.append(
+            "provider_generation_requested must match invoke_provider and provider_execution_mode"
+        )
+    if live_requested and (
+        response_json_supplied
+        or static_response_json_supplied
+        or generator_backend_supplied
+    ):
+        errors.append(
+            "live_provider_backend mode must not have response/static/generator fixtures supplied"
+        )
+    return errors
 
 
 def _normalize_provider_name(provider_name: str) -> str:
@@ -32893,6 +33039,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         "# Formalization Gap Planner LLM Route Planner",
         "",
         f"- Requests: {payload.get('n_request_schema_valid')}/{payload.get('n_request_packets')}",
+        f"- Provider execution mode: {payload.get('provider_execution_mode')}",
         f"- Model tier mode: {payload.get('model_tier_selection_mode')}",
         f"- Request tiers: {payload.get('by_request_model_tier')}",
         f"- Request tier-decision basis: {payload.get('by_request_model_tier_decision_basis')}",

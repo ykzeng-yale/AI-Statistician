@@ -22,6 +22,12 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     PROOF_EVIDENCE_STATUS,
     PROOF_EVIDENCE_BOUNDARY,
+    PROVIDER_EXECUTION_MODE_LIVE_PROVIDER_BACKEND,
+    PROVIDER_EXECUTION_MODE_PROMPT_ONLY_STAGED,
+    PROVIDER_EXECUTION_MODE_REVIEWED_RESPONSE_JSON,
+    PROVIDER_EXECUTION_MODE_STATIC_GENERATOR_BACKEND,
+    PROVIDER_EXECUTION_MODE_STATIC_RESPONSE_REPLAY,
+    PROVIDER_EXECUTION_MODE_SUPPLIED_GENERATOR_BACKEND,
     ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
@@ -1882,6 +1888,14 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["all_ok"]
     assert payload["provider_name"] == "anthropic"
     assert payload["invoke_provider"] is False
+    assert payload["provider_execution_mode"] == (
+        PROVIDER_EXECUTION_MODE_PROMPT_ONLY_STAGED
+    )
+    assert payload["response_json_supplied"] is False
+    assert payload["static_response_json_supplied"] is False
+    assert payload["generator_backend_supplied"] is False
+    assert payload["live_provider_backend_requested"] is False
+    assert payload["provider_generation_requested"] is False
     assert payload["by_request_model_tier"] == {"sonnet": 1}
     assert payload["n_request_packets"] == 1
     assert payload["n_requests_with_context_packet_inventory"] == 1
@@ -9276,6 +9290,16 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     )
 
     assert payload["all_ok"]
+    assert payload["provider_execution_mode"] == (
+        PROVIDER_EXECUTION_MODE_STATIC_RESPONSE_REPLAY
+    )
+    assert payload["invoke_provider"] is False
+    assert payload["response_json_supplied"] is False
+    assert payload["static_response_json_supplied"] is True
+    assert payload["generator_backend_supplied"] is False
+    assert payload["live_provider_backend_requested"] is False
+    assert payload["static_generator_backend_requested"] is False
+    assert payload["provider_generation_requested"] is False
     assert payload["response_schema"]["$id"] == LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID
     assert payload["response_payload_schema"]["$id"] == (
         LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID
@@ -9439,6 +9463,26 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "n_rows_with_provider_usage" in manifest_schema["required"]
     assert "total_provider_input_tokens" in manifest_schema["required"]
     assert "total_provider_output_tokens" in manifest_schema["required"]
+    execution_mode_fields = (
+        "provider_execution_mode",
+        "response_json_supplied",
+        "static_response_json_supplied",
+        "generator_backend_supplied",
+        "live_provider_backend_requested",
+        "static_generator_backend_requested",
+        "provider_generation_requested",
+    )
+    for field_name in execution_mode_fields:
+        assert field_name in manifest_schema["required"]
+    assert manifest_schema["properties"]["provider_execution_mode"]["enum"] == [
+        "prompt_only_staged",
+        "reviewed_response_json",
+        "static_response_replay",
+        "static_generator_backend",
+        "supplied_generator_backend",
+        "live_provider_backend",
+        "mixed_response_json_and_provider_generation",
+    ]
     assert (
         "n_model_tier_decision_ledger_rows_with_escalation"
         in manifest_schema["required"]
@@ -9513,6 +9557,26 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert (
         "n_rows must match rows length"
         in validate_llm_route_planner_manifest(drifted_manifest, manifest_schema)
+    )
+    drifted_execution_mode_manifest = deepcopy(payload)
+    drifted_execution_mode_manifest["provider_execution_mode"] = (
+        PROVIDER_EXECUTION_MODE_LIVE_PROVIDER_BACKEND
+    )
+    assert (
+        "provider_execution_mode must match invoke_provider and supplied inputs"
+        in validate_llm_route_planner_manifest(
+            drifted_execution_mode_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_live_flag_manifest = deepcopy(payload)
+    drifted_live_flag_manifest["live_provider_backend_requested"] = True
+    assert (
+        "live_provider_backend_requested must match provider_execution_mode"
+        in validate_llm_route_planner_manifest(
+            drifted_live_flag_manifest,
+            manifest_schema,
+        )
     )
     drifted_schema_manifest = deepcopy(payload)
     drifted_schema_manifest["request_schema"]["$id"] = "urn:wrong-request-schema"
@@ -10425,6 +10489,83 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert trace["minimal_delta_route_option_count"] == 2
     assert trace["minimal_delta_selected_route_cost"] == 4
     assert plan_row["minimal_cut_summary"]["add_bridge_lemmas"] == ["rank_uniformity"]
+
+
+def test_llm_route_planner_marks_static_response_file_as_fake_generator_when_invoked() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_static_generator_mode"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response_json.write_text(
+        json.dumps(_llm_response_payload(), indent=2),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        invoke_provider=True,
+        static_response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["provider_execution_mode"] == (
+        PROVIDER_EXECUTION_MODE_STATIC_GENERATOR_BACKEND
+    )
+    assert payload["invoke_provider"] is True
+    assert payload["response_json_supplied"] is False
+    assert payload["static_response_json_supplied"] is True
+    assert payload["generator_backend_supplied"] is False
+    assert payload["live_provider_backend_requested"] is False
+    assert payload["static_generator_backend_requested"] is True
+    assert payload["provider_generation_requested"] is True
+    assert payload["n_raw_responses"] == 1
+    assert payload["rows"][0]["provider_name"] == "static"
+    assert payload["rows"][0]["generator_metadata"]["generator_only"] is True
+    report = (
+        out_dir / "formalization_gap_planner_llm_route_planner.md"
+    ).read_text(encoding="utf-8")
+    assert "Provider execution mode: static_generator_backend" in report
+
+
+def test_llm_route_planner_marks_response_json_as_reviewed_replay() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_reviewed_response_mode"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "reviewed_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    response_json.write_text(
+        json.dumps(_llm_response_payload(), indent=2),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        response_json=response_json,
+    )
+
+    assert payload["all_ok"]
+    assert payload["provider_execution_mode"] == (
+        PROVIDER_EXECUTION_MODE_REVIEWED_RESPONSE_JSON
+    )
+    assert payload["invoke_provider"] is False
+    assert payload["response_json_supplied"] is True
+    assert payload["static_response_json_supplied"] is False
+    assert payload["generator_backend_supplied"] is False
+    assert payload["live_provider_backend_requested"] is False
+    assert payload["static_generator_backend_requested"] is False
+    assert payload["provider_generation_requested"] is False
+    assert payload["n_raw_responses"] == 1
 
 
 def test_llm_route_planner_blocks_matrix_accounted_route_missing_source_snippet() -> None:
@@ -14594,6 +14735,16 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
 
     assert payload["all_ok"]
     assert payload["provider_name"] == "anthropic"
+    assert payload["provider_execution_mode"] == (
+        PROVIDER_EXECUTION_MODE_SUPPLIED_GENERATOR_BACKEND
+    )
+    assert payload["invoke_provider"] is True
+    assert payload["response_json_supplied"] is False
+    assert payload["static_response_json_supplied"] is False
+    assert payload["generator_backend_supplied"] is True
+    assert payload["live_provider_backend_requested"] is False
+    assert payload["static_generator_backend_requested"] is False
+    assert payload["provider_generation_requested"] is True
     assert payload["model_tier_selection_mode"] == "auto"
     assert payload["by_request_model_tier"] == {"sonnet": 1}
     assert payload["n_requests_with_model_tier_decision_evidence"] == 1
