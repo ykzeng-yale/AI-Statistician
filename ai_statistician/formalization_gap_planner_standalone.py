@@ -801,12 +801,35 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
         if (
             route_target_context_summary
             and metadata_target_context_summary
-            and route_target_context_summary != metadata_target_context_summary
+            and _canonical_target_context_summary(route_target_context_summary)
+            != _canonical_target_context_summary(metadata_target_context_summary)
         ):
             errors.append(
                 f"routes[{idx}].llm_route_planner_target_context_summary must match "
                 f"routes[{idx}].replan_metadata.llm_route_planner_target_context_summary"
             )
+        effective_target_context = (
+            route_target_context or metadata_target_context_dict
+        )
+        errors.extend(
+            _target_context_summary_input_errors(
+                route_target_context_summary,
+                target_context_packet=effective_target_context,
+                location=(
+                    f"routes[{idx}].llm_route_planner_target_context_summary"
+                ),
+            )
+        )
+        errors.extend(
+            _target_context_summary_input_errors(
+                metadata_target_context_summary,
+                target_context_packet=effective_target_context,
+                location=(
+                    f"routes[{idx}].replan_metadata."
+                    "llm_route_planner_target_context_summary"
+                ),
+            )
+        )
         route_option_selection_brief = _dict_value(
             route.get("llm_route_planner_route_option_selection_brief", {})
         )
@@ -1260,6 +1283,132 @@ def _target_theorem_context_packet_input_errors(
             f"target_prover_family {target_prover_family}"
         )
     return errors
+
+
+_TARGET_CONTEXT_SUMMARY_FIELD_ALIASES = {
+    "normalized_procedures": (
+        "normalized_procedures",
+        "normalized_statistical_procedures",
+    ),
+    "desired_conclusions": (
+        "desired_conclusions",
+        "normalized_desired_conclusions",
+    ),
+    "desired_theorem_shapes": (
+        "desired_theorem_shapes",
+        "normalized_theorem_shapes",
+    ),
+}
+
+
+_TARGET_CONTEXT_SUMMARY_PACKET_FIELDS = (
+    "normalized_objects",
+    "normalized_assumptions",
+    "normalized_procedures",
+    "desired_conclusions",
+    "desired_theorem_shapes",
+    "target_intake_ids",
+    "proof_source_refs",
+)
+
+
+def _target_context_summary_input_errors(
+    summary: Any,
+    *,
+    target_context_packet: dict[str, object],
+    location: str,
+) -> list[str]:
+    summary_dict = _canonical_target_context_summary(_dict_value(summary))
+    if not summary_dict or not target_context_packet:
+        return []
+    errors: list[str] = []
+    for field_name in _TARGET_CONTEXT_SUMMARY_PACKET_FIELDS:
+        expected_values = _target_context_packet_values(
+            target_context_packet,
+            field_name,
+        )
+        if not expected_values:
+            continue
+        actual_values = _str_tuple(summary_dict.get(field_name, []))
+        missing = _missing_target_context_summary_values(
+            expected_values,
+            actual_values,
+        )
+        if missing:
+            errors.append(
+                f"{location}.{field_name} must preserve "
+                "target_theorem_context_packet values; missing: "
+                + "; ".join(missing[:8])
+            )
+    return errors
+
+
+def _target_context_packet_values(
+    packet: dict[str, object],
+    field_name: str,
+) -> tuple[str, ...]:
+    aliases = _TARGET_CONTEXT_SUMMARY_FIELD_ALIASES.get(
+        field_name,
+        (field_name,),
+    )
+    values: list[str] = []
+    seen: set[str] = set()
+    for alias in aliases:
+        for value in _str_tuple(packet.get(alias, [])):
+            key = _target_context_summary_value_key(value)
+            if key in seen:
+                continue
+            seen.add(key)
+            values.append(value)
+    return tuple(values)
+
+
+def _canonical_target_context_summary(
+    summary: dict[str, object],
+) -> dict[str, object]:
+    if not summary:
+        return {}
+    legacy_aliases = {
+        alias
+        for aliases in _TARGET_CONTEXT_SUMMARY_FIELD_ALIASES.values()
+        for alias in aliases
+    } - set(_TARGET_CONTEXT_SUMMARY_FIELD_ALIASES)
+    normalized: dict[str, object] = {
+        str(key): value
+        for key, value in summary.items()
+        if str(key) not in legacy_aliases
+    }
+    for canonical_field, aliases in _TARGET_CONTEXT_SUMMARY_FIELD_ALIASES.items():
+        values: list[str] = []
+        seen: set[str] = set()
+        for alias in aliases:
+            for value in _str_tuple(summary.get(alias, [])):
+                key = _target_context_summary_value_key(value)
+                if key in seen:
+                    continue
+                seen.add(key)
+                values.append(value)
+        if values:
+            normalized[canonical_field] = values
+    return normalized
+
+
+def _missing_target_context_summary_values(
+    expected_values: tuple[str, ...],
+    actual_values: tuple[str, ...],
+) -> tuple[str, ...]:
+    actual_keys = {
+        _target_context_summary_value_key(value) for value in actual_values
+    }
+    return tuple(
+        value
+        for value in expected_values
+        if _target_context_summary_value_key(value) not in actual_keys
+    )
+
+
+def _target_context_summary_value_key(value: object) -> str:
+    return " ".join(str(value or "").strip().lower().split())
 
 
 def standalone_input_json_schema() -> dict[str, object]:

@@ -746,6 +746,57 @@ def _append_unselected_baseline_primitive(
     )
 
 
+def _append_current_route_baseline_option(
+    response: dict[str, object],
+    *,
+    selected_primitives: list[str] | None = None,
+    route_cost: int = 4,
+) -> None:
+    minimal_delta = response["minimal_delta_plan"]
+    assert isinstance(minimal_delta, dict)
+    graph = minimal_delta["and_or_cost_graph"]
+    assert isinstance(graph, dict)
+    route_options = graph["route_options"]
+    assert isinstance(route_options, list)
+    option_id = "route_option:current_route_min_delta_baseline"
+    baseline_primitives = selected_primitives or [
+        "exchangeability",
+        "rank_uniformity",
+    ]
+    if not any(option.get("route_option_id") == option_id for option in route_options):
+        route_options.append(
+            {
+                "route_option_id": option_id,
+                "selected": False,
+                "selected_primitives": baseline_primitives,
+                "route_cost": route_cost,
+                "cost_rationale": (
+                    "The current request baseline is retained for route-option "
+                    "selection comparison."
+                ),
+            }
+        )
+    or_nodes = graph["or_nodes"]
+    assert isinstance(or_nodes, list)
+    choices = or_nodes[0]["choices"]
+    assert isinstance(choices, list)
+    if option_id not in choices:
+        choices.append(option_id)
+    and_edges = graph["and_edges"]
+    assert isinstance(and_edges, list)
+    for edge in and_edges:
+        if edge.get("route_option_id") == option_id:
+            edge["requires"] = baseline_primitives
+            break
+    else:
+        and_edges.append(
+            {
+                "route_option_id": option_id,
+                "requires": baseline_primitives,
+            }
+        )
+
+
 def _append_request_route_primitive(
     input_json: Path,
     *,
@@ -3791,6 +3842,69 @@ def test_llm_route_planner_accepts_target_context_summary() -> None:
         "routes[0].llm_route_planner_target_context_summary must match "
         "routes[0].replan_metadata.llm_route_planner_target_context_summary"
     ) in validate_standalone_input_payload(drifted_seed)
+    legacy_alias_seed = deepcopy(payload["standalone_seed"])
+    legacy_summary = dict(response["target_context_summary"])
+    legacy_summary["normalized_statistical_procedures"] = legacy_summary.pop(
+        "normalized_procedures"
+    )
+    legacy_summary["normalized_desired_conclusions"] = legacy_summary.pop(
+        "desired_conclusions"
+    )
+    legacy_summary["normalized_theorem_shapes"] = legacy_summary.pop(
+        "desired_theorem_shapes"
+    )
+    legacy_alias_seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_target_context_summary"
+    ] = legacy_summary
+    assert validate_standalone_input_payload(legacy_alias_seed) == []
+    drifted_packet_seed = deepcopy(payload["standalone_seed"])
+    drifted_packet_seed["routes"][0]["llm_route_planner_target_context_summary"][
+        "desired_conclusions"
+    ] = ["different theorem"]
+    drifted_packet_seed["routes"][0]["replan_metadata"][
+        "llm_route_planner_target_context_summary"
+    ]["desired_conclusions"] = ["different theorem"]
+    assert (
+        "routes[0].llm_route_planner_target_context_summary."
+        "desired_conclusions must preserve target_theorem_context_packet "
+        "values"
+    ) in "\n".join(validate_standalone_input_payload(drifted_packet_seed))
+    legacy_packet_seed = deepcopy(payload["standalone_seed"])
+    legacy_packet_route = legacy_packet_seed["routes"][0]
+    legacy_packet_metadata = legacy_packet_route["replan_metadata"]
+    legacy_packet_candidates = [
+        legacy_packet_route["target_theorem_context_packet"],
+    ]
+    for packet_key in (
+        "target_theorem_context_packet",
+        "llm_route_planner_target_theorem_context_packet",
+    ):
+        if packet_key in legacy_packet_metadata:
+            legacy_packet_candidates.append(legacy_packet_metadata[packet_key])
+    for packet in legacy_packet_candidates:
+        if "normalized_procedures" in packet:
+            packet["normalized_statistical_procedures"] = packet.pop(
+                "normalized_procedures"
+            )
+        if "desired_conclusions" in packet:
+            packet["normalized_desired_conclusions"] = packet.pop(
+                "desired_conclusions"
+            )
+        if "desired_theorem_shapes" in packet:
+            packet["normalized_theorem_shapes"] = packet.pop(
+                "desired_theorem_shapes"
+            )
+    legacy_packet_route["llm_route_planner_target_context_summary"][
+        "desired_conclusions"
+    ] = ["different theorem"]
+    legacy_packet_metadata["llm_route_planner_target_context_summary"][
+        "desired_conclusions"
+    ] = ["different theorem"]
+    assert (
+        "routes[0].llm_route_planner_target_context_summary."
+        "desired_conclusions must preserve target_theorem_context_packet "
+        "values"
+    ) in "\n".join(validate_standalone_input_payload(legacy_packet_seed))
     plan_payload = export_formalization_gap_planner_standalone_plan(
         out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
         root / "standalone_plan_from_target_context_summary",
@@ -13566,6 +13680,7 @@ def test_llm_route_planner_accepts_introduced_reuse_with_candidate_declaration_r
             "target_primitives": ["rank_order_statistic"],
         }
     )
+    _append_current_route_baseline_option(response)
     response_json.write_text(json.dumps(response), encoding="utf-8")
 
     payload = export_formalization_gap_planner_llm_route_planner(
@@ -20480,6 +20595,15 @@ def test_llm_route_planner_accepts_introduced_source_backed_bridge_primitive() -
             "expected_feedback": ["residual_goals", "missing_side_conditions"],
             "target_primitives": ["deterministic_tie_breaking"],
         }
+    )
+    _append_current_route_baseline_option(
+        response,
+        selected_primitives=[
+            "exchangeability",
+            "rank_uniformity",
+            "deterministic_tie_breaking",
+        ],
+        route_cost=8,
     )
     response_json.write_text(json.dumps(response), encoding="utf-8")
 
