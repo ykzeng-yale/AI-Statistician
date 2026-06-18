@@ -158,6 +158,9 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_model_tier_decision_ledger_rows",
         "n_model_tier_decision_ledger_rows_with_escalation",
         "n_model_tier_decision_ledger_provider_failure_rows",
+        "n_request_model_tier_decision_resource_feedback_readiness_rows",
+        "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+        "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
         "n_routes",
         "n_request_packets",
         "n_requests_with_context_packet_inventory",
@@ -239,6 +242,9 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_model_tier_decision_ledger_rows",
         "n_model_tier_decision_ledger_rows_with_escalation",
         "n_model_tier_decision_ledger_provider_failure_rows",
+        "n_request_model_tier_decision_resource_feedback_readiness_rows",
+        "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+        "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
         "n_routes",
         "n_request_packets",
         "n_requests_with_context_packet_inventory",
@@ -1996,6 +2002,27 @@ def run_formalization_gap_planner_reuse_smoke(
             )
             or 0
         ),
+        "n_llm_route_planner_model_tier_decision_resource_feedback_readiness_rows": int(
+            llm_route_planner_model_tier_decision_ledger_summary.get(
+                "resource_feedback_readiness_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_llm_route_planner_model_tier_decision_resource_feedback_reuse_ready_rows": int(
+            llm_route_planner_model_tier_decision_ledger_summary.get(
+                "resource_feedback_reuse_ready_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_llm_route_planner_model_tier_decision_resource_feedback_sonnet_triggers": int(
+            llm_route_planner_model_tier_decision_ledger_summary.get(
+                "resource_feedback_sonnet_triggers",
+                0,
+            )
+            or 0
+        ),
         "feedback_llm_route_planner_provider": feedback_llm_route_planner_provider,
         "feedback_llm_route_planner_model": str(
             feedback_llm_route_planner_payload.get("model", "")
@@ -2068,6 +2095,27 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_model_tier_decision_ledger_provider_failure_rows": int(
             feedback_llm_route_planner_model_tier_decision_ledger_summary.get(
                 "provider_failure_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_feedback_llm_route_planner_model_tier_decision_resource_feedback_readiness_rows": int(
+            feedback_llm_route_planner_model_tier_decision_ledger_summary.get(
+                "resource_feedback_readiness_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_feedback_llm_route_planner_model_tier_decision_resource_feedback_reuse_ready_rows": int(
+            feedback_llm_route_planner_model_tier_decision_ledger_summary.get(
+                "resource_feedback_reuse_ready_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_feedback_llm_route_planner_model_tier_decision_resource_feedback_sonnet_triggers": int(
+            feedback_llm_route_planner_model_tier_decision_ledger_summary.get(
+                "resource_feedback_sonnet_triggers",
                 0,
             )
             or 0
@@ -2522,6 +2570,48 @@ def run_formalization_gap_planner_reuse_smoke(
             )
             or 0
         ),
+        "n_combined_llm_route_planner_request_model_tier_decision_resource_feedback_readiness_rows": int(
+            llm_route_planner_payload.get(
+                "n_request_model_tier_decision_resource_feedback_readiness_rows",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_decision_resource_feedback_readiness_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_combined_llm_route_planner_request_model_tier_decision_resource_feedback_reuse_ready_rows": int(
+            llm_route_planner_payload.get(
+                "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_combined_llm_route_planner_request_model_tier_decision_resource_feedback_sonnet_triggers": int(
+            llm_route_planner_payload.get(
+                "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
+                0,
+            )
+            or 0
+        ),
         "n_publication_bundle_combined_llm_route_planner_summary_requests_with_resource_feedback_readiness_summary": int(
             publication_bundle_llm_route_planner_summary.get(
                 "n_requests_with_resource_feedback_readiness_summary",
@@ -2560,6 +2650,48 @@ def run_formalization_gap_planner_reuse_smoke(
         + int(
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_request_resource_feedback_reuse_ready_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_request_model_tier_decision_resource_feedback_readiness_rows": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_resource_feedback_readiness_rows",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_resource_feedback_readiness_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_request_model_tier_decision_resource_feedback_reuse_ready_rows": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_request_model_tier_decision_resource_feedback_sonnet_triggers": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
                 0,
             )
             or 0
@@ -2807,6 +2939,27 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_combined_llm_route_planner_model_tier_decision_ledger_provider_failure_rows": int(
             combined_llm_route_planner_model_tier_decision_ledger_summary.get(
                 "provider_failure_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_combined_llm_route_planner_model_tier_decision_resource_feedback_readiness_rows": int(
+            combined_llm_route_planner_model_tier_decision_ledger_summary.get(
+                "resource_feedback_readiness_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_combined_llm_route_planner_model_tier_decision_resource_feedback_reuse_ready_rows": int(
+            combined_llm_route_planner_model_tier_decision_ledger_summary.get(
+                "resource_feedback_reuse_ready_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_combined_llm_route_planner_model_tier_decision_resource_feedback_sonnet_triggers": int(
+            combined_llm_route_planner_model_tier_decision_ledger_summary.get(
+                "resource_feedback_sonnet_triggers",
                 0,
             )
             or 0
@@ -3368,6 +3521,24 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_sonnet_triggers": (
             publication_bundle_llm_route_planner_summary.get(
                 "n_request_model_tier_decision_sonnet_triggers",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_resource_feedback_readiness_rows": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_resource_feedback_readiness_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_resource_feedback_reuse_ready_rows": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_resource_feedback_sonnet_triggers": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
                 0,
             )
         ),
@@ -4000,6 +4171,24 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_resource_feedback_readiness_rows": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_resource_feedback_readiness_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_resource_feedback_reuse_ready_rows": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_resource_feedback_sonnet_triggers": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
+                0,
+            )
+        ),
         "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_evidence_invalid": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_request_model_tier_decision_evidence_invalid",
@@ -4335,6 +4524,24 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_llm_route_planner_request_model_tier_decision_sonnet_triggers": (
             llm_route_planner_payload.get(
                 "n_request_model_tier_decision_sonnet_triggers",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_model_tier_decision_resource_feedback_readiness_rows": (
+            llm_route_planner_payload.get(
+                "n_request_model_tier_decision_resource_feedback_readiness_rows",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_model_tier_decision_resource_feedback_reuse_ready_rows": (
+            llm_route_planner_payload.get(
+                "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_model_tier_decision_resource_feedback_sonnet_triggers": (
+            llm_route_planner_payload.get(
+                "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
                 0,
             )
         ),
@@ -5200,6 +5407,24 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_request_model_tier_decision_sonnet_triggers": (
             feedback_llm_route_planner_payload.get(
                 "n_request_model_tier_decision_sonnet_triggers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_model_tier_decision_resource_feedback_readiness_rows": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_decision_resource_feedback_readiness_rows",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_model_tier_decision_resource_feedback_reuse_ready_rows": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_model_tier_decision_resource_feedback_sonnet_triggers": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
                 0,
             )
         ),
@@ -8645,16 +8870,32 @@ def _llm_model_tier_decision_ledger_summary(payload: dict[str, Any]) -> dict[str
     by_decision_basis: dict[str, int] = {}
     context_resource_dispatch_counts: dict[str, int] = {}
     interactive_route_adoption_precondition_counts: dict[str, int] = {}
+    resource_feedback_readiness_rows = 0
+    resource_feedback_reuse_ready_rows = 0
+    resource_feedback_sonnet_triggers = 0
     for row in rows:
         selected_tier = str(row.get("selected_model_tier", "") or "unknown")
         effective_tier = str(row.get("effective_model_tier", "") or "unknown")
         decision_basis = str(row.get("decision_basis", "") or "unknown")
+        resource_feedback_counts = row.get("resource_feedback_readiness_counts", {})
         by_selected_tier[selected_tier] = by_selected_tier.get(selected_tier, 0) + 1
         by_effective_tier[effective_tier] = (
             by_effective_tier.get(effective_tier, 0) + 1
         )
         by_decision_basis[decision_basis] = (
             by_decision_basis.get(decision_basis, 0) + 1
+        )
+        if isinstance(resource_feedback_counts, dict):
+            resource_feedback_readiness_rows += _nonnegative_int(
+                resource_feedback_counts.get("total_count", 0)
+            )
+            resource_feedback_reuse_ready_rows += _nonnegative_int(
+                resource_feedback_counts.get("reuse_ready_count", 0)
+            )
+        resource_feedback_sonnet_triggers += sum(
+            1
+            for trigger in _string_tuple(row.get("sonnet_triggers", []))
+            if "resource-feedback readiness row" in trigger
         )
         _merge_count_map(
             context_resource_dispatch_counts,
@@ -8687,6 +8928,9 @@ def _llm_model_tier_decision_ledger_summary(payload: dict[str, Any]) -> dict[str
         "row_count": row_count,
         "rows_with_escalation": escalation_count,
         "provider_failure_rows": provider_failure_count,
+        "resource_feedback_readiness_rows": resource_feedback_readiness_rows,
+        "resource_feedback_reuse_ready_rows": resource_feedback_reuse_ready_rows,
+        "resource_feedback_sonnet_triggers": resource_feedback_sonnet_triggers,
         "by_selected_model_tier": dict(sorted(by_selected_tier.items())),
         "by_effective_model_tier": dict(sorted(by_effective_tier.items())),
         "by_decision_basis": dict(sorted(by_decision_basis.items())),
@@ -8718,6 +8962,9 @@ def _combined_llm_model_tier_decision_ledger_summary(
     row_count = 0
     escalation_count = 0
     provider_failure_count = 0
+    resource_feedback_readiness_rows = 0
+    resource_feedback_reuse_ready_rows = 0
+    resource_feedback_sonnet_triggers = 0
     runs_with_rows = 0
     for run_name, summary in summaries_by_run:
         normalized = dict(summary)
@@ -8731,6 +8978,15 @@ def _combined_llm_model_tier_decision_ledger_summary(
         )
         provider_failure_count += _nonnegative_int(
             normalized.get("provider_failure_rows", 0)
+        )
+        resource_feedback_readiness_rows += _nonnegative_int(
+            normalized.get("resource_feedback_readiness_rows", 0)
+        )
+        resource_feedback_reuse_ready_rows += _nonnegative_int(
+            normalized.get("resource_feedback_reuse_ready_rows", 0)
+        )
+        resource_feedback_sonnet_triggers += _nonnegative_int(
+            normalized.get("resource_feedback_sonnet_triggers", 0)
         )
         _merge_count_map(by_selected_tier, normalized.get("by_selected_model_tier", {}))
         _merge_count_map(by_effective_tier, normalized.get("by_effective_model_tier", {}))
@@ -8752,6 +9008,9 @@ def _combined_llm_model_tier_decision_ledger_summary(
         "row_count": row_count,
         "rows_with_escalation": escalation_count,
         "provider_failure_rows": provider_failure_count,
+        "resource_feedback_readiness_rows": resource_feedback_readiness_rows,
+        "resource_feedback_reuse_ready_rows": resource_feedback_reuse_ready_rows,
+        "resource_feedback_sonnet_triggers": resource_feedback_sonnet_triggers,
         "by_selected_model_tier": dict(sorted(by_selected_tier.items())),
         "by_effective_model_tier": dict(sorted(by_effective_tier.items())),
         "by_decision_basis": dict(sorted(by_decision_basis.items())),
@@ -8778,6 +9037,14 @@ def _merge_count_map(target: dict[str, int], value: object) -> None:
     for raw_key, raw_count in value.items():
         key = str(raw_key)
         target[key] = target.get(key, 0) + _nonnegative_int(raw_count)
+
+
+def _string_tuple(value: object) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return (value,) if value else ()
+    if not isinstance(value, (list, tuple, set)):
+        return ()
+    return tuple(str(item) for item in value if str(item))
 
 
 def _usage_bucket_map(value: object) -> dict[str, dict[str, int]]:
@@ -9980,6 +10247,21 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"bundle={payload.get('n_publication_bundle_combined_llm_route_planner_summary_requests_with_resource_feedback_readiness_summary')}/"
             f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_request_resource_feedback_readiness_rows')}/"
             f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_request_resource_feedback_reuse_ready_rows')}"
+        ),
+        (
+            f"- LLM route planner model-tier resource-feedback readiness rows/reuse-ready/sonnet-triggers: "
+            f"primary={payload.get('n_llm_route_planner_model_tier_decision_resource_feedback_readiness_rows')}/"
+            f"{payload.get('n_llm_route_planner_model_tier_decision_resource_feedback_reuse_ready_rows')}/"
+            f"{payload.get('n_llm_route_planner_model_tier_decision_resource_feedback_sonnet_triggers')} "
+            f"feedback={payload.get('n_feedback_llm_route_planner_model_tier_decision_resource_feedback_readiness_rows')}/"
+            f"{payload.get('n_feedback_llm_route_planner_model_tier_decision_resource_feedback_reuse_ready_rows')}/"
+            f"{payload.get('n_feedback_llm_route_planner_model_tier_decision_resource_feedback_sonnet_triggers')} "
+            f"combined={payload.get('n_combined_llm_route_planner_model_tier_decision_resource_feedback_readiness_rows')}/"
+            f"{payload.get('n_combined_llm_route_planner_model_tier_decision_resource_feedback_reuse_ready_rows')}/"
+            f"{payload.get('n_combined_llm_route_planner_model_tier_decision_resource_feedback_sonnet_triggers')} "
+            f"bundle={payload.get('n_publication_bundle_combined_llm_route_planner_summary_request_model_tier_decision_resource_feedback_readiness_rows')}/"
+            f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_request_model_tier_decision_resource_feedback_reuse_ready_rows')}/"
+            f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_request_model_tier_decision_resource_feedback_sonnet_triggers')}"
         ),
         (
             f"- LLM route planner adoption ready/pending/search-blockers/action-blockers: "

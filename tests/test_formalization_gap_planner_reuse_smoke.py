@@ -6,7 +6,9 @@ from pathlib import Path
 
 from ai_statistician.formalization_gap_planner_reuse_smoke import (
     FORMALIZATION_GAP_PLANNER_REUSE_SMOKE_COMPONENT,
+    _combined_llm_model_tier_decision_ledger_summary,
     _llm_live_provider_call_count,
+    _llm_model_tier_decision_ledger_summary,
     _llm_provider_execution_mode,
     run_formalization_gap_planner_reuse_smoke,
 )
@@ -48,6 +50,18 @@ def _assert_llm_resource_feedback_readiness_summary(payload: dict[str, object]) 
             "n_llm_route_planner_request_resource_feedback_reuse_ready_rows",
         ),
         (
+            "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_resource_feedback_readiness_rows",
+            "n_llm_route_planner_request_model_tier_decision_resource_feedback_readiness_rows",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+            "n_llm_route_planner_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+        ),
+        (
+            "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_resource_feedback_sonnet_triggers",
+            "n_llm_route_planner_request_model_tier_decision_resource_feedback_sonnet_triggers",
+        ),
+        (
             "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_resource_feedback_readiness_summary",
             "n_feedback_llm_route_planner_requests_with_resource_feedback_readiness_summary",
         ),
@@ -58,6 +72,18 @@ def _assert_llm_resource_feedback_readiness_summary(payload: dict[str, object]) 
         (
             "n_publication_bundle_feedback_llm_route_planner_summary_request_resource_feedback_reuse_ready_rows",
             "n_feedback_llm_route_planner_request_resource_feedback_reuse_ready_rows",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_resource_feedback_readiness_rows",
+            "n_feedback_llm_route_planner_request_model_tier_decision_resource_feedback_readiness_rows",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+            "n_feedback_llm_route_planner_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+        ),
+        (
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_resource_feedback_sonnet_triggers",
+            "n_feedback_llm_route_planner_request_model_tier_decision_resource_feedback_sonnet_triggers",
         ),
     ):
         assert payload[bundle_key] == payload[raw_key]
@@ -77,6 +103,36 @@ def _assert_llm_resource_feedback_readiness_summary(payload: dict[str, object]) 
             "n_llm_route_planner_request_resource_feedback_reuse_ready_rows",
             "n_feedback_llm_route_planner_request_resource_feedback_reuse_ready_rows",
         ),
+        (
+            "n_combined_llm_route_planner_request_model_tier_decision_resource_feedback_readiness_rows",
+            "n_llm_route_planner_request_model_tier_decision_resource_feedback_readiness_rows",
+            "n_feedback_llm_route_planner_request_model_tier_decision_resource_feedback_readiness_rows",
+        ),
+        (
+            "n_combined_llm_route_planner_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+            "n_llm_route_planner_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+            "n_feedback_llm_route_planner_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+        ),
+        (
+            "n_combined_llm_route_planner_request_model_tier_decision_resource_feedback_sonnet_triggers",
+            "n_llm_route_planner_request_model_tier_decision_resource_feedback_sonnet_triggers",
+            "n_feedback_llm_route_planner_request_model_tier_decision_resource_feedback_sonnet_triggers",
+        ),
+        (
+            "n_combined_llm_route_planner_model_tier_decision_resource_feedback_readiness_rows",
+            "n_llm_route_planner_model_tier_decision_resource_feedback_readiness_rows",
+            "n_feedback_llm_route_planner_model_tier_decision_resource_feedback_readiness_rows",
+        ),
+        (
+            "n_combined_llm_route_planner_model_tier_decision_resource_feedback_reuse_ready_rows",
+            "n_llm_route_planner_model_tier_decision_resource_feedback_reuse_ready_rows",
+            "n_feedback_llm_route_planner_model_tier_decision_resource_feedback_reuse_ready_rows",
+        ),
+        (
+            "n_combined_llm_route_planner_model_tier_decision_resource_feedback_sonnet_triggers",
+            "n_llm_route_planner_model_tier_decision_resource_feedback_sonnet_triggers",
+            "n_feedback_llm_route_planner_model_tier_decision_resource_feedback_sonnet_triggers",
+        ),
     ):
         assert payload[combined_key] == payload[primary_key] + payload[feedback_key]
     for bundle_combined_key, combined_key in (
@@ -91,6 +147,18 @@ def _assert_llm_resource_feedback_readiness_summary(payload: dict[str, object]) 
         (
             "n_publication_bundle_combined_llm_route_planner_summary_request_resource_feedback_reuse_ready_rows",
             "n_combined_llm_route_planner_request_resource_feedback_reuse_ready_rows",
+        ),
+        (
+            "n_publication_bundle_combined_llm_route_planner_summary_request_model_tier_decision_resource_feedback_readiness_rows",
+            "n_combined_llm_route_planner_request_model_tier_decision_resource_feedback_readiness_rows",
+        ),
+        (
+            "n_publication_bundle_combined_llm_route_planner_summary_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+            "n_combined_llm_route_planner_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+        ),
+        (
+            "n_publication_bundle_combined_llm_route_planner_summary_request_model_tier_decision_resource_feedback_sonnet_triggers",
+            "n_combined_llm_route_planner_request_model_tier_decision_resource_feedback_sonnet_triggers",
         ),
     ):
         assert payload[bundle_combined_key] == payload[combined_key]
@@ -122,6 +190,40 @@ def test_reuse_smoke_llm_execution_mode_uses_planner_manifest_before_provider_fl
         )
         == 3
     )
+
+
+def test_reuse_smoke_model_tier_ledger_summarizes_resource_feedback_routing() -> None:
+    summary = _llm_model_tier_decision_ledger_summary(
+        {
+            "model_tier_decision_ledger": [
+                {
+                    "selected_model_tier": "sonnet",
+                    "effective_model_tier": "sonnet",
+                    "decision_basis": "auto_sonnet_triggers",
+                    "resource_feedback_readiness_counts": {
+                        "total_count": 2,
+                        "reuse_ready_count": 1,
+                    },
+                    "sonnet_triggers": [
+                        "2 resource-feedback readiness row(s) from prior tool response(s)",
+                        "route has unresolved residual goals",
+                    ],
+                }
+            ],
+        }
+    )
+
+    assert summary["resource_feedback_readiness_rows"] == 2
+    assert summary["resource_feedback_reuse_ready_rows"] == 1
+    assert summary["resource_feedback_sonnet_triggers"] == 1
+
+    combined = _combined_llm_model_tier_decision_ledger_summary(
+        (("primary", summary), ("feedback", summary))
+    )
+
+    assert combined["resource_feedback_readiness_rows"] == 4
+    assert combined["resource_feedback_reuse_ready_rows"] == 2
+    assert combined["resource_feedback_sonnet_triggers"] == 2
 
 
 def _write_agentic_proof_execution_feedback_dirs(

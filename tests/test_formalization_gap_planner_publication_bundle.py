@@ -1180,6 +1180,24 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     )
     assert (
         manifest["llm_route_planner_summary"][
+            "n_request_model_tier_decision_resource_feedback_readiness_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_model_tier_decision_resource_feedback_reuse_ready_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_model_tier_decision_resource_feedback_sonnet_triggers"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
             "n_requests_with_route_adoption_preconditions"
         ]
         == 1
@@ -1604,6 +1622,24 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         == 0
     )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_model_tier_decision_resource_feedback_readiness_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_model_tier_decision_resource_feedback_reuse_ready_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_model_tier_decision_resource_feedback_sonnet_triggers"
+        ]
+        == 0
+    )
     report = (
         out_dir / "formalization_gap_planner_publication_bundle.md"
     ).read_text(encoding="utf-8")
@@ -2007,9 +2043,45 @@ def test_publication_bundle_summarizes_llm_resource_feedback_readiness() -> None
     assert raw_manifest["n_requests_with_resource_feedback_readiness_summary"] == 1
     assert raw_manifest["n_request_resource_feedback_readiness_rows"] == 1
     assert raw_manifest["n_request_resource_feedback_reuse_ready_rows"] == 0
+    assert (
+        raw_manifest[
+            "n_request_model_tier_decision_resource_feedback_readiness_rows"
+        ]
+        == 1
+    )
+    assert (
+        raw_manifest[
+            "n_request_model_tier_decision_resource_feedback_reuse_ready_rows"
+        ]
+        == 0
+    )
+    assert (
+        raw_manifest[
+            "n_request_model_tier_decision_resource_feedback_sonnet_triggers"
+        ]
+        == 1
+    )
     assert summary["n_requests_with_resource_feedback_readiness_summary"] == 1
     assert summary["n_request_resource_feedback_readiness_rows"] == 1
     assert summary["n_request_resource_feedback_reuse_ready_rows"] == 0
+    assert (
+        summary[
+            "n_request_model_tier_decision_resource_feedback_readiness_rows"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_request_model_tier_decision_resource_feedback_reuse_ready_rows"
+        ]
+        == 0
+    )
+    assert (
+        summary[
+            "n_request_model_tier_decision_resource_feedback_sonnet_triggers"
+        ]
+        == 1
+    )
 
 
 def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts() -> None:

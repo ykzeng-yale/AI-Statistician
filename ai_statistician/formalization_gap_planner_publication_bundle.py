@@ -2489,6 +2489,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_model_tier_decision_auto_sonnet_triggered",
             "n_request_model_tier_decision_operator_override",
             "n_request_model_tier_decision_sonnet_triggers",
+            "n_request_model_tier_decision_resource_feedback_readiness_rows",
+            "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+            "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
             "n_request_model_tier_decision_evidence_invalid",
             "by_request_model_tier_decision_basis",
             "n_requests_with_library_alignment_summary",
@@ -2800,6 +2803,15 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_request_model_tier_decision_sonnet_triggers": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_resource_feedback_readiness_rows": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_resource_feedback_reuse_ready_rows": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_resource_feedback_sonnet_triggers": (
                 nonnegative_integer
             ),
             "n_request_model_tier_decision_evidence_invalid": (
@@ -5536,6 +5548,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_model_tier_decision_auto_sonnet_triggered": 0,
         "n_request_model_tier_decision_operator_override": 0,
         "n_request_model_tier_decision_sonnet_triggers": 0,
+        "n_request_model_tier_decision_resource_feedback_readiness_rows": 0,
+        "n_request_model_tier_decision_resource_feedback_reuse_ready_rows": 0,
+        "n_request_model_tier_decision_resource_feedback_sonnet_triggers": 0,
         "n_request_model_tier_decision_evidence_invalid": 0,
         "by_request_model_tier_decision_basis": {},
         "n_request_model_tier_haiku": 0,
@@ -5616,6 +5631,10 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         str(packet.get("model_tier", "") or "unknown") for packet in request_packets
     )
     decision_basis_counts = _llm_route_planner_decision_basis_counts(request_packets)
+    model_tier_decision_evidence_rows = tuple(
+        _dict_value(packet, "model_tier_decision_evidence")
+        for packet in request_packets
+    )
     request_route_adoption_preconditions = tuple(
         _dict_value(
             _dict_value(packet, "context_packet"),
@@ -6719,6 +6738,50 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                         )
                     )
                     for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_resource_feedback_readiness_rows": int(
+            payload.get(
+                "n_request_model_tier_decision_resource_feedback_readiness_rows",
+                sum(
+                    int(
+                        _dict_value(row, "resource_feedback_readiness_counts").get(
+                            "total_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in model_tier_decision_evidence_rows
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_resource_feedback_reuse_ready_rows": int(
+            payload.get(
+                "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+                sum(
+                    int(
+                        _dict_value(row, "resource_feedback_readiness_counts").get(
+                            "reuse_ready_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in model_tier_decision_evidence_rows
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_resource_feedback_sonnet_triggers": int(
+            payload.get(
+                "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
+                sum(
+                    1
+                    for row in model_tier_decision_evidence_rows
+                    for trigger in _str_tuple(row.get("sonnet_triggers", []))
+                    if "resource-feedback readiness row" in trigger
                 ),
             )
             or 0

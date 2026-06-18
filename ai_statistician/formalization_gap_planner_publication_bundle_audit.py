@@ -3146,6 +3146,10 @@ def _expected_bundle_llm_route_planner_summary(
         payload.get("model_tier_decision_ledger", [])
     )
     decision_basis_counts = _llm_route_planner_decision_basis_counts(request_packets)
+    model_tier_decision_evidence_rows = tuple(
+        _dict_value(packet, "model_tier_decision_evidence")
+        for packet in request_packets
+    )
     acceptance_status_counts = Counter(
         str(row.get("acceptance_status", "") or "unknown") for row in rows
     )
@@ -4071,6 +4075,48 @@ def _expected_bundle_llm_route_planner_summary(
                         )
                     )
                     for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_resource_feedback_readiness_rows": int(
+            payload.get(
+                "n_request_model_tier_decision_resource_feedback_readiness_rows",
+                sum(
+                    _nonnegative_int(
+                        _dict_value(row, "resource_feedback_readiness_counts").get(
+                            "total_count",
+                            0,
+                        )
+                    )
+                    for row in model_tier_decision_evidence_rows
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_resource_feedback_reuse_ready_rows": int(
+            payload.get(
+                "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+                sum(
+                    _nonnegative_int(
+                        _dict_value(row, "resource_feedback_readiness_counts").get(
+                            "reuse_ready_count",
+                            0,
+                        )
+                    )
+                    for row in model_tier_decision_evidence_rows
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_resource_feedback_sonnet_triggers": int(
+            payload.get(
+                "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
+                sum(
+                    1
+                    for row in model_tier_decision_evidence_rows
+                    for trigger in _str_tuple(row.get("sonnet_triggers", []))
+                    if "resource-feedback readiness row" in trigger
                 ),
             )
             or 0

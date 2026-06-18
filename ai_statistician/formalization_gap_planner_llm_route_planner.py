@@ -1244,6 +1244,10 @@ def export_formalization_gap_planner_llm_route_planner(
         )
         for packet in request_packets
     )
+    model_tier_decision_evidence_rows = tuple(
+        _dict_value(packet, "model_tier_decision_evidence")
+        for packet in request_packets
+    )
     invalid_model_tier_decision_evidence = tuple(
         packet
         for packet in request_packets
@@ -1728,6 +1732,32 @@ def export_formalization_gap_planner_llm_route_planner(
                 )
             )
             for packet in request_packets
+        ),
+        "n_request_model_tier_decision_resource_feedback_readiness_rows": sum(
+            int(
+                _dict_value(row, "resource_feedback_readiness_counts").get(
+                    "total_count",
+                    0,
+                )
+                or 0
+            )
+            for row in model_tier_decision_evidence_rows
+        ),
+        "n_request_model_tier_decision_resource_feedback_reuse_ready_rows": sum(
+            int(
+                _dict_value(row, "resource_feedback_readiness_counts").get(
+                    "reuse_ready_count",
+                    0,
+                )
+                or 0
+            )
+            for row in model_tier_decision_evidence_rows
+        ),
+        "n_request_model_tier_decision_resource_feedback_sonnet_triggers": sum(
+            1
+            for row in model_tier_decision_evidence_rows
+            for trigger in _str_tuple(row.get("sonnet_triggers", []))
+            if "resource-feedback readiness row" in trigger
         ),
         "n_request_model_tier_decision_evidence_invalid": len(
             invalid_model_tier_decision_evidence
@@ -4306,6 +4336,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_model_tier_decision_auto_sonnet_triggered",
             "n_request_model_tier_decision_operator_override",
             "n_request_model_tier_decision_sonnet_triggers",
+            "n_request_model_tier_decision_resource_feedback_readiness_rows",
+            "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+            "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
             "n_request_model_tier_decision_evidence_invalid",
             "by_request_model_tier_decision_basis",
             "n_requests_with_llm_generation_policy",
@@ -4582,6 +4615,15 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_model_tier_decision_auto_sonnet_triggered": nonnegative_integer,
             "n_request_model_tier_decision_operator_override": nonnegative_integer,
             "n_request_model_tier_decision_sonnet_triggers": nonnegative_integer,
+            "n_request_model_tier_decision_resource_feedback_readiness_rows": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_resource_feedback_reuse_ready_rows": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_resource_feedback_sonnet_triggers": (
+                nonnegative_integer
+            ),
             "n_request_model_tier_decision_evidence_invalid": nonnegative_integer,
             "by_request_model_tier_decision_basis": {"type": "object"},
             "n_requests_with_llm_generation_policy": nonnegative_integer,
@@ -6441,6 +6483,59 @@ def validate_llm_route_planner_manifest(
     ):
         errors.append(
             "n_request_model_tier_decision_sonnet_triggers must match request_packets"
+        )
+    if int(
+        manifest.get(
+            "n_request_model_tier_decision_resource_feedback_readiness_rows",
+            0,
+        )
+        or 0
+    ) != sum(
+        int(
+            _dict_value(row, "resource_feedback_readiness_counts").get(
+                "total_count",
+                0,
+            )
+            or 0
+        )
+        for row in decision_evidence_rows
+    ):
+        errors.append(
+            "n_request_model_tier_decision_resource_feedback_readiness_rows must match request_packets"
+        )
+    if int(
+        manifest.get(
+            "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
+            0,
+        )
+        or 0
+    ) != sum(
+        int(
+            _dict_value(row, "resource_feedback_readiness_counts").get(
+                "reuse_ready_count",
+                0,
+            )
+            or 0
+        )
+        for row in decision_evidence_rows
+    ):
+        errors.append(
+            "n_request_model_tier_decision_resource_feedback_reuse_ready_rows must match request_packets"
+        )
+    if int(
+        manifest.get(
+            "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
+            0,
+        )
+        or 0
+    ) != sum(
+        1
+        for row in decision_evidence_rows
+        for trigger in _str_tuple(row.get("sonnet_triggers", []))
+        if "resource-feedback readiness row" in trigger
+    ):
+        errors.append(
+            "n_request_model_tier_decision_resource_feedback_sonnet_triggers must match request_packets"
         )
     invalid_decision_evidence = [
         row
