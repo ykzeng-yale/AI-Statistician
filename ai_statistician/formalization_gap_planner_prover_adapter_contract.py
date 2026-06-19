@@ -17,7 +17,7 @@ from .formalization_gap_planner_contract import (
     route_alignment_edge_json_schema,
     validate_route_alignment_edge,
 )
-from .formalization_gap_planner_llm_route_planner import (
+from .formalization_gap_planner_route_adoption_blockers import (
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
     ROUTE_ADOPTION_BLOCKER_VALUES,

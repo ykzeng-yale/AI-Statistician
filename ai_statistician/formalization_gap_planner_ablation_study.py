@@ -13,6 +13,10 @@ from .formalization_gap_planner_contract import (
     PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY as PLANNER_PROOF_EVIDENCE_BOUNDARY,
 )
+from .formalization_gap_planner_route_adoption_blockers import (
+    ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS,
+    ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
+)
 
 
 FORMALIZATION_GAP_PLANNER_ABLATION_STUDY_SCHEMA_VERSION = 1
@@ -35,10 +39,6 @@ ABLATION_VARIANTS = (
     "no_proof_state_feedback",
     "no_route_planner",
 )
-ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
-ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING = "source_grounding_obligations_pending"
-
-
 @dataclass(frozen=True)
 class FormalizationGapPlannerAblationStudyRow:
     schema_version: int

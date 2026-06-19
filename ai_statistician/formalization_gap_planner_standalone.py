@@ -28,6 +28,9 @@ from .formalization_gap_planner_contract import (
     write_portable_gap_plan_row_schema,
     write_route_alignment_edge_schema,
 )
+from .formalization_gap_planner_route_adoption_blockers import (
+    ROUTE_ADOPTION_BLOCKER_VALUES as LLM_ROUTE_PLANNER_ROUTE_ADOPTION_BLOCKER_VALUES,
+)
 from .goal_conditioned_minimal_formalization_plan import (
     GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_SCHEMA_VERSION,
     TARGET_PROVER_FAMILY,
@@ -55,25 +58,6 @@ FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_ROUTE_OPTION_SELECTION_BRIEF_KIND = 
     "formalization_gap_planner_llm_route_planner_route_option_selection_brief"
 )
 LLM_ROUTE_PLANNER_READY_FOR_STANDALONE_REPLAY = "READY_FOR_STANDALONE_REPLAY"
-LLM_ROUTE_PLANNER_ROUTE_ADOPTION_BLOCKER_VALUES = (
-    "response_not_accepted",
-    "llm_route_planner_response_missing",
-    "search_requests_pending_evidence",
-    "planner_next_actions_pending_evidence",
-    "uncertainty_flags_require_review",
-    "semantic_alignment_risks_require_review",
-    "residual_interpretations_require_route_replay",
-    "feedback_summary_actions_pending_resolution",
-    "resource_response_playbook_redispatch_pending",
-    "resource_request_queue_pending_response",
-    "feedback_loop_replan_required",
-    "realization_coverage_incomplete",
-    "primitive_evidence_matrix_incomplete",
-    "omitted_cost_hint_primitives_require_review",
-    "formal_gap_boundaries_require_resolution",
-    "source_grounding_obligations_pending",
-    "quality_control_obligations_pending",
-)
 FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT = (
     "formalization_gap_planner_standalone_input"
 )
