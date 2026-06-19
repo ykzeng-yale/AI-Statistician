@@ -1013,6 +1013,54 @@ def test_interactive_session_exposes_ready_formal_attempt_queue_commands() -> No
             "prerequisite_formal_node_ids": ["formal:rank_uniformity"],
         },
     ]
+    formal_attempt_queue_schedule = {
+        "schedule_kind": (
+            "formalization_gap_planner_llm_route_planner_formal_attempt_queue_schedule"
+        ),
+        "schedule_source": "llm_route_planner_formal_attempt_queue_schedule",
+        "n_attempts": 2,
+        "n_initial_ready_attempts": 1,
+        "n_waiting_for_formal_prerequisite_attempts": 1,
+        "n_missing_prerequisite_attempts": 0,
+        "has_formal_attempt_queue": True,
+        "has_initial_ready_attempt": True,
+        "all_prerequisites_queued": True,
+        "bottom_up_schedule_complete": True,
+        "initial_ready_attempt_ids": ["attempt:rank_uniformity"],
+        "waiting_attempt_ids": ["attempt:coverage_bridge"],
+        "missing_prerequisite_attempt_ids": [],
+        "missing_prerequisite_formal_node_ids": [],
+        "attempt_dependency_rows": [
+            {
+                "formal_attempt_queue_index": 0,
+                "attempt_id": "attempt:rank_uniformity",
+                "formal_node_id": "formal:rank_uniformity",
+                "primitive": "rank_uniformity",
+                "attempt_kind": "kernel_probe",
+                "target_prover_family": "lean4",
+                "initial_ready": True,
+                "dependency_status": "initial_ready",
+                "prerequisite_formal_node_ids": [],
+                "prerequisite_attempt_ids": [],
+                "missing_prerequisite_formal_node_ids": [],
+            },
+            {
+                "formal_attempt_queue_index": 1,
+                "attempt_id": "attempt:coverage_bridge",
+                "formal_node_id": "formal:coverage_bridge",
+                "primitive": "coverage_bridge",
+                "attempt_kind": "bridge_lemma",
+                "target_prover_family": "lean4",
+                "initial_ready": False,
+                "dependency_status": (
+                    "waiting_for_formal_prerequisite_attempts"
+                ),
+                "prerequisite_formal_node_ids": ["formal:rank_uniformity"],
+                "prerequisite_attempt_ids": ["attempt:rank_uniformity"],
+                "missing_prerequisite_formal_node_ids": [],
+            },
+        ],
+    }
     (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
         json.dumps(
             {
@@ -1029,6 +1077,9 @@ def test_interactive_session_exposes_ready_formal_attempt_queue_commands() -> No
                             "coverage_bridge",
                         ],
                         "formal_attempt_queue": formal_attempt_queue,
+                        "llm_route_planner_formal_attempt_queue_schedule": (
+                            formal_attempt_queue_schedule
+                        ),
                         "replan_metadata": {
                             "llm_route_planner_acceptance_status": (
                                 "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE"
@@ -1079,6 +1130,9 @@ def test_interactive_session_exposes_ready_formal_attempt_queue_commands() -> No
     assert payload["n_formal_attempt_queue_ready_items"] == 1
     assert payload["n_formal_attempt_queue_blocked_items"] == 1
     assert payload["n_formal_attempt_queue_execution_commands"] == 3
+    assert payload["n_rows_with_formal_attempt_queue_schedule"] == 1
+    assert payload["n_formal_attempt_queue_bottom_up_schedule_complete"] == 1
+    assert payload["n_formal_attempt_queue_missing_prerequisite_attempts"] == 0
     row = payload["rows"][0]
     assert row["next_interaction_kind"] == "target_prover_replay"
     assert row["formal_attempt_queue_item_count"] == 2
@@ -1097,6 +1151,20 @@ def test_interactive_session_exposes_ready_formal_attempt_queue_commands() -> No
     assert row["formal_attempt_queue_items"][1][
         "formal_attempt_dependency_status"
     ] == "waiting_for_formal_prerequisite_attempts"
+    assert row["formal_attempt_queue_schedule_source"] == (
+        "llm_route_planner_formal_attempt_queue_schedule"
+    )
+    assert row["formal_attempt_queue_schedule"]["attempt_dependency_rows"][0][
+        "dependency_status"
+    ] == "initial_ready"
+    assert row["formal_attempt_queue_schedule"]["attempt_dependency_rows"][1][
+        "dependency_status"
+    ] == "waiting_for_formal_prerequisite_attempts"
+    assert row["formal_attempt_queue_bottom_up_schedule_complete"] is True
+    assert row["formal_attempt_queue_missing_prerequisite_attempt_count"] == 0
+    assert row[
+        "formal_attempt_queue_missing_prerequisite_formal_node_ids"
+    ] == ()
     assert "formalization_gap_planner_prover_adapter_contract" in row["next_tools"]
     assert "target_prover_kernel_replay" in row["next_tools"]
     assert any(
@@ -1117,9 +1185,18 @@ def test_interactive_session_exposes_ready_formal_attempt_queue_commands() -> No
     assert row["evidence_summary"]["formal_attempt_queue_ready_items"] == 1
     policy = payload["decision_policy_rows"][0]
     assert "llm_formal_attempt_queue_present" in policy["trigger_signals"]
+    assert "formal_attempt_queue_schedule_present" in policy["trigger_signals"]
+    assert (
+        "formal_attempt_queue_bottom_up_schedule_complete"
+        in policy["trigger_signals"]
+    )
     assert "formal_attempt_queue_ready_items" in policy["trigger_signals"]
     assert "formal_attempt_queue_blocked_items" in policy["trigger_signals"]
     assert "llm_route_planner_formal_attempt_queue" in policy["evidence_inputs"]
+    assert (
+        "llm_route_planner_formal_attempt_queue_schedule"
+        in policy["evidence_inputs"]
+    )
     assert (
         "formalization_gap_planner_llm_route_planner_response_payload.schema.json"
         in policy["required_tool_contracts"]

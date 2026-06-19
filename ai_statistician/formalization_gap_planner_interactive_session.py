@@ -123,6 +123,11 @@ class FormalizationGapPlannerInteractiveSessionRow:
     formal_attempt_queue_attempt_ids: tuple[str, ...]
     formal_attempt_queue_ready_attempt_ids: tuple[str, ...]
     formal_attempt_queue_execution_commands: tuple[str, ...]
+    formal_attempt_queue_schedule: dict[str, object]
+    formal_attempt_queue_schedule_source: str
+    formal_attempt_queue_bottom_up_schedule_complete: bool
+    formal_attempt_queue_missing_prerequisite_attempt_count: int
+    formal_attempt_queue_missing_prerequisite_formal_node_ids: tuple[str, ...]
     residual_goals: tuple[str, ...]
     source_refs: tuple[str, ...]
     formal_declaration_hits: tuple[dict[str, object], ...]
@@ -389,6 +394,21 @@ def export_formalization_gap_planner_interactive_session(
         "n_formal_attempt_queue_execution_commands": sum(
             len(row.formal_attempt_queue_execution_commands) for row in rows
         ),
+        "n_rows_with_formal_attempt_queue_schedule": sum(
+            1
+            for row in rows
+            if row.formal_attempt_queue_schedule.get("has_formal_attempt_queue")
+        ),
+        "n_formal_attempt_queue_bottom_up_schedule_complete": sum(
+            1
+            for row in rows
+            if row.formal_attempt_queue_items
+            and row.formal_attempt_queue_bottom_up_schedule_complete
+        ),
+        "n_formal_attempt_queue_missing_prerequisite_attempts": sum(
+            row.formal_attempt_queue_missing_prerequisite_attempt_count
+            for row in rows
+        ),
         "n_row_schema_valid": n_row_schema_valid,
         "n_row_schema_invalid": n_row_schema_invalid,
         "n_decision_policy_rows": len(decision_policy_rows),
@@ -597,6 +617,15 @@ def interactive_session_row_json_schema() -> dict[str, object]:
             "formal_attempt_queue_attempt_ids": string_array,
             "formal_attempt_queue_ready_attempt_ids": string_array,
             "formal_attempt_queue_execution_commands": string_array,
+            "formal_attempt_queue_schedule": {"type": "object"},
+            "formal_attempt_queue_schedule_source": {"type": "string"},
+            "formal_attempt_queue_bottom_up_schedule_complete": {"type": "boolean"},
+            "formal_attempt_queue_missing_prerequisite_attempt_count": {
+                "type": "integer"
+            },
+            "formal_attempt_queue_missing_prerequisite_formal_node_ids": (
+                string_array
+            ),
             "residual_goals": string_array,
             "source_refs": string_array,
             "formal_declaration_hits": object_array,
@@ -1151,6 +1180,15 @@ def _decision_trigger_signals(
         signals.append("resource_request_dispatch_specs_ready")
     if row.formal_attempt_queue_items:
         signals.append("llm_formal_attempt_queue_present")
+    if row.formal_attempt_queue_schedule.get("has_formal_attempt_queue"):
+        signals.append("formal_attempt_queue_schedule_present")
+    if (
+        row.formal_attempt_queue_items
+        and row.formal_attempt_queue_bottom_up_schedule_complete
+    ):
+        signals.append("formal_attempt_queue_bottom_up_schedule_complete")
+    if row.formal_attempt_queue_missing_prerequisite_attempt_count:
+        signals.append("formal_attempt_queue_missing_prerequisite_attempts")
     if row.formal_attempt_queue_ready_item_count:
         signals.append("formal_attempt_queue_ready_items")
     if row.formal_attempt_queue_blocked_item_count:
@@ -1193,6 +1231,8 @@ def _decision_evidence_inputs(
         inputs.append("resource_request_queue_dispatch_specs")
     if row.formal_attempt_queue_items:
         inputs.append("llm_route_planner_formal_attempt_queue")
+    if row.formal_attempt_queue_schedule.get("has_formal_attempt_queue"):
+        inputs.append("llm_route_planner_formal_attempt_queue_schedule")
     if row.source_refs:
         inputs.append("source_refs")
     if row.formal_declaration_hits:
@@ -1645,9 +1685,18 @@ def _session_row(
     resource_request_execution_commands = _resource_request_execution_commands(
         selected_resource_request_rows
     )
+    formal_attempt_queue_schedule_trace = _formal_attempt_queue_schedule_trace(
+        plan_row,
+        stability_row,
+    )
     formal_attempt_queue_items = _formal_attempt_queue_items_for_session(
         plan_row,
         stability_row,
+        formal_attempt_queue_schedule_trace,
+    )
+    formal_attempt_queue_schedule = _formal_attempt_queue_schedule_for_session(
+        formal_attempt_queue_items,
+        formal_attempt_queue_schedule_trace,
     )
     formal_attempt_queue_ready_items = _formal_attempt_queue_ready_items(
         formal_attempt_queue_items
@@ -1812,6 +1861,14 @@ def _session_row(
             "formal_attempt_queue_execution_commands": len(
                 formal_attempt_queue_next_commands
             ),
+            "formal_attempt_queue_schedule_missing_prerequisite_attempts": (
+                _nonnegative_int(
+                    formal_attempt_queue_schedule.get(
+                        "n_missing_prerequisite_attempts"
+                    ),
+                    0,
+                )
+            ),
             "resource_response_awaiting_requests": len(
                 resource_response_awaiting_request_ids
             ),
@@ -1892,6 +1949,23 @@ def _session_row(
         ),
         formal_attempt_queue_execution_commands=(
             formal_attempt_queue_next_commands
+        ),
+        formal_attempt_queue_schedule=formal_attempt_queue_schedule,
+        formal_attempt_queue_schedule_source=str(
+            formal_attempt_queue_schedule.get("schedule_source", "")
+        ),
+        formal_attempt_queue_bottom_up_schedule_complete=bool(
+            formal_attempt_queue_schedule.get("bottom_up_schedule_complete", False)
+        ),
+        formal_attempt_queue_missing_prerequisite_attempt_count=_nonnegative_int(
+            formal_attempt_queue_schedule.get("n_missing_prerequisite_attempts"),
+            0,
+        ),
+        formal_attempt_queue_missing_prerequisite_formal_node_ids=_str_tuple(
+            formal_attempt_queue_schedule.get(
+                "missing_prerequisite_formal_node_ids",
+                [],
+            )
         ),
         residual_goals=residual_goals,
         source_refs=source_refs,
@@ -2229,8 +2303,10 @@ def _resource_request_dispatch_summary(
 def _formal_attempt_queue_items_for_session(
     plan_row: dict[str, Any],
     stability_row: dict[str, Any],
+    schedule: dict[str, object] | None = None,
 ) -> tuple[dict[str, object], ...]:
     rows: list[dict[str, object]] = []
+    schedule_rows = _formal_attempt_schedule_rows(schedule or {})
     for source_rows in _formal_attempt_queue_sources_for_session(
         plan_row,
         stability_row,
@@ -2249,6 +2325,16 @@ def _formal_attempt_queue_items_for_session(
             )
             candidate["formal_attempt_queue_index"] = queue_index
             candidate["llm_route_planner_formal_attempt_queue_index"] = queue_index
+            schedule_row = _matching_formal_attempt_schedule_row(
+                candidate,
+                schedule_rows,
+                queue_index=queue_index,
+            )
+            if schedule_row:
+                candidate = _apply_formal_attempt_schedule_row(
+                    candidate,
+                    schedule_row,
+                )
             dependency_status = _formal_attempt_queue_dependency_status(candidate)
             candidate["formal_attempt_dependency_status"] = dependency_status
             candidate["formal_attempt_initial_ready"] = (
@@ -2272,6 +2358,218 @@ def _formal_attempt_queue_sources_for_session(
             if source_rows:
                 sources.append(source_rows)
     return tuple(sources)
+
+
+def _formal_attempt_queue_schedule_trace(
+    plan_row: dict[str, Any],
+    stability_row: dict[str, Any],
+) -> dict[str, object]:
+    for container in _route_adoption_trace_containers(stability_row, plan_row):
+        for field_name in (
+            "formal_attempt_queue_schedule",
+            "llm_route_planner_formal_attempt_queue_schedule",
+        ):
+            schedule = _dict_value(container, field_name)
+            if schedule:
+                schedule["schedule_source"] = (
+                    str(schedule.get("schedule_source", "")).strip()
+                    or field_name
+                )
+                return schedule
+    return {}
+
+
+def _formal_attempt_queue_schedule_for_session(
+    items: tuple[dict[str, object], ...],
+    schedule: dict[str, object] | None,
+) -> dict[str, object]:
+    source = str((schedule or {}).get("schedule_source", "")).strip()
+    schedule_rows = _formal_attempt_schedule_rows(schedule or {})
+    if not schedule_rows:
+        source = source or "derived_from_interactive_session_formal_attempt_queue"
+        schedule_rows = tuple(
+            _formal_attempt_schedule_row_from_item(index, item)
+            for index, item in enumerate(items)
+        )
+    initial_attempt_ids: list[object] = []
+    waiting_attempt_ids: list[object] = []
+    missing_attempt_ids: list[object] = []
+    missing_prerequisite_node_ids: list[object] = []
+    normalized_rows: list[dict[str, object]] = []
+    for index, row in enumerate(schedule_rows):
+        normalized = dict(row)
+        dependency_status = _schedule_dependency_status_to_llm_status(
+            str(normalized.get("dependency_status", ""))
+        )
+        if not dependency_status:
+            if _str_tuple(normalized.get("missing_prerequisite_formal_node_ids", [])):
+                dependency_status = "missing_prerequisite_attempts"
+            elif _str_tuple(normalized.get("prerequisite_formal_node_ids", [])):
+                dependency_status = "waiting_for_formal_prerequisite_attempts"
+            else:
+                dependency_status = "initial_ready"
+        normalized["dependency_status"] = dependency_status
+        normalized.setdefault("formal_attempt_queue_index", index)
+        attempt_id = str(normalized.get("attempt_id", "")).strip()
+        if dependency_status == "initial_ready":
+            initial_attempt_ids.append(attempt_id)
+            normalized["initial_ready"] = True
+        elif dependency_status == "missing_prerequisite_attempts":
+            missing_attempt_ids.append(attempt_id)
+            normalized["initial_ready"] = False
+            missing_prerequisite_node_ids.extend(
+                _str_tuple(
+                    normalized.get("missing_prerequisite_formal_node_ids", [])
+                )
+            )
+        else:
+            waiting_attempt_ids.append(attempt_id)
+            normalized["initial_ready"] = False
+        normalized_rows.append(normalized)
+
+    n_attempts = len(normalized_rows)
+    has_queue = bool(n_attempts)
+    has_initial = bool(_str_tuple(initial_attempt_ids))
+    n_missing = len(_str_tuple(missing_attempt_ids))
+    return {
+        **dict(schedule or {}),
+        "schedule_kind": str(
+            (schedule or {}).get(
+                "schedule_kind",
+                "formalization_gap_planner_interactive_session_formal_attempt_queue_schedule",
+            )
+        ),
+        "schedule_source": source or "no_formal_attempt_queue",
+        "n_attempts": n_attempts,
+        "n_initial_ready_attempts": len(_str_tuple(initial_attempt_ids)),
+        "n_waiting_for_formal_prerequisite_attempts": len(
+            _str_tuple(waiting_attempt_ids)
+        ),
+        "n_missing_prerequisite_attempts": n_missing,
+        "has_formal_attempt_queue": has_queue,
+        "has_initial_ready_attempt": has_initial,
+        "all_prerequisites_queued": n_missing == 0,
+        "bottom_up_schedule_complete": (not has_queue)
+        or (has_initial and n_missing == 0),
+        "initial_ready_attempt_ids": list(_str_tuple(initial_attempt_ids)),
+        "waiting_attempt_ids": list(_str_tuple(waiting_attempt_ids)),
+        "missing_prerequisite_attempt_ids": list(_str_tuple(missing_attempt_ids)),
+        "missing_prerequisite_formal_node_ids": list(
+            _str_tuple(missing_prerequisite_node_ids)
+        ),
+        "attempt_dependency_rows": normalized_rows,
+    }
+
+
+def _formal_attempt_schedule_rows(
+    schedule: dict[str, object],
+) -> tuple[dict[str, object], ...]:
+    return _dict_tuple(schedule.get("attempt_dependency_rows", []))
+
+
+def _matching_formal_attempt_schedule_row(
+    item: dict[str, object],
+    schedule_rows: tuple[dict[str, object], ...],
+    *,
+    queue_index: int,
+) -> dict[str, object]:
+    attempt_id = str(item.get("attempt_id", "")).strip()
+    formal_node_id = str(item.get("formal_node_id", "")).strip()
+    for row in schedule_rows:
+        row_attempt_id = str(row.get("attempt_id", "")).strip()
+        row_formal_node_id = str(row.get("formal_node_id", "")).strip()
+        row_index = _nonnegative_int(row.get("formal_attempt_queue_index"), -1)
+        if attempt_id and row_attempt_id == attempt_id:
+            return row
+        if formal_node_id and row_formal_node_id == formal_node_id:
+            return row
+        if row_index == queue_index:
+            return row
+    return {}
+
+
+def _apply_formal_attempt_schedule_row(
+    item: dict[str, object],
+    schedule_row: dict[str, object],
+) -> dict[str, object]:
+    candidate = dict(item)
+    dependency_status = _schedule_dependency_status_to_session_status(
+        str(schedule_row.get("dependency_status", ""))
+    )
+    if dependency_status:
+        candidate["formal_attempt_dependency_status"] = dependency_status
+    if "initial_ready" in schedule_row:
+        candidate["formal_attempt_initial_ready"] = bool(
+            schedule_row.get("initial_ready", False)
+        )
+    if "prerequisite_formal_node_ids" in schedule_row:
+        candidate["formal_attempt_prerequisite_formal_node_ids"] = list(
+            _str_tuple(schedule_row.get("prerequisite_formal_node_ids", []))
+        )
+    if "prerequisite_attempt_ids" in schedule_row:
+        candidate["formal_attempt_prerequisite_attempt_ids"] = list(
+            _str_tuple(schedule_row.get("prerequisite_attempt_ids", []))
+        )
+    if "missing_prerequisite_formal_node_ids" in schedule_row:
+        candidate["formal_attempt_missing_prerequisite_formal_node_ids"] = list(
+            _str_tuple(schedule_row.get("missing_prerequisite_formal_node_ids", []))
+        )
+    return candidate
+
+
+def _formal_attempt_schedule_row_from_item(
+    index: int,
+    item: dict[str, object],
+) -> dict[str, object]:
+    dependency_status = _schedule_dependency_status_to_llm_status(
+        _formal_attempt_queue_dependency_status(dict(item))
+    )
+    return {
+        "formal_attempt_queue_index": index,
+        "attempt_id": str(item.get("attempt_id", "")).strip(),
+        "formal_node_id": str(item.get("formal_node_id", "")).strip(),
+        "primitive": str(item.get("primitive", "")).strip(),
+        "attempt_kind": str(item.get("attempt_kind", "")).strip(),
+        "target_prover_family": str(item.get("target_prover_family", "")).strip(),
+        "initial_ready": dependency_status == "initial_ready",
+        "dependency_status": dependency_status,
+        "prerequisite_formal_node_ids": list(
+            _formal_attempt_queue_prerequisite_formal_node_ids(item)
+        ),
+        "missing_prerequisite_formal_node_ids": list(
+            _str_tuple(
+                item.get("formal_attempt_missing_prerequisite_formal_node_ids", [])
+            )
+        ),
+    }
+
+
+def _schedule_dependency_status_to_session_status(status: str) -> str:
+    raw = str(status or "").strip()
+    if raw in {"initial_ready", "ready_no_formal_prerequisites"}:
+        return "ready_no_formal_prerequisites"
+    if raw in {
+        "missing_prerequisite_attempts",
+        "missing_formal_prerequisite_attempts",
+    }:
+        return "missing_formal_prerequisite_attempts"
+    if raw == "waiting_for_formal_prerequisite_attempts":
+        return raw
+    return raw
+
+
+def _schedule_dependency_status_to_llm_status(status: str) -> str:
+    raw = str(status or "").strip()
+    if raw in {"ready_no_formal_prerequisites", "initial_ready"}:
+        return "initial_ready"
+    if raw in {
+        "missing_formal_prerequisite_attempts",
+        "missing_prerequisite_attempts",
+    }:
+        return "missing_prerequisite_attempts"
+    if raw == "waiting_for_formal_prerequisite_attempts":
+        return raw
+    return raw
 
 
 def _formal_attempt_queue_dependency_status(
@@ -2971,6 +3269,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Resource request execution commands: {payload.get('n_resource_request_execution_commands')}",
         f"- Formal attempt queue items ready/blocked/total: {payload.get('n_formal_attempt_queue_ready_items')}/{payload.get('n_formal_attempt_queue_blocked_items')}/{payload.get('n_formal_attempt_queue_items')}",
         f"- Formal attempt queue execution commands: {payload.get('n_formal_attempt_queue_execution_commands')}",
+        f"- Rows with formal attempt queue schedules: {payload.get('n_rows_with_formal_attempt_queue_schedule')}",
+        f"- Complete bottom-up formal attempt schedules: {payload.get('n_formal_attempt_queue_bottom_up_schedule_complete')}",
+        f"- Missing formal attempt prerequisites: {payload.get('n_formal_attempt_queue_missing_prerequisite_attempts')}",
         f"- All OK: {payload.get('all_ok')}",
         f"- Next literature searches: {payload.get('n_run_literature_search')}",
         f"- Next formal grounding actions: {payload.get('n_run_formal_grounding')}",
@@ -2999,6 +3300,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"- Owner: `{row.get('next_owner_agent')}`",
                 f"- Resource requests: {len(row.get('resource_request_ids', []))}",
                 f"- Formal attempt queue: {row.get('formal_attempt_queue_ready_item_count')}/{row.get('formal_attempt_queue_item_count')} ready",
+                f"- Formal attempt schedule: complete={row.get('formal_attempt_queue_bottom_up_schedule_complete')} source={row.get('formal_attempt_queue_schedule_source')}",
                 f"- User checkpoint: {row.get('user_checkpoint')}",
                 "",
             ]
