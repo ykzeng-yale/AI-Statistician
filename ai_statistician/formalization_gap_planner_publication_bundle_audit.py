@@ -1649,6 +1649,19 @@ def audit_formalization_gap_planner_publication_bundle(
             == "optional_llm_route_planner_response_payload_validation_route_precondition_accounting"
             and check.ok
         ),
+        "n_optional_llm_route_planner_response_payload_validation_route_adoption_accounting_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_route_adoption_accounting"
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_route_adoption_accounting_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_route_adoption_accounting"
+            and check.ok
+        ),
         "n_optional_llm_route_planner_response_payload_validation_row_schema_checked": sum(
             1
             for check in checks
@@ -3086,6 +3099,14 @@ def _expected_bundle_llm_route_planner_response_payload_validation_summary(
     rows, _row_errors = _read_jsonl_dict_rows_no_error(rows_path)
     by_payload_target = payload.get("by_payload_target_prover_family", {})
     by_request_target = payload.get("by_request_context_target_prover_family", {})
+    by_request_bound_adoption_status = payload.get(
+        "by_request_bound_payload_route_adoption_status",
+        {},
+    )
+    request_bound_adoption_blockers = payload.get(
+        "request_bound_payload_route_adoption_blocker_counts",
+        {},
+    )
     return {
         "requested": artifact_dir.exists(),
         "n_payloads": int(payload.get("n_payloads", 0) or 0),
@@ -3102,6 +3123,40 @@ def _expected_bundle_llm_route_planner_response_payload_validation_summary(
         ),
         "n_request_bound_payloads": int(
             payload.get("n_request_bound_payloads", 0) or 0
+        ),
+        "n_request_bound_payloads_with_route_adoption_status": int(
+            payload.get("n_request_bound_payloads_with_route_adoption_status", 0)
+            or 0
+        ),
+        "n_request_bound_payloads_route_adoption_ready": int(
+            payload.get("n_request_bound_payloads_route_adoption_ready", 0) or 0
+        ),
+        "n_request_bound_payloads_route_adoption_pending_refinement": int(
+            payload.get(
+                "n_request_bound_payloads_route_adoption_pending_refinement",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payloads_route_adoption_rejected": int(
+            payload.get("n_request_bound_payloads_route_adoption_rejected", 0) or 0
+        ),
+        "n_request_bound_payloads_adoptable_for_standalone_replay": int(
+            payload.get(
+                "n_request_bound_payloads_adoptable_for_standalone_replay",
+                0,
+            )
+            or 0
+        ),
+        "by_request_bound_payload_route_adoption_status": (
+            dict(by_request_bound_adoption_status)
+            if isinstance(by_request_bound_adoption_status, dict)
+            else {}
+        ),
+        "request_bound_payload_route_adoption_blocker_counts": (
+            dict(request_bound_adoption_blockers)
+            if isinstance(request_bound_adoption_blockers, dict)
+            else {}
         ),
         "n_request_bound_payloads_with_context_packet_inventory": int(
             payload.get(
@@ -9243,6 +9298,35 @@ def _llm_route_planner_response_payload_validation_optional_checks(
     manifest_request_bound_payloads = int(
         manifest.get("n_request_bound_payloads", 0) or 0
     )
+    manifest_request_bound_payloads_with_adoption_status = int(
+        manifest.get("n_request_bound_payloads_with_route_adoption_status", 0) or 0
+    )
+    manifest_request_bound_payloads_adoption_ready = int(
+        manifest.get("n_request_bound_payloads_route_adoption_ready", 0) or 0
+    )
+    manifest_request_bound_payloads_adoption_pending = int(
+        manifest.get(
+            "n_request_bound_payloads_route_adoption_pending_refinement",
+            0,
+        )
+        or 0
+    )
+    manifest_request_bound_payloads_adoption_rejected = int(
+        manifest.get("n_request_bound_payloads_route_adoption_rejected", 0) or 0
+    )
+    manifest_request_bound_payloads_adoptable = int(
+        manifest.get(
+            "n_request_bound_payloads_adoptable_for_standalone_replay",
+            0,
+        )
+        or 0
+    )
+    manifest_request_bound_adoption_status_counts = _int_mapping(
+        manifest.get("by_request_bound_payload_route_adoption_status", {})
+    )
+    manifest_request_bound_adoption_blocker_counts = _int_mapping(
+        manifest.get("request_bound_payload_route_adoption_blocker_counts", {})
+    )
     manifest_schema_errors = int(manifest.get("n_schema_errors", 0) or 0)
     manifest_request_context_errors = int(
         manifest.get("n_request_context_errors", 0) or 0
@@ -9307,6 +9391,34 @@ def _llm_route_planner_response_payload_validation_optional_checks(
         for row in rows
         if str(row.get("request_context_validation_mode", ""))
         == "request_bound"
+    )
+    row_request_bound_payloads_with_adoption_status = sum(
+        1
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+        and str(row.get("request_bound_route_adoption_status", "")).strip()
+    )
+    row_request_bound_adoption_status_counts = Counter(
+        str(row.get("request_bound_route_adoption_status", "")).strip()
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+        and str(row.get("request_bound_route_adoption_status", "")).strip()
+    )
+    row_request_bound_adoption_blocker_counts: Counter[str] = Counter()
+    for row in rows:
+        if str(row.get("request_context_validation_mode", "")) != "request_bound":
+            continue
+        row_request_bound_adoption_blocker_counts.update(
+            _str_tuple(row.get("request_bound_route_adoption_blockers", []))
+        )
+    row_request_bound_payloads_adoptable = sum(
+        1
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+        and bool(row.get("request_bound_adoptable_for_standalone_replay", False))
     )
     row_request_bound_payloads_with_inventory = sum(
         1
@@ -9408,6 +9520,60 @@ def _llm_route_planner_response_payload_validation_optional_checks(
         request_bound_accounting_errors.append(
             "JSONL request-bound inventory total rows must match manifest "
             "n_request_bound_payload_context_inventory_total_rows"
+        )
+    route_adoption_accounting_errors: list[str] = []
+    if (
+        row_request_bound_payloads_with_adoption_status
+        != manifest_request_bound_payloads_with_adoption_status
+    ):
+        route_adoption_accounting_errors.append(
+            "JSONL request-bound route-adoption status rows must match manifest "
+            "n_request_bound_payloads_with_route_adoption_status"
+        )
+    if (
+        row_request_bound_adoption_status_counts.get(ROUTE_ADOPTION_READY_STATUS, 0)
+        != manifest_request_bound_payloads_adoption_ready
+    ):
+        route_adoption_accounting_errors.append(
+            "JSONL ready route-adoption status count must match manifest "
+            "n_request_bound_payloads_route_adoption_ready"
+        )
+    if (
+        row_request_bound_adoption_status_counts.get(ROUTE_ADOPTION_PENDING_STATUS, 0)
+        != manifest_request_bound_payloads_adoption_pending
+    ):
+        route_adoption_accounting_errors.append(
+            "JSONL pending-refinement route-adoption status count must match manifest "
+            "n_request_bound_payloads_route_adoption_pending_refinement"
+        )
+    if (
+        row_request_bound_adoption_status_counts.get(ROUTE_ADOPTION_REJECTED_STATUS, 0)
+        != manifest_request_bound_payloads_adoption_rejected
+    ):
+        route_adoption_accounting_errors.append(
+            "JSONL rejected route-adoption status count must match manifest "
+            "n_request_bound_payloads_route_adoption_rejected"
+        )
+    if row_request_bound_payloads_adoptable != manifest_request_bound_payloads_adoptable:
+        route_adoption_accounting_errors.append(
+            "JSONL adoptable route count must match manifest "
+            "n_request_bound_payloads_adoptable_for_standalone_replay"
+        )
+    if (
+        _int_mapping(dict(row_request_bound_adoption_status_counts))
+        != manifest_request_bound_adoption_status_counts
+    ):
+        route_adoption_accounting_errors.append(
+            "JSONL route-adoption status histogram must match manifest "
+            "by_request_bound_payload_route_adoption_status"
+        )
+    if (
+        _int_mapping(dict(row_request_bound_adoption_blocker_counts))
+        != manifest_request_bound_adoption_blocker_counts
+    ):
+        route_adoption_accounting_errors.append(
+            "JSONL route-adoption blocker histogram must match manifest "
+            "request_bound_payload_route_adoption_blocker_counts"
         )
     route_precondition_accounting_errors: list[str] = []
     if (
@@ -9611,6 +9777,26 @@ def _llm_route_planner_response_payload_validation_optional_checks(
             ),
             not request_bound_coverage_errors,
             errors=tuple(request_bound_coverage_errors),
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_route_adoption_accounting",
+            "optional_artifacts",
+            "request-bound route-adoption counters match JSONL rows",
+            (
+                f"status={row_request_bound_payloads_with_adoption_status}/"
+                f"{manifest_request_bound_payloads_with_adoption_status} "
+                f"ready={row_request_bound_adoption_status_counts.get(ROUTE_ADOPTION_READY_STATUS, 0)}/"
+                f"{manifest_request_bound_payloads_adoption_ready} "
+                f"pending={row_request_bound_adoption_status_counts.get(ROUTE_ADOPTION_PENDING_STATUS, 0)}/"
+                f"{manifest_request_bound_payloads_adoption_pending} "
+                f"rejected={row_request_bound_adoption_status_counts.get(ROUTE_ADOPTION_REJECTED_STATUS, 0)}/"
+                f"{manifest_request_bound_payloads_adoption_rejected} "
+                f"adoptable={row_request_bound_payloads_adoptable}/"
+                f"{manifest_request_bound_payloads_adoptable} "
+                f"blockers={dict(sorted(row_request_bound_adoption_blocker_counts.items()))}"
+            ),
+            not route_adoption_accounting_errors,
+            errors=tuple(route_adoption_accounting_errors),
         ),
         _check(
             "optional_llm_route_planner_response_payload_validation_route_precondition_accounting",

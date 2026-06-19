@@ -9780,6 +9780,18 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     )
     assert (
         audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_route_adoption_accounting_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_llm_route_planner_response_payload_validation_route_adoption_accounting_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
             "n_optional_llm_route_planner_response_payload_validation_row_schema_checked"
         ]
         == 1
@@ -9815,6 +9827,13 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         == "optional_llm_route_planner_response_payload_validation_route_precondition_accounting"
         and row["ok"]
         and "preconditions=1/1" in row["observed"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_response_payload_validation_route_adoption_accounting"
+        and row["ok"]
+        and "status=1/1" in row["observed"]
         for row in audit_payload["checks"]
     )
     assert (
@@ -12735,9 +12754,32 @@ def test_publication_bundle_audit_rejects_response_payload_validation_summary_dr
         ]
         == 0
     )
+    assert (
+        manifest["llm_route_planner_response_payload_validation_summary"][
+            "n_request_bound_payloads_with_route_adoption_status"
+        ]
+        == 1
+    )
+    assert (
+        sum(
+            manifest["llm_route_planner_response_payload_validation_summary"][
+                "by_request_bound_payload_route_adoption_status"
+            ].values()
+        )
+        == 1
+    )
     manifest["llm_route_planner_response_payload_validation_summary"][
         "n_request_bound_payloads_with_route_adoption_preconditions"
     ] = 0
+    manifest["llm_route_planner_response_payload_validation_summary"][
+        "n_request_bound_payloads_with_route_adoption_status"
+    ] = 0
+    manifest["llm_route_planner_response_payload_validation_summary"][
+        "by_request_bound_payload_route_adoption_status"
+    ] = {}
+    manifest["llm_route_planner_response_payload_validation_summary"][
+        "request_bound_payload_route_adoption_blocker_counts"
+    ] = {}
     manifest["llm_route_planner_response_payload_validation_summary"][
         "n_request_bound_payload_route_adoption_precondition_required_response_fields"
     ] = 0
@@ -12777,6 +12819,74 @@ def test_publication_bundle_audit_rejects_response_payload_validation_summary_dr
             "n_optional_llm_route_planner_response_payload_validation_route_precondition_accounting_valid"
         ]
         == 1
+    )
+    assert (
+        rejected[
+            "n_optional_llm_route_planner_response_payload_validation_route_adoption_accounting_valid"
+        ]
+        == 1
+    )
+
+
+def test_publication_bundle_audit_rejects_response_payload_validation_route_adoption_accounting_drift() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_audit_response_validation_route_adoption_drift"
+    )
+    bundle_dir = root / "bundle"
+    shutil.rmtree(root, ignore_errors=True)
+    primary_llm_dir = _write_accepted_llm_route_planner_artifact(root / "primary_llm")
+    payload_validation_dir = _write_llm_payload_validation_from_route_planner_artifact(
+        primary_llm_dir,
+        root / "payload_validation",
+    )
+
+    export_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        formalization_gap_planner_llm_route_planner_dir=primary_llm_dir,
+        formalization_gap_planner_llm_route_planner_response_payload_validation_dir=(
+            payload_validation_dir
+        ),
+    )
+    validation_manifest_path = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation"
+        / "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.json"
+    )
+    validation_manifest = json.loads(
+        validation_manifest_path.read_text(encoding="utf-8")
+    )
+    assert validation_manifest["n_request_bound_payloads_with_route_adoption_status"] == 1
+    validation_manifest["n_request_bound_payloads_with_route_adoption_status"] = 0
+    validation_manifest["by_request_bound_payload_route_adoption_status"] = {}
+    validation_manifest["request_bound_payload_route_adoption_blocker_counts"] = {}
+    validation_manifest_path.write_text(
+        json.dumps(validation_manifest, indent=2),
+        encoding="utf-8",
+    )
+
+    rejected = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_response_payload_validation_route_adoption_drift",
+    )
+
+    failed_names = {row["check_name"] for row in rejected["checks"] if not row["ok"]}
+    assert not rejected["all_ok"]
+    assert (
+        "optional_llm_route_planner_response_payload_validation_route_adoption_accounting"
+        in failed_names
+    )
+    assert (
+        rejected[
+            "n_optional_llm_route_planner_response_payload_validation_route_adoption_accounting_checked"
+        ]
+        == 1
+    )
+    assert (
+        rejected[
+            "n_optional_llm_route_planner_response_payload_validation_route_adoption_accounting_valid"
+        ]
+        == 0
     )
 
 
