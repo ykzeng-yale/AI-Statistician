@@ -15370,11 +15370,14 @@ def _resource_request_queue_optional_checks(
         schema_errors = validate_resource_request_queue_row(row)
         action_resource_plan_id = str(row.get("action_resource_plan_id", ""))
         action_row = action_plan_index.get(action_resource_plan_id)
+        llm_trace_errors = _resource_request_llm_route_planner_trace_errors(row)
+        ref_ok = action_row is not None or not llm_trace_errors
         payload_identity_errors = _resource_request_payload_identity_errors(row)
         dispatch_spec_errors = _resource_request_dispatch_spec_errors(row)
         alignment_errors = _resource_request_contract_alignment_errors(
             row,
             action_row,
+            llm_trace_errors=llm_trace_errors,
         )
         checks.append(
             _check(
@@ -15390,14 +15393,21 @@ def _resource_request_queue_optional_checks(
             _check(
                 f"optional_resource_request_queue_row_{idx}_action_resource_plan_ref",
                 "optional_artifacts",
-                "resource request resolves to a bundled action-resource plan",
+                (
+                    "resource request resolves to a bundled action-resource "
+                    "plan or a self-contained LLM route-planner trace"
+                ),
                 action_resource_plan_id,
-                action_row is not None,
+                ref_ok,
                 errors=()
-                if action_row is not None
+                if ref_ok
                 else (
-                    "missing bundled action-resource plan: "
-                    + action_resource_plan_id,
+                    (
+                        "missing bundled action-resource plan or valid LLM "
+                        "route-planner trace: "
+                        + action_resource_plan_id
+                    ),
+                    *llm_trace_errors,
                 ),
             )
         )
@@ -15451,8 +15461,17 @@ def _action_resource_plan_index(
 def _resource_request_contract_alignment_errors(
     row: dict[str, Any],
     action_row: dict[str, Any] | None,
+    *,
+    llm_trace_errors: tuple[str, ...] | None = None,
 ) -> tuple[str, ...]:
     if action_row is None:
+        trace_errors = (
+            llm_trace_errors
+            if llm_trace_errors is not None
+            else _resource_request_llm_route_planner_trace_errors(row)
+        )
+        if not trace_errors:
+            return tuple()
         return ("resource request action_resource_plan_id does not resolve",)
     resource_id = str(row.get("resource_id", ""))
     errors: list[str] = []
@@ -15502,6 +15521,78 @@ def _resource_request_contract_alignment_errors(
             errors.append(
                 f"request_payload.{field_name} mismatch for {resource_id}: "
                 f"observed={sorted(payload_observed)} expected={sorted(expected)}"
+            )
+    return tuple(errors)
+
+
+LLM_ROUTE_PLANNER_RESOURCE_REQUEST_SOURCE_KINDS = (
+    "search_request",
+    "planner_next_action",
+    "residual_interpretation",
+    "route_planning_brief_evidence_gap",
+)
+
+
+def _resource_request_llm_route_planner_trace_errors(
+    row: dict[str, Any],
+) -> tuple[str, ...]:
+    request_payload = _as_dict(row.get("request_payload", {}))
+    request_playbook = _as_dict(row.get("request_playbook", {}))
+    action_resource_plan_id = str(row.get("action_resource_plan_id", "")).strip()
+    errors: list[str] = []
+    if not action_resource_plan_id.startswith(
+        "formalization_gap_planner_llm_route_planner_action:"
+    ):
+        errors.append("action_resource_plan_id is not an LLM route-planner action")
+    source_kind = str(
+        request_payload.get("llm_route_planner_source_kind", "")
+    ).strip()
+    if source_kind not in LLM_ROUTE_PLANNER_RESOURCE_REQUEST_SOURCE_KINDS:
+        errors.append("request_payload.llm_route_planner_source_kind is unsupported")
+    if not str(request_payload.get("llm_route_planner_row_id", "")).strip():
+        errors.append("request_payload.llm_route_planner_row_id is required")
+    if not str(request_payload.get("llm_route_planner_hook_kind", "")).strip():
+        errors.append("request_payload.llm_route_planner_hook_kind is required")
+    source_item = _as_dict(request_payload.get("llm_route_planner_source_item", {}))
+    if not source_item:
+        errors.append("request_payload.llm_route_planner_source_item is required")
+    if source_kind == "route_planning_brief_evidence_gap" and not str(
+        source_item.get("route_planning_brief_gap_kind", "")
+    ).strip():
+        errors.append(
+            "route_planning_brief_evidence_gap requires "
+            "route_planning_brief_gap_kind"
+        )
+    for field_name in (
+        "llm_route_planner_row_id",
+        "llm_route_planner_source_kind",
+        "llm_route_planner_source_index",
+        "llm_route_planner_hook_kind",
+    ):
+        if request_playbook.get(field_name) != request_payload.get(field_name):
+            errors.append(f"request_playbook.{field_name} must match request_payload")
+    playbook_source_item = _as_dict(
+        request_playbook.get("llm_route_planner_source_item", {})
+    )
+    if source_item and playbook_source_item != source_item:
+        errors.append(
+            "request_playbook.llm_route_planner_source_item must match request_payload"
+        )
+    payload_playbook = _as_dict(request_payload.get("request_playbook", {}))
+    if payload_playbook and payload_playbook != request_playbook:
+        errors.append("request_payload.request_playbook must match row.request_playbook")
+    for field_name in (
+        "resource_contract_ids",
+        "request_contract_fields",
+        "response_contract_fields",
+    ):
+        observed = _str_tuple(row.get(field_name, []))
+        payload_observed = _str_tuple(request_payload.get(field_name, []))
+        if not observed:
+            errors.append(f"{field_name} must be non-empty")
+        if set(payload_observed) != set(observed):
+            errors.append(
+                f"request_payload.{field_name} must match row.{field_name}"
             )
     return tuple(errors)
 

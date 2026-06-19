@@ -117,7 +117,11 @@ def export_formalization_gap_planner_resource_request_queue(
     )
     llm_manifest: dict[str, Any] = {}
     llm_route_planner_rows: tuple[dict[str, Any], ...] = tuple()
+    llm_request_packets: tuple[dict[str, Any], ...] = tuple()
     llm_resource_request_rows: tuple[
+        FormalizationGapPlannerResourceRequestQueueRow, ...
+    ] = tuple()
+    llm_route_planning_brief_resource_request_rows: tuple[
         FormalizationGapPlannerResourceRequestQueueRow, ...
     ] = tuple()
     llm_route_planner_manifest_path = None
@@ -134,6 +138,11 @@ def export_formalization_gap_planner_resource_request_queue(
         llm_route_planner_rows = tuple(
             row for row in llm_manifest.get("rows", []) if isinstance(row, dict)
         )
+        llm_request_packets = tuple(
+            packet
+            for packet in llm_manifest.get("request_packets", [])
+            if isinstance(packet, dict)
+        )
         llm_resource_request_rows = _llm_route_planner_resource_request_rows(
             llm_route_planner_rows,
             fallback_target_prover_family=str(
@@ -143,7 +152,22 @@ def export_formalization_gap_planner_resource_request_queue(
                 action_manifest.get("library_snapshot_ref", "")
             ),
         )
-    rows = (*action_resource_request_rows, *llm_resource_request_rows)
+        llm_route_planning_brief_resource_request_rows = (
+            _llm_route_planner_route_planning_brief_resource_request_rows(
+                llm_request_packets,
+                fallback_target_prover_family=str(
+                    action_manifest.get("target_prover_family", "")
+                ),
+                fallback_library_snapshot_ref=str(
+                    action_manifest.get("library_snapshot_ref", "")
+                ),
+            )
+        )
+    all_llm_resource_request_rows = (
+        *llm_resource_request_rows,
+        *llm_route_planning_brief_resource_request_rows,
+    )
+    rows = (*action_resource_request_rows, *all_llm_resource_request_rows)
     row_dicts = [asdict(row) for row in rows]
     row_schema = resource_request_queue_row_json_schema()
     row_schema_errors = [
@@ -200,6 +224,23 @@ def export_formalization_gap_planner_resource_request_queue(
             action_resource_request_rows
         ),
         "n_llm_route_planner_rows": len(llm_route_planner_rows),
+        "n_llm_route_planner_request_packets": len(llm_request_packets),
+        "n_llm_route_planner_request_route_planning_briefs": sum(
+            1
+            for packet in llm_request_packets
+            if _route_planning_brief_from_request_packet(packet)
+        ),
+        "n_llm_route_planner_route_planning_brief_evidence_gaps": sum(
+            len(
+                _dict_tuple(
+                    _route_planning_brief_from_request_packet(packet).get(
+                        "evidence_gaps",
+                        [],
+                    )
+                )
+            )
+            for packet in llm_request_packets
+        ),
         "n_llm_route_planner_rows_with_search_requests": sum(
             1 for row in llm_route_planner_rows if _dict_tuple(row.get("search_requests", []))
         ),
@@ -247,34 +288,46 @@ def export_formalization_gap_planner_resource_request_queue(
             for row in llm_route_planner_rows
         ),
         "n_llm_route_planner_resource_request_rows": len(llm_resource_request_rows),
+        "n_llm_route_planner_route_planning_brief_resource_request_rows": len(
+            llm_route_planning_brief_resource_request_rows
+        ),
+        "n_llm_route_planner_total_resource_request_rows": len(
+            all_llm_resource_request_rows
+        ),
         "n_llm_route_planner_resource_request_rows_with_route_adoption_preconditions": sum(
             1
-            for row in llm_resource_request_rows
+            for row in all_llm_resource_request_rows
             if _llm_request_payload_route_adoption_preconditions(row.request_payload)
         ),
         "n_llm_route_planner_resource_request_route_adoption_precondition_target_primitives": sum(
             _route_adoption_precondition_target_primitive_count(
                 _llm_request_payload_route_adoption_preconditions(row.request_payload)
             )
-            for row in llm_resource_request_rows
+            for row in all_llm_resource_request_rows
         ),
         "n_llm_route_planner_search_request_rows": sum(
             1
-            for row in llm_resource_request_rows
+            for row in all_llm_resource_request_rows
             if row.request_payload.get("llm_route_planner_source_kind")
             == "search_request"
         ),
         "n_llm_route_planner_planner_next_action_rows": sum(
             1
-            for row in llm_resource_request_rows
+            for row in all_llm_resource_request_rows
             if row.request_payload.get("llm_route_planner_source_kind")
             == "planner_next_action"
         ),
         "n_llm_route_planner_residual_interpretation_rows": sum(
             1
-            for row in llm_resource_request_rows
+            for row in all_llm_resource_request_rows
             if row.request_payload.get("llm_route_planner_source_kind")
             == "residual_interpretation"
+        ),
+        "n_llm_route_planner_route_planning_brief_evidence_gap_rows": sum(
+            1
+            for row in all_llm_resource_request_rows
+            if row.request_payload.get("llm_route_planner_source_kind")
+            == "route_planning_brief_evidence_gap"
         ),
         "n_resource_request_rows": len(rows),
         "n_ok": sum(1 for row in rows if row.ok),
@@ -652,6 +705,219 @@ def _llm_route_planner_resource_request_rows(
                         )
                     )
     return tuple(rows)
+
+
+def _llm_route_planner_route_planning_brief_resource_request_rows(
+    request_packets: tuple[dict[str, Any], ...],
+    *,
+    fallback_target_prover_family: str,
+    fallback_library_snapshot_ref: str,
+) -> tuple[FormalizationGapPlannerResourceRequestQueueRow, ...]:
+    rows: list[FormalizationGapPlannerResourceRequestQueueRow] = []
+    for request_packet in request_packets:
+        route_planning_brief = _route_planning_brief_from_request_packet(
+            request_packet
+        )
+        evidence_gaps = _dict_tuple(route_planning_brief.get("evidence_gaps", []))
+        if not evidence_gaps:
+            continue
+        planner_row = _planner_row_from_request_packet(
+            request_packet,
+            route_planning_brief=route_planning_brief,
+            fallback_target_prover_family=fallback_target_prover_family,
+            fallback_library_snapshot_ref=fallback_library_snapshot_ref,
+        )
+        for source_index, evidence_gap in enumerate(evidence_gaps):
+            source_item = _route_planning_brief_evidence_gap_source_item(
+                request_packet,
+                route_planning_brief,
+                evidence_gap,
+            )
+            action_row = _llm_route_planner_action_row(
+                planner_row,
+                source_item,
+                source_kind="route_planning_brief_evidence_gap",
+                source_index=source_index,
+                fallback_target_prover_family=fallback_target_prover_family,
+                fallback_library_snapshot_ref=fallback_library_snapshot_ref,
+            )
+            hook_kind = str(action_row.get("llm_hook_kind", ""))
+            queries = _llm_query_tuple(source_item)
+            for request_row in _resource_request_rows(
+                _action_resource_plan_projection(action_row)
+            ):
+                rows.append(
+                    _with_llm_route_planner_trace(
+                        request_row,
+                        planner_row,
+                        source_item,
+                        source_kind="route_planning_brief_evidence_gap",
+                        source_index=source_index,
+                        hook_kind=hook_kind,
+                        queries=queries,
+                    )
+                )
+    return tuple(rows)
+
+
+def _route_planning_brief_from_request_packet(
+    request_packet: dict[str, Any],
+) -> dict[str, Any]:
+    context_packet = _dict_value(request_packet, "context_packet")
+    return _dict_value(context_packet, "route_planning_brief")
+
+
+def _planner_row_from_request_packet(
+    request_packet: dict[str, Any],
+    *,
+    route_planning_brief: dict[str, Any],
+    fallback_target_prover_family: str,
+    fallback_library_snapshot_ref: str,
+) -> dict[str, Any]:
+    context_packet = _dict_value(request_packet, "context_packet")
+    target_route = _dict_value(request_packet, "target_route")
+    request_id = str(request_packet.get("request_id", "")).strip()
+    route_id = (
+        str(route_planning_brief.get("route_id", "")).strip()
+        or str(target_route.get("route_id", "")).strip()
+        or str(request_packet.get("route_id", "")).strip()
+    )
+    display_name = (
+        str(route_planning_brief.get("display_name", "")).strip()
+        or str(target_route.get("display_name", "")).strip()
+        or route_id
+    )
+    target_prover_family = (
+        str(route_planning_brief.get("target_prover_family", "")).strip()
+        or str(request_packet.get("target_prover_family", "")).strip()
+        or fallback_target_prover_family.strip()
+        or "lean4"
+    )
+    library_snapshot_ref = (
+        str(route_planning_brief.get("library_snapshot_ref", "")).strip()
+        or str(request_packet.get("library_snapshot_ref", "")).strip()
+        or fallback_library_snapshot_ref.strip()
+        or "unspecified_library_snapshot"
+    )
+    target_context = _dict_value(route_planning_brief, "target_context")
+    selected_primitives = _str_tuple(target_context.get("primitive_candidates", []))
+    route_adoption_preconditions = _dict_value(
+        context_packet,
+        "route_adoption_preconditions",
+    )
+    return {
+        "llm_route_planner_row_id": (
+            "llm_route_planner_request_brief:"
+            + stable_hash([request_id, route_id, route_planning_brief])[:20]
+        ),
+        "request_id": request_id,
+        "route_id": route_id,
+        "display_name": display_name,
+        "target_prover_family": target_prover_family,
+        "library_snapshot_ref": library_snapshot_ref,
+        "minimal_delta_plan": {"selected_primitives": list(selected_primitives)},
+        "standalone_route": target_route,
+        "target_theorem_context_packet": target_context,
+        "route_planning_brief": route_planning_brief,
+        "route_adoption_preconditions": route_adoption_preconditions,
+    }
+
+
+def _route_planning_brief_evidence_gap_source_item(
+    request_packet: dict[str, Any],
+    route_planning_brief: dict[str, Any],
+    evidence_gap: dict[str, object],
+) -> dict[str, object]:
+    gap_kind = str(evidence_gap.get("gap_kind", "") or "").strip()
+    gap_id = str(evidence_gap.get("gap_id", "") or "").strip()
+    target_primitives = _str_tuple(evidence_gap.get("target_primitives", []))
+    evidence_fields = _str_tuple(evidence_gap.get("evidence_fields", []))
+    reason = str(evidence_gap.get("reason", "") or "").strip()
+    recommended_action = str(evidence_gap.get("recommended_action", "") or "").strip()
+    target_context = _dict_value(route_planning_brief, "target_context")
+    theorem_statement = str(target_context.get("theorem_statement", "") or "").strip()
+    query = _route_planning_brief_gap_query(
+        gap_kind=gap_kind,
+        gap_id=gap_id,
+        reason=reason,
+        recommended_action=recommended_action,
+        target_primitives=target_primitives,
+        theorem_statement=theorem_statement,
+    )
+    return {
+        "request_kind": _route_planning_brief_gap_request_kind(gap_kind),
+        "query": query,
+        "queries": (query,),
+        "reason": reason,
+        "recommended_next_action": recommended_action,
+        "action": recommended_action,
+        "target_primitives": target_primitives,
+        "route_planning_brief_gap_id": gap_id,
+        "route_planning_brief_gap_kind": gap_kind,
+        "route_planning_brief_evidence_fields": evidence_fields,
+        "route_planning_brief_id": str(
+            route_planning_brief.get("route_id", "")
+        ),
+        "llm_route_planner_request_id": str(request_packet.get("request_id", "")),
+        "actionable_work_items": _route_planning_brief_gap_work_items(
+            gap_kind=gap_kind,
+            recommended_action=recommended_action,
+            target_primitives=target_primitives,
+        ),
+    }
+
+
+def _route_planning_brief_gap_request_kind(gap_kind: str) -> str:
+    key = _text_key(gap_kind)
+    if "source" in key or "literature" in key:
+        return "literature_discovery"
+    if "formal_library" in key or "library" in key or "declaration" in key:
+        return "formal_library_grounding"
+    if "proof_state" in key or "proof_body" in key or "prover" in key:
+        return "proof_state_feedback"
+    return "route_revision"
+
+
+def _route_planning_brief_gap_query(
+    *,
+    gap_kind: str,
+    gap_id: str,
+    reason: str,
+    recommended_action: str,
+    target_primitives: tuple[str, ...],
+    theorem_statement: str,
+) -> str:
+    primitive_text = ", ".join(target_primitives) or "route"
+    request_kind = _route_planning_brief_gap_request_kind(gap_kind)
+    theorem_hint = theorem_statement[:240]
+    return " ".join(
+        part
+        for part in (
+            request_kind,
+            gap_id,
+            f"target primitives: {primitive_text}",
+            recommended_action,
+            reason,
+            theorem_hint,
+        )
+        if part
+    )
+
+
+def _route_planning_brief_gap_work_items(
+    *,
+    gap_kind: str,
+    recommended_action: str,
+    target_primitives: tuple[str, ...],
+) -> tuple[str, ...]:
+    primitive_text = ", ".join(target_primitives) or "route"
+    action = recommended_action or _route_planning_brief_gap_request_kind(gap_kind)
+    return (
+        (
+            "route_planning_brief evidence gap: "
+            f"{action} for {primitive_text}"
+        ),
+    )
 
 
 def _llm_route_planner_action_row(
@@ -2467,6 +2733,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
         (
             f"- LLM route-planner request rows: "
             f"{payload.get('n_llm_route_planner_resource_request_rows')}"
+        ),
+        (
+            f"- LLM route-planning brief evidence gaps/request rows: "
+            f"{payload.get('n_llm_route_planner_route_planning_brief_evidence_gaps')}/"
+            f"{payload.get('n_llm_route_planner_route_planning_brief_resource_request_rows')}"
         ),
         f"- LLM search requests: {payload.get('n_llm_route_planner_search_requests')}",
         (
