@@ -4889,7 +4889,29 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "route_adoption_blocker_taxonomy_manifest_schema_id"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "route_adoption_blocker_taxonomy_manifest_schema_shape"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "route_adoption_blocker_taxonomy_payload"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "portable_contract_has_route_adoption_blocker_taxonomy_manifest_schema_contract"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "portable_contract_route_adoption_blocker_taxonomy_manifest_schema_valid"
         and row["ok"]
         for row in audit_payload["checks"]
     )

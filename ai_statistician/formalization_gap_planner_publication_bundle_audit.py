@@ -84,11 +84,13 @@ from .formalization_gap_planner_route_adoption_blockers import (
     ROUTE_ADOPTION_AWAITING_STATUS,
     ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID,
+    ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
     ROUTE_ADOPTION_BLOCKER_VALUES,
     ROUTE_ADOPTION_PENDING_STATUS,
     ROUTE_ADOPTION_READY_STATUS,
     ROUTE_ADOPTION_REJECTED_STATUS,
+    route_adoption_blocker_taxonomy_manifest_json_schema,
     validate_route_adoption_blocker_taxonomy_payload,
 )
 from .formalization_gap_planner_primitive_action_queue import (
@@ -231,6 +233,7 @@ REQUIRED_CORE_ARTIFACTS = (
     "llm_route_planner_row_schema",
     "llm_route_planner_model_tier_decision_ledger_schema",
     "route_adoption_blocker_taxonomy_schema",
+    "route_adoption_blocker_taxonomy_manifest_schema",
     "route_adoption_blocker_taxonomy_contract",
     "route_revision_overlay_row_schema",
     "route_stability_audit_row_schema",
@@ -5530,6 +5533,11 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         / "contract"
         / "formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json"
     )
+    route_adoption_blocker_taxonomy_manifest_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_route_adoption_blocker_taxonomy_manifest.schema.json"
+    )
     route_adoption_blocker_taxonomy_path = (
         bundle_dir
         / "contract"
@@ -5707,6 +5715,9 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
     route_adoption_blocker_taxonomy_schema = _read_json_no_error(
         route_adoption_blocker_taxonomy_schema_path
     )
+    route_adoption_blocker_taxonomy_manifest_schema = _read_json_no_error(
+        route_adoption_blocker_taxonomy_manifest_schema_path
+    )
     route_adoption_blocker_taxonomy = _read_json_no_error(
         route_adoption_blocker_taxonomy_path
     )
@@ -5724,6 +5735,15 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             )
             else {}
         )
+    )
+    embedded_route_adoption_blocker_taxonomy_manifest_schema = contract.get(
+        "route_adoption_blocker_taxonomy_manifest_schema_contract",
+        {},
+    )
+    embedded_route_adoption_blocker_taxonomy_manifest_schema = (
+        embedded_route_adoption_blocker_taxonomy_manifest_schema
+        if isinstance(embedded_route_adoption_blocker_taxonomy_manifest_schema, dict)
+        else {}
     )
     embedded_seed_route_selection_contract = contract.get(
         "llm_route_planner_seed_route_selection_contract",
@@ -6327,6 +6347,7 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
                 "llm_route_planner_response_payload_validation_row_schema",
                 "llm_route_planner_row_schema",
                 "route_adoption_blocker_taxonomy_schema",
+                "route_adoption_blocker_taxonomy_manifest_schema",
                 "route_adoption_blocker_taxonomy_contract",
                 "llm_route_planner_seed_route_selection_schema",
                 "portable_plan_row_schema",
@@ -7223,6 +7244,34 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             == ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
         ),
         _check(
+            "route_adoption_blocker_taxonomy_manifest_schema_file",
+            "contract",
+            "route-adoption blocker taxonomy export manifest schema exists",
+            str(route_adoption_blocker_taxonomy_manifest_schema_path.exists()),
+            route_adoption_blocker_taxonomy_manifest_schema_path.exists(),
+        ),
+        _check(
+            "route_adoption_blocker_taxonomy_manifest_schema_id",
+            "contract",
+            ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID,
+            str(route_adoption_blocker_taxonomy_manifest_schema.get("$id", "")),
+            route_adoption_blocker_taxonomy_manifest_schema.get("$id")
+            == ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID,
+        ),
+        _check(
+            "route_adoption_blocker_taxonomy_manifest_schema_shape",
+            "contract",
+            "route-adoption blocker taxonomy export manifest schema matches canonical builder",
+            str(
+                route_adoption_blocker_taxonomy_manifest_schema.get(
+                    "component_name",
+                    route_adoption_blocker_taxonomy_manifest_schema.get("title", ""),
+                )
+            ),
+            route_adoption_blocker_taxonomy_manifest_schema
+            == route_adoption_blocker_taxonomy_manifest_json_schema(),
+        ),
+        _check(
             "route_adoption_blocker_taxonomy_file",
             "contract",
             "route-adoption blocker taxonomy contract exists",
@@ -7249,6 +7298,28 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             "route_adoption_blocker_taxonomy_contract",
             str("route_adoption_blocker_taxonomy_contract" in contract),
             "route_adoption_blocker_taxonomy_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_route_adoption_blocker_taxonomy_manifest_schema_contract",
+            "contract",
+            "route_adoption_blocker_taxonomy_manifest_schema_contract",
+            str(
+                "route_adoption_blocker_taxonomy_manifest_schema_contract" in contract
+            ),
+            "route_adoption_blocker_taxonomy_manifest_schema_contract" in contract,
+        ),
+        _check(
+            "portable_contract_route_adoption_blocker_taxonomy_manifest_schema_valid",
+            "contract",
+            "embedded route-adoption blocker taxonomy manifest schema matches canonical builder",
+            str(
+                embedded_route_adoption_blocker_taxonomy_manifest_schema.get(
+                    "$id",
+                    "",
+                )
+            ),
+            embedded_route_adoption_blocker_taxonomy_manifest_schema
+            == route_adoption_blocker_taxonomy_manifest_json_schema(),
         ),
         _check(
             "portable_contract_route_adoption_blocker_taxonomy_valid",
@@ -8687,6 +8758,9 @@ def _reproduction_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublic
                 "contract/formalization_gap_planner_proof_state_triage_row.schema.json",
                 "contract/formalization_gap_planner_ablation_study_row.schema.json",
                 "contract/formalization_gap_planner_route_alignment_edge.schema.json",
+                "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json",
+                "contract/formalization_gap_planner_route_adoption_blocker_taxonomy_manifest.schema.json",
+                "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.json",
                 "contract/formalization_gap_planner_benchmark_route.schema.json",
                 "contract/formalization_gap_planner_evaluation_row.schema.json",
                 "contract/formalization_gap_planner_adapter_registry_row.schema.json",

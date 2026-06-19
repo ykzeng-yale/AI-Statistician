@@ -80,11 +80,13 @@ from .formalization_gap_planner_llm_route_planner import (
 from .formalization_gap_planner_route_adoption_blockers import (
     ROUTE_ADOPTION_AWAITING_STATUS,
     ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES,
+    ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
     ROUTE_ADOPTION_BLOCKER_VALUES,
     ROUTE_ADOPTION_PENDING_STATUS,
     ROUTE_ADOPTION_READY_STATUS,
     ROUTE_ADOPTION_REJECTED_STATUS,
+    route_adoption_blocker_taxonomy_manifest_json_schema,
     route_adoption_blocker_taxonomy_json_schema,
     route_adoption_blocker_taxonomy_payload,
     validate_route_adoption_blocker_taxonomy_payload,
@@ -606,6 +608,9 @@ def export_formalization_gap_planner_publication_bundle(
     route_adoption_blocker_taxonomy_schema = (
         route_adoption_blocker_taxonomy_json_schema()
     )
+    route_adoption_blocker_taxonomy_manifest_schema = (
+        route_adoption_blocker_taxonomy_manifest_json_schema()
+    )
     route_adoption_blocker_taxonomy_contract = (
         route_adoption_blocker_taxonomy_payload()
     )
@@ -694,6 +699,10 @@ def export_formalization_gap_planner_publication_bundle(
     route_adoption_blocker_taxonomy_schema_path = (
         contract_dir
         / "formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json"
+    )
+    route_adoption_blocker_taxonomy_manifest_schema_path = (
+        contract_dir
+        / "formalization_gap_planner_route_adoption_blocker_taxonomy_manifest.schema.json"
     )
     route_adoption_blocker_taxonomy_path = (
         contract_dir
@@ -910,6 +919,10 @@ def export_formalization_gap_planner_publication_bundle(
     )
     route_adoption_blocker_taxonomy_schema_path.write_text(
         json.dumps(route_adoption_blocker_taxonomy_schema, indent=2),
+        encoding="utf-8",
+    )
+    route_adoption_blocker_taxonomy_manifest_schema_path.write_text(
+        json.dumps(route_adoption_blocker_taxonomy_manifest_schema, indent=2),
         encoding="utf-8",
     )
     route_adoption_blocker_taxonomy_path.write_text(
@@ -1496,6 +1509,13 @@ def export_formalization_gap_planner_publication_bundle(
             "required": True,
             "ok": route_adoption_blocker_taxonomy_schema.get("$id")
             == ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
+        },
+        {
+            "artifact_name": "route_adoption_blocker_taxonomy_manifest_schema",
+            "path": str(route_adoption_blocker_taxonomy_manifest_schema_path),
+            "required": True,
+            "ok": route_adoption_blocker_taxonomy_manifest_schema.get("$id")
+            == ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID,
         },
         {
             "artifact_name": "route_adoption_blocker_taxonomy_contract",
@@ -3786,6 +3806,9 @@ def _contract_payload(library_snapshot_ref: str) -> dict[str, object]:
         "llm_route_planner_seed_route_selection_contract": (
             llm_route_planner_seed_route_selection_json_schema()
         ),
+        "route_adoption_blocker_taxonomy_manifest_schema_contract": (
+            route_adoption_blocker_taxonomy_manifest_json_schema()
+        ),
         "route_adoption_blocker_taxonomy_contract": (
             route_adoption_blocker_taxonomy_payload()
         ),
@@ -4611,6 +4634,7 @@ def _reproduction_payload(
         "contract/formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_seed_route_selection.schema.json",
         "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json",
+        "contract/formalization_gap_planner_route_adoption_blocker_taxonomy_manifest.schema.json",
         "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.json",
         "contract/formalization_gap_planner_prover_adapter_packet.schema.json",
         "contract/formalization_gap_planner_prover_adapter_response.schema.json",
