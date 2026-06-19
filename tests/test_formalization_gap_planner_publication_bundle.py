@@ -2253,6 +2253,95 @@ def test_publication_bundle_lifts_route_brief_resource_request_counts() -> None:
     assert summary["n_llm_route_planner_route_planning_brief_evidence_gap_rows"] == 7
 
 
+def test_publication_bundle_lifts_route_brief_resource_response_counts() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_resource_response_brief_counts"
+    )
+    shutil.rmtree(root, ignore_errors=True)
+    resource_response_dir = root / "resource_response_ledger"
+    resource_response_dir.mkdir(parents=True)
+    (resource_response_dir / "formalization_gap_planner_resource_response_ledger.jsonl").write_text(
+        "",
+        encoding="utf-8",
+    )
+    (
+        resource_response_dir
+        / "formalization_gap_planner_resource_response.schema.json"
+    ).write_text(
+        json.dumps(resource_response_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (
+        resource_response_dir
+        / "formalization_gap_planner_resource_response_ledger_row.schema.json"
+    ).write_text(
+        json.dumps(resource_response_ledger_row_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (resource_response_dir / "formalization_gap_planner_resource_response_ledger.md").write_text(
+        "# fixture\n",
+        encoding="utf-8",
+    )
+    (
+        resource_response_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_resource_response_ledger",
+                "n_ledger_rows": 7,
+                "n_ok": 7,
+                "n_response_present": 1,
+                "n_awaiting_response": 6,
+                "n_response_contract_ok": 1,
+                "n_llm_route_planner_traced_requests": 7,
+                "n_llm_route_planner_traced_responses": 1,
+                "n_llm_route_planner_traced_route_planning_brief_evidence_gap_rows": 7,
+                "n_llm_route_planner_traced_route_planning_brief_evidence_gap_responses": 1,
+                "n_llm_route_planner_traced_route_planning_brief_evidence_gap_grounded_responses": 1,
+                "n_route_revision_recommended": 0,
+                "n_rejected": 0,
+                "n_ledger_row_schema_valid": 7,
+                "n_ledger_row_schema_invalid": 0,
+                "all_ok": True,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_publication_bundle(
+        root / "bundle",
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    summary = payload["resource_response_ledger_summary"]
+    assert summary["requested"] is True
+    assert summary["n_llm_route_planner_traced_requests"] == 7
+    assert summary["n_llm_route_planner_traced_responses"] == 1
+    assert (
+        summary[
+            "n_llm_route_planner_traced_route_planning_brief_evidence_gap_rows"
+        ]
+        == 7
+    )
+    assert (
+        summary[
+            "n_llm_route_planner_traced_route_planning_brief_evidence_gap_responses"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_llm_route_planner_traced_route_planning_brief_evidence_gap_grounded_responses"
+        ]
+        == 1
+    )
+
+
 def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts() -> None:
     root = Path("runs/test_formalization_gap_planner_publication_bundle")
     out_dir = root / "bundle"

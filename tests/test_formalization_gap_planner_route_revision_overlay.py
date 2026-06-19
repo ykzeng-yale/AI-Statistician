@@ -1060,6 +1060,24 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert overlay_payload["n_resource_response_ledger_route_revision_proposals"] == 1
     assert overlay_payload["n_applied_resource_response_traces"] == 1
     assert overlay_payload["n_applied_llm_route_planner_hook_traces"] == 1
+    assert (
+        overlay_payload[
+            "n_applied_resource_response_route_planning_brief_evidence_gap_traces"
+        ]
+        == 0
+    )
+    assert (
+        overlay_payload[
+            "n_applied_llm_route_planner_route_planning_brief_evidence_gap_traces"
+        ]
+        == 0
+    )
+    assert overlay_payload[
+        "applied_resource_response_trace_by_llm_source_kind"
+    ] == {"planner_next_action": 1}
+    assert overlay_payload[
+        "applied_llm_route_planner_hook_trace_by_source_kind"
+    ] == {"planner_next_action": 1}
     assert overlay_payload["n_routes_with_resource_response_trace"] == 1
     assert overlay_payload["n_routes_with_llm_route_planner_hook_trace"] == 1
     assert overlay_payload["n_routes_with_resource_response_status"] == 1

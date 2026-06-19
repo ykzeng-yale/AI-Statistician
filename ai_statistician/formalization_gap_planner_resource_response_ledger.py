@@ -178,6 +178,25 @@ def export_formalization_gap_planner_resource_response_ledger(
     by_acceptance_status = Counter(row.acceptance_status for row in rows)
     by_resource_id = Counter(row.resource_id for row in rows)
     by_expected_artifact = Counter(row.expected_response_artifact for row in rows)
+    llm_route_planner_traced_request_by_source_kind = Counter(
+        row.llm_route_planner_source_kind
+        for row in rows
+        if row.llm_route_planner_trace_present and row.llm_route_planner_source_kind
+    )
+    llm_route_planner_traced_response_by_source_kind = Counter(
+        row.llm_route_planner_source_kind
+        for row in rows
+        if row.response_present
+        and row.llm_route_planner_trace_present
+        and row.llm_route_planner_source_kind
+    )
+    llm_route_planner_grounded_response_by_source_kind = Counter(
+        row.llm_route_planner_source_kind
+        for row in rows
+        if row.response_present
+        and row.llm_route_planner_response_trace_grounded
+        and row.llm_route_planner_source_kind
+    )
     declaration_hit_target_error_counts = tuple(
         len(
             _declaration_hit_target_errors(
@@ -293,6 +312,33 @@ def export_formalization_gap_planner_resource_response_ledger(
             1
             for row in rows
             if row.llm_route_planner_source_kind == "residual_interpretation"
+        ),
+        "n_llm_route_planner_traced_route_planning_brief_evidence_gap_rows": (
+            llm_route_planner_traced_request_by_source_kind.get(
+                "route_planning_brief_evidence_gap",
+                0,
+            )
+        ),
+        "n_llm_route_planner_traced_route_planning_brief_evidence_gap_responses": (
+            llm_route_planner_traced_response_by_source_kind.get(
+                "route_planning_brief_evidence_gap",
+                0,
+            )
+        ),
+        "n_llm_route_planner_traced_route_planning_brief_evidence_gap_grounded_responses": (
+            llm_route_planner_grounded_response_by_source_kind.get(
+                "route_planning_brief_evidence_gap",
+                0,
+            )
+        ),
+        "llm_route_planner_traced_request_by_source_kind": dict(
+            sorted(llm_route_planner_traced_request_by_source_kind.items())
+        ),
+        "llm_route_planner_traced_response_by_source_kind": dict(
+            sorted(llm_route_planner_traced_response_by_source_kind.items())
+        ),
+        "llm_route_planner_grounded_response_by_source_kind": dict(
+            sorted(llm_route_planner_grounded_response_by_source_kind.items())
         ),
         "n_with_candidate_declaration_rows": sum(
             1 for row in rows if row.candidate_declaration_rows
@@ -1970,6 +2016,16 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- LLM route-planner residual context rows: "
             f"{payload.get('n_llm_route_planner_residual_context_rows')} "
             f"residual_interpretation={payload.get('n_llm_route_planner_traced_residual_interpretation_rows')}"
+        ),
+        (
+            f"- LLM route-planner route-brief evidence-gap traced rows/responses/grounded: "
+            f"{payload.get('n_llm_route_planner_traced_route_planning_brief_evidence_gap_rows')}/"
+            f"{payload.get('n_llm_route_planner_traced_route_planning_brief_evidence_gap_responses')}/"
+            f"{payload.get('n_llm_route_planner_traced_route_planning_brief_evidence_gap_grounded_responses')}"
+        ),
+        (
+            f"- LLM route-planner traced requests by source kind: "
+            f"{payload.get('llm_route_planner_traced_request_by_source_kind')}"
         ),
         f"- Formal declaration hits: {payload.get('n_formal_declaration_hits')}",
         f"- Rows with missing contract fields: {payload.get('n_missing_response_contract_field_rows')}",

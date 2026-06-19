@@ -198,6 +198,18 @@ def export_formalization_gap_planner_route_revision_overlay(
         for row in rows
         for attempt_class in row.applied_prover_attempt_classes
     )
+    applied_llm_trace_by_source_kind = Counter(
+        str(trace.get("llm_route_planner_source_kind", ""))
+        for row in rows
+        for trace in row.applied_llm_route_planner_hook_traces
+        if str(trace.get("llm_route_planner_source_kind", ""))
+    )
+    applied_resource_response_trace_by_llm_source_kind = Counter(
+        str(trace.get("llm_route_planner_source_kind", ""))
+        for row in rows
+        for trace in row.applied_resource_response_traces
+        if str(trace.get("llm_route_planner_source_kind", ""))
+    )
     row_dicts = [asdict(row) for row in rows]
     overlay_row_schema = route_revision_overlay_row_json_schema()
     row_schema_errors = [
@@ -269,6 +281,24 @@ def export_formalization_gap_planner_route_revision_overlay(
         ),
         "n_applied_llm_route_planner_hook_traces": sum(
             len(row.applied_llm_route_planner_hook_traces) for row in rows
+        ),
+        "n_applied_llm_route_planner_route_planning_brief_evidence_gap_traces": (
+            applied_llm_trace_by_source_kind.get(
+                "route_planning_brief_evidence_gap",
+                0,
+            )
+        ),
+        "n_applied_resource_response_route_planning_brief_evidence_gap_traces": (
+            applied_resource_response_trace_by_llm_source_kind.get(
+                "route_planning_brief_evidence_gap",
+                0,
+            )
+        ),
+        "applied_llm_route_planner_hook_trace_by_source_kind": dict(
+            sorted(applied_llm_trace_by_source_kind.items())
+        ),
+        "applied_resource_response_trace_by_llm_source_kind": dict(
+            sorted(applied_resource_response_trace_by_llm_source_kind.items())
         ),
         "n_routes_with_quality_controls": sum(
             1 for row in rows if row.quality_controls
@@ -2199,6 +2229,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Resource-response ledger proposals: {payload.get('n_resource_response_ledger_route_revision_proposals')}",
         f"- Applied resource-response traces: {payload.get('n_applied_resource_response_traces')}",
         (
+            "- Applied resource-response route-brief evidence-gap traces: "
+            f"{payload.get('n_applied_resource_response_route_planning_brief_evidence_gap_traces')}"
+        ),
+        (
             "- Applied resource-response traces with minimal-delta priority: "
             f"{payload.get('n_applied_resource_response_traces_with_minimal_delta_priority')}"
         ),
@@ -2208,6 +2242,14 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('average_applied_resource_response_evidence_readiness_score')}"
         ),
         f"- Applied LLM route-planner hook traces: {payload.get('n_applied_llm_route_planner_hook_traces')}",
+        (
+            "- Applied LLM route-planner route-brief evidence-gap traces: "
+            f"{payload.get('n_applied_llm_route_planner_route_planning_brief_evidence_gap_traces')}"
+        ),
+        (
+            "- Applied LLM route-planner hook traces by source kind: "
+            f"{payload.get('applied_llm_route_planner_hook_trace_by_source_kind')}"
+        ),
         f"- Source snippets: {payload.get('n_source_snippets')}",
         f"- Resource-response status rows: {payload.get('n_resource_response_ledger_status_rows')}",
         f"- Resource responses awaiting: {payload.get('n_resource_response_ledger_awaiting')}",

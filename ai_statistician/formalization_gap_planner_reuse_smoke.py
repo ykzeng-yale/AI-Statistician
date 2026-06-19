@@ -614,6 +614,11 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_response_present",
         "n_awaiting_response",
         "n_response_contract_ok",
+        "n_llm_route_planner_traced_requests",
+        "n_llm_route_planner_traced_responses",
+        "n_llm_route_planner_traced_route_planning_brief_evidence_gap_rows",
+        "n_llm_route_planner_traced_route_planning_brief_evidence_gap_responses",
+        "n_llm_route_planner_traced_route_planning_brief_evidence_gap_grounded_responses",
         "n_route_revision_recommended",
         "n_rejected",
         "n_ledger_row_schema_valid",
@@ -745,6 +750,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_orphan_route_revision_proposals",
         "n_added_primitives",
         "n_added_delta_primitives",
+        "n_applied_llm_route_planner_route_planning_brief_evidence_gap_traces",
+        "n_applied_resource_response_route_planning_brief_evidence_gap_traces",
     ),
     "formalization_gap_planner_route_stability_audit": (
         "n_stability_rows",
@@ -7974,12 +7981,32 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_response_request_mismatches",
             0,
         ),
+        "n_resource_response_ledger_llm_traced_requests": resource_response_ledger_payload.get(
+            "n_llm_route_planner_traced_requests",
+            0,
+        ),
+        "n_resource_response_ledger_llm_traced_responses": resource_response_ledger_payload.get(
+            "n_llm_route_planner_traced_responses",
+            0,
+        ),
         "n_resource_response_ledger_llm_residual_context_rows": resource_response_ledger_payload.get(
             "n_llm_route_planner_residual_context_rows",
             0,
         ),
         "n_resource_response_ledger_llm_traced_residual_interpretation_rows": resource_response_ledger_payload.get(
             "n_llm_route_planner_traced_residual_interpretation_rows",
+            0,
+        ),
+        "n_resource_response_ledger_llm_traced_route_planning_brief_evidence_gap_rows": resource_response_ledger_payload.get(
+            "n_llm_route_planner_traced_route_planning_brief_evidence_gap_rows",
+            0,
+        ),
+        "n_resource_response_ledger_llm_traced_route_planning_brief_evidence_gap_responses": resource_response_ledger_payload.get(
+            "n_llm_route_planner_traced_route_planning_brief_evidence_gap_responses",
+            0,
+        ),
+        "n_resource_response_ledger_llm_traced_route_planning_brief_evidence_gap_grounded_responses": resource_response_ledger_payload.get(
+            "n_llm_route_planner_traced_route_planning_brief_evidence_gap_grounded_responses",
             0,
         ),
         "n_resource_response_ledger_route_revision_recommended": resource_response_ledger_payload.get(
@@ -8309,6 +8336,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_route_revision_overlay_resource_response_ledger_proposals": (
             route_revision_overlay_payload.get(
                 "n_resource_response_ledger_route_revision_proposals",
+                0,
+            )
+        ),
+        "n_route_revision_overlay_applied_llm_route_brief_evidence_gap_traces": (
+            route_revision_overlay_payload.get(
+                "n_applied_llm_route_planner_route_planning_brief_evidence_gap_traces",
+                0,
+            )
+        ),
+        "n_route_revision_overlay_applied_resource_response_route_brief_evidence_gap_traces": (
+            route_revision_overlay_payload.get(
+                "n_applied_resource_response_route_planning_brief_evidence_gap_traces",
                 0,
             )
         ),
@@ -10944,8 +10983,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"playbook_grounded={payload.get('n_resource_response_ledger_playbook_grounded')} "
             f"playbook_failures={payload.get('n_resource_response_ledger_playbook_grounding_failures')} "
             f"request_mismatch={payload.get('n_resource_response_ledger_request_mismatches')} "
+            f"llm_traced={payload.get('n_resource_response_ledger_llm_traced_requests')} "
+            f"llm_traced_responses={payload.get('n_resource_response_ledger_llm_traced_responses')} "
             f"llm_residual_context={payload.get('n_resource_response_ledger_llm_residual_context_rows')} "
-            f"llm_residual_interpretation={payload.get('n_resource_response_ledger_llm_traced_residual_interpretation_rows')}"
+            f"llm_residual_interpretation={payload.get('n_resource_response_ledger_llm_traced_residual_interpretation_rows')} "
+            f"llm_route_brief_gaps={payload.get('n_resource_response_ledger_llm_traced_route_planning_brief_evidence_gap_rows')} "
+            f"llm_route_brief_gap_responses={payload.get('n_resource_response_ledger_llm_traced_route_planning_brief_evidence_gap_responses')} "
+            f"llm_route_brief_gap_grounded={payload.get('n_resource_response_ledger_llm_traced_route_planning_brief_evidence_gap_grounded_responses')}"
         ),
         (
             f"- Bundle resource response contract accounting valid: "

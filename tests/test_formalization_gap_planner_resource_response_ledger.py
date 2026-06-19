@@ -14,6 +14,9 @@ from ai_statistician.formalization_gap_planner_component_resource_registry impor
 from ai_statistician.formalization_gap_planner_library_coverage_map import (
     export_formalization_gap_planner_library_coverage_map,
 )
+from ai_statistician.formalization_gap_planner_llm_route_planner import (
+    export_formalization_gap_planner_llm_route_planner,
+)
 from ai_statistician.formalization_gap_planner_primitive_action_queue import (
     export_formalization_gap_planner_primitive_action_queue,
 )
@@ -136,6 +139,72 @@ def _build_request_queue(
         ),
     )
     return payload, request_queue_dir
+
+
+def _build_prompt_only_route_brief_request_queue(
+    root: Path,
+) -> tuple[dict[str, object], dict[str, object], Path]:
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    coverage_dir = root / "coverage"
+    action_queue_dir = root / "action_queue"
+    component_resource_registry_dir = root / "component_resource_registry"
+    action_resource_plan_dir = root / "action_resource_plan"
+    llm_route_planner_dir = root / "llm_route_planner"
+    request_queue_dir = root / "request_queue"
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "lean_mathlib_empirical_process_snapshot",
+                "routes": [
+                    {
+                        "route_id": "rank_route_prompt_only_response",
+                        "display_name": "rank_route_prompt_only_response",
+                        "theorem_statement": (
+                            "A distribution-free rank bound follows from a "
+                            "missing source-backed rank-uniformity argument."
+                        ),
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    export_formalization_gap_planner_library_coverage_map(plan_dir, coverage_dir)
+    export_formalization_gap_planner_primitive_action_queue(
+        coverage_dir,
+        action_queue_dir,
+    )
+    export_formalization_gap_planner_component_resource_registry(
+        component_resource_registry_dir
+    )
+    export_formalization_gap_planner_action_resource_plan(
+        action_queue_dir,
+        component_resource_registry_dir,
+        action_resource_plan_dir,
+    )
+    llm_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        llm_route_planner_dir,
+        provider_name="prompt_only",
+    )
+    request_payload = export_formalization_gap_planner_resource_request_queue(
+        action_resource_plan_dir,
+        request_queue_dir,
+        formalization_gap_planner_llm_route_planner_dir=llm_route_planner_dir,
+    )
+    return llm_payload, request_payload, request_queue_dir
 
 
 def test_resource_response_ledger_reports_mixed_targets_from_request_rows() -> None:
@@ -411,6 +480,129 @@ def test_resource_response_ledger_preserves_llm_route_planner_trace() -> None:
     )
     assert ledger_row["llm_route_planner_response_trace_grounded"]
     assert ledger_row["llm_route_planner_response_trace_mismatches"] == ()
+    assert validate_resource_response_ledger_row(
+        ledger_row,
+        resource_response_ledger_row_json_schema(),
+    ) == []
+
+
+def test_resource_response_ledger_counts_route_brief_evidence_gap_trace() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_resource_response_ledger_route_brief_gap"
+    )
+    ledger_dir = root / "ledger"
+    response_jsonl = root / "resource_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    llm_payload, request_payload, request_queue_dir = (
+        _build_prompt_only_route_brief_request_queue(root)
+    )
+    brief_request = next(
+        row
+        for row in request_payload["rows"]
+        if row["request_payload"].get("llm_route_planner_source_kind")
+        == "route_planning_brief_evidence_gap"
+        and row["resource_id"] == "paperclip_cli_mcp"
+    )
+    query = " ".join(
+        brief_request["request_payload"]["llm_route_planner_queries"]
+    )
+    response = {
+        "resource_request_id": brief_request["resource_request_id"],
+        "resource_id": brief_request["resource_id"],
+        "tool_name": "paperclip_cli_mcp",
+        "expected_response_artifact": brief_request["expected_response_artifact"],
+        "llm_route_planner_row_id": brief_request["request_payload"][
+            "llm_route_planner_row_id"
+        ],
+        "llm_route_planner_request_id": brief_request["request_payload"][
+            "llm_route_planner_request_id"
+        ],
+        "llm_route_planner_source_kind": "route_planning_brief_evidence_gap",
+        "llm_route_planner_source_index": brief_request["request_payload"][
+            "llm_route_planner_source_index"
+        ],
+        "llm_route_planner_hook_kind": "literature_discovery",
+        "response_payload": {
+            "source_refs": ["source:rank_uniformity_brief_gap"],
+            "source_snippets": [
+                {
+                    "source_ref": "source:rank_uniformity_brief_gap",
+                    "text": (
+                        "rank_uniformity route_planning_brief evidence gap "
+                        "source grounding for exchangeability"
+                    ),
+                    "target_primitives": ["rank_uniformity"],
+                }
+            ],
+            "route_evidence_nodes": [
+                {
+                    "node_id": "rank_uniformity:brief_gap:source",
+                    "claim": (
+                        "rank_uniformity source evidence addresses the "
+                        "route_planning_brief evidence gap"
+                    ),
+                    "target_primitives": ["rank_uniformity"],
+                }
+            ],
+            "response_summary": (
+                "rank_uniformity route_planning_brief evidence gap source "
+                f"grounding for query {query}"
+            ),
+        },
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+    response_jsonl.write_text(
+        json.dumps(response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert llm_payload["n_request_route_planning_evidence_gaps"] == 2
+    assert payload["all_ok"]
+    assert (
+        payload["n_llm_route_planner_traced_route_planning_brief_evidence_gap_rows"]
+        == request_payload["n_llm_route_planner_route_planning_brief_evidence_gap_rows"]
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_traced_route_planning_brief_evidence_gap_responses"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_traced_route_planning_brief_evidence_gap_grounded_responses"
+        ]
+        == 1
+    )
+    assert payload["llm_route_planner_traced_request_by_source_kind"][
+        "route_planning_brief_evidence_gap"
+    ] == request_payload["n_llm_route_planner_route_planning_brief_evidence_gap_rows"]
+    assert payload["llm_route_planner_traced_response_by_source_kind"] == {
+        "route_planning_brief_evidence_gap": 1
+    }
+    assert payload["llm_route_planner_grounded_response_by_source_kind"] == {
+        "route_planning_brief_evidence_gap": 1
+    }
+    ledger_row = next(
+        row
+        for row in payload["rows"]
+        if row["resource_request_id"] == brief_request["resource_request_id"]
+    )
+    assert ledger_row["acceptance_status"] == "ACCEPTED_RESOURCE_RESPONSE"
+    assert ledger_row["llm_route_planner_source_kind"] == (
+        "route_planning_brief_evidence_gap"
+    )
+    assert ledger_row["llm_route_planner_source_item"][
+        "route_planning_brief_gap_kind"
+    ] == "source_grounding"
+    assert ledger_row["llm_route_planner_response_trace_grounded"]
     assert validate_resource_response_ledger_row(
         ledger_row,
         resource_response_ledger_row_json_schema(),

@@ -1338,7 +1338,11 @@ LLM-originated residual repairs. When proof-state feedback reports residual
 goals but omits that field, refinement evidence derives a conservative
 `proof_state_feedback` context from the residuals, diagnostics, target
 primitives, and route-revision reasons while retaining the not-proof-evidence
-boundary. The source-grounding audit also consumes residual contexts: context
+boundary. Route-planning-brief evidence-gap dispatches are traced the same
+way: resource-response ledgers count traced, responded, and response-grounded
+`route_planning_brief_evidence_gap` rows, while route-revision overlays expose
+applied resource-response and LLM hook traces by source kind. The
+source-grounding audit also consumes residual contexts: context
 `source_refs`/`source_snippets` count as source backing, context
 `queries`/`source_search_queries` count as bounded search hooks, and a
 substantive `formal_gap_boundary` is classified as an explicit formal boundary

@@ -2887,6 +2887,27 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == payload["n_resource_request_llm_route_planner_residual_interpretation_rows"]
     )
+    assert (
+        payload[
+            "n_resource_response_ledger_llm_traced_route_planning_brief_evidence_gap_rows"
+        ]
+        == payload[
+            "n_resource_request_llm_route_planner_route_planning_brief_evidence_gap_rows"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_resource_response_ledger_llm_traced_route_planning_brief_evidence_gap_responses"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_resource_response_ledger_llm_traced_route_planning_brief_evidence_gap_grounded_responses"
+        ]
+        == 0
+    )
     assert payload["n_resource_response_ledger_route_revision_recommended"] == 0
     assert payload["n_resource_response_ledger_rejected"] == 0
     assert (
