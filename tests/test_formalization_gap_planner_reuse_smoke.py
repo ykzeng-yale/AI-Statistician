@@ -225,6 +225,47 @@ def _assert_llm_route_option_selection_summary(payload: dict[str, object]) -> No
         ]
 
 
+def _assert_evaluation_llm_route_option_selection_summary(
+    payload: dict[str, object],
+) -> None:
+    rows_with_brief = payload[
+        "n_evaluation_rows_with_llm_route_planner_route_option_selection_brief"
+    ]
+    assert rows_with_brief == payload[
+        "n_goal_plan_standalone_input_traces_with_llm_route_option_selection_brief"
+    ]
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta"
+        ]
+        + payload[
+            "n_evaluation_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta"
+        ]
+        == rows_with_brief
+    )
+    if rows_with_brief:
+        assert (
+            payload[
+                "n_evaluation_llm_route_planner_route_option_selection_candidate_options"
+            ]
+            >= rows_with_brief
+        )
+        assert (
+            payload[
+                "n_evaluation_llm_route_planner_route_option_selection_candidate_primitives"
+            ]
+            >= rows_with_brief
+        )
+        assert (
+            payload[
+                "n_evaluation_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals"
+            ]
+            <= payload[
+                "n_evaluation_llm_route_planner_route_option_selection_candidate_residual_goals"
+            ]
+        )
+
+
 def test_reuse_smoke_llm_execution_mode_uses_planner_manifest_before_provider_flags() -> None:
     payload = {
         "provider_execution_mode": "static_generator_backend",
@@ -1487,6 +1528,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "Evaluation LLM residual-goal contexts rows/contexts/source-refs/provenance/without-context: 0/0/0/0/9"
         in report_text
     )
+    assert "Evaluation LLM route-option selection" in report_text
     assert (
         "Combined LLM route planner provider usage rows/input/output/total"
         in report_text
@@ -3085,6 +3127,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload[
         "n_evaluation_llm_route_planner_residual_goals_without_context"
     ] == 9
+    _assert_evaluation_llm_route_option_selection_summary(payload)
     assert payload["n_evaluation_rows_with_llm_route_planner_generator_metadata"] == 0
     assert payload["n_evaluation_rows_with_llm_route_planner_provider_usage"] == 0
     assert payload["total_evaluation_llm_route_planner_provider_input_tokens"] == 0
@@ -4998,6 +5041,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     assert payload[
         "n_evaluation_llm_route_planner_residual_goals_without_context"
     ] == 4
+    _assert_evaluation_llm_route_option_selection_summary(payload)
     assert (
         payload[
             "n_evaluation_llm_route_adoption_pending_primitive_evidence_matrix_blockers"

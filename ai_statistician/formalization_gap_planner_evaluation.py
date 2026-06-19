@@ -121,6 +121,15 @@ class FormalizationGapPlannerEvaluationRow:
     llm_route_planner_residual_goal_context_provenance_count: int
     llm_route_planner_residual_goals_with_context_count: int
     llm_route_planner_residual_goals_without_context: tuple[str, ...]
+    llm_route_planner_route_option_selection_brief_present: bool
+    llm_route_planner_route_option_selection_candidate_count: int
+    llm_route_planner_route_option_selection_candidate_primitive_count: int
+    llm_route_planner_route_option_selection_candidates_with_residual_goals: int
+    llm_route_planner_route_option_selection_candidate_residual_goal_count: int
+    llm_route_planner_route_option_selection_lower_bound_selected_route_option_id: str
+    llm_route_planner_route_option_selection_lower_bound_residual_goal_count: int
+    llm_route_planner_route_option_selection_minimal_delta_selected_residual_goal_count: int
+    llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta: bool
     llm_route_planner_route_adoption_status: str
     llm_route_planner_route_adoption_blockers: tuple[str, ...]
     llm_route_planner_primitive_evidence_matrix_witness_present: bool
@@ -427,6 +436,47 @@ def evaluate_formalization_gap_planner(
         "n_llm_route_planner_residual_goals_without_context": sum(
             len(row.llm_route_planner_residual_goals_without_context)
             for row in evaluation_rows
+        ),
+        "n_rows_with_llm_route_planner_route_option_selection_brief": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_route_option_selection_brief_present
+        ),
+        "n_llm_route_planner_route_option_selection_candidate_options": sum(
+            row.llm_route_planner_route_option_selection_candidate_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_route_option_selection_candidate_primitives": sum(
+            row.llm_route_planner_route_option_selection_candidate_primitive_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_route_option_selection_candidates_with_residual_goals": sum(
+            row.llm_route_planner_route_option_selection_candidates_with_residual_goals
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_route_option_selection_candidate_residual_goals": sum(
+            row.llm_route_planner_route_option_selection_candidate_residual_goal_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_route_option_selection_lower_bound_residual_goals": sum(
+            row.llm_route_planner_route_option_selection_lower_bound_residual_goal_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals": sum(
+            row.llm_route_planner_route_option_selection_minimal_delta_selected_residual_goal_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_route_option_selection_brief_present
+            and row.llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta
+        ),
+        "n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta": sum(
+            1
+            for row in evaluation_rows
+            if row.llm_route_planner_route_option_selection_brief_present
+            and not row.llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta
         ),
         "n_rows_with_llm_route_planner_route_adoption_status": sum(
             1
@@ -840,6 +890,15 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "llm_route_planner_residual_goal_context_provenance_count",
             "llm_route_planner_residual_goals_with_context_count",
             "llm_route_planner_residual_goals_without_context",
+            "llm_route_planner_route_option_selection_brief_present",
+            "llm_route_planner_route_option_selection_candidate_count",
+            "llm_route_planner_route_option_selection_candidate_primitive_count",
+            "llm_route_planner_route_option_selection_candidates_with_residual_goals",
+            "llm_route_planner_route_option_selection_candidate_residual_goal_count",
+            "llm_route_planner_route_option_selection_lower_bound_selected_route_option_id",
+            "llm_route_planner_route_option_selection_lower_bound_residual_goal_count",
+            "llm_route_planner_route_option_selection_minimal_delta_selected_residual_goal_count",
+            "llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta",
             "llm_route_planner_route_adoption_status",
             "llm_route_planner_route_adoption_blockers",
             "llm_route_planner_route_adoption_preconditions",
@@ -997,6 +1056,39 @@ def evaluation_row_json_schema() -> dict[str, object]:
                 "minimum": 0,
             },
             "llm_route_planner_residual_goals_without_context": string_array,
+            "llm_route_planner_route_option_selection_brief_present": {
+                "type": "boolean"
+            },
+            "llm_route_planner_route_option_selection_candidate_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_route_option_selection_candidate_primitive_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_route_option_selection_candidates_with_residual_goals": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_route_option_selection_candidate_residual_goal_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_route_option_selection_lower_bound_selected_route_option_id": {
+                "type": "string"
+            },
+            "llm_route_planner_route_option_selection_lower_bound_residual_goal_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_route_option_selection_minimal_delta_selected_residual_goal_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta": {
+                "type": "boolean"
+            },
             "llm_route_planner_route_adoption_status": {"type": "string"},
             "llm_route_planner_route_adoption_blockers": string_array,
             "llm_route_planner_primitive_evidence_matrix_witness_present": {
@@ -1180,6 +1272,9 @@ def _evaluate_row(
     llm_trace = _llm_route_planner_trace(
         row,
         predicted_residual_goals=predicted_residual_goals,
+        minimal_delta_selected_route_option_id=str(
+            cost_graph_trace["selected_route_option_id"]
+        ),
     )
     quality_trace = _quality_control_trace(row)
     portable_schema_id = str(plan_payload.get("portable_schema_id", ""))
@@ -1343,6 +1438,43 @@ def _evaluate_row(
         ),
         llm_route_planner_residual_goals_without_context=_str_tuple(
             llm_trace["residual_goals_without_context"]
+        ),
+        llm_route_planner_route_option_selection_brief_present=bool(
+            llm_trace["route_option_selection_brief_present"]
+        ),
+        llm_route_planner_route_option_selection_candidate_count=int(
+            llm_trace["route_option_selection_candidate_count"]
+        ),
+        llm_route_planner_route_option_selection_candidate_primitive_count=int(
+            llm_trace["route_option_selection_candidate_primitive_count"]
+        ),
+        llm_route_planner_route_option_selection_candidates_with_residual_goals=int(
+            llm_trace[
+                "route_option_selection_candidates_with_residual_goals"
+            ]
+        ),
+        llm_route_planner_route_option_selection_candidate_residual_goal_count=int(
+            llm_trace["route_option_selection_candidate_residual_goal_count"]
+        ),
+        llm_route_planner_route_option_selection_lower_bound_selected_route_option_id=str(
+            llm_trace[
+                "route_option_selection_lower_bound_selected_route_option_id"
+            ]
+        ),
+        llm_route_planner_route_option_selection_lower_bound_residual_goal_count=int(
+            llm_trace[
+                "route_option_selection_lower_bound_residual_goal_count"
+            ]
+        ),
+        llm_route_planner_route_option_selection_minimal_delta_selected_residual_goal_count=int(
+            llm_trace[
+                "route_option_selection_minimal_delta_selected_residual_goal_count"
+            ]
+        ),
+        llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta=bool(
+            llm_trace[
+                "route_option_selection_lower_bound_matches_minimal_delta"
+            ]
         ),
         llm_route_planner_route_adoption_status=str(
             llm_trace["route_adoption_status"]
@@ -1851,6 +1983,7 @@ def _llm_route_planner_trace(
     row: dict[str, Any],
     *,
     predicted_residual_goals: tuple[str, ...] = (),
+    minimal_delta_selected_route_option_id: str = "",
 ) -> dict[str, object]:
     trace = row.get("standalone_input_trace", {})
     trace = trace if isinstance(trace, dict) else {}
@@ -2028,6 +2161,12 @@ def _llm_route_planner_trace(
         for goal in predicted_residual_goals
         if goal not in set(residual_goals_with_context)
     )
+    route_option_selection_trace = _llm_route_option_selection_brief_trace(
+        trace,
+        minimal_delta_selected_route_option_id=(
+            minimal_delta_selected_route_option_id
+        ),
+    )
     return {
         "trace_present": bool(
             row_id
@@ -2038,6 +2177,7 @@ def _llm_route_planner_trace(
             or route_adoption_preconditions
             or provider_usage
             or residual_goal_contexts
+            or route_option_selection_trace["route_option_selection_brief_present"]
         ),
         "row_id": row_id,
         "provider": provider,
@@ -2157,6 +2297,7 @@ def _llm_route_planner_trace(
         ),
         "residual_goals_with_context_count": len(residual_goals_with_context),
         "residual_goals_without_context": residual_goals_without_context,
+        **route_option_selection_trace,
         "route_adoption_status": route_adoption_status,
         "route_adoption_blockers": _str_tuple(
             trace.get("llm_route_planner_route_adoption_blockers", [])
@@ -2239,6 +2380,99 @@ def _llm_route_planner_trace(
         "errors": _str_tuple(trace.get("llm_route_planner_errors", [])),
         "generation_errors": _str_tuple(
             trace.get("llm_route_planner_generation_errors", [])
+        ),
+    }
+
+
+def _llm_route_option_selection_brief_trace(
+    trace: dict[str, Any],
+    *,
+    minimal_delta_selected_route_option_id: str = "",
+) -> dict[str, object]:
+    brief = _dict_value(
+        trace,
+        "llm_route_planner_route_option_selection_brief",
+    )
+    if not brief:
+        brief = _dict_value(trace, "route_option_selection_brief")
+    candidates = _dict_tuple(brief.get("candidate_route_options", []))
+    candidate_count = _int_value(
+        brief.get("n_candidate_route_options", len(candidates))
+    )
+    if not candidate_count and candidates:
+        candidate_count = len(candidates)
+    candidate_primitive_count = _int_value(
+        brief.get(
+            "n_candidate_route_option_primitives",
+            sum(
+                _int_value(option.get("n_selected_primitives", 0))
+                for option in candidates
+            ),
+        )
+    )
+    candidates_with_residual_goals = _int_value(
+        brief.get(
+            "n_candidate_route_options_with_residual_goals",
+            sum(
+                1
+                for option in candidates
+                if _int_value(option.get("n_residual_goals", 0)) > 0
+            ),
+        )
+    )
+    candidate_residual_goal_count = _int_value(
+        brief.get(
+            "n_candidate_route_option_residual_goals",
+            sum(
+                _int_value(option.get("n_residual_goals", 0))
+                for option in candidates
+            ),
+        )
+    )
+    lower_bound_selected_id = str(
+        brief.get("lower_bound_selected_route_option_id", "")
+    ).strip()
+    lower_bound_residual_goal_count = _int_value(
+        brief.get("lower_bound_selected_residual_goal_count", 0)
+    )
+    minimal_delta_selected_id = str(
+        minimal_delta_selected_route_option_id or ""
+    ).strip()
+    minimal_delta_selected_residual_goal_count = 0
+    for option in candidates:
+        if (
+            str(option.get("route_option_id", "")).strip()
+            == minimal_delta_selected_id
+        ):
+            minimal_delta_selected_residual_goal_count = _int_value(
+                option.get("n_residual_goals", 0)
+            )
+            break
+    return {
+        "route_option_selection_brief_present": bool(brief),
+        "route_option_selection_candidate_count": candidate_count,
+        "route_option_selection_candidate_primitive_count": (
+            candidate_primitive_count
+        ),
+        "route_option_selection_candidates_with_residual_goals": (
+            candidates_with_residual_goals
+        ),
+        "route_option_selection_candidate_residual_goal_count": (
+            candidate_residual_goal_count
+        ),
+        "route_option_selection_lower_bound_selected_route_option_id": (
+            lower_bound_selected_id
+        ),
+        "route_option_selection_lower_bound_residual_goal_count": (
+            lower_bound_residual_goal_count
+        ),
+        "route_option_selection_minimal_delta_selected_residual_goal_count": (
+            minimal_delta_selected_residual_goal_count
+        ),
+        "route_option_selection_lower_bound_matches_minimal_delta": bool(
+            lower_bound_selected_id
+            and minimal_delta_selected_id
+            and lower_bound_selected_id == minimal_delta_selected_id
         ),
     }
 
@@ -3307,6 +3541,20 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_llm_route_planner_residual_goal_context_source_refs')}/"
             f"{payload.get('n_llm_route_planner_residual_goal_context_provenance_values')}/"
             f"{payload.get('n_llm_route_planner_residual_goals_without_context')}"
+        ),
+        (
+            "- LLM route-option selection "
+            "rows/options/primitives/residual-options/residual-goals/"
+            "lower-bound-residuals/selected-residuals/matches/mismatches: "
+            f"{payload.get('n_rows_with_llm_route_planner_route_option_selection_brief')}/"
+            f"{payload.get('n_llm_route_planner_route_option_selection_candidate_options')}/"
+            f"{payload.get('n_llm_route_planner_route_option_selection_candidate_primitives')}/"
+            f"{payload.get('n_llm_route_planner_route_option_selection_candidates_with_residual_goals')}/"
+            f"{payload.get('n_llm_route_planner_route_option_selection_candidate_residual_goals')}/"
+            f"{payload.get('n_llm_route_planner_route_option_selection_lower_bound_residual_goals')}/"
+            f"{payload.get('n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals')}/"
+            f"{payload.get('n_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta')}/"
+            f"{payload.get('n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta')}"
         ),
         f"- Evaluation by LLM route adoption status: {payload.get('evaluation_by_llm_route_adoption_status')}",
         f"- LLM route adoption blockers: {payload.get('llm_route_adoption_blockers')}",

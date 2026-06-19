@@ -324,6 +324,64 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             },
         ],
     }
+    route_option_selection_brief = {
+        "schema_version": 1,
+        "brief_kind": (
+            "formalization_gap_planner_llm_route_planner_route_option_selection_brief"
+        ),
+        "route_id": "rank_route",
+        "display_name": "rank_route",
+        "target_prover_family": "lean4",
+        "library_snapshot_ref": "mathlib4:evaluation-cost-graph",
+        "cost_policy_id": "minimal_delta_route_cost_v1",
+        "selection_rule": (
+            "Rank route options by minimum_route_base_cost, then residual coverage."
+        ),
+        "n_candidate_route_options": 2,
+        "n_candidate_route_option_primitives": 4,
+        "n_candidate_route_options_with_residual_goals": 1,
+        "n_candidate_route_option_residual_goals": 1,
+        "n_lower_bound_tied_route_options": 1,
+        "lower_bound_selected_route_option_id": "route_option:bridge_rank",
+        "lower_bound_selected_route_cost": 4,
+        "lower_bound_selected_residual_goal_count": 1,
+        "candidate_route_options": [
+            {
+                "route_option_id": "route_option:bridge_rank",
+                "source_route_option_index": 0,
+                "selection_rank": 1,
+                "selected_by_lower_bound_policy": True,
+                "lower_bound_tied_for_best": True,
+                "selected_primitives": ["exchangeability", "rank_uniformity"],
+                "n_selected_primitives": 2,
+                "minimum_route_base_cost": 4,
+                "n_bridge_or_harder_primitives": 1,
+                "n_target_compatible_reuse_declarations": 1,
+                "n_residual_goals": 1,
+                "n_residual_goal_contexts": 1,
+                "residual_target_primitives": ["rank_uniformity"],
+                "residual_goal_samples": [
+                    "rank_uniformity: missing bridge proof"
+                ],
+            },
+            {
+                "route_option_id": "route_option:source_port_rank",
+                "source_route_option_index": 1,
+                "selection_rank": 2,
+                "selected_by_lower_bound_policy": False,
+                "lower_bound_tied_for_best": False,
+                "selected_primitives": ["exchangeability", "rank_uniformity"],
+                "n_selected_primitives": 2,
+                "minimum_route_base_cost": 7,
+                "n_bridge_or_harder_primitives": 1,
+                "n_target_compatible_reuse_declarations": 1,
+                "n_residual_goals": 0,
+                "n_residual_goal_contexts": 0,
+                "residual_target_primitives": [],
+                "residual_goal_samples": [],
+            },
+        ],
+    }
     realization_witness = {
         "selected_primitives": ["exchangeability", "rank_uniformity"],
         "delta_primitives": ["rank_uniformity"],
@@ -400,6 +458,9 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
                             ],
                             "llm_route_planner_route_adoption_preconditions": (
                                 route_adoption_preconditions
+                            ),
+                            "llm_route_planner_route_option_selection_brief": (
+                                route_option_selection_brief
                             ),
                             "llm_route_planner_acceptance_status": (
                                 "ACCEPTED_SOURCE_GROUNDED_ROUTE_PLAN"
@@ -575,6 +636,45 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "n_llm_route_planner_interactive_formal_attempt_queue_execution_commands"
         ]
         == 3
+    )
+    assert payload["n_rows_with_llm_route_planner_route_option_selection_brief"] == 1
+    assert payload["n_llm_route_planner_route_option_selection_candidate_options"] == 2
+    assert payload["n_llm_route_planner_route_option_selection_candidate_primitives"] == 4
+    assert (
+        payload[
+            "n_llm_route_planner_route_option_selection_candidates_with_residual_goals"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_option_selection_candidate_residual_goals"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_option_selection_lower_bound_residual_goals"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta"
+        ]
+        == 0
     )
     assert payload["n_rows_with_llm_route_planner_route_adoption_status"] == 1
     assert payload["n_rows_ready_for_route_adoption"] == 0
@@ -794,6 +894,48 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert row["minimal_delta_route_option_count"] == 2
     assert row["minimal_delta_selected_route_option_id"] == "route_option:bridge_rank"
     assert row["minimal_delta_selected_route_cost"] == 4.0
+    assert row["llm_route_planner_route_option_selection_brief_present"] is True
+    assert row["llm_route_planner_route_option_selection_candidate_count"] == 2
+    assert (
+        row["llm_route_planner_route_option_selection_candidate_primitive_count"]
+        == 4
+    )
+    assert (
+        row[
+            "llm_route_planner_route_option_selection_candidates_with_residual_goals"
+        ]
+        == 1
+    )
+    assert (
+        row[
+            "llm_route_planner_route_option_selection_candidate_residual_goal_count"
+        ]
+        == 1
+    )
+    assert (
+        row[
+            "llm_route_planner_route_option_selection_lower_bound_selected_route_option_id"
+        ]
+        == "route_option:bridge_rank"
+    )
+    assert (
+        row[
+            "llm_route_planner_route_option_selection_lower_bound_residual_goal_count"
+        ]
+        == 1
+    )
+    assert (
+        row[
+            "llm_route_planner_route_option_selection_minimal_delta_selected_residual_goal_count"
+        ]
+        == 1
+    )
+    assert (
+        row[
+            "llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta"
+        ]
+        is True
+    )
     assert row["realization_coverage_witness_present"] is True
     assert row["realization_coverage_complete"] is True
     assert row["realization_missing_selected_formal_primitives"] == ()

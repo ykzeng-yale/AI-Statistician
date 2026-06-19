@@ -7015,6 +7015,60 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_evaluation_rows_with_llm_route_planner_route_option_selection_brief": (
+            evaluation_payload.get(
+                "n_rows_with_llm_route_planner_route_option_selection_brief",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_route_option_selection_candidate_options": (
+            evaluation_payload.get(
+                "n_llm_route_planner_route_option_selection_candidate_options",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_route_option_selection_candidate_primitives": (
+            evaluation_payload.get(
+                "n_llm_route_planner_route_option_selection_candidate_primitives",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_route_option_selection_candidates_with_residual_goals": (
+            evaluation_payload.get(
+                "n_llm_route_planner_route_option_selection_candidates_with_residual_goals",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_route_option_selection_candidate_residual_goals": (
+            evaluation_payload.get(
+                "n_llm_route_planner_route_option_selection_candidate_residual_goals",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_route_option_selection_lower_bound_residual_goals": (
+            evaluation_payload.get(
+                "n_llm_route_planner_route_option_selection_lower_bound_residual_goals",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals": (
+            evaluation_payload.get(
+                "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta": (
+            evaluation_payload.get(
+                "n_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta",
+                0,
+            )
+        ),
+        "n_evaluation_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta": (
+            evaluation_payload.get(
+                "n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta",
+                0,
+            )
+        ),
         "n_evaluation_rows_with_llm_route_planner_route_adoption_status": (
             evaluation_payload.get(
                 "n_rows_with_llm_route_planner_route_adoption_status",
@@ -10904,6 +10958,20 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_evaluation_llm_route_planner_residual_goal_context_source_refs')}/"
             f"{payload.get('n_evaluation_llm_route_planner_residual_goal_context_provenance_values')}/"
             f"{payload.get('n_evaluation_llm_route_planner_residual_goals_without_context')}"
+        ),
+        (
+            "- Evaluation LLM route-option selection "
+            "rows/options/primitives/residual-options/residual-goals/"
+            "lower-bound-residuals/selected-residuals/matches/mismatches: "
+            f"{payload.get('n_evaluation_rows_with_llm_route_planner_route_option_selection_brief')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_route_option_selection_candidate_options')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_route_option_selection_candidate_primitives')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_route_option_selection_candidates_with_residual_goals')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_route_option_selection_candidate_residual_goals')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_route_option_selection_lower_bound_residual_goals')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta')}/"
+            f"{payload.get('n_evaluation_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta')}"
         ),
         (
             f"- Evaluation LLM provider usage rows/input/output/total: "
