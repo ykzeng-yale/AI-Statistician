@@ -53,6 +53,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
+    ROUTE_ADOPTION_BLOCKER_VALUES,
     export_formalization_gap_planner_llm_route_planner,
     llm_route_planner_library_alignment_summary_json_schema,
     route_adoption_blocker_taxonomy_json_schema,
@@ -3980,9 +3981,27 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "cross_prover_formal_attempt_dependency_summary"
         in publication_bundle_manifest_schema_payload["required"]
     )
+    evaluation_summary_schema = publication_bundle_manifest_schema_payload[
+        "properties"
+    ]["evaluation_summary"]
+    assert set(
+        evaluation_summary_schema["properties"]["llm_route_adoption_blockers"][
+            "items"
+        ]["enum"]
+    ) == set(ROUTE_ADOPTION_BLOCKER_VALUES)
+    assert set(
+        evaluation_summary_schema["properties"][
+            "llm_route_planner_route_adoption_precondition_known_blockers"
+        ]["items"]["enum"]
+    ) == set(ROUTE_ADOPTION_BLOCKER_VALUES)
     llm_summary_schema = publication_bundle_manifest_schema_payload[
         "properties"
     ]["llm_route_planner_summary"]
+    assert set(
+        llm_summary_schema["properties"]["route_adoption_blockers"]["items"][
+            "enum"
+        ]
+    ) == set(ROUTE_ADOPTION_BLOCKER_VALUES)
     assert "n_request_available_source_snippets" in llm_summary_schema["required"]
     assert "n_requests_with_residual_goal_contexts" in llm_summary_schema["required"]
     assert "n_request_model_tier_sonnet" in llm_summary_schema["required"]

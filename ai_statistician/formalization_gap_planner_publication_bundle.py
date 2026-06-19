@@ -70,6 +70,7 @@ from .formalization_gap_planner_llm_route_planner import (
     ROUTE_ADOPTION_AWAITING_STATUS,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
     ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES,
+    ROUTE_ADOPTION_BLOCKER_VALUES,
     ROUTE_ADOPTION_PENDING_STATUS,
     ROUTE_ADOPTION_READY_STATUS,
     ROUTE_ADOPTION_REJECTED_STATUS,
@@ -2174,6 +2175,13 @@ def schema_catalog_json_schema() -> dict[str, object]:
 
 def publication_bundle_manifest_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
+    route_adoption_blocker_array = {
+        "type": "array",
+        "items": {
+            "type": "string",
+            "enum": list(ROUTE_ADOPTION_BLOCKER_VALUES),
+        },
+    }
     nonnegative_integer = {"type": "integer", "minimum": 0}
     core_artifact_schema = {
         "type": "object",
@@ -2386,7 +2394,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "llm_route_planner_route_adoption_precondition_known_blockers": (
-                string_array
+                route_adoption_blocker_array
             ),
             "llm_route_planner_route_adoption_precondition_required_response_fields": (
                 string_array
@@ -2394,7 +2402,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "llm_route_planner_route_adoption_precondition_target_primitives": (
                 string_array
             ),
-            "llm_route_adoption_blockers": string_array,
+            "llm_route_adoption_blockers": route_adoption_blocker_array,
             "llm_route_adoption_blocker_counts": {
                 "type": "object",
                 "additionalProperties": nonnegative_integer,
@@ -2974,7 +2982,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_route_adoption_blockers": nonnegative_integer,
-            "route_adoption_blockers": string_array,
+            "route_adoption_blockers": route_adoption_blocker_array,
             "route_adoption_blocker_counts": {
                 "type": "object",
                 "additionalProperties": nonnegative_integer,
