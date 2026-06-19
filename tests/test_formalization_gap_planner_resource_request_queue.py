@@ -612,6 +612,105 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
                                 "target_primitives": ["rank_uniformity"],
                             }
                         ],
+                        "formal_attempt_queue": [
+                            {
+                                "attempt_id": "attempt:exchangeability_reuse",
+                                "formal_node_id": "formal:exchangeability",
+                                "primitive": "exchangeability",
+                                "target_primitives": ["exchangeability"],
+                                "target_prover_family": "lean4",
+                                "attempt_kind": "reuse_existing_declaration",
+                                "action": (
+                                    "run the exchangeability reuse leaf through "
+                                    "Lean proof-state feedback"
+                                ),
+                                "expected_feedback": [
+                                    "kernel_status",
+                                    "residual_goals",
+                                ],
+                                "prerequisite_formal_node_ids": [],
+                            },
+                            {
+                                "attempt_id": "attempt:rank_uniformity_bridge",
+                                "formal_node_id": "formal:rank_uniformity",
+                                "primitive": "rank_uniformity",
+                                "target_primitives": ["rank_uniformity"],
+                                "target_prover_family": "lean4",
+                                "attempt_kind": "bridge_lemma",
+                                "action": (
+                                    "try rank uniformity after exchangeability "
+                                    "reuse closes"
+                                ),
+                                "expected_feedback": [
+                                    "kernel_status",
+                                    "residual_goals",
+                                ],
+                                "prerequisite_formal_node_ids": [
+                                    "formal:exchangeability"
+                                ],
+                            },
+                        ],
+                        "formal_attempt_queue_schedule": {
+                            "schedule_kind": (
+                                "formalization_gap_planner_llm_route_planner_formal_attempt_queue_schedule"
+                            ),
+                            "n_attempts": 2,
+                            "n_initial_ready_attempts": 1,
+                            "n_waiting_for_formal_prerequisite_attempts": 1,
+                            "n_missing_prerequisite_attempts": 0,
+                            "has_formal_attempt_queue": True,
+                            "has_initial_ready_attempt": True,
+                            "all_prerequisites_queued": True,
+                            "bottom_up_schedule_complete": True,
+                            "initial_ready_attempt_ids": [
+                                "attempt:exchangeability_reuse"
+                            ],
+                            "waiting_attempt_ids": [
+                                "attempt:rank_uniformity_bridge"
+                            ],
+                            "missing_prerequisite_attempt_ids": [],
+                            "missing_prerequisite_formal_node_ids": [],
+                            "attempt_dependency_rows": [
+                                {
+                                    "formal_attempt_queue_index": 0,
+                                    "attempt_id": (
+                                        "attempt:exchangeability_reuse"
+                                    ),
+                                    "formal_node_id": "formal:exchangeability",
+                                    "primitive": "exchangeability",
+                                    "attempt_kind": (
+                                        "reuse_existing_declaration"
+                                    ),
+                                    "target_prover_family": "lean4",
+                                    "initial_ready": True,
+                                    "dependency_status": "initial_ready",
+                                    "prerequisite_formal_node_ids": [],
+                                    "prerequisite_attempt_ids": [],
+                                    "missing_prerequisite_formal_node_ids": [],
+                                },
+                                {
+                                    "formal_attempt_queue_index": 1,
+                                    "attempt_id": (
+                                        "attempt:rank_uniformity_bridge"
+                                    ),
+                                    "formal_node_id": "formal:rank_uniformity",
+                                    "primitive": "rank_uniformity",
+                                    "attempt_kind": "bridge_lemma",
+                                    "target_prover_family": "lean4",
+                                    "initial_ready": False,
+                                    "dependency_status": (
+                                        "waiting_for_formal_prerequisite_attempts"
+                                    ),
+                                    "prerequisite_formal_node_ids": [
+                                        "formal:exchangeability"
+                                    ],
+                                    "prerequisite_attempt_ids": [
+                                        "attempt:exchangeability_reuse"
+                                    ],
+                                    "missing_prerequisite_formal_node_ids": [],
+                                },
+                            ],
+                        },
                         "residual_interpretations": [
                             {
                                 "residual_goal": (
@@ -670,6 +769,16 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
     assert payload["n_llm_route_planner_search_requests"] == 1
     assert payload["n_llm_route_planner_planner_next_actions"] == 1
     assert payload["n_llm_route_planner_residual_interpretations"] == 1
+    assert payload["n_llm_route_planner_rows_with_formal_attempt_queue"] == 1
+    assert payload["n_llm_route_planner_formal_attempt_queue_items"] == 2
+    assert payload["n_llm_route_planner_formal_attempt_queue_ready_items"] == 1
+    assert payload["n_llm_route_planner_formal_attempt_queue_waiting_items"] == 1
+    assert (
+        payload[
+            "n_llm_route_planner_formal_attempt_queue_missing_prerequisite_items"
+        ]
+        == 0
+    )
     assert payload["n_llm_route_planner_rows_with_route_adoption_preconditions"] == 1
     assert (
         payload[
@@ -692,7 +801,8 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
     assert payload["n_llm_route_planner_search_request_rows"] == 3
     assert payload["n_llm_route_planner_planner_next_action_rows"] == 3
     assert payload["n_llm_route_planner_residual_interpretation_rows"] == 2
-    assert payload["n_llm_route_planner_resource_request_rows"] == 8
+    assert payload["n_llm_route_planner_formal_attempt_queue_resource_request_rows"] == 3
+    assert payload["n_llm_route_planner_resource_request_rows"] == 11
     assert (
         payload[
             "n_llm_route_planner_resource_request_rows_with_route_adoption_preconditions"
@@ -818,6 +928,47 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
         == tuple(lean_lsp_row["actionable_work_items"])
     )
     assert "not theorem proof evidence" in lean_lsp_row["proof_evidence_boundary"]
+    formal_attempt_rows = [
+        row
+        for row in llm_rows
+        if row["request_payload"].get("llm_route_planner_source_kind")
+        == "formal_attempt_queue"
+    ]
+    assert len(formal_attempt_rows) == 3
+    assert {
+        row["resource_id"] for row in formal_attempt_rows
+    } == {"local_lake_lean", "lean_lsp_mcp", "leandojo_reprover"}
+    formal_attempt_lsp_row = next(
+        row for row in formal_attempt_rows if row["resource_id"] == "lean_lsp_mcp"
+    )
+    assert formal_attempt_lsp_row["queue_action_kind"] == "prove_bridge_lemma"
+    assert (
+        formal_attempt_lsp_row["request_payload"]["formal_attempt_context"][
+            "attempt_id"
+        ]
+        == "attempt:exchangeability_reuse"
+    )
+    assert (
+        formal_attempt_lsp_row["request_payload"]["formal_attempt_context"][
+            "formal_attempt_dependency_status"
+        ]
+        == "initial_ready"
+    )
+    assert "formal_attempt_context" in formal_attempt_lsp_row["request_contract_fields"]
+    assert (
+        formal_attempt_lsp_row["request_payload"]["formal_attempt_context"]
+        == formal_attempt_lsp_row["request_playbook"]["formal_attempt_context"]
+        == formal_attempt_lsp_row["request_playbook"]["input_summary"][
+            "formal_attempt_context"
+        ]
+    )
+    assert "attempt:rank_uniformity_bridge" not in json.dumps(formal_attempt_rows)
+    assert any(
+        "formal_attempt_context" in item
+        for item in formal_attempt_lsp_row["request_playbook"][
+            "acceptance_checklist"
+        ]
+    )
     route_revision_row = next(
         row for row in llm_rows if row["resource_id"] == "local_route_revision_overlay"
     )

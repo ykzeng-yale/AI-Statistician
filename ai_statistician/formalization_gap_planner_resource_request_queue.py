@@ -266,6 +266,37 @@ def export_formalization_gap_planner_resource_request_queue(
             len(_dict_tuple(row.get("residual_interpretations", [])))
             for row in llm_route_planner_rows
         ),
+        "n_llm_route_planner_rows_with_formal_attempt_queue": sum(
+            1
+            for row in llm_route_planner_rows
+            if _dict_tuple(row.get("formal_attempt_queue", []))
+        ),
+        "n_llm_route_planner_formal_attempt_queue_items": sum(
+            len(_dict_tuple(row.get("formal_attempt_queue", [])))
+            for row in llm_route_planner_rows
+        ),
+        "n_llm_route_planner_formal_attempt_queue_ready_items": sum(
+            len(_llm_formal_attempt_queue_source_items(row))
+            for row in llm_route_planner_rows
+        ),
+        "n_llm_route_planner_formal_attempt_queue_waiting_items": sum(
+            len(
+                _llm_formal_attempt_queue_items_by_schedule_status(
+                    row,
+                    status="waiting_for_formal_prerequisite_attempts",
+                )
+            )
+            for row in llm_route_planner_rows
+        ),
+        "n_llm_route_planner_formal_attempt_queue_missing_prerequisite_items": sum(
+            len(
+                _llm_formal_attempt_queue_items_by_schedule_status(
+                    row,
+                    status="missing_prerequisite_attempts",
+                )
+            )
+            for row in llm_route_planner_rows
+        ),
         "n_llm_route_planner_rows_with_route_adoption_preconditions": sum(
             1 for row in llm_route_planner_rows if _llm_route_adoption_preconditions(row)
         ),
@@ -322,6 +353,12 @@ def export_formalization_gap_planner_resource_request_queue(
             for row in all_llm_resource_request_rows
             if row.request_payload.get("llm_route_planner_source_kind")
             == "residual_interpretation"
+        ),
+        "n_llm_route_planner_formal_attempt_queue_resource_request_rows": sum(
+            1
+            for row in all_llm_resource_request_rows
+            if row.request_payload.get("llm_route_planner_source_kind")
+            == "formal_attempt_queue"
         ),
         "n_llm_route_planner_route_planning_brief_evidence_gap_rows": sum(
             1
@@ -704,6 +741,33 @@ def _llm_route_planner_resource_request_rows(
                             queries=queries,
                         )
                     )
+        for source_index, source_item in enumerate(
+            _llm_formal_attempt_queue_source_items(planner_row)
+        ):
+            action_row = _llm_route_planner_action_row(
+                planner_row,
+                source_item,
+                source_kind="formal_attempt_queue",
+                source_index=source_index,
+                fallback_target_prover_family=fallback_target_prover_family,
+                fallback_library_snapshot_ref=fallback_library_snapshot_ref,
+            )
+            hook_kind = str(action_row.get("llm_hook_kind", ""))
+            queries = _llm_query_tuple(source_item)
+            for request_row in _resource_request_rows(
+                _action_resource_plan_projection(action_row)
+            ):
+                rows.append(
+                    _with_llm_route_planner_trace(
+                        request_row,
+                        planner_row,
+                        source_item,
+                        source_kind="formal_attempt_queue",
+                        source_index=source_index,
+                        hook_kind=hook_kind,
+                        queries=queries,
+                    )
+                )
     return tuple(rows)
 
 
@@ -758,6 +822,217 @@ def _llm_route_planner_route_planning_brief_resource_request_rows(
                     )
                 )
     return tuple(rows)
+
+
+def _llm_formal_attempt_queue_source_items(
+    planner_row: dict[str, Any],
+) -> tuple[dict[str, object], ...]:
+    items: list[dict[str, object]] = []
+    formal_attempt_queue = _dict_tuple(planner_row.get("formal_attempt_queue", []))
+    for queue_index, item in enumerate(formal_attempt_queue):
+        schedule_row = _matching_formal_attempt_schedule_row(
+            planner_row,
+            item,
+            queue_index=queue_index,
+        )
+        status = _formal_attempt_schedule_status(item, schedule_row)
+        if status != "initial_ready":
+            continue
+        source_item = dict(item)
+        source_item.update(
+            {
+                "request_kind": "proof_state_feedback",
+                "kind": "proof_state_feedback",
+                "formal_attempt_queue_index": queue_index,
+                "llm_route_planner_formal_attempt_queue_index": queue_index,
+                "formal_attempt_dependency_status": status,
+                "formal_attempt_initial_ready": True,
+                "formal_attempt_schedule_row": schedule_row,
+                "formal_attempt_context": _formal_attempt_context(
+                    source_item=item,
+                    queue_index=queue_index,
+                    schedule_row=schedule_row,
+                    dependency_status=status,
+                ),
+                "queries": _formal_attempt_queries(item, schedule_row),
+                "actionable_work_items": _formal_attempt_work_items(
+                    item,
+                    schedule_row,
+                ),
+            }
+        )
+        items.append(source_item)
+    return tuple(items)
+
+
+def _llm_formal_attempt_queue_items_by_schedule_status(
+    planner_row: dict[str, Any],
+    *,
+    status: str,
+) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    formal_attempt_queue = _dict_tuple(planner_row.get("formal_attempt_queue", []))
+    for queue_index, item in enumerate(formal_attempt_queue):
+        schedule_row = _matching_formal_attempt_schedule_row(
+            planner_row,
+            item,
+            queue_index=queue_index,
+        )
+        if _formal_attempt_schedule_status(item, schedule_row) == status:
+            rows.append(dict(item))
+    return tuple(rows)
+
+
+def _matching_formal_attempt_schedule_row(
+    planner_row: dict[str, Any],
+    item: dict[str, object],
+    *,
+    queue_index: int,
+) -> dict[str, object]:
+    schedule = _dict_value(
+        planner_row,
+        "formal_attempt_queue_schedule",
+    ) or _dict_value(
+        planner_row,
+        "llm_route_planner_formal_attempt_queue_schedule",
+    )
+    rows = _dict_tuple(schedule.get("attempt_dependency_rows", []))
+    attempt_id = str(item.get("attempt_id", "")).strip()
+    formal_node_id = str(item.get("formal_node_id", "")).strip()
+    for row in rows:
+        if attempt_id and str(row.get("attempt_id", "")).strip() == attempt_id:
+            return row
+        if (
+            formal_node_id
+            and str(row.get("formal_node_id", "")).strip() == formal_node_id
+        ):
+            return row
+        row_index = _parse_int(row.get("formal_attempt_queue_index", -1), -1)
+        if row_index == queue_index:
+            return row
+    return {}
+
+
+def _formal_attempt_schedule_status(
+    item: dict[str, object],
+    schedule_row: dict[str, object],
+) -> str:
+    raw_status = _normal_formal_attempt_status(
+        str(schedule_row.get("dependency_status", "")).strip()
+    )
+    if raw_status:
+        return raw_status
+    if bool(schedule_row.get("initial_ready", False)):
+        return "initial_ready"
+    missing = _str_tuple(
+        schedule_row.get("missing_prerequisite_formal_node_ids", [])
+    ) or _str_tuple(item.get("formal_attempt_missing_prerequisite_formal_node_ids", []))
+    if missing:
+        return "missing_prerequisite_attempts"
+    prerequisites = _str_tuple(
+        schedule_row.get("prerequisite_formal_node_ids", [])
+    ) or _str_tuple(item.get("prerequisite_formal_node_ids", []))
+    if prerequisites:
+        return "waiting_for_formal_prerequisite_attempts"
+    return "initial_ready"
+
+
+def _normal_formal_attempt_status(status: str) -> str:
+    raw = str(status or "").strip()
+    if raw in {"initial_ready", "ready_no_formal_prerequisites"}:
+        return "initial_ready"
+    if raw in {
+        "missing_prerequisite_attempts",
+        "missing_formal_prerequisite_attempts",
+    }:
+        return "missing_prerequisite_attempts"
+    if raw == "waiting_for_formal_prerequisite_attempts":
+        return raw
+    return raw
+
+
+def _formal_attempt_context(
+    *,
+    source_item: dict[str, object],
+    queue_index: int,
+    schedule_row: dict[str, object],
+    dependency_status: str,
+) -> dict[str, object]:
+    return {
+        "attempt_id": str(source_item.get("attempt_id", "")).strip(),
+        "formal_node_id": str(source_item.get("formal_node_id", "")).strip(),
+        "formal_attempt_queue_index": queue_index,
+        "formal_attempt_dependency_status": dependency_status,
+        "attempt_kind": str(source_item.get("attempt_kind", "")).strip(),
+        "primitive": str(source_item.get("primitive", "")).strip(),
+        "target_primitives": _str_tuple(source_item.get("target_primitives", [])),
+        "target_prover_family": str(
+            source_item.get("target_prover_family", "")
+        ).strip(),
+        "prerequisite_formal_node_ids": (
+            _str_tuple(schedule_row.get("prerequisite_formal_node_ids", []))
+            or _str_tuple(source_item.get("prerequisite_formal_node_ids", []))
+        ),
+        "prerequisite_attempt_ids": _str_tuple(
+            schedule_row.get("prerequisite_attempt_ids", [])
+        ),
+        "missing_prerequisite_formal_node_ids": _str_tuple(
+            schedule_row.get("missing_prerequisite_formal_node_ids", [])
+        ),
+        "expected_feedback": _str_tuple(source_item.get("expected_feedback", [])),
+        "action": str(source_item.get("action", "")).strip(),
+        "formal_attempt_schedule_row": dict(schedule_row),
+    }
+
+
+def _formal_attempt_queries(
+    item: dict[str, object],
+    schedule_row: dict[str, object],
+) -> tuple[str, ...]:
+    values: list[object] = [
+        item.get("queries", []),
+        item.get("query", []),
+        item.get("action", ""),
+        item.get("attempt_kind", ""),
+        item.get("formal_node_id", ""),
+        item.get("primitive", ""),
+        item.get("expected_feedback", []),
+        schedule_row.get("dependency_status", ""),
+    ]
+    primitive = str(item.get("primitive", "")).strip()
+    if primitive:
+        values.append(f"proof_state_feedback formal attempt {primitive}")
+    return _str_tuple(_flatten_llm_strings(values))
+
+
+def _formal_attempt_work_items(
+    item: dict[str, object],
+    schedule_row: dict[str, object],
+) -> tuple[str, ...]:
+    explicit = _str_tuple(item.get("actionable_work_items", []))
+    if explicit:
+        return explicit
+    attempt_id = str(item.get("attempt_id", "")).strip()
+    formal_node_id = str(item.get("formal_node_id", "")).strip()
+    primitive = str(item.get("primitive", "")).strip() or "formal attempt"
+    attempt_kind = str(item.get("attempt_kind", "")).strip()
+    return _str_tuple(
+        [
+            (
+                "run dependency-ready formal_attempt_queue item through "
+                f"target prover feedback for {primitive}"
+            ),
+            f"attempt_id={attempt_id}" if attempt_id else "",
+            f"formal_node_id={formal_node_id}" if formal_node_id else "",
+            f"attempt_kind={attempt_kind}" if attempt_kind else "",
+            (
+                "schedule_dependency_status="
+                + str(schedule_row.get("dependency_status", "")).strip()
+            )
+            if schedule_row
+            else "",
+        ]
+    )
 
 
 def _route_planning_brief_from_request_packet(
@@ -975,9 +1250,16 @@ def _llm_route_planner_action_row(
         if route_adoption_preconditions
         else tuple()
     )
+    formal_attempt_request_fields = (
+        ("formal_attempt_context",)
+        if source_kind == "formal_attempt_queue"
+        else tuple()
+    )
     request_contracts = {
         resource_id: tuple(
-            dict.fromkeys((*fields, *precondition_request_fields))
+            dict.fromkeys(
+                (*fields, *precondition_request_fields, *formal_attempt_request_fields)
+            )
         )
         for resource_id, fields in request_contracts.items()
     }
@@ -1215,12 +1497,15 @@ def _with_llm_route_planner_trace(
         source_item,
         source_kind=source_kind,
     )
+    formal_attempt_context = _dict_value(source_item, "formal_attempt_context")
     if route_adoption_preconditions:
         input_summary["llm_route_planner_route_adoption_preconditions"] = (
             route_adoption_preconditions
         )
     if residual_goal_context:
         input_summary["residual_goal_context"] = residual_goal_context
+    if formal_attempt_context:
+        input_summary["formal_attempt_context"] = formal_attempt_context
     request_playbook.update(
         {
             "input_summary": input_summary,
@@ -1250,6 +1535,20 @@ def _with_llm_route_planner_trace(
         )
     if residual_goal_context:
         request_playbook["residual_goal_context"] = residual_goal_context
+    if formal_attempt_context:
+        request_playbook["formal_attempt_context"] = formal_attempt_context
+        request_playbook["acceptance_checklist"] = tuple(
+            dict.fromkeys(
+                (
+                    *_str_tuple(request_playbook.get("acceptance_checklist", [])),
+                    (
+                        "response echoes formal_attempt_context and records "
+                        "kernel status, residual goals, or blocker diagnostics "
+                        "for that exact queue item"
+                    ),
+                )
+            )
+        )
     request_payload.update(
         {
             "llm_route_planner_row_id": planner_row_id,
@@ -1268,6 +1567,8 @@ def _with_llm_route_planner_trace(
         )
     if residual_goal_context:
         request_payload["residual_goal_context"] = residual_goal_context
+    if formal_attempt_context:
+        request_payload["formal_attempt_context"] = formal_attempt_context
     return replace(
         row,
         request_payload=request_payload,
@@ -2626,6 +2927,15 @@ def _bounded_int(value: Any, *, lower: int = 0, upper: int = 100) -> int:
     return max(lower, min(upper, parsed))
 
 
+def _parse_int(value: Any, fallback: int = 0) -> int:
+    if isinstance(value, bool):
+        return fallback
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
 def _average_int(values: Any) -> int:
     items = [int(value) for value in values]
     if not items:
@@ -2747,6 +3057,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
         (
             f"- LLM residual interpretations: "
             f"{payload.get('n_llm_route_planner_residual_interpretations')}"
+        ),
+        (
+            f"- LLM formal attempt queue items ready/waiting/missing/request rows: "
+            f"{payload.get('n_llm_route_planner_formal_attempt_queue_ready_items')}/"
+            f"{payload.get('n_llm_route_planner_formal_attempt_queue_waiting_items')}/"
+            f"{payload.get('n_llm_route_planner_formal_attempt_queue_missing_prerequisite_items')}/"
+            f"{payload.get('n_llm_route_planner_formal_attempt_queue_resource_request_rows')}"
         ),
         (
             f"- LLM route-adoption preconditions rows/blockers/required-fields/target-primitives/request-packets/request-targets: "
