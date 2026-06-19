@@ -19865,20 +19865,60 @@ def _payload_source_ref_target_context_summary(
     payload: Mapping[str, Any],
 ) -> dict[str, object]:
     standalone_route = _dict_value(payload, "standalone_route")
-    refs = _unique_strings(
-        [
-            *_str_tuple(payload.get("source_refs", [])),
-            *_str_tuple(standalone_route.get("source_refs", [])),
-            *_source_refs_from_snippets(payload.get("source_snippets", [])),
-            *_source_refs_from_snippets(standalone_route.get("source_snippets", [])),
-        ]
+    support_by_key: dict[str, dict[str, object]] = {}
+
+    def collect(refs: Iterable[object], source_field: str) -> None:
+        for ref in _str_tuple(refs):
+            key = _source_ref_key(ref)
+            if not key:
+                continue
+            row = support_by_key.setdefault(
+                key,
+                {
+                    "source_ref": ref,
+                    "source_fields": [],
+                },
+            )
+            fields = list(_str_tuple(row.get("source_fields", [])))
+            if source_field not in fields:
+                fields.append(source_field)
+            row["source_fields"] = fields
+
+    collect(payload.get("source_refs", []), "response.source_refs")
+    collect(standalone_route.get("source_refs", []), "standalone_route.source_refs")
+    collect(
+        _source_refs_from_snippets(payload.get("source_snippets", [])),
+        "response.source_snippets",
     )
+    collect(
+        _source_refs_from_snippets(standalone_route.get("source_snippets", [])),
+        "standalone_route.source_snippets",
+    )
+    support_rows = tuple(support_by_key.values())
+    refs = _unique_strings(row.get("source_ref", "") for row in support_rows)
     if not refs:
         return {}
+    summary_sources = _unique_strings(
+        field
+        for row in support_rows
+        for field in _str_tuple(row.get("source_fields", []))
+    )
     return {
         "proof_source_refs": list(refs),
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
-        "summary_source": "standalone_route.source_refs",
+        "summary_source": (
+            "standalone_route.source_refs"
+            if "standalone_route.source_refs" in summary_sources
+            else (summary_sources[0] if summary_sources else "response.source_refs")
+        ),
+        "summary_sources": list(summary_sources),
+        "proof_source_ref_support_rows": [
+            {
+                "source_ref": str(row.get("source_ref", "")),
+                "source_fields": list(_str_tuple(row.get("source_fields", []))),
+            }
+            for row in support_rows
+        ],
     }
 
 

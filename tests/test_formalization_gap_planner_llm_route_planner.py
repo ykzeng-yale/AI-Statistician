@@ -10399,6 +10399,21 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert row["target_context_summary"]["summary_source"] == (
         "standalone_route.source_refs"
     )
+    assert set(row["target_context_summary"]["summary_sources"]) == {
+        "response.source_snippets",
+        "standalone_route.source_refs",
+        "standalone_route.source_snippets",
+    }
+    assert row["target_context_summary"]["proof_source_ref_support_rows"] == [
+        {
+            "source_ref": "conformal_prediction_textbook",
+            "source_fields": [
+                "standalone_route.source_refs",
+                "response.source_snippets",
+                "standalone_route.source_snippets",
+            ],
+        }
+    ]
     assert payload["n_rows_with_target_context_summary"] == 1
     assert row["route_option_selection_brief"] == payload["request_packets"][0][
         "context_packet"

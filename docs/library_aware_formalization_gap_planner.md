@@ -881,9 +881,12 @@ evidence. For source-only standalone routes that have proof-source refs but no
 normalized target-intake fields, accepted rows derive an auditable
 `target_context_summary.proof_source_refs` from `standalone_route.source_refs`;
 if both the explicit summary and accepted standalone route source refs are
-missing, the route response is rejected. Accepted rows, standalone seed routes,
-route `replan_metadata`, and standalone input traces preserve this explicit or
-derived summary as
+missing, the route response is rejected. Derived summaries also include
+`summary_sources` and `proof_source_ref_support_rows`, so publication audits can
+see whether each source ref came from response-level refs, standalone route
+refs, response snippets, or standalone route snippets. Accepted rows,
+standalone seed routes, route `replan_metadata`, and standalone input traces
+preserve this explicit or derived summary as
 `llm_route_planner_target_context_summary`, so publication consumers can audit
 that the planner preserved the target context without reopening raw provider
 responses.
