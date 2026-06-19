@@ -4491,7 +4491,7 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert (
         llm_model_policy["source_checked_date"]
         == ANTHROPIC_MODEL_SOURCE_CHECKED_DATE
-        == "2026-06-18"
+        == "2026-06-19"
     )
     assert llm_model_policy["source_evidence"] == ANTHROPIC_MODEL_SOURCE_EVIDENCE
     assert llm_model_policy["source_evidence"][
