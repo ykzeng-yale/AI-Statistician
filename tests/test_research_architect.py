@@ -321,6 +321,31 @@ def test_llm_theory_developer_resolves_model_tier_at_request_time(
     assert packet["model_tier"] == "sonnet"
 
 
+def test_llm_theory_developer_default_provider_matches_config() -> None:
+    developer = LLMTheoryDeveloperAgent(
+        config=ResearchArchitectConfig(provider_name="openai")
+    )
+
+    assert developer.provider.provider_name == "openai"
+
+
+@pytest.mark.parametrize("provider_name", ("codex", "codex_exec", "claude_code"))
+def test_llm_theory_developer_rejects_agent_provider_without_explicit_backend(
+    provider_name: str,
+) -> None:
+    with pytest.raises(ValueError, match="agent-style provider"):
+        LLMTheoryDeveloperAgent(
+            config=ResearchArchitectConfig(provider_name=provider_name)
+        )
+
+
+def test_llm_theory_developer_static_provider_requires_explicit_replay_backend() -> None:
+    with pytest.raises(ValueError, match="requires an explicit replay provider"):
+        LLMTheoryDeveloperAgent(
+            config=ResearchArchitectConfig(provider_name="static")
+        )
+
+
 def test_generator_theory_proposer_resolves_haiku_tier_at_request_time(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
