@@ -905,6 +905,17 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
                 library_snapshot_ref=effective_library_snapshot_ref,
             )
         )
+        errors.extend(
+            _route_option_selected_route_option_id_input_errors(
+                route,
+                metadata,
+                route_option_selection_brief=route_option_selection_brief,
+                metadata_route_option_selection_brief=(
+                    metadata_route_option_selection_brief
+                ),
+                location=f"routes[{idx}]",
+            )
+        )
         route_adoption_preconditions = _dict_value(
             route.get("llm_route_planner_route_adoption_preconditions", {})
         )
@@ -1525,6 +1536,96 @@ def _route_option_selection_brief_input_errors(
             "candidate_route_options minimum_route_base_cost"
         )
     return errors
+
+
+def _route_option_selected_route_option_id_input_errors(
+    route: Mapping[str, Any],
+    metadata: Mapping[str, Any],
+    *,
+    route_option_selection_brief: Mapping[str, Any],
+    metadata_route_option_selection_brief: Mapping[str, Any],
+    location: str,
+) -> list[str]:
+    route_selected_id = str(
+        route.get("llm_route_planner_route_option_selected_route_option_id", "")
+        or ""
+    ).strip()
+    metadata_selected_id = str(
+        metadata.get("llm_route_planner_route_option_selected_route_option_id", "")
+        or ""
+    ).strip()
+    route_expected_id = _selected_route_option_id_from_route_option_brief(
+        route_option_selection_brief
+    )
+    metadata_expected_id = _selected_route_option_id_from_route_option_brief(
+        metadata_route_option_selection_brief
+    )
+    errors: list[str] = []
+    route_field = (
+        f"{location}.llm_route_planner_route_option_selected_route_option_id"
+    )
+    metadata_field = (
+        f"{location}.replan_metadata."
+        "llm_route_planner_route_option_selected_route_option_id"
+    )
+    if route_expected_id:
+        if not route_selected_id:
+            errors.append(
+                f"{route_field} missing for "
+                f"{location}.llm_route_planner_route_option_selection_brief"
+            )
+        elif route_selected_id != route_expected_id:
+            errors.append(
+                f"{route_field} must match "
+                f"{location}.llm_route_planner_route_option_selection_brief "
+                "selected route option"
+            )
+    if metadata_expected_id:
+        if not metadata_selected_id:
+            errors.append(
+                f"{metadata_field} missing for "
+                f"{location}.replan_metadata."
+                "llm_route_planner_route_option_selection_brief"
+            )
+        elif metadata_selected_id != metadata_expected_id:
+            errors.append(
+                f"{metadata_field} must match "
+                f"{location}.replan_metadata."
+                "llm_route_planner_route_option_selection_brief selected "
+                "route option"
+            )
+    if route_selected_id and metadata_selected_id and (
+        route_selected_id != metadata_selected_id
+    ):
+        errors.append(
+            f"{route_field} must match {metadata_field}"
+        )
+    return errors
+
+
+def _selected_route_option_id_from_route_option_brief(
+    brief: Mapping[str, Any],
+) -> str:
+    brief_dict = _dict_value(brief)
+    selected = str(
+        brief_dict.get("lower_bound_selected_route_option_id", "") or ""
+    ).strip()
+    if selected:
+        return selected
+    for option in _dict_list(brief_dict.get("candidate_route_options", [])):
+        if option.get("selected_by_lower_bound_policy") is True or option.get(
+            "selected"
+        ) is True:
+            option_id = str(option.get("route_option_id", "") or "").strip()
+            if option_id:
+                return option_id
+    for binding in _dict_list(brief_dict.get("required_response_bindings", [])):
+        field = str(binding.get("field", "") or "").strip()
+        if field.endswith("selected_route_option_id"):
+            value = str(binding.get("required_value", "") or "").strip()
+            if value:
+                return value
+    return ""
 
 
 _TARGET_CONTEXT_SUMMARY_FIELD_ALIASES = {

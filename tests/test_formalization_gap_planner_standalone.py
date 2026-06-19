@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from copy import deepcopy
 from pathlib import Path
 
 from ai_statistician.formalization_gap_planner_contract import (
@@ -24,6 +25,7 @@ from ai_statistician.formalization_gap_planner_library_coverage_map import (
 )
 from ai_statistician.formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
+    FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_ROUTE_OPTION_SELECTION_BRIEF_KIND,
     export_formalization_gap_planner_standalone_plan,
     standalone_input_json_schema,
     validate_standalone_input_payload,
@@ -327,6 +329,121 @@ def test_standalone_input_rejects_nested_kernel_proof_claims() -> None:
     )
     assert any(
         "routes[0].primitives[0].kernel_verified" in error for error in errors
+    )
+
+
+def test_standalone_input_validates_route_option_selected_route_option_id() -> None:
+    route_option_selection_brief = {
+        "brief_kind": (
+            FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_ROUTE_OPTION_SELECTION_BRIEF_KIND
+        ),
+        "route_id": "rank_route",
+        "target_prover_family": "lean4",
+        "library_snapshot_ref": "mathlib4:route-option-fixture",
+        "n_candidate_route_options": 1,
+        "n_candidate_route_option_primitives": 1,
+        "n_lower_bound_tied_route_options": 1,
+        "lower_bound_selected_route_option_id": "route_option:bridge_rank",
+        "lower_bound_selected_route_cost": 4,
+        "candidate_route_options": [
+            {
+                "route_option_id": "route_option:bridge_rank",
+                "minimum_route_base_cost": 4,
+                "selected_primitives": ["rank_uniformity"],
+                "n_selected_primitives": 1,
+                "selected_by_lower_bound_policy": True,
+                "lower_bound_tied_for_best": True,
+            }
+        ],
+    }
+    payload = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "target_prover_family": "lean4",
+        "library_snapshot_ref": "mathlib4:route-option-fixture",
+        "routes": [
+            {
+                "route_id": "rank_route",
+                "display_name": "rank_route",
+                "theorem_statement": "Rank uniformity follows from exchangeability.",
+                "llm_route_planner_route_option_selection_brief": (
+                    route_option_selection_brief
+                ),
+                "llm_route_planner_route_option_selected_route_option_id": (
+                    "route_option:bridge_rank"
+                ),
+                "replan_metadata": {
+                    "llm_route_planner_route_option_selection_brief": (
+                        route_option_selection_brief
+                    ),
+                    "llm_route_planner_route_option_selected_route_option_id": (
+                        "route_option:bridge_rank"
+                    ),
+                },
+                "primitives": [
+                    {
+                        "primitive": "rank_uniformity",
+                        "coverage_status": "bridge_needed",
+                    }
+                ],
+            }
+        ],
+    }
+
+    assert validate_standalone_input_payload(payload) == []
+
+    missing_route_id_payload = deepcopy(payload)
+    missing_route_id_payload["routes"][0].pop(
+        "llm_route_planner_route_option_selected_route_option_id"
+    )
+    assert (
+        "routes[0].llm_route_planner_route_option_selected_route_option_id "
+        "missing for routes[0].llm_route_planner_route_option_selection_brief"
+        in validate_standalone_input_payload(missing_route_id_payload)
+    )
+
+    mismatched_route_id_payload = deepcopy(payload)
+    mismatched_route_id_payload["routes"][0][
+        "llm_route_planner_route_option_selected_route_option_id"
+    ] = "route_option:wrong"
+    assert (
+        "routes[0].llm_route_planner_route_option_selected_route_option_id "
+        "must match routes[0].llm_route_planner_route_option_selection_brief "
+        "selected route option"
+        in validate_standalone_input_payload(mismatched_route_id_payload)
+    )
+
+    missing_metadata_id_payload = deepcopy(payload)
+    missing_metadata_id_payload["routes"][0]["replan_metadata"].pop(
+        "llm_route_planner_route_option_selected_route_option_id"
+    )
+    assert (
+        "routes[0].replan_metadata."
+        "llm_route_planner_route_option_selected_route_option_id missing for "
+        "routes[0].replan_metadata."
+        "llm_route_planner_route_option_selection_brief"
+        in validate_standalone_input_payload(missing_metadata_id_payload)
+    )
+
+    mismatched_metadata_id_payload = deepcopy(payload)
+    mismatched_metadata_id_payload["routes"][0]["replan_metadata"][
+        "llm_route_planner_route_option_selected_route_option_id"
+    ] = "route_option:wrong"
+    metadata_errors = validate_standalone_input_payload(
+        mismatched_metadata_id_payload
+    )
+    assert (
+        "routes[0].replan_metadata."
+        "llm_route_planner_route_option_selected_route_option_id must match "
+        "routes[0].replan_metadata."
+        "llm_route_planner_route_option_selection_brief selected route option"
+        in metadata_errors
+    )
+    assert (
+        "routes[0].llm_route_planner_route_option_selected_route_option_id "
+        "must match routes[0].replan_metadata."
+        "llm_route_planner_route_option_selected_route_option_id"
+        in metadata_errors
     )
 
 

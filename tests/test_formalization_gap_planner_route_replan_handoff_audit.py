@@ -241,6 +241,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "llm_route_planner_route_option_selection_brief": (
             route_option_selection_brief
         ),
+        "llm_route_planner_route_option_selected_route_option_id": (
+            "route_option:rank_bridge"
+        ),
         "llm_route_planner_primitive_evidence_matrix_witness": (
             primitive_evidence_matrix_witness
         ),
@@ -289,6 +292,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
             "llm_route_planner_route_planning_brief": route_planning_brief,
             "llm_route_planner_route_option_selection_brief": (
                 route_option_selection_brief
+            ),
+            "llm_route_planner_route_option_selected_route_option_id": (
+                "route_option:rank_bridge"
             ),
             "llm_route_planner_primitive_evidence_matrix_witness": (
                 primitive_evidence_matrix_witness
