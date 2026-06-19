@@ -29,6 +29,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
     export_formalization_gap_planner_llm_route_planner,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
@@ -4823,6 +4824,17 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         row["check_name"] == "llm_route_planner_manifest_schema_legacy_alias_contract"
         and "lean_realization_dag_nodes" in row["observed"]
         and "formal_realization_dag_nodes" in row["observed"]
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "llm_route_planner_route_planning_brief_schema_id"
+        and row["observed"] == LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "llm_route_planner_route_planning_brief_schema_shape"
         and row["ok"]
         for row in audit_payload["checks"]
     )
@@ -9640,6 +9652,17 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         row["check_name"] == "optional_llm_route_planner_legacy_response_alias_contract"
         and "lean_realization_dag_nodes" in row["observed"]
         and "formal_realization_dag_nodes" in row["observed"]
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "optional_llm_route_planner_route_planning_brief_schema_id"
+        and row["observed"] == LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "optional_llm_route_planner_route_planning_brief_request_match"
         and row["ok"]
         for row in audit_payload["checks"]
     )

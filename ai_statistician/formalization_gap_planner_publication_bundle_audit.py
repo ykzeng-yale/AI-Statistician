@@ -70,9 +70,11 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     MINIMAL_DELTA_COST_POLICY_ID,
     PROOF_EVIDENCE_STATUS as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS,
+    llm_route_planner_route_planning_brief_json_schema,
     validate_llm_route_planner_request,
     validate_llm_route_planner_manifest,
     validate_llm_route_planner_response_payload_validation_manifest,
@@ -223,6 +225,7 @@ REQUIRED_CORE_ARTIFACTS = (
     "resource_response_ledger_row_schema",
     "source_grounding_row_schema",
     "llm_route_planner_request_schema",
+    "llm_route_planner_route_planning_brief_schema",
     "llm_route_planner_response_schema",
     "llm_route_planner_response_payload_schema",
     "llm_route_planner_response_payload_lean_legacy_schema",
@@ -5483,6 +5486,11 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         / "contract"
         / "formalization_gap_planner_llm_route_planner_request.schema.json"
     )
+    llm_route_planner_route_planning_brief_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_llm_route_planner_route_planning_brief.schema.json"
+    )
     llm_route_planner_response_schema_path = (
         bundle_dir
         / "contract"
@@ -5682,6 +5690,9 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
     source_grounding_row_schema = _read_json_no_error(source_grounding_row_schema_path)
     llm_route_planner_request_schema = _read_json_no_error(
         llm_route_planner_request_schema_path
+    )
+    llm_route_planner_route_planning_brief_schema = _read_json_no_error(
+        llm_route_planner_route_planning_brief_schema_path
     )
     llm_route_planner_response_schema = _read_json_no_error(
         llm_route_planner_response_schema_path
@@ -6339,6 +6350,7 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
                 "publication_bundle_manifest_schema",
                 "target_intake_row_schema",
                 "llm_route_planner_request_schema",
+                "llm_route_planner_route_planning_brief_schema",
                 "llm_route_planner_response_schema",
                 "llm_route_planner_response_payload_schema",
                 "llm_route_planner_response_payload_lean_legacy_schema",
@@ -6940,6 +6952,29 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             str(llm_route_planner_request_schema.get("$id", "")),
             llm_route_planner_request_schema.get("$id")
             == LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+        ),
+        _check(
+            "llm_route_planner_route_planning_brief_schema_file",
+            "contract",
+            "LLM route-planner route-planning brief schema exists",
+            str(llm_route_planner_route_planning_brief_schema_path.exists()),
+            llm_route_planner_route_planning_brief_schema_path.exists(),
+        ),
+        _check(
+            "llm_route_planner_route_planning_brief_schema_id",
+            "contract",
+            LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
+            str(llm_route_planner_route_planning_brief_schema.get("$id", "")),
+            llm_route_planner_route_planning_brief_schema.get("$id")
+            == LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
+        ),
+        _check(
+            "llm_route_planner_route_planning_brief_schema_shape",
+            "contract",
+            "route-planning brief schema matches canonical builder",
+            str(llm_route_planner_route_planning_brief_schema.get("$id", "")),
+            llm_route_planner_route_planning_brief_schema
+            == llm_route_planner_route_planning_brief_json_schema(),
         ),
         _check(
             "llm_route_planner_response_schema_file",
@@ -8758,6 +8793,7 @@ def _reproduction_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublic
                 "contract/formalization_gap_planner_proof_state_triage_row.schema.json",
                 "contract/formalization_gap_planner_ablation_study_row.schema.json",
                 "contract/formalization_gap_planner_route_alignment_edge.schema.json",
+                "contract/formalization_gap_planner_llm_route_planner_route_planning_brief.schema.json",
                 "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json",
                 "contract/formalization_gap_planner_route_adoption_blocker_taxonomy_manifest.schema.json",
                 "contract/formalization_gap_planner_route_adoption_blocker_taxonomy.json",
@@ -9643,6 +9679,10 @@ def _llm_route_planner_optional_checks(
         artifact_dir
         / "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl"
     )
+    route_planning_briefs_jsonl_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl"
+    )
     rows_jsonl_path = artifact_dir / "formalization_gap_planner_llm_route_planner.jsonl"
     request_schema_path = (
         artifact_dir / "formalization_gap_planner_llm_route_planner_request.schema.json"
@@ -9650,6 +9690,10 @@ def _llm_route_planner_optional_checks(
     library_alignment_summary_schema_path = (
         artifact_dir
         / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
+    )
+    route_planning_brief_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_route_planning_brief.schema.json"
     )
     response_schema_path = (
         artifact_dir / "formalization_gap_planner_llm_route_planner_response.schema.json"
@@ -9683,6 +9727,9 @@ def _llm_route_planner_optional_checks(
     library_alignment_summary_schema = _read_json_no_error(
         library_alignment_summary_schema_path
     )
+    route_planning_brief_schema = _read_json_no_error(
+        route_planning_brief_schema_path
+    )
     response_schema = _read_json_no_error(response_schema_path)
     response_payload_schema = _read_json_no_error(response_payload_schema_path)
     response_payload_validation_manifest_schema = _read_json_no_error(
@@ -9700,11 +9747,19 @@ def _llm_route_planner_optional_checks(
     library_alignment_summary_rows, library_alignment_summary_errors = (
         _read_jsonl_dict_rows_no_error(library_alignment_summaries_jsonl_path)
     )
+    route_planning_brief_rows, route_planning_brief_errors = (
+        _read_jsonl_dict_rows_no_error(route_planning_briefs_jsonl_path)
+    )
     rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
     request_library_alignment_summaries = [
         _dict_value(_dict_value(request, "context_packet"), "library_alignment_summary")
         for request in requests
         if _dict_value(_dict_value(request, "context_packet"), "library_alignment_summary")
+    ]
+    request_route_planning_briefs = [
+        _dict_value(_dict_value(request, "context_packet"), "route_planning_brief")
+        for request in requests
+        if _dict_value(_dict_value(request, "context_packet"), "route_planning_brief")
     ]
     seed_errors = validate_standalone_input_payload(seed_payload)
     seed_route_selection_contract_errors = (
@@ -9798,6 +9853,29 @@ def _llm_route_planner_optional_checks(
             str(library_alignment_summary_schema.get("$id", "")),
             library_alignment_summary_schema.get("$id")
             == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
+        ),
+        _check(
+            f"{check_prefix}_route_planning_brief_schema_file",
+            "optional_artifacts",
+            "LLM route-planner route-planning brief schema exists",
+            str(route_planning_brief_schema_path.exists()),
+            route_planning_brief_schema_path.exists(),
+        ),
+        _check(
+            f"{check_prefix}_route_planning_brief_schema_id",
+            "optional_artifacts",
+            LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
+            str(route_planning_brief_schema.get("$id", "")),
+            route_planning_brief_schema.get("$id")
+            == LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
+        ),
+        _check(
+            f"{check_prefix}_route_planning_brief_schema_shape",
+            "optional_artifacts",
+            "route-planning brief schema matches canonical builder",
+            str(route_planning_brief_schema.get("$id", "")),
+            route_planning_brief_schema
+            == llm_route_planner_route_planning_brief_json_schema(),
         ),
         _check(
             f"{check_prefix}_response_schema_file",
@@ -9929,6 +10007,18 @@ def _llm_route_planner_optional_checks(
             errors=library_alignment_summary_errors,
         ),
         _check(
+            f"{check_prefix}_route_planning_briefs_parse",
+            "optional_artifacts",
+            "LLM route-planner route-planning briefs JSONL parses into object rows",
+            (
+                "; ".join(route_planning_brief_errors)
+                if route_planning_brief_errors
+                else f"rows={len(route_planning_brief_rows)}"
+            ),
+            not route_planning_brief_errors,
+            errors=route_planning_brief_errors,
+        ),
+        _check(
             f"{check_prefix}_rows_parse",
             "optional_artifacts",
             "LLM route-planner rows JSONL parses into object rows",
@@ -9965,6 +10055,27 @@ def _llm_route_planner_optional_checks(
                 f"requests={len(request_library_alignment_summaries)}"
             ),
             library_alignment_summary_rows == request_library_alignment_summaries,
+        ),
+        _check(
+            f"{check_prefix}_route_planning_brief_count",
+            "optional_artifacts",
+            "LLM route-planner route-planning briefs match manifest count",
+            (
+                f"jsonl={len(route_planning_brief_rows)} "
+                f"manifest={manifest.get('n_route_planning_briefs', 0)}"
+            ),
+            len(route_planning_brief_rows)
+            == int(manifest.get("n_route_planning_briefs", 0) or 0),
+        ),
+        _check(
+            f"{check_prefix}_route_planning_brief_request_match",
+            "optional_artifacts",
+            "LLM route-planner route-planning briefs match request packets",
+            (
+                f"jsonl={len(route_planning_brief_rows)} "
+                f"requests={len(request_route_planning_briefs)}"
+            ),
+            route_planning_brief_rows == request_route_planning_briefs,
         ),
         _check(
             f"{check_prefix}_library_alignment_route_option_aggregates",

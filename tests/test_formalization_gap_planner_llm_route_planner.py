@@ -19,6 +19,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     PROOF_EVIDENCE_STATUS,
     PROOF_EVIDENCE_BOUNDARY,
@@ -43,6 +44,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     llm_route_planner_library_alignment_summary_json_schema,
     llm_route_planner_manifest_json_schema,
     llm_route_planner_model_tier_decision_ledger_json_schema,
+    llm_route_planner_route_planning_brief_json_schema,
     llm_route_planner_response_payload_schema,
     llm_route_planner_row_json_schema,
     route_adoption_blocker_taxonomy_json_schema,
@@ -2151,13 +2153,33 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["request_schema"]["$defs"]["library_alignment_summary"][
         "$id"
     ] == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
+    route_planning_brief_schema = llm_route_planner_route_planning_brief_json_schema()
+    assert (
+        route_planning_brief_schema["$id"]
+        == LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID
+    )
+    assert payload["request_schema"]["$defs"]["route_planning_brief"][
+        "$id"
+    ] == LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID
     assert "library_alignment_summary" in payload["request_schema"]["properties"][
+        "context_packet"
+    ]["required"]
+    assert "route_planning_brief" in payload["request_schema"]["properties"][
         "context_packet"
     ]["required"]
     assert (
         out_dir
         / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
     ).exists()
+    route_planning_brief_schema_path = (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_route_planning_brief.schema.json"
+    )
+    assert route_planning_brief_schema_path.exists()
+    assert (
+        json.loads(route_planning_brief_schema_path.read_text(encoding="utf-8"))
+        == route_planning_brief_schema
+    )
     library_alignment_summary_rows = [
         json.loads(line)
         for line in (
@@ -2169,6 +2191,18 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         if line.strip()
     ]
     assert len(library_alignment_summary_rows) == 1
+    route_planning_brief_rows = [
+        json.loads(line)
+        for line in (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl"
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert tuple(route_planning_brief_rows) == payload["route_planning_briefs"]
+    assert payload["n_route_planning_briefs"] == 1
     request = payload["request_packets"][0]
     ledger_schema = llm_route_planner_model_tier_decision_ledger_json_schema()
     assert (
@@ -9634,6 +9668,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert manifest_schema["properties"]["row_schema"]["properties"]["$id"][
         "const"
     ] == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID
+    assert manifest_schema["properties"]["route_planning_brief_schema"][
+        "properties"
+    ]["$id"]["const"] == LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID
     assert manifest_schema["properties"]["model_tier_decision_ledger_schema"][
         "properties"
     ]["$id"]["const"] == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID
@@ -9729,6 +9766,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "n_rows_with_provider_usage" in manifest_schema["required"]
     assert "total_provider_input_tokens" in manifest_schema["required"]
     assert "total_provider_output_tokens" in manifest_schema["required"]
+    assert "route_planning_brief_schema" in manifest_schema["required"]
+    assert "route_planning_briefs" in manifest_schema["required"]
+    assert "n_route_planning_briefs" in manifest_schema["required"]
     execution_mode_fields = (
         "provider_execution_mode",
         "response_json_supplied",
@@ -9964,6 +10004,36 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "total_provider_input_tokens must match provider_usage_summary"
         in validate_llm_route_planner_manifest(
             drifted_provider_usage_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_route_planning_brief_schema_manifest = deepcopy(payload)
+    drifted_route_planning_brief_schema_manifest["route_planning_brief_schema"][
+        "$id"
+    ] = "urn:wrong"
+    assert (
+        "route_planning_brief_schema.$id must equal "
+        + LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID
+        in validate_llm_route_planner_manifest(
+            drifted_route_planning_brief_schema_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_route_planning_brief_manifest = deepcopy(payload)
+    drifted_route_planning_brief_manifest["route_planning_briefs"] = []
+    assert (
+        "route_planning_briefs must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_route_planning_brief_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_route_planning_brief_count_manifest = deepcopy(payload)
+    drifted_route_planning_brief_count_manifest["n_route_planning_briefs"] = 0
+    assert (
+        "n_route_planning_briefs must match route_planning_briefs"
+        in validate_llm_route_planner_manifest(
+            drifted_route_planning_brief_count_manifest,
             manifest_schema,
         )
     )

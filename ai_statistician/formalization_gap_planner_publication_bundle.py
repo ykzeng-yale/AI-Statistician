@@ -65,6 +65,7 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
     PROVIDER_EXECUTION_MODES,
     llm_route_planner_library_alignment_summary_json_schema,
@@ -73,6 +74,7 @@ from .formalization_gap_planner_llm_route_planner import (
     llm_route_planner_request_json_schema,
     llm_route_planner_response_payload_validation_manifest_json_schema,
     llm_route_planner_response_payload_validation_row_json_schema,
+    llm_route_planner_route_planning_brief_json_schema,
     llm_route_planner_response_payload_schema,
     llm_route_planner_response_json_schema,
     llm_route_planner_row_json_schema,
@@ -203,10 +205,12 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_manifest.schema.json",
         "formalization_gap_planner_llm_route_planner_requests.jsonl",
         "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl",
+        "formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl",
         "formalization_gap_planner_llm_route_planner.jsonl",
         "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl",
         "formalization_gap_planner_llm_route_planner_request.schema.json",
         "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json",
+        "formalization_gap_planner_llm_route_planner_route_planning_brief.schema.json",
         "formalization_gap_planner_llm_route_planner_response.schema.json",
         "formalization_gap_planner_llm_route_planner_response_payload.schema.json",
         "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json",
@@ -223,10 +227,12 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_manifest.schema.json",
         "formalization_gap_planner_llm_route_planner_requests.jsonl",
         "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl",
+        "formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl",
         "formalization_gap_planner_llm_route_planner.jsonl",
         "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl",
         "formalization_gap_planner_llm_route_planner_request.schema.json",
         "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json",
+        "formalization_gap_planner_llm_route_planner_route_planning_brief.schema.json",
         "formalization_gap_planner_llm_route_planner_response.schema.json",
         "formalization_gap_planner_llm_route_planner_response_payload.schema.json",
         "formalization_gap_planner_llm_route_planner_response_payload_validation_manifest.schema.json",
@@ -530,6 +536,9 @@ def export_formalization_gap_planner_publication_bundle(
     llm_route_planner_library_alignment_summary_schema = (
         llm_route_planner_library_alignment_summary_json_schema()
     )
+    llm_route_planner_route_planning_brief_schema = (
+        llm_route_planner_route_planning_brief_json_schema()
+    )
     llm_route_planner_response_schema = llm_route_planner_response_json_schema()
     llm_route_planner_response_payload_schema_payload = (
         llm_route_planner_response_payload_schema()
@@ -660,6 +669,10 @@ def export_formalization_gap_planner_publication_bundle(
     llm_route_planner_library_alignment_summary_schema_path = (
         contract_dir
         / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
+    )
+    llm_route_planner_route_planning_brief_schema_path = (
+        contract_dir
+        / "formalization_gap_planner_llm_route_planner_route_planning_brief.schema.json"
     )
     llm_route_planner_response_schema_path = (
         contract_dir
@@ -870,6 +883,10 @@ def export_formalization_gap_planner_publication_bundle(
     )
     llm_route_planner_library_alignment_summary_schema_path.write_text(
         json.dumps(llm_route_planner_library_alignment_summary_schema, indent=2),
+        encoding="utf-8",
+    )
+    llm_route_planner_route_planning_brief_schema_path.write_text(
+        json.dumps(llm_route_planner_route_planning_brief_schema, indent=2),
         encoding="utf-8",
     )
     llm_route_planner_response_schema_path.write_text(
@@ -1433,6 +1450,13 @@ def export_formalization_gap_planner_publication_bundle(
             "required": True,
             "ok": llm_route_planner_library_alignment_summary_schema.get("$id")
             == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
+        },
+        {
+            "artifact_name": "llm_route_planner_route_planning_brief_schema",
+            "path": str(llm_route_planner_route_planning_brief_schema_path),
+            "required": True,
+            "ok": llm_route_planner_route_planning_brief_schema.get("$id")
+            == LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
         },
         {
             "artifact_name": "llm_route_planner_response_schema",
@@ -3767,6 +3791,9 @@ def _contract_payload(library_snapshot_ref: str) -> dict[str, object]:
         "portable_plan_audit_row_contract": portable_plan_audit_row_json_schema(),
         "library_coverage_map_row_contract": library_coverage_map_row_json_schema(),
         "llm_route_planner_request_contract": llm_route_planner_request_json_schema(),
+        "llm_route_planner_route_planning_brief_contract": (
+            llm_route_planner_route_planning_brief_json_schema()
+        ),
         "llm_route_planner_response_contract": llm_route_planner_response_json_schema(),
         "llm_route_planner_response_payload_contract": (
             llm_route_planner_response_payload_schema()
@@ -4623,6 +4650,7 @@ def _reproduction_payload(
         "contract/formalization_gap_planner_target_intake_row.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_request.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json",
+        "contract/formalization_gap_planner_llm_route_planner_route_planning_brief.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_response.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_response_payload.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_response_payload_lean_legacy.schema.json",

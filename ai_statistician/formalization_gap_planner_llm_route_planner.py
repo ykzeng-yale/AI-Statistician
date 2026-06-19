@@ -104,6 +104,10 @@ LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-library-alignment-summary:1"
 )
+LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-llm-route-planner-route-planning-brief:1"
+)
 LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-manifest:1"
@@ -1108,6 +1112,10 @@ def export_formalization_gap_planner_llm_route_planner(
     ]
     library_alignment_summaries = tuple(
         _request_library_alignment_summary(packet) for packet in request_packets
+    )
+    route_planning_briefs = tuple(
+        _dict_value(_dict_value(packet, "context_packet"), "route_planning_brief")
+        for packet in request_packets
     )
     library_alignment_route_option_rows = tuple(
         row
@@ -3310,10 +3318,15 @@ def export_formalization_gap_planner_llm_route_planner(
         "response_payload_schema": response_payload_schema,
         "response_schema": response_schema,
         "row_schema": row_schema,
+        "route_planning_brief_schema": (
+            llm_route_planner_route_planning_brief_json_schema()
+        ),
         "model_tier_decision_ledger_schema": (
             llm_route_planner_model_tier_decision_ledger_json_schema()
         ),
         "request_packets": request_packets,
+        "route_planning_briefs": route_planning_briefs,
+        "n_route_planning_briefs": sum(1 for brief in route_planning_briefs if brief),
         "rows": row_dicts,
         "standalone_seed": standalone_seed,
         "standalone_replay_gate": standalone_replay_gate,
@@ -3788,6 +3801,9 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
     library_alignment_summary_schema = (
         llm_route_planner_library_alignment_summary_json_schema()
     )
+    route_planning_brief_schema = (
+        llm_route_planner_route_planning_brief_json_schema()
+    )
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
@@ -3833,10 +3849,13 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
             "target_route": {"type": "object"},
             "context_packet": {
                 "type": "object",
-                "required": ["library_alignment_summary"],
+                "required": ["library_alignment_summary", "route_planning_brief"],
                 "properties": {
                     "library_alignment_summary": {
                         "$ref": "#/$defs/library_alignment_summary"
+                    },
+                    "route_planning_brief": {
+                        "$ref": "#/$defs/route_planning_brief"
                     },
                     "route_option_selection_brief": {"type": "object"},
                     "route_adoption_preconditions": {"type": "object"},
@@ -3856,6 +3875,88 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
         },
         "$defs": {
             "library_alignment_summary": library_alignment_summary_schema,
+            "route_planning_brief": route_planning_brief_schema,
+        },
+    }
+
+
+def llm_route_planner_route_planning_brief_json_schema() -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    object_array = {"type": "array", "items": {"type": "object"}}
+    nonnegative_integer = {"type": "integer", "minimum": 0}
+    nonnegative_number = {"type": "number", "minimum": 0}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
+        "title": "Formalization Gap Planner LLM Route Planner Route Planning Brief",
+        "description": (
+            "Reusable, source-grounded route-synthesis brief supplied to the "
+            "LLM route planner. It is planning input, not theorem proof evidence."
+        ),
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "brief_kind",
+            "route_id",
+            "display_name",
+            "target_prover_family",
+            "library_snapshot_ref",
+            "target_context",
+            "evidence_summary",
+            "primitive_evidence_matrix",
+            "planner_focus",
+            "evidence_gaps",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ],
+        "properties": {
+            "brief_kind": {"type": "string", "const": ROUTE_PLANNING_BRIEF_KIND},
+            "route_id": {"type": "string", "minLength": 1},
+            "display_name": {"type": "string", "minLength": 1},
+            "target_prover_family": {"type": "string", "minLength": 1},
+            "library_snapshot_ref": {"type": "string"},
+            "target_context": {
+                "type": "object",
+                "required": ["context_packet_kind", "route_id", "target_prover_family"],
+                "properties": {
+                    "context_packet_kind": {
+                        "type": "string",
+                        "const": TARGET_THEOREM_CONTEXT_PACKET_KIND,
+                    },
+                    "route_id": {"type": "string", "minLength": 1},
+                    "target_prover_family": {"type": "string", "minLength": 1},
+                    "theorem_statement": {"type": "string"},
+                    "primitive_candidates": string_array,
+                    "proof_source_refs": string_array,
+                },
+            },
+            "evidence_summary": {
+                "type": "object",
+                "properties": {
+                    "source_ref_count": nonnegative_integer,
+                    "source_snippet_count": nonnegative_integer,
+                    "formal_declaration_row_count": nonnegative_integer,
+                    "primitive_evidence_row_count": nonnegative_integer,
+                    "primitive_source_backed_count": nonnegative_integer,
+                    "primitive_formal_supported_count": nonnegative_integer,
+                    "primitive_needing_source_search_count": nonnegative_integer,
+                    "primitive_needing_formal_delta_count": nonnegative_integer,
+                },
+            },
+            "primitive_evidence_matrix": object_array,
+            "planner_focus": object_array,
+            "evidence_gaps": object_array,
+            "minimal_delta_cost_hints": {"type": "object"},
+            "route_option_selection_brief": {"type": "object"},
+            "lower_bound_selected_route_cost": nonnegative_number,
+            "proof_evidence_status": {
+                "type": "string",
+                "const": PROOF_EVIDENCE_STATUS,
+            },
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
         },
     }
 
@@ -4349,8 +4450,11 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "response_payload_schema",
             "response_schema",
             "row_schema",
+            "route_planning_brief_schema",
             "model_tier_decision_ledger_schema",
             "request_packets",
+            "route_planning_briefs",
+            "n_route_planning_briefs",
             "rows",
             "standalone_seed",
             "standalone_replay_gate",
@@ -4802,6 +4906,15 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 "required": ["$id"],
                 "properties": {"$id": {"const": LLM_ROUTE_PLANNER_ROW_SCHEMA_ID}},
             },
+            "route_planning_brief_schema": {
+                "type": "object",
+                "required": ["$id"],
+                "properties": {
+                    "$id": {
+                        "const": LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID
+                    }
+                },
+            },
             "model_tier_decision_ledger_schema": {
                 "type": "object",
                 "required": ["$id"],
@@ -4814,6 +4927,8 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 },
             },
             "request_packets": object_array,
+            "route_planning_briefs": object_array,
+            "n_route_planning_briefs": nonnegative_integer,
             "rows": object_array,
             "standalone_seed": {"type": "object"},
             "standalone_replay_gate": {
@@ -6468,6 +6583,20 @@ def validate_llm_route_planner_manifest(
     for field_name, expected_value in provider_usage_count_checks:
         if int(manifest.get(field_name, 0) or 0) != int(expected_value or 0):
             errors.append(f"{field_name} must match provider_usage_summary")
+    expected_route_planning_briefs = tuple(
+        _dict_value(_dict_value(packet, "context_packet"), "route_planning_brief")
+        for packet in request_packets
+        if _dict_value(_dict_value(packet, "context_packet"), "route_planning_brief")
+    )
+    observed_route_planning_briefs = _dict_tuple(
+        manifest.get("route_planning_briefs", [])
+    )
+    if observed_route_planning_briefs != expected_route_planning_briefs:
+        errors.append("route_planning_briefs must match request_packets")
+    if int(manifest.get("n_route_planning_briefs", 0) or 0) != len(
+        expected_route_planning_briefs
+    ):
+        errors.append("n_route_planning_briefs must match route_planning_briefs")
     expected_standalone_replay_gate = _standalone_replay_gate(
         manifest_rows,
         _dict_value(manifest, "standalone_seed"),
@@ -6516,6 +6645,9 @@ def validate_llm_route_planner_manifest(
         "response_payload_schema": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
         "response_schema": LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
         "row_schema": LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+        "route_planning_brief_schema": (
+            LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID
+        ),
         "model_tier_decision_ledger_schema": (
             LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID
         ),
@@ -33519,6 +33651,18 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
         + ("\n" if library_alignment_summaries else ""),
         encoding="utf-8",
     )
+    route_planning_briefs = [
+        row
+        for row in payload.get("route_planning_briefs", [])
+        if isinstance(row, dict)
+    ]
+    (
+        out_dir / "formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl"
+    ).write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in route_planning_briefs)
+        + ("\n" if route_planning_briefs else ""),
+        encoding="utf-8",
+    )
     (out_dir / "formalization_gap_planner_llm_route_planner.jsonl").write_text(
         "\n".join(
             json.dumps(row, sort_keys=True)
@@ -33549,6 +33693,13 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
         / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
     ).write_text(
         json.dumps(llm_route_planner_library_alignment_summary_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_route_planning_brief.schema.json"
+    ).write_text(
+        json.dumps(llm_route_planner_route_planning_brief_json_schema(), indent=2),
         encoding="utf-8",
     )
     (out_dir / "formalization_gap_planner_llm_route_planner_response.schema.json").write_text(
