@@ -34,13 +34,12 @@ from .formalization_gap_planner_target_intake import (
 )
 from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
-    AnthropicGeneratorBackend,
     GeneratorBackend,
     GeneratorRequest,
-    OpenAIResponsesGeneratorBackend,
     StaticJSONGeneratorBackend,
     PROHIBITED_AGENT_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
+    build_live_generator_backend,
     claude_model_tier_mismatch,
     default_generator_model,
 )
@@ -13585,15 +13584,13 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
 
 
 def _provider_backend(provider_name: str) -> GeneratorBackend:
-    provider = provider_name.lower()
-    if provider == "anthropic":
-        return AnthropicGeneratorBackend()
-    if provider == "openai":
-        return OpenAIResponsesGeneratorBackend()
-    raise ValueError(
-        "invoke_provider requires provider_name in {anthropic, openai} "
-        "or a supplied generator_backend/static_response_json"
-    )
+    try:
+        return build_live_generator_backend(provider_name)
+    except ValueError as exc:
+        raise ValueError(
+            "invoke_provider requires provider_name in {anthropic, openai} "
+            "or a supplied generator_backend/static_response_json"
+        ) from exc
 
 
 def _provider_execution_mode(

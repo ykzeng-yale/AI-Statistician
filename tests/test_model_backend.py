@@ -23,6 +23,7 @@ from ai_statistician.model_backend import (
     LiveGeneratorTimeoutError,
     OpenAIResponsesGeneratorBackend,
     StaticJSONGeneratorBackend,
+    build_live_generator_backend,
     claude_outside_cost_tier_family_for_model,
     claude_model_freshness_warnings,
     claude_model_tier_for_model,
@@ -53,6 +54,29 @@ def test_static_json_generator_backend_returns_text_without_tools() -> None:
     assert '"ok": true' in response.text
     assert response.metadata["generator_only"] is True
     assert response.metadata["tools_available"] is False
+
+
+def test_build_live_generator_backend_selects_generator_only_clients() -> None:
+    anthropic_backend = build_live_generator_backend("anthropic", timeout_s=7.0)
+    openai_backend = build_live_generator_backend("openai", timeout_s=9.0)
+
+    assert isinstance(anthropic_backend, AnthropicGeneratorBackend)
+    assert anthropic_backend.timeout_s == 7.0
+    assert isinstance(openai_backend, OpenAIResponsesGeneratorBackend)
+    assert openai_backend.timeout_s == 9.0
+
+
+def test_build_live_generator_backend_rejects_static_without_replay() -> None:
+    with pytest.raises(ValueError, match="explicit replay backend"):
+        build_live_generator_backend("static")
+
+
+@pytest.mark.parametrize("provider_name", PROHIBITED_AGENT_GENERATOR_PROVIDERS)
+def test_build_live_generator_backend_rejects_agent_style_providers(
+    provider_name: str,
+) -> None:
+    with pytest.raises(ValueError, match="agent-style provider"):
+        build_live_generator_backend(provider_name)
 
 
 def test_anthropic_generator_backend_calls_messages_api_without_tools(

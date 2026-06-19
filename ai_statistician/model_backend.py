@@ -593,6 +593,29 @@ class OpenAIResponsesGeneratorBackend:
         )
 
 
+def build_live_generator_backend(
+    provider_name: str,
+    *,
+    timeout_s: float | None = None,
+) -> GeneratorBackend:
+    """Build a live generator-only backend under the shared provider policy."""
+
+    provider = str(provider_name or DEFAULT_LIVE_GENERATOR_PROVIDER).strip().lower()
+    _raise_if_prohibited_generator_provider(provider)
+    if provider == "anthropic":
+        return AnthropicGeneratorBackend(timeout_s=timeout_s)
+    if provider == "openai":
+        return OpenAIResponsesGeneratorBackend(timeout_s=timeout_s)
+    if provider == "static":
+        raise ValueError(
+            "static generator provider requires an explicit replay backend"
+        )
+    raise ValueError(
+        f"unknown generator provider: {provider_name}; supported live "
+        "generator-only providers are anthropic and openai"
+    )
+
+
 def _call_with_generator_retries(call: Callable[[], Any]) -> tuple[Any, int]:
     max_retries = max(0, _env_int("AI_STATISTICIAN_LLM_MAX_RETRIES", default=4))
     backoff = max(0.0, _env_float("AI_STATISTICIAN_LLM_RETRY_BACKOFF_SECONDS", default=1.0))

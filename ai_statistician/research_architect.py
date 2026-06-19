@@ -12,9 +12,8 @@ from .model_backend import (
     AnthropicGeneratorBackend,
     GeneratorBackend,
     GeneratorRequest,
-    OpenAIResponsesGeneratorBackend,
-    PROHIBITED_AGENT_GENERATOR_PROVIDERS,
     StaticJSONGeneratorBackend,
+    build_live_generator_backend,
     resolve_generator_model,
 )
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
@@ -174,21 +173,11 @@ class LLMTheoryDeveloperAgent:
 
 def _default_theory_developer_provider(provider_name: str) -> GeneratorBackend:
     provider_key = str(provider_name or "anthropic").strip().lower()
-    if provider_key == "anthropic":
-        return AnthropicArchitectLLMProvider()
-    if provider_key == "openai":
-        return OpenAIResponsesGeneratorBackend()
     if provider_key == "static":
         raise ValueError(
             "static TheoryDeveloper provider requires an explicit replay provider"
         )
-    if provider_key in PROHIBITED_AGENT_GENERATOR_PROVIDERS:
-        raise ValueError(
-            f"{provider_name} is an agent-style provider; Codex/Claude Code/"
-            "Cursor/Gemini CLI-style agents are not accepted as pure LLM "
-            "generator backends. Use anthropic, openai, or static replay."
-        )
-    raise ValueError(f"unknown TheoryDeveloper provider: {provider_name}")
+    return build_live_generator_backend(provider_key)
 
 
 class ResearchArchitectAgent:
