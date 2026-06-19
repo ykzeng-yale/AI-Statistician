@@ -136,6 +136,19 @@ primitive alignment classes without reverse-engineering the full prompt packet.
 The same rows include `route_option_alignment`, which exposes candidate
 route-option primitive sets, minimum route base cost, and the aggregate
 bridge-or-harder count used by the minimal-delta planner.
+Each staged request also writes
+`formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl`.
+Those rows are the reusable, source-grounded route-synthesis briefs supplied to
+the LLM planner, validated by
+`formalization_gap_planner_llm_route_planner_route_planning_brief.schema.json`.
+They expose the target theorem context, evidence summary,
+`primitive_evidence_matrix`, prioritized planner focus, evidence gaps, route
+option hints, lower-bound route cost, and an explicit proof-evidence boundary.
+Publication bundles also publish the same contract at
+`contract/formalization_gap_planner_llm_route_planner_route_planning_brief.schema.json`,
+so external prover teams can consume the brief table directly without parsing
+the raw prompt packet. The brief is planner input and audit context; it is not
+theorem proof evidence.
 Each request packet also carries
 `context_packet.route_option_selection_brief`, a compact route-option
 comparison table derived from that alignment summary. It ranks candidate route
@@ -255,7 +268,13 @@ built, so tier-specific Claude overrides apply to direct worker construction as
 well as CLI-created agents. It records both canonical runtime API IDs and
 official Claude API aliases by tier; runtime calls stay pinned to the API IDs,
 so Haiku uses `claude-haiku-4-5-20251001` rather than relying on the shorter
-`claude-haiku-4-5` alias. LLM route-planner rows also reject provider-returned
+`claude-haiku-4-5` alias. The current pinned Claude cost-tier API IDs are
+`claude-haiku-4-5-20251001`, `claude-sonnet-4-6`, and
+`claude-opus-4-8`, checked against the Anthropic models overview on
+2026-06-19. Claude Fable/Mythos family models are tracked outside this
+Haiku/Sonnet/Opus cost-aware tier contract, and complete coding agents such as
+`codex`, `codex_exec`, and `claude_code` are prohibited as normal pure-LLM
+providers. LLM route-planner rows also reject provider-returned
 Anthropic model drift, so a
 Haiku-selected request cannot be accepted if the backend reports a Sonnet or
 Opus response model. Live generator backends surface both `requested_model` and
