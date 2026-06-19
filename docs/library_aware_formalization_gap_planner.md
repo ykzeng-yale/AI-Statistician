@@ -126,6 +126,11 @@ offline replay, and fake/static generator tests in publication artifacts.
 Publication bundle summaries lift the same execution mode and provider-request
 booleans for both the primary and feedback route planners, so public consumers
 can audit LLM provenance without opening the nested planner manifests.
+The reusable response-payload validator also separates schema validity from
+request-bound route adoption: when supplied a matching request context, it
+projects per-payload response-contract status, route-adoption status, remaining
+blockers, and `adoptable_for_standalone_replay` counts; schema-only validation
+never claims adoption readiness.
 Each staged request also writes
 `formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl`.
 Those rows are self-identifying with `schema_id`, `schema_version`, `route_id`,

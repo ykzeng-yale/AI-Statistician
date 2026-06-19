@@ -11840,6 +11840,13 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert payload["n_request_contexts_with_context_packet_inventory"] == 0
     assert payload["n_request_context_inventory_total_rows"] == 0
     assert payload["n_request_bound_payloads"] == 0
+    assert payload["n_request_bound_payloads_with_route_adoption_status"] == 0
+    assert payload["n_request_bound_payloads_route_adoption_ready"] == 0
+    assert payload["n_request_bound_payloads_route_adoption_pending_refinement"] == 0
+    assert payload["n_request_bound_payloads_route_adoption_rejected"] == 0
+    assert payload["n_request_bound_payloads_adoptable_for_standalone_replay"] == 0
+    assert payload["by_request_bound_payload_route_adoption_status"] == {}
+    assert payload["request_bound_payload_route_adoption_blocker_counts"] == {}
     assert payload["n_request_bound_payloads_with_context_packet_inventory"] == 0
     assert payload["n_request_bound_payload_context_inventory_total_rows"] == 0
     assert payload["n_request_bound_payloads_with_route_adoption_preconditions"] == 0
@@ -11902,6 +11909,10 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert row["request_context_agentic_proof_strategy_plan_present"] is False
     assert row["request_context_agentic_proof_strategy_plan_row_count"] == 0
     assert row["request_context_agentic_proof_strategy_plan_ready_count"] == 0
+    assert row["request_bound_response_contract_ok"] is False
+    assert row["request_bound_route_adoption_status"] == ""
+    assert row["request_bound_route_adoption_blockers"] == []
+    assert row["request_bound_adoptable_for_standalone_replay"] is False
     assert row["payload_formal_attempt_queue_present"] is True
     assert row["payload_formal_attempt_queue_item_count"] == 2
     assert row["n_formal_attempt_queue_errors"] == 0
@@ -11917,6 +11928,16 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert row_schema["properties"][
         "request_context_route_adoption_precondition_present"
     ]["type"] == "boolean"
+    assert (
+        row_schema["properties"]["request_bound_route_adoption_status"]["enum"]
+        == [
+            "",
+            "READY_FOR_STANDALONE_REPLAY",
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION",
+            "AWAITING_LLM_ROUTE_PLANNER_RESPONSE",
+            "REJECTED_LLM_ROUTE_PLAN",
+        ]
+    )
     assert (
         validate_llm_route_planner_response_payload_validation_row(
             row,
@@ -11947,6 +11968,28 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
             drifted_negative_row,
             row_schema,
         )
+    )
+    drifted_schema_only_adoption_row = deepcopy(row)
+    drifted_schema_only_adoption_row["request_bound_route_adoption_status"] = (
+        "READY_FOR_STANDALONE_REPLAY"
+    )
+    assert (
+        "request_bound_route_adoption_status must be empty without "
+        "request_bound context"
+    ) in validate_llm_route_planner_response_payload_validation_row(
+        drifted_schema_only_adoption_row,
+        row_schema,
+    )
+    drifted_adoption_manifest = deepcopy(payload)
+    drifted_adoption_manifest[
+        "n_request_bound_payloads_with_route_adoption_status"
+    ] = 1
+    assert (
+        "n_request_bound_payloads_with_route_adoption_status must match "
+        "request_bound rows with route adoption status"
+    ) in validate_llm_route_planner_response_payload_validation_manifest(
+        drifted_adoption_manifest,
+        manifest_schema,
     )
     drifted_queue_count_row = deepcopy(row)
     drifted_queue_count_row["payload_formal_attempt_queue_present"] = False
@@ -12088,6 +12131,86 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
             drifted_row_count_manifest,
             manifest_schema,
         )
+    )
+
+
+def test_response_payload_validator_marks_request_bound_ready_payload_adoptable() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_payload_validate_request_ready"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "responses.json"
+    request_context_json = root / "request_context.json"
+    validation_out_dir = root / "response_payload_validation"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    prompt_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="prompt_only",
+    )
+    request = prompt_payload["request_packets"][0]
+    request_context_json.write_text(
+        json.dumps({"request_packets": [request]}, indent=2),
+        encoding="utf-8",
+    )
+    response_payload = _llm_response_payload()
+    response_payload["search_requests"] = []
+    response_payload["planner_next_actions"] = []
+    response_payload["uncertainty_flags"] = []
+    response_payload["semantic_alignment_risks"] = []
+    response_json.write_text(
+        json.dumps(
+            {
+                "responses": [
+                    {
+                        "request_id": request["request_id"],
+                        "route_id": request["route_id"],
+                        "response_payload": response_payload,
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    validation_payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        validation_out_dir,
+        request_context_json=request_context_json,
+    )
+
+    assert validation_payload["all_ok"] is True
+    assert validation_payload["n_request_bound_payloads"] == 1
+    assert validation_payload["n_request_bound_payloads_with_route_adoption_status"] == 1
+    assert validation_payload["n_request_bound_payloads_route_adoption_ready"] == 1
+    assert (
+        validation_payload[
+            "n_request_bound_payloads_adoptable_for_standalone_replay"
+        ]
+        == 1
+    )
+    assert validation_payload["by_request_bound_payload_route_adoption_status"] == {
+        "READY_FOR_STANDALONE_REPLAY": 1
+    }
+    assert validation_payload[
+        "request_bound_payload_route_adoption_blocker_counts"
+    ] == {}
+    row = validation_payload["rows"][0]
+    assert row["request_bound_response_contract_ok"] is True
+    assert row["request_bound_route_adoption_status"] == (
+        "READY_FOR_STANDALONE_REPLAY"
+    )
+    assert row["request_bound_route_adoption_blockers"] == []
+    assert row["request_bound_adoptable_for_standalone_replay"] is True
+    assert (
+        validate_llm_route_planner_response_payload_validation_manifest(
+            validation_payload,
+            validation_payload["response_payload_validation_manifest_schema"],
+        )
+        == []
     )
 
 
@@ -18693,6 +18816,32 @@ def test_response_payload_validation_enforces_route_adoption_preconditions() -> 
         ]
         == preconditions["n_response_required_fields"] * 3
     )
+    assert validation_payload["n_request_bound_payloads_with_route_adoption_status"] == 3
+    assert validation_payload["n_request_bound_payloads_route_adoption_ready"] == 0
+    assert (
+        validation_payload[
+            "n_request_bound_payloads_route_adoption_pending_refinement"
+        ]
+        == 1
+    )
+    assert validation_payload["n_request_bound_payloads_route_adoption_rejected"] == 2
+    assert (
+        validation_payload[
+            "n_request_bound_payloads_adoptable_for_standalone_replay"
+        ]
+        == 0
+    )
+    assert validation_payload["by_request_bound_payload_route_adoption_status"] == {
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1,
+        "REJECTED_LLM_ROUTE_PLAN": 2,
+    }
+    blocker_counts = validation_payload[
+        "request_bound_payload_route_adoption_blocker_counts"
+    ]
+    assert blocker_counts["response_not_accepted"] == 2
+    assert blocker_counts["search_requests_pending_evidence"] == 1
+    assert blocker_counts["residual_interpretations_require_route_replay"] == 1
+    assert blocker_counts[ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING] == 1
     assert (
         validate_llm_route_planner_response_payload_validation_manifest(
             validation_payload,
@@ -18702,6 +18851,16 @@ def test_response_payload_validation_enforces_route_adoption_preconditions() -> 
     )
     valid_row, wrong_scope_row, silent_row = validation_payload["rows"]
     assert valid_row["ok"] is True
+    assert valid_row["request_bound_response_contract_ok"] is True
+    assert valid_row["request_bound_route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert set(valid_row["request_bound_route_adoption_blockers"]) >= {
+        "search_requests_pending_evidence",
+        "residual_interpretations_require_route_replay",
+        ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
+    }
+    assert valid_row["request_bound_adoptable_for_standalone_replay"] is False
     assert valid_row["n_request_context_errors"] == 0
     assert valid_row["request_context_route_adoption_precondition_present"] is True
     assert (
@@ -18721,6 +18880,14 @@ def test_response_payload_validation_enforces_route_adoption_preconditions() -> 
         == preconditions["n_response_required_fields"]
     )
     assert wrong_scope_row["ok"] is False
+    assert wrong_scope_row["request_bound_response_contract_ok"] is False
+    assert wrong_scope_row["request_bound_route_adoption_status"] == (
+        "REJECTED_LLM_ROUTE_PLAN"
+    )
+    assert wrong_scope_row["request_bound_route_adoption_blockers"] == [
+        "response_not_accepted"
+    ]
+    assert wrong_scope_row["request_bound_adoptable_for_standalone_replay"] is False
     assert wrong_scope_row["n_request_context_errors"] == 1
     assert any(
         "route_adoption_preconditions require search_requests or "
@@ -18729,6 +18896,14 @@ def test_response_payload_validation_enforces_route_adoption_preconditions() -> 
         for error in wrong_scope_row["errors"]
     )
     assert silent_row["ok"] is False
+    assert silent_row["request_bound_response_contract_ok"] is False
+    assert silent_row["request_bound_route_adoption_status"] == (
+        "REJECTED_LLM_ROUTE_PLAN"
+    )
+    assert silent_row["request_bound_route_adoption_blockers"] == [
+        "response_not_accepted"
+    ]
+    assert silent_row["request_bound_adoptable_for_standalone_replay"] is False
     assert silent_row["n_request_context_errors"] == 1
     assert any(
         "route_adoption_preconditions require at least one nonempty "
@@ -18853,11 +19028,55 @@ def test_response_payload_validation_enforces_formal_attempt_queue_precondition(
     assert validation_payload["n_payloads"] == 2
     assert validation_payload["n_valid_payloads"] == 1
     assert validation_payload["n_invalid_payloads"] == 1
+    assert validation_payload["n_request_bound_payloads_with_route_adoption_status"] == 2
+    assert validation_payload["n_request_bound_payloads_route_adoption_ready"] == 0
+    assert (
+        validation_payload[
+            "n_request_bound_payloads_route_adoption_pending_refinement"
+        ]
+        == 1
+    )
+    assert validation_payload["n_request_bound_payloads_route_adoption_rejected"] == 1
+    assert (
+        validation_payload[
+            "n_request_bound_payloads_adoptable_for_standalone_replay"
+        ]
+        == 0
+    )
+    assert validation_payload["by_request_bound_payload_route_adoption_status"] == {
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1,
+        "REJECTED_LLM_ROUTE_PLAN": 1,
+    }
+    assert validation_payload["request_bound_payload_route_adoption_blocker_counts"] == {
+        "feedback_loop_replan_required": 1,
+        "feedback_summary_actions_pending_resolution": 1,
+        "response_not_accepted": 1,
+    }
     valid_row, missing_queue_row = validation_payload["rows"]
     assert valid_row["ok"] is True
     assert valid_row["n_request_context_errors"] == 0
+    assert valid_row["request_bound_response_contract_ok"] is True
+    assert valid_row["request_bound_route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert valid_row["request_bound_route_adoption_blockers"] == [
+        "feedback_summary_actions_pending_resolution",
+        "feedback_loop_replan_required",
+    ]
+    assert valid_row["request_bound_adoptable_for_standalone_replay"] is False
     assert missing_queue_row["ok"] is False
     assert missing_queue_row["n_request_context_errors"] >= 1
+    assert missing_queue_row["request_bound_response_contract_ok"] is False
+    assert missing_queue_row["request_bound_route_adoption_status"] == (
+        "REJECTED_LLM_ROUTE_PLAN"
+    )
+    assert missing_queue_row["request_bound_route_adoption_blockers"] == [
+        "response_not_accepted"
+    ]
+    assert (
+        missing_queue_row["request_bound_adoptable_for_standalone_replay"]
+        is False
+    )
     assert any(
         "route_adoption_preconditions require at least one nonempty "
         "formal_attempt_queue row" in error

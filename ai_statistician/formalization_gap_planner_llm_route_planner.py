@@ -3588,6 +3588,64 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
             and payload_target_prover_key != request_context_target_prover_key
         )
         row_errors = sorted(set([*schema_errors, *request_context_errors]))
+        request_bound_response_contract_ok = False
+        request_bound_route_adoption_status = ""
+        request_bound_route_adoption_blockers: tuple[str, ...] = tuple()
+        if request_context_validation_mode == "request_bound":
+            if row_errors:
+                request_bound_route_adoption_status = ROUTE_ADOPTION_REJECTED_STATUS
+                request_bound_route_adoption_blockers = (
+                    ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED,
+                )
+            else:
+                request_bound_row = _row_for_request(
+                    request_context,
+                    request_errors=request_schema_errors_by_id.get(
+                        str(request_context.get("request_id", "")),
+                        [],
+                    ),
+                    response={
+                        "request_id": str(
+                            response.get("request_id")
+                            or request_context.get("request_id", "")
+                        ),
+                        "route_id": str(
+                            response.get("route_id")
+                            or request_context.get("route_id", "")
+                        ),
+                        "provider_name": str(
+                            response.get("provider_name")
+                            or request_context.get("provider_name", "")
+                        ),
+                        "model": str(
+                            response.get("model")
+                            or request_context.get("model", "")
+                        ),
+                        "response_payload": payload,
+                        "raw_response_text": "",
+                        "generator_metadata": {},
+                        "provider_failure": False,
+                        "kernel_verified": False,
+                        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+                        "repair_attempts": 0,
+                        "repair_error_history": tuple(),
+                        "generation_errors": tuple(),
+                    },
+                )
+                request_bound_response_contract_ok = (
+                    request_bound_row.response_contract_ok
+                )
+                request_bound_route_adoption_status = (
+                    request_bound_row.route_adoption_status
+                )
+                request_bound_route_adoption_blockers = (
+                    request_bound_row.route_adoption_blockers
+                )
+        request_bound_adoptable = _seed_selection_row_adoptable_for_standalone_replay(
+            response_contract_ok=request_bound_response_contract_ok,
+            route_adoption_status=request_bound_route_adoption_status,
+            route_adoption_blockers=request_bound_route_adoption_blockers,
+        )
         rows.append(
             {
                 "validation_id": (
@@ -3672,6 +3730,18 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
                 "request_context_agentic_proof_strategy_plan_ready_count": (
                     request_context_agentic_strategy_plan_ready_count
                 ),
+                "request_bound_response_contract_ok": (
+                    request_bound_response_contract_ok
+                ),
+                "request_bound_route_adoption_status": (
+                    request_bound_route_adoption_status
+                ),
+                "request_bound_route_adoption_blockers": list(
+                    request_bound_route_adoption_blockers
+                ),
+                "request_bound_adoptable_for_standalone_replay": (
+                    request_bound_adoptable
+                ),
                 "payload_formal_attempt_queue_present": bool(
                     payload_formal_attempt_queue
                 ),
@@ -3706,6 +3776,25 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
         for inventory in request_context_inventories
         if inventory
     )
+    request_bound_validation_rows = tuple(
+        row
+        for row in rows
+        if row["request_context_validation_mode"] == "request_bound"
+    )
+    request_bound_rows_with_route_adoption_status = tuple(
+        row
+        for row in request_bound_validation_rows
+        if str(row.get("request_bound_route_adoption_status", "")).strip()
+    )
+    by_request_bound_route_adoption_status = Counter(
+        str(row.get("request_bound_route_adoption_status", "") or "")
+        for row in request_bound_rows_with_route_adoption_status
+    )
+    request_bound_route_adoption_blocker_counts: Counter[str] = Counter()
+    for row in request_bound_validation_rows:
+        request_bound_route_adoption_blocker_counts.update(
+            _str_tuple(row.get("request_bound_route_adoption_blockers", []))
+        )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -3738,6 +3827,38 @@ def validate_formalization_gap_planner_llm_route_planner_response_payloads(
             1
             for row in rows
             if row["request_context_validation_mode"] == "request_bound"
+        ),
+        "n_request_bound_payloads_with_route_adoption_status": len(
+            request_bound_rows_with_route_adoption_status
+        ),
+        "n_request_bound_payloads_route_adoption_ready": (
+            by_request_bound_route_adoption_status.get(
+                ROUTE_ADOPTION_READY_STATUS,
+                0,
+            )
+        ),
+        "n_request_bound_payloads_route_adoption_pending_refinement": (
+            by_request_bound_route_adoption_status.get(
+                ROUTE_ADOPTION_PENDING_STATUS,
+                0,
+            )
+        ),
+        "n_request_bound_payloads_route_adoption_rejected": (
+            by_request_bound_route_adoption_status.get(
+                ROUTE_ADOPTION_REJECTED_STATUS,
+                0,
+            )
+        ),
+        "n_request_bound_payloads_adoptable_for_standalone_replay": sum(
+            1
+            for row in request_bound_validation_rows
+            if bool(row.get("request_bound_adoptable_for_standalone_replay"))
+        ),
+        "by_request_bound_payload_route_adoption_status": dict(
+            sorted(by_request_bound_route_adoption_status.items())
+        ),
+        "request_bound_payload_route_adoption_blocker_counts": dict(
+            sorted(request_bound_route_adoption_blocker_counts.items())
         ),
         "n_request_bound_payloads_with_context_packet_inventory": sum(
             1
@@ -7059,6 +7180,32 @@ def validate_llm_route_planner_response_payload_validation_manifest(
         if str(row.get("request_context_validation_mode", ""))
         == "request_bound"
     )
+    request_bound_rows_with_route_adoption_status = tuple(
+        row
+        for row in request_bound_rows
+        if str(row.get("request_bound_route_adoption_status", "") or "").strip()
+    )
+    by_request_bound_route_adoption_status = dict(
+        sorted(
+            Counter(
+                str(row.get("request_bound_route_adoption_status", "") or "")
+                for row in request_bound_rows_with_route_adoption_status
+            ).items()
+        )
+    )
+    request_bound_route_adoption_blocker_counts: Counter[str] = Counter()
+    for row in request_bound_rows:
+        request_bound_route_adoption_blocker_counts.update(
+            _str_tuple(row.get("request_bound_route_adoption_blockers", []))
+        )
+    request_bound_route_adoption_blocker_counts_dict = dict(
+        sorted(request_bound_route_adoption_blocker_counts.items())
+    )
+    request_bound_adoptable_rows = tuple(
+        row
+        for row in request_bound_rows
+        if bool(row.get("request_bound_adoptable_for_standalone_replay", False))
+    )
     request_bound_rows_with_inventory = tuple(
         row
         for row in request_bound_rows
@@ -7196,6 +7343,58 @@ def validate_llm_route_planner_response_payload_validation_manifest(
     ):
         errors.append(
             "n_request_bound_payloads must match request_bound validation rows"
+        )
+    if int(
+        manifest.get(
+            "n_request_bound_payloads_with_route_adoption_status",
+            0,
+        )
+        or 0
+    ) != len(request_bound_rows_with_route_adoption_status):
+        errors.append(
+            "n_request_bound_payloads_with_route_adoption_status must match "
+            "request_bound rows with route adoption status"
+        )
+    route_adoption_status_count_fields = {
+        "n_request_bound_payloads_route_adoption_ready": (
+            ROUTE_ADOPTION_READY_STATUS
+        ),
+        "n_request_bound_payloads_route_adoption_pending_refinement": (
+            ROUTE_ADOPTION_PENDING_STATUS
+        ),
+        "n_request_bound_payloads_route_adoption_rejected": (
+            ROUTE_ADOPTION_REJECTED_STATUS
+        ),
+    }
+    for field_name, status in route_adoption_status_count_fields.items():
+        if int(manifest.get(field_name, 0) or 0) != int(
+            by_request_bound_route_adoption_status.get(status, 0) or 0
+        ):
+            errors.append(f"{field_name} must match request_bound row statuses")
+    if int(
+        manifest.get(
+            "n_request_bound_payloads_adoptable_for_standalone_replay",
+            0,
+        )
+        or 0
+    ) != len(request_bound_adoptable_rows):
+        errors.append(
+            "n_request_bound_payloads_adoptable_for_standalone_replay must "
+            "match request_bound rows with adoptable replay status"
+        )
+    if manifest.get("by_request_bound_payload_route_adoption_status", {}) != (
+        by_request_bound_route_adoption_status
+    ):
+        errors.append(
+            "by_request_bound_payload_route_adoption_status must match "
+            "request_bound row statuses"
+        )
+    if manifest.get("request_bound_payload_route_adoption_blocker_counts", {}) != (
+        request_bound_route_adoption_blocker_counts_dict
+    ):
+        errors.append(
+            "request_bound_payload_route_adoption_blocker_counts must match "
+            "request_bound row blockers"
         )
     if int(
         manifest.get("n_request_bound_payloads_with_context_packet_inventory", 0)
@@ -7482,6 +7681,63 @@ def validate_llm_route_planner_response_payload_validation_row(
             "payload_formal_attempt_queue_present must be true when "
             "payload_formal_attempt_queue_item_count is nonzero"
         )
+    request_context_mode = str(
+        row.get("request_context_validation_mode", "") or ""
+    ).strip()
+    route_adoption_status = str(
+        row.get("request_bound_route_adoption_status", "") or ""
+    ).strip()
+    route_adoption_blockers = _str_tuple(
+        row.get("request_bound_route_adoption_blockers", [])
+    )
+    request_bound_response_contract_ok = bool(
+        row.get("request_bound_response_contract_ok", False)
+    )
+    request_bound_adoptable = bool(
+        row.get("request_bound_adoptable_for_standalone_replay", False)
+    )
+    if request_context_mode != "request_bound":
+        if route_adoption_status:
+            errors.append(
+                "request_bound_route_adoption_status must be empty without "
+                "request_bound context"
+            )
+        if route_adoption_blockers:
+            errors.append(
+                "request_bound_route_adoption_blockers must be empty without "
+                "request_bound context"
+            )
+        if request_bound_response_contract_ok:
+            errors.append(
+                "request_bound_response_contract_ok must be false without "
+                "request_bound context"
+            )
+        if request_bound_adoptable:
+            errors.append(
+                "request_bound_adoptable_for_standalone_replay must be false "
+                "without request_bound context"
+            )
+    else:
+        if route_adoption_status not in ROUTE_ADOPTION_STATUSES:
+            errors.append(
+                "request_bound_route_adoption_status must be a route adoption status"
+            )
+        if route_adoption_status == ROUTE_ADOPTION_READY_STATUS and (
+            route_adoption_blockers
+        ):
+            errors.append(
+                "READY request_bound_route_adoption_status must not carry blockers"
+            )
+        expected_adoptable = _seed_selection_row_adoptable_for_standalone_replay(
+            response_contract_ok=request_bound_response_contract_ok,
+            route_adoption_status=route_adoption_status,
+            route_adoption_blockers=route_adoption_blockers,
+        )
+        if request_bound_adoptable != expected_adoptable:
+            errors.append(
+                "request_bound_adoptable_for_standalone_replay must match "
+                "request_bound response contract and route adoption status"
+            )
     if bool(row.get("ok", False)):
         if n_errors != 0 or reported_errors:
             errors.append("ok validation row must have zero errors")
@@ -13367,6 +13623,10 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
             "request_context_agentic_proof_strategy_plan_present",
             "request_context_agentic_proof_strategy_plan_row_count",
             "request_context_agentic_proof_strategy_plan_ready_count",
+            "request_bound_response_contract_ok",
+            "request_bound_route_adoption_status",
+            "request_bound_route_adoption_blockers",
+            "request_bound_adoptable_for_standalone_replay",
             "payload_formal_attempt_queue_present",
             "payload_formal_attempt_queue_item_count",
             "n_formal_attempt_queue_errors",
@@ -13434,6 +13694,21 @@ def llm_route_planner_response_payload_validation_row_json_schema() -> dict[str,
             "request_context_agentic_proof_strategy_plan_ready_count": (
                 nonnegative_integer
             ),
+            "request_bound_response_contract_ok": {"type": "boolean"},
+            "request_bound_route_adoption_status": {
+                "type": "string",
+                "enum": ["", *list(ROUTE_ADOPTION_STATUSES)],
+            },
+            "request_bound_route_adoption_blockers": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": list(ROUTE_ADOPTION_BLOCKER_VALUES),
+                },
+            },
+            "request_bound_adoptable_for_standalone_replay": {
+                "type": "boolean"
+            },
             "payload_formal_attempt_queue_present": {"type": "boolean"},
             "payload_formal_attempt_queue_item_count": nonnegative_integer,
             "n_formal_attempt_queue_errors": nonnegative_integer,
@@ -13483,6 +13758,13 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
             "n_request_contexts_with_context_packet_inventory",
             "n_request_context_inventory_total_rows",
             "n_request_bound_payloads",
+            "n_request_bound_payloads_with_route_adoption_status",
+            "n_request_bound_payloads_route_adoption_ready",
+            "n_request_bound_payloads_route_adoption_pending_refinement",
+            "n_request_bound_payloads_route_adoption_rejected",
+            "n_request_bound_payloads_adoptable_for_standalone_replay",
+            "by_request_bound_payload_route_adoption_status",
+            "request_bound_payload_route_adoption_blocker_counts",
             "n_request_bound_payloads_with_context_packet_inventory",
             "n_request_bound_payload_context_inventory_total_rows",
             "n_request_bound_payloads_with_route_adoption_preconditions",
@@ -13571,6 +13853,25 @@ def llm_route_planner_response_payload_validation_manifest_json_schema() -> dict
             "n_request_contexts_with_context_packet_inventory": {"type": "integer"},
             "n_request_context_inventory_total_rows": {"type": "integer"},
             "n_request_bound_payloads": {"type": "integer"},
+            "n_request_bound_payloads_with_route_adoption_status": {
+                "type": "integer"
+            },
+            "n_request_bound_payloads_route_adoption_ready": {"type": "integer"},
+            "n_request_bound_payloads_route_adoption_pending_refinement": {
+                "type": "integer"
+            },
+            "n_request_bound_payloads_route_adoption_rejected": {"type": "integer"},
+            "n_request_bound_payloads_adoptable_for_standalone_replay": {
+                "type": "integer"
+            },
+            "by_request_bound_payload_route_adoption_status": {
+                "type": "object",
+                "additionalProperties": {"type": "integer"},
+            },
+            "request_bound_payload_route_adoption_blocker_counts": {
+                "type": "object",
+                "additionalProperties": {"type": "integer"},
+            },
             "n_request_bound_payloads_with_context_packet_inventory": {"type": "integer"},
             "n_request_bound_payload_context_inventory_total_rows": {
                 "type": "integer"
