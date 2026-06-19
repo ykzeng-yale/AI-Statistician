@@ -1236,6 +1236,30 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "proof_evidence_status"
     ]
     assert (
+        payload["n_llm_route_planner_prompt_token_budget_rows"]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert payload["n_llm_route_planner_prompt_token_budget_rows"] > 0
+    assert payload["estimated_llm_route_planner_prompt_input_tokens"] > 0
+    assert payload["estimated_llm_route_planner_prompt_max_output_tokens"] == (
+        payload["n_llm_route_planner_prompt_token_budget_rows"] * 9000
+    )
+    assert payload["estimated_llm_route_planner_prompt_total_token_budget"] == (
+        payload["estimated_llm_route_planner_prompt_input_tokens"]
+        + payload["estimated_llm_route_planner_prompt_max_output_tokens"]
+    )
+    assert payload["llm_route_planner_prompt_token_budget_summary"][
+        "row_count"
+    ] == payload["n_llm_route_planner_prompt_token_budget_rows"]
+    assert payload["llm_route_planner_prompt_token_budget_summary"][
+        "by_provider"
+    ]["anthropic"]["n_rows"] == payload[
+        "n_llm_route_planner_prompt_token_budget_rows"
+    ]
+    assert "not provider billing" in payload[
+        "llm_route_planner_prompt_token_budget_summary"
+    ]["budget_boundary"]
+    assert (
         payload["n_llm_route_planner_model_tier_decision_ledger_rows"]
         == payload["n_llm_route_planner_request_packets"]
     )
@@ -1545,6 +1569,11 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert "Source prover targets: `lean4` families=1 by={'lean4': 1}" in report_text
     assert "cost-hint-incomplete" in report_text
     assert "LLM route planner provider usage rows/input/output/total" in report_text
+    assert "LLM route planner prompt budget rows/input/max-output/total" in report_text
+    assert (
+        "Bundle LLM route planner prompt budget rows/input/max-output/total"
+        in report_text
+    )
     assert "Evaluation LLM provider usage rows/input/output/total" in report_text
     assert (
         "Evaluation LLM residual-goal contexts rows/contexts/source-refs/provenance/without-context: 0/0/0/0/9"
@@ -1553,6 +1582,10 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert "Evaluation LLM route-option selection" in report_text
     assert (
         "Combined LLM route planner provider usage rows/input/output/total"
+        in report_text
+    )
+    assert (
+        "Combined LLM route planner prompt budget rows/input/max-output/total"
         in report_text
     )
 
@@ -1718,6 +1751,62 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_planner_runs"
         ]
         == 2
+    )
+    assert (
+        payload["n_feedback_llm_route_planner_prompt_token_budget_rows"]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert payload["n_feedback_llm_route_planner_prompt_token_budget_rows"] > 0
+    assert (
+        payload["n_combined_llm_route_planner_prompt_token_budget_rows"]
+        == payload["n_llm_route_planner_prompt_token_budget_rows"]
+        + payload["n_feedback_llm_route_planner_prompt_token_budget_rows"]
+    )
+    assert payload["estimated_combined_llm_route_planner_prompt_input_tokens"] == (
+        payload["estimated_llm_route_planner_prompt_input_tokens"]
+        + payload["estimated_feedback_llm_route_planner_prompt_input_tokens"]
+    )
+    assert payload[
+        "estimated_combined_llm_route_planner_prompt_max_output_tokens"
+    ] == (
+        payload["estimated_llm_route_planner_prompt_max_output_tokens"]
+        + payload["estimated_feedback_llm_route_planner_prompt_max_output_tokens"]
+    )
+    assert payload[
+        "estimated_combined_llm_route_planner_prompt_total_token_budget"
+    ] == (
+        payload["estimated_llm_route_planner_prompt_total_token_budget"]
+        + payload["estimated_feedback_llm_route_planner_prompt_total_token_budget"]
+    )
+    assert payload["combined_llm_route_planner_prompt_token_budget_summary"][
+        "n_planner_runs"
+    ] == 2
+    assert payload["combined_llm_route_planner_prompt_token_budget_summary"][
+        "n_planner_runs_with_prompt_token_budget"
+    ] == 2
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_prompt_token_budget_rows"
+        ]
+        == payload["n_llm_route_planner_prompt_token_budget_rows"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_prompt_token_budget_rows"
+        ]
+        == payload["n_feedback_llm_route_planner_prompt_token_budget_rows"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_prompt_token_budget_rows"
+        ]
+        == payload["n_combined_llm_route_planner_prompt_token_budget_rows"]
+    )
+    assert (
+        payload[
+            "estimated_publication_bundle_combined_llm_route_planner_summary_prompt_total_token_budget"
+        ]
+        == payload["estimated_combined_llm_route_planner_prompt_total_token_budget"]
     )
     assert (
         payload["n_feedback_llm_route_planner_model_tier_decision_ledger_rows"]

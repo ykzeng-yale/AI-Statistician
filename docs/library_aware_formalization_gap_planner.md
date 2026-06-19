@@ -776,7 +776,13 @@ route-planner manifest/JSONL files, so a reused bundle cannot silently drift
 between copied LLM planning artifacts and the top-level manifest.
 The reuse-smoke manifest forwards the same primary and feedback
 quality-control inventory counters, so one smoke output can compare raw
-route-planner requests with the packaged publication-bundle summaries.
+route-planner requests with the packaged publication-bundle summaries. It also
+forwards primary, feedback, combined, and packaged prompt-token budget
+summaries from the LLM route-planner manifests, so a public smoke artifact can
+audit Claude cost-control estimates even when no live provider call was made.
+Those smoke-level counters inherit the same boundary as the planner manifest:
+they are deterministic pre-invocation estimates, not provider billing records,
+usage metadata, mathematical evidence, or proof evidence.
 The one-command reuse-smoke manifest also promotes LLM route-planner
 realization-coverage counters for both primary and feedback planner passes, so
 a public artifact consumer can distinguish staged prompt-only requests from
