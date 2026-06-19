@@ -3150,6 +3150,13 @@ def _expected_bundle_llm_route_planner_summary(
         _dict_value(packet, "model_tier_decision_evidence")
         for packet in request_packets
     )
+    route_option_selection_briefs = tuple(
+        _dict_value(
+            _dict_value(packet, "context_packet"),
+            "route_option_selection_brief",
+        )
+        for packet in request_packets
+    )
     acceptance_status_counts = Counter(
         str(row.get("acceptance_status", "") or "unknown") for row in rows
     )
@@ -4130,6 +4137,93 @@ def _expected_bundle_llm_route_planner_summary(
                 decision_basis_counts,
             )
             or {}
+        ),
+        "n_requests_with_route_option_selection_brief": int(
+            payload.get(
+                "n_requests_with_route_option_selection_brief",
+                sum(1 for brief in route_option_selection_briefs if brief),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_candidate_options": int(
+            payload.get(
+                "n_request_route_option_selection_candidate_options",
+                sum(
+                    len(_dict_tuple(brief.get("candidate_route_options", [])))
+                    for brief in route_option_selection_briefs
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_candidate_primitives": int(
+            payload.get(
+                "n_request_route_option_selection_candidate_primitives",
+                sum(
+                    _nonnegative_int(
+                        brief.get("n_candidate_route_option_primitives", 0)
+                    )
+                    for brief in route_option_selection_briefs
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_candidates_with_residual_goals": int(
+            payload.get(
+                "n_request_route_option_selection_candidates_with_residual_goals",
+                sum(
+                    _nonnegative_int(
+                        brief.get(
+                            "n_candidate_route_options_with_residual_goals",
+                            0,
+                        )
+                    )
+                    for brief in route_option_selection_briefs
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_candidate_residual_goals": int(
+            payload.get(
+                "n_request_route_option_selection_candidate_residual_goals",
+                sum(
+                    _nonnegative_int(
+                        brief.get(
+                            "n_candidate_route_option_residual_goals",
+                            0,
+                        )
+                    )
+                    for brief in route_option_selection_briefs
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_lower_bound_options": int(
+            payload.get(
+                "n_request_route_option_selection_lower_bound_options",
+                sum(
+                    1
+                    for brief in route_option_selection_briefs
+                    if str(
+                        brief.get("lower_bound_selected_route_option_id", "")
+                    ).strip()
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_lower_bound_residual_goals": int(
+            payload.get(
+                "n_request_route_option_selection_lower_bound_residual_goals",
+                sum(
+                    _nonnegative_int(
+                        brief.get(
+                            "lower_bound_selected_residual_goal_count",
+                            0,
+                        )
+                    )
+                    for brief in route_option_selection_briefs
+                ),
+            )
+            or 0
         ),
         "n_informal_knowledge_dag_nodes": int(
             payload.get(

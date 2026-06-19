@@ -164,6 +164,67 @@ def _assert_llm_resource_feedback_readiness_summary(payload: dict[str, object]) 
         assert payload[bundle_combined_key] == payload[combined_key]
 
 
+ROUTE_OPTION_SELECTION_SUFFIXES = (
+    "requests_with_route_option_selection_brief",
+    "request_route_option_selection_candidate_options",
+    "request_route_option_selection_candidate_primitives",
+    "request_route_option_selection_candidates_with_residual_goals",
+    "request_route_option_selection_candidate_residual_goals",
+    "request_route_option_selection_lower_bound_options",
+    "request_route_option_selection_lower_bound_residual_goals",
+)
+
+
+def _route_option_selection_payload_key(stem: str, suffix: str) -> str:
+    return f"n_{stem}_{suffix}"
+
+
+def _assert_llm_route_option_selection_summary(payload: dict[str, object]) -> None:
+    for suffix in ROUTE_OPTION_SELECTION_SUFFIXES:
+        assert payload[
+            _route_option_selection_payload_key(
+                "publication_bundle_llm_route_planner_summary",
+                suffix,
+            )
+        ] == payload[_route_option_selection_payload_key("llm_route_planner", suffix)]
+        assert payload[
+            _route_option_selection_payload_key(
+                "publication_bundle_feedback_llm_route_planner_summary",
+                suffix,
+            )
+        ] == payload[
+            _route_option_selection_payload_key(
+                "feedback_llm_route_planner",
+                suffix,
+            )
+        ]
+        assert payload[
+            _route_option_selection_payload_key(
+                "combined_llm_route_planner",
+                suffix,
+            )
+        ] == (
+            payload[_route_option_selection_payload_key("llm_route_planner", suffix)]
+            + payload[
+                _route_option_selection_payload_key(
+                    "feedback_llm_route_planner",
+                    suffix,
+                )
+            ]
+        )
+        assert payload[
+            _route_option_selection_payload_key(
+                "publication_bundle_combined_llm_route_planner_summary",
+                suffix,
+            )
+        ] == payload[
+            _route_option_selection_payload_key(
+                "combined_llm_route_planner",
+                suffix,
+            )
+        ]
+
+
 def test_reuse_smoke_llm_execution_mode_uses_planner_manifest_before_provider_flags() -> None:
     payload = {
         "provider_execution_mode": "static_generator_backend",
@@ -1941,6 +2002,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == payload["n_combined_llm_route_planner_request_current_goal_plan_rows"]
     )
     _assert_llm_resource_feedback_readiness_summary(payload)
+    _assert_llm_route_option_selection_summary(payload)
     assert (
         payload["n_feedback_llm_route_planner_requests_with_library_coverage_rows"]
         > 0
@@ -6072,6 +6134,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         == payload["n_combined_llm_route_planner_request_current_goal_plan_rows"]
     )
     _assert_llm_resource_feedback_readiness_summary(payload)
+    _assert_llm_route_option_selection_summary(payload)
     assert (
         payload[
             "n_publication_bundle_combined_llm_route_planner_summary_formal_attempt_queue_items"

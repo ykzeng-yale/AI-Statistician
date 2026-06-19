@@ -129,6 +129,64 @@ PROOF_EVIDENCE_BOUNDARY = (
     "portable contracts, work packets, a publication bundle, and packaging "
     "audits. It is not theorem proof evidence."
 )
+ROUTE_OPTION_SELECTION_SUMMARY_KEYS = (
+    "n_requests_with_route_option_selection_brief",
+    "n_request_route_option_selection_candidate_options",
+    "n_request_route_option_selection_candidate_primitives",
+    "n_request_route_option_selection_candidates_with_residual_goals",
+    "n_request_route_option_selection_candidate_residual_goals",
+    "n_request_route_option_selection_lower_bound_options",
+    "n_request_route_option_selection_lower_bound_residual_goals",
+)
+
+
+def _route_option_selection_payload_key(public_stem: str, key: str) -> str:
+    if key.startswith("n_"):
+        return f"n_{public_stem}_{key[2:]}"
+    return f"{public_stem}_{key}"
+
+
+def _route_option_selection_counter_payload(
+    payload: dict[str, object],
+    public_stem: str,
+) -> dict[str, int]:
+    return {
+        _route_option_selection_payload_key(public_stem, key): int(
+            payload.get(key, 0) or 0
+        )
+        for key in ROUTE_OPTION_SELECTION_SUMMARY_KEYS
+    }
+
+
+def _combined_route_option_selection_counter_payload(
+    primary_payload: dict[str, object],
+    feedback_payload: dict[str, object],
+    public_stem: str,
+) -> dict[str, int]:
+    return {
+        _route_option_selection_payload_key(public_stem, key): int(
+            primary_payload.get(key, 0) or 0
+        )
+        + int(feedback_payload.get(key, 0) or 0)
+        for key in ROUTE_OPTION_SELECTION_SUMMARY_KEYS
+    }
+
+
+def _route_option_selection_report_counter(
+    payload: dict[str, object],
+    public_stem: str,
+) -> str:
+    return "/".join(
+        str(
+            payload.get(
+                _route_option_selection_payload_key(public_stem, key),
+                0,
+            )
+        )
+        for key in ROUTE_OPTION_SELECTION_SUMMARY_KEYS
+    )
+
+
 SUMMARY_KEYS_BY_STAGE = {
     "formalization_gap_planner_target_intake": (
         "n_targets",
@@ -163,6 +221,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
         "n_routes",
         "n_request_packets",
+        *ROUTE_OPTION_SELECTION_SUMMARY_KEYS,
         "n_requests_with_context_packet_inventory",
         "n_request_context_inventory_total_rows",
         "n_rows_with_context_packet_inventory",
@@ -247,6 +306,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
         "n_routes",
         "n_request_packets",
+        *ROUTE_OPTION_SELECTION_SUMMARY_KEYS,
         "n_requests_with_context_packet_inventory",
         "n_request_context_inventory_total_rows",
         "n_rows_with_context_packet_inventory",
@@ -2528,6 +2588,16 @@ def run_formalization_gap_planner_reuse_smoke(
             )
             or 0
         ),
+        **_combined_route_option_selection_counter_payload(
+            llm_route_planner_payload,
+            feedback_llm_route_planner_payload,
+            "combined_llm_route_planner",
+        ),
+        **_combined_route_option_selection_counter_payload(
+            publication_bundle_llm_route_planner_summary,
+            publication_bundle_feedback_llm_route_planner_summary,
+            "publication_bundle_combined_llm_route_planner_summary",
+        ),
         "n_combined_llm_route_planner_requests_with_resource_feedback_readiness_summary": int(
             llm_route_planner_payload.get(
                 "n_requests_with_resource_feedback_readiness_summary",
@@ -3055,6 +3125,10 @@ def run_formalization_gap_planner_reuse_smoke(
                 "n_request_current_goal_plan_rows",
                 0,
             )
+        ),
+        **_route_option_selection_counter_payload(
+            publication_bundle_llm_route_planner_summary,
+            "publication_bundle_llm_route_planner_summary",
         ),
         "n_publication_bundle_llm_route_planner_summary_requests_with_resource_feedback_readiness_summary": (
             publication_bundle_llm_route_planner_summary.get(
@@ -3967,6 +4041,10 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        **_route_option_selection_counter_payload(
+            publication_bundle_feedback_llm_route_planner_summary,
+            "publication_bundle_feedback_llm_route_planner_summary",
+        ),
         "n_publication_bundle_feedback_llm_route_planner_summary_route_alignment_edges": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_route_alignment_edges",
@@ -4344,6 +4422,10 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_llm_route_planner_request_current_goal_plan_rows": llm_route_planner_payload.get(
             "n_request_current_goal_plan_rows",
             0,
+        ),
+        **_route_option_selection_counter_payload(
+            llm_route_planner_payload,
+            "llm_route_planner",
         ),
         "n_llm_route_planner_requests_with_resource_feedback_readiness_summary": llm_route_planner_payload.get(
             "n_requests_with_resource_feedback_readiness_summary",
@@ -5181,6 +5263,10 @@ def run_formalization_gap_planner_reuse_smoke(
                 "n_request_current_goal_plan_rows",
                 0,
             )
+        ),
+        **_route_option_selection_counter_payload(
+            feedback_llm_route_planner_payload,
+            "feedback_llm_route_planner",
         ),
         "n_feedback_llm_route_planner_requests_with_resource_feedback_readiness_summary": (
             feedback_llm_route_planner_payload.get(
@@ -10232,6 +10318,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_combined_llm_route_planner_request_current_goal_plan_rows')} "
             f"bundle={payload.get('n_publication_bundle_combined_llm_route_planner_summary_requests_with_current_goal_plan_rows')}/"
             f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_request_current_goal_plan_rows')}"
+        ),
+        (
+            "- LLM route planner route-option selection "
+            "requests/options/primitives/residual-candidates/residual-goals/"
+            "lower-bound/lower-bound-residual-goals: "
+            f"primary={_route_option_selection_report_counter(payload, 'llm_route_planner')} "
+            f"feedback={_route_option_selection_report_counter(payload, 'feedback_llm_route_planner')} "
+            f"combined={_route_option_selection_report_counter(payload, 'combined_llm_route_planner')} "
+            f"bundle={_route_option_selection_report_counter(payload, 'publication_bundle_combined_llm_route_planner_summary')}"
         ),
         (
             f"- LLM route planner resource-feedback readiness requests/rows/reuse-ready: "

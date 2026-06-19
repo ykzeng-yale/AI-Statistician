@@ -1405,6 +1405,48 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert manifest["llm_route_planner_summary"][
         "by_request_library_alignment_minimum_coverage_bucket"
     ]
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_requests_with_route_option_selection_brief"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_route_option_selection_candidate_options"
+        ]
+        >= 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_route_option_selection_candidate_primitives"
+        ]
+        >= 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_route_option_selection_candidates_with_residual_goals"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_route_option_selection_candidate_residual_goals"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_route_option_selection_lower_bound_options"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_route_option_selection_lower_bound_residual_goals"
+        ]
+        == 0
+    )
     assert manifest["llm_route_planner_summary"][
         "n_informal_knowledge_dag_nodes"
     ] == 0
@@ -1573,6 +1615,48 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
             "n_request_library_alignment_route_options"
         ]
         >= 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_requests_with_route_option_selection_brief"
+        ]
+        == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_route_option_selection_candidate_options"
+        ]
+        >= 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_route_option_selection_candidate_primitives"
+        ]
+        >= 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_route_option_selection_candidates_with_residual_goals"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_route_option_selection_candidate_residual_goals"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_route_option_selection_lower_bound_options"
+        ]
+        == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_route_option_selection_lower_bound_residual_goals"
+        ]
+        == 0
     )
     assert (
         manifest["feedback_llm_route_planner_summary"][

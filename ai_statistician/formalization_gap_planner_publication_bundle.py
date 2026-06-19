@@ -2512,6 +2512,13 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "total_request_library_alignment_route_option_minimum_base_cost",
             "by_request_library_alignment_delta_class",
             "by_request_library_alignment_minimum_coverage_bucket",
+            "n_requests_with_route_option_selection_brief",
+            "n_request_route_option_selection_candidate_options",
+            "n_request_route_option_selection_candidate_primitives",
+            "n_request_route_option_selection_candidates_with_residual_goals",
+            "n_request_route_option_selection_candidate_residual_goals",
+            "n_request_route_option_selection_lower_bound_options",
+            "n_request_route_option_selection_lower_bound_residual_goals",
             "n_informal_knowledge_dag_nodes",
             "n_formal_realization_dag_nodes",
             "legacy_response_field_aliases",
@@ -2855,6 +2862,25 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "by_request_library_alignment_minimum_coverage_bucket": {
                 "type": "object"
             },
+            "n_requests_with_route_option_selection_brief": nonnegative_integer,
+            "n_request_route_option_selection_candidate_options": (
+                nonnegative_integer
+            ),
+            "n_request_route_option_selection_candidate_primitives": (
+                nonnegative_integer
+            ),
+            "n_request_route_option_selection_candidates_with_residual_goals": (
+                nonnegative_integer
+            ),
+            "n_request_route_option_selection_candidate_residual_goals": (
+                nonnegative_integer
+            ),
+            "n_request_route_option_selection_lower_bound_options": (
+                nonnegative_integer
+            ),
+            "n_request_route_option_selection_lower_bound_residual_goals": (
+                nonnegative_integer
+            ),
             "n_informal_knowledge_dag_nodes": nonnegative_integer,
             "n_formal_realization_dag_nodes": nonnegative_integer,
             "legacy_response_field_aliases": {"type": "object"},
@@ -5575,6 +5601,13 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "total_request_library_alignment_route_option_minimum_base_cost": 0.0,
         "by_request_library_alignment_delta_class": {},
         "by_request_library_alignment_minimum_coverage_bucket": {},
+        "n_requests_with_route_option_selection_brief": 0,
+        "n_request_route_option_selection_candidate_options": 0,
+        "n_request_route_option_selection_candidate_primitives": 0,
+        "n_request_route_option_selection_candidates_with_residual_goals": 0,
+        "n_request_route_option_selection_candidate_residual_goals": 0,
+        "n_request_route_option_selection_lower_bound_options": 0,
+        "n_request_route_option_selection_lower_bound_residual_goals": 0,
         "n_informal_knowledge_dag_nodes": 0,
         "n_formal_realization_dag_nodes": 0,
         "legacy_response_field_aliases": {},
@@ -5658,6 +5691,13 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         row
         for summary in library_alignment_summaries
         for row in _dict_tuple(summary.get("route_option_alignment", []))
+    )
+    route_option_selection_briefs = tuple(
+        _dict_value(
+            _dict_value(packet, "context_packet"),
+            "route_option_selection_brief",
+        )
+        for packet in request_packets
     )
     library_delta_class_counts = Counter(
         str(row.get("library_delta_class", "") or "unknown")
@@ -6952,6 +6992,94 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                 dict(library_minimum_bucket_counts),
             )
             or {}
+        ),
+        "n_requests_with_route_option_selection_brief": int(
+            payload.get(
+                "n_requests_with_route_option_selection_brief",
+                sum(1 for brief in route_option_selection_briefs if brief),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_candidate_options": int(
+            payload.get(
+                "n_request_route_option_selection_candidate_options",
+                sum(
+                    len(_dict_tuple(brief.get("candidate_route_options", [])))
+                    for brief in route_option_selection_briefs
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_candidate_primitives": int(
+            payload.get(
+                "n_request_route_option_selection_candidate_primitives",
+                sum(
+                    int(brief.get("n_candidate_route_option_primitives", 0) or 0)
+                    for brief in route_option_selection_briefs
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_candidates_with_residual_goals": int(
+            payload.get(
+                "n_request_route_option_selection_candidates_with_residual_goals",
+                sum(
+                    int(
+                        brief.get(
+                            "n_candidate_route_options_with_residual_goals",
+                            0,
+                        )
+                        or 0
+                    )
+                    for brief in route_option_selection_briefs
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_candidate_residual_goals": int(
+            payload.get(
+                "n_request_route_option_selection_candidate_residual_goals",
+                sum(
+                    int(
+                        brief.get(
+                            "n_candidate_route_option_residual_goals",
+                            0,
+                        )
+                        or 0
+                    )
+                    for brief in route_option_selection_briefs
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_lower_bound_options": int(
+            payload.get(
+                "n_request_route_option_selection_lower_bound_options",
+                sum(
+                    1
+                    for brief in route_option_selection_briefs
+                    if str(
+                        brief.get("lower_bound_selected_route_option_id", "")
+                    ).strip()
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_lower_bound_residual_goals": int(
+            payload.get(
+                "n_request_route_option_selection_lower_bound_residual_goals",
+                sum(
+                    int(
+                        brief.get(
+                            "lower_bound_selected_residual_goal_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for brief in route_option_selection_briefs
+                ),
+            )
+            or 0
         ),
         "n_informal_knowledge_dag_nodes": int(
             payload.get(
