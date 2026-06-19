@@ -1263,6 +1263,11 @@ def _llm_route_planner_action_row(
         )
         for resource_id, fields in request_contracts.items()
     }
+    if source_kind == "formal_attempt_queue":
+        response_contracts = {
+            resource_id: tuple(dict.fromkeys((*fields, "formal_attempt_context")))
+            for resource_id, fields in response_contracts.items()
+        }
     target_primitives = _llm_target_primitives(
         planner_row,
         source_item,

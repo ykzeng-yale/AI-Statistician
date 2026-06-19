@@ -955,6 +955,7 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
         == "initial_ready"
     )
     assert "formal_attempt_context" in formal_attempt_lsp_row["request_contract_fields"]
+    assert "formal_attempt_context" in formal_attempt_lsp_row["response_contract_fields"]
     assert (
         formal_attempt_lsp_row["request_payload"]["formal_attempt_context"]
         == formal_attempt_lsp_row["request_playbook"]["formal_attempt_context"]

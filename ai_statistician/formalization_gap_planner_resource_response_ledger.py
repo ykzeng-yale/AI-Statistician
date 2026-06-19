@@ -85,6 +85,7 @@ class FormalizationGapPlannerResourceResponseLedgerRow:
     llm_route_planner_queries: tuple[str, ...]
     llm_route_planner_source_item: dict[str, object]
     residual_goal_context: dict[str, object]
+    formal_attempt_context: dict[str, object]
     llm_route_planner_response_trace_grounded: bool
     llm_route_planner_response_trace_mismatches: tuple[str, ...]
     response_present: bool
@@ -308,6 +309,14 @@ def export_formalization_gap_planner_resource_response_ledger(
         "n_llm_route_planner_residual_context_rows": sum(
             1 for row in rows if row.residual_goal_context
         ),
+        "n_llm_route_planner_formal_attempt_context_rows": sum(
+            1 for row in rows if row.formal_attempt_context
+        ),
+        "n_llm_route_planner_formal_attempt_context_responses": sum(
+            1
+            for row in rows
+            if row.response_present and row.formal_attempt_context
+        ),
         "n_llm_route_planner_traced_residual_interpretation_rows": sum(
             1
             for row in rows
@@ -519,6 +528,7 @@ def resource_response_json_schema() -> dict[str, object]:
             "llm_route_planner_source_index": {"type": "integer"},
             "llm_route_planner_hook_kind": {"type": "string"},
             "residual_goal_context": {"type": "object"},
+            "formal_attempt_context": {"type": "object"},
             "kernel_verified": {"type": "boolean", "const": False},
             "proof_evidence_boundary": {
                 "type": "string",
@@ -586,6 +596,7 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
         "llm_route_planner_queries",
         "llm_route_planner_source_item",
         "residual_goal_context",
+        "formal_attempt_context",
         "llm_route_planner_response_trace_grounded",
         "llm_route_planner_response_trace_mismatches",
         "response_present",
@@ -693,6 +704,7 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
             "llm_route_planner_queries": string_array,
             "llm_route_planner_source_item": {"type": "object"},
             "residual_goal_context": {"type": "object"},
+            "formal_attempt_context": {"type": "object"},
             "llm_route_planner_response_trace_grounded": {"type": "boolean"},
             "llm_route_planner_response_trace_mismatches": string_array,
             "response_present": {"type": "boolean"},
@@ -874,6 +886,22 @@ def _ledger_row(
     request_actionable_work_items = _request_actionable_work_items(request_row)
     llm_trace = _llm_route_planner_trace_from_request(request_row)
     llm_trace_present = bool(llm_trace["trace_present"])
+    request_formal_attempt_context = _formal_attempt_context_from_request(request_row)
+    response_formal_attempt_context = _formal_attempt_context_value(
+        response_values.get("formal_attempt_context", {})
+    )
+    formal_attempt_context = (
+        request_formal_attempt_context or response_formal_attempt_context
+    )
+    formal_attempt_context_errors = (
+        _formal_attempt_context_identity_errors(
+            request_formal_attempt_context,
+            response_formal_attempt_context,
+            response_present=response_present,
+        )
+        if request_formal_attempt_context
+        else tuple()
+    )
     llm_trace_grounded, llm_trace_mismatches = (
         _llm_route_planner_response_trace_status(
             llm_trace,
@@ -977,6 +1005,8 @@ def _ledger_row(
             f"llm route-planner trace mismatch: {error}"
             for error in llm_trace_mismatches
         )
+    if response_present and formal_attempt_context_errors:
+        row_errors.extend(formal_attempt_context_errors)
     if (
         response_present
         and request_playbook_present
@@ -998,6 +1028,7 @@ def _ledger_row(
         and not evidence_scope_errors
         and not declaration_hit_errors
         and not llm_trace_mismatches
+        and not formal_attempt_context_errors
         and (not request_playbook_present or response_playbook_grounded)
     )
     if not response_present:
@@ -1020,6 +1051,8 @@ def _ledger_row(
         acceptance_status = "REJECTED_DECLARATION_TARGET_MISMATCH"
     elif llm_trace_mismatches:
         acceptance_status = "REJECTED_LLM_ROUTE_PLANNER_TRACE_MISMATCH"
+    elif formal_attempt_context_errors:
+        acceptance_status = "REJECTED_FORMAL_ATTEMPT_CONTEXT_MISMATCH"
     elif request_playbook_present and not response_playbook_grounded:
         acceptance_status = "REJECTED_RESPONSE_NOT_GROUNDED_IN_REQUEST_PLAYBOOK"
     elif route_revision_recommended:
@@ -1090,6 +1123,7 @@ def _ledger_row(
         llm_route_planner_queries=_str_tuple(llm_trace["queries"]),
         llm_route_planner_source_item=_dict_value(llm_trace, "source_item"),
         residual_goal_context=_dict_value(llm_trace, "residual_goal_context"),
+        formal_attempt_context=formal_attempt_context,
         llm_route_planner_response_trace_grounded=llm_trace_grounded,
         llm_route_planner_response_trace_mismatches=llm_trace_mismatches,
         response_present=response_present,
@@ -1217,6 +1251,87 @@ def _residual_goal_context_value(value: Any) -> dict[str, object]:
         if field_name in context:
             context[field_name] = str(context.get(field_name, "") or "")
     return context
+
+
+def _formal_attempt_context_from_request(
+    request_row: dict[str, Any],
+) -> dict[str, object]:
+    request_payload = _dict_value(request_row, "request_payload")
+    request_playbook = _dict_value(request_row, "request_playbook")
+    playbook_summary = _dict_value(request_playbook, "input_summary")
+    source_item = (
+        _dict_value(request_payload, "llm_route_planner_source_item")
+        or _dict_value(request_playbook, "llm_route_planner_source_item")
+    )
+    return _formal_attempt_context_value(
+        _dict_value(request_payload, "formal_attempt_context")
+        or _dict_value(request_playbook, "formal_attempt_context")
+        or _dict_value(playbook_summary, "formal_attempt_context")
+        or _dict_value(source_item, "formal_attempt_context")
+    )
+
+
+def _formal_attempt_context_value(value: Any) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    context: dict[str, object] = dict(value)
+    for field_name in (
+        "target_primitives",
+        "prerequisite_formal_node_ids",
+        "prerequisite_attempt_ids",
+        "missing_prerequisite_formal_node_ids",
+        "expected_feedback",
+    ):
+        if field_name in context:
+            context[field_name] = _str_tuple(context.get(field_name, []))
+    for field_name in (
+        "attempt_id",
+        "formal_node_id",
+        "formal_attempt_dependency_status",
+        "attempt_kind",
+        "primitive",
+        "target_prover_family",
+        "action",
+    ):
+        if field_name in context:
+            context[field_name] = str(context.get(field_name, "") or "")
+    if "formal_attempt_queue_index" in context:
+        context["formal_attempt_queue_index"] = _first_int(
+            context.get("formal_attempt_queue_index", -1),
+            default=-1,
+        )
+    if "formal_attempt_schedule_row" in context:
+        context["formal_attempt_schedule_row"] = _dict_value(
+            context,
+            "formal_attempt_schedule_row",
+        )
+    return context
+
+
+def _formal_attempt_context_identity_errors(
+    request_context: dict[str, object],
+    response_context: dict[str, object],
+    *,
+    response_present: bool,
+) -> tuple[str, ...]:
+    if not response_present:
+        return tuple()
+    if not response_context:
+        return ("response formal_attempt_context required for queued formal attempt",)
+    errors: list[str] = []
+    for field_name in (
+        "attempt_id",
+        "formal_node_id",
+        "formal_attempt_queue_index",
+        "formal_attempt_dependency_status",
+    ):
+        expected = request_context.get(field_name)
+        observed = response_context.get(field_name)
+        if _has_value(expected) and observed != expected:
+            errors.append(
+                f"response formal_attempt_context.{field_name} must match request"
+            )
+    return tuple(errors)
 
 
 def _llm_route_planner_response_trace_status(
@@ -1580,6 +1695,12 @@ def _response_playbook_grounding(
                 ),
                 str(response_values.get("prover_attempt_status", "")),
                 str(response_values.get("prover_diagnostic_signature", "")),
+                json.dumps(
+                    _formal_attempt_context_value(
+                        response_values.get("formal_attempt_context", {})
+                    ),
+                    default=str,
+                ),
             ]
         )
     )
@@ -2016,6 +2137,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- LLM route-planner residual context rows: "
             f"{payload.get('n_llm_route_planner_residual_context_rows')} "
             f"residual_interpretation={payload.get('n_llm_route_planner_traced_residual_interpretation_rows')}"
+        ),
+        (
+            f"- LLM route-planner formal attempt context rows/responses: "
+            f"{payload.get('n_llm_route_planner_formal_attempt_context_rows')}/"
+            f"{payload.get('n_llm_route_planner_formal_attempt_context_responses')}"
         ),
         (
             f"- LLM route-planner route-brief evidence-gap traced rows/responses/grounded: "

@@ -1378,6 +1378,185 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     ).exists()
 
 
+def test_resource_response_ledger_preserves_formal_attempt_context() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_resource_response_ledger_formal_attempt"
+    )
+    ledger_dir = root / "ledger"
+    rejected_ledger_dir = root / "ledger_rejected"
+    response_jsonl = root / "resource_responses.jsonl"
+    rejected_response_jsonl = root / "resource_responses_rejected.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    request_payload, request_queue_dir = _build_request_queue(
+        root,
+        llm_route_planner_rows=[
+            {
+                "llm_route_planner_row_id": "llm_route_row:formal_attempt",
+                "request_id": "llm_route_request:formal_attempt",
+                "route_id": "distribution_free_rank_bound",
+                "display_name": "distribution_free_rank_bound",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "lean_mathlib_empirical_process_snapshot",
+                "minimal_delta_plan": {
+                    "selected_primitives": ["exchangeability", "rank_uniformity"],
+                },
+                "formal_attempt_queue": [
+                    {
+                        "attempt_id": "attempt:exchangeability_reuse",
+                        "formal_node_id": "formal:exchangeability",
+                        "primitive": "exchangeability",
+                        "target_primitives": ["exchangeability"],
+                        "target_prover_family": "lean4",
+                        "attempt_kind": "reuse_existing_declaration",
+                        "action": "run exchangeability reuse in Lean",
+                        "expected_feedback": ["kernel_status", "residual_goals"],
+                        "prerequisite_formal_node_ids": [],
+                    },
+                    {
+                        "attempt_id": "attempt:rank_uniformity_bridge",
+                        "formal_node_id": "formal:rank_uniformity",
+                        "primitive": "rank_uniformity",
+                        "target_primitives": ["rank_uniformity"],
+                        "target_prover_family": "lean4",
+                        "attempt_kind": "bridge_lemma",
+                        "action": "run rank uniformity after exchangeability closes",
+                        "expected_feedback": ["kernel_status", "residual_goals"],
+                        "prerequisite_formal_node_ids": ["formal:exchangeability"],
+                    },
+                ],
+                "formal_attempt_queue_schedule": {
+                    "attempt_dependency_rows": [
+                        {
+                            "formal_attempt_queue_index": 0,
+                            "attempt_id": "attempt:exchangeability_reuse",
+                            "formal_node_id": "formal:exchangeability",
+                            "primitive": "exchangeability",
+                            "attempt_kind": "reuse_existing_declaration",
+                            "target_prover_family": "lean4",
+                            "initial_ready": True,
+                            "dependency_status": "initial_ready",
+                            "prerequisite_formal_node_ids": [],
+                            "prerequisite_attempt_ids": [],
+                            "missing_prerequisite_formal_node_ids": [],
+                        },
+                        {
+                            "formal_attempt_queue_index": 1,
+                            "attempt_id": "attempt:rank_uniformity_bridge",
+                            "formal_node_id": "formal:rank_uniformity",
+                            "primitive": "rank_uniformity",
+                            "attempt_kind": "bridge_lemma",
+                            "target_prover_family": "lean4",
+                            "initial_ready": False,
+                            "dependency_status": (
+                                "waiting_for_formal_prerequisite_attempts"
+                            ),
+                            "prerequisite_formal_node_ids": [
+                                "formal:exchangeability"
+                            ],
+                            "prerequisite_attempt_ids": [
+                                "attempt:exchangeability_reuse"
+                            ],
+                            "missing_prerequisite_formal_node_ids": [],
+                        },
+                    ],
+                },
+            }
+        ],
+    )
+    request = next(
+        row
+        for row in request_payload["rows"]
+        if row["request_payload"].get("llm_route_planner_source_kind")
+        == "formal_attempt_queue"
+        and row["resource_id"] == "lean_lsp_mcp"
+    )
+    formal_attempt_context = request["request_payload"]["formal_attempt_context"]
+    response = {
+        "resource_request_id": request["resource_request_id"],
+        "resource_id": request["resource_id"],
+        "tool_name": "lean_lsp_mcp",
+        "expected_response_artifact": request["expected_response_artifact"],
+        "response_payload": {
+            "target_primitives": request["target_primitives"],
+            "actionable_work_items": request["actionable_work_items"],
+            "formal_attempt_context": formal_attempt_context,
+            "prover_diagnostics": [
+                "exchangeability reuse leaves an unresolved measurability goal"
+            ],
+            "residual_goals": ["prove exchangeability measurability side condition"],
+            "prover_attempt_status": "failed_with_residual_goals",
+            "prover_diagnostic_signature": (
+                "residual_goal:exchangeability_measurability"
+            ),
+            "route_revision_recommended": True,
+            "route_revision_reasons": [
+                "formal attempt exposed an exchangeability measurability side condition"
+            ],
+        },
+        "formal_attempt_context": formal_attempt_context,
+        "actionable_work_items": request["actionable_work_items"],
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+    response_jsonl.write_text(
+        json.dumps(response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_llm_route_planner_formal_attempt_context_rows"] == 3
+    assert payload["n_llm_route_planner_formal_attempt_context_responses"] == 1
+    row = next(
+        item
+        for item in payload["rows"]
+        if item["resource_request_id"] == request["resource_request_id"]
+    )
+    assert row["acceptance_status"] == "ACCEPTED_WITH_ROUTE_REVISION"
+    assert row["formal_attempt_context"]["attempt_id"] == (
+        "attempt:exchangeability_reuse"
+    )
+    assert row["formal_attempt_context"] == formal_attempt_context
+    assert "formal_attempt_context" in row["matched_response_contract_fields"]
+    assert row["response_contract_ok"] is True
+
+    rejected_response = dict(response)
+    rejected_response["response_payload"] = dict(response["response_payload"])
+    rejected_response["response_payload"]["formal_attempt_context"] = {
+        **formal_attempt_context,
+        "attempt_id": "attempt:wrong",
+    }
+    rejected_response_jsonl.write_text(
+        json.dumps(rejected_response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    rejected_payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        rejected_ledger_dir,
+        response_jsonl=rejected_response_jsonl,
+    )
+
+    assert not rejected_payload["all_ok"]
+    rejected_row = next(
+        item
+        for item in rejected_payload["rows"]
+        if item["resource_request_id"] == request["resource_request_id"]
+    )
+    assert rejected_row["acceptance_status"] == (
+        "REJECTED_FORMAL_ATTEMPT_CONTEXT_MISMATCH"
+    )
+    assert rejected_row["response_contract_ok"] is False
+    assert "formal_attempt_context.attempt_id" in "\n".join(
+        rejected_row["errors"]
+    )
+
+
 def test_resource_response_ledger_rejects_kernel_claims_in_resource_layer() -> None:
     root = Path("runs/test_formalization_gap_planner_resource_response_ledger_rejects")
     ledger_dir = root / "ledger"

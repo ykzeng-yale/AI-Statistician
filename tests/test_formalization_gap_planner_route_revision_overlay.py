@@ -986,6 +986,23 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                                 "ask Lean LSP for residual goals on rank_uniformity"
                             ],
                         },
+                        "formal_attempt_context": {
+                            "attempt_id": "attempt:rank_uniformity_bridge",
+                            "formal_node_id": "formal:rank_uniformity",
+                            "formal_attempt_queue_index": 0,
+                            "formal_attempt_dependency_status": "initial_ready",
+                            "attempt_kind": "bridge_lemma",
+                            "primitive": "rank_uniformity",
+                            "target_primitives": ["rank_uniformity"],
+                            "target_prover_family": "lean4",
+                            "prerequisite_formal_node_ids": [],
+                            "prerequisite_attempt_ids": [],
+                            "missing_prerequisite_formal_node_ids": [],
+                            "expected_feedback": [
+                                "kernel_status",
+                                "residual_goals",
+                            ],
+                        },
                         "llm_route_planner_response_trace_grounded": True,
                         "llm_route_planner_response_trace_mismatches": [],
                         "response_present": True,
@@ -1059,6 +1076,12 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert overlay_payload["n_resource_response_ledger_rows"] == 1
     assert overlay_payload["n_resource_response_ledger_route_revision_proposals"] == 1
     assert overlay_payload["n_applied_resource_response_traces"] == 1
+    assert (
+        overlay_payload[
+            "n_applied_resource_response_formal_attempt_context_traces"
+        ]
+        == 1
+    )
     assert overlay_payload["n_applied_llm_route_planner_hook_traces"] == 1
     assert (
         overlay_payload[
@@ -1127,6 +1150,13 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     trace = overlay_row["applied_resource_response_traces"][0]
     assert trace["resource_response_ledger_id"] == "ledger:rank_uniformity"
     assert trace["resource_request_id"] == "request:rank_uniformity"
+    assert trace["formal_attempt_context"]["attempt_id"] == (
+        "attempt:rank_uniformity_bridge"
+    )
+    llm_trace = overlay_row["applied_llm_route_planner_hook_traces"][0]
+    assert llm_trace["formal_attempt_context"]["formal_node_id"] == (
+        "formal:rank_uniformity"
+    )
     assert trace["resource_id"] == "lean_lsp_mcp"
     assert trace["target_primitives"] == ("rank_uniformity",)
     assert trace["actionable_work_items"] == (

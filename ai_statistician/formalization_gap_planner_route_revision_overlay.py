@@ -261,6 +261,12 @@ def export_formalization_gap_planner_route_revision_overlay(
         "n_applied_resource_response_traces": sum(
             len(row.applied_resource_response_traces) for row in rows
         ),
+        "n_applied_resource_response_formal_attempt_context_traces": sum(
+            1
+            for row in rows
+            for trace in row.applied_resource_response_traces
+            if _dict_value(trace, "formal_attempt_context")
+        ),
         "n_applied_resource_response_traces_with_minimal_delta_priority": sum(
             1
             for row in rows
@@ -1362,6 +1368,7 @@ def _resource_response_trace(row: dict[str, Any]) -> dict[str, object]:
         "residual_goal_context": _residual_goal_context_value(
             _dict_value(row, "residual_goal_context")
         ),
+        "formal_attempt_context": _dict_value(row, "formal_attempt_context"),
         "llm_route_planner_response_trace_grounded": bool(
             row.get("llm_route_planner_response_trace_grounded", False)
         ),
@@ -1424,6 +1431,7 @@ def _resource_response_llm_route_planner_trace(
         "residual_goal_context": _residual_goal_context_value(
             _dict_value(row, "residual_goal_context")
         ),
+        "formal_attempt_context": _dict_value(row, "formal_attempt_context"),
         "llm_route_planner_response_trace_grounded": bool(
             row.get("llm_route_planner_response_trace_grounded", False)
         ),
@@ -2228,6 +2236,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Refinement evidence proposals status-only: {payload.get('n_refinement_evidence_route_revision_proposals_status_only')}",
         f"- Resource-response ledger proposals: {payload.get('n_resource_response_ledger_route_revision_proposals')}",
         f"- Applied resource-response traces: {payload.get('n_applied_resource_response_traces')}",
+        (
+            "- Applied resource-response formal-attempt context traces: "
+            f"{payload.get('n_applied_resource_response_formal_attempt_context_traces')}"
+        ),
         (
             "- Applied resource-response route-brief evidence-gap traces: "
             f"{payload.get('n_applied_resource_response_route_planning_brief_evidence_gap_traces')}"
