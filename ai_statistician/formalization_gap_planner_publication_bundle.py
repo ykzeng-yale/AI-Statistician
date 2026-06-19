@@ -2233,9 +2233,14 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_llm_route_planner_route_option_selection_candidates_with_residual_goals",
             "n_llm_route_planner_route_option_selection_candidate_residual_goals",
             "n_llm_route_planner_route_option_selection_lower_bound_residual_goals",
+            "n_rows_with_llm_route_planner_route_option_selected_route_option",
             "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals",
             "n_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta",
             "n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta",
+            "n_llm_route_planner_route_option_selected_matches_lower_bound",
+            "n_llm_route_planner_route_option_selected_mismatches_lower_bound",
+            "n_llm_route_planner_route_option_selected_matches_minimal_delta",
+            "n_llm_route_planner_route_option_selected_mismatches_minimal_delta",
             "n_rows_with_llm_route_planner_route_adoption_status",
             "n_rows_ready_for_route_adoption",
             "n_rows_pending_refinement_before_route_adoption",
@@ -2320,6 +2325,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_llm_route_planner_route_option_selection_lower_bound_residual_goals": (
                 nonnegative_integer
             ),
+            "n_rows_with_llm_route_planner_route_option_selected_route_option": (
+                nonnegative_integer
+            ),
             "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals": (
                 nonnegative_integer
             ),
@@ -2327,6 +2335,18 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_route_option_selected_matches_lower_bound": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_route_option_selected_mismatches_lower_bound": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_route_option_selected_matches_minimal_delta": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_route_option_selected_mismatches_minimal_delta": (
                 nonnegative_integer
             ),
             "n_realization_missing_selected_formal_primitives": nonnegative_integer,
@@ -4940,9 +4960,14 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         "n_llm_route_planner_route_option_selection_candidates_with_residual_goals": 0,
         "n_llm_route_planner_route_option_selection_candidate_residual_goals": 0,
         "n_llm_route_planner_route_option_selection_lower_bound_residual_goals": 0,
+        "n_rows_with_llm_route_planner_route_option_selected_route_option": 0,
         "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals": 0,
         "n_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta": 0,
         "n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta": 0,
+        "n_llm_route_planner_route_option_selected_matches_lower_bound": 0,
+        "n_llm_route_planner_route_option_selected_mismatches_lower_bound": 0,
+        "n_llm_route_planner_route_option_selected_matches_minimal_delta": 0,
+        "n_llm_route_planner_route_option_selected_mismatches_minimal_delta": 0,
         "n_rows_with_llm_route_planner_route_adoption_status": 0,
         "n_rows_ready_for_route_adoption": 0,
         "n_rows_pending_refinement_before_route_adoption": 0,
@@ -5301,6 +5326,23 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
             )
             or 0
         ),
+        "n_rows_with_llm_route_planner_route_option_selected_route_option": int(
+            payload.get(
+                "n_rows_with_llm_route_planner_route_option_selected_route_option",
+                sum(
+                    1
+                    for row in rows
+                    if str(
+                        row.get(
+                            "llm_route_planner_route_option_selected_route_option_id",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                ),
+            )
+            or 0
+        ),
         "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals": int(
             payload.get(
                 "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals",
@@ -5313,6 +5355,98 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
                         or 0
                     )
                     for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_route_option_selected_matches_lower_bound": int(
+            payload.get(
+                "n_llm_route_planner_route_option_selected_matches_lower_bound",
+                sum(
+                    1
+                    for row in rows
+                    if str(
+                        row.get(
+                            "llm_route_planner_route_option_selected_route_option_id",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                    and row.get(
+                        "llm_route_planner_route_option_selected_matches_lower_bound"
+                    )
+                    is True
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_route_option_selected_mismatches_lower_bound": int(
+            payload.get(
+                "n_llm_route_planner_route_option_selected_mismatches_lower_bound",
+                sum(
+                    1
+                    for row in rows
+                    if str(
+                        row.get(
+                            "llm_route_planner_route_option_selected_route_option_id",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                    and str(
+                        row.get(
+                            "llm_route_planner_route_option_selection_lower_bound_selected_route_option_id",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                    and row.get(
+                        "llm_route_planner_route_option_selected_matches_lower_bound"
+                    )
+                    is not True
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_route_option_selected_matches_minimal_delta": int(
+            payload.get(
+                "n_llm_route_planner_route_option_selected_matches_minimal_delta",
+                sum(
+                    1
+                    for row in rows
+                    if str(
+                        row.get(
+                            "llm_route_planner_route_option_selected_route_option_id",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                    and row.get(
+                        "llm_route_planner_route_option_selected_matches_minimal_delta"
+                    )
+                    is True
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_route_option_selected_mismatches_minimal_delta": int(
+            payload.get(
+                "n_llm_route_planner_route_option_selected_mismatches_minimal_delta",
+                sum(
+                    1
+                    for row in rows
+                    if str(
+                        row.get(
+                            "llm_route_planner_route_option_selected_route_option_id",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                    and str(row.get("minimal_delta_selected_route_option_id", "") or "").strip()
+                    and row.get(
+                        "llm_route_planner_route_option_selected_matches_minimal_delta"
+                    )
+                    is not True
                 ),
             )
             or 0
@@ -8285,7 +8419,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         (
             f"- Evaluation route-option selection "
             f"rows/options/primitives/residual-options/residual-goals/"
-            f"lower-bound-residuals/selected-residuals/matches/mismatches: "
+            f"lower-bound-residuals/selected-residuals/lb-md-matches/"
+            f"lb-md-mismatches/selected-ids/selected-lb-matches/"
+            f"selected-md-matches: "
             f"{payload.get('evaluation_summary', {}).get('n_rows_with_llm_route_planner_route_option_selection_brief')}/"
             f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_candidate_options')}/"
             f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_candidate_primitives')}/"
@@ -8294,7 +8430,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_lower_bound_residual_goals')}/"
             f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals')}/"
             f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta')}/"
-            f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta')}"
+            f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta')}/"
+            f"{payload.get('evaluation_summary', {}).get('n_rows_with_llm_route_planner_route_option_selected_route_option')}/"
+            f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selected_matches_lower_bound')}/"
+            f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selected_matches_minimal_delta')}"
         ),
         (
             f"- Evaluation route adoption ready/pending/blockers: "

@@ -1504,9 +1504,12 @@ def _fixture_evaluation_row() -> dict[str, object]:
         "llm_route_planner_route_option_selection_candidates_with_residual_goals": 0,
         "llm_route_planner_route_option_selection_candidate_residual_goal_count": 0,
         "llm_route_planner_route_option_selection_lower_bound_selected_route_option_id": "",
+        "llm_route_planner_route_option_selected_route_option_id": "",
         "llm_route_planner_route_option_selection_lower_bound_residual_goal_count": 0,
         "llm_route_planner_route_option_selection_minimal_delta_selected_residual_goal_count": 0,
         "llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta": False,
+        "llm_route_planner_route_option_selected_matches_lower_bound": False,
+        "llm_route_planner_route_option_selected_matches_minimal_delta": False,
         "llm_route_planner_route_adoption_status": (
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
         ),
@@ -2481,9 +2484,14 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_llm_route_planner_route_option_selection_candidates_with_residual_goals": 0,
                 "n_llm_route_planner_route_option_selection_candidate_residual_goals": 0,
                 "n_llm_route_planner_route_option_selection_lower_bound_residual_goals": 0,
+                "n_rows_with_llm_route_planner_route_option_selected_route_option": 0,
                 "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals": 0,
                 "n_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta": 0,
                 "n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta": 0,
+                "n_llm_route_planner_route_option_selected_matches_lower_bound": 0,
+                "n_llm_route_planner_route_option_selected_mismatches_lower_bound": 0,
+                "n_llm_route_planner_route_option_selected_matches_minimal_delta": 0,
+                "n_llm_route_planner_route_option_selected_mismatches_minimal_delta": 0,
                 "n_rows_with_llm_route_planner_route_adoption_status": 1,
                 "n_rows_ready_for_route_adoption": 0,
                 "n_rows_pending_refinement_before_route_adoption": 1,
@@ -4491,6 +4499,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert (
         audit_payload[
+            "n_optional_evaluation_rows_with_route_option_selected_route_option"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
             "n_optional_evaluation_route_option_selection_minimal_delta_selected_residual_goals"
         ]
         == 0
@@ -4504,6 +4518,30 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert (
         audit_payload[
             "n_optional_evaluation_route_option_selection_lower_bound_mismatches_minimal_delta"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_option_selected_matches_lower_bound"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_option_selected_mismatches_lower_bound"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_option_selected_matches_minimal_delta"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_option_selected_mismatches_minimal_delta"
         ]
         == 0
     )

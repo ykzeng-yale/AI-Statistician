@@ -462,6 +462,9 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
                             "llm_route_planner_route_option_selection_brief": (
                                 route_option_selection_brief
                             ),
+                            "llm_route_planner_route_option_selected_route_option_id": (
+                                "route_option:bridge_rank"
+                            ),
                             "llm_route_planner_acceptance_status": (
                                 "ACCEPTED_SOURCE_GROUNDED_ROUTE_PLAN"
                             ),
@@ -660,6 +663,12 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     )
     assert (
         payload[
+            "n_rows_with_llm_route_planner_route_option_selected_route_option"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals"
         ]
         == 1
@@ -673,6 +682,30 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert (
         payload[
             "n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_option_selected_matches_lower_bound"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_option_selected_mismatches_lower_bound"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_option_selected_matches_minimal_delta"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_option_selected_mismatches_minimal_delta"
         ]
         == 0
     )
@@ -830,9 +863,14 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "n_route_option_selection_candidates_with_residual_goals": 1,
             "n_route_option_selection_candidate_residual_goals": 1,
             "n_route_option_selection_lower_bound_residual_goals": 1,
+            "n_rows_with_route_option_selected_route_option": 1,
             "n_route_option_selection_minimal_delta_selected_residual_goals": 1,
             "n_route_option_selection_lower_bound_matches_minimal_delta": 1,
             "n_route_option_selection_lower_bound_mismatches_minimal_delta": 0,
+            "n_route_option_selected_matches_lower_bound": 1,
+            "n_route_option_selected_mismatches_lower_bound": 0,
+            "n_route_option_selected_matches_minimal_delta": 1,
+            "n_route_option_selected_mismatches_minimal_delta": 0,
         }
     }
     assert payload["evaluation_by_llm_model_tier_decision_basis"] == {
@@ -864,9 +902,14 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "n_route_option_selection_candidates_with_residual_goals": 1,
             "n_route_option_selection_candidate_residual_goals": 1,
             "n_route_option_selection_lower_bound_residual_goals": 1,
+            "n_rows_with_route_option_selected_route_option": 1,
             "n_route_option_selection_minimal_delta_selected_residual_goals": 1,
             "n_route_option_selection_lower_bound_matches_minimal_delta": 1,
             "n_route_option_selection_lower_bound_mismatches_minimal_delta": 0,
+            "n_route_option_selected_matches_lower_bound": 1,
+            "n_route_option_selected_mismatches_lower_bound": 0,
+            "n_route_option_selected_matches_minimal_delta": 1,
+            "n_route_option_selected_mismatches_minimal_delta": 0,
         }
     }
     assert payload["n_rows_with_quality_controls"] == 1
@@ -937,6 +980,10 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         == "route_option:bridge_rank"
     )
     assert (
+        row["llm_route_planner_route_option_selected_route_option_id"]
+        == "route_option:bridge_rank"
+    )
+    assert (
         row[
             "llm_route_planner_route_option_selection_lower_bound_residual_goal_count"
         ]
@@ -952,6 +999,11 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         row[
             "llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta"
         ]
+        is True
+    )
+    assert row["llm_route_planner_route_option_selected_matches_lower_bound"] is True
+    assert (
+        row["llm_route_planner_route_option_selected_matches_minimal_delta"]
         is True
     )
     assert row["realization_coverage_witness_present"] is True

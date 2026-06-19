@@ -243,6 +243,28 @@ def _assert_evaluation_llm_route_option_selection_summary(
         ]
         == rows_with_brief
     )
+    rows_with_selected = payload[
+        "n_evaluation_rows_with_llm_route_planner_route_option_selected_route_option"
+    ]
+    assert rows_with_selected <= rows_with_brief
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_route_option_selected_matches_lower_bound"
+        ]
+        + payload[
+            "n_evaluation_llm_route_planner_route_option_selected_mismatches_lower_bound"
+        ]
+        <= rows_with_selected
+    )
+    assert (
+        payload[
+            "n_evaluation_llm_route_planner_route_option_selected_matches_minimal_delta"
+        ]
+        + payload[
+            "n_evaluation_llm_route_planner_route_option_selected_mismatches_minimal_delta"
+        ]
+        <= rows_with_selected
+    )
     if rows_with_brief:
         assert (
             payload[
@@ -3181,9 +3203,14 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_route_option_selection_candidates_with_residual_goals": 0,
             "n_route_option_selection_candidate_residual_goals": 0,
             "n_route_option_selection_lower_bound_residual_goals": 0,
+            "n_rows_with_route_option_selected_route_option": 1,
             "n_route_option_selection_minimal_delta_selected_residual_goals": 0,
             "n_route_option_selection_lower_bound_matches_minimal_delta": 0,
             "n_route_option_selection_lower_bound_mismatches_minimal_delta": 1,
+            "n_route_option_selected_matches_lower_bound": 1,
+            "n_route_option_selected_mismatches_lower_bound": 0,
+            "n_route_option_selected_matches_minimal_delta": 0,
+            "n_route_option_selected_mismatches_minimal_delta": 0,
         }
     }
     assert payload["evaluation_by_llm_model_tier_decision_basis"] == {
@@ -3215,9 +3242,14 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_route_option_selection_candidates_with_residual_goals": 0,
             "n_route_option_selection_candidate_residual_goals": 0,
             "n_route_option_selection_lower_bound_residual_goals": 0,
+            "n_rows_with_route_option_selected_route_option": 1,
             "n_route_option_selection_minimal_delta_selected_residual_goals": 0,
             "n_route_option_selection_lower_bound_matches_minimal_delta": 0,
             "n_route_option_selection_lower_bound_mismatches_minimal_delta": 1,
+            "n_route_option_selected_matches_lower_bound": 1,
+            "n_route_option_selected_mismatches_lower_bound": 0,
+            "n_route_option_selected_matches_minimal_delta": 0,
+            "n_route_option_selected_mismatches_minimal_delta": 0,
         }
     }
     assert payload["evaluation_by_llm_route_adoption_status"] == {

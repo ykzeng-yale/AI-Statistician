@@ -901,6 +901,11 @@ def audit_formalization_gap_planner_publication_bundle(
                 "n_llm_route_planner_route_option_selection_lower_bound_residual_goals"
             ]
         ),
+        "n_optional_evaluation_rows_with_route_option_selected_route_option": (
+            optional_evaluation_route_option_selection_counts[
+                "n_rows_with_llm_route_planner_route_option_selected_route_option"
+            ]
+        ),
         "n_optional_evaluation_route_option_selection_minimal_delta_selected_residual_goals": (
             optional_evaluation_route_option_selection_counts[
                 "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals"
@@ -914,6 +919,26 @@ def audit_formalization_gap_planner_publication_bundle(
         "n_optional_evaluation_route_option_selection_lower_bound_mismatches_minimal_delta": (
             optional_evaluation_route_option_selection_counts[
                 "n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta"
+            ]
+        ),
+        "n_optional_evaluation_route_option_selected_matches_lower_bound": (
+            optional_evaluation_route_option_selection_counts[
+                "n_llm_route_planner_route_option_selected_matches_lower_bound"
+            ]
+        ),
+        "n_optional_evaluation_route_option_selected_mismatches_lower_bound": (
+            optional_evaluation_route_option_selection_counts[
+                "n_llm_route_planner_route_option_selected_mismatches_lower_bound"
+            ]
+        ),
+        "n_optional_evaluation_route_option_selected_matches_minimal_delta": (
+            optional_evaluation_route_option_selection_counts[
+                "n_llm_route_planner_route_option_selected_matches_minimal_delta"
+            ]
+        ),
+        "n_optional_evaluation_route_option_selected_mismatches_minimal_delta": (
+            optional_evaluation_route_option_selection_counts[
+                "n_llm_route_planner_route_option_selected_mismatches_minimal_delta"
             ]
         ),
         "n_optional_evaluation_rows_with_quality_controls": sum(
@@ -4987,6 +5012,23 @@ def _expected_bundle_evaluation_summary(bundle_dir: Path) -> dict[str, object]:
             )
             or 0
         ),
+        "n_rows_with_llm_route_planner_route_option_selected_route_option": int(
+            evaluation_manifest.get(
+                "n_rows_with_llm_route_planner_route_option_selected_route_option",
+                sum(
+                    1
+                    for row in rows
+                    if str(
+                        row.get(
+                            "llm_route_planner_route_option_selected_route_option_id",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                ),
+            )
+            or 0
+        ),
         "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals": int(
             evaluation_manifest.get(
                 "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals",
@@ -4999,6 +5041,98 @@ def _expected_bundle_evaluation_summary(bundle_dir: Path) -> dict[str, object]:
                         or 0
                     )
                     for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_route_option_selected_matches_lower_bound": int(
+            evaluation_manifest.get(
+                "n_llm_route_planner_route_option_selected_matches_lower_bound",
+                sum(
+                    1
+                    for row in rows
+                    if str(
+                        row.get(
+                            "llm_route_planner_route_option_selected_route_option_id",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                    and row.get(
+                        "llm_route_planner_route_option_selected_matches_lower_bound"
+                    )
+                    is True
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_route_option_selected_mismatches_lower_bound": int(
+            evaluation_manifest.get(
+                "n_llm_route_planner_route_option_selected_mismatches_lower_bound",
+                sum(
+                    1
+                    for row in rows
+                    if str(
+                        row.get(
+                            "llm_route_planner_route_option_selected_route_option_id",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                    and str(
+                        row.get(
+                            "llm_route_planner_route_option_selection_lower_bound_selected_route_option_id",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                    and row.get(
+                        "llm_route_planner_route_option_selected_matches_lower_bound"
+                    )
+                    is not True
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_route_option_selected_matches_minimal_delta": int(
+            evaluation_manifest.get(
+                "n_llm_route_planner_route_option_selected_matches_minimal_delta",
+                sum(
+                    1
+                    for row in rows
+                    if str(
+                        row.get(
+                            "llm_route_planner_route_option_selected_route_option_id",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                    and row.get(
+                        "llm_route_planner_route_option_selected_matches_minimal_delta"
+                    )
+                    is True
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_route_option_selected_mismatches_minimal_delta": int(
+            evaluation_manifest.get(
+                "n_llm_route_planner_route_option_selected_mismatches_minimal_delta",
+                sum(
+                    1
+                    for row in rows
+                    if str(
+                        row.get(
+                            "llm_route_planner_route_option_selected_route_option_id",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+                    and str(row.get("minimal_delta_selected_route_option_id", "") or "").strip()
+                    and row.get(
+                        "llm_route_planner_route_option_selected_matches_minimal_delta"
+                    )
+                    is not True
                 ),
             )
             or 0
@@ -18379,6 +18513,17 @@ def _evaluation_route_option_selection_counts_from_rows(
             )
             for row in row_tuple
         ),
+        "n_rows_with_llm_route_planner_route_option_selected_route_option": sum(
+            1
+            for row in row_tuple
+            if str(
+                row.get(
+                    "llm_route_planner_route_option_selected_route_option_id",
+                    "",
+                )
+                or ""
+            ).strip()
+        ),
         "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals": sum(
             row_count(
                 row,
@@ -18403,6 +18548,76 @@ def _evaluation_route_option_selection_counts_from_rows(
             is True
             and row.get(
                 "llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta"
+            )
+            is not True
+        ),
+        "n_llm_route_planner_route_option_selected_matches_lower_bound": sum(
+            1
+            for row in row_tuple
+            if str(
+                row.get(
+                    "llm_route_planner_route_option_selected_route_option_id",
+                    "",
+                )
+                or ""
+            ).strip()
+            and row.get(
+                "llm_route_planner_route_option_selected_matches_lower_bound"
+            )
+            is True
+        ),
+        "n_llm_route_planner_route_option_selected_mismatches_lower_bound": sum(
+            1
+            for row in row_tuple
+            if str(
+                row.get(
+                    "llm_route_planner_route_option_selected_route_option_id",
+                    "",
+                )
+                or ""
+            ).strip()
+            and str(
+                row.get(
+                    "llm_route_planner_route_option_selection_lower_bound_selected_route_option_id",
+                    "",
+                )
+                or ""
+            ).strip()
+            and row.get(
+                "llm_route_planner_route_option_selected_matches_lower_bound"
+            )
+            is not True
+        ),
+        "n_llm_route_planner_route_option_selected_matches_minimal_delta": sum(
+            1
+            for row in row_tuple
+            if str(
+                row.get(
+                    "llm_route_planner_route_option_selected_route_option_id",
+                    "",
+                )
+                or ""
+            ).strip()
+            and row.get(
+                "llm_route_planner_route_option_selected_matches_minimal_delta"
+            )
+            is True
+        ),
+        "n_llm_route_planner_route_option_selected_mismatches_minimal_delta": sum(
+            1
+            for row in row_tuple
+            if str(
+                row.get(
+                    "llm_route_planner_route_option_selected_route_option_id",
+                    "",
+                )
+                or ""
+            ).strip()
+            and str(
+                row.get("minimal_delta_selected_route_option_id", "") or ""
+            ).strip()
+            and row.get(
+                "llm_route_planner_route_option_selected_matches_minimal_delta"
             )
             is not True
         ),
@@ -22319,7 +22534,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_optional_evaluation_route_option_selection_lower_bound_residual_goals')}/"
             f"{payload.get('n_optional_evaluation_route_option_selection_minimal_delta_selected_residual_goals')}/"
             f"{payload.get('n_optional_evaluation_route_option_selection_lower_bound_matches_minimal_delta')}/"
-            f"{payload.get('n_optional_evaluation_route_option_selection_lower_bound_mismatches_minimal_delta')}"
+            f"{payload.get('n_optional_evaluation_route_option_selection_lower_bound_mismatches_minimal_delta')}/"
+            f"{payload.get('n_optional_evaluation_rows_with_route_option_selected_route_option')}/"
+            f"{payload.get('n_optional_evaluation_route_option_selected_matches_lower_bound')}/"
+            f"{payload.get('n_optional_evaluation_route_option_selected_matches_minimal_delta')}"
         ),
         (
             "- Optional evaluation quality controls: "
