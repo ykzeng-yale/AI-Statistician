@@ -7311,6 +7311,24 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_formal_attempt_queue_accounting_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_formal_attempt_queue_accounting_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_agentic_proof_strategy_accounting_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_llm_route_planner_response_payload_validation_agentic_proof_strategy_accounting_checked"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_valid"
         ]
         == payload[

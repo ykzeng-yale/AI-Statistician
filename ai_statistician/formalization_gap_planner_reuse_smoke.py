@@ -6725,6 +6725,22 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_optional_llm_route_planner_response_payload_validation_route_adoption_accounting_valid",
             0,
         ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_formal_attempt_queue_accounting_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_formal_attempt_queue_accounting_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_formal_attempt_queue_accounting_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_formal_attempt_queue_accounting_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_agentic_proof_strategy_accounting_checked": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_agentic_proof_strategy_accounting_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_llm_route_planner_response_payload_validation_agentic_proof_strategy_accounting_valid": publication_bundle_audit_payload.get(
+            "n_optional_llm_route_planner_response_payload_validation_agentic_proof_strategy_accounting_valid",
+            0,
+        ),
         "n_publication_bundle_optional_llm_route_planner_response_payload_validation_row_schema_checked": publication_bundle_audit_payload.get(
             "n_optional_llm_route_planner_response_payload_validation_row_schema_checked",
             0,

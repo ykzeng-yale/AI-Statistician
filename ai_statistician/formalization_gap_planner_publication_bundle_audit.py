@@ -1662,6 +1662,32 @@ def audit_formalization_gap_planner_publication_bundle(
             == "optional_llm_route_planner_response_payload_validation_route_adoption_accounting"
             and check.ok
         ),
+        "n_optional_llm_route_planner_response_payload_validation_formal_attempt_queue_accounting_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_formal_attempt_queue_accounting"
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_formal_attempt_queue_accounting_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_formal_attempt_queue_accounting"
+            and check.ok
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_agentic_proof_strategy_accounting_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_agentic_proof_strategy_accounting"
+        ),
+        "n_optional_llm_route_planner_response_payload_validation_agentic_proof_strategy_accounting_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_llm_route_planner_response_payload_validation_agentic_proof_strategy_accounting"
+            and check.ok
+        ),
         "n_optional_llm_route_planner_response_payload_validation_row_schema_checked": sum(
             1
             for check in checks
@@ -3204,6 +3230,45 @@ def _expected_bundle_llm_route_planner_response_payload_validation_summary(
             )
             or 0
         ),
+        "n_request_bound_payloads_with_agentic_proof_strategy_plan": int(
+            payload.get(
+                "n_request_bound_payloads_with_agentic_proof_strategy_plan",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payload_agentic_proof_strategy_plan_rows": int(
+            payload.get(
+                "n_request_bound_payload_agentic_proof_strategy_plan_rows",
+                sum(
+                    int(
+                        row.get(
+                            "request_context_agentic_proof_strategy_plan_row_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_request_bound_payload_agentic_proof_strategy_plan_ready": int(
+            payload.get(
+                "n_request_bound_payload_agentic_proof_strategy_plan_ready",
+                sum(
+                    int(
+                        row.get(
+                            "request_context_agentic_proof_strategy_plan_ready_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
         "n_payloads_with_formal_attempt_queue": int(
             payload.get(
                 "n_payloads_with_formal_attempt_queue",
@@ -3241,6 +3306,39 @@ def _expected_bundle_llm_route_planner_response_payload_validation_summary(
                 "n_formal_attempt_queue_errors",
                 sum(
                     int(row.get("n_formal_attempt_queue_errors", 0) or 0)
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_payloads_with_agentic_proof_strategy_plan_obligation_errors": int(
+            payload.get(
+                "n_payloads_with_agentic_proof_strategy_plan_obligation_errors",
+                sum(
+                    1
+                    for row in rows
+                    if int(
+                        row.get(
+                            "n_agentic_proof_strategy_plan_obligation_errors",
+                            0,
+                        )
+                        or 0
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_agentic_proof_strategy_plan_obligation_errors": int(
+            payload.get(
+                "n_agentic_proof_strategy_plan_obligation_errors",
+                sum(
+                    int(
+                        row.get(
+                            "n_agentic_proof_strategy_plan_obligation_errors",
+                            0,
+                        )
+                        or 0
+                    )
                     for row in rows
                 ),
             )
@@ -9386,6 +9484,49 @@ def _llm_route_planner_response_payload_validation_optional_checks(
         )
         or 0
     )
+    manifest_request_bound_payloads_with_agentic_plan = int(
+        manifest.get(
+            "n_request_bound_payloads_with_agentic_proof_strategy_plan",
+            0,
+        )
+        or 0
+    )
+    manifest_request_bound_agentic_plan_rows = int(
+        manifest.get(
+            "n_request_bound_payload_agentic_proof_strategy_plan_rows",
+            0,
+        )
+        or 0
+    )
+    manifest_request_bound_agentic_plan_ready = int(
+        manifest.get(
+            "n_request_bound_payload_agentic_proof_strategy_plan_ready",
+            0,
+        )
+        or 0
+    )
+    manifest_payloads_with_formal_attempt_queue = int(
+        manifest.get("n_payloads_with_formal_attempt_queue", 0) or 0
+    )
+    manifest_formal_attempt_queue_items = int(
+        manifest.get("n_payload_formal_attempt_queue_items", 0) or 0
+    )
+    manifest_payloads_with_formal_attempt_queue_errors = int(
+        manifest.get("n_payloads_with_formal_attempt_queue_errors", 0) or 0
+    )
+    manifest_formal_attempt_queue_errors = int(
+        manifest.get("n_formal_attempt_queue_errors", 0) or 0
+    )
+    manifest_payloads_with_agentic_obligation_errors = int(
+        manifest.get(
+            "n_payloads_with_agentic_proof_strategy_plan_obligation_errors",
+            0,
+        )
+        or 0
+    )
+    manifest_agentic_obligation_errors = int(
+        manifest.get("n_agentic_proof_strategy_plan_obligation_errors", 0) or 0
+    )
     row_request_bound_payloads = sum(
         1
         for row in rows
@@ -9487,6 +9628,64 @@ def _llm_route_planner_response_payload_validation_optional_checks(
         for row in rows
         if str(row.get("request_context_validation_mode", ""))
         == "request_bound"
+    )
+    row_request_bound_payloads_with_agentic_plan = sum(
+        1
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+        and bool(row.get("request_context_agentic_proof_strategy_plan_present", False))
+    )
+    row_request_bound_agentic_plan_rows = sum(
+        int(
+            row.get(
+                "request_context_agentic_proof_strategy_plan_row_count",
+                0,
+            )
+            or 0
+        )
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+    )
+    row_request_bound_agentic_plan_ready = sum(
+        int(
+            row.get(
+                "request_context_agentic_proof_strategy_plan_ready_count",
+                0,
+            )
+            or 0
+        )
+        for row in rows
+        if str(row.get("request_context_validation_mode", ""))
+        == "request_bound"
+    )
+    row_payloads_with_formal_attempt_queue = sum(
+        1
+        for row in rows
+        if bool(row.get("payload_formal_attempt_queue_present", False))
+    )
+    row_formal_attempt_queue_items = sum(
+        int(row.get("payload_formal_attempt_queue_item_count", 0) or 0)
+        for row in rows
+    )
+    row_payloads_with_formal_attempt_queue_errors = sum(
+        1
+        for row in rows
+        if int(row.get("n_formal_attempt_queue_errors", 0) or 0)
+    )
+    row_formal_attempt_queue_errors = sum(
+        int(row.get("n_formal_attempt_queue_errors", 0) or 0)
+        for row in rows
+    )
+    row_payloads_with_agentic_obligation_errors = sum(
+        1
+        for row in rows
+        if int(row.get("n_agentic_proof_strategy_plan_obligation_errors", 0) or 0)
+    )
+    row_agentic_obligation_errors = sum(
+        int(row.get("n_agentic_proof_strategy_plan_obligation_errors", 0) or 0)
+        for row in rows
     )
     row_schema_errors = sum(int(row.get("n_schema_errors", 0) or 0) for row in rows)
     row_request_context_errors = sum(
@@ -9615,6 +9814,68 @@ def _llm_route_planner_response_payload_validation_optional_checks(
         route_precondition_accounting_errors.append(
             "JSONL route-adoption precondition target-primitive totals must match "
             "manifest n_request_bound_payload_route_adoption_precondition_target_primitives"
+        )
+    formal_attempt_queue_accounting_errors: list[str] = []
+    if (
+        row_payloads_with_formal_attempt_queue
+        != manifest_payloads_with_formal_attempt_queue
+    ):
+        formal_attempt_queue_accounting_errors.append(
+            "JSONL payload formal-attempt queue rows must match manifest "
+            "n_payloads_with_formal_attempt_queue"
+        )
+    if row_formal_attempt_queue_items != manifest_formal_attempt_queue_items:
+        formal_attempt_queue_accounting_errors.append(
+            "JSONL formal-attempt queue item totals must match manifest "
+            "n_payload_formal_attempt_queue_items"
+        )
+    if (
+        row_payloads_with_formal_attempt_queue_errors
+        != manifest_payloads_with_formal_attempt_queue_errors
+    ):
+        formal_attempt_queue_accounting_errors.append(
+            "JSONL formal-attempt queue error rows must match manifest "
+            "n_payloads_with_formal_attempt_queue_errors"
+        )
+    if row_formal_attempt_queue_errors != manifest_formal_attempt_queue_errors:
+        formal_attempt_queue_accounting_errors.append(
+            "JSONL formal-attempt queue error totals must match manifest "
+            "n_formal_attempt_queue_errors"
+        )
+    agentic_strategy_accounting_errors: list[str] = []
+    if (
+        row_request_bound_payloads_with_agentic_plan
+        != manifest_request_bound_payloads_with_agentic_plan
+    ):
+        agentic_strategy_accounting_errors.append(
+            "JSONL request-bound agentic proof-strategy rows must match manifest "
+            "n_request_bound_payloads_with_agentic_proof_strategy_plan"
+        )
+    if row_request_bound_agentic_plan_rows != manifest_request_bound_agentic_plan_rows:
+        agentic_strategy_accounting_errors.append(
+            "JSONL agentic proof-strategy row totals must match manifest "
+            "n_request_bound_payload_agentic_proof_strategy_plan_rows"
+        )
+    if (
+        row_request_bound_agentic_plan_ready
+        != manifest_request_bound_agentic_plan_ready
+    ):
+        agentic_strategy_accounting_errors.append(
+            "JSONL ready agentic proof-strategy row totals must match manifest "
+            "n_request_bound_payload_agentic_proof_strategy_plan_ready"
+        )
+    if (
+        row_payloads_with_agentic_obligation_errors
+        != manifest_payloads_with_agentic_obligation_errors
+    ):
+        agentic_strategy_accounting_errors.append(
+            "JSONL agentic proof-strategy obligation-error rows must match manifest "
+            "n_payloads_with_agentic_proof_strategy_plan_obligation_errors"
+        )
+    if row_agentic_obligation_errors != manifest_agentic_obligation_errors:
+        agentic_strategy_accounting_errors.append(
+            "JSONL agentic proof-strategy obligation-error totals must match manifest "
+            "n_agentic_proof_strategy_plan_obligation_errors"
         )
     request_context_path_present = bool(
         str(manifest.get("request_context_path", "")).strip()
@@ -9814,6 +10075,42 @@ def _llm_route_planner_response_payload_validation_optional_checks(
             ),
             not route_precondition_accounting_errors,
             errors=tuple(route_precondition_accounting_errors),
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_formal_attempt_queue_accounting",
+            "optional_artifacts",
+            "payload formal-attempt queue counters match JSONL rows",
+            (
+                f"payloads={row_payloads_with_formal_attempt_queue}/"
+                f"{manifest_payloads_with_formal_attempt_queue} "
+                f"items={row_formal_attempt_queue_items}/"
+                f"{manifest_formal_attempt_queue_items} "
+                f"error_payloads={row_payloads_with_formal_attempt_queue_errors}/"
+                f"{manifest_payloads_with_formal_attempt_queue_errors} "
+                f"errors={row_formal_attempt_queue_errors}/"
+                f"{manifest_formal_attempt_queue_errors}"
+            ),
+            not formal_attempt_queue_accounting_errors,
+            errors=tuple(formal_attempt_queue_accounting_errors),
+        ),
+        _check(
+            "optional_llm_route_planner_response_payload_validation_agentic_proof_strategy_accounting",
+            "optional_artifacts",
+            "agentic proof-strategy counters match JSONL rows",
+            (
+                f"plans={row_request_bound_payloads_with_agentic_plan}/"
+                f"{manifest_request_bound_payloads_with_agentic_plan} "
+                f"rows={row_request_bound_agentic_plan_rows}/"
+                f"{manifest_request_bound_agentic_plan_rows} "
+                f"ready={row_request_bound_agentic_plan_ready}/"
+                f"{manifest_request_bound_agentic_plan_ready} "
+                f"error_payloads={row_payloads_with_agentic_obligation_errors}/"
+                f"{manifest_payloads_with_agentic_obligation_errors} "
+                f"errors={row_agentic_obligation_errors}/"
+                f"{manifest_agentic_obligation_errors}"
+            ),
+            not agentic_strategy_accounting_errors,
+            errors=tuple(agentic_strategy_accounting_errors),
         ),
     ]
     for idx, row in enumerate(rows):
