@@ -5086,10 +5086,28 @@ def test_llm_route_planner_materializes_formal_attempt_queue_hooks() -> None:
     row = payload["rows"][0]
     assert row["acceptance_status"] == "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE"
     assert row["route_adoption_status"] == "READY_FOR_STANDALONE_REPLAY"
+    schedule = row["formal_attempt_queue_schedule"]
+    assert schedule["n_attempts"] == 2
+    assert schedule["n_initial_ready_attempts"] == 1
+    assert schedule["n_waiting_for_formal_prerequisite_attempts"] == 1
+    assert schedule["n_missing_prerequisite_attempts"] == 0
+    assert schedule["has_initial_ready_attempt"] is True
+    assert schedule["all_prerequisites_queued"] is True
+    assert schedule["bottom_up_schedule_complete"] is True
+    assert schedule["initial_ready_attempt_ids"] == ["attempt:exchangeability_reuse"]
+    assert schedule["waiting_attempt_ids"] == ["attempt:rank_uniformity_bridge"]
+    assert [
+        item["dependency_status"]
+        for item in schedule["attempt_dependency_rows"]
+    ] == ["initial_ready", "waiting_for_formal_prerequisite_attempts"]
     seed_route = payload["standalone_seed"]["routes"][0]
     assert seed_route["llm_route_planner_acceptance_status"] == (
         "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE"
     )
+    assert seed_route["llm_route_planner_formal_attempt_queue_schedule"] == schedule
+    assert seed_route["replan_metadata"][
+        "llm_route_planner_formal_attempt_queue_schedule"
+    ] == schedule
     queue_hooks = [
         hook
         for hook in seed_route["interactive_refinement_hooks"]

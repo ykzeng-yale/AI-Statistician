@@ -906,6 +906,7 @@ class FormalizationGapPlannerLLMRoutePlannerRow:
     semantic_alignment_risks: tuple[str, ...]
     planner_next_actions: tuple[dict[str, object], ...]
     formal_attempt_queue: tuple[dict[str, object], ...]
+    formal_attempt_queue_schedule: dict[str, object]
     standalone_route: dict[str, object]
     source_refs: tuple[str, ...]
     source_snippets: tuple[dict[str, object], ...]
@@ -5301,6 +5302,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "semantic_alignment_risks",
             "planner_next_actions",
             "formal_attempt_queue",
+            "formal_attempt_queue_schedule",
             "standalone_route",
             "source_refs",
             "source_snippets",
@@ -5362,6 +5364,7 @@ def llm_route_planner_row_json_schema() -> dict[str, object]:
             "semantic_alignment_risks": string_array,
             "planner_next_actions": object_array,
             "formal_attempt_queue": object_array,
+            "formal_attempt_queue_schedule": {"type": "object"},
             "standalone_route": {"type": "object"},
             "source_refs": string_array,
             "source_snippets": object_array,
@@ -16307,6 +16310,9 @@ def _row_for_request(
         ),
         planner_next_actions=_dict_tuple(payload.get("planner_next_actions", [])),
         formal_attempt_queue=_dict_tuple(payload.get("formal_attempt_queue", [])),
+        formal_attempt_queue_schedule=_formal_attempt_queue_schedule(
+            _dict_tuple(payload.get("formal_attempt_queue", []))
+        ),
         standalone_route=standalone_route,
         source_refs=_route_source_refs(payload),
         source_snippets=_route_source_snippets(payload),
@@ -16444,6 +16450,92 @@ def _route_adoption_readiness(
     if blockers:
         return (ROUTE_ADOPTION_PENDING_STATUS, tuple(blockers))
     return (ROUTE_ADOPTION_READY_STATUS, tuple())
+
+
+def _formal_attempt_queue_schedule(
+    formal_attempt_queue: tuple[dict[str, object], ...],
+) -> dict[str, object]:
+    node_to_attempt_id = {
+        str(item.get("formal_node_id", "")).strip(): str(
+            item.get("attempt_id", "")
+        ).strip()
+        for item in formal_attempt_queue
+        if str(item.get("formal_node_id", "")).strip()
+    }
+    schedule_rows: list[dict[str, object]] = []
+    initial_attempt_ids: list[str] = []
+    waiting_attempt_ids: list[str] = []
+    missing_attempt_ids: list[str] = []
+    missing_prerequisite_node_ids: list[str] = []
+    for index, item in enumerate(formal_attempt_queue):
+        attempt_id = str(item.get("attempt_id", "")).strip()
+        formal_node_id = str(item.get("formal_node_id", "")).strip()
+        prerequisites = _str_tuple(item.get("prerequisite_formal_node_ids", []))
+        prerequisite_attempt_ids = tuple(
+            node_to_attempt_id[prerequisite]
+            for prerequisite in prerequisites
+            if prerequisite in node_to_attempt_id
+        )
+        missing_prerequisites = tuple(
+            prerequisite
+            for prerequisite in prerequisites
+            if prerequisite not in node_to_attempt_id
+        )
+        if not prerequisites:
+            status = "initial_ready"
+            initial_ready = True
+            initial_attempt_ids.append(attempt_id)
+        elif missing_prerequisites:
+            status = "missing_prerequisite_attempts"
+            initial_ready = False
+            missing_attempt_ids.append(attempt_id)
+            missing_prerequisite_node_ids.extend(missing_prerequisites)
+        else:
+            status = "waiting_for_formal_prerequisite_attempts"
+            initial_ready = False
+            waiting_attempt_ids.append(attempt_id)
+        schedule_rows.append(
+            {
+                "formal_attempt_queue_index": index,
+                "attempt_id": attempt_id,
+                "formal_node_id": formal_node_id,
+                "primitive": str(item.get("primitive", "")).strip(),
+                "attempt_kind": str(item.get("attempt_kind", "")).strip(),
+                "target_prover_family": str(
+                    item.get("target_prover_family", "")
+                ).strip(),
+                "initial_ready": initial_ready,
+                "dependency_status": status,
+                "prerequisite_formal_node_ids": list(prerequisites),
+                "prerequisite_attempt_ids": list(prerequisite_attempt_ids),
+                "missing_prerequisite_formal_node_ids": list(missing_prerequisites),
+            }
+        )
+    has_queue = bool(formal_attempt_queue)
+    has_initial = bool(initial_attempt_ids)
+    all_prerequisites_queued = not missing_attempt_ids
+    return {
+        "schedule_kind": "formalization_gap_planner_llm_route_planner_formal_attempt_queue_schedule",
+        "n_attempts": len(formal_attempt_queue),
+        "n_initial_ready_attempts": len(initial_attempt_ids),
+        "n_waiting_for_formal_prerequisite_attempts": len(waiting_attempt_ids),
+        "n_missing_prerequisite_attempts": len(missing_attempt_ids),
+        "has_formal_attempt_queue": has_queue,
+        "has_initial_ready_attempt": has_initial,
+        "all_prerequisites_queued": all_prerequisites_queued,
+        "bottom_up_schedule_complete": (not has_queue) or (
+            has_initial and all_prerequisites_queued
+        ),
+        "initial_ready_attempt_ids": list(_str_tuple(initial_attempt_ids)),
+        "waiting_attempt_ids": list(_str_tuple(waiting_attempt_ids)),
+        "missing_prerequisite_attempt_ids": list(_str_tuple(missing_attempt_ids)),
+        "missing_prerequisite_formal_node_ids": list(
+            _str_tuple(missing_prerequisite_node_ids)
+        ),
+        "attempt_dependency_rows": schedule_rows,
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
 
 
 def _route_adoption_preconditions(
@@ -30837,6 +30929,7 @@ def _fallback_route_for_seed(
     route_adoption_preconditions = dict(row.route_adoption_preconditions)
     source_grounding_obligations = dict(row.source_grounding_obligations)
     primitive_evidence_matrix_witness = dict(row.primitive_evidence_matrix_witness)
+    formal_attempt_queue_schedule = dict(row.formal_attempt_queue_schedule)
     metadata = _dict_value(fallback, "replan_metadata")
     metadata = {
         **metadata,
@@ -30864,6 +30957,9 @@ def _fallback_route_for_seed(
         ),
         "llm_route_planner_errors": list(row.errors),
         "llm_route_planner_generation_errors": list(row.generation_errors),
+        "llm_route_planner_formal_attempt_queue_schedule": (
+            formal_attempt_queue_schedule
+        ),
         "llm_route_planner_request_contract_blocked": (
             row.acceptance_status
             == "REJECTED_LLM_ROUTE_PLANNER_REQUEST_CONTRACT"
@@ -30932,6 +31028,10 @@ def _fallback_route_for_seed(
     fallback["llm_route_planner_route_adoption_blockers"] = list(
         row.route_adoption_blockers
     )
+    if formal_attempt_queue_schedule.get("has_formal_attempt_queue"):
+        fallback["llm_route_planner_formal_attempt_queue_schedule"] = (
+            formal_attempt_queue_schedule
+        )
     return fallback
 
 
@@ -30952,6 +31052,7 @@ def _accepted_route_for_seed(
     route_adoption_preconditions = dict(row.route_adoption_preconditions)
     source_grounding_obligations = dict(row.source_grounding_obligations)
     primitive_evidence_matrix_witness = dict(row.primitive_evidence_matrix_witness)
+    formal_attempt_queue_schedule = dict(row.formal_attempt_queue_schedule)
     route["target_prover_family"] = row.target_prover_family
     route["target_theorem_context_packet"] = target_context_packet
     if target_context_summary:
@@ -31253,6 +31354,9 @@ def _accepted_route_for_seed(
         "llm_route_planner_formal_attempt_queue": [
             dict(item) for item in row.formal_attempt_queue
         ],
+        "llm_route_planner_formal_attempt_queue_schedule": (
+            formal_attempt_queue_schedule
+        ),
         "llm_route_planner_interactive_refinement_hooks": [
             dict(item) for item in llm_refinement_hooks
         ],
@@ -31371,6 +31475,10 @@ def _accepted_route_for_seed(
     route["formal_attempt_queue"] = [
         dict(item) for item in row.formal_attempt_queue
     ]
+    if formal_attempt_queue_schedule.get("has_formal_attempt_queue"):
+        route["llm_route_planner_formal_attempt_queue_schedule"] = (
+            formal_attempt_queue_schedule
+        )
     route["realization_coverage_witness"] = realization_coverage_witness
     route["selected_primitives"] = list(selected_primitives)
     route["llm_route_planner_row_id"] = row.llm_route_planner_row_id
