@@ -824,6 +824,15 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "n_interactive_formal_attempt_queue_ready_items": 1,
             "n_interactive_formal_attempt_queue_blocked_items": 1,
             "n_interactive_formal_attempt_queue_execution_commands": 3,
+            "n_rows_with_route_option_selection_brief": 1,
+            "n_route_option_selection_candidate_options": 2,
+            "n_route_option_selection_candidate_primitives": 4,
+            "n_route_option_selection_candidates_with_residual_goals": 1,
+            "n_route_option_selection_candidate_residual_goals": 1,
+            "n_route_option_selection_lower_bound_residual_goals": 1,
+            "n_route_option_selection_minimal_delta_selected_residual_goals": 1,
+            "n_route_option_selection_lower_bound_matches_minimal_delta": 1,
+            "n_route_option_selection_lower_bound_mismatches_minimal_delta": 0,
         }
     }
     assert payload["evaluation_by_llm_model_tier_decision_basis"] == {
@@ -849,6 +858,15 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "provider_total_tokens": 165,
             "mean_route_recall": 1.0,
             "mean_delta_precision": 1.0,
+            "n_rows_with_route_option_selection_brief": 1,
+            "n_route_option_selection_candidate_options": 2,
+            "n_route_option_selection_candidate_primitives": 4,
+            "n_route_option_selection_candidates_with_residual_goals": 1,
+            "n_route_option_selection_candidate_residual_goals": 1,
+            "n_route_option_selection_lower_bound_residual_goals": 1,
+            "n_route_option_selection_minimal_delta_selected_residual_goals": 1,
+            "n_route_option_selection_lower_bound_matches_minimal_delta": 1,
+            "n_route_option_selection_lower_bound_mismatches_minimal_delta": 0,
         }
     }
     assert payload["n_rows_with_quality_controls"] == 1

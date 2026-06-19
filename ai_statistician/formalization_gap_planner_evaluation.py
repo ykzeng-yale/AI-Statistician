@@ -3021,6 +3021,7 @@ def _llm_model_tier_summary(
                 row.llm_route_planner_interactive_formal_attempt_queue_execution_command_count
                 for row in tier_rows
             ),
+            **_llm_route_option_selection_summary(tier_rows),
         }
         for tier in tiers
         for tier_rows in [
@@ -3115,6 +3116,7 @@ def _llm_model_tier_decision_basis_summary(
             "mean_delta_precision": _mean(
                 row.delta_precision for row in basis_rows if row.matched_ground_truth
             ),
+            **_llm_route_option_selection_summary(basis_rows),
         }
         for basis in bases
         for basis_rows in [
@@ -3124,6 +3126,54 @@ def _llm_model_tier_decision_basis_summary(
                 if row.llm_route_planner_model_tier_decision_basis == basis
             ]
         ]
+    }
+
+
+def _llm_route_option_selection_summary(
+    rows: list[FormalizationGapPlannerEvaluationRow],
+) -> dict[str, int]:
+    return {
+        "n_rows_with_route_option_selection_brief": sum(
+            1
+            for row in rows
+            if row.llm_route_planner_route_option_selection_brief_present
+        ),
+        "n_route_option_selection_candidate_options": sum(
+            row.llm_route_planner_route_option_selection_candidate_count
+            for row in rows
+        ),
+        "n_route_option_selection_candidate_primitives": sum(
+            row.llm_route_planner_route_option_selection_candidate_primitive_count
+            for row in rows
+        ),
+        "n_route_option_selection_candidates_with_residual_goals": sum(
+            row.llm_route_planner_route_option_selection_candidates_with_residual_goals
+            for row in rows
+        ),
+        "n_route_option_selection_candidate_residual_goals": sum(
+            row.llm_route_planner_route_option_selection_candidate_residual_goal_count
+            for row in rows
+        ),
+        "n_route_option_selection_lower_bound_residual_goals": sum(
+            row.llm_route_planner_route_option_selection_lower_bound_residual_goal_count
+            for row in rows
+        ),
+        "n_route_option_selection_minimal_delta_selected_residual_goals": sum(
+            row.llm_route_planner_route_option_selection_minimal_delta_selected_residual_goal_count
+            for row in rows
+        ),
+        "n_route_option_selection_lower_bound_matches_minimal_delta": sum(
+            1
+            for row in rows
+            if row.llm_route_planner_route_option_selection_brief_present
+            and row.llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta
+        ),
+        "n_route_option_selection_lower_bound_mismatches_minimal_delta": sum(
+            1
+            for row in rows
+            if row.llm_route_planner_route_option_selection_brief_present
+            and not row.llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta
+        ),
     }
 
 
