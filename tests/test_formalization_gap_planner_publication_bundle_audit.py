@@ -1498,6 +1498,15 @@ def _fixture_evaluation_row() -> dict[str, object]:
         "llm_route_planner_residual_goal_context_provenance_count": 2,
         "llm_route_planner_residual_goals_with_context_count": 1,
         "llm_route_planner_residual_goals_without_context": [],
+        "llm_route_planner_route_option_selection_brief_present": False,
+        "llm_route_planner_route_option_selection_candidate_count": 0,
+        "llm_route_planner_route_option_selection_candidate_primitive_count": 0,
+        "llm_route_planner_route_option_selection_candidates_with_residual_goals": 0,
+        "llm_route_planner_route_option_selection_candidate_residual_goal_count": 0,
+        "llm_route_planner_route_option_selection_lower_bound_selected_route_option_id": "",
+        "llm_route_planner_route_option_selection_lower_bound_residual_goal_count": 0,
+        "llm_route_planner_route_option_selection_minimal_delta_selected_residual_goal_count": 0,
+        "llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta": False,
         "llm_route_planner_route_adoption_status": (
             "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
         ),
@@ -2466,6 +2475,15 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_llm_route_planner_residual_goal_context_provenance_values": 2,
                 "n_llm_route_planner_residual_goals_with_context": 1,
                 "n_llm_route_planner_residual_goals_without_context": 0,
+                "n_rows_with_llm_route_planner_route_option_selection_brief": 0,
+                "n_llm_route_planner_route_option_selection_candidate_options": 0,
+                "n_llm_route_planner_route_option_selection_candidate_primitives": 0,
+                "n_llm_route_planner_route_option_selection_candidates_with_residual_goals": 0,
+                "n_llm_route_planner_route_option_selection_candidate_residual_goals": 0,
+                "n_llm_route_planner_route_option_selection_lower_bound_residual_goals": 0,
+                "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals": 0,
+                "n_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta": 0,
+                "n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta": 0,
                 "n_rows_with_llm_route_planner_route_adoption_status": 1,
                 "n_rows_ready_for_route_adoption": 0,
                 "n_rows_pending_refinement_before_route_adoption": 1,
@@ -4326,6 +4344,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         == 1
     )
     assert audit_payload["n_optional_evaluation_route_adoption_manifest_valid"] == 1
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_option_selection_manifest_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_option_selection_manifest_valid"
+        ]
+        == 1
+    )
     assert audit_payload["n_optional_evaluation_quality_control_row_checked"] == 1
     assert audit_payload["n_optional_evaluation_quality_control_row_valid"] == 1
     assert (
@@ -4409,6 +4439,60 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert audit_payload[
         "optional_evaluation_route_adoption_precondition_target_primitives"
     ] == ("rank_uniformity",)
+    assert (
+        audit_payload[
+            "n_optional_evaluation_rows_with_route_option_selection_brief"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_option_selection_candidate_options"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_option_selection_candidate_primitives"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_option_selection_candidates_with_residual_goals"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_option_selection_candidate_residual_goals"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_option_selection_lower_bound_residual_goals"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_option_selection_minimal_delta_selected_residual_goals"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_option_selection_lower_bound_matches_minimal_delta"
+        ]
+        == 0
+    )
+    assert (
+        audit_payload[
+            "n_optional_evaluation_route_option_selection_lower_bound_mismatches_minimal_delta"
+        ]
+        == 0
+    )
     assert audit_payload["n_optional_evaluation_rows_with_quality_controls"] == 1
     assert audit_payload["n_optional_evaluation_quality_control_fields"] == 4
     assert audit_payload["optional_evaluation_quality_control_fields"] == (
@@ -6129,6 +6213,61 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert any(
         "n_llm_route_planner_residual_goals_without_context" in error
         for error in residual_context_manifest_check["errors"]
+    )
+    evaluation_manifest_path.write_text(
+        json.dumps(evaluation_manifest_payload, indent=2),
+        encoding="utf-8",
+    )
+
+    corrupted_route_option_manifest = json.loads(
+        json.dumps(evaluation_manifest_payload)
+    )
+    corrupted_route_option_manifest[
+        "n_llm_route_planner_route_option_selection_candidate_options"
+    ] = 99
+    corrupted_route_option_manifest[
+        "n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta"
+    ] = 99
+    evaluation_manifest_path.write_text(
+        json.dumps(corrupted_route_option_manifest, indent=2),
+        encoding="utf-8",
+    )
+    rejected_route_option_evaluation_payload = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_evaluation_route_option_selection_loss",
+        )
+    )
+    route_option_evaluation_failed_names = {
+        row["check_name"]
+        for row in rejected_route_option_evaluation_payload["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_route_option_evaluation_payload["all_ok"]
+    assert (
+        "optional_evaluation_route_option_selection_manifest"
+        in route_option_evaluation_failed_names
+    )
+    assert (
+        rejected_route_option_evaluation_payload[
+            "n_optional_evaluation_route_option_selection_manifest_valid"
+        ]
+        == 0
+    )
+    route_option_manifest_check = next(
+        row
+        for row in rejected_route_option_evaluation_payload["checks"]
+        if row["check_name"]
+        == "optional_evaluation_route_option_selection_manifest"
+    )
+    assert any(
+        "n_llm_route_planner_route_option_selection_candidate_options" in error
+        for error in route_option_manifest_check["errors"]
+    )
+    assert any(
+        "n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta"
+        in error
+        for error in route_option_manifest_check["errors"]
     )
     evaluation_manifest_path.write_text(
         json.dumps(evaluation_manifest_payload, indent=2),

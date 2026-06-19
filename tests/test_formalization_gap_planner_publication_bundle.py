@@ -2379,6 +2379,15 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "llm_route_planner_residual_goal_context_provenance_count": 0,
         "llm_route_planner_residual_goals_with_context_count": 0,
         "llm_route_planner_residual_goals_without_context": ["rank_uniformity"],
+        "llm_route_planner_route_option_selection_brief_present": False,
+        "llm_route_planner_route_option_selection_candidate_count": 0,
+        "llm_route_planner_route_option_selection_candidate_primitive_count": 0,
+        "llm_route_planner_route_option_selection_candidates_with_residual_goals": 0,
+        "llm_route_planner_route_option_selection_candidate_residual_goal_count": 0,
+        "llm_route_planner_route_option_selection_lower_bound_selected_route_option_id": "",
+        "llm_route_planner_route_option_selection_lower_bound_residual_goal_count": 0,
+        "llm_route_planner_route_option_selection_minimal_delta_selected_residual_goal_count": 0,
+        "llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta": False,
         "llm_route_planner_route_adoption_status": "",
         "llm_route_planner_route_adoption_blockers": [],
         "llm_route_planner_route_adoption_preconditions": {},
@@ -2428,6 +2437,15 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
                 "n_llm_route_planner_residual_goal_context_provenance_values": 0,
                 "n_llm_route_planner_residual_goals_with_context": 0,
                 "n_llm_route_planner_residual_goals_without_context": 1,
+                "n_rows_with_llm_route_planner_route_option_selection_brief": 0,
+                "n_llm_route_planner_route_option_selection_candidate_options": 0,
+                "n_llm_route_planner_route_option_selection_candidate_primitives": 0,
+                "n_llm_route_planner_route_option_selection_candidates_with_residual_goals": 0,
+                "n_llm_route_planner_route_option_selection_candidate_residual_goals": 0,
+                "n_llm_route_planner_route_option_selection_lower_bound_residual_goals": 0,
+                "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals": 0,
+                "n_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta": 0,
+                "n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta": 0,
                 "n_rows_with_llm_route_planner_request_contract_blocked": 0,
                 "n_rows_with_llm_route_planner_errors": 0,
                 "n_llm_route_planner_errors": 0,
@@ -3298,6 +3316,60 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
             "n_llm_route_planner_residual_goals_without_context"
         ]
         == 1
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_rows_with_llm_route_planner_route_option_selection_brief"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_llm_route_planner_route_option_selection_candidate_options"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_llm_route_planner_route_option_selection_candidate_primitives"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_llm_route_planner_route_option_selection_candidates_with_residual_goals"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_llm_route_planner_route_option_selection_candidate_residual_goals"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_llm_route_planner_route_option_selection_lower_bound_residual_goals"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta"
+        ]
+        == 0
+    )
+    assert (
+        payload["evaluation_summary"][
+            "n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta"
+        ]
+        == 0
     )
     assert (
         payload["evaluation_summary"][
