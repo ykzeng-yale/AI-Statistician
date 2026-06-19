@@ -17,6 +17,11 @@ from .formalization_gap_planner_contract import (
     route_alignment_edge_json_schema,
     validate_route_alignment_edge,
 )
+from .formalization_gap_planner_llm_route_planner import (
+    ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS,
+    ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
+    ROUTE_ADOPTION_BLOCKER_VALUES,
+)
 from .formalization_gap_planner_quality_controls import (
     QUALITY_CONTROL_FIELDS,
     normalize_target_prover_family,
@@ -115,10 +120,6 @@ RESIDUAL_CONTEXT_TEXT_FIELDS = (
     "formal_boundary",
     "source_ref",
 )
-ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
-ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING = "source_grounding_obligations_pending"
-
-
 @dataclass(frozen=True)
 class FormalizationGapPlannerProverAdapterPacket:
     schema_version: int
@@ -605,6 +606,13 @@ def export_formalization_gap_planner_prover_adapter_contract(
 
 def prover_adapter_packet_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
+    route_adoption_blocker_array = {
+        "type": "array",
+        "items": {
+            "type": "string",
+            "enum": list(ROUTE_ADOPTION_BLOCKER_VALUES),
+        },
+    }
     object_array = {
         "type": "array",
         "items": {"type": "object", "additionalProperties": True},
@@ -651,6 +659,9 @@ def prover_adapter_packet_json_schema() -> dict[str, object]:
             "minimal_delta_action_witnesses": object_array,
             "minimal_delta_action_witness_count": {"type": "integer"},
             "has_minimal_delta_action_witness": {"type": "boolean"},
+            "llm_route_planner_route_adoption_blockers": (
+                route_adoption_blocker_array
+            ),
         },
     }
     return {
@@ -735,7 +746,9 @@ def prover_adapter_packet_json_schema() -> dict[str, object]:
             "n_residual_contexts_with_source_refs": {"type": "integer"},
             "n_residual_contexts_with_formal_gap_boundary": {"type": "integer"},
             "llm_route_planner_route_adoption_status": {"type": "string"},
-            "llm_route_planner_route_adoption_blockers": string_array,
+            "llm_route_planner_route_adoption_blockers": (
+                route_adoption_blocker_array
+            ),
             "alignment_status": {"type": "string", "minLength": 1},
             "informal_route_node_id": {"type": "string", "minLength": 1},
             "formal_realization_node_id": {"type": "string", "minLength": 1},
@@ -817,6 +830,9 @@ def validate_prover_adapter_packet_row(
             )
         )
         errors.extend(_standalone_trace_residual_context_errors(standalone_input_trace))
+        errors.extend(
+            _standalone_trace_route_adoption_blocker_errors(standalone_input_trace)
+        )
         errors.extend(
             _standalone_trace_formal_attempt_dependency_errors(
                 standalone_input_trace,
@@ -1449,6 +1465,40 @@ def _standalone_trace_residual_context_errors(
                 f"observed={observed_source_kinds} expected={expected_source_kinds}"
             )
     return tuple(errors)
+
+
+def _standalone_trace_route_adoption_blocker_errors(
+    trace: dict[str, object],
+) -> tuple[str, ...]:
+    if "llm_route_planner_route_adoption_blockers" not in trace:
+        return ()
+    blockers = trace.get("llm_route_planner_route_adoption_blockers", [])
+    if not isinstance(blockers, (list, tuple)):
+        return (
+            "standalone_input_trace.llm_route_planner_route_adoption_blockers "
+            "must be array",
+        )
+    non_strings = [
+        idx for idx, blocker in enumerate(blockers) if not isinstance(blocker, str)
+    ]
+    if non_strings:
+        return (
+            "standalone_input_trace.llm_route_planner_route_adoption_blockers "
+            "items must be string at indexes "
+            + ",".join(str(idx) for idx in non_strings),
+        )
+    unsupported = [
+        blocker
+        for blocker in dict.fromkeys(blockers)
+        if blocker not in ROUTE_ADOPTION_BLOCKER_VALUES
+    ]
+    if not unsupported:
+        return ()
+    return (
+        "standalone_input_trace.llm_route_planner_route_adoption_blockers "
+        "contains unsupported values: "
+        + ", ".join(unsupported[:8]),
+    )
 
 
 def _standalone_trace_formal_attempt_dependency_errors(
@@ -2734,6 +2784,20 @@ def _schema_property_errors(
                     errors.append(
                         f"{field_name} items must be string at indexes "
                         + ",".join(str(idx) for idx in non_strings)
+                    )
+            if isinstance(item_schema, dict) and isinstance(
+                item_schema.get("enum"),
+                list,
+            ):
+                allowed = item_schema["enum"]
+                unsupported: list[Any] = []
+                for item in value:
+                    if item not in allowed and item not in unsupported:
+                        unsupported.append(item)
+                if unsupported:
+                    errors.append(
+                        f"{field_name} items contain unsupported values: "
+                        + ", ".join(str(item) for item in unsupported[:8])
                     )
     if "enum" in field_schema and isinstance(field_schema["enum"], list):
         if value not in field_schema["enum"]:

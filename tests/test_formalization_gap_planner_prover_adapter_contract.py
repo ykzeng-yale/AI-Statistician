@@ -18,6 +18,9 @@ from ai_statistician.formalization_gap_planner_prover_adapter_contract import (
     prover_adapter_response_validation_row_json_schema,
     validate_prover_adapter_packet_row,
 )
+from ai_statistician.formalization_gap_planner_llm_route_planner import (
+    ROUTE_ADOPTION_BLOCKER_VALUES,
+)
 
 
 def test_prover_adapter_contract_validates_cross_prover_mapping_response() -> None:
@@ -864,6 +867,39 @@ def test_prover_adapter_contract_rejects_kernel_ready_mapping_for_pending_llm_ro
         "source_grounding_obligations_pending",
         "quality_control_obligations_pending",
     ]
+    schema = prover_adapter_packet_json_schema()
+    assert set(
+        schema["properties"]["llm_route_planner_route_adoption_blockers"][
+            "items"
+        ]["enum"]
+    ) == set(ROUTE_ADOPTION_BLOCKER_VALUES)
+    assert set(
+        schema["$defs"]["standalone_input_trace"]["properties"][
+            "llm_route_planner_route_adoption_blockers"
+        ]["items"]["enum"]
+    ) == set(ROUTE_ADOPTION_BLOCKER_VALUES)
+    assert validate_prover_adapter_packet_row(packet) == ()
+    bad_packet = dict(packet)
+    bad_packet["llm_route_planner_route_adoption_blockers"] = [
+        "invented_route_adoption_blocker"
+    ]
+    assert (
+        "llm_route_planner_route_adoption_blockers items contain unsupported "
+        "values: invented_route_adoption_blocker"
+        in validate_prover_adapter_packet_row(bad_packet)
+    )
+    bad_trace_packet = dict(packet)
+    bad_trace_packet["standalone_input_trace"] = dict(
+        packet["standalone_input_trace"]
+    )
+    bad_trace_packet["standalone_input_trace"][
+        "llm_route_planner_route_adoption_blockers"
+    ] = ["invented_route_adoption_blocker"]
+    assert (
+        "standalone_input_trace.llm_route_planner_route_adoption_blockers "
+        "contains unsupported values: invented_route_adoption_blocker"
+        in validate_prover_adapter_packet_row(bad_trace_packet)
+    )
     validation = payload["response_validation_rows"][0]
     assert validation["acceptance_status"] == (
         "REJECTED_PROVER_ADAPTER_MAPPING_CONTRACT"
