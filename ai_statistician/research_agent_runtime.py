@@ -115,6 +115,7 @@ from .verifier import ProofVerifier
 
 
 RUNTIME_SCHEMA_VERSION = 1
+RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS = 0
 SIMULATION_NOT_PROOF_BOUNDARY = (
     "Executable simulation and deterministic scaffold runs are empirical "
     "environment observations. They can falsify or support a proposal, but "
@@ -9663,6 +9664,9 @@ def _runtime_formalization_gap_planner_handoff_rows(
         component_resource_registry_arg = shlex.quote(
             str(component_resource_registry_out)
         )
+        prompt_budget_cap_arg = str(
+            RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS
+        )
         standalone_plan_dir_arg = shlex.quote(str(standalone_out))
         target_intake_dir_arg = shlex.quote(str(target_intake_out))
         standalone_plan_cli = (
@@ -9682,6 +9686,7 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
             f"--input {seed_arg} --provider anthropic --model-tier auto "
             "--max-repair-attempts 1 "
+            f"--max-estimated-prompt-input-tokens {prompt_budget_cap_arg} "
             "--goal-conditioned-minimal-formalization-plan-dir "
             f"{standalone_plan_dir_arg} "
             f"--formalization-gap-planner-target-intake-dir {target_intake_dir_arg} "
@@ -9693,6 +9698,7 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
             f"--input {seed_arg} --provider anthropic --model-tier auto "
             "--max-repair-attempts 1 "
+            f"--max-estimated-prompt-input-tokens {prompt_budget_cap_arg} "
             "--goal-conditioned-minimal-formalization-plan-dir "
             f"{standalone_plan_dir_arg} "
             f"--formalization-gap-planner-target-intake-dir {target_intake_dir_arg} "
@@ -9708,9 +9714,13 @@ def _runtime_formalization_gap_planner_handoff_rows(
             "--llm-route-planner-provider anthropic "
             "--llm-route-planner-model-tier auto "
             "--llm-route-planner-max-repair-attempts 1 "
+            "--llm-route-planner-max-estimated-prompt-input-tokens "
+            f"{prompt_budget_cap_arg} "
             "--feedback-llm-route-planner-provider anthropic "
             "--feedback-llm-route-planner-model-tier auto "
             "--feedback-llm-route-planner-max-repair-attempts 1 "
+            "--feedback-llm-route-planner-max-estimated-prompt-input-tokens "
+            f"{prompt_budget_cap_arg} "
             f"--out {shlex.quote(str(reuse_smoke_out))}"
         )
         row = {
@@ -9902,6 +9912,8 @@ def _runtime_formalization_gap_planner_bridge(
             "--input <runtime_formalization_gap_planner_standalone_seed.json> "
             "--provider anthropic --model-tier auto "
             "--max-repair-attempts 1 "
+            "--max-estimated-prompt-input-tokens "
+            f"{RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS} "
             "--goal-conditioned-minimal-formalization-plan-dir "
             "<runtime_formalization_gap_planner_standalone_plan_dir> "
             "--formalization-gap-planner-target-intake-dir "
@@ -9914,6 +9926,8 @@ def _runtime_formalization_gap_planner_bridge(
             "python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner "
             "--input <runtime_formalization_gap_planner_standalone_seed.json> "
             "--provider anthropic --model-tier auto --max-repair-attempts 1 "
+            "--max-estimated-prompt-input-tokens "
+            f"{RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS} "
             "--goal-conditioned-minimal-formalization-plan-dir "
             "<runtime_formalization_gap_planner_standalone_plan_dir> "
             "--formalization-gap-planner-target-intake-dir "
@@ -9930,9 +9944,13 @@ def _runtime_formalization_gap_planner_bridge(
             "--target-library-snapshot-ref ai_statistician_runtime_formalization_snapshot "
             "--llm-route-planner-provider anthropic --llm-route-planner-model-tier auto "
             "--llm-route-planner-max-repair-attempts 1 "
+            "--llm-route-planner-max-estimated-prompt-input-tokens "
+            f"{RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS} "
             "--feedback-llm-route-planner-provider anthropic "
             "--feedback-llm-route-planner-model-tier auto "
             "--feedback-llm-route-planner-max-repair-attempts 1 "
+            "--feedback-llm-route-planner-max-estimated-prompt-input-tokens "
+            f"{RUNTIME_LLM_ROUTE_PLANNER_MAX_ESTIMATED_PROMPT_INPUT_TOKENS} "
             "--out runs/formalization_gap_planner_runtime_reuse_smoke"
         ),
         "proof_evidence_status": (

@@ -207,6 +207,27 @@ def audit_formalization_gap_planner_runtime_handoffs(
             int(summary.get("llm_prompt_awaiting_response", 0) or 0)
             for summary in smoke_summaries
         ),
+        "n_llm_prompt_report_only_prompt_budget_caps": sum(
+            1
+            for summary in smoke_summaries
+            if int(
+                summary.get(
+                    "llm_prompt_max_estimated_prompt_input_tokens",
+                    -1,
+                )
+            )
+            == 0
+        ),
+        "n_llm_prompt_prompt_budget_preflight_blocked": sum(
+            int(
+                summary.get(
+                    "llm_prompt_prompt_budget_preflight_blocked",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
         "n_llm_prompt_requests_with_minimal_delta_cost_hints": sum(
             int(
                 summary.get(
@@ -542,6 +563,8 @@ def _audit_handoff_row(
         "llm_prompt_model_tier_decision_sonnet_triggers": 0,
         "llm_prompt_model_tier_decision_evidence_invalid": 0,
         "llm_prompt_by_model_tier_decision_basis": {},
+        "llm_prompt_max_estimated_prompt_input_tokens": 0,
+        "llm_prompt_prompt_budget_preflight_blocked": 0,
         "seed_routes": 0,
         "seed_primitives": 0,
         "seed_residual_goals": 0,
@@ -832,6 +855,15 @@ def _audit_handoff_row(
             cost_control_ok,
         ),
         _row_check(
+            "row_prompt_cli_has_prompt_budget_cap",
+            "cost_control",
+            handoff_id,
+            bridge_id,
+            "--max-estimated-prompt-input-tokens 0",
+            prompt_cli,
+            "--max-estimated-prompt-input-tokens 0" in prompt_cli,
+        ),
+        _row_check(
             "row_reuse_smoke_cli_cost_control",
             "cost_control",
             handoff_id,
@@ -841,6 +873,18 @@ def _audit_handoff_row(
             reuse_smoke_cost_control_ok,
         ),
         _row_check(
+            "row_reuse_smoke_cli_has_prompt_budget_caps",
+            "cost_control",
+            handoff_id,
+            bridge_id,
+            "reuse-smoke route-planner prompt budget caps",
+            reuse_smoke_cli,
+            "--llm-route-planner-max-estimated-prompt-input-tokens 0"
+            in reuse_smoke_cli
+            and "--feedback-llm-route-planner-max-estimated-prompt-input-tokens 0"
+            in reuse_smoke_cli,
+        ),
+        _row_check(
             "row_live_cli_explicit",
             "cost_control",
             handoff_id,
@@ -848,6 +892,15 @@ def _audit_handoff_row(
             "Anthropic auto command with explicit --invoke-provider",
             live_cli,
             live_explicit_ok,
+        ),
+        _row_check(
+            "row_live_cli_has_prompt_budget_cap",
+            "cost_control",
+            handoff_id,
+            bridge_id,
+            "--max-estimated-prompt-input-tokens 0",
+            live_cli,
+            "--max-estimated-prompt-input-tokens 0" in live_cli,
         ),
         _row_check(
             "row_cost_control_text",
@@ -1426,6 +1479,7 @@ def _run_llm_prompt_smoke(
             else None,
             provider_name="anthropic",
             model_tier="auto",
+            max_estimated_prompt_input_tokens=0,
             max_repair_attempts=1,
             invoke_provider=False,
             goal_conditioned_minimal_formalization_plan_dir=(
@@ -1461,6 +1515,8 @@ def _run_llm_prompt_smoke(
                 "llm_prompt_model_tier_decision_sonnet_triggers": 0,
                 "llm_prompt_model_tier_decision_evidence_invalid": 0,
                 "llm_prompt_by_model_tier_decision_basis": {},
+                "llm_prompt_max_estimated_prompt_input_tokens": 0,
+                "llm_prompt_prompt_budget_preflight_blocked": 0,
                 "llm_prompt_component_resource_registry_components": 0,
                 "llm_prompt_component_resource_registry_resources": 0,
                 "llm_prompt_component_resource_registry_contracts": 0,
@@ -1521,6 +1577,12 @@ def _run_llm_prompt_smoke(
     n_tier_decision_invalid = int(
         payload.get("n_request_model_tier_decision_evidence_invalid", 0) or 0
     )
+    max_estimated_prompt_input_tokens = int(
+        payload.get("max_estimated_prompt_input_tokens", 0) or 0
+    )
+    n_prompt_budget_preflight_blocked = int(
+        payload.get("n_prompt_token_budget_preflight_blocked", 0) or 0
+    )
     by_tier_decision_basis = _int_counter_payload(
         payload.get("by_request_model_tier_decision_basis", {})
     )
@@ -1558,6 +1620,8 @@ def _run_llm_prompt_smoke(
         and n_tier_decision_evidence == n_packets
         and n_tier_decision_invalid == 0
         and n_tier_decision_accounted == n_packets
+        and max_estimated_prompt_input_tokens == 0
+        and n_prompt_budget_preflight_blocked == 0
     )
     return ok, (
         f"all_ok={payload.get('all_ok')} provider={payload.get('provider_name')} "
@@ -1577,6 +1641,8 @@ def _run_llm_prompt_smoke(
         f"model_tier_decision_basis={by_tier_decision_basis} "
         f"model_tier_decision_sonnet_triggers={n_tier_decision_sonnet_triggers} "
         f"model_tier_decision_invalid={n_tier_decision_invalid} "
+        f"prompt_budget_cap={max_estimated_prompt_input_tokens} "
+        f"prompt_budget_blocks={n_prompt_budget_preflight_blocked} "
         f"registry_components={n_registry_components} "
         f"registry_resources={n_registry_resources} "
         f"registry_contracts={n_registry_contracts} "
@@ -1612,6 +1678,12 @@ def _run_llm_prompt_smoke(
         ),
         "llm_prompt_model_tier_decision_evidence_invalid": n_tier_decision_invalid,
         "llm_prompt_by_model_tier_decision_basis": by_tier_decision_basis,
+        "llm_prompt_max_estimated_prompt_input_tokens": (
+            max_estimated_prompt_input_tokens
+        ),
+        "llm_prompt_prompt_budget_preflight_blocked": (
+            n_prompt_budget_preflight_blocked
+        ),
         "llm_prompt_component_resource_registry_components": n_registry_components,
         "llm_prompt_component_resource_registry_resources": n_registry_resources,
         "llm_prompt_component_resource_registry_contracts": n_registry_contracts,
@@ -1675,6 +1747,7 @@ def _prompt_cli_cost_control_ok(
         and "--provider anthropic" in prompt_cli
         and "--model-tier auto" in prompt_cli
         and "--max-repair-attempts 1" in prompt_cli
+        and "--max-estimated-prompt-input-tokens 0" in prompt_cli
         and "--goal-conditioned-minimal-formalization-plan-dir" in prompt_cli
         and bool(standalone_plan_dir_text)
         and standalone_plan_dir_text in prompt_cli
@@ -1707,9 +1780,13 @@ def _reuse_smoke_cli_cost_control_ok(
         and "--llm-route-planner-provider anthropic" in reuse_smoke_cli
         and "--llm-route-planner-model-tier auto" in reuse_smoke_cli
         and "--llm-route-planner-max-repair-attempts 1" in reuse_smoke_cli
+        and "--llm-route-planner-max-estimated-prompt-input-tokens 0"
+        in reuse_smoke_cli
         and "--feedback-llm-route-planner-provider anthropic" in reuse_smoke_cli
         and "--feedback-llm-route-planner-model-tier auto" in reuse_smoke_cli
         and "--feedback-llm-route-planner-max-repair-attempts 1" in reuse_smoke_cli
+        and "--feedback-llm-route-planner-max-estimated-prompt-input-tokens 0"
+        in reuse_smoke_cli
         and "--llm-route-planner-invoke-provider" not in reuse_smoke_cli
         and "--feedback-llm-route-planner-invoke-provider" not in reuse_smoke_cli
     )
@@ -1727,6 +1804,7 @@ def _live_cli_explicit_ok(
         and "--provider anthropic" in live_cli
         and "--model-tier auto" in live_cli
         and "--max-repair-attempts 1" in live_cli
+        and "--max-estimated-prompt-input-tokens 0" in live_cli
         and "--goal-conditioned-minimal-formalization-plan-dir" in live_cli
         and bool(standalone_plan_dir_text)
         and standalone_plan_dir_text in live_cli
@@ -2008,6 +2086,11 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         ),
         f"- Prompt packets: {payload.get('n_llm_prompt_packets')}",
         f"- Awaiting LLM response: {payload.get('n_llm_prompt_awaiting_response')}",
+        (
+            f"- LLM prompt budget caps report-only/blocks: "
+            f"{payload.get('n_llm_prompt_report_only_prompt_budget_caps')}/"
+            f"{payload.get('n_llm_prompt_prompt_budget_preflight_blocked')}"
+        ),
         (
             f"- Minimal-delta cost hints in prompts: "
             f"requests={payload.get('n_llm_prompt_requests_with_minimal_delta_cost_hints')} "

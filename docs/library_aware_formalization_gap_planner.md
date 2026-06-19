@@ -2009,7 +2009,11 @@ can keep the reusable smoke path in report-only mode with
 `--llm-route-planner-max-estimated-prompt-input-tokens 0` and
 `--feedback-llm-route-planner-max-estimated-prompt-input-tokens 0`, or set a
 positive cap to block oversized primary or feedback route-planner prompts
-before any live provider request.
+before any live provider request. AI Statistician runtime handoff rows emit the
+same report-only prompt-budget caps on the next prompt-only route-planner
+command, the explicit live route-planner command, and the reusable smoke
+command; the runtime handoff audit checks those flags and records whether any
+prompt-budget preflight blocked a request.
 It also includes
 `examples/formalization_gap_planner_standalone_example.json` and
 `examples/formalization_gap_planner_target_intake_example.json` so downstream
