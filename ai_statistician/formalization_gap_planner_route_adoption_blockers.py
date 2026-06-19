@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Mapping
 
 
@@ -20,6 +23,10 @@ ROUTE_ADOPTION_BLOCKER_TAXONOMY_PROOF_EVIDENCE_STATUS = (
 ROUTE_ADOPTION_BLOCKER_TAXONOMY_PROOF_EVIDENCE_BOUNDARY = (
     "Route-adoption blocker taxonomy artifacts define reusable planner "
     "readiness vocabulary only. They are not theorem proof evidence."
+)
+ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-route-adoption-blocker-taxonomy-manifest:1"
 )
 
 ROUTE_ADOPTION_READY_STATUS = "READY_FOR_STANDALONE_REPLAY"
@@ -324,6 +331,53 @@ def route_adoption_blocker_taxonomy_payload() -> dict[str, object]:
         "all_ok": True,
         "errors": [],
     }
+
+
+def export_route_adoption_blocker_taxonomy(out_dir: Path | str) -> dict[str, object]:
+    """Write the portable route-adoption blocker taxonomy contract artifacts."""
+
+    out_path = Path(out_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+    schema = route_adoption_blocker_taxonomy_json_schema()
+    payload = route_adoption_blocker_taxonomy_payload()
+    validation_errors = validate_route_adoption_blocker_taxonomy_payload(payload)
+    schema_path = (
+        out_path
+        / "formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json"
+    )
+    taxonomy_path = (
+        out_path / "formalization_gap_planner_route_adoption_blocker_taxonomy.json"
+    )
+    manifest_path = (
+        out_path
+        / "formalization_gap_planner_route_adoption_blocker_taxonomy_manifest.json"
+    )
+    schema_path.write_text(json.dumps(schema, indent=2), encoding="utf-8")
+    taxonomy_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    manifest: dict[str, object] = {
+        "schema_version": ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_VERSION,
+        "schema_id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "component_name": ROUTE_ADOPTION_BLOCKER_TAXONOMY_COMPONENT,
+        "taxonomy_id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID,
+        "taxonomy_schema_id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
+        "taxonomy_schema_path": str(schema_path),
+        "taxonomy_path": str(taxonomy_path),
+        "n_status_values": len(ROUTE_ADOPTION_STATUSES),
+        "n_blocker_values": len(ROUTE_ADOPTION_BLOCKER_VALUES),
+        "status_values": list(ROUTE_ADOPTION_STATUSES),
+        "blocker_values": list(ROUTE_ADOPTION_BLOCKER_VALUES),
+        "proof_evidence_status": (
+            ROUTE_ADOPTION_BLOCKER_TAXONOMY_PROOF_EVIDENCE_STATUS
+        ),
+        "proof_evidence_boundary": (
+            ROUTE_ADOPTION_BLOCKER_TAXONOMY_PROOF_EVIDENCE_BOUNDARY
+        ),
+        "all_ok": not validation_errors,
+        "errors": list(validation_errors),
+    }
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return manifest
 
 
 def validate_route_adoption_blocker_taxonomy_payload(

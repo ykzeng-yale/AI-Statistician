@@ -113,6 +113,9 @@ from .formalization_gap_planner_llm_route_planner import (
     export_formalization_gap_planner_llm_route_planner,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
 )
+from .formalization_gap_planner_route_adoption_blockers import (
+    export_route_adoption_blocker_taxonomy,
+)
 from .formalization_gap_planner_primitive_action_queue import (
     export_formalization_gap_planner_primitive_action_queue,
 )
@@ -2628,6 +2631,32 @@ def _formalization_gap_planner_target_intake(args: argparse.Namespace) -> int:
     print(
         f"standalone seed written to "
         f"{(Path(args.out) / 'formalization_gap_planner_target_intake_standalone_seed.json').resolve()}"
+    )
+    return 0 if payload["all_ok"] else 1
+
+
+def _formalization_gap_planner_route_adoption_blocker_taxonomy(
+    args: argparse.Namespace,
+) -> int:
+    payload = export_route_adoption_blocker_taxonomy(Path(args.out))
+    print("\nAI Statistical Theory Lab Formalization Gap Planner Route Adoption Taxonomy")
+    print("=" * 72)
+    print(
+        f"statuses={payload['n_status_values']} "
+        f"blockers={payload['n_blocker_values']} "
+        f"all_ok={payload['all_ok']}"
+    )
+    print(
+        f"\nroute-adoption blocker taxonomy manifest written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_route_adoption_blocker_taxonomy_manifest.json').resolve()}"
+    )
+    print(
+        f"taxonomy schema written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json').resolve()}"
+    )
+    print(
+        f"taxonomy payload written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_route_adoption_blocker_taxonomy.json').resolve()}"
     )
     return 0 if payload["all_ok"] else 1
 
@@ -8319,6 +8348,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     formalization_gap_planner_target_intake.set_defaults(
         func=_formalization_gap_planner_target_intake
+    )
+
+    formalization_gap_planner_route_adoption_blocker_taxonomy = sub.add_parser(
+        "formalization-gap-planner-route-adoption-blocker-taxonomy",
+        help=(
+            "export the reusable route-adoption status/blocker taxonomy "
+            "contract without running the full planner pipeline"
+        ),
+    )
+    formalization_gap_planner_route_adoption_blocker_taxonomy.add_argument(
+        "--out",
+        default="runs/formalization_gap_planner_route_adoption_blocker_taxonomy",
+        help="route-adoption blocker taxonomy output directory",
+    )
+    formalization_gap_planner_route_adoption_blocker_taxonomy.set_defaults(
+        func=_formalization_gap_planner_route_adoption_blocker_taxonomy
     )
 
     formalization_gap_planner_reuse_smoke = sub.add_parser(
