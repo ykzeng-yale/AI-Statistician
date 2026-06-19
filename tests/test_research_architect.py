@@ -489,6 +489,70 @@ def test_live_llm_cli_defaults_to_anthropic_cost_aware_models(monkeypatch: pytes
     assert _build_critic_evaluator_agent_from_args(runtime_args, default_model=runtime_default_model).config.model == "claude-haiku-4-5-20251001"
 
 
+def test_runtime_llm_model_override_does_not_collapse_haiku_helpers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key in (
+        "AI_STATISTICIAN_LLM_PROVIDER",
+        "AI_STATISTICIAN_LLM_MODEL",
+        "AI_STATISTICIAN_ANTHROPIC_MODEL",
+        "AI_STATISTICIAN_CLAUDE_HAIKU_MODEL",
+        "AI_STATISTICIAN_ANTHROPIC_HAIKU_MODEL",
+        "AI_STATISTICIAN_CLAUDE_SONNET_MODEL",
+        "AI_STATISTICIAN_ANTHROPIC_SONNET_MODEL",
+        "AI_STATISTICIAN_THEORY_MODEL",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+    parser = build_parser()
+    runtime_args = parser.parse_args(
+        ["research-agent-runtime", "--llm-model", "claude-sonnet-4-6"]
+    )
+
+    runtime_default_model = default_generator_model(
+        runtime_args.provider,
+        runtime_args.llm_model,
+        model_tier="sonnet",
+    )
+
+    assert runtime_default_model == "claude-sonnet-4-6"
+    assert (
+        _build_architect_coordinator_agent_from_args(
+            runtime_args,
+            default_model=runtime_default_model,
+        ).config.model
+        == "claude-sonnet-4-6"
+    )
+    assert (
+        _build_formalizer_agent_from_args(
+            runtime_args,
+            default_model=runtime_default_model,
+        ).config.model
+        == "claude-sonnet-4-6"
+    )
+    assert (
+        _build_algorithm_engineer_agent_from_args(
+            runtime_args,
+            default_model=runtime_default_model,
+        ).config.model
+        == "claude-haiku-4-5-20251001"
+    )
+    assert (
+        _build_simulation_engineer_agent_from_args(
+            runtime_args,
+            default_model=runtime_default_model,
+        ).config.model
+        == "claude-haiku-4-5-20251001"
+    )
+    assert (
+        _build_critic_evaluator_agent_from_args(
+            runtime_args,
+            default_model=runtime_default_model,
+        ).config.model
+        == "claude-haiku-4-5-20251001"
+    )
+
+
 def test_live_llm_backend_rejects_codex_provider_for_main_cli() -> None:
     with pytest.raises(ValueError, match="unknown theory provider: codex"):
         _build_theory_generator_backend(provider_name="codex")
