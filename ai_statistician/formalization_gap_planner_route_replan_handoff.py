@@ -227,6 +227,13 @@ def export_formalization_gap_planner_route_replan_handoff(
         "n_routes_with_llm_route_option_selection_brief": sum(
             1 for row in rows if row.route_option_selection_brief
         ),
+        "n_routes_with_llm_route_option_selected_route_option": sum(
+            1
+            for row in rows
+            if _dict_value(row.standalone_route).get(
+                "llm_route_planner_route_option_selected_route_option_id"
+            )
+        ),
         "n_routes_with_llm_primitive_evidence_matrix_witness": sum(
             1 for row in rows if row.primitive_evidence_matrix_witness
         ),
@@ -280,6 +287,19 @@ def export_formalization_gap_planner_route_replan_handoff(
                         "llm_route_planner_route_option_selection_brief",
                         {},
                     )
+                )
+            )
+        ),
+        "n_standalone_seed_routes_with_llm_route_option_selected_route_option": sum(
+            1
+            for route in standalone_seed.get("routes", [])
+            if isinstance(route, dict)
+            and (
+                route.get(
+                    "llm_route_planner_route_option_selected_route_option_id"
+                )
+                or _dict_value(route.get("replan_metadata", {})).get(
+                    "llm_route_planner_route_option_selected_route_option_id"
                 )
             )
         ),
@@ -811,6 +831,19 @@ def _route_option_selection_brief_consistency_errors(
     metadata_brief = _dict_value(
         metadata.get("llm_route_planner_route_option_selection_brief", {})
     )
+    expected_selected_option_id = _selected_route_option_id_for_brief(brief)
+    route_selected_option_id = str(
+        standalone_route.get(
+            "llm_route_planner_route_option_selected_route_option_id",
+            "",
+        )
+    ).strip()
+    metadata_selected_option_id = str(
+        metadata.get(
+            "llm_route_planner_route_option_selected_route_option_id",
+            "",
+        )
+    ).strip()
     if brief:
         if not route_brief:
             errors.append(
@@ -832,12 +865,68 @@ def _route_option_selection_brief_consistency_errors(
                 "standalone_route.replan_metadata."
                 "llm_route_planner_route_option_selection_brief mismatch"
             )
+        if expected_selected_option_id:
+            if not route_selected_option_id:
+                errors.append(
+                    "standalone_route."
+                    "llm_route_planner_route_option_selected_route_option_id "
+                    "missing"
+                )
+            elif route_selected_option_id != expected_selected_option_id:
+                errors.append(
+                    "standalone_route."
+                    "llm_route_planner_route_option_selected_route_option_id "
+                    "mismatch"
+                )
+            if not metadata_selected_option_id:
+                errors.append(
+                    "standalone_route.replan_metadata."
+                    "llm_route_planner_route_option_selected_route_option_id "
+                    "missing"
+                )
+            elif metadata_selected_option_id != expected_selected_option_id:
+                errors.append(
+                    "standalone_route.replan_metadata."
+                    "llm_route_planner_route_option_selected_route_option_id "
+                    "mismatch"
+                )
     elif route_brief and metadata_brief and route_brief != metadata_brief:
         errors.append(
             "standalone_route llm_route_planner_route_option_selection_brief and "
             "replan_metadata llm_route_planner_route_option_selection_brief mismatch"
         )
+    elif route_selected_option_id and metadata_selected_option_id and (
+        route_selected_option_id != metadata_selected_option_id
+    ):
+        errors.append(
+            "standalone_route "
+            "llm_route_planner_route_option_selected_route_option_id and "
+            "replan_metadata "
+            "llm_route_planner_route_option_selected_route_option_id mismatch"
+        )
     return tuple(errors)
+
+
+def _selected_route_option_id_for_brief(
+    brief: dict[str, Any] | dict[str, object],
+) -> str:
+    selected = str(brief.get("lower_bound_selected_route_option_id", "")).strip()
+    if selected:
+        return selected
+    for option in _dict_tuple(brief.get("candidate_route_options", [])):
+        if option.get("selected_by_lower_bound_policy") is True or option.get(
+            "selected"
+        ) is True:
+            option_id = str(option.get("route_option_id", "")).strip()
+            if option_id:
+                return option_id
+    for binding in _dict_tuple(brief.get("required_response_bindings", [])):
+        field = str(binding.get("field", "")).strip()
+        if field.endswith("selected_route_option_id"):
+            value = str(binding.get("required_value", "")).strip()
+            if value:
+                return value
+    return ""
 
 
 def _primitive_evidence_matrix_witness_consistency_errors(
@@ -1328,6 +1417,9 @@ def _standalone_route(
         )
         for primitive in primitives
     ]
+    selected_route_option_id = _selected_route_option_id_for_brief(
+        route_option_selection_brief
+    )
     route: dict[str, object] = {
         "route_id": standalone_route_id,
         "display_name": str(plan_row.get("display_name", overlay_row.get("display_name", ""))),
@@ -1376,6 +1468,9 @@ def _standalone_route(
             "llm_route_planner_route_planning_brief": dict(route_planning_brief),
             "llm_route_planner_route_option_selection_brief": dict(
                 route_option_selection_brief
+            ),
+            "llm_route_planner_route_option_selected_route_option_id": (
+                selected_route_option_id
             ),
             "llm_route_planner_primitive_evidence_matrix_witness": dict(
                 primitive_evidence_matrix_witness
@@ -1466,6 +1561,10 @@ def _standalone_route(
     if route_option_selection_brief:
         route["llm_route_planner_route_option_selection_brief"] = dict(
             route_option_selection_brief
+        )
+    if selected_route_option_id:
+        route["llm_route_planner_route_option_selected_route_option_id"] = (
+            selected_route_option_id
         )
     if primitive_evidence_matrix_witness:
         route["llm_route_planner_primitive_evidence_matrix_witness"] = dict(

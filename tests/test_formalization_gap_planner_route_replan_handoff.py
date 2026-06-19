@@ -523,7 +523,17 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert payload["n_standalone_seed_routes_with_llm_route_planning_brief"] == 1
     assert payload["n_routes_with_llm_route_option_selection_brief"] == 1
     assert (
+        payload["n_routes_with_llm_route_option_selected_route_option"]
+        == 1
+    )
+    assert (
         payload["n_standalone_seed_routes_with_llm_route_option_selection_brief"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_standalone_seed_routes_with_llm_route_option_selected_route_option"
+        ]
         == 1
     )
     assert payload["n_routes_with_llm_primitive_evidence_matrix_witness"] == 1
@@ -651,6 +661,12 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert row["standalone_route"][
         "llm_route_planner_route_option_selection_brief"
     ] == route_option_selection_brief
+    assert (
+        row["standalone_route"][
+            "llm_route_planner_route_option_selected_route_option_id"
+        ]
+        == "route_option:rank_bridge"
+    )
     assert row["standalone_route"][
         "llm_route_planner_primitive_evidence_matrix_witness"
     ] == primitive_evidence_matrix_witness
@@ -666,6 +682,12 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert row["standalone_route"]["replan_metadata"][
         "llm_route_planner_route_option_selection_brief"
     ] == route_option_selection_brief
+    assert (
+        row["standalone_route"]["replan_metadata"][
+            "llm_route_planner_route_option_selected_route_option_id"
+        ]
+        == "route_option:rank_bridge"
+    )
     assert row["standalone_route"]["replan_metadata"][
         "llm_route_planner_primitive_evidence_matrix_witness"
     ] == primitive_evidence_matrix_witness
@@ -690,6 +712,12 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert seed["routes"][0]["llm_route_planner_route_option_selection_brief"] == (
         route_option_selection_brief
     )
+    assert (
+        seed["routes"][0][
+            "llm_route_planner_route_option_selected_route_option_id"
+        ]
+        == "route_option:rank_bridge"
+    )
     assert seed["routes"][0][
         "llm_route_planner_primitive_evidence_matrix_witness"
     ] == primitive_evidence_matrix_witness
@@ -705,6 +733,12 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert seed["routes"][0]["replan_metadata"][
         "llm_route_planner_route_option_selection_brief"
     ] == route_option_selection_brief
+    assert (
+        seed["routes"][0]["replan_metadata"][
+            "llm_route_planner_route_option_selected_route_option_id"
+        ]
+        == "route_option:rank_bridge"
+    )
     assert seed["routes"][0]["replan_metadata"][
         "llm_route_planner_primitive_evidence_matrix_witness"
     ] == primitive_evidence_matrix_witness
@@ -774,6 +808,41 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
         "standalone_route.llm_route_planner_route_option_selection_brief missing"
         in validate_route_replan_handoff_row(
             dropped_route_option_brief_row,
+            handoff_schema,
+        )
+    )
+    dropped_route_option_id_row = dict(row)
+    dropped_route_option_id_route = dict(row["standalone_route"])
+    dropped_route_option_id_route.pop(
+        "llm_route_planner_route_option_selected_route_option_id",
+        None,
+    )
+    dropped_route_option_id_row["standalone_route"] = dropped_route_option_id_route
+    assert (
+        "standalone_route.llm_route_planner_route_option_selected_route_option_id missing"
+        in validate_route_replan_handoff_row(
+            dropped_route_option_id_row,
+            handoff_schema,
+        )
+    )
+    mismatched_route_option_id_row = dict(row)
+    mismatched_route_option_id_route = dict(row["standalone_route"])
+    mismatched_route_option_id_metadata = dict(
+        mismatched_route_option_id_route["replan_metadata"]
+    )
+    mismatched_route_option_id_metadata[
+        "llm_route_planner_route_option_selected_route_option_id"
+    ] = "route_option:wrong"
+    mismatched_route_option_id_route["replan_metadata"] = (
+        mismatched_route_option_id_metadata
+    )
+    mismatched_route_option_id_row["standalone_route"] = (
+        mismatched_route_option_id_route
+    )
+    assert (
+        "standalone_route.replan_metadata.llm_route_planner_route_option_selected_route_option_id mismatch"
+        in validate_route_replan_handoff_row(
+            mismatched_route_option_id_row,
             handoff_schema,
         )
     )
@@ -961,6 +1030,12 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     )
     assert (
         next_plan[
+            "n_standalone_input_traces_with_llm_route_option_selected_route_option"
+        ]
+        == 1
+    )
+    assert (
+        next_plan[
             "n_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
         ]
         == 1
@@ -1008,6 +1083,10 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert trace["llm_route_planner_route_option_selection_brief"] == (
         route_option_selection_brief
     )
+    assert (
+        trace["llm_route_planner_route_option_selected_route_option_id"]
+        == "route_option:rank_bridge"
+    )
     assert trace["has_llm_route_planner_primitive_evidence_matrix_witness"]
     assert trace["llm_route_planner_primitive_evidence_matrix_witness"] == (
         primitive_evidence_matrix_witness
@@ -1032,6 +1111,12 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert trace["replan_metadata"][
         "llm_route_planner_route_option_selection_brief"
     ] == route_option_selection_brief
+    assert (
+        trace["replan_metadata"][
+            "llm_route_planner_route_option_selected_route_option_id"
+        ]
+        == "route_option:rank_bridge"
+    )
     assert trace["replan_metadata"][
         "llm_route_planner_primitive_evidence_matrix_witness"
     ] == primitive_evidence_matrix_witness

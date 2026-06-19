@@ -301,6 +301,13 @@ def export_formalization_gap_planner_standalone_plan(
                 "has_llm_route_planner_route_option_selection_brief"
             )
         ),
+        "n_standalone_input_traces_with_llm_route_option_selected_route_option": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "llm_route_planner_route_option_selected_route_option_id"
+            )
+        ),
         "n_standalone_input_traces_with_llm_primitive_evidence_matrix_witness": sum(
             1
             for row in rows
@@ -1704,6 +1711,9 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "llm_route_planner_route_option_selection_brief": {
                         "type": "object"
                     },
+                    "llm_route_planner_route_option_selected_route_option_id": {
+                        "type": "string"
+                    },
                     "llm_route_planner_primitive_evidence_matrix_witness": {
                         "type": "object"
                     },
@@ -1916,6 +1926,9 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "llm_route_planner_route_planning_brief": {"type": "object"},
                     "llm_route_planner_route_option_selection_brief": {
                         "type": "object"
+                    },
+                    "llm_route_planner_route_option_selected_route_option_id": {
+                        "type": "string"
                     },
                     "llm_route_planner_primitive_evidence_matrix_witness": {
                         "type": "object"
@@ -2521,6 +2534,18 @@ def _standalone_input_trace(
             raw_route.get("llm_route_planner_route_option_selection_brief", {}),
         )
     )
+    llm_route_option_selected_route_option_id = str(
+        metadata.get(
+            "llm_route_planner_route_option_selected_route_option_id",
+            raw_route.get(
+                "llm_route_planner_route_option_selected_route_option_id",
+                llm_route_option_selection_brief.get(
+                    "lower_bound_selected_route_option_id",
+                    "",
+                ),
+            ),
+        )
+    )
     llm_primitive_evidence_matrix_witness = _dict_value(
         metadata.get(
             "llm_route_planner_primitive_evidence_matrix_witness",
@@ -2688,6 +2713,9 @@ def _standalone_input_trace(
                 "lower_bound_selected_route_option_id",
                 "",
             )
+        ),
+        "llm_route_planner_route_option_selected_route_option_id": (
+            llm_route_option_selected_route_option_id
         ),
         "target_theorem_context_packet_kind": str(
             target_context_packet.get("context_packet_kind", "")

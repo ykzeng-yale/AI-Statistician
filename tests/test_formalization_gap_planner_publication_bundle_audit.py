@@ -3613,6 +3613,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
             "llm_route_planner_route_option_selection_brief": (
                 handoff_route_option_selection_brief
             ),
+            "llm_route_planner_route_option_selected_route_option_id": (
+                "route_option:rank_bridge"
+            ),
             "llm_route_planner_primitive_evidence_matrix_witness": (
                 handoff_primitive_evidence_matrix_witness
             ),
@@ -3632,6 +3635,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 ),
                 "llm_route_planner_route_option_selection_brief": (
                     handoff_route_option_selection_brief
+                ),
+                "llm_route_planner_route_option_selected_route_option_id": (
+                    "route_option:rank_bridge"
                 ),
                 "llm_route_planner_primitive_evidence_matrix_witness": (
                     handoff_primitive_evidence_matrix_witness
@@ -3698,6 +3704,8 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_standalone_seed_routes_with_llm_route_planning_brief": 1,
                 "n_routes_with_llm_route_option_selection_brief": 1,
                 "n_standalone_seed_routes_with_llm_route_option_selection_brief": 1,
+                "n_routes_with_llm_route_option_selected_route_option": 1,
+                "n_standalone_seed_routes_with_llm_route_option_selected_route_option": 1,
                 "n_routes_with_llm_primitive_evidence_matrix_witness": 1,
                 "n_standalone_seed_routes_with_llm_primitive_evidence_matrix_witness": 1,
                 "n_routes_with_llm_route_adoption_preconditions": 1,
@@ -3739,6 +3747,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                         "llm_route_planner_route_option_selection_brief": (
                             handoff_route_option_selection_brief
                         ),
+                        "llm_route_planner_route_option_selected_route_option_id": (
+                            "route_option:rank_bridge"
+                        ),
                         "llm_route_planner_primitive_evidence_matrix_witness": (
                             handoff_primitive_evidence_matrix_witness
                         ),
@@ -3764,6 +3775,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                             ),
                             "llm_route_planner_route_option_selection_brief": (
                                 handoff_route_option_selection_brief
+                            ),
+                            "llm_route_planner_route_option_selected_route_option_id": (
+                                "route_option:rank_bridge"
                             ),
                             "llm_route_planner_primitive_evidence_matrix_witness": (
                                 handoff_primitive_evidence_matrix_witness
