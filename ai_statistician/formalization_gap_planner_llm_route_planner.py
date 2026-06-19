@@ -19745,6 +19745,7 @@ TARGET_CONTEXT_SUMMARY_REQUIRED_FIELDS = (
     "desired_conclusions",
     "desired_theorem_shapes",
     "target_intake_ids",
+    "proof_source_refs",
 )
 
 
@@ -19791,21 +19792,27 @@ def _response_target_context_summary_errors(
     if not expected:
         return []
 
-    summary = _dict_value(payload, "target_context_summary")
+    summary = _explicit_payload_target_context_summary(payload)
+    non_source_expected = {
+        field_name: values
+        for field_name, values in expected.items()
+        if field_name != "proof_source_refs"
+    }
     if not summary:
-        standalone_route = _dict_value(payload, "standalone_route")
-        summary = _dict_value(standalone_route, "target_context_summary")
-        if not summary:
-            summary = _dict_value(
-                standalone_route,
-                "llm_route_planner_target_context_summary",
-            )
+        if non_source_expected:
+            return [
+                "target_context_summary required when "
+                "context_packet.target_theorem_context_packet has normalized "
+                "objects, assumptions, procedures, desired conclusions, theorem "
+                "shapes, target intake ids, or proof source refs"
+            ]
+        summary = _payload_source_ref_target_context_summary(payload)
     if not summary:
         return [
-            "target_context_summary required when "
+            "target_context_summary or standalone_route.source_refs required when "
             "context_packet.target_theorem_context_packet has normalized "
             "objects, assumptions, procedures, desired conclusions, theorem "
-            "shapes, or target intake ids"
+            "shapes, target intake ids, or proof source refs"
         ]
 
     normalized_summary = _canonical_target_context_summary(summary)
@@ -19832,16 +19839,47 @@ def _response_target_context_summary_errors(
 
 
 def _payload_target_context_summary(payload: Mapping[str, Any]) -> dict[str, object]:
-    summary = _dict_value(payload, "target_context_summary")
+    summary = _explicit_payload_target_context_summary(payload)
     if not summary:
-        standalone_route = _dict_value(payload, "standalone_route")
-        summary = _dict_value(standalone_route, "target_context_summary")
-        if not summary:
-            summary = _dict_value(
-                standalone_route,
-                "llm_route_planner_target_context_summary",
-            )
+        summary = _payload_source_ref_target_context_summary(payload)
     return _canonical_target_context_summary(summary)
+
+
+def _explicit_payload_target_context_summary(
+    payload: Mapping[str, Any],
+) -> dict[str, object]:
+    summary = _dict_value(payload, "target_context_summary")
+    if summary:
+        return summary
+    standalone_route = _dict_value(payload, "standalone_route")
+    summary = _dict_value(standalone_route, "target_context_summary")
+    if summary:
+        return summary
+    return _dict_value(
+        standalone_route,
+        "llm_route_planner_target_context_summary",
+    )
+
+
+def _payload_source_ref_target_context_summary(
+    payload: Mapping[str, Any],
+) -> dict[str, object]:
+    standalone_route = _dict_value(payload, "standalone_route")
+    refs = _unique_strings(
+        [
+            *_str_tuple(payload.get("source_refs", [])),
+            *_str_tuple(standalone_route.get("source_refs", [])),
+            *_source_refs_from_snippets(payload.get("source_snippets", [])),
+            *_source_refs_from_snippets(standalone_route.get("source_snippets", [])),
+        ]
+    )
+    if not refs:
+        return {}
+    return {
+        "proof_source_refs": list(refs),
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "summary_source": "standalone_route.source_refs",
+    }
 
 
 def _target_context_packet_values(

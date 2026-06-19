@@ -3972,6 +3972,38 @@ def test_llm_route_planner_rejects_missing_target_context_summary() -> None:
     )
 
 
+def test_llm_route_planner_rejects_missing_source_only_target_context_summary() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_missing_source_only_target_context"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    response = _llm_response_payload()
+    response.pop("target_context_summary", None)
+    response["source_refs"] = []
+    response["source_snippets"] = []
+    response["standalone_route"]["source_refs"] = []
+    response["standalone_route"]["source_snippets"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        _write_input(root),
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    row = payload["rows"][0]
+    assert any(
+        "target_context_summary or standalone_route.source_refs required" in error
+        for error in row["errors"]
+    )
+
+
 def test_llm_route_planner_accepts_target_context_summary() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_accepts_target_context_summary"
@@ -10361,8 +10393,13 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert row["target_theorem_context_packet"] == payload["request_packets"][0][
         "context_packet"
     ]["target_theorem_context_packet"]
-    assert row["target_context_summary"] == {}
-    assert payload["n_rows_with_target_context_summary"] == 0
+    assert row["target_context_summary"]["proof_source_refs"] == [
+        "conformal_prediction_textbook"
+    ]
+    assert row["target_context_summary"]["summary_source"] == (
+        "standalone_route.source_refs"
+    )
+    assert payload["n_rows_with_target_context_summary"] == 1
     assert row["route_option_selection_brief"] == payload["request_packets"][0][
         "context_packet"
     ]["route_option_selection_brief"]

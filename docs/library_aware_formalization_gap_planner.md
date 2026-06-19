@@ -877,10 +877,15 @@ When target-intake rows contribute normalized objects, assumptions, procedures,
 desired conclusions, theorem shapes, or proof-source refs, accepted LLM response
 payloads must include `target_context_summary` preserving those request values;
 the summary is planning context and explicitly remains outside theorem-proof
-evidence. Accepted rows, standalone seed routes, route `replan_metadata`, and
-standalone input traces preserve this LLM-returned summary as
+evidence. For source-only standalone routes that have proof-source refs but no
+normalized target-intake fields, accepted rows derive an auditable
+`target_context_summary.proof_source_refs` from `standalone_route.source_refs`;
+if both the explicit summary and accepted standalone route source refs are
+missing, the route response is rejected. Accepted rows, standalone seed routes,
+route `replan_metadata`, and standalone input traces preserve this explicit or
+derived summary as
 `llm_route_planner_target_context_summary`, so publication consumers can audit
-that the planner echoed the target-intake context without reopening raw provider
+that the planner preserved the target context without reopening raw provider
 responses.
 Accepted and fallback LLM route-planner rows now also publish the same
 `target_theorem_context_packet`, compact `route_planning_brief`, and
