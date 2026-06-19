@@ -554,6 +554,13 @@ def export_formalization_gap_planner_standalone_plan(
             )
             is not None
         ),
+        "n_standalone_input_traces_with_llm_seed_minimal_delta_selected_route_option": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get(
+                "llm_route_planner_seed_minimal_delta_selected_route_option_id"
+            )
+        ),
         "n_standalone_input_traces_with_source_snippets": sum(
             1
             for row in rows
@@ -1191,6 +1198,16 @@ def validate_llm_route_planner_seed_route_selection_payload(
             errors.append(
                 "selected_minimal_delta_route_cost must match selected selection_row"
             )
+        selected_option_id = str(
+            selected.get("minimal_delta_selected_route_option_id", "")
+        )
+        summary_option_id = str(
+            payload.get("selected_minimal_delta_selected_route_option_id", "")
+        )
+        if summary_option_id != selected_option_id:
+            errors.append(
+                "selected_minimal_delta_selected_route_option_id must match selected selection_row"
+            )
     return errors
 
 
@@ -1272,6 +1289,7 @@ def _llm_seed_route_selection_trace_errors(
         "llm_route_planner_seed_selection_rank",
         "llm_route_planner_seed_selection_reason",
         "llm_route_planner_seed_minimal_delta_route_cost",
+        "llm_route_planner_seed_minimal_delta_selected_route_option_id",
     }
     if not trace_fields.intersection(payload):
         return []
@@ -1303,6 +1321,18 @@ def _llm_seed_route_selection_trace_errors(
     if cost is not None and (parsed_cost is None or parsed_cost < 0):
         errors.append(
             f"{location}.llm_route_planner_seed_minimal_delta_route_cost must be nonnegative number or null"
+        )
+    if (
+        "llm_route_planner_seed_minimal_delta_selected_route_option_id" in payload
+        and not isinstance(
+            payload.get(
+                "llm_route_planner_seed_minimal_delta_selected_route_option_id"
+            ),
+            str,
+        )
+    ):
+        errors.append(
+            f"{location}.llm_route_planner_seed_minimal_delta_selected_route_option_id must be string"
         )
     return errors
 
@@ -1997,6 +2027,9 @@ def _llm_seed_route_selection_trace_properties() -> dict[str, object]:
                 {"type": "null"},
             ]
         },
+        "llm_route_planner_seed_minimal_delta_selected_route_option_id": {
+            "type": "string"
+        },
     }
 
 
@@ -2102,6 +2135,7 @@ def _llm_seed_route_selection_schema_def() -> dict[str, object]:
                 "type": "boolean"
             },
             "selected_minimal_delta_route_cost": nullable_nonnegative_number,
+            "selected_minimal_delta_selected_route_option_id": {"type": "string"},
             "n_route_candidates": {"type": "integer", "minimum": 0},
             "n_ready_route_candidates": {"type": "integer", "minimum": 0},
             "n_adoptable_route_candidates": {"type": "integer", "minimum": 0},
@@ -2451,6 +2485,15 @@ def _standalone_input_trace(
         metadata.get(
             "llm_route_planner_seed_minimal_delta_route_cost",
             raw_route.get("llm_route_planner_seed_minimal_delta_route_cost", None),
+        )
+    )
+    llm_seed_minimal_delta_selected_route_option_id = str(
+        metadata.get(
+            "llm_route_planner_seed_minimal_delta_selected_route_option_id",
+            raw_route.get(
+                "llm_route_planner_seed_minimal_delta_selected_route_option_id",
+                "",
+            ),
         )
     )
     target_context_packet = _target_theorem_context_packet_for_trace(
@@ -2811,6 +2854,9 @@ def _standalone_input_trace(
         ),
         "llm_route_planner_seed_minimal_delta_route_cost": (
             llm_seed_minimal_delta_route_cost
+        ),
+        "llm_route_planner_seed_minimal_delta_selected_route_option_id": (
+            llm_seed_minimal_delta_selected_route_option_id
         ),
         "llm_route_planner_generator_metadata": llm_generator_metadata,
         "llm_route_planner_generator_metadata_keys": _str_list(

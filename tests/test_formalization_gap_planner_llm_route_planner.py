@@ -12818,6 +12818,10 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
         "llm_route_planner_seed_route_selection"
     ]
     assert selection["selected_route_adoptable_for_standalone_replay"] is True
+    assert (
+        selection["selected_minimal_delta_selected_route_option_id"]
+        == "route_option:reuse_exchangeability_bridge_rank"
+    )
     assert selection["n_adoptable_route_candidates"] == 1
     assert selection["n_selected_route_candidates_not_adoptable"] == 0
     assert (
@@ -12827,6 +12831,16 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
     assert (
         seed_route["llm_route_planner_seed_adoptable_for_standalone_replay"]
         is True
+    )
+    assert (
+        seed_route["llm_route_planner_seed_minimal_delta_selected_route_option_id"]
+        == "route_option:reuse_exchangeability_bridge_rank"
+    )
+    assert (
+        seed_route["replan_metadata"][
+            "llm_route_planner_seed_minimal_delta_selected_route_option_id"
+        ]
+        == "route_option:reuse_exchangeability_bridge_rank"
     )
 
     plan_dir = root / "standalone_plan_from_ready_llm_seed"
@@ -12859,6 +12873,10 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
     )
     assert trace["llm_route_planner_route_adoption_blockers"] == []
     assert trace["llm_route_planner_seed_adoptable_for_standalone_replay"] is True
+    assert (
+        trace["llm_route_planner_seed_minimal_delta_selected_route_option_id"]
+        == "route_option:reuse_exchangeability_bridge_rank"
+    )
 
 
 def test_llm_route_planner_rejects_selected_primitive_without_alignment_edge() -> None:
@@ -13090,6 +13108,10 @@ def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() ->
     assert selection["n_adoptable_route_candidates"] == 2
     assert selection["n_selected_route_candidates_not_adoptable"] == 0
     assert selection["selected_minimal_delta_route_cost"] == 4.0
+    assert (
+        selection["selected_minimal_delta_selected_route_option_id"]
+        == "route_option:reuse_exchangeability_bridge_rank"
+    )
     assert [row["route_id"] for row in selection["selection_rows"]] == [
         "rank_route_alt",
         "rank_route",
@@ -13108,6 +13130,18 @@ def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() ->
     assert seed_routes[0]["replan_metadata"][
         "llm_route_planner_seed_minimal_delta_route_cost"
     ] == 4.0
+    assert (
+        seed_routes[0][
+            "llm_route_planner_seed_minimal_delta_selected_route_option_id"
+        ]
+        == "route_option:reuse_exchangeability_bridge_rank"
+    )
+    assert (
+        seed_routes[0]["replan_metadata"][
+            "llm_route_planner_seed_minimal_delta_selected_route_option_id"
+        ]
+        == "route_option:reuse_exchangeability_bridge_rank"
+    )
     assert seed_routes[1]["llm_route_planner_seed_selected"] is False
     assert (
         seed_routes[1]["llm_route_planner_seed_adoptable_for_standalone_replay"]
@@ -13153,6 +13187,13 @@ def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() ->
         trace["llm_route_planner_seed_minimal_delta_route_cost"]
         for trace in traces
     ] == [4.0, 8.0]
+    assert [
+        trace["llm_route_planner_seed_minimal_delta_selected_route_option_id"]
+        for trace in traces
+    ] == [
+        "route_option:reuse_exchangeability_bridge_rank",
+        "route_option:reuse_exchangeability_bridge_rank",
+    ]
 
     corrupted_seed = deepcopy(payload["standalone_seed"])
     corrupted_selection = corrupted_seed["llm_route_planner_seed_route_selection"]
@@ -13165,6 +13206,17 @@ def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() ->
     assert (
         "selection_rows must mark exactly one selected route, found 0"
         in selection_errors
+    )
+    option_corrupted_selection = deepcopy(selection)
+    option_corrupted_selection[
+        "selected_minimal_delta_selected_route_option_id"
+    ] = "route_option:wrong"
+    option_selection_errors = validate_llm_route_planner_seed_route_selection_payload(
+        option_corrupted_selection
+    )
+    assert (
+        "selected_minimal_delta_selected_route_option_id must match selected selection_row"
+        in option_selection_errors
     )
     standalone_errors = validate_standalone_input_payload(corrupted_seed)
     assert any(

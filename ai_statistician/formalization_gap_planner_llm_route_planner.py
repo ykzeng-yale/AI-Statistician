@@ -29917,6 +29917,9 @@ def _standalone_seed_route_selection_summary(
             "minimal_delta_route_cost",
             None,
         ),
+        "selected_minimal_delta_selected_route_option_id": str(
+            selected.get("minimal_delta_selected_route_option_id", "")
+        ),
         "n_route_candidates": len(selection_rows),
         "n_ready_route_candidates": sum(
             1
@@ -30059,8 +30062,14 @@ def _apply_seed_route_selection(
             "minimal_delta_route_cost",
             None,
         ),
+        "llm_route_planner_seed_minimal_delta_selected_route_option_id": str(
+            selection_row.get("minimal_delta_selected_route_option_id", "")
+        ),
     }
     route["replan_metadata"] = metadata
+    route["llm_route_planner_seed_minimal_delta_selected_route_option_id"] = str(
+        selection_row.get("minimal_delta_selected_route_option_id", "")
+    )
 
 
 def _seed_selection_row_adoptable_for_standalone_replay(
