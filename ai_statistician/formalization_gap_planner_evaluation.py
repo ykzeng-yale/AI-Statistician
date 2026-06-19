@@ -16,6 +16,7 @@ from .formalization_gap_planner_llm_route_planner import (
     ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
+    ROUTE_ADOPTION_BLOCKER_VALUES,
 )
 
 
@@ -834,6 +835,13 @@ def evaluate_formalization_gap_planner(
 
 def evaluation_row_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
+    route_adoption_blocker_array = {
+        "type": "array",
+        "items": {
+            "type": "string",
+            "enum": list(ROUTE_ADOPTION_BLOCKER_VALUES),
+        },
+    }
     object_array = {"type": "array", "items": {"type": "object"}}
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1136,7 +1144,9 @@ def evaluation_row_json_schema() -> dict[str, object]:
                 "type": "boolean"
             },
             "llm_route_planner_route_adoption_status": {"type": "string"},
-            "llm_route_planner_route_adoption_blockers": string_array,
+            "llm_route_planner_route_adoption_blockers": (
+                route_adoption_blocker_array
+            ),
             "llm_route_planner_primitive_evidence_matrix_witness_present": {
                 "type": "boolean"
             },
@@ -1175,7 +1185,7 @@ def evaluation_row_json_schema() -> dict[str, object]:
                 "type": "boolean"
             },
             "llm_route_planner_route_adoption_precondition_known_blockers": (
-                string_array
+                route_adoption_blocker_array
             ),
             "llm_route_planner_route_adoption_precondition_required_response_fields": (
                 string_array
@@ -3623,8 +3633,25 @@ def _schema_property_errors(
                         f"{field_name} items must be object at indexes "
                         + ",".join(str(idx) for idx in bad)
                     )
+            if isinstance(item_schema, dict) and isinstance(
+                item_schema.get("enum"),
+                list,
+            ):
+                allowed = item_schema["enum"]
+                unsupported: list[Any] = []
+                for item in value:
+                    if item not in allowed and item not in unsupported:
+                        unsupported.append(item)
+                if unsupported:
+                    errors.append(
+                        f"{field_name} items contain unsupported values: "
+                        + ", ".join(str(item) for item in unsupported[:8])
+                    )
     if "const" in field_schema and value != field_schema["const"]:
         errors.append(f"{field_name} must equal {field_schema['const']!r}")
+    enum_values = field_schema.get("enum")
+    if isinstance(enum_values, list) and value not in enum_values:
+        errors.append(f"{field_name} must be one of {enum_values!r}")
     pattern = field_schema.get("pattern")
     if isinstance(pattern, str) and isinstance(value, str) and pattern not in value:
         errors.append(f"{field_name} must contain {pattern!r}")

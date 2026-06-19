@@ -12,6 +12,9 @@ from ai_statistician.formalization_gap_planner_evaluation import (
 from ai_statistician.formalization_gap_planner_standalone import (
     export_formalization_gap_planner_standalone_plan,
 )
+from ai_statistician.formalization_gap_planner_llm_route_planner import (
+    ROUTE_ADOPTION_BLOCKER_VALUES,
+)
 
 
 def test_evaluation_scores_route_alignment_contract() -> None:
@@ -1148,7 +1151,36 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert row["quality_control_stop_conditions"] == (
         "residual interpreted or source search requested",
     )
+    row_schema = evaluation_row_json_schema()
+    assert set(
+        row_schema["properties"]["llm_route_planner_route_adoption_blockers"][
+            "items"
+        ]["enum"]
+    ) == set(ROUTE_ADOPTION_BLOCKER_VALUES)
+    assert set(
+        row_schema["properties"][
+            "llm_route_planner_route_adoption_precondition_known_blockers"
+        ]["items"]["enum"]
+    ) == set(ROUTE_ADOPTION_BLOCKER_VALUES)
     assert validate_evaluation_row(row) == ()
+    invented_blocker_row = dict(row)
+    invented_blocker_row["llm_route_planner_route_adoption_blockers"] = (
+        "invented_route_adoption_blocker",
+    )
+    assert (
+        "llm_route_planner_route_adoption_blockers items contain unsupported "
+        "values: invented_route_adoption_blocker"
+        in validate_evaluation_row(invented_blocker_row)
+    )
+    invented_precondition_row = dict(row)
+    invented_precondition_row[
+        "llm_route_planner_route_adoption_precondition_known_blockers"
+    ] = ("invented_route_adoption_blocker",)
+    assert (
+        "llm_route_planner_route_adoption_precondition_known_blockers items "
+        "contain unsupported values: invented_route_adoption_blocker"
+        in validate_evaluation_row(invented_precondition_row)
+    )
 
 
 def test_evaluation_surfaces_realization_missing_primitives_by_route() -> None:
