@@ -149,6 +149,10 @@ Publication bundles also publish the same contract at
 so external prover teams can consume the brief table directly without parsing
 the raw prompt packet. The brief is planner input and audit context; it is not
 theorem proof evidence.
+Those prompt-staged brief `evidence_gaps` are also actionable before a paid
+model call: the resource-request queue converts source-grounding,
+formal-library-grounding, and prover-feedback gaps into the same local-first
+or frontier dispatch packets used for reviewed LLM follow-ups.
 Each request packet also carries
 `context_packet.route_option_selection_brief`, a compact route-option
 comparison table derived from that alignment summary. It ranks candidate route
@@ -1310,7 +1314,11 @@ route-revision requests by default, or literature/formal-library/prover
 requests when the repair text explicitly asks for those tools, and the queue
 preserves `residual_goal_context` in both `request_payload` and
 `request_playbook` so residual-driven route repair cannot be mistaken for a
-generic search. LLM-derived resource-request packets also preserve
+generic search. LLM-derived resource-request packets also include dispatches
+created directly from prompt-staged route-planning-brief evidence gaps, and the
+manifest/publication-bundle summaries lift request-packet, brief, evidence-gap,
+brief-gap request-row, total LLM request-row, and brief-gap row counts. They
+also preserve
 `llm_route_planner_route_adoption_preconditions` in the request payload,
 request playbook, and playbook input summary, and expose manifest counters for
 rows, known pre-response blockers, required response fields, target primitives,

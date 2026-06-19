@@ -2712,6 +2712,45 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["n_resource_request_frontier_escalation"] > 0
     assert payload["n_resource_request_distinct_resources"] > 0
     assert (
+        payload["n_resource_request_llm_route_planner_request_packets"]
+        == payload["n_llm_route_planner_request_packets"]
+        > 0
+    )
+    assert (
+        payload[
+            "n_resource_request_llm_route_planner_request_route_planning_briefs"
+        ]
+        == payload["n_llm_route_planner_request_route_planning_briefs"]
+        > 0
+    )
+    assert (
+        payload[
+            "n_resource_request_llm_route_planner_route_planning_brief_evidence_gaps"
+        ]
+        == payload["n_llm_route_planner_request_route_planning_evidence_gaps"]
+        > 0
+    )
+    assert (
+        payload[
+            "n_resource_request_llm_route_planner_route_planning_brief_resource_request_rows"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_resource_request_llm_route_planner_route_planning_brief_evidence_gap_rows"
+        ]
+        == payload[
+            "n_resource_request_llm_route_planner_route_planning_brief_resource_request_rows"
+        ]
+    )
+    assert (
+        payload["n_resource_request_llm_route_planner_total_resource_request_rows"]
+        >= payload[
+            "n_resource_request_llm_route_planner_route_planning_brief_resource_request_rows"
+        ]
+    )
+    assert (
         payload["n_resource_request_llm_route_planner_residual_interpretations"] >= 0
     )
     assert (

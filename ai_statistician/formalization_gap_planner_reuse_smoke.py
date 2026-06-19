@@ -599,6 +599,12 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_with_mcp_or_cli_hint",
         "n_with_candidate_declaration_rows",
         "n_candidate_declaration_rows",
+        "n_llm_route_planner_request_packets",
+        "n_llm_route_planner_request_route_planning_briefs",
+        "n_llm_route_planner_route_planning_brief_evidence_gaps",
+        "n_llm_route_planner_route_planning_brief_resource_request_rows",
+        "n_llm_route_planner_total_resource_request_rows",
+        "n_llm_route_planner_route_planning_brief_evidence_gap_rows",
         "n_row_schema_valid",
         "n_row_schema_invalid",
     ),
@@ -4403,6 +4409,14 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_request_packets",
             0,
         ),
+        "n_llm_route_planner_request_route_planning_briefs": llm_route_planner_payload.get(
+            "n_requests_with_route_planning_brief",
+            0,
+        ),
+        "n_llm_route_planner_request_route_planning_evidence_gaps": llm_route_planner_payload.get(
+            "n_request_route_planning_evidence_gaps",
+            0,
+        ),
         "n_llm_route_planner_context_packet_inventories": llm_route_planner_payload.get(
             "n_requests_with_context_packet_inventory",
             0,
@@ -7832,6 +7846,30 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_distinct_resources",
             0,
         ),
+        "n_resource_request_llm_route_planner_request_packets": resource_request_queue_payload.get(
+            "n_llm_route_planner_request_packets",
+            0,
+        ),
+        "n_resource_request_llm_route_planner_request_route_planning_briefs": resource_request_queue_payload.get(
+            "n_llm_route_planner_request_route_planning_briefs",
+            0,
+        ),
+        "n_resource_request_llm_route_planner_route_planning_brief_evidence_gaps": resource_request_queue_payload.get(
+            "n_llm_route_planner_route_planning_brief_evidence_gaps",
+            0,
+        ),
+        "n_resource_request_llm_route_planner_route_planning_brief_resource_request_rows": resource_request_queue_payload.get(
+            "n_llm_route_planner_route_planning_brief_resource_request_rows",
+            0,
+        ),
+        "n_resource_request_llm_route_planner_total_resource_request_rows": resource_request_queue_payload.get(
+            "n_llm_route_planner_total_resource_request_rows",
+            0,
+        ),
+        "n_resource_request_llm_route_planner_route_planning_brief_evidence_gap_rows": resource_request_queue_payload.get(
+            "n_llm_route_planner_route_planning_brief_evidence_gap_rows",
+            0,
+        ),
         "n_resource_request_llm_route_planner_residual_interpretations": resource_request_queue_payload.get(
             "n_llm_route_planner_residual_interpretations",
             0,
@@ -10860,6 +10898,18 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Resource request LLM residual interpretations/rows: "
             f"{payload.get('n_resource_request_llm_route_planner_residual_interpretations')}/"
             f"{payload.get('n_resource_request_llm_route_planner_residual_interpretation_rows')}"
+        ),
+        (
+            f"- Resource request LLM route-brief evidence gaps/request rows: "
+            f"{payload.get('n_resource_request_llm_route_planner_route_planning_brief_evidence_gaps')}/"
+            f"{payload.get('n_resource_request_llm_route_planner_route_planning_brief_resource_request_rows')}"
+        ),
+        (
+            f"- Resource request LLM request packets/briefs/total LLM rows/brief-gap rows: "
+            f"{payload.get('n_resource_request_llm_route_planner_request_packets')}/"
+            f"{payload.get('n_resource_request_llm_route_planner_request_route_planning_briefs')}/"
+            f"{payload.get('n_resource_request_llm_route_planner_total_resource_request_rows')}/"
+            f"{payload.get('n_resource_request_llm_route_planner_route_planning_brief_evidence_gap_rows')}"
         ),
         (
             f"- Resource request LLM route-adoption preconditions rows/blockers/required-fields/target-primitives/request-packets/request-targets: "
