@@ -282,9 +282,11 @@ Haiku/Sonnet/Opus cost-aware tier contract, and complete coding agents such as
 as normal pure-LLM providers. Runtime topology manifests publish this prohibited
 agent-provider list and count enabled generator-only versus environment-acting
 LLM agents, so a reusable run can show that Codex-style agent capability did not
-substitute for the AI Statistician runtime. LLM route-planner rows also reject
-provider-returned
-Anthropic model drift, so a
+substitute for the AI Statistician runtime. The research-agent-runtime audit
+recomputes those topology boundaries from the enabled agent rows, fails if the
+prohibited provider policy is missing or if aggregate generator-only and
+environment-acting counts drift, and forwards the counts into the audit report.
+LLM route-planner rows also reject provider-returned Anthropic model drift, so a
 Haiku-selected request cannot be accepted if the backend reports a Sonnet or
 Opus response model. Live generator backends surface both `requested_model` and
 `provider_reported_model`, and downstream row validation uses the reported model

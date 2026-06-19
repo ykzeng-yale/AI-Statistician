@@ -8,7 +8,10 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
-from .model_backend import SUPPORTED_LIVE_GENERATOR_PROVIDERS
+from .model_backend import (
+    PROHIBITED_AGENT_GENERATOR_PROVIDERS,
+    SUPPORTED_LIVE_GENERATOR_PROVIDERS,
+)
 from .proof_bank import FORMAL_OBLIGATIONS
 
 
@@ -27,6 +30,7 @@ REQUIRED_SUBSYSTEMS = (
 )
 REQUIRED_ARCHITECT_SUBSYSTEMS = ("ArchitectCoordinator", *REQUIRED_SUBSYSTEMS)
 SUPPORTED_GENERATOR_PROVIDERS = set(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
+PROHIBITED_AGENT_GENERATOR_PROVIDER_SET = set(PROHIBITED_AGENT_GENERATOR_PROVIDERS)
 REAL_KERNEL_VERIFIERS = {"axle.verify_proof", "local.lake_env_lean"}
 
 
@@ -382,6 +386,12 @@ def audit_research_agent_runtime(
         "architect_coordinator_enabled": any(row.architect_coordinator_enabled for row in rows),
         "llm_topology_policy_ok": not topology_errors,
         "unsupported_generator_backends_enabled": _topology_unsupported_count(manifest),
+        "n_generator_only_llm_agents_enabled": _topology_generator_only_count(manifest),
+        "n_environment_acting_llm_agents_enabled": _topology_environment_acting_count(manifest),
+        "prohibited_agent_generator_providers": _topology_prohibited_agent_providers(manifest),
+        "n_prohibited_agent_generator_providers": len(
+            _topology_prohibited_agent_providers(manifest)
+        ),
         "n_live_generator_agents_enabled": _topology_live_generator_count(manifest),
         "n_critic_reroutes": sum(row.n_critic_reroutes for row in rows),
         "n_results_with_runtime_learning_memory_input": sum(
@@ -712,6 +722,28 @@ def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
             "supported generator providers changed: "
             + ",".join(sorted(supported))
         )
+    prohibited = {
+        str(item)
+        for item in policy.get("prohibited_agent_generator_providers", []) or []
+        if str(item)
+    }
+    missing_prohibited = sorted(PROHIBITED_AGENT_GENERATOR_PROVIDER_SET - prohibited)
+    if missing_prohibited:
+        errors.append(
+            "prohibited agent generator provider policy missing: "
+            + ",".join(missing_prohibited)
+        )
+    overlapping_providers = sorted(prohibited & supported)
+    if overlapping_providers:
+        errors.append(
+            "provider listed as both supported and prohibited: "
+            + ",".join(overlapping_providers)
+        )
+    prohibited_policy = str(policy.get("prohibited_agent_provider_policy", "") or "")
+    if "not accepted as pure LLM generator backends" not in prohibited_policy:
+        errors.append(
+            "prohibited agent provider policy text missing generator-only boundary"
+        )
     resolved_status = str(
         policy.get("resolved_claude_model_tier_policy_status", "")
     )
@@ -738,6 +770,29 @@ def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
                 + ",".join(missing_tiers)
             )
     agents = topology.get("llm_agents", []) if isinstance(topology.get("llm_agents"), list) else []
+    enabled_agents = [
+        agent
+        for agent in agents
+        if isinstance(agent, Mapping) and agent.get("enabled")
+    ]
+    generator_only_count = sum(
+        1 for agent in enabled_agents if agent.get("generator_only") is True
+    )
+    environment_acting_count = sum(
+        1 for agent in enabled_agents if agent.get("acts_in_environment") is True
+    )
+    if "generator_only_enabled_agents" not in counts:
+        errors.append("llm_runtime_topology counts missing generator_only_enabled_agents")
+    elif int(counts.get("generator_only_enabled_agents", 0) or 0) != generator_only_count:
+        errors.append(
+            "llm_runtime_topology generator_only_enabled_agents count does not match agents"
+        )
+    if "environment_acting_enabled_agents" not in counts:
+        errors.append("llm_runtime_topology counts missing environment_acting_enabled_agents")
+    elif int(counts.get("environment_acting_enabled_agents", 0) or 0) != environment_acting_count:
+        errors.append(
+            "llm_runtime_topology environment_acting_enabled_agents count does not match agents"
+        )
     for agent in agents:
         if not isinstance(agent, Mapping) or not agent.get("enabled"):
             continue
@@ -765,6 +820,35 @@ def _topology_unsupported_count(manifest: Mapping[str, Any]) -> int:
         return 0
     counts = topology.get("counts", {}) if isinstance(topology.get("counts"), Mapping) else {}
     return int(counts.get("unsupported_generator_backends_enabled", 0) or 0)
+
+
+def _topology_generator_only_count(manifest: Mapping[str, Any]) -> int:
+    topology = manifest.get("llm_runtime_topology", {})
+    if not isinstance(topology, Mapping):
+        return 0
+    counts = topology.get("counts", {}) if isinstance(topology.get("counts"), Mapping) else {}
+    return int(counts.get("generator_only_enabled_agents", 0) or 0)
+
+
+def _topology_environment_acting_count(manifest: Mapping[str, Any]) -> int:
+    topology = manifest.get("llm_runtime_topology", {})
+    if not isinstance(topology, Mapping):
+        return 0
+    counts = topology.get("counts", {}) if isinstance(topology.get("counts"), Mapping) else {}
+    return int(counts.get("environment_acting_enabled_agents", 0) or 0)
+
+
+def _topology_prohibited_agent_providers(
+    manifest: Mapping[str, Any],
+) -> list[str]:
+    topology = manifest.get("llm_runtime_topology", {})
+    if not isinstance(topology, Mapping):
+        return []
+    policy = topology.get("policy", {}) if isinstance(topology.get("policy"), Mapping) else {}
+    providers = policy.get("prohibited_agent_generator_providers", [])
+    if not isinstance(providers, (list, tuple, set)):
+        return []
+    return sorted(str(item) for item in providers if str(item))
 
 
 def _topology_live_generator_count(manifest: Mapping[str, Any]) -> int:

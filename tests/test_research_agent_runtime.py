@@ -6679,6 +6679,16 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert audit["architect_coordinator_enabled"] is True
     assert audit["llm_topology_policy_ok"] is True
     assert audit["unsupported_generator_backends_enabled"] == 0
+    assert audit["n_generator_only_llm_agents_enabled"] == 6
+    assert audit["n_environment_acting_llm_agents_enabled"] == 0
+    assert set(audit["prohibited_agent_generator_providers"]) >= {
+        "codex",
+        "codex_exec",
+        "claude_code",
+        "cursor",
+        "gemini_cli",
+    }
+    assert audit["n_prohibited_agent_generator_providers"] >= 5
     assert audit["n_live_generator_agents_enabled"] == 0
     assert audit["n_lean_lsp_mcp_live_calls"] == 0
     assert audit["n_critic_reroutes"] == 1
@@ -6825,9 +6835,23 @@ def test_runtime_topology_resolves_empty_config_model_from_tier(
 def test_runtime_topology_audit_rejects_resolved_claude_tier_policy_violation() -> None:
     topology = {
         "policy_status": "OK",
-        "counts": {"unsupported_generator_backends_enabled": 0},
+        "counts": {
+            "unsupported_generator_backends_enabled": 0,
+            "generator_only_enabled_agents": 0,
+            "environment_acting_enabled_agents": 0,
+        },
         "policy": {
             "supported_generator_providers": ["anthropic", "openai", "static"],
+            "prohibited_agent_generator_providers": [
+                "codex",
+                "codex_exec",
+                "claude_code",
+                "cursor",
+                "gemini_cli",
+            ],
+            "prohibited_agent_provider_policy": (
+                "agent-style providers are not accepted as pure LLM generator backends"
+            ),
             "resolved_claude_models_by_tier": {
                 "haiku": "claude-sonnet-4-6",
                 "sonnet": "claude-sonnet-4-6",
@@ -6851,6 +6875,80 @@ def test_runtime_topology_audit_rejects_resolved_claude_tier_policy_violation() 
         for error in errors
     )
     assert any("collapsed to one resolved model" in error for error in errors)
+
+
+def test_runtime_topology_audit_rejects_missing_agent_provider_boundary() -> None:
+    topology = {
+        "policy_status": "OK",
+        "counts": {
+            "unsupported_generator_backends_enabled": 0,
+            "generator_only_enabled_agents": 1,
+            "environment_acting_enabled_agents": 0,
+        },
+        "policy": {
+            "supported_generator_providers": ["anthropic", "openai", "static"],
+            "resolved_claude_models_by_tier": {
+                "haiku": "claude-haiku-4-5-20251001",
+                "sonnet": "claude-sonnet-4-6",
+                "opus": "claude-opus-4-8",
+            },
+            "resolved_claude_model_tier_policy_status": "OK",
+            "resolved_claude_model_tier_policy_violations": [],
+        },
+        "llm_agents": [
+            {
+                "subsystem": "TheoryDeveloper",
+                "enabled": True,
+                "provider_name": "anthropic",
+                "backend_provider_name": "anthropic",
+                "generator_only": True,
+                "acts_in_environment": False,
+            }
+        ],
+    }
+
+    errors = _audit_topology({"llm_runtime_topology": topology})
+
+    assert any(
+        "prohibited agent generator provider policy missing" in error
+        for error in errors
+    )
+    assert any(
+        "prohibited agent provider policy text missing" in error
+        for error in errors
+    )
+
+    mismatched_counts = {
+        **topology,
+        "counts": {
+            **topology["counts"],
+            "generator_only_enabled_agents": 0,
+            "environment_acting_enabled_agents": 1,
+        },
+        "policy": {
+            **topology["policy"],
+            "prohibited_agent_generator_providers": [
+                "codex",
+                "codex_exec",
+                "claude_code",
+                "cursor",
+                "gemini_cli",
+            ],
+            "prohibited_agent_provider_policy": (
+                "agent-style providers are not accepted as pure LLM generator backends"
+            ),
+        },
+    }
+    errors = _audit_topology({"llm_runtime_topology": mismatched_counts})
+
+    assert any(
+        "generator_only_enabled_agents count does not match" in error
+        for error in errors
+    )
+    assert any(
+        "environment_acting_enabled_agents count does not match" in error
+        for error in errors
+    )
 
 
 def test_research_agent_runtime_records_capability_eval_mode_in_manifest() -> None:
@@ -7531,6 +7629,8 @@ def test_research_agent_runtime_cli_static_provider_exports_trace() -> None:
     assert "ArchitectCoordinator was disabled; this is a subsystem-chain run, not architect-orchestrated research" in audit["capability_gaps"]
     assert audit["llm_topology_policy_ok"] is True
     assert audit["unsupported_generator_backends_enabled"] == 0
+    assert audit["n_generator_only_llm_agents_enabled"] > 0
+    assert audit["n_environment_acting_llm_agents_enabled"] == 0
     assert audit["has_real_kernel_evidence"] is False
     assert audit["n_results_with_real_kernel_evidence"] == 0
     assert audit["n_real_kernel_verified_subclaims"] == 0
