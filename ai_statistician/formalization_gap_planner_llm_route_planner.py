@@ -12143,7 +12143,7 @@ def _user_prompt(
             "Use context_packet.context_packet_inventory as the compact inventory of available evidence and feedback rows; raw context_packet rows remain the source of truth if a count is surprising.",
             "Use context_packet.route_adoption_preconditions as the pre-response forecast of known route-adoption blockers; if known_pre_response_blockers is nonempty, preserve blocker-specific residual interpretations, search_requests, or planner_next_actions instead of presenting the route as replay-ready.",
             "Use context_packet.legacy_context_field_aliases only as a compatibility map; prefer portable fields such as formal_library_grounding_queries and formal_declaration_hits in new route output.",
-            "Use context_packet.route_option_selection_brief as the compact route-option comparison table; its lower_bound_selected_route_option_id is a planning hint, not proof evidence, and the returned minimal_delta_plan.and_or_cost_graph.selected_route_option_id must be cost-compatible with that table or explicitly justified by response evidence.",
+            "Use context_packet.route_option_selection_brief as the compact route-option comparison table; its lower_bound_selected_route_option_id is a planning hint, not proof evidence, and the returned minimal_delta_plan.and_or_cost_graph.selected_route_option_id must be cost-compatible and residual-aware with that table, especially when same-cost options differ in current prover residual-goal coverage.",
             "Use context_packet.component_resource_registry_context only to choose bounded search/prover next actions; registry rows are not evidence that a tool was called.",
             "Use context_packet.source_theorem_semantic_primitive_rows, context_packet.proof_body_semantic_primitive_work_order_rows, context_packet.source_theorem_formal_environment_rows, and context_packet.source_theorem_proof_body_execution_result_rows as ProofEngineer/proof-body feedback for route repair and minimal-delta planning; these rows are not theorem proof evidence and do not by themselves source-ground new mathematical side conditions.",
             "Use context_packet.formal_verifier_agentic_proof_strategy_plan_rows and context_packet.agentic_proof_strategy_plan_summary as bounded live-tool/evaluator-gated proof-search work contracts for planner_next_actions or formal_attempt_queue; these rows are planning input, not theorem proof evidence.",
@@ -23963,6 +23963,15 @@ def _minimal_delta_route_option_selection_brief_errors(
     graph = _dict_value(minimal_delta, "and_or_cost_graph")
     response_options = _dict_tuple(graph.get("route_options", []))
     errors: list[str] = []
+    selected_response_option: dict[str, object] = {}
+    selected_route_option_id = str(graph.get("selected_route_option_id", "")).strip()
+    for option in response_options:
+        option_id = str(option.get("route_option_id", "")).strip()
+        if bool(option.get("selected", False)) or (
+            selected_route_option_id and option_id == selected_route_option_id
+        ):
+            selected_response_option = dict(option)
+            break
     for candidate in candidate_options:
         candidate_id = str(candidate.get("route_option_id", "")).strip()
         candidate_primitives = {
@@ -24010,7 +24019,90 @@ def _minimal_delta_route_option_selection_brief_errors(
                     f"route_cost={float(option_cost or 0):g} but "
                     f"minimum_route_base_cost={minimum_cost_float:g}"
                 )
+    selected_candidate = _matching_route_option_selection_candidate(
+        selected_response_option,
+        candidate_options,
+    )
+    lower_bound_candidate = _route_option_selection_candidate_by_id(
+        candidate_options,
+        str(brief.get("lower_bound_selected_route_option_id", "")).strip(),
+    )
+    errors.extend(
+        _residual_aware_selected_route_option_errors(
+            selected_candidate=selected_candidate,
+            lower_bound_candidate=lower_bound_candidate,
+        )
+    )
     return errors
+
+
+def _matching_route_option_selection_candidate(
+    response_option: Mapping[str, object],
+    candidate_options: tuple[dict[str, object], ...],
+) -> dict[str, object]:
+    if not response_option:
+        return {}
+    response_id = str(response_option.get("route_option_id", "")).strip()
+    response_primitives = {
+        _primitive_key(primitive)
+        for primitive in _str_tuple(response_option.get("selected_primitives", []))
+    }
+    response_primitives.discard("")
+    for candidate in candidate_options:
+        candidate_id = str(candidate.get("route_option_id", "")).strip()
+        candidate_primitives = {
+            _primitive_key(primitive)
+            for primitive in _str_tuple(candidate.get("selected_primitives", []))
+        }
+        candidate_primitives.discard("")
+        if (response_id and response_id == candidate_id) or (
+            response_primitives and response_primitives == candidate_primitives
+        ):
+            return dict(candidate)
+    return {}
+
+
+def _route_option_selection_candidate_by_id(
+    candidate_options: tuple[dict[str, object], ...],
+    candidate_id: str,
+) -> dict[str, object]:
+    if not candidate_id:
+        return {}
+    for candidate in candidate_options:
+        if str(candidate.get("route_option_id", "")).strip() == candidate_id:
+            return dict(candidate)
+    return {}
+
+
+def _residual_aware_selected_route_option_errors(
+    *,
+    selected_candidate: Mapping[str, object],
+    lower_bound_candidate: Mapping[str, object],
+) -> list[str]:
+    if not selected_candidate or not lower_bound_candidate:
+        return []
+    selected_id = str(selected_candidate.get("route_option_id", "")).strip()
+    lower_id = str(lower_bound_candidate.get("route_option_id", "")).strip()
+    if selected_id and lower_id and selected_id == lower_id:
+        return []
+    selected_cost = selected_candidate.get("minimum_route_base_cost")
+    lower_cost = lower_bound_candidate.get("minimum_route_base_cost")
+    if not (_is_nonnegative_number(selected_cost) and _is_nonnegative_number(lower_cost)):
+        return []
+    if abs(float(selected_cost or 0) - float(lower_cost or 0)) > 1e-9:
+        return []
+    selected_residual_goals = int(selected_candidate.get("n_residual_goals", 0) or 0)
+    lower_residual_goals = int(lower_bound_candidate.get("n_residual_goals", 0) or 0)
+    if selected_residual_goals >= lower_residual_goals:
+        return []
+    return [
+        "minimal_delta_plan.and_or_cost_graph selected_route_option_id "
+        "ignores context_packet.route_option_selection_brief residual-aware "
+        f"lower-bound route option {lower_id or '<unnamed>'}: selected "
+        f"{selected_id or '<unnamed>'} covers {selected_residual_goals} "
+        f"residual goal(s), but lower-bound option covers {lower_residual_goals} "
+        "at the same minimum_route_base_cost"
+    ]
 
 
 def _response_coverage_hint_floor_errors(

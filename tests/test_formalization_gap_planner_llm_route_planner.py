@@ -35,6 +35,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     _adapter_targets_match,
     _available_formal_declaration_rows_for_context,
     _generator_model_for_request,
+    _minimal_delta_route_option_selection_brief_errors,
     _route_adoption_readiness,
     _route_option_selection_brief,
     _target_compatible_formal_declaration_rows,
@@ -202,6 +203,78 @@ def test_route_option_selection_brief_uses_residual_coverage_tie_breaker() -> No
     assert selected["n_residual_goal_contexts"] == 1
     assert selected["residual_target_primitives"] == ["rank_uniformity"]
     assert selected["residual_goal_samples"] == [residual_goal]
+
+
+def test_route_option_selection_validation_rejects_residual_blind_same_cost_choice() -> None:
+    request = {
+        "context_packet": {
+            "route_option_selection_brief": {
+                "candidate_route_options": [
+                    {
+                        "route_option_id": "reuse_only",
+                        "selected_primitives": ["exchangeability"],
+                        "minimum_route_base_cost": 4,
+                        "n_residual_goals": 0,
+                    },
+                    {
+                        "route_option_id": "residual_bridge",
+                        "selected_primitives": ["rank_uniformity"],
+                        "minimum_route_base_cost": 4,
+                        "n_residual_goals": 1,
+                    },
+                ],
+                "lower_bound_selected_route_option_id": "residual_bridge",
+                "lower_bound_selected_route_cost": 4,
+                "lower_bound_selected_residual_goal_count": 1,
+            }
+        }
+    }
+    payload = {
+        "minimal_delta_plan": {
+            "and_or_cost_graph": {
+                "selected_route_option_id": "reuse_only",
+                "route_options": [
+                    {
+                        "route_option_id": "reuse_only",
+                        "selected": True,
+                        "selected_primitives": ["exchangeability"],
+                        "route_cost": 4,
+                        "cost_rationale": "Same base cost as the bridge option.",
+                    },
+                    {
+                        "route_option_id": "residual_bridge",
+                        "selected": False,
+                        "selected_primitives": ["rank_uniformity"],
+                        "route_cost": 4,
+                        "cost_rationale": (
+                            "Same base cost and covers the current residual goal."
+                        ),
+                    },
+                ],
+            }
+        }
+    }
+
+    errors = _minimal_delta_route_option_selection_brief_errors(payload, request)
+
+    assert any(
+        "residual-aware lower-bound route option residual_bridge" in error
+        and "selected reuse_only covers 0 residual goal(s)" in error
+        for error in errors
+    )
+
+    residual_aware_payload = deepcopy(payload)
+    graph = residual_aware_payload["minimal_delta_plan"]["and_or_cost_graph"]
+    graph["selected_route_option_id"] = "residual_bridge"
+    graph["route_options"][0]["selected"] = False
+    graph["route_options"][1]["selected"] = True
+    assert (
+        _minimal_delta_route_option_selection_brief_errors(
+            residual_aware_payload,
+            request,
+        )
+        == []
+    )
 
 
 def _write_light_input(root: Path) -> Path:
