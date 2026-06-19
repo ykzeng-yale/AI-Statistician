@@ -10394,9 +10394,21 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert standalone_route_props["llm_route_planner_route_option_selection_brief"][
         "type"
     ] == "object"
+    assert standalone_route_props[
+        "llm_route_planner_route_option_selected_route_option_id"
+    ]["type"] == "string"
     assert standalone_metadata_props[
         "llm_route_planner_route_option_selection_brief"
     ]["type"] == "object"
+    assert standalone_metadata_props[
+        "llm_route_planner_route_option_selected_route_option_id"
+    ]["type"] == "string"
+    assert (
+        payload[
+            "n_standalone_seed_routes_with_llm_route_option_selected_route_option"
+        ]
+        == 1
+    )
     seed_selection = payload["standalone_seed"][
         "llm_route_planner_seed_route_selection"
     ]
@@ -10431,6 +10443,12 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert seed_route["llm_route_planner_route_option_selection_brief"] == row[
         "route_option_selection_brief"
     ]
+    assert (
+        seed_route[
+            "llm_route_planner_route_option_selected_route_option_id"
+        ]
+        == "route_option:current_route_min_delta_baseline"
+    )
     assert seed_route["llm_route_planner_primitive_evidence_matrix_witness"] == row[
         "primitive_evidence_matrix_witness"
     ]
@@ -10449,6 +10467,12 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert metadata["llm_route_planner_route_option_selection_brief"] == row[
         "route_option_selection_brief"
     ]
+    assert (
+        metadata[
+            "llm_route_planner_route_option_selected_route_option_id"
+        ]
+        == "route_option:current_route_min_delta_baseline"
+    )
     assert metadata["llm_route_planner_primitive_evidence_matrix_witness"] == row[
         "primitive_evidence_matrix_witness"
     ]
@@ -10609,6 +10633,12 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     )
     assert (
         plan_payload[
+            "n_standalone_input_traces_with_llm_route_option_selected_route_option"
+        ]
+        == 1
+    )
+    assert (
+        plan_payload[
             "n_standalone_input_traces_with_llm_primitive_evidence_matrix_witness"
         ]
         == 1
@@ -10704,6 +10734,10 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert trace["llm_route_planner_route_option_selection_brief"] == row[
         "route_option_selection_brief"
     ]
+    assert (
+        trace["llm_route_planner_route_option_selected_route_option_id"]
+        == "route_option:current_route_min_delta_baseline"
+    )
     assert trace["llm_route_planner_primitive_evidence_matrix_witness"] == row[
         "primitive_evidence_matrix_witness"
     ]
@@ -12783,6 +12817,12 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
     )
 
     assert payload["all_ok"]
+    assert (
+        payload[
+            "n_standalone_seed_routes_with_llm_route_option_selected_route_option"
+        ]
+        == 1
+    )
     assert payload["n_route_adoption_ready"] == 1
     assert payload["n_route_adoption_pending_refinement"] == 0
     assert payload["standalone_replay_gate_ok"] is True
@@ -12837,10 +12877,22 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
         == "route_option:reuse_exchangeability_bridge_rank"
     )
     assert (
+        seed_route[
+            "llm_route_planner_route_option_selected_route_option_id"
+        ]
+        == "route_option:current_route_min_delta_baseline"
+    )
+    assert (
         seed_route["replan_metadata"][
             "llm_route_planner_seed_minimal_delta_selected_route_option_id"
         ]
         == "route_option:reuse_exchangeability_bridge_rank"
+    )
+    assert (
+        seed_route["replan_metadata"][
+            "llm_route_planner_route_option_selected_route_option_id"
+        ]
+        == "route_option:current_route_min_delta_baseline"
     )
 
     plan_dir = root / "standalone_plan_from_ready_llm_seed"
@@ -12867,6 +12919,12 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
         ]
         == 0
     )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_with_llm_route_option_selected_route_option"
+        ]
+        == 1
+    )
     trace = plan_payload["rows"][0]["standalone_input_trace"]
     assert trace["llm_route_planner_route_adoption_status"] == (
         "READY_FOR_STANDALONE_REPLAY"
@@ -12876,6 +12934,10 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
     assert (
         trace["llm_route_planner_seed_minimal_delta_selected_route_option_id"]
         == "route_option:reuse_exchangeability_bridge_rank"
+    )
+    assert (
+        trace["llm_route_planner_route_option_selected_route_option_id"]
+        == "route_option:current_route_min_delta_baseline"
     )
 
 

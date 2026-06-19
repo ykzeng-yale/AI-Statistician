@@ -3497,6 +3497,19 @@ def export_formalization_gap_planner_llm_route_planner(
         "standalone_replay_gate_blockers": list(
             _str_tuple(standalone_replay_gate.get("gate_blockers", []))
         ),
+        "n_standalone_seed_routes_with_llm_route_option_selected_route_option": sum(
+            1
+            for route in _dict_tuple(standalone_seed.get("routes", []))
+            if str(
+                route.get(
+                    "llm_route_planner_route_option_selected_route_option_id",
+                    _dict_value(route, "replan_metadata").get(
+                        "llm_route_planner_route_option_selected_route_option_id",
+                        "",
+                    ),
+                )
+            ).strip()
+        ),
         "by_acceptance_status": dict(sorted(by_acceptance_status.items())),
         "all_ok": (
             not errors
@@ -4513,6 +4526,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_standalone_replay_adoptable_route_candidates",
             "n_standalone_replay_blocked_route_candidates",
             "standalone_replay_gate_blockers",
+            "n_standalone_seed_routes_with_llm_route_option_selected_route_option",
             "by_acceptance_status",
             "all_ok",
             "errors",
@@ -5011,6 +5025,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_standalone_replay_adoptable_route_candidates": nonnegative_integer,
             "n_standalone_replay_blocked_route_candidates": nonnegative_integer,
             "standalone_replay_gate_blockers": string_array,
+            "n_standalone_seed_routes_with_llm_route_option_selected_route_option": (
+                nonnegative_integer
+            ),
             "by_acceptance_status": {"type": "object"},
             "all_ok": {"type": "boolean"},
             "errors": string_array,
@@ -30119,6 +30136,43 @@ def _minimal_delta_route_cost(minimal_delta_plan: Mapping[str, object]) -> float
     return float(cost)
 
 
+def _selected_route_option_id_for_seed_route(
+    route_option_selection_brief: Mapping[str, Any],
+    minimal_delta_plan: Mapping[str, Any],
+) -> str:
+    selected = str(
+        route_option_selection_brief.get(
+            "lower_bound_selected_route_option_id",
+            "",
+        )
+    ).strip()
+    if selected:
+        return selected
+    for option in _dict_tuple(
+        route_option_selection_brief.get("candidate_route_options", [])
+    ):
+        if option.get("selected_by_lower_bound_policy") is True or option.get(
+            "selected"
+        ) is True:
+            option_id = str(option.get("route_option_id", "")).strip()
+            if option_id:
+                return option_id
+    for binding in _dict_tuple(
+        route_option_selection_brief.get("required_response_bindings", [])
+    ):
+        field = str(binding.get("field", "")).strip()
+        if field.endswith("selected_route_option_id"):
+            value = str(binding.get("required_value", "")).strip()
+            if value:
+                return value
+    return str(
+        _dict_value(minimal_delta_plan, "and_or_cost_graph").get(
+            "selected_route_option_id",
+            "",
+        )
+    ).strip()
+
+
 def _fallback_routes_for_seed(
     input_payload: Mapping[str, Any],
     rows: tuple[FormalizationGapPlannerLLMRoutePlannerRow, ...],
@@ -30143,6 +30197,12 @@ def _fallback_route_for_seed(
     target_context_summary = dict(row.target_context_summary)
     route_planning_brief = dict(row.route_planning_brief)
     route_option_selection_brief = dict(row.route_option_selection_brief)
+    route_option_selected_route_option_id = (
+        _selected_route_option_id_for_seed_route(
+            route_option_selection_brief,
+            row.minimal_delta_plan,
+        )
+    )
     route_adoption_preconditions = dict(row.route_adoption_preconditions)
     source_grounding_obligations = dict(row.source_grounding_obligations)
     primitive_evidence_matrix_witness = dict(row.primitive_evidence_matrix_witness)
@@ -30186,6 +30246,9 @@ def _fallback_route_for_seed(
         "llm_route_planner_route_option_selection_brief": deepcopy(
             route_option_selection_brief
         ),
+        "llm_route_planner_route_option_selected_route_option_id": (
+            route_option_selected_route_option_id
+        ),
         "llm_route_planner_primitive_evidence_matrix_witness": (
             primitive_evidence_matrix_witness
         ),
@@ -30210,6 +30273,10 @@ def _fallback_route_for_seed(
     if route_option_selection_brief:
         fallback["llm_route_planner_route_option_selection_brief"] = deepcopy(
             route_option_selection_brief
+        )
+    if route_option_selected_route_option_id:
+        fallback["llm_route_planner_route_option_selected_route_option_id"] = (
+            route_option_selected_route_option_id
         )
     if primitive_evidence_matrix_witness:
         fallback["llm_route_planner_primitive_evidence_matrix_witness"] = (
@@ -30245,6 +30312,12 @@ def _accepted_route_for_seed(
     target_context_summary = dict(row.target_context_summary)
     route_planning_brief = dict(row.route_planning_brief)
     route_option_selection_brief = dict(row.route_option_selection_brief)
+    route_option_selected_route_option_id = (
+        _selected_route_option_id_for_seed_route(
+            route_option_selection_brief,
+            row.minimal_delta_plan,
+        )
+    )
     route_adoption_preconditions = dict(row.route_adoption_preconditions)
     source_grounding_obligations = dict(row.source_grounding_obligations)
     primitive_evidence_matrix_witness = dict(row.primitive_evidence_matrix_witness)
@@ -30259,6 +30332,10 @@ def _accepted_route_for_seed(
     if route_option_selection_brief:
         route["llm_route_planner_route_option_selection_brief"] = deepcopy(
             route_option_selection_brief
+        )
+    if route_option_selected_route_option_id:
+        route["llm_route_planner_route_option_selected_route_option_id"] = (
+            route_option_selected_route_option_id
         )
     if primitive_evidence_matrix_witness:
         route["llm_route_planner_primitive_evidence_matrix_witness"] = (
@@ -30573,6 +30650,9 @@ def _accepted_route_for_seed(
         "llm_route_planner_route_planning_brief": route_planning_brief,
         "llm_route_planner_route_option_selection_brief": deepcopy(
             route_option_selection_brief
+        ),
+        "llm_route_planner_route_option_selected_route_option_id": (
+            route_option_selected_route_option_id
         ),
         "llm_route_planner_route_adoption_preconditions": route_adoption_preconditions,
         "llm_route_planner_source_grounding_rows": [
