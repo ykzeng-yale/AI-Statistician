@@ -2234,6 +2234,7 @@ def schema_catalog_json_schema() -> dict[str, object]:
 
 def publication_bundle_manifest_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
+    object_array = {"type": "array", "items": {"type": "object"}}
     route_adoption_blocker_array = {
         "type": "array",
         "items": {
@@ -2591,6 +2592,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_response_contract_ok",
             "prompt_token_budget_summary",
             "n_prompt_token_budget_rows",
+            "max_estimated_prompt_input_tokens",
+            "prompt_token_budget_preflight_errors",
+            "n_prompt_token_budget_preflight_blocked",
             "estimated_prompt_input_tokens",
             "estimated_prompt_max_output_tokens",
             "estimated_prompt_total_token_budget",
@@ -2903,6 +2907,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_provider_failures": nonnegative_integer,
             "prompt_token_budget_summary": {"type": "object"},
             "n_prompt_token_budget_rows": nonnegative_integer,
+            "max_estimated_prompt_input_tokens": nonnegative_integer,
+            "prompt_token_budget_preflight_errors": object_array,
+            "n_prompt_token_budget_preflight_blocked": nonnegative_integer,
             "estimated_prompt_input_tokens": nonnegative_integer,
             "estimated_prompt_max_output_tokens": nonnegative_integer,
             "estimated_prompt_total_token_budget": nonnegative_integer,
@@ -5981,6 +5988,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_provider_failures": 0,
         "prompt_token_budget_summary": {},
         "n_prompt_token_budget_rows": 0,
+        "max_estimated_prompt_input_tokens": 0,
+        "prompt_token_budget_preflight_errors": (),
+        "n_prompt_token_budget_preflight_blocked": 0,
         "estimated_prompt_input_tokens": 0,
         "estimated_prompt_max_output_tokens": 0,
         "estimated_prompt_total_token_budget": 0,
@@ -6176,6 +6186,15 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         ),
         "n_prompt_token_budget_rows": int(
             payload.get("n_prompt_token_budget_rows", 0) or 0
+        ),
+        "max_estimated_prompt_input_tokens": int(
+            payload.get("max_estimated_prompt_input_tokens", 0) or 0
+        ),
+        "prompt_token_budget_preflight_errors": _dict_tuple(
+            payload.get("prompt_token_budget_preflight_errors", [])
+        ),
+        "n_prompt_token_budget_preflight_blocked": int(
+            payload.get("n_prompt_token_budget_preflight_blocked", 0) or 0
         ),
         "estimated_prompt_input_tokens": int(
             payload.get("estimated_prompt_input_tokens", 0) or 0
@@ -8658,7 +8677,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('llm_route_planner_summary', {}).get('n_prompt_token_budget_rows')}/"
             f"{payload.get('llm_route_planner_summary', {}).get('estimated_prompt_input_tokens')}/"
             f"{payload.get('llm_route_planner_summary', {}).get('estimated_prompt_max_output_tokens')}/"
-            f"{payload.get('llm_route_planner_summary', {}).get('estimated_prompt_total_token_budget')}"
+            f"{payload.get('llm_route_planner_summary', {}).get('estimated_prompt_total_token_budget')} "
+            f"cap={payload.get('llm_route_planner_summary', {}).get('max_estimated_prompt_input_tokens')} "
+            f"blocks={payload.get('llm_route_planner_summary', {}).get('n_prompt_token_budget_preflight_blocked')}"
         ),
         (
             f"- LLM route planner model-tier ledger rows/escalations/provider-failures: "
@@ -8698,7 +8719,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_prompt_token_budget_rows')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('estimated_prompt_input_tokens')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('estimated_prompt_max_output_tokens')}/"
-            f"{payload.get('feedback_llm_route_planner_summary', {}).get('estimated_prompt_total_token_budget')}"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('estimated_prompt_total_token_budget')} "
+            f"cap={payload.get('feedback_llm_route_planner_summary', {}).get('max_estimated_prompt_input_tokens')} "
+            f"blocks={payload.get('feedback_llm_route_planner_summary', {}).get('n_prompt_token_budget_preflight_blocked')}"
         ),
         (
             f"- Feedback LLM route planner model-tier ledger rows/escalations/provider-failures: "

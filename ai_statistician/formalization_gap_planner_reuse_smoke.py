@@ -981,6 +981,7 @@ def run_formalization_gap_planner_reuse_smoke(
     llm_route_planner_model: str = "",
     llm_route_planner_model_tier: str = "auto",
     llm_route_planner_max_tokens: int = 9000,
+    llm_route_planner_max_estimated_prompt_input_tokens: int = 0,
     llm_route_planner_max_repair_attempts: int = 1,
     llm_route_planner_temperature: float = 0.1,
     llm_route_planner_invoke_provider: bool = False,
@@ -990,6 +991,7 @@ def run_formalization_gap_planner_reuse_smoke(
     feedback_llm_route_planner_model: str = "",
     feedback_llm_route_planner_model_tier: str = "auto",
     feedback_llm_route_planner_max_tokens: int = 9000,
+    feedback_llm_route_planner_max_estimated_prompt_input_tokens: int = 0,
     feedback_llm_route_planner_max_repair_attempts: int = 1,
     feedback_llm_route_planner_temperature: float = 0.1,
     feedback_llm_route_planner_invoke_provider: bool = False,
@@ -1135,6 +1137,9 @@ def run_formalization_gap_planner_reuse_smoke(
         model=llm_route_planner_model,
         model_tier=llm_route_planner_model_tier,
         max_tokens=llm_route_planner_max_tokens,
+        max_estimated_prompt_input_tokens=(
+            llm_route_planner_max_estimated_prompt_input_tokens
+        ),
         max_repair_attempts=llm_route_planner_max_repair_attempts,
         temperature=llm_route_planner_temperature,
         invoke_provider=llm_route_planner_invoke_provider,
@@ -1392,6 +1397,9 @@ def run_formalization_gap_planner_reuse_smoke(
             model=feedback_llm_route_planner_model,
             model_tier=feedback_llm_route_planner_model_tier,
             max_tokens=feedback_llm_route_planner_max_tokens,
+            max_estimated_prompt_input_tokens=(
+                feedback_llm_route_planner_max_estimated_prompt_input_tokens
+            ),
             max_repair_attempts=feedback_llm_route_planner_max_repair_attempts,
             temperature=feedback_llm_route_planner_temperature,
             invoke_provider=feedback_llm_route_planner_invoke_provider,
@@ -8884,6 +8892,9 @@ def run_formalization_gap_planner_reuse_smoke(
             llm_route_planner_model=llm_route_planner_model,
             llm_route_planner_model_tier=llm_route_planner_model_tier,
             llm_route_planner_max_tokens=llm_route_planner_max_tokens,
+            llm_route_planner_max_estimated_prompt_input_tokens=(
+                llm_route_planner_max_estimated_prompt_input_tokens
+            ),
             llm_route_planner_max_repair_attempts=(
                 llm_route_planner_max_repair_attempts
             ),
@@ -8895,6 +8906,9 @@ def run_formalization_gap_planner_reuse_smoke(
             feedback_llm_route_planner_model=feedback_llm_route_planner_model,
             feedback_llm_route_planner_model_tier=feedback_llm_route_planner_model_tier,
             feedback_llm_route_planner_max_tokens=feedback_llm_route_planner_max_tokens,
+            feedback_llm_route_planner_max_estimated_prompt_input_tokens=(
+                feedback_llm_route_planner_max_estimated_prompt_input_tokens
+            ),
             feedback_llm_route_planner_max_repair_attempts=(
                 feedback_llm_route_planner_max_repair_attempts
             ),
@@ -9128,6 +9142,9 @@ def _llm_provider_usage_summary(payload: dict[str, Any]) -> dict[str, object]:
 def _llm_prompt_token_budget_summary(payload: dict[str, Any]) -> dict[str, object]:
     raw_summary = payload.get("prompt_token_budget_summary", {})
     summary = dict(raw_summary) if isinstance(raw_summary, dict) else {}
+    preflight_errors = _dict_tuple(
+        payload.get("prompt_token_budget_preflight_errors", [])
+    )
     row_count = _nonnegative_int(
         payload.get(
             "n_prompt_token_budget_rows",
@@ -9139,6 +9156,22 @@ def _llm_prompt_token_budget_summary(payload: dict[str, Any]) -> dict[str, objec
             "formalization_gap_planner_reuse_smoke_llm_prompt_token_budget_summary"
         ),
         "row_count": row_count,
+        "max_estimated_prompt_input_tokens": _nonnegative_int(
+            payload.get(
+                "max_estimated_prompt_input_tokens",
+                summary.get("max_estimated_prompt_input_tokens", 0),
+            )
+        ),
+        "prompt_token_budget_preflight_errors": preflight_errors,
+        "n_prompt_token_budget_preflight_blocked": _nonnegative_int(
+            payload.get(
+                "n_prompt_token_budget_preflight_blocked",
+                summary.get(
+                    "n_prompt_token_budget_preflight_blocked",
+                    len(preflight_errors),
+                ),
+            )
+        ),
         "system_prompt_chars": _nonnegative_int(
             summary.get("system_prompt_chars", 0)
         ),
@@ -9188,11 +9221,30 @@ def _combined_llm_prompt_token_budget_summary(
     by_model: dict[str, dict[str, int]] = {}
     by_planner_run: dict[str, dict[str, object]] = {}
     runs_with_budget = 0
+    runs_with_preflight_blocks = 0
+    preflight_blocked = 0
+    max_prompt_input_caps: list[int] = []
+    preflight_errors: list[dict[str, object]] = []
     for run_name, summary in summaries_by_run:
         normalized = dict(summary)
         by_planner_run[run_name] = normalized
         if _nonnegative_int(normalized.get("row_count", 0)) > 0:
             runs_with_budget += 1
+        cap = _nonnegative_int(
+            normalized.get("max_estimated_prompt_input_tokens", 0)
+        )
+        if cap > 0:
+            max_prompt_input_caps.append(cap)
+        run_preflight_blocked = _nonnegative_int(
+            normalized.get("n_prompt_token_budget_preflight_blocked", 0)
+        )
+        preflight_blocked += run_preflight_blocked
+        if run_preflight_blocked > 0:
+            runs_with_preflight_blocks += 1
+        for error in _dict_tuple(
+            normalized.get("prompt_token_budget_preflight_errors", [])
+        ):
+            preflight_errors.append({"planner_run": run_name, **error})
         _add_prompt_token_budget_summary_to_bucket(totals, normalized)
         _merge_prompt_token_budget_bucket_maps(
             by_provider,
@@ -9212,7 +9264,13 @@ def _combined_llm_prompt_token_budget_summary(
         ),
         "n_planner_runs": len(summaries_by_run),
         "n_planner_runs_with_prompt_token_budget": runs_with_budget,
+        "n_planner_runs_with_prompt_token_budget_preflight_blocks": (
+            runs_with_preflight_blocks
+        ),
         "row_count": totals["n_rows"],
+        "max_estimated_prompt_input_tokens": max(max_prompt_input_caps, default=0),
+        "prompt_token_budget_preflight_errors": tuple(preflight_errors),
+        "n_prompt_token_budget_preflight_blocked": preflight_blocked,
         "system_prompt_chars": totals["system_prompt_chars"],
         "user_prompt_chars": totals["user_prompt_chars"],
         "estimated_input_tokens": totals["estimated_input_tokens"],
@@ -9238,6 +9296,15 @@ def _prompt_token_budget_counter_payload(
 ) -> dict[str, object]:
     return {
         f"{prefix}_prompt_token_budget_summary": summary,
+        f"{prefix}_max_estimated_prompt_input_tokens": _nonnegative_int(
+            summary.get("max_estimated_prompt_input_tokens", 0)
+        ),
+        f"{prefix}_prompt_token_budget_preflight_errors": _dict_tuple(
+            summary.get("prompt_token_budget_preflight_errors", [])
+        ),
+        f"n_{prefix}_prompt_token_budget_preflight_blocked": _nonnegative_int(
+            summary.get("n_prompt_token_budget_preflight_blocked", 0)
+        ),
         f"n_{prefix}_prompt_token_budget_rows": _nonnegative_int(
             summary.get("row_count", 0)
         ),
@@ -9486,6 +9553,12 @@ def _string_tuple(value: object) -> tuple[str, ...]:
     if not isinstance(value, (list, tuple, set)):
         return ()
     return tuple(str(item) for item in value if str(item))
+
+
+def _dict_tuple(value: object) -> tuple[dict[str, object], ...]:
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(dict(item) for item in value if isinstance(item, dict))
 
 
 def _usage_bucket_map(value: object) -> dict[str, dict[str, int]]:
@@ -9793,7 +9866,11 @@ def _llm_live_provider_call_count(
         str(payload.get("provider_execution_mode", "") or "").strip()
         == PROVIDER_EXECUTION_MODE_LIVE_PROVIDER_BACKEND
     ):
-        return int(payload.get("n_request_packets", 0) or 0)
+        return max(
+            0,
+            int(payload.get("n_request_packets", 0) or 0)
+            - int(payload.get("n_generation_preflight_blocked", 0) or 0),
+        )
     return int(payload.get("n_live_provider_backend_requests", 0) or 0)
 
 
@@ -10555,6 +10632,7 @@ def _reproduction_commands(
     llm_route_planner_model: str,
     llm_route_planner_model_tier: str,
     llm_route_planner_max_tokens: int,
+    llm_route_planner_max_estimated_prompt_input_tokens: int,
     llm_route_planner_max_repair_attempts: int,
     llm_route_planner_temperature: float,
     llm_route_planner_invoke_provider: bool,
@@ -10564,6 +10642,7 @@ def _reproduction_commands(
     feedback_llm_route_planner_model: str,
     feedback_llm_route_planner_model_tier: str,
     feedback_llm_route_planner_max_tokens: int,
+    feedback_llm_route_planner_max_estimated_prompt_input_tokens: int,
     feedback_llm_route_planner_max_repair_attempts: int,
     feedback_llm_route_planner_temperature: float,
     feedback_llm_route_planner_invoke_provider: bool,
@@ -10584,6 +10663,8 @@ def _reproduction_commands(
         shlex.quote(llm_route_planner_provider),
         "--llm-route-planner-max-tokens",
         str(llm_route_planner_max_tokens),
+        "--llm-route-planner-max-estimated-prompt-input-tokens",
+        str(llm_route_planner_max_estimated_prompt_input_tokens),
         "--llm-route-planner-model-tier",
         shlex.quote(llm_route_planner_model_tier),
         "--llm-route-planner-max-repair-attempts",
@@ -10594,6 +10675,8 @@ def _reproduction_commands(
         shlex.quote(feedback_llm_route_planner_provider),
         "--feedback-llm-route-planner-max-tokens",
         str(feedback_llm_route_planner_max_tokens),
+        "--feedback-llm-route-planner-max-estimated-prompt-input-tokens",
+        str(feedback_llm_route_planner_max_estimated_prompt_input_tokens),
         "--feedback-llm-route-planner-model-tier",
         shlex.quote(feedback_llm_route_planner_model_tier),
         "--feedback-llm-route-planner-max-repair-attempts",
@@ -10709,6 +10792,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"provider_failures={payload.get('n_llm_route_planner_provider_failures')} "
             f"model_tier_mismatches={payload.get('n_llm_route_planner_request_model_tier_mismatches')} "
             f"preflight_blocks={payload.get('n_llm_route_planner_generation_preflight_blocked')} "
+            f"prompt_budget_blocks={payload.get('n_llm_route_planner_prompt_token_budget_preflight_blocked')} "
             f"generator_metadata_rows={payload.get('n_llm_route_planner_rows_with_generator_metadata')}"
         ),
         (
@@ -10723,7 +10807,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_llm_route_planner_prompt_token_budget_rows')}/"
             f"{payload.get('estimated_llm_route_planner_prompt_input_tokens')}/"
             f"{payload.get('estimated_llm_route_planner_prompt_max_output_tokens')}/"
-            f"{payload.get('estimated_llm_route_planner_prompt_total_token_budget')}"
+            f"{payload.get('estimated_llm_route_planner_prompt_total_token_budget')} "
+            f"cap={payload.get('llm_route_planner_max_estimated_prompt_input_tokens')} "
+            f"blocks={payload.get('n_llm_route_planner_prompt_token_budget_preflight_blocked')}"
         ),
         (
             f"- LLM route planner model-tier ledger rows/escalations/provider-failures: "
@@ -10865,14 +10951,17 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('estimated_publication_bundle_llm_route_planner_summary_prompt_input_tokens')}/"
             f"{payload.get('estimated_publication_bundle_llm_route_planner_summary_prompt_max_output_tokens')}/"
             f"{payload.get('estimated_publication_bundle_llm_route_planner_summary_prompt_total_token_budget')} "
+            f"blocks={payload.get('n_publication_bundle_llm_route_planner_summary_prompt_token_budget_preflight_blocked')} "
             f"feedback={payload.get('n_publication_bundle_feedback_llm_route_planner_summary_prompt_token_budget_rows')}/"
             f"{payload.get('estimated_publication_bundle_feedback_llm_route_planner_summary_prompt_input_tokens')}/"
             f"{payload.get('estimated_publication_bundle_feedback_llm_route_planner_summary_prompt_max_output_tokens')}/"
             f"{payload.get('estimated_publication_bundle_feedback_llm_route_planner_summary_prompt_total_token_budget')} "
+            f"blocks={payload.get('n_publication_bundle_feedback_llm_route_planner_summary_prompt_token_budget_preflight_blocked')} "
             f"combined={payload.get('n_publication_bundle_combined_llm_route_planner_summary_prompt_token_budget_rows')}/"
             f"{payload.get('estimated_publication_bundle_combined_llm_route_planner_summary_prompt_input_tokens')}/"
             f"{payload.get('estimated_publication_bundle_combined_llm_route_planner_summary_prompt_max_output_tokens')}/"
-            f"{payload.get('estimated_publication_bundle_combined_llm_route_planner_summary_prompt_total_token_budget')}"
+            f"{payload.get('estimated_publication_bundle_combined_llm_route_planner_summary_prompt_total_token_budget')} "
+            f"blocks={payload.get('n_publication_bundle_combined_llm_route_planner_summary_prompt_token_budget_preflight_blocked')}"
         ),
         (
             f"- Bundle LLM formal-attempt queue summaries: "
@@ -11079,6 +11168,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"provider_failures={payload.get('n_feedback_llm_route_planner_provider_failures')} "
             f"model_tier_mismatches={payload.get('n_feedback_llm_route_planner_request_model_tier_mismatches')} "
             f"preflight_blocks={payload.get('n_feedback_llm_route_planner_generation_preflight_blocked')} "
+            f"prompt_budget_blocks={payload.get('n_feedback_llm_route_planner_prompt_token_budget_preflight_blocked')} "
             f"generator_metadata_rows={payload.get('n_feedback_llm_route_planner_rows_with_generator_metadata')} "
             f"accepted={payload.get('n_feedback_llm_route_planner_accepted_route_plans')} "
             f"residual_goals={payload.get('n_feedback_llm_route_planner_request_residual_goals')}"
@@ -11095,7 +11185,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_feedback_llm_route_planner_prompt_token_budget_rows')}/"
             f"{payload.get('estimated_feedback_llm_route_planner_prompt_input_tokens')}/"
             f"{payload.get('estimated_feedback_llm_route_planner_prompt_max_output_tokens')}/"
-            f"{payload.get('estimated_feedback_llm_route_planner_prompt_total_token_budget')}"
+            f"{payload.get('estimated_feedback_llm_route_planner_prompt_total_token_budget')} "
+            f"cap={payload.get('feedback_llm_route_planner_max_estimated_prompt_input_tokens')} "
+            f"blocks={payload.get('n_feedback_llm_route_planner_prompt_token_budget_preflight_blocked')}"
         ),
         (
             f"- Feedback LLM route planner model-tier ledger rows/escalations/provider-failures: "
@@ -11115,7 +11207,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_combined_llm_route_planner_prompt_token_budget_rows')}/"
             f"{payload.get('estimated_combined_llm_route_planner_prompt_input_tokens')}/"
             f"{payload.get('estimated_combined_llm_route_planner_prompt_max_output_tokens')}/"
-            f"{payload.get('estimated_combined_llm_route_planner_prompt_total_token_budget')}"
+            f"{payload.get('estimated_combined_llm_route_planner_prompt_total_token_budget')} "
+            f"cap={payload.get('combined_llm_route_planner_max_estimated_prompt_input_tokens')} "
+            f"blocks={payload.get('n_combined_llm_route_planner_prompt_token_budget_preflight_blocked')}"
         ),
         (
             f"- Combined LLM route planner model-tier ledger rows/escalations/provider-failures: "

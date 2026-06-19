@@ -1239,6 +1239,9 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         payload["n_llm_route_planner_prompt_token_budget_rows"]
         == payload["n_llm_route_planner_request_packets"]
     )
+    assert payload["llm_route_planner_max_estimated_prompt_input_tokens"] == 0
+    assert payload["n_llm_route_planner_prompt_token_budget_preflight_blocked"] == 0
+    assert payload["llm_route_planner_prompt_token_budget_preflight_errors"] == ()
     assert payload["n_llm_route_planner_prompt_token_budget_rows"] > 0
     assert payload["estimated_llm_route_planner_prompt_input_tokens"] > 0
     assert payload["estimated_llm_route_planner_prompt_max_output_tokens"] == (
@@ -1756,6 +1759,14 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         payload["n_feedback_llm_route_planner_prompt_token_budget_rows"]
         == payload["n_feedback_llm_route_planner_request_packets"]
     )
+    assert payload["feedback_llm_route_planner_max_estimated_prompt_input_tokens"] == 0
+    assert (
+        payload["n_feedback_llm_route_planner_prompt_token_budget_preflight_blocked"]
+        == 0
+    )
+    assert payload[
+        "feedback_llm_route_planner_prompt_token_budget_preflight_errors"
+    ] == ()
     assert payload["n_feedback_llm_route_planner_prompt_token_budget_rows"] > 0
     assert (
         payload["n_combined_llm_route_planner_prompt_token_budget_rows"]
@@ -1784,11 +1795,22 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["combined_llm_route_planner_prompt_token_budget_summary"][
         "n_planner_runs_with_prompt_token_budget"
     ] == 2
+    assert payload["combined_llm_route_planner_max_estimated_prompt_input_tokens"] == 0
+    assert (
+        payload["n_combined_llm_route_planner_prompt_token_budget_preflight_blocked"]
+        == 0
+    )
     assert (
         payload[
             "n_publication_bundle_llm_route_planner_summary_prompt_token_budget_rows"
         ]
         == payload["n_llm_route_planner_prompt_token_budget_rows"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_prompt_token_budget_preflight_blocked"
+        ]
+        == 0
     )
     assert (
         payload[
@@ -1798,9 +1820,21 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_prompt_token_budget_preflight_blocked"
+        ]
+        == 0
+    )
+    assert (
+        payload[
             "n_publication_bundle_combined_llm_route_planner_summary_prompt_token_budget_rows"
         ]
         == payload["n_combined_llm_route_planner_prompt_token_budget_rows"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_prompt_token_budget_preflight_blocked"
+        ]
+        == 0
     )
     assert (
         payload[
@@ -4446,6 +4480,138 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         / "formalization_gap_planner_interactive_session"
         / "formalization_gap_planner_interactive_session_manifest.json"
     ).exists()
+
+
+def test_reuse_smoke_prompt_budget_cap_blocks_live_provider_generation() -> None:
+    root = Path("runs/test_formalization_gap_planner_reuse_smoke_prompt_budget_cap")
+    input_path = root / "target_request.json"
+    out_dir = root / "reuse_smoke"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_target_intake",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "mathlib4:reuse-smoke-budget-cap",
+                "target_id": "split_conformal_coverage_budget_cap",
+                "title": "Split conformal finite-sample coverage",
+                "domain": "distribution-free prediction",
+                "theorem_statement": (
+                    "For exchangeable calibration and test scores, split "
+                    "conformal prediction has finite sample marginal coverage."
+                ),
+                "objects": ["calibration scores", "test score"],
+                "assumptions": [
+                    "exchangeable calibration and test scores",
+                    "finite calibration sample",
+                ],
+                "statistical_procedure": "split conformal prediction set",
+                "desired_conclusion": "finite sample marginal coverage inequality",
+                "desired_theorem_shape": "coverage probability lower bound",
+                "known_proof_sources": ["Lei-Wasserman distribution-free prediction"],
+                "candidate_primitives": [
+                    {
+                        "primitive": "rank uniformity",
+                        "coverage_status": "bridge_needed",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = run_formalization_gap_planner_reuse_smoke(
+        input_path,
+        out_dir,
+        target_prover_family="rocq",
+        target_library_snapshot_ref="rocq:reuse-smoke-budget-cap",
+        llm_route_planner_invoke_provider=True,
+        llm_route_planner_max_estimated_prompt_input_tokens=1,
+        feedback_llm_route_planner_invoke_provider=True,
+        feedback_llm_route_planner_max_estimated_prompt_input_tokens=1,
+    )
+
+    assert not payload["all_ok"]
+    assert (
+        payload["llm_route_planner_provider_execution_mode"]
+        == "live_provider_backend"
+    )
+    assert (
+        payload["feedback_llm_route_planner_provider_execution_mode"]
+        == "live_provider_backend"
+    )
+    assert payload["n_llm_route_planner_request_packets"] > 0
+    assert payload["n_feedback_llm_route_planner_request_packets"] > 0
+    assert payload["n_llm_route_planner_live_provider_calls_requested"] == 0
+    assert payload["n_feedback_llm_route_planner_live_provider_calls_requested"] == 0
+    assert payload["n_total_llm_route_planner_live_provider_calls_requested"] == 0
+    assert payload["llm_route_planner_max_estimated_prompt_input_tokens"] == 1
+    assert payload["feedback_llm_route_planner_max_estimated_prompt_input_tokens"] == 1
+    assert (
+        payload["n_llm_route_planner_prompt_token_budget_preflight_blocked"]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload["n_feedback_llm_route_planner_prompt_token_budget_preflight_blocked"]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload["n_llm_route_planner_generation_preflight_blocked"]
+        == payload["n_llm_route_planner_request_packets"]
+    )
+    assert (
+        payload["n_feedback_llm_route_planner_generation_preflight_blocked"]
+        == payload["n_feedback_llm_route_planner_request_packets"]
+    )
+    assert any(
+        "estimated prompt input tokens" in error
+        for row in payload["llm_route_planner_prompt_token_budget_preflight_errors"]
+        for error in row["errors"]
+    )
+    assert any(
+        "estimated prompt input tokens" in error
+        for row in payload[
+            "feedback_llm_route_planner_prompt_token_budget_preflight_errors"
+        ]
+        for error in row["errors"]
+    )
+    assert (
+        payload["n_combined_llm_route_planner_prompt_token_budget_preflight_blocked"]
+        == payload["n_llm_route_planner_prompt_token_budget_preflight_blocked"]
+        + payload["n_feedback_llm_route_planner_prompt_token_budget_preflight_blocked"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_prompt_token_budget_preflight_blocked"
+        ]
+        == payload["n_llm_route_planner_prompt_token_budget_preflight_blocked"]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_prompt_token_budget_preflight_blocked"
+        ]
+        == payload["n_feedback_llm_route_planner_prompt_token_budget_preflight_blocked"]
+    )
+    assert (
+        payload["reproduction_commands"][0].count(
+            "--llm-route-planner-max-estimated-prompt-input-tokens 1"
+        )
+        == 1
+    )
+    assert (
+        payload["reproduction_commands"][0].count(
+            "--feedback-llm-route-planner-max-estimated-prompt-input-tokens 1"
+        )
+        == 1
+    )
+    report = (
+        out_dir / "formalization_gap_planner_reuse_smoke.md"
+    ).read_text(encoding="utf-8")
+    assert "prompt_budget_blocks=" in report
+    assert "cap=1" in report
 
 
 def test_reuse_smoke_surfaces_agentic_proof_execution_feedback_end_to_end() -> None:

@@ -1129,6 +1129,8 @@ be run as one command:
 python3 -m ai_statistician.cli formalization-gap-planner-reuse-smoke \
   --input data/formalization_gap_planner_target_intake_example.json \
   --target-prover-family rocq \
+  --llm-route-planner-max-estimated-prompt-input-tokens 0 \
+  --feedback-llm-route-planner-max-estimated-prompt-input-tokens 0 \
   --out runs/current/formalization_gap_planner_reuse_smoke
 ```
 
@@ -1142,7 +1144,8 @@ reuse-smoke manifest lifts each underlying route-planner
 `provider_execution_mode`, so `prompt_only_staged`, reviewed response replay,
 static generator replay, supplied generator backends, and real
 `live_provider_backend` calls stay distinguishable next to the number of
-requested live provider calls and the Haiku/Sonnet/Opus request-tier
+requested live provider calls, prompt-budget preflight cap/block/error
+counters, and the Haiku/Sonnet/Opus request-tier
 distribution. Auto tiering keeps small,
 source-backed reuse/wrapper routes on Haiku, but upgrades target-intake rows
 with missing proof sources, library search requirements, proof-state probes, or
@@ -2001,7 +2004,12 @@ aggregation, route-revision overlay, route-stability audit, interactive
 session export, and feedback LLM route-planner rerun with both target-intake
 and interactive-session context. The reuse-smoke commands are prompt-only by default: they stage
 Anthropic/Claude request packets with `--*-model-tier auto` and do not call the
-API unless an operator adds the matching live-provider invoke flags.
+API unless an operator adds the matching live-provider invoke flags. Operators
+can keep the reusable smoke path in report-only mode with
+`--llm-route-planner-max-estimated-prompt-input-tokens 0` and
+`--feedback-llm-route-planner-max-estimated-prompt-input-tokens 0`, or set a
+positive cap to block oversized primary or feedback route-planner prompts
+before any live provider request.
 It also includes
 `examples/formalization_gap_planner_standalone_example.json` and
 `examples/formalization_gap_planner_target_intake_example.json` so downstream

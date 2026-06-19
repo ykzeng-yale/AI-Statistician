@@ -170,6 +170,9 @@ def _assert_prompt_only_staged_route_planner_summary(
     assert summary["static_generator_backend_requested"] is False
     assert summary["provider_generation_requested"] is False
     assert summary["n_prompt_token_budget_rows"] == summary["n_request_packets"]
+    assert summary["max_estimated_prompt_input_tokens"] == 0
+    assert summary["n_prompt_token_budget_preflight_blocked"] == 0
+    assert summary["prompt_token_budget_preflight_errors"] == []
     assert summary["estimated_prompt_input_tokens"] > 0
     assert summary["estimated_prompt_max_output_tokens"] == 9000
     assert summary["estimated_prompt_total_token_budget"] == (
