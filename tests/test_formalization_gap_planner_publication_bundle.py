@@ -2089,6 +2089,31 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert validation_summary["n_invalid_payloads"] == 0
     assert (
         validation_summary[
+            "n_request_bound_payloads_with_route_adoption_status"
+        ]
+        == 0
+    )
+    assert validation_summary["n_request_bound_payloads_route_adoption_ready"] == 0
+    assert (
+        validation_summary[
+            "n_request_bound_payloads_route_adoption_pending_refinement"
+        ]
+        == 0
+    )
+    assert validation_summary["n_request_bound_payloads_route_adoption_rejected"] == 0
+    assert (
+        validation_summary[
+            "n_request_bound_payloads_adoptable_for_standalone_replay"
+        ]
+        == 0
+    )
+    assert validation_summary["by_request_bound_payload_route_adoption_status"] == {}
+    assert (
+        validation_summary["request_bound_payload_route_adoption_blocker_counts"]
+        == {}
+    )
+    assert (
+        validation_summary[
             "n_request_bound_payloads_with_route_adoption_preconditions"
         ]
         == 0
@@ -4348,6 +4373,26 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert (
         "n_request_bound_payloads_with_route_adoption_preconditions"
+        in validation_summary_schema["required"]
+    )
+    assert (
+        "n_request_bound_payloads_with_route_adoption_status"
+        in validation_summary_schema["required"]
+    )
+    assert (
+        "n_request_bound_payloads_route_adoption_ready"
+        in validation_summary_schema["required"]
+    )
+    assert (
+        "n_request_bound_payloads_adoptable_for_standalone_replay"
+        in validation_summary_schema["required"]
+    )
+    assert (
+        "by_request_bound_payload_route_adoption_status"
+        in validation_summary_schema["required"]
+    )
+    assert (
+        "request_bound_payload_route_adoption_blocker_counts"
         in validation_summary_schema["required"]
     )
     assert (

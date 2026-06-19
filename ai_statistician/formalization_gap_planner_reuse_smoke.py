@@ -2353,6 +2353,48 @@ def run_formalization_gap_planner_reuse_smoke(
                 "n_request_bound_payloads",
             )
         ),
+        "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_route_adoption_status": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payloads_with_route_adoption_status",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_request_bound_payloads_route_adoption_ready": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payloads_route_adoption_ready",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_request_bound_payloads_route_adoption_pending_refinement": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payloads_route_adoption_pending_refinement",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_request_bound_payloads_route_adoption_rejected": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payloads_route_adoption_rejected",
+            )
+        ),
+        "n_llm_route_planner_response_payload_validation_request_bound_payloads_adoptable_for_standalone_replay": (
+            _optional_int(
+                llm_response_payload_validation_payload,
+                "n_request_bound_payloads_adoptable_for_standalone_replay",
+            )
+        ),
+        "llm_route_planner_response_payload_validation_by_request_bound_route_adoption_status": (
+            _optional_dict(
+                llm_response_payload_validation_payload,
+                "by_request_bound_payload_route_adoption_status",
+            )
+        ),
+        "llm_route_planner_response_payload_validation_request_bound_route_adoption_blocker_counts": (
+            _optional_dict(
+                llm_response_payload_validation_payload,
+                "request_bound_payload_route_adoption_blocker_counts",
+            )
+        ),
         "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_context_inventory": (
             _optional_int(
                 llm_response_payload_validation_payload,
@@ -11225,6 +11267,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_llm_route_planner_response_payload_validation_invalid_payloads')} "
             f"request_bound={payload.get('n_llm_route_planner_response_payload_validation_request_bound_payloads')}/"
             f"{payload.get('n_llm_route_planner_response_payload_validation_payloads')} "
+            f"adoption_ready={payload.get('n_llm_route_planner_response_payload_validation_request_bound_payloads_route_adoption_ready')}/"
+            f"{payload.get('n_llm_route_planner_response_payload_validation_request_bound_payloads_with_route_adoption_status')} "
+            f"adoptable={payload.get('n_llm_route_planner_response_payload_validation_request_bound_payloads_adoptable_for_standalone_replay')} "
             f"precondition_blocked={payload.get('n_llm_route_planner_response_payload_validation_request_bound_payloads_with_blocking_route_adoption_preconditions')} "
             f"formal_attempt_queue={payload.get('n_llm_route_planner_response_payload_validation_formal_attempt_queue_items')}/"
             f"{payload.get('n_llm_route_planner_response_payload_validation_payloads_with_formal_attempt_queue')} "

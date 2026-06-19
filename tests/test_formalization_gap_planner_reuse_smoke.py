@@ -1489,6 +1489,48 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert (
         payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_route_adoption_status"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_route_adoption_ready"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_route_adoption_pending_refinement"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_route_adoption_rejected"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_adoptable_for_standalone_replay"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "llm_route_planner_response_payload_validation_by_request_bound_route_adoption_status"
+        ]
+        == {}
+    )
+    assert (
+        payload[
+            "llm_route_planner_response_payload_validation_request_bound_route_adoption_blocker_counts"
+        ]
+        == {}
+    )
+    assert (
+        payload[
             "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_blocking_route_adoption_preconditions"
         ]
         == 0
@@ -5256,6 +5298,46 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "n_llm_route_planner_response_payload_validation_request_bound_payloads"
         ]
         == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_route_adoption_status"
+        ]
+        == 2
+    )
+    route_adoption_status_total = sum(
+        payload[
+            "llm_route_planner_response_payload_validation_by_request_bound_route_adoption_status"
+        ].values()
+    )
+    assert route_adoption_status_total == payload[
+        "n_llm_route_planner_response_payload_validation_request_bound_payloads_with_route_adoption_status"
+    ]
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_route_adoption_ready"
+        ]
+        + payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_route_adoption_pending_refinement"
+        ]
+        + payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_route_adoption_rejected"
+        ]
+        == route_adoption_status_total
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_adoptable_for_standalone_replay"
+        ]
+        <= payload[
+            "n_llm_route_planner_response_payload_validation_request_bound_payloads_route_adoption_ready"
+        ]
+    )
+    assert isinstance(
+        payload[
+            "llm_route_planner_response_payload_validation_request_bound_route_adoption_blocker_counts"
+        ],
+        dict,
     )
     assert (
         payload[

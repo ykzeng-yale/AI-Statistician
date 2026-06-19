@@ -3094,6 +3094,13 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_contexts_with_context_packet_inventory",
             "n_request_context_inventory_total_rows",
             "n_request_bound_payloads",
+            "n_request_bound_payloads_with_route_adoption_status",
+            "n_request_bound_payloads_route_adoption_ready",
+            "n_request_bound_payloads_route_adoption_pending_refinement",
+            "n_request_bound_payloads_route_adoption_rejected",
+            "n_request_bound_payloads_adoptable_for_standalone_replay",
+            "by_request_bound_payload_route_adoption_status",
+            "request_bound_payload_route_adoption_blocker_counts",
             "n_request_bound_payloads_with_context_packet_inventory",
             "n_request_bound_payload_context_inventory_total_rows",
             "n_request_bound_payloads_with_route_adoption_preconditions",
@@ -3129,6 +3136,25 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_contexts_with_context_packet_inventory": nonnegative_integer,
             "n_request_context_inventory_total_rows": nonnegative_integer,
             "n_request_bound_payloads": nonnegative_integer,
+            "n_request_bound_payloads_with_route_adoption_status": (
+                nonnegative_integer
+            ),
+            "n_request_bound_payloads_route_adoption_ready": nonnegative_integer,
+            "n_request_bound_payloads_route_adoption_pending_refinement": (
+                nonnegative_integer
+            ),
+            "n_request_bound_payloads_route_adoption_rejected": nonnegative_integer,
+            "n_request_bound_payloads_adoptable_for_standalone_replay": (
+                nonnegative_integer
+            ),
+            "by_request_bound_payload_route_adoption_status": {
+                "type": "object",
+                "additionalProperties": nonnegative_integer,
+            },
+            "request_bound_payload_route_adoption_blocker_counts": {
+                "type": "object",
+                "additionalProperties": nonnegative_integer,
+            },
             "n_request_bound_payloads_with_context_packet_inventory": (
                 nonnegative_integer
             ),
@@ -7943,6 +7969,13 @@ def _llm_route_planner_response_payload_validation_summary(
         "n_request_contexts_with_context_packet_inventory": 0,
         "n_request_context_inventory_total_rows": 0,
         "n_request_bound_payloads": 0,
+        "n_request_bound_payloads_with_route_adoption_status": 0,
+        "n_request_bound_payloads_route_adoption_ready": 0,
+        "n_request_bound_payloads_route_adoption_pending_refinement": 0,
+        "n_request_bound_payloads_route_adoption_rejected": 0,
+        "n_request_bound_payloads_adoptable_for_standalone_replay": 0,
+        "by_request_bound_payload_route_adoption_status": {},
+        "request_bound_payload_route_adoption_blocker_counts": {},
         "n_request_bound_payloads_with_context_packet_inventory": 0,
         "n_request_bound_payload_context_inventory_total_rows": 0,
         "n_request_bound_payloads_with_route_adoption_preconditions": 0,
@@ -8001,6 +8034,52 @@ def _llm_route_planner_response_payload_validation_summary(
         ),
         "n_request_bound_payloads": int(
             payload.get("n_request_bound_payloads", 0) or 0
+        ),
+        "n_request_bound_payloads_with_route_adoption_status": int(
+            payload.get("n_request_bound_payloads_with_route_adoption_status", 0)
+            or 0
+        ),
+        "n_request_bound_payloads_route_adoption_ready": int(
+            payload.get("n_request_bound_payloads_route_adoption_ready", 0) or 0
+        ),
+        "n_request_bound_payloads_route_adoption_pending_refinement": int(
+            payload.get(
+                "n_request_bound_payloads_route_adoption_pending_refinement",
+                0,
+            )
+            or 0
+        ),
+        "n_request_bound_payloads_route_adoption_rejected": int(
+            payload.get("n_request_bound_payloads_route_adoption_rejected", 0) or 0
+        ),
+        "n_request_bound_payloads_adoptable_for_standalone_replay": int(
+            payload.get(
+                "n_request_bound_payloads_adoptable_for_standalone_replay",
+                0,
+            )
+            or 0
+        ),
+        "by_request_bound_payload_route_adoption_status": (
+            by_status
+            if isinstance(
+                by_status := payload.get(
+                    "by_request_bound_payload_route_adoption_status",
+                    {},
+                ),
+                dict,
+            )
+            else {}
+        ),
+        "request_bound_payload_route_adoption_blocker_counts": (
+            blocker_counts
+            if isinstance(
+                blocker_counts := payload.get(
+                    "request_bound_payload_route_adoption_blocker_counts",
+                    {},
+                ),
+                dict,
+            )
+            else {}
         ),
         "n_request_bound_payloads_with_context_packet_inventory": int(
             payload.get(
@@ -8758,6 +8837,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"items={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_payload_formal_attempt_queue_items')} "
             f"error_payloads={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_payloads_with_formal_attempt_queue_errors')} "
             f"errors={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_formal_attempt_queue_errors')} "
+            f"adoption_ready={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_request_bound_payloads_route_adoption_ready')}/"
+            f"{payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_request_bound_payloads_with_route_adoption_status')} "
+            f"adoptable={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_request_bound_payloads_adoptable_for_standalone_replay')} "
             f"precondition_targets={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_request_bound_payload_route_adoption_precondition_target_primitives')} "
             f"agentic_strategy_ready={payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_request_bound_payload_agentic_proof_strategy_plan_ready')}/"
             f"{payload.get('llm_route_planner_response_payload_validation_summary', {}).get('n_request_bound_payload_agentic_proof_strategy_plan_rows')} "
