@@ -889,7 +889,11 @@ standalone seed routes, route `replan_metadata`, and standalone input traces
 preserve this explicit or derived summary as
 `llm_route_planner_target_context_summary`, so publication consumers can audit
 that the planner preserved the target context without reopening raw provider
-responses.
+responses. Planner manifests, publication-bundle LLM planner summaries, and
+reuse-smoke reports also expose counters for rows with target summaries,
+target-summary proof-source refs, support rows, and support-row source fields.
+Those counters make source-only target-context preservation visible at bundle
+level while keeping the nested support rows available for detailed inspection.
 Accepted and fallback LLM route-planner rows now also publish the same
 `target_theorem_context_packet`, compact `route_planning_brief`, and
 `route_option_selection_brief`, and standalone/replan seeds copy them to

@@ -9964,6 +9964,18 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_rows must match rows length"
         in validate_llm_route_planner_manifest(drifted_manifest, manifest_schema)
     )
+    drifted_target_context_support_count_manifest = deepcopy(payload)
+    drifted_target_context_support_count_manifest[
+        "n_target_context_summary_proof_source_ref_support_source_fields"
+    ] = 999
+    assert (
+        "n_target_context_summary_proof_source_ref_support_source_fields "
+        "must match rows"
+        in validate_llm_route_planner_manifest(
+            drifted_target_context_support_count_manifest,
+            manifest_schema,
+        )
+    )
     drifted_execution_mode_manifest = deepcopy(payload)
     drifted_execution_mode_manifest["provider_execution_mode"] = (
         PROVIDER_EXECUTION_MODE_LIVE_PROVIDER_BACKEND
@@ -10415,6 +10427,19 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         }
     ]
     assert payload["n_rows_with_target_context_summary"] == 1
+    assert payload["n_target_context_summary_proof_source_refs"] == 1
+    assert payload["n_rows_with_target_context_summary_proof_source_refs"] == 1
+    assert payload["n_target_context_summary_proof_source_ref_support_rows"] == 1
+    assert (
+        payload["n_rows_with_target_context_summary_proof_source_ref_support_rows"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_target_context_summary_proof_source_ref_support_source_fields"
+        ]
+        == 3
+    )
     assert row["route_option_selection_brief"] == payload["request_packets"][0][
         "context_packet"
     ]["route_option_selection_brief"]
@@ -10474,6 +10499,17 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     manifest_schema = llm_route_planner_manifest_json_schema()
     assert "legacy_response_field_aliases" in manifest_schema["required"]
     assert "n_rows_with_target_context_summary" in manifest_schema["required"]
+    target_context_summary_count_fields = (
+        "n_target_context_summary_proof_source_refs",
+        "n_rows_with_target_context_summary_proof_source_refs",
+        "n_target_context_summary_proof_source_ref_support_rows",
+        "n_rows_with_target_context_summary_proof_source_ref_support_rows",
+        "n_target_context_summary_proof_source_ref_support_source_fields",
+    )
+    for field_name in target_context_summary_count_fields:
+        assert field_name in manifest_schema["required"]
+        assert manifest_schema["properties"][field_name]["type"] == "integer"
+        assert manifest_schema["properties"][field_name]["minimum"] == 0
     assert "n_rows_with_route_option_selection_brief" in manifest_schema["required"]
     assert (
         "n_request_source_theorem_semantic_primitive_rows"

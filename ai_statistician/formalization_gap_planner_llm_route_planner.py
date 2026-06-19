@@ -3308,6 +3308,36 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_rows_with_target_context_summary": sum(
             1 for row in rows if row.target_context_summary
         ),
+        "n_target_context_summary_proof_source_refs": sum(
+            len(_target_context_summary_proof_source_refs(row.target_context_summary))
+            for row in rows
+        ),
+        "n_rows_with_target_context_summary_proof_source_refs": sum(
+            1
+            for row in rows
+            if _target_context_summary_proof_source_refs(row.target_context_summary)
+        ),
+        "n_target_context_summary_proof_source_ref_support_rows": sum(
+            len(
+                _target_context_summary_proof_source_ref_support_rows(
+                    row.target_context_summary
+                )
+            )
+            for row in rows
+        ),
+        "n_rows_with_target_context_summary_proof_source_ref_support_rows": sum(
+            1
+            for row in rows
+            if _target_context_summary_proof_source_ref_support_rows(
+                row.target_context_summary
+            )
+        ),
+        "n_target_context_summary_proof_source_ref_support_source_fields": sum(
+            _target_context_summary_proof_source_ref_support_source_field_count(
+                row.target_context_summary
+            )
+            for row in rows
+        ),
         "n_rows_with_route_option_selection_brief": sum(
             1 for row in rows if row.route_option_selection_brief
         ),
@@ -4505,6 +4535,11 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_rows_with_complete_route_option_action_witness",
             "n_rows_with_context_packet_inventory",
             "n_rows_with_target_context_summary",
+            "n_target_context_summary_proof_source_refs",
+            "n_rows_with_target_context_summary_proof_source_refs",
+            "n_target_context_summary_proof_source_ref_support_rows",
+            "n_rows_with_target_context_summary_proof_source_ref_support_rows",
+            "n_target_context_summary_proof_source_ref_support_source_fields",
             "n_rows_with_route_option_selection_brief",
             "n_rows_with_route_adoption_preconditions",
             "n_row_route_adoption_precondition_known_blockers",
@@ -4951,6 +4986,19 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_rows_with_route_option_action_witness_obligations": nonnegative_integer,
             "n_rows_with_complete_route_option_action_witness": nonnegative_integer,
             "n_rows_with_target_context_summary": nonnegative_integer,
+            "n_target_context_summary_proof_source_refs": nonnegative_integer,
+            "n_rows_with_target_context_summary_proof_source_refs": (
+                nonnegative_integer
+            ),
+            "n_target_context_summary_proof_source_ref_support_rows": (
+                nonnegative_integer
+            ),
+            "n_rows_with_target_context_summary_proof_source_ref_support_rows": (
+                nonnegative_integer
+            ),
+            "n_target_context_summary_proof_source_ref_support_source_fields": (
+                nonnegative_integer
+            ),
             "n_rows_with_route_option_selection_brief": nonnegative_integer,
             "n_rows_with_context_packet_inventory": nonnegative_integer,
             "n_rows_with_route_adoption_preconditions": nonnegative_integer,
@@ -5551,6 +5599,90 @@ def validate_llm_route_planner_manifest(
         manifest.get("n_rows_with_target_context_summary", 0) or 0
     ) != n_rows_with_target_context_summary:
         errors.append("n_rows_with_target_context_summary must match rows")
+    n_target_context_summary_proof_source_refs = sum(
+        len(
+            _target_context_summary_proof_source_refs(
+                _dict_value(row, "target_context_summary")
+            )
+        )
+        for row in manifest_rows
+    )
+    if int(
+        manifest.get("n_target_context_summary_proof_source_refs", 0) or 0
+    ) != n_target_context_summary_proof_source_refs:
+        errors.append(
+            "n_target_context_summary_proof_source_refs must match rows"
+        )
+    n_rows_with_target_context_summary_proof_source_refs = sum(
+        1
+        for row in manifest_rows
+        if _target_context_summary_proof_source_refs(
+            _dict_value(row, "target_context_summary")
+        )
+    )
+    if int(
+        manifest.get(
+            "n_rows_with_target_context_summary_proof_source_refs",
+            0,
+        )
+        or 0
+    ) != n_rows_with_target_context_summary_proof_source_refs:
+        errors.append(
+            "n_rows_with_target_context_summary_proof_source_refs must match rows"
+        )
+    n_target_context_summary_proof_source_ref_support_rows = sum(
+        len(
+            _target_context_summary_proof_source_ref_support_rows(
+                _dict_value(row, "target_context_summary")
+            )
+        )
+        for row in manifest_rows
+    )
+    if int(
+        manifest.get(
+            "n_target_context_summary_proof_source_ref_support_rows",
+            0,
+        )
+        or 0
+    ) != n_target_context_summary_proof_source_ref_support_rows:
+        errors.append(
+            "n_target_context_summary_proof_source_ref_support_rows must match rows"
+        )
+    n_rows_with_target_context_summary_proof_source_ref_support_rows = sum(
+        1
+        for row in manifest_rows
+        if _target_context_summary_proof_source_ref_support_rows(
+            _dict_value(row, "target_context_summary")
+        )
+    )
+    if int(
+        manifest.get(
+            "n_rows_with_target_context_summary_proof_source_ref_support_rows",
+            0,
+        )
+        or 0
+    ) != n_rows_with_target_context_summary_proof_source_ref_support_rows:
+        errors.append(
+            "n_rows_with_target_context_summary_proof_source_ref_support_rows "
+            "must match rows"
+        )
+    n_target_context_summary_proof_source_ref_support_source_fields = sum(
+        _target_context_summary_proof_source_ref_support_source_field_count(
+            _dict_value(row, "target_context_summary")
+        )
+        for row in manifest_rows
+    )
+    if int(
+        manifest.get(
+            "n_target_context_summary_proof_source_ref_support_source_fields",
+            0,
+        )
+        or 0
+    ) != n_target_context_summary_proof_source_ref_support_source_fields:
+        errors.append(
+            "n_target_context_summary_proof_source_ref_support_source_fields "
+            "must match rows"
+        )
     n_rows_with_route_option_selection_brief = sum(
         1
         for row in manifest_rows
@@ -33991,6 +34123,31 @@ def _dict_tuple(values: Any) -> tuple[dict[str, object], ...]:
     if not isinstance(values, (list, tuple)):
         return tuple()
     return tuple(dict(value) for value in values if isinstance(value, Mapping))
+
+
+def _target_context_summary_proof_source_refs(
+    summary: Mapping[str, Any] | None,
+) -> tuple[str, ...]:
+    if not isinstance(summary, Mapping):
+        return tuple()
+    return _str_tuple(summary.get("proof_source_refs", []))
+
+
+def _target_context_summary_proof_source_ref_support_rows(
+    summary: Mapping[str, Any] | None,
+) -> tuple[dict[str, object], ...]:
+    if not isinstance(summary, Mapping):
+        return tuple()
+    return _dict_tuple(summary.get("proof_source_ref_support_rows", []))
+
+
+def _target_context_summary_proof_source_ref_support_source_field_count(
+    summary: Mapping[str, Any] | None,
+) -> int:
+    return sum(
+        len(_str_tuple(row.get("source_fields", [])))
+        for row in _target_context_summary_proof_source_ref_support_rows(summary)
+    )
 
 
 def _merge_dict_rows(

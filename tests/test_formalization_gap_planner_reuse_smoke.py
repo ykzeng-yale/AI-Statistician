@@ -5163,6 +5163,63 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         payload["feedback_llm_route_planner_provider_execution_mode"]
         == "static_generator_backend"
     )
+    assert payload["n_llm_route_planner_rows_with_target_context_summary"] == 1
+    assert (
+        payload["n_feedback_llm_route_planner_rows_with_target_context_summary"]
+        == 1
+    )
+    assert payload["n_combined_llm_route_planner_rows_with_target_context_summary"] == 2
+    assert payload["n_llm_route_planner_target_context_summary_proof_source_refs"] > 0
+    assert (
+        payload[
+            "n_feedback_llm_route_planner_target_context_summary_proof_source_refs"
+        ]
+        > 0
+    )
+    assert (
+        payload[
+            "n_combined_llm_route_planner_target_context_summary_proof_source_refs"
+        ]
+        == payload["n_llm_route_planner_target_context_summary_proof_source_refs"]
+        + payload[
+            "n_feedback_llm_route_planner_target_context_summary_proof_source_refs"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_rows_with_target_context_summary"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_rows_with_target_context_summary"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_rows_with_target_context_summary"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_target_context_summary_proof_source_refs"
+        ]
+        == payload[
+            "n_publication_bundle_llm_route_planner_summary_target_context_summary_proof_source_refs"
+        ]
+        + payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_target_context_summary_proof_source_refs"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_target_context_summary_proof_source_ref_support_rows"
+        ]
+        == 0
+    )
     assert payload["n_llm_route_planner_live_provider_calls_requested"] == 0
     assert payload["n_feedback_llm_route_planner_live_provider_calls_requested"] == 0
     assert payload["n_total_llm_route_planner_live_provider_calls_requested"] == 0

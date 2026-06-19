@@ -5902,6 +5902,12 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_requests_with_context_packet_inventory": 0,
         "n_request_context_inventory_total_rows": 0,
         "n_rows_with_context_packet_inventory": 0,
+        "n_rows_with_target_context_summary": 0,
+        "n_target_context_summary_proof_source_refs": 0,
+        "n_rows_with_target_context_summary_proof_source_refs": 0,
+        "n_target_context_summary_proof_source_ref_support_rows": 0,
+        "n_rows_with_target_context_summary_proof_source_ref_support_rows": 0,
+        "n_target_context_summary_proof_source_ref_support_source_fields": 0,
         "n_requests_with_available_source_snippets": 0,
         "n_request_available_source_snippets": 0,
         "n_requests_with_target_intake_rows": 0,
@@ -6117,6 +6123,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
     row_route_adoption_preconditions = tuple(
         _dict_value(row, "route_adoption_preconditions") for row in rows
     )
+    row_target_context_summaries = tuple(
+        _dict_value(row, "target_context_summary") for row in rows
+    )
     library_alignment_summaries = tuple(
         _dict_value(_dict_value(packet, "context_packet"), "library_alignment_summary")
         for packet in request_packets
@@ -6218,6 +6227,71 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             payload.get(
                 "n_rows_with_context_packet_inventory",
                 sum(1 for row in rows if row.get("context_packet_inventory")),
+            )
+            or 0
+        ),
+        "n_rows_with_target_context_summary": int(
+            payload.get(
+                "n_rows_with_target_context_summary",
+                sum(1 for summary in row_target_context_summaries if summary),
+            )
+            or 0
+        ),
+        "n_target_context_summary_proof_source_refs": int(
+            payload.get(
+                "n_target_context_summary_proof_source_refs",
+                sum(
+                    len(_target_context_summary_proof_source_refs(summary))
+                    for summary in row_target_context_summaries
+                ),
+            )
+            or 0
+        ),
+        "n_rows_with_target_context_summary_proof_source_refs": int(
+            payload.get(
+                "n_rows_with_target_context_summary_proof_source_refs",
+                sum(
+                    1
+                    for summary in row_target_context_summaries
+                    if _target_context_summary_proof_source_refs(summary)
+                ),
+            )
+            or 0
+        ),
+        "n_target_context_summary_proof_source_ref_support_rows": int(
+            payload.get(
+                "n_target_context_summary_proof_source_ref_support_rows",
+                sum(
+                    len(
+                        _target_context_summary_proof_source_ref_support_rows(
+                            summary
+                        )
+                    )
+                    for summary in row_target_context_summaries
+                ),
+            )
+            or 0
+        ),
+        "n_rows_with_target_context_summary_proof_source_ref_support_rows": int(
+            payload.get(
+                "n_rows_with_target_context_summary_proof_source_ref_support_rows",
+                sum(
+                    1
+                    for summary in row_target_context_summaries
+                    if _target_context_summary_proof_source_ref_support_rows(summary)
+                ),
+            )
+            or 0
+        ),
+        "n_target_context_summary_proof_source_ref_support_source_fields": int(
+            payload.get(
+                "n_target_context_summary_proof_source_ref_support_source_fields",
+                sum(
+                    _target_context_summary_proof_source_ref_support_source_field_count(
+                        summary
+                    )
+                    for summary in row_target_context_summaries
+                ),
             )
             or 0
         ),
@@ -8391,6 +8465,31 @@ def _dict_tuple(value: Any) -> tuple[dict[str, Any], ...]:
     if not isinstance(value, (list, tuple, set)):
         return ()
     return tuple(dict(item) for item in value if isinstance(item, dict))
+
+
+def _target_context_summary_proof_source_refs(
+    summary: Mapping[str, Any] | None,
+) -> tuple[str, ...]:
+    if not isinstance(summary, Mapping):
+        return ()
+    return _str_tuple(summary.get("proof_source_refs", []))
+
+
+def _target_context_summary_proof_source_ref_support_rows(
+    summary: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], ...]:
+    if not isinstance(summary, Mapping):
+        return ()
+    return _dict_tuple(summary.get("proof_source_ref_support_rows", []))
+
+
+def _target_context_summary_proof_source_ref_support_source_field_count(
+    summary: Mapping[str, Any] | None,
+) -> int:
+    return sum(
+        len(_str_tuple(row.get("source_fields", [])))
+        for row in _target_context_summary_proof_source_ref_support_rows(summary)
+    )
 
 
 def _dict_value(mapping: Mapping[str, Any], key: str) -> dict[str, Any]:

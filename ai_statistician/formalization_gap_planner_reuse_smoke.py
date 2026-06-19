@@ -138,6 +138,14 @@ ROUTE_OPTION_SELECTION_SUMMARY_KEYS = (
     "n_request_route_option_selection_lower_bound_options",
     "n_request_route_option_selection_lower_bound_residual_goals",
 )
+TARGET_CONTEXT_SUMMARY_COUNTER_KEYS = (
+    "n_rows_with_target_context_summary",
+    "n_target_context_summary_proof_source_refs",
+    "n_rows_with_target_context_summary_proof_source_refs",
+    "n_target_context_summary_proof_source_ref_support_rows",
+    "n_rows_with_target_context_summary_proof_source_ref_support_rows",
+    "n_target_context_summary_proof_source_ref_support_source_fields",
+)
 
 
 def _route_option_selection_payload_key(public_stem: str, key: str) -> str:
@@ -187,6 +195,53 @@ def _route_option_selection_report_counter(
     )
 
 
+def _target_context_summary_payload_key(public_stem: str, key: str) -> str:
+    if key.startswith("n_"):
+        return f"n_{public_stem}_{key[2:]}"
+    return f"{public_stem}_{key}"
+
+
+def _target_context_summary_counter_payload(
+    payload: dict[str, object],
+    public_stem: str,
+) -> dict[str, int]:
+    return {
+        _target_context_summary_payload_key(public_stem, key): int(
+            payload.get(key, 0) or 0
+        )
+        for key in TARGET_CONTEXT_SUMMARY_COUNTER_KEYS
+    }
+
+
+def _combined_target_context_summary_counter_payload(
+    primary_payload: dict[str, object],
+    feedback_payload: dict[str, object],
+    public_stem: str,
+) -> dict[str, int]:
+    return {
+        _target_context_summary_payload_key(public_stem, key): int(
+            primary_payload.get(key, 0) or 0
+        )
+        + int(feedback_payload.get(key, 0) or 0)
+        for key in TARGET_CONTEXT_SUMMARY_COUNTER_KEYS
+    }
+
+
+def _target_context_summary_report_counter(
+    payload: dict[str, object],
+    public_stem: str,
+) -> str:
+    return "/".join(
+        str(
+            payload.get(
+                _target_context_summary_payload_key(public_stem, key),
+                0,
+            )
+        )
+        for key in TARGET_CONTEXT_SUMMARY_COUNTER_KEYS
+    )
+
+
 SUMMARY_KEYS_BY_STAGE = {
     "formalization_gap_planner_target_intake": (
         "n_targets",
@@ -222,6 +277,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_routes",
         "n_request_packets",
         *ROUTE_OPTION_SELECTION_SUMMARY_KEYS,
+        *TARGET_CONTEXT_SUMMARY_COUNTER_KEYS,
         "n_requests_with_context_packet_inventory",
         "n_request_context_inventory_total_rows",
         "n_rows_with_context_packet_inventory",
@@ -307,6 +363,7 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_routes",
         "n_request_packets",
         *ROUTE_OPTION_SELECTION_SUMMARY_KEYS,
+        *TARGET_CONTEXT_SUMMARY_COUNTER_KEYS,
         "n_requests_with_context_packet_inventory",
         "n_request_context_inventory_total_rows",
         "n_rows_with_context_packet_inventory",
@@ -2659,6 +2716,16 @@ def run_formalization_gap_planner_reuse_smoke(
             )
             or 0
         ),
+        **_combined_target_context_summary_counter_payload(
+            llm_route_planner_payload,
+            feedback_llm_route_planner_payload,
+            "combined_llm_route_planner",
+        ),
+        **_combined_target_context_summary_counter_payload(
+            publication_bundle_llm_route_planner_summary,
+            publication_bundle_feedback_llm_route_planner_summary,
+            "publication_bundle_combined_llm_route_planner_summary",
+        ),
         **_combined_route_option_selection_counter_payload(
             llm_route_planner_payload,
             feedback_llm_route_planner_payload,
@@ -3192,6 +3259,10 @@ def run_formalization_gap_planner_reuse_smoke(
                 "n_rows_with_context_packet_inventory",
                 0,
             )
+        ),
+        **_target_context_summary_counter_payload(
+            publication_bundle_llm_route_planner_summary,
+            "publication_bundle_llm_route_planner_summary",
         ),
         "n_publication_bundle_llm_route_planner_summary_requests_with_current_goal_plan_rows": (
             publication_bundle_llm_route_planner_summary.get(
@@ -3844,6 +3915,10 @@ def run_formalization_gap_planner_reuse_smoke(
                 "n_rows_with_context_packet_inventory",
                 0,
             )
+        ),
+        **_target_context_summary_counter_payload(
+            publication_bundle_feedback_llm_route_planner_summary,
+            "publication_bundle_feedback_llm_route_planner_summary",
         ),
         "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_current_goal_plan_rows": (
             publication_bundle_feedback_llm_route_planner_summary.get(
@@ -4509,6 +4584,10 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_llm_route_planner_rows_with_context_packet_inventory": llm_route_planner_payload.get(
             "n_rows_with_context_packet_inventory",
             0,
+        ),
+        **_target_context_summary_counter_payload(
+            llm_route_planner_payload,
+            "llm_route_planner",
         ),
         "n_llm_route_planner_requests_with_current_goal_plan_rows": llm_route_planner_payload.get(
             "n_requests_with_current_goal_plan_rows",
@@ -5346,6 +5425,10 @@ def run_formalization_gap_planner_reuse_smoke(
                 "n_rows_with_context_packet_inventory",
                 0,
             )
+        ),
+        **_target_context_summary_counter_payload(
+            feedback_llm_route_planner_payload,
+            "feedback_llm_route_planner",
         ),
         "n_feedback_llm_route_planner_requests_with_current_goal_plan_rows": (
             feedback_llm_route_planner_payload.get(
@@ -10827,6 +10910,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_combined_llm_route_planner_request_current_goal_plan_rows')} "
             f"bundle={payload.get('n_publication_bundle_combined_llm_route_planner_summary_requests_with_current_goal_plan_rows')}/"
             f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_request_current_goal_plan_rows')}"
+        ),
+        (
+            f"- LLM route planner target-summary provenance rows/source-refs/support-rows/support-fields: "
+            f"primary={_target_context_summary_report_counter(payload, 'llm_route_planner')} "
+            f"feedback={_target_context_summary_report_counter(payload, 'feedback_llm_route_planner')} "
+            f"combined={_target_context_summary_report_counter(payload, 'combined_llm_route_planner')} "
+            f"bundle={_target_context_summary_report_counter(payload, 'publication_bundle_combined_llm_route_planner_summary')}"
         ),
         (
             "- LLM route planner route-option selection "

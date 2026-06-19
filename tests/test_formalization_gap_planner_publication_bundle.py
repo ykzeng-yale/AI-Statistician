@@ -1153,6 +1153,28 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         == 1
     )
     assert (
+        manifest["llm_route_planner_summary"]["n_rows_with_target_context_summary"]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_target_context_summary_proof_source_refs"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_target_context_summary_proof_source_ref_support_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_target_context_summary_proof_source_ref_support_source_fields"
+        ]
+        == 0
+    )
+    assert (
         manifest["llm_route_planner_summary"][
             "n_requests_with_available_source_snippets"
         ]
@@ -1624,6 +1646,30 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
             "n_requests_with_available_source_snippets"
         ]
         == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_rows_with_target_context_summary"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_target_context_summary_proof_source_refs"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_target_context_summary_proof_source_ref_support_rows"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_target_context_summary_proof_source_ref_support_source_fields"
+        ]
+        == 0
     )
     assert (
         manifest["feedback_llm_route_planner_summary"][
