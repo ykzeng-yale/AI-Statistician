@@ -36,6 +36,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     _available_formal_declaration_rows_for_context,
     _generator_model_for_request,
     _route_adoption_readiness,
+    _route_option_selection_brief,
     _target_compatible_formal_declaration_rows,
     export_formalization_gap_planner_llm_route_planner,
     llm_route_planner_library_alignment_summary_json_schema,
@@ -148,6 +149,59 @@ def _write_input_with_rank_bridge_candidate(root: Path) -> Path:
     rank_primitive["candidate_declarations"] = ["Probability.rankUniformityBridge"]
     input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return input_json
+
+
+def test_route_option_selection_brief_uses_residual_coverage_tie_breaker() -> None:
+    residual_goal = "rank_uniformity: missing finite tie-breaking side condition"
+    brief = _route_option_selection_brief(
+        {
+            "library_alignment_summary": {
+                "route_option_alignment": [
+                    {
+                        "route_option_id": "reuse_only",
+                        "option_kind": "reuse",
+                        "selected_primitives": ["exchangeability"],
+                        "n_selected_primitives": 1,
+                        "minimum_route_base_cost": 4,
+                        "n_bridge_or_harder_primitives": 0,
+                        "n_target_compatible_reuse_declarations": 1,
+                    },
+                    {
+                        "route_option_id": "residual_bridge",
+                        "option_kind": "bridge",
+                        "selected_primitives": ["rank_uniformity"],
+                        "n_selected_primitives": 1,
+                        "minimum_route_base_cost": 4,
+                        "n_bridge_or_harder_primitives": 0,
+                        "n_target_compatible_reuse_declarations": 1,
+                    },
+                ]
+            },
+            "residual_goals": [residual_goal],
+            "residual_goal_contexts": [
+                {
+                    "residual_goal": residual_goal,
+                    "target_primitives": ["rank_uniformity"],
+                    "source_field": "test_residual_context",
+                }
+            ],
+        },
+        route_id="rank_route",
+        display_name="rank route",
+        target_prover_family="lean4",
+        library_snapshot_ref="lean_mathlib_snapshot",
+    )
+
+    assert brief["lower_bound_selected_route_option_id"] == "residual_bridge"
+    assert brief["lower_bound_selected_residual_goal_count"] == 1
+    assert brief["n_candidate_route_options_with_residual_goals"] == 1
+    assert brief["n_candidate_route_option_residual_goals"] == 1
+    selected = brief["candidate_route_options"][0]
+    assert selected["route_option_id"] == "residual_bridge"
+    assert selected["n_residual_goals"] == 1
+    assert selected["n_residual_goal_contexts"] == 1
+    assert selected["residual_target_primitives"] == ["rank_uniformity"]
+    assert selected["residual_goal_samples"] == [residual_goal]
 
 
 def _write_light_input(root: Path) -> Path:
@@ -1946,7 +2000,15 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert payload["n_requests_with_route_option_selection_brief"] == 1
     assert payload["n_request_route_option_selection_candidate_options"] == 1
     assert payload["n_request_route_option_selection_candidate_primitives"] == 2
+    assert (
+        payload[
+            "n_request_route_option_selection_candidates_with_residual_goals"
+        ]
+        == 0
+    )
+    assert payload["n_request_route_option_selection_candidate_residual_goals"] == 0
     assert payload["n_request_route_option_selection_lower_bound_options"] == 1
+    assert payload["n_request_route_option_selection_lower_bound_residual_goals"] == 0
     assert payload["by_request_library_alignment_delta_class"] == {
         "bridge": 1,
         "reuse_ready": 1,
@@ -2324,6 +2386,13 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert route_option_brief["candidate_route_options"][0][
         "by_library_delta_class"
     ] == {"bridge": 1, "reuse_ready": 1}
+    assert route_option_brief["candidate_route_options"][0]["n_residual_goals"] == 0
+    assert (
+        route_option_brief["n_candidate_route_options_with_residual_goals"]
+        == 0
+    )
+    assert route_option_brief["n_candidate_route_option_residual_goals"] == 0
+    assert route_option_brief["lower_bound_selected_residual_goal_count"] == 0
     alignment_by_primitive = {
         row["primitive"]: row for row in alignment_summary["primitive_alignment"]
     }
@@ -8243,6 +8312,14 @@ def test_llm_route_planner_promotes_seed_residual_interpretations_to_context() -
     assert payload["n_request_context_residual_goal_contexts"] == 1
     assert payload["n_request_inventory_residual_goal_contexts"] == 1
     assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    assert (
+        payload[
+            "n_request_route_option_selection_candidates_with_residual_goals"
+        ]
+        == 1
+    )
+    assert payload["n_request_route_option_selection_candidate_residual_goals"] == 1
+    assert payload["n_request_route_option_selection_lower_bound_residual_goals"] == 1
     request = payload["request_packets"][0]
     assert request["model_tier"] == "sonnet"
     assert "1 prover residual goal(s)" in request[
@@ -8269,6 +8346,24 @@ def test_llm_route_planner_promotes_seed_residual_interpretations_to_context() -
     target_context = context_packet["target_theorem_context_packet"]
     assert target_context["residual_goal_context_count"] == 1
     assert target_context["residual_goal_contexts"] == [dict(context)]
+    route_option_brief = context_packet["route_option_selection_brief"]
+    assert route_option_brief["n_candidate_route_options_with_residual_goals"] == 1
+    assert route_option_brief["n_candidate_route_option_residual_goals"] == 1
+    assert route_option_brief["lower_bound_selected_residual_goal_count"] == 1
+    selected_option = route_option_brief["candidate_route_options"][0]
+    assert selected_option["n_residual_goals"] == 1
+    assert selected_option["n_residual_goal_contexts"] == 1
+    assert selected_option["residual_target_primitives"] == ["rank_uniformity"]
+    assert selected_option["residual_goal_samples"] == [
+        "rank_uniformity: missing finite tie-breaking side condition"
+    ]
+    inventory = context_packet["context_packet_inventory"]
+    assert (
+        inventory["route_option_selection_candidate_with_residual_goal_count"]
+        == 1
+    )
+    assert inventory["route_option_selection_candidate_residual_goal_count"] == 1
+    assert inventory["route_option_selection_lower_bound_residual_goal_count"] == 1
     route_brief = context_packet["route_planning_brief"]
     assert route_brief["evidence_summary"]["residual_goal_context_count"] == 1
     assert {

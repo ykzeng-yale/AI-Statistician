@@ -1631,6 +1631,26 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for packet in request_packets
         ),
+        "n_request_route_option_selection_candidates_with_residual_goals": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "route_option_selection_brief",
+                ).get("n_candidate_route_options_with_residual_goals", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_route_option_selection_candidate_residual_goals": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "route_option_selection_brief",
+                ).get("n_candidate_route_option_residual_goals", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
         "n_request_route_option_selection_lower_bound_options": sum(
             1
             for packet in request_packets
@@ -1640,6 +1660,16 @@ def export_formalization_gap_planner_llm_route_planner(
                     "route_option_selection_brief",
                 ).get("lower_bound_selected_route_option_id", "")
             ).strip()
+        ),
+        "n_request_route_option_selection_lower_bound_residual_goals": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "route_option_selection_brief",
+                ).get("lower_bound_selected_residual_goal_count", 0)
+                or 0
+            )
+            for packet in request_packets
         ),
         "n_requests_with_legacy_context_field_aliases": sum(
             1
@@ -4321,7 +4351,10 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_route_option_selection_brief",
             "n_request_route_option_selection_candidate_options",
             "n_request_route_option_selection_candidate_primitives",
+            "n_request_route_option_selection_candidates_with_residual_goals",
+            "n_request_route_option_selection_candidate_residual_goals",
             "n_request_route_option_selection_lower_bound_options",
+            "n_request_route_option_selection_lower_bound_residual_goals",
             "n_requests_with_legacy_context_field_aliases",
             "n_requests_with_target_intake_rows",
             "n_request_target_intake_rows",
@@ -4598,7 +4631,16 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_route_option_selection_candidate_primitives": (
                 nonnegative_integer
             ),
+            "n_request_route_option_selection_candidates_with_residual_goals": (
+                nonnegative_integer
+            ),
+            "n_request_route_option_selection_candidate_residual_goals": (
+                nonnegative_integer
+            ),
             "n_request_route_option_selection_lower_bound_options": (
+                nonnegative_integer
+            ),
+            "n_request_route_option_selection_lower_bound_residual_goals": (
                 nonnegative_integer
             ),
             "n_requests_with_legacy_context_field_aliases": nonnegative_integer,
@@ -6434,6 +6476,29 @@ def validate_llm_route_planner_manifest(
             "n_request_route_option_selection_candidate_primitives must match request_packets"
         )
     if int(
+        manifest.get(
+            "n_request_route_option_selection_candidates_with_residual_goals",
+            0,
+        )
+        or 0
+    ) != sum(
+        int(brief.get("n_candidate_route_options_with_residual_goals", 0) or 0)
+        for brief in route_option_selection_briefs
+    ):
+        errors.append(
+            "n_request_route_option_selection_candidates_with_residual_goals must match request_packets"
+        )
+    if int(
+        manifest.get("n_request_route_option_selection_candidate_residual_goals", 0)
+        or 0
+    ) != sum(
+        int(brief.get("n_candidate_route_option_residual_goals", 0) or 0)
+        for brief in route_option_selection_briefs
+    ):
+        errors.append(
+            "n_request_route_option_selection_candidate_residual_goals must match request_packets"
+        )
+    if int(
         manifest.get("n_request_route_option_selection_lower_bound_options", 0) or 0
     ) != sum(
         1
@@ -6442,6 +6507,16 @@ def validate_llm_route_planner_manifest(
     ):
         errors.append(
             "n_request_route_option_selection_lower_bound_options must match request_packets"
+        )
+    if int(
+        manifest.get("n_request_route_option_selection_lower_bound_residual_goals", 0)
+        or 0
+    ) != sum(
+        int(brief.get("lower_bound_selected_residual_goal_count", 0) or 0)
+        for brief in route_option_selection_briefs
+    ):
+        errors.append(
+            "n_request_route_option_selection_lower_bound_residual_goals must match request_packets"
         )
     decision_evidence_rows = tuple(
         _dict_value(packet, "model_tier_decision_evidence")
@@ -8225,13 +8300,20 @@ def _route_option_selection_brief(
     library_snapshot_ref: str,
 ) -> dict[str, object]:
     alignment_summary = _dict_value(context_packet, "library_alignment_summary")
-    ranked_options = sorted(
-        [
-            (index, dict(row))
-            for index, row in enumerate(
-                _dict_tuple(alignment_summary.get("route_option_alignment", []))
+    annotated_options: list[tuple[int, dict[str, object]]] = []
+    for index, row in enumerate(
+        _dict_tuple(alignment_summary.get("route_option_alignment", []))
+    ):
+        annotated = dict(row)
+        annotated.update(
+            _route_option_residual_coverage_summary(
+                selected_primitives=_str_tuple(row.get("selected_primitives", [])),
+                context_packet=context_packet,
             )
-        ],
+        )
+        annotated_options.append((index, annotated))
+    ranked_options = sorted(
+        annotated_options,
         key=lambda item: _route_option_selection_sort_key(item[1], item[0]),
     )
     best_cost = (
@@ -8269,6 +8351,16 @@ def _route_option_selection_brief(
                 "n_target_compatible_reuse_declarations": int(
                     row.get("n_target_compatible_reuse_declarations", 0) or 0
                 ),
+                "n_residual_goals": int(row.get("n_residual_goals", 0) or 0),
+                "n_residual_goal_contexts": int(
+                    row.get("n_residual_goal_contexts", 0) or 0
+                ),
+                "residual_target_primitives": list(
+                    _str_tuple(row.get("residual_target_primitives", []))
+                ),
+                "residual_goal_samples": list(
+                    _str_tuple(row.get("residual_goal_samples", []))
+                ),
                 "by_library_delta_class": dict(
                     _dict_from_optional_mapping(
                         row.get("by_library_delta_class", {})
@@ -8292,13 +8384,22 @@ def _route_option_selection_brief(
         "library_snapshot_ref": library_snapshot_ref,
         "cost_policy_id": MINIMAL_DELTA_COST_POLICY_ID,
         "selection_rule": (
-            "Rank route options by minimum_route_base_cost, then fewer "
-            "bridge-or-harder primitives, then more target-compatible reuse "
-            "declarations."
+            "Rank route options by minimum_route_base_cost, then more covered "
+            "current prover residual goals, then fewer bridge-or-harder "
+            "primitives, then more target-compatible reuse declarations."
         ),
         "n_candidate_route_options": len(candidate_options),
         "n_candidate_route_option_primitives": sum(
             int(option.get("n_selected_primitives", 0) or 0)
+            for option in candidate_options
+        ),
+        "n_candidate_route_options_with_residual_goals": sum(
+            1
+            for option in candidate_options
+            if int(option.get("n_residual_goals", 0) or 0) > 0
+        ),
+        "n_candidate_route_option_residual_goals": sum(
+            int(option.get("n_residual_goals", 0) or 0)
             for option in candidate_options
         ),
         "n_lower_bound_tied_route_options": sum(
@@ -8310,6 +8411,9 @@ def _route_option_selection_brief(
         "lower_bound_selected_route_cost": selected.get(
             "minimum_route_base_cost",
             0,
+        ),
+        "lower_bound_selected_residual_goal_count": int(
+            selected.get("n_residual_goals", 0) or 0
         ),
         "candidate_route_options": candidate_options,
         "required_response_bindings": [
@@ -8330,12 +8434,54 @@ def _route_option_minimum_cost(row: Mapping[str, object]) -> float:
     return float("inf")
 
 
+def _route_option_residual_coverage_summary(
+    *,
+    selected_primitives: Iterable[object],
+    context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    residual_goals = _str_tuple(context_packet.get("residual_goals", []))
+    residual_goal_contexts = _dict_tuple(
+        context_packet.get("residual_goal_contexts", [])
+    )
+    residual_rows_by_key: dict[str, dict[str, object]] = {}
+    residual_context_keys: set[str] = set()
+    residual_target_primitives: list[str] = []
+    for primitive_value in selected_primitives:
+        primitive = _primitive_key(primitive_value)
+        if not primitive:
+            continue
+        primitive_rows = _route_planning_residual_rows_for_primitive(
+            primitive=primitive,
+            residual_goals=residual_goals,
+            residual_goal_contexts=residual_goal_contexts,
+        )
+        if primitive_rows:
+            residual_target_primitives.append(primitive)
+        for row in primitive_rows:
+            key = str(row.get("residual_goal", "")).strip() or stable_hash(row)
+            residual_rows_by_key.setdefault(key, dict(row))
+            if str(row.get("source_field", "")).strip() != "residual_goals":
+                residual_context_keys.add(stable_hash(row))
+    residual_rows = tuple(residual_rows_by_key.values())
+    return {
+        "n_residual_goals": len(residual_rows),
+        "n_residual_goal_contexts": len(residual_context_keys),
+        "residual_target_primitives": list(dict.fromkeys(residual_target_primitives)),
+        "residual_goal_samples": [
+            str(row.get("residual_goal", "")).strip()
+            for row in residual_rows[:3]
+            if str(row.get("residual_goal", "")).strip()
+        ],
+    }
+
+
 def _route_option_selection_sort_key(
     row: Mapping[str, object],
     source_index: int,
-) -> tuple[float, int, int, int, str]:
+) -> tuple[float, int, int, int, int, str]:
     return (
         _route_option_minimum_cost(row),
+        -int(row.get("n_residual_goals", 0) or 0),
         int(row.get("n_bridge_or_harder_primitives", 0) or 0),
         -int(row.get("n_target_compatible_reuse_declarations", 0) or 0),
         source_index,
@@ -10399,6 +10545,20 @@ def _context_packet_inventory(
             )
             or 0
         ),
+        "route_option_selection_candidate_with_residual_goal_count": int(
+            route_option_selection_brief.get(
+                "n_candidate_route_options_with_residual_goals",
+                0,
+            )
+            or 0
+        ),
+        "route_option_selection_candidate_residual_goal_count": int(
+            route_option_selection_brief.get(
+                "n_candidate_route_option_residual_goals",
+                0,
+            )
+            or 0
+        ),
         "route_option_selection_lower_bound_selected": bool(
             str(
                 route_option_selection_brief.get(
@@ -10406,6 +10566,13 @@ def _context_packet_inventory(
                     "",
                 )
             ).strip()
+        ),
+        "route_option_selection_lower_bound_residual_goal_count": int(
+            route_option_selection_brief.get(
+                "lower_bound_selected_residual_goal_count",
+                0,
+            )
+            or 0
         ),
         "resource_feedback_readiness_summary_present": bool(
             resource_feedback_readiness
@@ -10642,11 +10809,15 @@ def _route_option_selection_brief_errors(
         "target_prover_family",
         "library_snapshot_ref",
         "cost_policy_id",
+        "selection_rule",
         "n_candidate_route_options",
         "n_candidate_route_option_primitives",
+        "n_candidate_route_options_with_residual_goals",
+        "n_candidate_route_option_residual_goals",
         "n_lower_bound_tied_route_options",
         "lower_bound_selected_route_option_id",
         "lower_bound_selected_route_cost",
+        "lower_bound_selected_residual_goal_count",
         "candidate_route_options",
     ):
         if brief.get(field_name) != expected.get(field_name):
@@ -11100,6 +11271,26 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                 ),
             ),
             (
+                "route_option_selection_candidate_with_residual_goal_count",
+                int(
+                    route_option_selection_brief.get(
+                        "n_candidate_route_options_with_residual_goals",
+                        0,
+                    )
+                    or 0
+                ),
+            ),
+            (
+                "route_option_selection_candidate_residual_goal_count",
+                int(
+                    route_option_selection_brief.get(
+                        "n_candidate_route_option_residual_goals",
+                        0,
+                    )
+                    or 0
+                ),
+            ),
+            (
                 "route_option_selection_lower_bound_selected",
                 bool(
                     str(
@@ -11108,6 +11299,16 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
                             "",
                         )
                     ).strip()
+                ),
+            ),
+            (
+                "route_option_selection_lower_bound_residual_goal_count",
+                int(
+                    route_option_selection_brief.get(
+                        "lower_bound_selected_residual_goal_count",
+                        0,
+                    )
+                    or 0
                 ),
             ),
         )
@@ -33667,6 +33868,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Awaiting LLM response: {payload.get('n_awaiting_llm_response')}",
         f"- Rejected: {payload.get('n_rejected')}",
         f"- Request residual-goal contexts: {payload.get('n_request_residual_goal_contexts')} rows={payload.get('n_row_residual_goal_contexts')}",
+        f"- Route-option residual coverage candidates/goals/selected-goals: {payload.get('n_request_route_option_selection_candidates_with_residual_goals')}/{payload.get('n_request_route_option_selection_candidate_residual_goals')}/{payload.get('n_request_route_option_selection_lower_bound_residual_goals')}",
         f"- Informal DAG nodes: {payload.get('n_informal_knowledge_dag_nodes')}",
         f"- Informal DAG edges: {payload.get('n_informal_knowledge_dag_edges')}",
         f"- Formal realization nodes: {payload.get('n_formal_realization_dag_nodes')}",
