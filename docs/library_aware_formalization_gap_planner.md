@@ -755,7 +755,12 @@ and feedback-aware without requiring consumers to inspect the raw planner
 manifest. They also expose Haiku/Sonnet/Opus request-tier distribution,
 Haiku-to-Sonnet repair-escalation counts, and structured tier-decision evidence
 counts from the primary and feedback LLM route-planner manifests, so cost-aware
-routing remains auditable in public supplements. They also expose
+routing remains auditable in public supplements. They also expose a
+pre-invocation prompt-token budget ledger for each primary and feedback
+route-planner request, using deterministic prompt-length estimates plus the
+configured maximum output-token cap. These rows are cost-control hints for
+Claude API planning runs, not provider billing records, usage metadata, or proof
+evidence. They also expose
 minimal-delta action-witness counts, so a bundle shows whether selected
 positive-delta primitives have concrete wrapper, bridge, source-port,
 definition, or new-theory work-list entries. They also

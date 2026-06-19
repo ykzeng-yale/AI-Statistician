@@ -169,6 +169,15 @@ def _assert_prompt_only_staged_route_planner_summary(
     assert summary["live_provider_backend_requested"] is False
     assert summary["static_generator_backend_requested"] is False
     assert summary["provider_generation_requested"] is False
+    assert summary["n_prompt_token_budget_rows"] == summary["n_request_packets"]
+    assert summary["estimated_prompt_input_tokens"] > 0
+    assert summary["estimated_prompt_max_output_tokens"] == 9000
+    assert summary["estimated_prompt_total_token_budget"] == (
+        summary["estimated_prompt_input_tokens"] + 9000
+    )
+    assert summary["prompt_token_budget_summary"]["row_count"] == (
+        summary["n_prompt_token_budget_rows"]
+    )
 
 
 def _assert_no_route_planner_execution_summary(summary: dict[str, object]) -> None:
@@ -1238,6 +1247,29 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         == 0
     )
     assert (
+        manifest["llm_route_planner_summary"]["n_prompt_token_budget_rows"]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"]["estimated_prompt_input_tokens"]
+        > 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "estimated_prompt_max_output_tokens"
+        ]
+        == 9000
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "estimated_prompt_total_token_budget"
+        ]
+        == manifest["llm_route_planner_summary"][
+            "estimated_prompt_input_tokens"
+        ]
+        + 9000
+    )
+    assert (
         manifest["llm_route_planner_summary"][
             "n_model_tier_decision_ledger_rows"
         ]
@@ -1694,6 +1726,33 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
             "row_count"
         ]
         == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_prompt_token_budget_rows"
+        ]
+        == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "estimated_prompt_input_tokens"
+        ]
+        > 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "estimated_prompt_max_output_tokens"
+        ]
+        == 9000
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "estimated_prompt_total_token_budget"
+        ]
+        == manifest["feedback_llm_route_planner_summary"][
+            "estimated_prompt_input_tokens"
+        ]
+        + 9000
     )
     assert (
         manifest["feedback_llm_route_planner_summary"][

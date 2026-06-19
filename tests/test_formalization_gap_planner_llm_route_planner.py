@@ -9766,6 +9766,19 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "n_rows_with_provider_usage" in manifest_schema["required"]
     assert "total_provider_input_tokens" in manifest_schema["required"]
     assert "total_provider_output_tokens" in manifest_schema["required"]
+    prompt_token_budget_fields = (
+        "max_tokens",
+        "temperature",
+        "prompt_token_budget_rows",
+        "prompt_token_budget_summary",
+        "n_prompt_token_budget_rows",
+        "estimated_prompt_input_tokens",
+        "estimated_prompt_max_output_tokens",
+        "estimated_prompt_total_token_budget",
+    )
+    for field_name in prompt_token_budget_fields:
+        assert field_name in manifest_schema["required"]
+        assert field_name in manifest_schema["properties"]
     assert "route_planning_brief_schema" in manifest_schema["required"]
     assert "route_planning_briefs" in manifest_schema["required"]
     assert "n_route_planning_briefs" in manifest_schema["required"]
@@ -9861,6 +9874,45 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["total_provider_input_tokens"] == 0
     assert payload["total_provider_output_tokens"] == 0
     assert payload["total_provider_total_tokens"] == 0
+    assert payload["max_tokens"] == 9000
+    assert payload["temperature"] == 0.1
+    assert payload["n_prompt_token_budget_rows"] == payload["n_request_packets"] == 1
+    assert len(payload["prompt_token_budget_rows"]) == 1
+    prompt_token_budget_row = payload["prompt_token_budget_rows"][0]
+    assert prompt_token_budget_row["request_id"] == payload["request_packets"][0][
+        "request_id"
+    ]
+    assert prompt_token_budget_row["provider_name"] == "static"
+    assert prompt_token_budget_row["model_tier"] == "sonnet"
+    assert prompt_token_budget_row["estimated_input_tokens"] > 0
+    assert prompt_token_budget_row["max_output_tokens"] == 9000
+    assert prompt_token_budget_row["estimated_total_token_budget"] == (
+        prompt_token_budget_row["estimated_input_tokens"] + 9000
+    )
+    assert "not provider billing records" in prompt_token_budget_row["budget_boundary"]
+    assert payload["prompt_token_budget_summary"]["row_count"] == 1
+    assert payload["prompt_token_budget_summary"]["by_provider"]["static"][
+        "n_rows"
+    ] == 1
+    assert payload["prompt_token_budget_summary"]["by_model_tier"]["sonnet"][
+        "n_rows"
+    ] == 1
+    assert payload["estimated_prompt_input_tokens"] == prompt_token_budget_row[
+        "estimated_input_tokens"
+    ]
+    assert payload["estimated_prompt_max_output_tokens"] == 9000
+    assert payload["estimated_prompt_total_token_budget"] == (
+        payload["estimated_prompt_input_tokens"] + 9000
+    )
+    prompt_token_budget_jsonl = (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_prompt_token_budget.jsonl"
+    )
+    assert prompt_token_budget_jsonl.exists()
+    assert [
+        json.loads(line)
+        for line in prompt_token_budget_jsonl.read_text(encoding="utf-8").splitlines()
+    ] == [dict(prompt_token_budget_row)]
     assert (
         manifest_schema["properties"]["legacy_context_field_aliases"][
             "properties"
@@ -10004,6 +10056,42 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "total_provider_input_tokens must match provider_usage_summary"
         in validate_llm_route_planner_manifest(
             drifted_provider_usage_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_prompt_budget_rows_manifest = deepcopy(payload)
+    drifted_prompt_budget_rows = [
+        dict(row) for row in payload["prompt_token_budget_rows"]
+    ]
+    drifted_prompt_budget_rows[0]["estimated_input_tokens"] = 0
+    drifted_prompt_budget_rows_manifest["prompt_token_budget_rows"] = (
+        drifted_prompt_budget_rows
+    )
+    assert (
+        "prompt_token_budget_rows must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_prompt_budget_rows_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_prompt_budget_summary_manifest = deepcopy(payload)
+    drifted_prompt_budget_summary_manifest["prompt_token_budget_summary"] = {
+        **dict(payload["prompt_token_budget_summary"]),
+        "estimated_input_tokens": 0,
+    }
+    assert (
+        "prompt_token_budget_summary must match prompt_token_budget_rows"
+        in validate_llm_route_planner_manifest(
+            drifted_prompt_budget_summary_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_prompt_budget_count_manifest = deepcopy(payload)
+    drifted_prompt_budget_count_manifest["estimated_prompt_input_tokens"] = 0
+    assert (
+        "estimated_prompt_input_tokens must match prompt_token_budget_summary"
+        in validate_llm_route_planner_manifest(
+            drifted_prompt_budget_count_manifest,
             manifest_schema,
         )
     )

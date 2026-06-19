@@ -204,6 +204,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_manifest.json",
         "formalization_gap_planner_llm_route_planner_manifest.schema.json",
         "formalization_gap_planner_llm_route_planner_requests.jsonl",
+        "formalization_gap_planner_llm_route_planner_prompt_token_budget.jsonl",
         "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl",
         "formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl",
         "formalization_gap_planner_llm_route_planner.jsonl",
@@ -226,6 +227,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_manifest.json",
         "formalization_gap_planner_llm_route_planner_manifest.schema.json",
         "formalization_gap_planner_llm_route_planner_requests.jsonl",
+        "formalization_gap_planner_llm_route_planner_prompt_token_budget.jsonl",
         "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl",
         "formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl",
         "formalization_gap_planner_llm_route_planner.jsonl",
@@ -2587,6 +2589,11 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_rows",
             "n_response_present",
             "n_response_contract_ok",
+            "prompt_token_budget_summary",
+            "n_prompt_token_budget_rows",
+            "estimated_prompt_input_tokens",
+            "estimated_prompt_max_output_tokens",
+            "estimated_prompt_total_token_budget",
             "provider_usage_summary",
             "n_rows_with_provider_usage",
             "total_provider_input_tokens",
@@ -2894,6 +2901,11 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_response_present": nonnegative_integer,
             "n_response_contract_ok": nonnegative_integer,
             "n_provider_failures": nonnegative_integer,
+            "prompt_token_budget_summary": {"type": "object"},
+            "n_prompt_token_budget_rows": nonnegative_integer,
+            "estimated_prompt_input_tokens": nonnegative_integer,
+            "estimated_prompt_max_output_tokens": nonnegative_integer,
+            "estimated_prompt_total_token_budget": nonnegative_integer,
             "provider_usage_summary": {"type": "object"},
             "n_rows_with_provider_usage": nonnegative_integer,
             "total_provider_input_tokens": nonnegative_integer,
@@ -5967,6 +5979,11 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_response_present": 0,
         "n_response_contract_ok": 0,
         "n_provider_failures": 0,
+        "prompt_token_budget_summary": {},
+        "n_prompt_token_budget_rows": 0,
+        "estimated_prompt_input_tokens": 0,
+        "estimated_prompt_max_output_tokens": 0,
+        "estimated_prompt_total_token_budget": 0,
         "provider_usage_summary": {},
         "n_rows_with_provider_usage": 0,
         "total_provider_input_tokens": 0,
@@ -6152,6 +6169,22 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         ),
         "provider_generation_requested": bool(
             payload.get("provider_generation_requested", False)
+        ),
+        "prompt_token_budget_summary": _dict_value(
+            payload,
+            "prompt_token_budget_summary",
+        ),
+        "n_prompt_token_budget_rows": int(
+            payload.get("n_prompt_token_budget_rows", 0) or 0
+        ),
+        "estimated_prompt_input_tokens": int(
+            payload.get("estimated_prompt_input_tokens", 0) or 0
+        ),
+        "estimated_prompt_max_output_tokens": int(
+            payload.get("estimated_prompt_max_output_tokens", 0) or 0
+        ),
+        "estimated_prompt_total_token_budget": int(
+            payload.get("estimated_prompt_total_token_budget", 0) or 0
         ),
         "n_request_packets": int(
             payload.get("n_request_packets", len(rows)) or 0
@@ -8621,6 +8654,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('llm_route_planner_summary', {}).get('total_provider_total_tokens')}"
         ),
         (
+            f"- LLM route planner prompt budget rows/input/max-output/total: "
+            f"{payload.get('llm_route_planner_summary', {}).get('n_prompt_token_budget_rows')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('estimated_prompt_input_tokens')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('estimated_prompt_max_output_tokens')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('estimated_prompt_total_token_budget')}"
+        ),
+        (
             f"- LLM route planner model-tier ledger rows/escalations/provider-failures: "
             f"{payload.get('llm_route_planner_summary', {}).get('n_model_tier_decision_ledger_rows')}/"
             f"{payload.get('llm_route_planner_summary', {}).get('n_model_tier_decision_ledger_rows_with_escalation')}/"
@@ -8652,6 +8692,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('total_provider_input_tokens')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('total_provider_output_tokens')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('total_provider_total_tokens')}"
+        ),
+        (
+            f"- Feedback LLM route planner prompt budget rows/input/max-output/total: "
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_prompt_token_budget_rows')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('estimated_prompt_input_tokens')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('estimated_prompt_max_output_tokens')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('estimated_prompt_total_token_budget')}"
         ),
         (
             f"- Feedback LLM route planner model-tier ledger rows/escalations/provider-failures: "
