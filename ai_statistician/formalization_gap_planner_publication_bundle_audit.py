@@ -286,6 +286,7 @@ REQUIRED_REPRODUCTION_ENTRYPOINTS = (
     "formalization-gap-planner-benchmark-audit",
     "formalization-gap-planner-evaluation",
     "formalization-gap-planner-adapter-registry-audit",
+    "formalization-gap-planner-route-adoption-blocker-taxonomy",
     "formalization-gap-planner-ablation-study",
     "formalization-gap-planner-component-resource-registry-audit",
     "formalization-gap-planner-prover-adapter-contract",
@@ -321,6 +322,9 @@ REQUIRED_REPRODUCTION_COMMANDS = {
         "formalization-gap-planner-llm-route-planner-response-payload-validate"
     ),
     "run_target_intake": "formalization-gap-planner-target-intake",
+    "export_route_adoption_blocker_taxonomy": (
+        "formalization-gap-planner-route-adoption-blocker-taxonomy"
+    ),
     "run_reuse_smoke": "formalization-gap-planner-reuse-smoke",
     "run_runtime_handoff_reuse_smoke": "formalization-gap-planner-reuse-smoke",
     "audit_standalone_plan": "formalization-gap-planner-portable-plan-audit",
@@ -8363,6 +8367,16 @@ def _reproduction_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublic
             commands.get("run_target_intake", ""),
             "formalization-gap-planner-target-intake"
             in commands.get("run_target_intake", ""),
+        ),
+        _check(
+            "reproduction_route_adoption_blocker_taxonomy_command",
+            "reproduction",
+            "route-adoption blocker taxonomy export command present",
+            commands.get("export_route_adoption_blocker_taxonomy", ""),
+            "formalization-gap-planner-route-adoption-blocker-taxonomy"
+            in commands.get("export_route_adoption_blocker_taxonomy", "")
+            and "formalization_gap_planner_route_adoption_blocker_taxonomy"
+            in commands.get("export_route_adoption_blocker_taxonomy", ""),
         ),
         _check(
             "reproduction_reuse_smoke_command",

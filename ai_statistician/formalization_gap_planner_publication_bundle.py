@@ -3962,6 +3962,12 @@ def _reproduction_payload(
             "primary_output": "formalization_gap_planner_target_intake_manifest.json",
         },
         {
+            "entrypoint": "formalization-gap-planner-route-adoption-blocker-taxonomy",
+            "purpose": "export the reusable route-adoption status and blocker vocabulary without running the planner pipeline",
+            "required_input": "none",
+            "primary_output": "formalization_gap_planner_route_adoption_blocker_taxonomy_manifest.json",
+        },
+        {
             "entrypoint": "formalization-gap-planner-reuse-smoke",
             "purpose": (
                 "run the full public planner path from target intake through "
@@ -4204,6 +4210,14 @@ def _reproduction_payload(
                 "formalization-gap-planner-target-intake "
                 "--input <bundle_dir>/examples/formalization_gap_planner_target_intake_example.json "
                 "--out <work_dir>/formalization_gap_planner_target_intake"
+            ),
+        },
+        {
+            "name": "export_route_adoption_blocker_taxonomy",
+            "command": (
+                "python3 -m ai_statistician.cli "
+                "formalization-gap-planner-route-adoption-blocker-taxonomy "
+                "--out <work_dir>/formalization_gap_planner_route_adoption_blocker_taxonomy"
             ),
         },
         {

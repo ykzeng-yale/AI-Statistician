@@ -4613,6 +4613,11 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         == "formalization-gap-planner-llm-route-planner-response-payload-validate"
         for row in reproduction_payload["entrypoints"]
     )
+    assert any(
+        row["entrypoint"]
+        == "formalization-gap-planner-route-adoption-blocker-taxonomy"
+        for row in reproduction_payload["entrypoints"]
+    )
     ablation_entrypoint = next(
         row
         for row in reproduction_payload["entrypoints"]
@@ -4708,6 +4713,15 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert (
         "formalization_gap_planner_llm_route_planner_standalone_seed.json"
         in command_by_name["run_standalone_planner"]
+    )
+    assert "export_route_adoption_blocker_taxonomy" in command_by_name
+    assert (
+        "formalization-gap-planner-route-adoption-blocker-taxonomy"
+        in command_by_name["export_route_adoption_blocker_taxonomy"]
+    )
+    assert (
+        "formalization_gap_planner_route_adoption_blocker_taxonomy"
+        in command_by_name["export_route_adoption_blocker_taxonomy"]
     )
     assert any(
         row["entrypoint"] == "formalization-gap-planner-reuse-smoke"

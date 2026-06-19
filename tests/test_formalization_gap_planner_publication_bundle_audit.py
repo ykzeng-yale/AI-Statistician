@@ -5499,6 +5499,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"]
+        == "reproduction_route_adoption_blocker_taxonomy_command"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "reproduction_reuse_smoke_command" and row["ok"]
         for row in audit_payload["checks"]
     )
