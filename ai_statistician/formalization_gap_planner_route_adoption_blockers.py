@@ -28,6 +28,18 @@ ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-route-adoption-blocker-taxonomy-manifest:1"
 )
+ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_FILENAME = (
+    "formalization_gap_planner_route_adoption_blocker_taxonomy_manifest.schema.json"
+)
+ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_FILENAME = (
+    "formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json"
+)
+ROUTE_ADOPTION_BLOCKER_TAXONOMY_FILENAME = (
+    "formalization_gap_planner_route_adoption_blocker_taxonomy.json"
+)
+ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_FILENAME = (
+    "formalization_gap_planner_route_adoption_blocker_taxonomy_manifest.json"
+)
 
 ROUTE_ADOPTION_READY_STATUS = "READY_FOR_STANDALONE_REPLAY"
 ROUTE_ADOPTION_PENDING_STATUS = "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
@@ -333,6 +345,86 @@ def route_adoption_blocker_taxonomy_payload() -> dict[str, object]:
     }
 
 
+def route_adoption_blocker_taxonomy_manifest_json_schema() -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID,
+        "title": "Formalization Gap Planner Route Adoption Blocker Taxonomy Manifest",
+        "description": (
+            "Manifest schema for the standalone route-adoption blocker taxonomy "
+            "export command."
+        ),
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "schema_version",
+            "schema_id",
+            "created_at",
+            "component_name",
+            "taxonomy_id",
+            "taxonomy_schema_id",
+            "taxonomy_manifest_schema_id",
+            "manifest_schema_path",
+            "taxonomy_schema_path",
+            "taxonomy_path",
+            "n_status_values",
+            "n_blocker_values",
+            "status_values",
+            "blocker_values",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+            "taxonomy_payload_errors",
+            "all_ok",
+            "errors",
+        ],
+        "properties": {
+            "schema_version": {
+                "type": "integer",
+                "const": ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_VERSION,
+            },
+            "schema_id": {
+                "const": ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID
+            },
+            "created_at": {"type": "string", "minLength": 1},
+            "component_name": {"const": ROUTE_ADOPTION_BLOCKER_TAXONOMY_COMPONENT},
+            "taxonomy_id": {"const": ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID},
+            "taxonomy_schema_id": {
+                "const": ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID
+            },
+            "taxonomy_manifest_schema_id": {
+                "const": ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID
+            },
+            "manifest_schema_path": {"type": "string", "minLength": 1},
+            "taxonomy_schema_path": {"type": "string", "minLength": 1},
+            "taxonomy_path": {"type": "string", "minLength": 1},
+            "n_status_values": {
+                "type": "integer",
+                "const": len(ROUTE_ADOPTION_STATUSES),
+            },
+            "n_blocker_values": {
+                "type": "integer",
+                "const": len(ROUTE_ADOPTION_BLOCKER_VALUES),
+            },
+            "status_values": {
+                "type": "array",
+                "items": {"type": "string", "enum": list(ROUTE_ADOPTION_STATUSES)},
+            },
+            "blocker_values": route_adoption_blocker_array_json_schema(),
+            "proof_evidence_status": {
+                "const": ROUTE_ADOPTION_BLOCKER_TAXONOMY_PROOF_EVIDENCE_STATUS
+            },
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
+            "taxonomy_payload_errors": string_array,
+            "all_ok": {"type": "boolean"},
+            "errors": string_array,
+        },
+    }
+
+
 def export_route_adoption_blocker_taxonomy(out_dir: Path | str) -> dict[str, object]:
     """Write the portable route-adoption blocker taxonomy contract artifacts."""
 
@@ -340,20 +432,20 @@ def export_route_adoption_blocker_taxonomy(out_dir: Path | str) -> dict[str, obj
     out_path.mkdir(parents=True, exist_ok=True)
     schema = route_adoption_blocker_taxonomy_json_schema()
     payload = route_adoption_blocker_taxonomy_payload()
+    manifest_schema = route_adoption_blocker_taxonomy_manifest_json_schema()
     validation_errors = validate_route_adoption_blocker_taxonomy_payload(payload)
-    schema_path = (
-        out_path
-        / "formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json"
+    schema_path = out_path / ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_FILENAME
+    taxonomy_path = out_path / ROUTE_ADOPTION_BLOCKER_TAXONOMY_FILENAME
+    manifest_schema_path = (
+        out_path / ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_FILENAME
     )
-    taxonomy_path = (
-        out_path / "formalization_gap_planner_route_adoption_blocker_taxonomy.json"
-    )
-    manifest_path = (
-        out_path
-        / "formalization_gap_planner_route_adoption_blocker_taxonomy_manifest.json"
-    )
+    manifest_path = out_path / ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_FILENAME
     schema_path.write_text(json.dumps(schema, indent=2), encoding="utf-8")
     taxonomy_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    manifest_schema_path.write_text(
+        json.dumps(manifest_schema, indent=2),
+        encoding="utf-8",
+    )
     manifest: dict[str, object] = {
         "schema_version": ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_VERSION,
         "schema_id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID,
@@ -361,6 +453,10 @@ def export_route_adoption_blocker_taxonomy(out_dir: Path | str) -> dict[str, obj
         "component_name": ROUTE_ADOPTION_BLOCKER_TAXONOMY_COMPONENT,
         "taxonomy_id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID,
         "taxonomy_schema_id": ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
+        "taxonomy_manifest_schema_id": (
+            ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID
+        ),
+        "manifest_schema_path": str(manifest_schema_path),
         "taxonomy_schema_path": str(schema_path),
         "taxonomy_path": str(taxonomy_path),
         "n_status_values": len(ROUTE_ADOPTION_STATUSES),
@@ -373,11 +469,90 @@ def export_route_adoption_blocker_taxonomy(out_dir: Path | str) -> dict[str, obj
         "proof_evidence_boundary": (
             ROUTE_ADOPTION_BLOCKER_TAXONOMY_PROOF_EVIDENCE_BOUNDARY
         ),
+        "taxonomy_payload_errors": list(validation_errors),
         "all_ok": not validation_errors,
         "errors": list(validation_errors),
     }
+    manifest_validation_errors = (
+        validate_route_adoption_blocker_taxonomy_manifest_payload(manifest)
+    )
+    if manifest_validation_errors:
+        errors = sorted(set((*validation_errors, *manifest_validation_errors)))
+        manifest["all_ok"] = False
+        manifest["errors"] = errors
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
+
+
+def validate_route_adoption_blocker_taxonomy_manifest_payload(
+    payload: Mapping[str, Any],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    required = route_adoption_blocker_taxonomy_manifest_json_schema().get(
+        "required",
+        [],
+    )
+    if isinstance(required, list):
+        for field_name in required:
+            if isinstance(field_name, str) and field_name not in payload:
+                errors.append(f"{field_name} required")
+    if payload.get("schema_version") != ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_VERSION:
+        errors.append("schema_version mismatch")
+    if payload.get("schema_id") != ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID:
+        errors.append("schema_id mismatch")
+    if payload.get("component_name") != ROUTE_ADOPTION_BLOCKER_TAXONOMY_COMPONENT:
+        errors.append("component_name mismatch")
+    if payload.get("taxonomy_id") != ROUTE_ADOPTION_BLOCKER_TAXONOMY_ID:
+        errors.append("taxonomy_id mismatch")
+    if payload.get("taxonomy_schema_id") != ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID:
+        errors.append("taxonomy_schema_id mismatch")
+    if (
+        payload.get("taxonomy_manifest_schema_id")
+        != ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID
+    ):
+        errors.append("taxonomy_manifest_schema_id mismatch")
+    for path_field in (
+        "manifest_schema_path",
+        "taxonomy_schema_path",
+        "taxonomy_path",
+    ):
+        if not str(payload.get(path_field, "") or "").strip():
+            errors.append(f"{path_field} required")
+    if int(payload.get("n_status_values", -1) or -1) != len(
+        ROUTE_ADOPTION_STATUSES
+    ):
+        errors.append("n_status_values mismatch")
+    if int(payload.get("n_blocker_values", -1) or -1) != len(
+        ROUTE_ADOPTION_BLOCKER_VALUES
+    ):
+        errors.append("n_blocker_values mismatch")
+    if _str_tuple(payload.get("status_values", [])) != ROUTE_ADOPTION_STATUSES:
+        errors.append("status_values must match route adoption status constants")
+    if _str_tuple(payload.get("blocker_values", [])) != ROUTE_ADOPTION_BLOCKER_VALUES:
+        errors.append("blocker_values must match route adoption blocker constants")
+    if (
+        payload.get("proof_evidence_status")
+        != ROUTE_ADOPTION_BLOCKER_TAXONOMY_PROOF_EVIDENCE_STATUS
+    ):
+        errors.append("proof_evidence_status mismatch")
+    if "not theorem proof evidence" not in str(
+        payload.get("proof_evidence_boundary", "")
+    ).lower():
+        errors.append("proof_evidence_boundary must say not theorem proof evidence")
+    taxonomy_payload_errors = payload.get("taxonomy_payload_errors", [])
+    if not isinstance(taxonomy_payload_errors, list):
+        errors.append("taxonomy_payload_errors must be array")
+    payload_errors = payload.get("errors", [])
+    if not isinstance(payload_errors, list):
+        errors.append("errors must be array")
+    if payload.get("all_ok") is True:
+        if payload_errors not in ([], None):
+            errors.append("all_ok manifest payload must not carry errors")
+        if taxonomy_payload_errors not in ([], None):
+            errors.append("all_ok manifest payload must not carry taxonomy errors")
+    if payload.get("all_ok") is False and not payload_errors:
+        errors.append("non-ok manifest payload must carry errors")
+    return tuple(errors)
 
 
 def validate_route_adoption_blocker_taxonomy_payload(

@@ -2655,6 +2655,10 @@ def _formalization_gap_planner_route_adoption_blocker_taxonomy(
         f"{(Path(args.out) / 'formalization_gap_planner_route_adoption_blocker_taxonomy.schema.json').resolve()}"
     )
     print(
+        f"taxonomy manifest schema written to "
+        f"{(Path(args.out) / 'formalization_gap_planner_route_adoption_blocker_taxonomy_manifest.schema.json').resolve()}"
+    )
+    print(
         f"taxonomy payload written to "
         f"{(Path(args.out) / 'formalization_gap_planner_route_adoption_blocker_taxonomy.json').resolve()}"
     )

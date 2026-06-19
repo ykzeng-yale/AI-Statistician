@@ -7,11 +7,14 @@ from ai_statistician import formalization_gap_planner_llm_route_planner
 from ai_statistician.cli import main
 from ai_statistician.formalization_gap_planner_route_adoption_blockers import (
     ROUTE_ADOPTION_BLOCKER_VALUES,
+    ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
     export_route_adoption_blocker_taxonomy,
     route_adoption_blocker_array_json_schema,
+    route_adoption_blocker_taxonomy_manifest_json_schema,
     route_adoption_blocker_taxonomy_json_schema,
     route_adoption_blocker_taxonomy_payload,
+    validate_route_adoption_blocker_taxonomy_manifest_payload,
     validate_route_adoption_blocker_taxonomy_payload,
 )
 
@@ -32,6 +35,20 @@ def test_route_adoption_blocker_array_schema_uses_canonical_values() -> None:
     schema = route_adoption_blocker_array_json_schema()
 
     assert schema["items"]["enum"] == list(ROUTE_ADOPTION_BLOCKER_VALUES)
+
+
+def test_route_adoption_blocker_taxonomy_manifest_schema_matches_contract() -> None:
+    schema = route_adoption_blocker_taxonomy_manifest_json_schema()
+
+    assert schema["$id"] == ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID
+    assert (
+        schema["properties"]["taxonomy_schema_id"]["const"]
+        == ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID
+    )
+    assert (
+        schema["properties"]["n_blocker_values"]["const"]
+        == len(ROUTE_ADOPTION_BLOCKER_VALUES)
+    )
 
 
 def test_llm_route_planner_reexports_route_adoption_blocker_contract() -> None:
@@ -67,20 +84,34 @@ def test_export_route_adoption_blocker_taxonomy_writes_reusable_artifacts(
     taxonomy_path = (
         tmp_path / "formalization_gap_planner_route_adoption_blocker_taxonomy.json"
     )
+    manifest_schema_path = (
+        tmp_path
+        / "formalization_gap_planner_route_adoption_blocker_taxonomy_manifest.schema.json"
+    )
     manifest_path = (
         tmp_path
         / "formalization_gap_planner_route_adoption_blocker_taxonomy_manifest.json"
     )
     schema = json.loads(schema_path.read_text())
     payload = json.loads(taxonomy_path.read_text())
+    manifest_schema = json.loads(manifest_schema_path.read_text())
     manifest_payload = json.loads(manifest_path.read_text())
 
     assert manifest["all_ok"] is True
     assert manifest_payload["all_ok"] is True
     assert schema["$id"] == ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID
+    assert manifest_schema["$id"] == ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID
     assert payload["schema_id"] == ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID
     assert tuple(payload["blocker_values"]) == ROUTE_ADOPTION_BLOCKER_VALUES
+    assert manifest_payload["schema_id"] == (
+        ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID
+    )
+    assert manifest_payload["manifest_schema_path"] == str(manifest_schema_path)
     assert manifest_payload["taxonomy_path"] == str(taxonomy_path)
+    assert (
+        validate_route_adoption_blocker_taxonomy_manifest_payload(manifest_payload)
+        == ()
+    )
 
 
 def test_route_adoption_blocker_taxonomy_cli_exports_artifacts(
@@ -108,5 +139,13 @@ def test_route_adoption_blocker_taxonomy_cli_exports_artifacts(
             out_dir / "formalization_gap_planner_route_adoption_blocker_taxonomy.json"
         ).read_text()
     )
+    manifest_schema = json.loads(
+        (
+            out_dir
+            / "formalization_gap_planner_route_adoption_blocker_taxonomy_manifest.schema.json"
+        ).read_text()
+    )
     assert manifest["all_ok"] is True
+    assert manifest_schema["$id"] == ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID
     assert payload["schema_id"] == ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID
+    assert validate_route_adoption_blocker_taxonomy_manifest_payload(manifest) == ()
