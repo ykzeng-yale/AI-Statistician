@@ -65,6 +65,7 @@ python3 -m ai_statistician.cli formalization-gap-planner-component-resource-regi
 python3 -m ai_statistician.cli formalization-gap-planner-llm-route-planner \
   --input runs/current/formalization_gap_planner_target_intake/formalization_gap_planner_target_intake_standalone_seed.json \
   --provider prompt_only \
+  --max-estimated-prompt-input-tokens 0 \
   --formalization-gap-planner-target-intake-dir runs/current/formalization_gap_planner_target_intake \
   --formalization-gap-planner-component-resource-registry-dir runs/current/formalization_gap_planner_component_resource_registry \
   --formal-verifier-agentic-proof-strategy-plan-dir runs/current/formal_verifier_agentic_proof_strategy_plan \
@@ -760,7 +761,11 @@ pre-invocation prompt-token budget ledger for each primary and feedback
 route-planner request, using deterministic prompt-length estimates plus the
 configured maximum output-token cap. These rows are cost-control hints for
 Claude API planning runs, not provider billing records, usage metadata, or proof
-evidence. They also expose
+evidence. The planner can also enforce an operator policy cap with
+`--max-estimated-prompt-input-tokens`; `0` is report-only, while a positive
+cap blocks live generation for any request whose deterministic estimated input
+tokens exceed the cap. This is a cost/context-risk guard, not a claim about a
+provider's current context limit. They also expose
 minimal-delta action-witness counts, so a bundle shows whether selected
 positive-delta primitives have concrete wrapper, bridge, source-port,
 definition, or new-theory work-list entries. They also

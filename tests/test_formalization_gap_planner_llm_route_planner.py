@@ -9769,9 +9769,12 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     prompt_token_budget_fields = (
         "max_tokens",
         "temperature",
+        "max_estimated_prompt_input_tokens",
         "prompt_token_budget_rows",
         "prompt_token_budget_summary",
         "n_prompt_token_budget_rows",
+        "prompt_token_budget_preflight_errors",
+        "n_prompt_token_budget_preflight_blocked",
         "estimated_prompt_input_tokens",
         "estimated_prompt_max_output_tokens",
         "estimated_prompt_total_token_budget",
@@ -9876,7 +9879,10 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["total_provider_total_tokens"] == 0
     assert payload["max_tokens"] == 9000
     assert payload["temperature"] == 0.1
+    assert payload["max_estimated_prompt_input_tokens"] == 0
     assert payload["n_prompt_token_budget_rows"] == payload["n_request_packets"] == 1
+    assert payload["n_prompt_token_budget_preflight_blocked"] == 0
+    assert payload["prompt_token_budget_preflight_errors"] == ()
     assert len(payload["prompt_token_budget_rows"]) == 1
     prompt_token_budget_row = payload["prompt_token_budget_rows"][0]
     assert prompt_token_budget_row["request_id"] == payload["request_packets"][0][
@@ -10092,6 +10098,30 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "estimated_prompt_input_tokens must match prompt_token_budget_summary"
         in validate_llm_route_planner_manifest(
             drifted_prompt_budget_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_prompt_budget_preflight_manifest = deepcopy(payload)
+    drifted_prompt_budget_preflight_manifest[
+        "max_estimated_prompt_input_tokens"
+    ] = 1
+    assert (
+        "prompt_token_budget_preflight_errors must match "
+        "prompt_token_budget_rows and max_estimated_prompt_input_tokens"
+        in validate_llm_route_planner_manifest(
+            drifted_prompt_budget_preflight_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_prompt_budget_preflight_count_manifest = deepcopy(payload)
+    drifted_prompt_budget_preflight_count_manifest[
+        "n_prompt_token_budget_preflight_blocked"
+    ] = 1
+    assert (
+        "n_prompt_token_budget_preflight_blocked must match "
+        "prompt_token_budget_preflight_errors"
+        in validate_llm_route_planner_manifest(
+            drifted_prompt_budget_preflight_count_manifest,
             manifest_schema,
         )
     )
@@ -16860,6 +16890,78 @@ def test_llm_route_planner_preflight_blocks_live_provider_on_model_tier_mismatch
     assert plan_trace["llm_route_planner_route_adoption_status"] == (
         "REJECTED_LLM_ROUTE_PLAN"
     )
+
+
+def test_llm_route_planner_preflight_blocks_live_provider_on_prompt_budget_cap() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_preflight_budget_block"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    calls: list[object] = []
+
+    class ShouldNotCallAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            calls.append(request)
+            raise AssertionError("budget-blocked request should not call provider")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        model_tier="sonnet",
+        invoke_provider=True,
+        generator_backend=ShouldNotCallAnthropicBackend(),
+        max_estimated_prompt_input_tokens=1,
+    )
+
+    assert calls == []
+    assert not payload["all_ok"]
+    assert payload["invoke_provider"] is True
+    assert payload["max_estimated_prompt_input_tokens"] == 1
+    assert payload["n_prompt_token_budget_preflight_blocked"] == 1
+    assert payload["n_generation_preflight_blocked"] == 1
+    assert payload["n_raw_responses"] == 0
+    assert payload["n_awaiting_llm_response"] == 0
+    assert payload["n_rejected"] == 1
+    assert payload["n_route_adoption_rejected"] == 1
+    prompt_budget_error = payload["prompt_token_budget_preflight_errors"][0]
+    assert prompt_budget_error["max_estimated_prompt_input_tokens"] == 1
+    assert prompt_budget_error["estimated_input_tokens"] > 1
+    assert any(
+        "estimated prompt input tokens" in error
+        for error in prompt_budget_error["errors"]
+    )
+    generation_preflight_error = payload["generation_preflight_errors"][0]
+    assert generation_preflight_error["request_id"] == prompt_budget_error[
+        "request_id"
+    ]
+    assert any(
+        "estimated prompt input tokens" in error
+        for error in generation_preflight_error["errors"]
+    )
+    row = payload["rows"][0]
+    assert row["provider_failure"] is False
+    assert row["response_present"] is False
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_REQUEST_CONTRACT"
+    assert row["route_adoption_status"] == "REJECTED_LLM_ROUTE_PLAN"
+    assert any("estimated prompt input tokens" in error for error in row["errors"])
+    seed_metadata = payload["standalone_seed"]["routes"][0]["replan_metadata"]
+    assert seed_metadata["llm_route_planner_request_contract_blocked"] is True
+    assert any(
+        "estimated prompt input tokens" in error
+        for error in seed_metadata["llm_route_planner_errors"]
+    )
+    report = (
+        out_dir / "formalization_gap_planner_llm_route_planner.md"
+    ).read_text(encoding="utf-8")
+    assert "- Prompt token budget preflight blocks: 1 cap=1" in report
+    assert "- Generation preflight blocks: 1" in report
+    assert validate_llm_route_planner_manifest(payload) == []
 
 
 def test_llm_route_planner_rejects_outside_cost_tier_model_for_tier_request() -> None:

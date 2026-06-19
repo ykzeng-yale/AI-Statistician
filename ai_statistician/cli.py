@@ -2700,6 +2700,7 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
         model_tier=args.model_tier,
         max_tokens=args.max_tokens,
         temperature=args.temperature,
+        max_estimated_prompt_input_tokens=args.max_estimated_prompt_input_tokens,
         max_repair_attempts=args.max_repair_attempts,
         invoke_provider=args.invoke_provider,
         response_json=Path(args.response_json) if args.response_json else None,
@@ -2827,6 +2828,7 @@ def _formalization_gap_planner_llm_route_planner(args: argparse.Namespace) -> in
         f"awaiting={payload['n_awaiting_llm_response']} "
         f"search_requests={payload['n_search_requests']} "
         f"preflight_blocks={payload['n_generation_preflight_blocked']} "
+        f"prompt_budget_blocks={payload['n_prompt_token_budget_preflight_blocked']} "
         f"rejected={payload['n_rejected']} "
         f"all_ok={payload['all_ok']}"
     )
@@ -8658,6 +8660,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=9000,
         help="maximum generator output tokens when --invoke-provider is set",
+    )
+    formalization_gap_planner_llm_route_planner.add_argument(
+        "--max-estimated-prompt-input-tokens",
+        type=int,
+        default=0,
+        help=(
+            "optional preflight cap on deterministic prompt input-token "
+            "estimates before generation; 0 disables blocking"
+        ),
     )
     formalization_gap_planner_llm_route_planner.add_argument(
         "--temperature",
