@@ -6075,6 +6075,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert topology["counts"]["enabled_by_model_tier"] == {"haiku": 3, "sonnet": 3}
     assert topology["counts"]["enabled_by_provider"] == {"static": 6}
     assert topology["counts"]["unsupported_generator_backends_enabled"] == 0
+    assert topology["counts"]["generator_only_enabled_agents"] == 6
+    assert topology["counts"]["environment_acting_enabled_agents"] == 0
     assert topology["counts"]["anthropic_model_tier_mismatches"] == 0
     assert topology["counts"]["resolved_claude_model_tier_policy_violations"] == 0
     assert topology["policy_status"] == "OK"
@@ -6082,6 +6084,16 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     theory_row = next(row for row in topology["llm_agents"] if row["subsystem"] == "TheoryDeveloper")
     assert theory_row["max_tokens"] == 4500
     assert topology["policy"]["supported_generator_providers"] == ["anthropic", "openai", "static"]
+    assert set(topology["policy"]["prohibited_agent_generator_providers"]) >= {
+        "codex",
+        "codex_exec",
+        "claude_code",
+        "cursor",
+        "gemini_cli",
+    }
+    assert "not accepted as pure LLM generator backends" in topology["policy"][
+        "prohibited_agent_provider_policy"
+    ]
     assert topology["policy"]["default_live_provider"] == "anthropic"
     assert topology["policy"]["claude_model_selection"]["models_by_tier"] == {
         "haiku": "claude-haiku-4-5-20251001",

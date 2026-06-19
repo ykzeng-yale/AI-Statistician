@@ -66,6 +66,7 @@ from .model_backend import (
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     CLAUDE_MODEL_TIERS,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
+    PROHIBITED_AGENT_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     claude_model_freshness_warnings,
     claude_model_tier_mismatch,
@@ -4155,6 +4156,16 @@ def _runtime_llm_topology(
         "policy": {
             "default_live_provider": "anthropic",
             "supported_generator_providers": list(SUPPORTED_LIVE_GENERATOR_PROVIDERS),
+            "prohibited_agent_generator_providers": list(
+                PROHIBITED_AGENT_GENERATOR_PROVIDERS
+            ),
+            "prohibited_agent_provider_policy": (
+                "Codex, Claude Code, Cursor, Gemini CLI, and similar coding "
+                "agents are not accepted as pure LLM generator backends. "
+                "AgentRuntime owns tools, filesystem writes, execution, tests, "
+                "and prover calls; live LLM providers only return structured "
+                "proposal text."
+            ),
             "claude_model_selection": ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
             "resolved_claude_models_by_tier": resolved_claude_models_by_tier,
             "resolved_claude_model_tier_policy_status": (
@@ -4194,6 +4205,12 @@ def _runtime_llm_topology(
             "enabled_by_provider": dict(sorted(by_provider.items())),
             "unsupported_generator_backends_enabled": sum(
                 1 for row in enabled if _has_unsupported_generator_provider(row)
+            ),
+            "generator_only_enabled_agents": sum(
+                1 for row in enabled if bool(row.get("generator_only", False))
+            ),
+            "environment_acting_enabled_agents": sum(
+                1 for row in enabled if bool(row.get("acts_in_environment", False))
             ),
             "anthropic_model_tier_mismatches": sum(
                 1 for row in enabled if _anthropic_model_tier_mismatch(row)

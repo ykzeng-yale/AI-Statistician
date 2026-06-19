@@ -278,8 +278,12 @@ so Haiku uses `claude-haiku-4-5-20251001` rather than relying on the shorter
 `claude-opus-4-8`, checked against the Anthropic models overview on
 2026-06-19. Claude Fable/Mythos family models are tracked outside this
 Haiku/Sonnet/Opus cost-aware tier contract, and complete coding agents such as
-`codex`, `codex_exec`, and `claude_code` are prohibited as normal pure-LLM
-providers. LLM route-planner rows also reject provider-returned
+`codex`, `codex_exec`, `claude_code`, `cursor`, and `gemini_cli` are prohibited
+as normal pure-LLM providers. Runtime topology manifests publish this prohibited
+agent-provider list and count enabled generator-only versus environment-acting
+LLM agents, so a reusable run can show that Codex-style agent capability did not
+substitute for the AI Statistician runtime. LLM route-planner rows also reject
+provider-returned
 Anthropic model drift, so a
 Haiku-selected request cannot be accepted if the backend reports a Sonnet or
 Opus response model. Live generator backends surface both `requested_model` and
