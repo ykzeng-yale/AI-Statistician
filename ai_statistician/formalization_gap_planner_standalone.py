@@ -55,6 +55,25 @@ FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_ROUTE_OPTION_SELECTION_BRIEF_KIND = 
     "formalization_gap_planner_llm_route_planner_route_option_selection_brief"
 )
 LLM_ROUTE_PLANNER_READY_FOR_STANDALONE_REPLAY = "READY_FOR_STANDALONE_REPLAY"
+LLM_ROUTE_PLANNER_ROUTE_ADOPTION_BLOCKER_VALUES = (
+    "response_not_accepted",
+    "llm_route_planner_response_missing",
+    "search_requests_pending_evidence",
+    "planner_next_actions_pending_evidence",
+    "uncertainty_flags_require_review",
+    "semantic_alignment_risks_require_review",
+    "residual_interpretations_require_route_replay",
+    "feedback_summary_actions_pending_resolution",
+    "resource_response_playbook_redispatch_pending",
+    "resource_request_queue_pending_response",
+    "feedback_loop_replan_required",
+    "realization_coverage_incomplete",
+    "primitive_evidence_matrix_incomplete",
+    "omitted_cost_hint_primitives_require_review",
+    "formal_gap_boundaries_require_resolution",
+    "source_grounding_obligations_pending",
+    "quality_control_obligations_pending",
+)
 FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT = (
     "formalization_gap_planner_standalone_input"
 )
@@ -778,7 +797,19 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
             _llm_seed_route_selection_trace_errors(route, location=f"routes[{idx}]")
         )
         errors.extend(
+            _llm_route_adoption_blocker_trace_errors(
+                route,
+                location=f"routes[{idx}]",
+            )
+        )
+        errors.extend(
             _llm_seed_route_selection_trace_errors(
+                metadata,
+                location=f"routes[{idx}].replan_metadata",
+            )
+        )
+        errors.extend(
+            _llm_route_adoption_blocker_trace_errors(
                 metadata,
                 location=f"routes[{idx}].replan_metadata",
             )
@@ -1275,8 +1306,17 @@ def _llm_seed_route_selection_row_errors(row: dict[str, Any]) -> list[str]:
         not isinstance(blocker, str) for blocker in blockers
     ):
         errors.append("route_adoption_blockers must be string array")
-    elif blocker_count != len(blockers):
-        errors.append("route_adoption_blocker_count must match route_adoption_blockers")
+    else:
+        errors.extend(
+            _route_adoption_blocker_value_errors(
+                blockers,
+                field_name="route_adoption_blockers",
+            )
+        )
+        if blocker_count != len(blockers):
+            errors.append(
+                "route_adoption_blocker_count must match route_adoption_blockers"
+            )
     route_cost = _float_or_none(row.get("minimal_delta_route_cost"))
     if row.get("minimal_delta_route_cost") is not None and (
         route_cost is None or route_cost < 0
@@ -1292,6 +1332,48 @@ def _llm_seed_route_selection_row_errors(row: dict[str, Any]) -> list[str]:
     if not str(row.get("proof_evidence_boundary", "")).strip():
         errors.append("proof_evidence_boundary missing")
     return errors
+
+
+def _llm_route_adoption_blocker_trace_errors(
+    payload: Any,
+    *,
+    location: str,
+) -> list[str]:
+    if not isinstance(payload, dict):
+        return []
+    if "llm_route_planner_route_adoption_blockers" not in payload:
+        return []
+    blockers = payload.get("llm_route_planner_route_adoption_blockers", [])
+    if not isinstance(blockers, list) or any(
+        not isinstance(blocker, str) for blocker in blockers
+    ):
+        return [
+            f"{location}.llm_route_planner_route_adoption_blockers must be string array"
+        ]
+    return _route_adoption_blocker_value_errors(
+        blockers,
+        field_name=f"{location}.llm_route_planner_route_adoption_blockers",
+    )
+
+
+def _route_adoption_blocker_value_errors(
+    blockers: list[str],
+    *,
+    field_name: str,
+) -> list[str]:
+    unsupported = sorted(
+        dict.fromkeys(
+            blocker
+            for blocker in blockers
+            if blocker not in LLM_ROUTE_PLANNER_ROUTE_ADOPTION_BLOCKER_VALUES
+        )
+    )
+    if not unsupported:
+        return []
+    return [
+        f"{field_name} contains unsupported route-adoption blocker values: "
+        + ", ".join(unsupported[:8])
+    ]
 
 
 def _llm_seed_route_selection_trace_errors(
@@ -1756,6 +1838,10 @@ def _target_context_summary_value_key(value: object) -> str:
 
 def standalone_input_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
+    route_adoption_blocker_array = {
+        "type": "array",
+        "items": {"enum": list(LLM_ROUTE_PLANNER_ROUTE_ADOPTION_BLOCKER_VALUES)},
+    }
     object_array = {"type": "array", "items": {"type": "object"}}
     candidate_declaration_rows = {
         "type": "array",
@@ -1821,6 +1907,9 @@ def standalone_input_json_schema() -> dict[str, object]:
                     "llm_route_planner_route_adoption_preconditions": {
                         "type": "object"
                     },
+                    "llm_route_planner_route_adoption_blockers": (
+                        route_adoption_blocker_array
+                    ),
                     "route_class": {"type": "string"},
                     "recommended_action": {"type": "string"},
                     "source_refs": string_array,
@@ -2144,6 +2233,12 @@ def _llm_seed_route_selection_trace_properties() -> dict[str, object]:
         "llm_route_planner_seed_minimal_delta_selected_route_option_id": {
             "type": "string"
         },
+        "llm_route_planner_route_adoption_blockers": {
+            "type": "array",
+            "items": {
+                "enum": list(LLM_ROUTE_PLANNER_ROUTE_ADOPTION_BLOCKER_VALUES)
+            },
+        },
     }
 
 
@@ -2195,7 +2290,12 @@ def _llm_seed_route_selection_schema_def() -> dict[str, object]:
                 "type": "integer",
                 "minimum": 0,
             },
-            "route_adoption_blockers": string_array,
+            "route_adoption_blockers": {
+                "type": "array",
+                "items": {
+                    "enum": list(LLM_ROUTE_PLANNER_ROUTE_ADOPTION_BLOCKER_VALUES)
+                },
+            },
             "acceptance_status": {"type": "string"},
             "minimal_delta_route_cost": nullable_nonnegative_number,
             "minimal_delta_selected_route_option_id": {"type": "string"},

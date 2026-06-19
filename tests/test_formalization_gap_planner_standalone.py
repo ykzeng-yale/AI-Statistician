@@ -26,9 +26,16 @@ from ai_statistician.formalization_gap_planner_library_coverage_map import (
 from ai_statistician.formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_SCHEMA_ID,
     FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_ROUTE_OPTION_SELECTION_BRIEF_KIND,
+    FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS,
+    FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_KIND,
+    LLM_ROUTE_PLANNER_ROUTE_ADOPTION_BLOCKER_VALUES,
     export_formalization_gap_planner_standalone_plan,
+    validate_llm_route_planner_seed_route_selection_payload,
     standalone_input_json_schema,
     validate_standalone_input_payload,
+)
+from ai_statistician.formalization_gap_planner_llm_route_planner import (
+    route_adoption_blocker_taxonomy_payload,
 )
 
 
@@ -444,6 +451,137 @@ def test_standalone_input_validates_route_option_selected_route_option_id() -> N
         "must match routes[0].replan_metadata."
         "llm_route_planner_route_option_selected_route_option_id"
         in metadata_errors
+    )
+
+
+def test_standalone_input_validates_route_adoption_blocker_taxonomy() -> None:
+    valid_blocker = "source_grounding_obligations_pending"
+    payload = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "target_prover_family": "lean4",
+        "library_snapshot_ref": "mathlib4:route-adoption-taxonomy",
+        "routes": [
+            {
+                "route_id": "rank_route",
+                "display_name": "rank_route",
+                "theorem_statement": "Rank uniformity follows from exchangeability.",
+                "llm_route_planner_route_adoption_blockers": [valid_blocker],
+                "replan_metadata": {
+                    "llm_route_planner_route_adoption_blockers": [valid_blocker],
+                },
+                "primitives": [
+                    {
+                        "primitive": "rank_uniformity",
+                        "coverage_status": "bridge_needed",
+                    }
+                ],
+            }
+        ],
+    }
+
+    assert validate_standalone_input_payload(payload) == []
+    schema = standalone_input_json_schema()
+    route_props = schema["$defs"]["route"]["properties"]
+    metadata_props = schema["$defs"]["replan_metadata"]["properties"]
+    assert set(
+        route_props["llm_route_planner_route_adoption_blockers"]["items"]["enum"]
+    ) == set(LLM_ROUTE_PLANNER_ROUTE_ADOPTION_BLOCKER_VALUES)
+    assert set(
+        metadata_props["llm_route_planner_route_adoption_blockers"]["items"]["enum"]
+    ) == set(LLM_ROUTE_PLANNER_ROUTE_ADOPTION_BLOCKER_VALUES)
+    assert tuple(route_adoption_blocker_taxonomy_payload()["blocker_values"]) == (
+        LLM_ROUTE_PLANNER_ROUTE_ADOPTION_BLOCKER_VALUES
+    )
+
+    bad_route_payload = deepcopy(payload)
+    bad_route_payload["routes"][0][
+        "llm_route_planner_route_adoption_blockers"
+    ] = ["invented_route_adoption_blocker"]
+    assert (
+        "routes[0].llm_route_planner_route_adoption_blockers contains "
+        "unsupported route-adoption blocker values: invented_route_adoption_blocker"
+        in validate_standalone_input_payload(bad_route_payload)
+    )
+
+    bad_metadata_payload = deepcopy(payload)
+    bad_metadata_payload["routes"][0]["replan_metadata"][
+        "llm_route_planner_route_adoption_blockers"
+    ] = ["invented_route_adoption_blocker"]
+    assert (
+        "routes[0].replan_metadata.llm_route_planner_route_adoption_blockers "
+        "contains unsupported route-adoption blocker values: "
+        "invented_route_adoption_blocker"
+        in validate_standalone_input_payload(bad_metadata_payload)
+    )
+
+
+def test_seed_route_selection_validates_route_adoption_blocker_taxonomy() -> None:
+    valid_blocker = "source_grounding_obligations_pending"
+    payload = {
+        "selection_kind": (
+            FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_KIND
+        ),
+        "selection_status": "accepted_llm_routes_ranked",
+        "selection_policy": "rank ready routes first, then pending routes",
+        "selected_route_id": "rank_route",
+        "selected_seed_route_id": "rank_route",
+        "selected_llm_route_planner_row_id": "llm_row:rank",
+        "selected_request_id": "request:rank",
+        "selected_route_adoption_status": (
+            "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+        ),
+        "selected_route_adoptable_for_standalone_replay": False,
+        "selected_minimal_delta_route_cost": 4,
+        "selected_minimal_delta_selected_route_option_id": "route_option:bridge",
+        "n_route_candidates": 1,
+        "n_ready_route_candidates": 0,
+        "n_contract_valid_route_candidates": 1,
+        "n_adoptable_route_candidates": 0,
+        "n_selected_route_candidates_not_adoptable": 1,
+        "selection_rows": [
+            {
+                "selection_rank": 1,
+                "selected": True,
+                "adoptable_for_standalone_replay": False,
+                "selection_reason": "pending source grounding remains",
+                "source_order": 0,
+                "route_id": "rank_route",
+                "seed_route_id": "rank_route",
+                "llm_route_planner_row_id": "llm_row:rank",
+                "request_id": "request:rank",
+                "route_adoption_status": (
+                    "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+                ),
+                "route_adoption_status_rank": 10,
+                "route_adoption_blocker_count": 1,
+                "route_adoption_blockers": [valid_blocker],
+                "acceptance_status": "ACCEPTED_WITH_SEARCH_REQUESTS",
+                "minimal_delta_route_cost": 4,
+                "minimal_delta_selected_route_option_id": "route_option:bridge",
+                "response_contract_ok": True,
+                "proof_evidence_status": (
+                    FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS
+                ),
+                "proof_evidence_boundary": "planner route, not theorem proof evidence",
+            }
+        ],
+        "proof_evidence_status": (
+            FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS
+        ),
+        "proof_evidence_boundary": "planner route, not theorem proof evidence",
+    }
+
+    assert validate_llm_route_planner_seed_route_selection_payload(payload) == []
+    bad_payload = deepcopy(payload)
+    bad_payload["selection_rows"][0]["route_adoption_blockers"] = [
+        "invented_route_adoption_blocker"
+    ]
+    errors = validate_llm_route_planner_seed_route_selection_payload(bad_payload)
+    assert (
+        "selection_rows[0].route_adoption_blockers contains unsupported "
+        "route-adoption blocker values: invented_route_adoption_blocker"
+        in errors
     )
 
 
