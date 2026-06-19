@@ -596,6 +596,7 @@ class OpenAIResponsesGeneratorBackend:
 def build_live_generator_backend(
     provider_name: str,
     *,
+    api_key: str | None = None,
     timeout_s: float | None = None,
 ) -> GeneratorBackend:
     """Build a live generator-only backend under the shared provider policy."""
@@ -603,9 +604,9 @@ def build_live_generator_backend(
     provider = str(provider_name or DEFAULT_LIVE_GENERATOR_PROVIDER).strip().lower()
     _raise_if_prohibited_generator_provider(provider)
     if provider == "anthropic":
-        return AnthropicGeneratorBackend(timeout_s=timeout_s)
+        return AnthropicGeneratorBackend(api_key=api_key, timeout_s=timeout_s)
     if provider == "openai":
-        return OpenAIResponsesGeneratorBackend(timeout_s=timeout_s)
+        return OpenAIResponsesGeneratorBackend(api_key=api_key, timeout_s=timeout_s)
     if provider == "static":
         raise ValueError(
             "static generator provider requires an explicit replay backend"

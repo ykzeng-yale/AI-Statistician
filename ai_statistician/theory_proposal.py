@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from dataclasses import asdict, dataclass
 from typing import Any, Protocol
 
 from .model_backend import (
-    AnthropicGeneratorBackend,
     GeneratorBackend,
     GeneratorRequest,
     PROHIBITED_AGENT_GENERATOR_PROVIDERS,
+    build_live_generator_backend,
     resolve_generator_model,
 )
 
@@ -125,7 +124,7 @@ class AnthropicTheoryProposer(GeneratorTheoryProposer):
         max_tokens: int = 700,
     ) -> None:
         super().__init__(
-            provider=AnthropicGeneratorBackend(api_key=api_key or os.environ.get("ANTHROPIC_API_KEY")),
+            provider=build_live_generator_backend("anthropic", api_key=api_key),
             max_tokens=max_tokens,
             model=model,
             model_tier="haiku",

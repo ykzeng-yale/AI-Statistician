@@ -358,7 +358,6 @@ from .research_capability_audit import build_research_capability_audit, write_re
 from .research_policy_baseline import evaluate_research_policy_baseline
 from .research_report import build_research_markdown_report
 from .research_architect import (
-    AnthropicArchitectLLMProvider,
     LLMTheoryDeveloperRepairHandler,
     LLMTheoryDeveloperAgent,
     ResearchArchitectAgent,
@@ -370,7 +369,7 @@ from .algorithm_engineer_llm import AlgorithmEngineerConfig, LLMAlgorithmEnginee
 from .model_backend import (
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
-    OpenAIResponsesGeneratorBackend,
+    build_live_generator_backend,
     default_generator_model,
     default_generator_provider,
 )
@@ -638,11 +637,14 @@ def _build_theory_generator_backend(
             StaticArchitectLLMProvider(Path(static_response_file).read_text(encoding="utf-8")),
             "static",
         )
-    if provider_name == "anthropic":
-        return AnthropicArchitectLLMProvider(timeout_s=llm_timeout_seconds), "anthropic"
-    if provider_name == "openai":
-        return OpenAIResponsesGeneratorBackend(timeout_s=llm_timeout_seconds), "openai"
-    raise ValueError(f"unknown theory provider: {provider_name}")
+    try:
+        provider = build_live_generator_backend(
+            provider_name,
+            timeout_s=llm_timeout_seconds,
+        )
+    except ValueError as exc:
+        raise ValueError(f"unknown theory provider: {provider_name}") from exc
+    return provider, provider.provider_name
 
 
 def _build_algorithm_engineer_agent_from_args(args: argparse.Namespace, *, default_model: str):

@@ -57,12 +57,22 @@ def test_static_json_generator_backend_returns_text_without_tools() -> None:
 
 
 def test_build_live_generator_backend_selects_generator_only_clients() -> None:
-    anthropic_backend = build_live_generator_backend("anthropic", timeout_s=7.0)
-    openai_backend = build_live_generator_backend("openai", timeout_s=9.0)
+    anthropic_backend = build_live_generator_backend(
+        "anthropic",
+        api_key="anthropic-key",
+        timeout_s=7.0,
+    )
+    openai_backend = build_live_generator_backend(
+        "openai",
+        api_key="openai-key",
+        timeout_s=9.0,
+    )
 
     assert isinstance(anthropic_backend, AnthropicGeneratorBackend)
+    assert anthropic_backend.api_key == "anthropic-key"
     assert anthropic_backend.timeout_s == 7.0
     assert isinstance(openai_backend, OpenAIResponsesGeneratorBackend)
+    assert openai_backend.api_key == "openai-key"
     assert openai_backend.timeout_s == 9.0
 
 
