@@ -15845,6 +15845,7 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         "no_unresolved_interactive_route_adoption_preconditions": True,
         "no_interactive_route_adoption_blockers": True,
         "no_resource_feedback_readiness_context": True,
+        "no_formal_attempt_feedback_context": True,
         "no_source_theorem_feedback": True,
         "no_pending_source_grounding_obligations": True,
         "no_residual_source_grounding_obligations": True,
@@ -15860,6 +15861,7 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     stale_haiku_checks.pop("no_interactive_formal_attempt_queue")
     stale_haiku_checks.pop("no_interactive_formal_attempt_execution_commands")
     stale_haiku_checks.pop("no_resource_feedback_readiness_context")
+    stale_haiku_checks.pop("no_formal_attempt_feedback_context")
     stale_haiku_errors = validate_llm_route_planner_request(
         stale_haiku_safety_request
     )
@@ -15871,6 +15873,7 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         and "no_interactive_formal_attempt_queue" in error
         and "no_interactive_formal_attempt_execution_commands" in error
         and "no_resource_feedback_readiness_context" in error
+        and "no_formal_attempt_feedback_context" in error
         for error in stale_haiku_errors
     )
     assert packet["model_tier_decision_evidence"]["route_signal_counts"][
@@ -16583,6 +16586,155 @@ def test_llm_route_planner_auto_uses_sonnet_for_interactive_formal_attempt_queue
     assert ledger_row["context_resource_dispatch_counts"][
         "interactive_session_formal_attempt_queue_execution_command_count"
     ] == 2
+
+
+def test_llm_route_planner_auto_uses_sonnet_for_formal_attempt_feedback_context() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_formal_attempt_feedback_tier"
+    )
+    out_dir = root / "llm_route_planner"
+    route_replan_handoff_dir = root / "route_replan_handoff"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    route_replan_handoff_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    formal_attempt_context = {
+        "attempt_id": "attempt:rank_uniformity_bridge",
+        "formal_node_id": "formal:rank_uniformity",
+        "formal_attempt_queue_index": 0,
+        "formal_attempt_dependency_status": "initial_ready",
+        "attempt_kind": "bridge_lemma",
+        "primitive": "rank_uniformity",
+        "target_primitives": ["rank_uniformity"],
+        "target_prover_family": "lean4",
+        "prerequisite_formal_node_ids": [],
+        "prerequisite_attempt_ids": [],
+        "missing_prerequisite_formal_node_ids": [],
+        "expected_feedback": ["kernel_status", "residual_goals"],
+    }
+    (
+        route_replan_handoff_dir
+        / "formalization_gap_planner_route_replan_handoff_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_route_replan_handoff",
+                "rows": [
+                    {
+                        "route_replan_handoff_id": (
+                            "handoff:rank_route_formal_attempt_feedback"
+                        ),
+                        "route_revision_overlay_id": (
+                            "overlay:rank_route_formal_attempt_feedback"
+                        ),
+                        "goal_plan_id": "goal:rank_route_light",
+                        "route_id": "rank_route_light",
+                        "display_name": "distribution_free_rank_bound_light",
+                        "applied_hook_kinds": ["resource_response_ledger"],
+                        "applied_resource_response_traces": [
+                            {
+                                "resource_response_ledger_id": (
+                                    "ledger:rank_uniformity_attempt"
+                                ),
+                                "resource_request_id": (
+                                    "request:rank_uniformity_attempt"
+                                ),
+                                "resource_id": "lean_lsp_mcp",
+                                "target_primitives": ["rank_uniformity"],
+                                "formal_attempt_context": formal_attempt_context,
+                                "residual_goals": [
+                                    "rank_uniformity needs a measurability side condition"
+                                ],
+                                "prover_attempt_status": (
+                                    "failed_with_residual_goals"
+                                ),
+                                "prover_diagnostic_signature": (
+                                    "residual_goal:rank_uniformity_measurability"
+                                ),
+                                "route_revision_recommended": True,
+                                "route_revision_reasons": [
+                                    (
+                                        "formal attempt exposed a rank-uniformity "
+                                        "measurability side condition"
+                                    )
+                                ],
+                            }
+                        ],
+                        "applied_llm_route_planner_hook_traces": [
+                            {
+                                "llm_route_planner_row_id": (
+                                    "llm_route:rank_uniformity_feedback"
+                                ),
+                                "llm_route_planner_request_id": (
+                                    "llm_request:rank_uniformity_feedback"
+                                ),
+                                "llm_route_planner_hook_kind": (
+                                    "formal_attempt_feedback"
+                                ),
+                                "formal_attempt_context": formal_attempt_context,
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        formalization_gap_planner_route_replan_handoff_dir=(
+            route_replan_handoff_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    packet = payload["request_packets"][0]
+    context = packet["context_packet"]
+    formal_feedback = context["formal_attempt_feedback_summary"]
+    inventory = context["context_packet_inventory"]
+    feedback_summary = context["feedback_loop_summary"]
+    evidence = packet["model_tier_decision_evidence"]
+    signal_counts = evidence["route_signal_counts"]
+
+    assert packet["model_tier"] == "sonnet"
+    assert evidence["decision_basis"] == "auto_sonnet_triggers"
+    assert signal_counts["formal_attempt_feedback_context_count"] == 1
+    assert signal_counts["formal_attempt_feedback_residual_goal_count"] == 1
+    assert signal_counts["formal_attempt_feedback_failed_status_count"] == 1
+    assert evidence["formal_attempt_feedback_counts"]["total_count"] == 1
+    assert evidence["formal_attempt_feedback_counts"]["residual_goal_count"] == 1
+    assert (
+        evidence["formal_attempt_feedback_counts"]["failed_status_count"]
+        == 1
+    )
+    assert any(
+        "formal-attempt feedback context" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
+    assert formal_feedback["attempt_ids"] == ["attempt:rank_uniformity_bridge"]
+    assert formal_feedback["formal_node_ids"] == ["formal:rank_uniformity"]
+    assert formal_feedback["residual_goal_count"] == 1
+    assert formal_feedback["failed_status_count"] == 1
+    assert formal_feedback["replan_required"] is True
+    assert formal_feedback["contexts"][0]["attempt_id"] == (
+        "attempt:rank_uniformity_bridge"
+    )
+    assert (
+        "route_replan_handoff_rows.applied_resource_response_traces"
+        in formal_feedback["contexts"][0]["source_fields"]
+    )
+    assert feedback_summary["formal_attempt_feedback_summary"] == formal_feedback
+    assert inventory["formal_attempt_feedback_summary_present"] is True
+    assert inventory["formal_attempt_feedback_context_count"] == 1
+    assert inventory["formal_attempt_feedback_residual_goal_count"] == 1
+    assert inventory["formal_attempt_feedback_failed_status_count"] == 1
+    ledger_row = payload["model_tier_decision_ledger"][0]
+    assert ledger_row["formal_attempt_feedback_counts"]["total_count"] == 1
 
 
 def test_llm_route_planner_auto_uses_sonnet_for_light_route_interactive_preconditions() -> None:

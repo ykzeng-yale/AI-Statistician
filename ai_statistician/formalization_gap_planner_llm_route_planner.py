@@ -528,6 +528,7 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
         "Use haiku for small routes whose primitives are already-exists, exact, near, wrapper, or different-formulation coverage and have no residual goals, resource-feedback readiness context, or pending resource dispatch.",
         "Use sonnet when prover residual goals, feedback-loop replan signals, or incomplete realization-coverage witnesses are present.",
         "Use sonnet when resource-feedback readiness rows from prior tool responses are present, even if the current route is otherwise small.",
+        "Use sonnet when formal-attempt feedback contexts from prover/resource responses are present.",
         "Use sonnet when source-grounding audit obligations are pending, especially residual goals without source-backed route repair.",
         "Use sonnet when resource-request queue rows, resource-request playbooks, interactive-session resource dispatch bindings, or interactive execution commands are present.",
         "Use sonnet when interactive-session formal-attempt queues, ready prover replay items, blocked formal-attempt dependencies, or formal-attempt execution commands are present.",
@@ -559,6 +560,7 @@ REQUIRED_HAIKU_SAFETY_CHECK_KEYS = frozenset(
         "no_unresolved_interactive_route_adoption_preconditions",
         "no_interactive_route_adoption_blockers",
         "no_resource_feedback_readiness_context",
+        "no_formal_attempt_feedback_context",
         "no_source_theorem_feedback",
         "no_pending_source_grounding_obligations",
         "no_residual_source_grounding_obligations",
@@ -4418,6 +4420,7 @@ def llm_route_planner_model_tier_decision_ledger_json_schema() -> dict[str, obje
             "route_signal_counts": {"type": "object"},
             "context_resource_dispatch_counts": {"type": "object"},
             "resource_feedback_readiness_counts": {"type": "object"},
+            "formal_attempt_feedback_counts": {"type": "object"},
             "interactive_route_adoption_precondition_counts": {"type": "object"},
             "source_theorem_feedback_counts": {"type": "object"},
             "source_grounding_obligations": {"type": "object"},
@@ -8362,6 +8365,9 @@ def _request_packet(
     context_packet["resource_feedback_readiness_summary"] = (
         _resource_feedback_readiness_summary(context_packet)
     )
+    context_packet["formal_attempt_feedback_summary"] = (
+        _formal_attempt_feedback_summary(context_packet)
+    )
     context_packet["proof_execution_feedback_summary"] = (
         _proof_execution_feedback_summary(context_packet)
     )
@@ -9238,6 +9244,10 @@ def _route_planning_brief(
     resource_feedback_readiness = _dict_value(
         context_packet,
         "resource_feedback_readiness_summary",
+    )
+    formal_attempt_feedback = _dict_value(
+        context_packet,
+        "formal_attempt_feedback_summary",
     )
     proof_execution_feedback = _dict_value(
         context_packet,
@@ -10687,6 +10697,10 @@ def _context_packet_inventory(
         context_packet,
         "resource_feedback_readiness_summary",
     )
+    formal_attempt_feedback = _dict_value(
+        context_packet,
+        "formal_attempt_feedback_summary",
+    )
     proof_execution_feedback = _dict_value(
         context_packet,
         "proof_execution_feedback_summary",
@@ -10922,6 +10936,18 @@ def _context_packet_inventory(
         ),
         "resource_feedback_readiness_reuse_ready_count": int(
             resource_feedback_readiness.get("reuse_ready_count", 0) or 0
+        ),
+        "formal_attempt_feedback_summary_present": bool(
+            formal_attempt_feedback
+        ),
+        "formal_attempt_feedback_context_count": int(
+            formal_attempt_feedback.get("total_count", 0) or 0
+        ),
+        "formal_attempt_feedback_residual_goal_count": int(
+            formal_attempt_feedback.get("residual_goal_count", 0) or 0
+        ),
+        "formal_attempt_feedback_failed_status_count": int(
+            formal_attempt_feedback.get("failed_status_count", 0) or 0
         ),
         "proof_execution_feedback_summary_present": bool(
             proof_execution_feedback
@@ -11184,6 +11210,10 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
         context_packet,
         "resource_feedback_readiness_summary",
     )
+    formal_attempt_feedback = _dict_value(
+        context_packet,
+        "formal_attempt_feedback_summary",
+    )
     proof_execution_feedback = _dict_value(
         context_packet,
         "proof_execution_feedback_summary",
@@ -11260,6 +11290,18 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
         (
             "resource_feedback_readiness_reuse_ready_count",
             int(resource_feedback_readiness.get("reuse_ready_count", 0) or 0),
+        ),
+        (
+            "formal_attempt_feedback_context_count",
+            int(formal_attempt_feedback.get("total_count", 0) or 0),
+        ),
+        (
+            "formal_attempt_feedback_residual_goal_count",
+            int(formal_attempt_feedback.get("residual_goal_count", 0) or 0),
+        ),
+        (
+            "formal_attempt_feedback_failed_status_count",
+            int(formal_attempt_feedback.get("failed_status_count", 0) or 0),
         ),
         (
             "proof_execution_feedback_row_count",
@@ -11397,6 +11439,13 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
         errors.append(
             "context_packet.context_packet_inventory."
             "resource_feedback_readiness_summary_present must match context_packet"
+        )
+    if bool(
+        inventory.get("formal_attempt_feedback_summary_present", False)
+    ) != bool(formal_attempt_feedback):
+        errors.append(
+            "context_packet.context_packet_inventory."
+            "formal_attempt_feedback_summary_present must match context_packet"
         )
     if bool(
         inventory.get("proof_execution_feedback_summary_present", False)
@@ -14378,6 +14427,10 @@ def _llm_route_planner_model_tier_decision(
             resource_feedback_readiness.get("alignment_blocked_count", 0) or 0
         ),
     }
+    formal_attempt_feedback_counts = _context_formal_attempt_feedback_counts(
+        context_packet,
+        feedback_summary=feedback_summary,
+    )
     source_theorem_feedback_counts = _context_source_theorem_feedback_counts(
         context_packet,
         feedback_summary=feedback_summary,
@@ -14405,6 +14458,7 @@ def _llm_route_planner_model_tier_decision(
         hard_markers=hard_markers,
         resource_dispatch_counts=resource_dispatch_counts,
         resource_feedback_readiness_counts=resource_feedback_readiness_counts,
+        formal_attempt_feedback_counts=formal_attempt_feedback_counts,
         source_theorem_feedback_counts=source_theorem_feedback_counts,
         source_grounding_obligations=source_grounding_obligations,
         agentic_strategy_plan_counts=agentic_strategy_plan_counts,
@@ -14442,6 +14496,11 @@ def _llm_route_planner_model_tier_decision(
         sonnet_reasons.append(
             f"{resource_feedback_readiness_counts['total_count']} "
             "resource-feedback readiness row(s) from prior tool response(s)"
+        )
+    if formal_attempt_feedback_counts["total_count"]:
+        sonnet_reasons.append(
+            f"{formal_attempt_feedback_counts['total_count']} "
+            "formal-attempt feedback context(s) from prior prover/resource response(s)"
         )
     if interactive_precondition_counts["unresolved_count"]:
         sonnet_reasons.append(
@@ -14597,6 +14656,9 @@ def _llm_route_planner_model_tier_decision(
         "no_resource_feedback_readiness_context": (
             resource_feedback_readiness_counts["total_count"] == 0
         ),
+        "no_formal_attempt_feedback_context": (
+            formal_attempt_feedback_counts["total_count"] == 0
+        ),
         "no_source_theorem_feedback": (
             source_theorem_feedback_counts["total_count"] == 0
         ),
@@ -14730,6 +14792,26 @@ def _context_interactive_route_adoption_precondition_counts(
             summary.get("n_response_required_fields", 0) or 0
         ),
         "target_primitive_count": int(summary.get("n_target_primitives", 0) or 0),
+    }
+
+
+def _context_formal_attempt_feedback_counts(
+    context_packet: Mapping[str, Any],
+    *,
+    feedback_summary: Mapping[str, Any],
+) -> dict[str, int]:
+    summary = _dict_value(context_packet, "formal_attempt_feedback_summary")
+    if not summary:
+        summary = _dict_value(feedback_summary, "formal_attempt_feedback_summary")
+    if not summary:
+        summary = _formal_attempt_feedback_summary(context_packet)
+    return {
+        "total_count": int(summary.get("total_count", 0) or 0),
+        "residual_goal_count": int(summary.get("residual_goal_count", 0) or 0),
+        "failed_status_count": int(summary.get("failed_status_count", 0) or 0),
+        "route_revision_recommended_count": int(
+            summary.get("route_revision_recommended_count", 0) or 0
+        ),
     }
 
 
@@ -14920,6 +15002,7 @@ def _model_tier_decision_evidence_base(
     hard_markers: list[str],
     resource_dispatch_counts: Mapping[str, int],
     resource_feedback_readiness_counts: Mapping[str, int],
+    formal_attempt_feedback_counts: Mapping[str, int],
     source_theorem_feedback_counts: Mapping[str, int | bool],
     source_grounding_obligations: Mapping[str, object],
     agentic_strategy_plan_counts: Mapping[str, int],
@@ -15050,6 +15133,15 @@ def _model_tier_decision_evidence_base(
                 )
                 or 0
             ),
+            "formal_attempt_feedback_context_count": int(
+                formal_attempt_feedback_counts.get("total_count", 0) or 0
+            ),
+            "formal_attempt_feedback_residual_goal_count": int(
+                formal_attempt_feedback_counts.get("residual_goal_count", 0) or 0
+            ),
+            "formal_attempt_feedback_failed_status_count": int(
+                formal_attempt_feedback_counts.get("failed_status_count", 0) or 0
+            ),
             "source_theorem_feedback_row_count": int(
                 source_theorem_feedback_counts.get("total_count", 0) or 0
             ),
@@ -15147,6 +15239,7 @@ def _model_tier_decision_evidence_base(
         "resource_feedback_readiness_counts": dict(
             resource_feedback_readiness_counts
         ),
+        "formal_attempt_feedback_counts": dict(formal_attempt_feedback_counts),
         "interactive_route_adoption_precondition_counts": dict(
             interactive_precondition_counts
         ),
@@ -15764,6 +15857,10 @@ def _model_tier_decision_ledger_row(
         evidence,
         "resource_feedback_readiness_counts",
     )
+    formal_attempt_feedback_counts = _dict_value(
+        evidence,
+        "formal_attempt_feedback_counts",
+    )
     interactive_route_adoption_precondition_counts = _dict_value(
         evidence,
         "interactive_route_adoption_precondition_counts",
@@ -15821,6 +15918,7 @@ def _model_tier_decision_ledger_row(
         "route_signal_counts": route_signal_counts,
         "context_resource_dispatch_counts": context_resource_dispatch_counts,
         "resource_feedback_readiness_counts": resource_feedback_readiness_counts,
+        "formal_attempt_feedback_counts": formal_attempt_feedback_counts,
         "interactive_route_adoption_precondition_counts": (
             interactive_route_adoption_precondition_counts
         ),
@@ -27684,6 +27782,248 @@ def _resource_feedback_readiness_row(
     }
 
 
+def _formal_attempt_feedback_summary(
+    context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    contexts: list[dict[str, object]] = []
+    by_key: dict[str, dict[str, object]] = {}
+
+    def add_context(
+        source_field: str,
+        row: Mapping[str, object],
+        raw_context: Any,
+    ) -> None:
+        context = _formal_attempt_context_value(raw_context)
+        if not context:
+            return
+        residual_goals = _str_tuple(row.get("residual_goals", []))
+        residual_goal = str(row.get("residual_goal", "") or "").strip()
+        if residual_goal:
+            residual_goals = tuple(dict.fromkeys((*residual_goals, residual_goal)))
+        key_parts = (
+            str(context.get("attempt_id", "") or ""),
+            str(context.get("formal_node_id", "") or ""),
+            str(context.get("formal_attempt_queue_index", "") or ""),
+        )
+        key = "|".join(key_parts) if any(key_parts) else stable_hash(context)
+        existing = by_key.get(key)
+        if existing is None:
+            existing = dict(context)
+            existing["source_fields"] = []
+            contexts.append(existing)
+            by_key[key] = existing
+        existing["source_fields"] = list(
+            _unique_strings(
+                [
+                    *_str_tuple(existing.get("source_fields", [])),
+                    source_field,
+                ]
+            )
+        )
+        for field_name in (
+            "resource_response_ledger_id",
+            "resource_request_id",
+            "route_revision_overlay_id",
+            "route_replan_handoff_id",
+            "llm_route_planner_row_id",
+            "llm_route_planner_request_id",
+            "prover_attempt_status",
+            "prover_diagnostic_signature",
+            "acceptance_status",
+        ):
+            value = str(row.get(field_name, "") or "").strip()
+            if value and not existing.get(field_name):
+                existing[field_name] = value
+        if residual_goals:
+            existing["residual_goals"] = list(
+                _unique_strings(
+                    [
+                        *_str_tuple(existing.get("residual_goals", [])),
+                        *residual_goals,
+                    ]
+                )
+            )
+        target_primitives = _str_tuple(row.get("target_primitives", []))
+        if target_primitives:
+            existing["target_primitives"] = list(
+                _unique_strings(
+                    [
+                        *_str_tuple(existing.get("target_primitives", [])),
+                        *target_primitives,
+                    ]
+                )
+            )
+        if _truthy(row.get("route_revision_recommended")):
+            existing["route_revision_recommended"] = True
+        revision_reasons = _str_tuple(row.get("route_revision_reasons", []))
+        if revision_reasons:
+            existing["route_revision_reasons"] = list(
+                _unique_strings(
+                    [
+                        *_str_tuple(existing.get("route_revision_reasons", [])),
+                        *revision_reasons,
+                    ]
+                )
+            )
+
+    for row in _dict_tuple(context_packet.get("resource_response_ledger_rows", [])):
+        add_context(
+            "resource_response_ledger_rows",
+            row,
+            row.get("formal_attempt_context", {}),
+        )
+    for field_name in (
+        "route_revision_overlay_rows",
+        "route_replan_handoff_rows",
+    ):
+        for row in _dict_tuple(context_packet.get(field_name, [])):
+            add_context(field_name, row, row.get("formal_attempt_context", {}))
+            for trace_field in (
+                "applied_resource_response_traces",
+                "applied_llm_route_planner_hook_traces",
+            ):
+                for trace in _dict_tuple(row.get(trace_field, [])):
+                    add_context(
+                        f"{field_name}.{trace_field}",
+                        trace,
+                        trace.get("formal_attempt_context", {}),
+                    )
+    for source_name, source in (
+        ("current_route", _dict_value(context_packet, "current_route")),
+        ("replan_metadata", _dict_value(context_packet, "replan_metadata")),
+    ):
+        add_context(source_name, source, source.get("formal_attempt_context", {}))
+        for field_name in (
+            "formal_attempt_contexts",
+            "llm_route_planner_formal_attempt_contexts",
+        ):
+            for context in _dict_tuple(source.get(field_name, [])):
+                add_context(f"{source_name}.{field_name}", source, context)
+        for trace_field in (
+            "applied_resource_response_traces",
+            "applied_llm_route_planner_hook_traces",
+        ):
+            for trace in _dict_tuple(source.get(trace_field, [])):
+                add_context(
+                    f"{source_name}.{trace_field}",
+                    trace,
+                    trace.get("formal_attempt_context", {}),
+                )
+    if not contexts:
+        return {}
+    attempt_ids = _unique_strings(
+        [
+            str(context.get("attempt_id", "") or "")
+            for context in contexts
+            if str(context.get("attempt_id", "") or "")
+        ]
+    )
+    formal_node_ids = _unique_strings(
+        [
+            str(context.get("formal_node_id", "") or "")
+            for context in contexts
+            if str(context.get("formal_node_id", "") or "")
+        ]
+    )
+    residual_goals = _unique_strings(
+        [
+            residual
+            for context in contexts
+            for residual in _str_tuple(context.get("residual_goals", []))
+        ]
+    )
+    prover_statuses = _unique_strings(
+        [
+            str(context.get("prover_attempt_status", "") or "")
+            for context in contexts
+            if str(context.get("prover_attempt_status", "") or "")
+        ]
+    )
+    failed_status_count = sum(
+        1
+        for status in prover_statuses
+        if any(marker in status.lower() for marker in ("fail", "error", "residual"))
+    )
+    return {
+        "summary_kind": "formalization_gap_planner_formal_attempt_feedback_summary",
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+        "total_count": len(contexts),
+        "attempt_ids": list(attempt_ids[:25]),
+        "formal_node_ids": list(formal_node_ids[:25]),
+        "target_primitives": list(
+            _unique_strings(
+                [
+                    primitive
+                    for context in contexts
+                    for primitive in _str_tuple(context.get("target_primitives", []))
+                ]
+            )[:25]
+        ),
+        "residual_goal_count": len(residual_goals),
+        "residual_goals": list(residual_goals[:20]),
+        "prover_attempt_statuses": list(prover_statuses[:12]),
+        "failed_status_count": failed_status_count,
+        "prover_diagnostic_signatures": list(
+            _unique_strings(
+                [
+                    str(context.get("prover_diagnostic_signature", "") or "")
+                    for context in contexts
+                    if str(context.get("prover_diagnostic_signature", "") or "")
+                ]
+            )[:20]
+        ),
+        "route_revision_recommended_count": sum(
+            1 for context in contexts if _truthy(context.get("route_revision_recommended"))
+        ),
+        "replan_required": bool(
+            residual_goals
+            or failed_status_count
+            or any(_truthy(context.get("route_revision_recommended")) for context in contexts)
+        ),
+        "contexts": contexts[:12],
+    }
+
+
+def _formal_attempt_context_value(value: Any) -> dict[str, object]:
+    if not isinstance(value, Mapping):
+        return {}
+    context: dict[str, object] = dict(value)
+    for field_name in (
+        "target_primitives",
+        "prerequisite_formal_node_ids",
+        "prerequisite_attempt_ids",
+        "missing_prerequisite_formal_node_ids",
+        "expected_feedback",
+    ):
+        if field_name in context:
+            context[field_name] = _str_tuple(context.get(field_name, []))
+    for field_name in (
+        "attempt_id",
+        "formal_node_id",
+        "formal_attempt_dependency_status",
+        "attempt_kind",
+        "primitive",
+        "target_prover_family",
+        "action",
+    ):
+        if field_name in context:
+            context[field_name] = str(context.get(field_name, "") or "")
+    if "formal_attempt_queue_index" in context:
+        try:
+            context["formal_attempt_queue_index"] = int(
+                context.get("formal_attempt_queue_index", -1)
+            )
+        except (TypeError, ValueError):
+            context["formal_attempt_queue_index"] = -1
+    if "formal_attempt_schedule_row" in context:
+        schedule = context.get("formal_attempt_schedule_row", {})
+        context["formal_attempt_schedule_row"] = (
+            dict(schedule) if isinstance(schedule, Mapping) else {}
+        )
+    return context
+
+
 def _feedback_loop_summary(
     context_packet: Mapping[str, Any],
     *,
@@ -27755,6 +28095,10 @@ def _feedback_loop_summary(
     route_revision_reasons = _unique_strings(
         _collect_row_values(actionable_rows, "route_revision_reasons")
     )
+    formal_attempt_feedback = _dict_value(
+        context_packet,
+        "formal_attempt_feedback_summary",
+    ) or _formal_attempt_feedback_summary(context_packet)
     repair_focus = _unique_strings(
         [
             *residual_goals,
@@ -27783,6 +28127,9 @@ def _feedback_loop_summary(
                 "formal_environment_typeclass_blockers",
             ),
             *_collect_row_values(actionable_rows, "failure_classification"),
+            *_str_tuple(formal_attempt_feedback.get("attempt_ids", [])),
+            *_str_tuple(formal_attempt_feedback.get("formal_node_ids", [])),
+            *_str_tuple(formal_attempt_feedback.get("residual_goals", [])),
         ]
     )
     recommended_next_actions = _feedback_next_actions(
@@ -27851,6 +28198,8 @@ def _feedback_loop_summary(
         patch_rerun_residual_followups
     ) or bool(
         agentic_strategy_plan
+    ) or bool(
+        formal_attempt_feedback.get("replan_required", False)
     )
     if interactive_route_adoption_preconditions.get("unresolved_count", 0):
         replan_required = True
@@ -27966,6 +28315,8 @@ def _feedback_loop_summary(
         summary["agentic_proof_strategy_plan"] = agentic_strategy_plan
     if resource_feedback_readiness:
         summary["resource_feedback_readiness_summary"] = resource_feedback_readiness
+    if formal_attempt_feedback:
+        summary["formal_attempt_feedback_summary"] = formal_attempt_feedback
     if quality_control_obligations.get("present"):
         summary["quality_control_obligations"] = quality_control_obligations
     if replan_metadata:
@@ -27979,6 +28330,8 @@ def _feedback_loop_summary(
                 "residual_goals",
                 "quality_controls",
                 "applied_llm_route_planner_hook_traces",
+                "llm_route_planner_formal_attempt_contexts",
+                "formal_attempt_contexts",
                 "alignment_edge_primitives",
                 "llm_route_planner_realization_coverage_witness",
                 "realization_coverage_witness",
