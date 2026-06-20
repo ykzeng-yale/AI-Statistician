@@ -16295,7 +16295,10 @@ def _row_for_request(
         context_packet,
         "context_packet_inventory",
     )
-    target_context_summary = _payload_target_context_summary(payload)
+    target_context_summary = _payload_target_context_summary(
+        payload,
+        request=request,
+    )
     quality_control_obligations = _quality_control_obligation_summary(context_packet)
     source_grounding_obligations = _source_grounding_obligation_summary(
         context_packet
@@ -20416,6 +20419,7 @@ def _response_target_context_summary_errors(
         return []
 
     summary = _explicit_payload_target_context_summary(payload)
+    summary_is_explicit = bool(summary)
     non_source_expected = {
         field_name: values
         for field_name, values in expected.items()
@@ -20437,6 +20441,8 @@ def _response_target_context_summary_errors(
             "objects, assumptions, procedures, desired conclusions, theorem "
             "shapes, target intake ids, or proof source refs"
         ]
+    if not summary_is_explicit:
+        summary = _merge_target_context_proof_source_refs(summary, request)
 
     normalized_summary = _canonical_target_context_summary(summary)
     errors: list[str] = []
@@ -20461,10 +20467,17 @@ def _response_target_context_summary_errors(
     return errors
 
 
-def _payload_target_context_summary(payload: Mapping[str, Any]) -> dict[str, object]:
+def _payload_target_context_summary(
+    payload: Mapping[str, Any],
+    *,
+    request: Mapping[str, Any] | None = None,
+) -> dict[str, object]:
     summary = _explicit_payload_target_context_summary(payload)
+    summary_is_explicit = bool(summary)
     if not summary:
         summary = _payload_source_ref_target_context_summary(payload)
+    if summary and request is not None and not summary_is_explicit:
+        summary = _merge_target_context_proof_source_refs(summary, request)
     return _canonical_target_context_summary(summary)
 
 
@@ -20543,6 +20556,98 @@ def _payload_source_ref_target_context_summary(
             for row in support_rows
         ],
     }
+
+
+def _merge_target_context_proof_source_refs(
+    summary: Mapping[str, object],
+    request: Mapping[str, Any],
+) -> dict[str, object]:
+    target_context = _dict_value(
+        _dict_value(request, "context_packet"),
+        "target_theorem_context_packet",
+    )
+    expected_refs = _target_context_packet_values(
+        target_context,
+        "proof_source_refs",
+    )
+    if not expected_refs:
+        return dict(summary)
+    merged = _canonical_target_context_summary(summary)
+    support_by_key: dict[str, dict[str, object]] = {}
+
+    def add_support(source_ref: object, source_fields: Iterable[object]) -> None:
+        key = _source_ref_key(source_ref)
+        if not key:
+            return
+        row = support_by_key.setdefault(
+            key,
+            {
+                "source_ref": str(source_ref),
+                "source_fields": [],
+            },
+        )
+        row["source_fields"] = list(
+            _unique_strings(
+                [
+                    *_str_tuple(row.get("source_fields", [])),
+                    *_str_tuple(source_fields),
+                ]
+            )
+        )
+
+    for row in _dict_tuple(merged.get("proof_source_ref_support_rows", [])):
+        add_support(row.get("source_ref", ""), row.get("source_fields", []))
+    for source_ref in _str_tuple(merged.get("proof_source_refs", [])):
+        add_support(source_ref, merged.get("summary_sources", []))
+    target_context_source_field = (
+        "context_packet.target_theorem_context_packet.proof_source_refs"
+    )
+    current_ref_keys = {
+        _source_ref_key(source_ref)
+        for source_ref in _str_tuple(merged.get("proof_source_refs", []))
+        if _source_ref_key(source_ref)
+    }
+    missing_expected_refs = [
+        source_ref
+        for source_ref in expected_refs
+        if _source_ref_key(source_ref)
+        and _source_ref_key(source_ref) not in current_ref_keys
+    ]
+    for source_ref in missing_expected_refs:
+        add_support(source_ref, [target_context_source_field])
+    support_rows = tuple(support_by_key.values())
+    merged["proof_source_refs"] = list(
+        _unique_strings(
+            [
+                *_str_tuple(merged.get("proof_source_refs", [])),
+                *missing_expected_refs,
+            ]
+        )
+    )
+    summary_sources = _unique_strings(
+        [
+            *_str_tuple(merged.get("summary_sources", [])),
+            *[
+                field
+                for row in support_rows
+                for field in _str_tuple(row.get("source_fields", []))
+            ],
+        ]
+    )
+    merged["summary_sources"] = list(summary_sources)
+    if not str(merged.get("summary_source", "")).strip():
+        merged["summary_source"] = target_context_source_field
+    merged["proof_source_ref_support_rows"] = [
+        {
+            "source_ref": str(row.get("source_ref", "")),
+            "source_fields": list(_str_tuple(row.get("source_fields", []))),
+        }
+        for row in support_rows
+    ]
+    merged["proof_evidence_boundary"] = str(
+        merged.get("proof_evidence_boundary") or PROOF_EVIDENCE_BOUNDARY
+    )
+    return merged
 
 
 def _target_context_packet_values(
