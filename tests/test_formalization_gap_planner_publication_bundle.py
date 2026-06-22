@@ -50,6 +50,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID,
     PROVIDER_EXECUTION_MODE_PROMPT_ONLY_STAGED,
     PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
@@ -58,6 +59,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     export_formalization_gap_planner_llm_route_planner,
     llm_route_planner_library_alignment_summary_json_schema,
     llm_route_planner_route_planning_brief_json_schema,
+    llm_route_planner_target_theorem_context_packet_json_schema,
     route_adoption_blocker_taxonomy_json_schema,
     validate_formalization_gap_planner_llm_route_planner_response_payloads,
     validate_route_adoption_blocker_taxonomy_payload,
@@ -1216,6 +1218,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert manifest["llm_route_planner_summary"]["n_request_packets"] == 1
     assert (
         manifest["llm_route_planner_summary"][
+            "n_target_theorem_context_packets"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
             "n_requests_with_context_packet_inventory"
         ]
         == 1
@@ -1776,6 +1784,12 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         manifest["feedback_llm_route_planner_summary"]
     )
     assert manifest["feedback_llm_route_planner_summary"]["n_request_packets"] == 1
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_target_theorem_context_packets"
+        ]
+        == 1
+    )
     assert (
         manifest["feedback_llm_route_planner_summary"][
             "n_requests_with_available_source_snippets"
@@ -2380,6 +2394,31 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     ]
     assert len(primary_alignment_rows) == manifest["llm_route_planner_summary"][
         "n_requests_with_library_alignment_summary"
+    ]
+    primary_target_context_jsonl = (
+        out_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner"
+        / "formalization_gap_planner_llm_route_planner_target_theorem_context_packets.jsonl"
+    )
+    primary_target_context_schema = (
+        out_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner"
+        / "formalization_gap_planner_llm_route_planner_target_theorem_context_packet.schema.json"
+    )
+    assert primary_target_context_jsonl.exists()
+    assert primary_target_context_schema.exists()
+    assert json.loads(primary_target_context_schema.read_text(encoding="utf-8"))[
+        "$id"
+    ] == LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID
+    primary_target_context_rows = [
+        json.loads(line)
+        for line in primary_target_context_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(primary_target_context_rows) == manifest["llm_route_planner_summary"][
+        "n_request_packets"
     ]
     assert (
         out_dir
@@ -4405,6 +4444,21 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert (
         library_alignment_summary_schema_payload
         == llm_route_planner_library_alignment_summary_json_schema()
+    )
+    target_theorem_context_schema_payload = json.loads(
+        (
+            out_dir
+            / "contract"
+            / "formalization_gap_planner_llm_route_planner_target_theorem_context_packet.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert (
+        target_theorem_context_schema_payload["$id"]
+        == LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID
+    )
+    assert (
+        target_theorem_context_schema_payload
+        == llm_route_planner_target_theorem_context_packet_json_schema()
     )
     route_planning_brief_schema_payload = json.loads(
         (

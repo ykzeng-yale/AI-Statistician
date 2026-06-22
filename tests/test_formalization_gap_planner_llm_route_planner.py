@@ -21,6 +21,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID,
     PROOF_EVIDENCE_STATUS,
     PROOF_EVIDENCE_BOUNDARY,
     PROVIDER_EXECUTION_MODE_LIVE_PROVIDER_BACKEND,
@@ -46,6 +47,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     llm_route_planner_manifest_json_schema,
     llm_route_planner_model_tier_decision_ledger_json_schema,
     llm_route_planner_route_planning_brief_json_schema,
+    llm_route_planner_target_theorem_context_packet_json_schema,
     llm_route_planner_response_payload_schema,
     llm_route_planner_row_json_schema,
     route_adoption_blocker_taxonomy_json_schema,
@@ -2205,6 +2207,34 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert tuple(route_planning_brief_rows) == payload["route_planning_briefs"]
     assert payload["n_route_planning_briefs"] == 1
     request = payload["request_packets"][0]
+    target_context_schema = (
+        llm_route_planner_target_theorem_context_packet_json_schema()
+    )
+    assert (
+        target_context_schema["$id"]
+        == LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID
+    )
+    target_context_schema_path = (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_target_theorem_context_packet.schema.json"
+    )
+    assert target_context_schema_path.exists()
+    assert (
+        json.loads(target_context_schema_path.read_text(encoding="utf-8"))
+        == target_context_schema
+    )
+    target_context_packet_rows = [
+        json.loads(line)
+        for line in (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_target_theorem_context_packets.jsonl"
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert tuple(target_context_packet_rows) == payload["target_theorem_context_packets"]
+    assert payload["n_target_theorem_context_packets"] == 1
     ledger_schema = llm_route_planner_model_tier_decision_ledger_json_schema()
     assert (
         ledger_schema["$id"]
@@ -2276,6 +2306,8 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert target_context_packet["proof_source_refs"] == [
         "conformal_prediction_textbook"
     ]
+    assert payload["target_theorem_context_packets"] == (target_context_packet,)
+    assert target_context_packet_rows == [target_context_packet]
     assert payload["rows"][0]["target_theorem_context_packet"] == target_context_packet
     assert payload["rows"][0]["route_planning_brief"] == route_planning_brief
     fallback_seed_route = payload["standalone_seed"]["routes"][0]
@@ -9730,6 +9762,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert manifest_schema["properties"]["route_planning_brief_schema"][
         "properties"
     ]["$id"]["const"] == LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID
+    assert manifest_schema["properties"]["target_theorem_context_packet_schema"][
+        "properties"
+    ]["$id"]["const"] == LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID
     assert manifest_schema["properties"]["model_tier_decision_ledger_schema"][
         "properties"
     ]["$id"]["const"] == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID
@@ -9846,6 +9881,9 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     for field_name in prompt_token_budget_fields:
         assert field_name in manifest_schema["required"]
         assert field_name in manifest_schema["properties"]
+    assert "target_theorem_context_packet_schema" in manifest_schema["required"]
+    assert "target_theorem_context_packets" in manifest_schema["required"]
+    assert "n_target_theorem_context_packets" in manifest_schema["required"]
     assert "route_planning_brief_schema" in manifest_schema["required"]
     assert "route_planning_briefs" in manifest_schema["required"]
     assert "n_route_planning_briefs" in manifest_schema["required"]
@@ -10228,6 +10266,37 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         + LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID
         in validate_llm_route_planner_manifest(
             drifted_route_planning_brief_schema_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_target_context_schema_manifest = deepcopy(payload)
+    drifted_target_context_schema_manifest["target_theorem_context_packet_schema"][
+        "$id"
+    ] = "urn:wrong"
+    assert (
+        "target_theorem_context_packet_schema.$id must equal "
+        + LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID
+        in validate_llm_route_planner_manifest(
+            drifted_target_context_schema_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_target_context_manifest = deepcopy(payload)
+    drifted_target_context_manifest["target_theorem_context_packets"] = []
+    assert (
+        "target_theorem_context_packets must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_target_context_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_target_context_count_manifest = deepcopy(payload)
+    drifted_target_context_count_manifest["n_target_theorem_context_packets"] = 0
+    assert (
+        "n_target_theorem_context_packets must match "
+        "target_theorem_context_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_target_context_count_manifest,
             manifest_schema,
         )
     )

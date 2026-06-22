@@ -68,6 +68,7 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID,
     PROVIDER_EXECUTION_MODES,
     llm_route_planner_library_alignment_summary_json_schema,
     llm_route_planner_manifest_json_schema,
@@ -76,6 +77,7 @@ from .formalization_gap_planner_llm_route_planner import (
     llm_route_planner_response_payload_validation_manifest_json_schema,
     llm_route_planner_response_payload_validation_row_json_schema,
     llm_route_planner_route_planning_brief_json_schema,
+    llm_route_planner_target_theorem_context_packet_json_schema,
     llm_route_planner_response_payload_schema,
     llm_route_planner_response_json_schema,
     llm_route_planner_row_json_schema,
@@ -208,11 +210,13 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_requests.jsonl",
         "formalization_gap_planner_llm_route_planner_prompt_token_budget.jsonl",
         "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl",
+        "formalization_gap_planner_llm_route_planner_target_theorem_context_packets.jsonl",
         "formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl",
         "formalization_gap_planner_llm_route_planner.jsonl",
         "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl",
         "formalization_gap_planner_llm_route_planner_request.schema.json",
         "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json",
+        "formalization_gap_planner_llm_route_planner_target_theorem_context_packet.schema.json",
         "formalization_gap_planner_llm_route_planner_route_planning_brief.schema.json",
         "formalization_gap_planner_llm_route_planner_response.schema.json",
         "formalization_gap_planner_llm_route_planner_response_payload.schema.json",
@@ -231,11 +235,13 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_requests.jsonl",
         "formalization_gap_planner_llm_route_planner_prompt_token_budget.jsonl",
         "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl",
+        "formalization_gap_planner_llm_route_planner_target_theorem_context_packets.jsonl",
         "formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl",
         "formalization_gap_planner_llm_route_planner.jsonl",
         "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl",
         "formalization_gap_planner_llm_route_planner_request.schema.json",
         "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json",
+        "formalization_gap_planner_llm_route_planner_target_theorem_context_packet.schema.json",
         "formalization_gap_planner_llm_route_planner_route_planning_brief.schema.json",
         "formalization_gap_planner_llm_route_planner_response.schema.json",
         "formalization_gap_planner_llm_route_planner_response_payload.schema.json",
@@ -540,6 +546,9 @@ def export_formalization_gap_planner_publication_bundle(
     llm_route_planner_library_alignment_summary_schema = (
         llm_route_planner_library_alignment_summary_json_schema()
     )
+    llm_route_planner_target_theorem_context_packet_schema = (
+        llm_route_planner_target_theorem_context_packet_json_schema()
+    )
     llm_route_planner_route_planning_brief_schema = (
         llm_route_planner_route_planning_brief_json_schema()
     )
@@ -673,6 +682,10 @@ def export_formalization_gap_planner_publication_bundle(
     llm_route_planner_library_alignment_summary_schema_path = (
         contract_dir
         / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
+    )
+    llm_route_planner_target_theorem_context_packet_schema_path = (
+        contract_dir
+        / "formalization_gap_planner_llm_route_planner_target_theorem_context_packet.schema.json"
     )
     llm_route_planner_route_planning_brief_schema_path = (
         contract_dir
@@ -887,6 +900,13 @@ def export_formalization_gap_planner_publication_bundle(
     )
     llm_route_planner_library_alignment_summary_schema_path.write_text(
         json.dumps(llm_route_planner_library_alignment_summary_schema, indent=2),
+        encoding="utf-8",
+    )
+    llm_route_planner_target_theorem_context_packet_schema_path.write_text(
+        json.dumps(
+            llm_route_planner_target_theorem_context_packet_schema,
+            indent=2,
+        ),
         encoding="utf-8",
     )
     llm_route_planner_route_planning_brief_schema_path.write_text(
@@ -1454,6 +1474,13 @@ def export_formalization_gap_planner_publication_bundle(
             "required": True,
             "ok": llm_route_planner_library_alignment_summary_schema.get("$id")
             == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
+        },
+        {
+            "artifact_name": "llm_route_planner_target_theorem_context_packet_schema",
+            "path": str(llm_route_planner_target_theorem_context_packet_schema_path),
+            "required": True,
+            "ok": llm_route_planner_target_theorem_context_packet_schema.get("$id")
+            == LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID,
         },
         {
             "artifact_name": "llm_route_planner_route_planning_brief_schema",
@@ -2521,6 +2548,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "static_generator_backend_requested",
             "provider_generation_requested",
             "n_request_packets",
+            "n_target_theorem_context_packets",
             "n_requests_with_context_packet_inventory",
             "n_request_context_inventory_total_rows",
             "n_rows_with_context_packet_inventory",
@@ -2732,6 +2760,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "static_generator_backend_requested": {"type": "boolean"},
             "provider_generation_requested": {"type": "boolean"},
             "n_request_packets": nonnegative_integer,
+            "n_target_theorem_context_packets": nonnegative_integer,
             "n_requests_with_context_packet_inventory": nonnegative_integer,
             "n_request_context_inventory_total_rows": nonnegative_integer,
             "n_rows_with_context_packet_inventory": nonnegative_integer,
@@ -3890,6 +3919,9 @@ def _contract_payload(library_snapshot_ref: str) -> dict[str, object]:
         "portable_plan_audit_row_contract": portable_plan_audit_row_json_schema(),
         "library_coverage_map_row_contract": library_coverage_map_row_json_schema(),
         "llm_route_planner_request_contract": llm_route_planner_request_json_schema(),
+        "llm_route_planner_target_theorem_context_packet_contract": (
+            llm_route_planner_target_theorem_context_packet_json_schema()
+        ),
         "llm_route_planner_route_planning_brief_contract": (
             llm_route_planner_route_planning_brief_json_schema()
         ),
@@ -4749,6 +4781,7 @@ def _reproduction_payload(
         "contract/formalization_gap_planner_target_intake_row.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_request.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json",
+        "contract/formalization_gap_planner_llm_route_planner_target_theorem_context_packet.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_route_planning_brief.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_response.schema.json",
         "contract/formalization_gap_planner_llm_route_planner_response_payload.schema.json",
@@ -6056,6 +6089,7 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "static_generator_backend_requested": False,
         "provider_generation_requested": False,
         "n_request_packets": 0,
+        "n_target_theorem_context_packets": 0,
         "n_requests_with_context_packet_inventory": 0,
         "n_request_context_inventory_total_rows": 0,
         "n_rows_with_context_packet_inventory": 0,
@@ -6388,6 +6422,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         ),
         "n_request_packets": int(
             payload.get("n_request_packets", len(rows)) or 0
+        ),
+        "n_target_theorem_context_packets": int(
+            payload.get("n_target_theorem_context_packets", 0) or 0
         ),
         "n_requests_with_context_packet_inventory": int(
             payload.get("n_requests_with_context_packet_inventory", 0) or 0

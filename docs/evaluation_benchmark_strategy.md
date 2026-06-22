@@ -558,7 +558,11 @@ The `formalization-gap-planner-llm-route-planner` gate is the explicit
 LLM/agent intelligence path for that upgrade. It builds a target theorem
 context packet containing the current route, optional source-grounding rows,
 library-coverage rows, resource-response/prover residuals, the required JSON
-output contract, and the proof boundary. Prompt-only runs are valid staging
+output contract, and the proof boundary. It also exports those compact target
+theorem context packets as JSONL plus schema, so benchmark consumers can audit
+the normalized theorem statement, assumptions, source refs, primitive
+candidates, residual counts, and target prover family without reparsing the
+full prompt packet. Prompt-only runs are valid staging
 artifacts. Reviewed/static or live-provider responses are accepted only when
 they include source-grounded informal DAG nodes, Lean/formal realization DAG
 nodes, informal-to-formal alignment rationales, minimal-delta rationale,

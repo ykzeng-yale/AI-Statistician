@@ -132,6 +132,15 @@ projects per-payload response-contract status, route-adoption status, remaining
 blockers, and `adoptable_for_standalone_replay` counts; schema-only validation
 never claims adoption readiness.
 Each staged request also writes
+`formalization_gap_planner_llm_route_planner_target_theorem_context_packets.jsonl`.
+Those rows expose the normalized theorem statement, objects, assumptions,
+procedure/conclusion hints, proof source refs, primitive candidates, residual
+goal counts, and proof-evidence boundary as a reusable contract validated by
+`formalization_gap_planner_llm_route_planner_target_theorem_context_packet.schema.json`.
+Publication bundles copy the JSONL and publish the same schema under
+`contract/`, so external prover teams can consume theorem-intake context
+without parsing the full LLM prompt packet.
+Each staged request also writes
 `formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl`.
 Those rows are self-identifying with `schema_id`, `schema_version`, `route_id`,
 and `display_name`, and they are validated by the published

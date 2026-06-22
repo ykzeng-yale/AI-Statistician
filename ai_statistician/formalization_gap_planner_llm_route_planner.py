@@ -110,6 +110,10 @@ LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-route-planning-brief:1"
 )
+LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-llm-route-planner-target-theorem-context-packet:1"
+)
 LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-manifest:1"
@@ -1141,6 +1145,17 @@ def export_formalization_gap_planner_llm_route_planner(
     route_planning_briefs = tuple(
         _dict_value(_dict_value(packet, "context_packet"), "route_planning_brief")
         for packet in request_packets
+    )
+    target_theorem_context_packets = tuple(
+        _dict_value(
+            _dict_value(packet, "context_packet"),
+            "target_theorem_context_packet",
+        )
+        for packet in request_packets
+        if _dict_value(
+            _dict_value(packet, "context_packet"),
+            "target_theorem_context_packet",
+        )
     )
     library_alignment_route_option_rows = tuple(
         row
@@ -3507,6 +3522,9 @@ def export_formalization_gap_planner_llm_route_planner(
         "response_payload_schema": response_payload_schema,
         "response_schema": response_schema,
         "row_schema": row_schema,
+        "target_theorem_context_packet_schema": (
+            llm_route_planner_target_theorem_context_packet_json_schema()
+        ),
         "route_planning_brief_schema": (
             llm_route_planner_route_planning_brief_json_schema()
         ),
@@ -3514,6 +3532,8 @@ def export_formalization_gap_planner_llm_route_planner(
             llm_route_planner_model_tier_decision_ledger_json_schema()
         ),
         "request_packets": request_packets,
+        "target_theorem_context_packets": target_theorem_context_packets,
+        "n_target_theorem_context_packets": len(target_theorem_context_packets),
         "route_planning_briefs": route_planning_briefs,
         "n_route_planning_briefs": sum(1 for brief in route_planning_briefs if brief),
         "rows": row_dicts,
@@ -4114,6 +4134,9 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
     route_planning_brief_schema = (
         llm_route_planner_route_planning_brief_json_schema()
     )
+    target_theorem_context_packet_schema = (
+        llm_route_planner_target_theorem_context_packet_json_schema()
+    )
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
@@ -4167,6 +4190,9 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
                     "route_planning_brief": {
                         "$ref": "#/$defs/route_planning_brief"
                     },
+                    "target_theorem_context_packet": {
+                        "$ref": "#/$defs/target_theorem_context_packet"
+                    },
                     "route_option_selection_brief": {"type": "object"},
                     "route_adoption_preconditions": {"type": "object"},
                     "residual_goal_contexts": object_array,
@@ -4186,6 +4212,81 @@ def llm_route_planner_request_json_schema() -> dict[str, object]:
         "$defs": {
             "library_alignment_summary": library_alignment_summary_schema,
             "route_planning_brief": route_planning_brief_schema,
+            "target_theorem_context_packet": target_theorem_context_packet_schema,
+        },
+    }
+
+
+def llm_route_planner_target_theorem_context_packet_json_schema() -> dict[str, object]:
+    string_array = {"type": "array", "items": {"type": "string"}}
+    object_array = {"type": "array", "items": {"type": "object"}}
+    nonnegative_integer = {"type": "integer", "minimum": 0}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID,
+        "title": (
+            "Formalization Gap Planner LLM Route Planner Target Theorem "
+            "Context Packet"
+        ),
+        "description": (
+            "Compact normalized theorem context supplied to the LLM route "
+            "planner. It is planning input, not theorem proof evidence."
+        ),
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "context_packet_kind",
+            "route_id",
+            "display_name",
+            "target_prover_family",
+            "library_snapshot_ref",
+            "theorem_statement",
+            "proof_source_refs",
+            "primitive_candidates",
+            "residual_goal_count",
+            "residual_goal_context_count",
+            "source_snippet_count",
+            "formal_declaration_row_count",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ],
+        "properties": {
+            "context_packet_kind": {
+                "type": "string",
+                "const": TARGET_THEOREM_CONTEXT_PACKET_KIND,
+            },
+            "route_id": {"type": "string", "minLength": 1},
+            "display_name": {"type": "string", "minLength": 1},
+            "target_prover_family": {"type": "string", "minLength": 1},
+            "library_snapshot_ref": {"type": "string"},
+            "target_intake_ids": string_array,
+            "target_ids": string_array,
+            "theorem_statement": {"type": "string"},
+            "theorem_skeletons": string_array,
+            "normalized_objects": string_array,
+            "normalized_assumptions": string_array,
+            "normalized_procedures": string_array,
+            "desired_conclusions": string_array,
+            "desired_theorem_shapes": string_array,
+            "proof_style_hints": string_array,
+            "proof_source_refs": string_array,
+            "literature_queries": string_array,
+            "formal_library_grounding_queries": string_array,
+            "primitive_candidates": string_array,
+            "residual_goal_count": nonnegative_integer,
+            "residual_goals": string_array,
+            "residual_goal_context_count": nonnegative_integer,
+            "residual_goal_contexts": object_array,
+            "source_snippet_count": nonnegative_integer,
+            "formal_declaration_row_count": nonnegative_integer,
+            "proof_evidence_status": {
+                "type": "string",
+                "const": PROOF_EVIDENCE_STATUS,
+            },
+            "proof_evidence_boundary": {
+                "type": "string",
+                "pattern": "not theorem proof evidence",
+            },
         },
     }
 
@@ -4790,9 +4891,12 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "response_payload_schema",
             "response_schema",
             "row_schema",
+            "target_theorem_context_packet_schema",
             "route_planning_brief_schema",
             "model_tier_decision_ledger_schema",
             "request_packets",
+            "target_theorem_context_packets",
+            "n_target_theorem_context_packets",
             "route_planning_briefs",
             "n_route_planning_briefs",
             "rows",
@@ -5293,6 +5397,17 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 "required": ["$id"],
                 "properties": {"$id": {"const": LLM_ROUTE_PLANNER_ROW_SCHEMA_ID}},
             },
+            "target_theorem_context_packet_schema": {
+                "type": "object",
+                "required": ["$id"],
+                "properties": {
+                    "$id": {
+                        "const": (
+                            LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID
+                        )
+                    }
+                },
+            },
             "route_planning_brief_schema": {
                 "type": "object",
                 "required": ["$id"],
@@ -5314,6 +5429,8 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 },
             },
             "request_packets": object_array,
+            "target_theorem_context_packets": object_array,
+            "n_target_theorem_context_packets": nonnegative_integer,
             "route_planning_briefs": object_array,
             "n_route_planning_briefs": nonnegative_integer,
             "rows": object_array,
@@ -7231,6 +7348,34 @@ def validate_llm_route_planner_manifest(
     for field_name, expected_value in provider_usage_count_checks:
         if int(manifest.get(field_name, 0) or 0) != int(expected_value or 0):
             errors.append(f"{field_name} must match provider_usage_summary")
+    expected_target_theorem_context_packets = tuple(
+        _dict_value(
+            _dict_value(packet, "context_packet"),
+            "target_theorem_context_packet",
+        )
+        for packet in request_packets
+        if _dict_value(
+            _dict_value(packet, "context_packet"),
+            "target_theorem_context_packet",
+        )
+    )
+    observed_target_theorem_context_packets = _dict_tuple(
+        manifest.get("target_theorem_context_packets", [])
+    )
+    if (
+        observed_target_theorem_context_packets
+        != expected_target_theorem_context_packets
+    ):
+        errors.append(
+            "target_theorem_context_packets must match request_packets"
+        )
+    if int(manifest.get("n_target_theorem_context_packets", 0) or 0) != len(
+        expected_target_theorem_context_packets
+    ):
+        errors.append(
+            "n_target_theorem_context_packets must match "
+            "target_theorem_context_packets"
+        )
     expected_route_planning_briefs = tuple(
         _dict_value(_dict_value(packet, "context_packet"), "route_planning_brief")
         for packet in request_packets
@@ -7293,6 +7438,9 @@ def validate_llm_route_planner_manifest(
         "response_payload_schema": LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_SCHEMA_ID,
         "response_schema": LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
         "row_schema": LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+        "target_theorem_context_packet_schema": (
+            LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID
+        ),
         "route_planning_brief_schema": (
             LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID
         ),
@@ -35398,6 +35546,22 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
         + ("\n" if library_alignment_summaries else ""),
         encoding="utf-8",
     )
+    target_theorem_context_packets = [
+        row
+        for row in payload.get("target_theorem_context_packets", [])
+        if isinstance(row, dict)
+    ]
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_target_theorem_context_packets.jsonl"
+    ).write_text(
+        "\n".join(
+            json.dumps(row, sort_keys=True)
+            for row in target_theorem_context_packets
+        )
+        + ("\n" if target_theorem_context_packets else ""),
+        encoding="utf-8",
+    )
     route_planning_briefs = [
         row
         for row in payload.get("route_planning_briefs", [])
@@ -35440,6 +35604,16 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
         / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
     ).write_text(
         json.dumps(llm_route_planner_library_alignment_summary_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_target_theorem_context_packet.schema.json"
+    ).write_text(
+        json.dumps(
+            llm_route_planner_target_theorem_context_packet_json_schema(),
+            indent=2,
+        ),
         encoding="utf-8",
     )
     (

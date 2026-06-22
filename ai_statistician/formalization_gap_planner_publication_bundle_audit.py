@@ -72,9 +72,11 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID,
     MINIMAL_DELTA_COST_POLICY_ID,
     PROOF_EVIDENCE_STATUS as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_STATUS,
     llm_route_planner_route_planning_brief_json_schema,
+    llm_route_planner_target_theorem_context_packet_json_schema,
     validate_llm_route_planner_request,
     validate_llm_route_planner_manifest,
     validate_llm_route_planner_response_payload_validation_manifest,
@@ -226,6 +228,7 @@ REQUIRED_CORE_ARTIFACTS = (
     "resource_response_ledger_row_schema",
     "source_grounding_row_schema",
     "llm_route_planner_request_schema",
+    "llm_route_planner_target_theorem_context_packet_schema",
     "llm_route_planner_route_planning_brief_schema",
     "llm_route_planner_response_schema",
     "llm_route_planner_response_payload_schema",
@@ -5946,6 +5949,11 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         / "contract"
         / "formalization_gap_planner_llm_route_planner_request.schema.json"
     )
+    llm_route_planner_target_theorem_context_packet_schema_path = (
+        bundle_dir
+        / "contract"
+        / "formalization_gap_planner_llm_route_planner_target_theorem_context_packet.schema.json"
+    )
     llm_route_planner_route_planning_brief_schema_path = (
         bundle_dir
         / "contract"
@@ -6150,6 +6158,9 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
     source_grounding_row_schema = _read_json_no_error(source_grounding_row_schema_path)
     llm_route_planner_request_schema = _read_json_no_error(
         llm_route_planner_request_schema_path
+    )
+    llm_route_planner_target_theorem_context_packet_schema = _read_json_no_error(
+        llm_route_planner_target_theorem_context_packet_schema_path
     )
     llm_route_planner_route_planning_brief_schema = _read_json_no_error(
         llm_route_planner_route_planning_brief_schema_path
@@ -6810,6 +6821,7 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
                 "publication_bundle_manifest_schema",
                 "target_intake_row_schema",
                 "llm_route_planner_request_schema",
+                "llm_route_planner_target_theorem_context_packet_schema",
                 "llm_route_planner_route_planning_brief_schema",
                 "llm_route_planner_response_schema",
                 "llm_route_planner_response_payload_schema",
@@ -7412,6 +7424,29 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             str(llm_route_planner_request_schema.get("$id", "")),
             llm_route_planner_request_schema.get("$id")
             == LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
+        ),
+        _check(
+            "llm_route_planner_target_theorem_context_packet_schema_file",
+            "contract",
+            "LLM route-planner target theorem context packet schema exists",
+            str(llm_route_planner_target_theorem_context_packet_schema_path.exists()),
+            llm_route_planner_target_theorem_context_packet_schema_path.exists(),
+        ),
+        _check(
+            "llm_route_planner_target_theorem_context_packet_schema_id",
+            "contract",
+            LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID,
+            str(llm_route_planner_target_theorem_context_packet_schema.get("$id", "")),
+            llm_route_planner_target_theorem_context_packet_schema.get("$id")
+            == LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID,
+        ),
+        _check(
+            "llm_route_planner_target_theorem_context_packet_schema_shape",
+            "contract",
+            "target theorem context packet schema matches canonical builder",
+            str(llm_route_planner_target_theorem_context_packet_schema.get("$id", "")),
+            llm_route_planner_target_theorem_context_packet_schema
+            == llm_route_planner_target_theorem_context_packet_json_schema(),
         ),
         _check(
             "llm_route_planner_route_planning_brief_schema_file",
@@ -10469,6 +10504,10 @@ def _llm_route_planner_optional_checks(
         artifact_dir
         / "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl"
     )
+    target_theorem_context_packets_jsonl_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_target_theorem_context_packets.jsonl"
+    )
     route_planning_briefs_jsonl_path = (
         artifact_dir
         / "formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl"
@@ -10480,6 +10519,10 @@ def _llm_route_planner_optional_checks(
     library_alignment_summary_schema_path = (
         artifact_dir
         / "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json"
+    )
+    target_theorem_context_packet_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_target_theorem_context_packet.schema.json"
     )
     route_planning_brief_schema_path = (
         artifact_dir
@@ -10517,6 +10560,9 @@ def _llm_route_planner_optional_checks(
     library_alignment_summary_schema = _read_json_no_error(
         library_alignment_summary_schema_path
     )
+    target_theorem_context_packet_schema = _read_json_no_error(
+        target_theorem_context_packet_schema_path
+    )
     route_planning_brief_schema = _read_json_no_error(
         route_planning_brief_schema_path
     )
@@ -10537,6 +10583,9 @@ def _llm_route_planner_optional_checks(
     library_alignment_summary_rows, library_alignment_summary_errors = (
         _read_jsonl_dict_rows_no_error(library_alignment_summaries_jsonl_path)
     )
+    target_theorem_context_packet_rows, target_theorem_context_packet_errors = (
+        _read_jsonl_dict_rows_no_error(target_theorem_context_packets_jsonl_path)
+    )
     route_planning_brief_rows, route_planning_brief_errors = (
         _read_jsonl_dict_rows_no_error(route_planning_briefs_jsonl_path)
     )
@@ -10545,6 +10594,17 @@ def _llm_route_planner_optional_checks(
         _dict_value(_dict_value(request, "context_packet"), "library_alignment_summary")
         for request in requests
         if _dict_value(_dict_value(request, "context_packet"), "library_alignment_summary")
+    ]
+    request_target_theorem_context_packets = [
+        _dict_value(
+            _dict_value(request, "context_packet"),
+            "target_theorem_context_packet",
+        )
+        for request in requests
+        if _dict_value(
+            _dict_value(request, "context_packet"),
+            "target_theorem_context_packet",
+        )
     ]
     request_route_planning_briefs = [
         _dict_value(_dict_value(request, "context_packet"), "route_planning_brief")
@@ -10643,6 +10703,29 @@ def _llm_route_planner_optional_checks(
             str(library_alignment_summary_schema.get("$id", "")),
             library_alignment_summary_schema.get("$id")
             == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
+        ),
+        _check(
+            f"{check_prefix}_target_theorem_context_packet_schema_file",
+            "optional_artifacts",
+            "LLM route-planner target theorem context packet schema exists",
+            str(target_theorem_context_packet_schema_path.exists()),
+            target_theorem_context_packet_schema_path.exists(),
+        ),
+        _check(
+            f"{check_prefix}_target_theorem_context_packet_schema_id",
+            "optional_artifacts",
+            LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID,
+            str(target_theorem_context_packet_schema.get("$id", "")),
+            target_theorem_context_packet_schema.get("$id")
+            == LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID,
+        ),
+        _check(
+            f"{check_prefix}_target_theorem_context_packet_schema_shape",
+            "optional_artifacts",
+            "target theorem context packet schema matches canonical builder",
+            str(target_theorem_context_packet_schema.get("$id", "")),
+            target_theorem_context_packet_schema
+            == llm_route_planner_target_theorem_context_packet_json_schema(),
         ),
         _check(
             f"{check_prefix}_route_planning_brief_schema_file",
@@ -10797,6 +10880,18 @@ def _llm_route_planner_optional_checks(
             errors=library_alignment_summary_errors,
         ),
         _check(
+            f"{check_prefix}_target_theorem_context_packets_parse",
+            "optional_artifacts",
+            "LLM route-planner target theorem context packets JSONL parses into object rows",
+            (
+                "; ".join(target_theorem_context_packet_errors)
+                if target_theorem_context_packet_errors
+                else f"rows={len(target_theorem_context_packet_rows)}"
+            ),
+            not target_theorem_context_packet_errors,
+            errors=target_theorem_context_packet_errors,
+        ),
+        _check(
             f"{check_prefix}_route_planning_briefs_parse",
             "optional_artifacts",
             "LLM route-planner route-planning briefs JSONL parses into object rows",
@@ -10845,6 +10940,28 @@ def _llm_route_planner_optional_checks(
                 f"requests={len(request_library_alignment_summaries)}"
             ),
             library_alignment_summary_rows == request_library_alignment_summaries,
+        ),
+        _check(
+            f"{check_prefix}_target_theorem_context_packet_count",
+            "optional_artifacts",
+            "LLM route-planner target theorem context packets match manifest count",
+            (
+                f"jsonl={len(target_theorem_context_packet_rows)} "
+                f"manifest={manifest.get('n_target_theorem_context_packets', 0)}"
+            ),
+            len(target_theorem_context_packet_rows)
+            == int(manifest.get("n_target_theorem_context_packets", 0) or 0),
+        ),
+        _check(
+            f"{check_prefix}_target_theorem_context_packet_request_match",
+            "optional_artifacts",
+            "LLM route-planner target theorem context packets match request packets",
+            (
+                f"jsonl={len(target_theorem_context_packet_rows)} "
+                f"requests={len(request_target_theorem_context_packets)}"
+            ),
+            target_theorem_context_packet_rows
+            == request_target_theorem_context_packets,
         ),
         _check(
             f"{check_prefix}_route_planning_brief_count",
