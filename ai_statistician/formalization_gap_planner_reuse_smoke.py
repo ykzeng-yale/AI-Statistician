@@ -8226,6 +8226,18 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_llm_route_planner_total_resource_request_rows",
             0,
         ),
+        "n_resource_request_llm_route_planner_explicit_resource_binding_rows": resource_request_queue_payload.get(
+            "n_llm_route_planner_resource_request_rows_with_explicit_resource_binding",
+            0,
+        ),
+        "n_resource_request_llm_route_planner_matching_explicit_resource_binding_rows": resource_request_queue_payload.get(
+            "n_llm_route_planner_resource_request_rows_matching_explicit_resource_binding",
+            0,
+        ),
+        "n_resource_request_llm_route_planner_hook_default_fanout_rows": resource_request_queue_payload.get(
+            "n_llm_route_planner_resource_request_rows_from_hook_default_fanout",
+            0,
+        ),
         "n_resource_request_llm_route_planner_route_planning_brief_evidence_gap_rows": resource_request_queue_payload.get(
             "n_llm_route_planner_route_planning_brief_evidence_gap_rows",
             0,
@@ -11635,6 +11647,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_resource_request_llm_route_planner_request_route_planning_briefs')}/"
             f"{payload.get('n_resource_request_llm_route_planner_total_resource_request_rows')}/"
             f"{payload.get('n_resource_request_llm_route_planner_route_planning_brief_evidence_gap_rows')}"
+        ),
+        (
+            f"- Resource request LLM explicit resource bindings/matches/default-fanout rows: "
+            f"{payload.get('n_resource_request_llm_route_planner_explicit_resource_binding_rows')}/"
+            f"{payload.get('n_resource_request_llm_route_planner_matching_explicit_resource_binding_rows')}/"
+            f"{payload.get('n_resource_request_llm_route_planner_hook_default_fanout_rows')}"
         ),
         (
             f"- Resource request LLM route-adoption preconditions rows/blockers/required-fields/target-primitives/request-packets/request-targets: "

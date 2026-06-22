@@ -325,6 +325,27 @@ def export_formalization_gap_planner_resource_request_queue(
         "n_llm_route_planner_total_resource_request_rows": len(
             all_llm_resource_request_rows
         ),
+        "n_llm_route_planner_resource_request_rows_with_explicit_resource_binding": sum(
+            1
+            for row in all_llm_resource_request_rows
+            if _llm_request_payload_resource_binding(row.request_payload).get(
+                "requested_resource_ids"
+            )
+        ),
+        "n_llm_route_planner_resource_request_rows_matching_explicit_resource_binding": sum(
+            1
+            for row in all_llm_resource_request_rows
+            if _llm_request_payload_resource_binding(row.request_payload).get(
+                "dispatch_matches_requested_resource"
+            )
+        ),
+        "n_llm_route_planner_resource_request_rows_from_hook_default_fanout": sum(
+            1
+            for row in all_llm_resource_request_rows
+            if not _llm_request_payload_resource_binding(row.request_payload).get(
+                "requested_resource_ids"
+            )
+        ),
         "n_llm_route_planner_resource_request_rows_with_route_adoption_preconditions": sum(
             1
             for row in all_llm_resource_request_rows
@@ -1512,6 +1533,13 @@ def _with_llm_route_planner_trace(
             "llm_route_planner_route_planning_brief": route_planning_brief,
         }
     )
+    resource_binding = _llm_resource_binding_witness(
+        source_item,
+        dispatched_resource_id=row.resource_id,
+        dispatched_request_phase=row.request_phase,
+        hook_kind=hook_kind,
+    )
+    input_summary["llm_route_planner_resource_binding"] = resource_binding
     residual_goal_context = _llm_residual_goal_context(
         source_item,
         source_kind=source_kind,
@@ -1539,6 +1567,7 @@ def _with_llm_route_planner_trace(
             ),
             "llm_route_planner_target_context_summary": target_context_summary,
             "llm_route_planner_route_planning_brief": route_planning_brief,
+            "llm_route_planner_resource_binding": resource_binding,
         }
     )
     if route_adoption_preconditions:
@@ -1587,6 +1616,7 @@ def _with_llm_route_planner_trace(
             ),
             "llm_route_planner_target_context_summary": target_context_summary,
             "llm_route_planner_route_planning_brief": route_planning_brief,
+            "llm_route_planner_resource_binding": resource_binding,
             "request_playbook": request_playbook,
         }
     )
@@ -2025,6 +2055,122 @@ def _llm_request_payload_route_adoption_preconditions(
         request_payload,
         "llm_route_planner_route_adoption_preconditions",
     )
+
+
+def _llm_request_payload_resource_binding(
+    request_payload: dict[str, object],
+) -> dict[str, object]:
+    return _dict_value(request_payload, "llm_route_planner_resource_binding")
+
+
+def _llm_resource_binding_witness(
+    source_item: dict[str, object],
+    *,
+    dispatched_resource_id: str,
+    dispatched_request_phase: str,
+    hook_kind: str,
+) -> dict[str, object]:
+    refs = _llm_structured_resource_refs(source_item)
+    requested_resource_ids = refs["resource_ids"]
+    requested_tool_owner_ids = refs["tool_owner_ids"]
+    requested_resource_contract_ids = refs["resource_contract_ids"]
+    requested_resource_id_set = {
+        _text_key(resource_id)
+        for resource_id in (*requested_resource_ids, *requested_tool_owner_ids)
+        if _text_key(resource_id)
+    }
+    dispatched_key = _text_key(dispatched_resource_id)
+    has_explicit_resource_request = bool(requested_resource_ids)
+    dispatch_matches_requested_resource = bool(
+        dispatched_key and dispatched_key in requested_resource_id_set
+    )
+    if dispatch_matches_requested_resource:
+        dispatch_binding_status = "matched_explicit_llm_resource"
+    elif has_explicit_resource_request:
+        dispatch_binding_status = "hook_default_fanout_extra_resource"
+    else:
+        dispatch_binding_status = "hook_default_fanout"
+    return {
+        "requested_resource_ids": requested_resource_ids,
+        "requested_tool_owner_ids": requested_tool_owner_ids,
+        "requested_resource_contract_ids": requested_resource_contract_ids,
+        "dispatched_resource_id": dispatched_resource_id,
+        "dispatched_request_phase": dispatched_request_phase,
+        "hook_kind": hook_kind,
+        "dispatch_matches_requested_resource": dispatch_matches_requested_resource,
+        "dispatch_binding_status": dispatch_binding_status,
+        "binding_policy": (
+            "LLM-selected resource ids are preserved as provenance. The queue "
+            "keeps local-first/frontier fanout so explicit requests can be "
+            "answered by the named resource while adjacent fallback resources "
+            "remain available."
+        ),
+    }
+
+
+def _llm_structured_resource_refs(
+    value: object,
+) -> dict[str, tuple[str, ...]]:
+    refs: dict[str, list[str]] = {
+        "resource_ids": [],
+        "tool_owner_ids": [],
+        "resource_contract_ids": [],
+    }
+
+    def visit(item: object, *, key_hint: str = "") -> None:
+        if isinstance(item, dict):
+            for key, child in item.items():
+                key_text = _text_key(key)
+                if key_text in {
+                    "resource_id",
+                    "resource_ids",
+                    "resource",
+                    "resources",
+                    "adapter_id",
+                    "adapter_ids",
+                    "mcp_or_cli_hint",
+                }:
+                    refs["resource_ids"].extend(_flatten_llm_strings(child))
+                    visit(child, key_hint=key_text)
+                elif key_text in {
+                    "resource_contract_id",
+                    "resource_contract_ids",
+                    "resource_contract",
+                    "resource_contracts",
+                }:
+                    refs["resource_contract_ids"].extend(
+                        _flatten_llm_strings(child)
+                    )
+                    visit(child, key_hint=key_text)
+                elif key_text in {
+                    "owner",
+                    "tool",
+                    "tools",
+                    "tool_name",
+                    "tool_names",
+                    "recommended_tool",
+                    "recommended_tools",
+                    "tool_owner_ids",
+                }:
+                    refs["tool_owner_ids"].extend(_flatten_llm_strings(child))
+                    visit(child, key_hint=key_text)
+                else:
+                    visit(child, key_hint=key_text)
+            return
+        if isinstance(item, (list, tuple, set)):
+            for child in item:
+                visit(child, key_hint=key_hint)
+
+    visit(value)
+    return {
+        "resource_ids": tuple(dict.fromkeys(_str_tuple(refs["resource_ids"]))),
+        "tool_owner_ids": tuple(
+            dict.fromkeys(_str_tuple(refs["tool_owner_ids"]))
+        ),
+        "resource_contract_ids": tuple(
+            dict.fromkeys(_str_tuple(refs["resource_contract_ids"]))
+        ),
+    }
 
 
 def _route_adoption_precondition_known_blocker_count(
@@ -3221,6 +3367,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- LLM route-planning brief evidence gaps/request rows: "
             f"{payload.get('n_llm_route_planner_route_planning_brief_evidence_gaps')}/"
             f"{payload.get('n_llm_route_planner_route_planning_brief_resource_request_rows')}"
+        ),
+        (
+            f"- LLM explicit resource binding rows/matches/default-fanout: "
+            f"{payload.get('n_llm_route_planner_resource_request_rows_with_explicit_resource_binding')}/"
+            f"{payload.get('n_llm_route_planner_resource_request_rows_matching_explicit_resource_binding')}/"
+            f"{payload.get('n_llm_route_planner_resource_request_rows_from_hook_default_fanout')}"
         ),
         f"- LLM search requests: {payload.get('n_llm_route_planner_search_requests')}",
         (

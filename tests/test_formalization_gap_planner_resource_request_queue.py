@@ -805,6 +805,24 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
     assert payload["n_llm_route_planner_resource_request_rows"] == 11
     assert (
         payload[
+            "n_llm_route_planner_resource_request_rows_with_explicit_resource_binding"
+        ]
+        == 6
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_resource_request_rows_matching_explicit_resource_binding"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_resource_request_rows_from_hook_default_fanout"
+        ]
+        == 5
+    )
+    assert (
+        payload[
             "n_llm_route_planner_resource_request_rows_with_route_adoption_preconditions"
         ]
         == payload["n_llm_route_planner_resource_request_rows"]
@@ -872,6 +890,39 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
         ]
         == "literature_discovery"
     )
+    paperclip_binding = paperclip_row["request_payload"][
+        "llm_route_planner_resource_binding"
+    ]
+    assert paperclip_binding["requested_resource_ids"] == ("paperclip_cli_mcp",)
+    assert paperclip_binding["dispatched_resource_id"] == "paperclip_cli_mcp"
+    assert paperclip_binding["dispatch_matches_requested_resource"] is True
+    assert (
+        paperclip_binding["dispatch_binding_status"]
+        == "matched_explicit_llm_resource"
+    )
+    assert (
+        paperclip_binding
+        == paperclip_row["request_playbook"]["llm_route_planner_resource_binding"]
+        == paperclip_row["request_playbook"]["input_summary"][
+            "llm_route_planner_resource_binding"
+        ]
+    )
+    literature_fallback_row = next(
+        row
+        for row in llm_rows
+        if row["request_payload"].get("llm_route_planner_source_kind")
+        == "search_request"
+        and row["resource_id"] == "local_literature_corpus"
+    )
+    fallback_binding = literature_fallback_row["request_payload"][
+        "llm_route_planner_resource_binding"
+    ]
+    assert fallback_binding["requested_resource_ids"] == ("paperclip_cli_mcp",)
+    assert fallback_binding["dispatch_matches_requested_resource"] is False
+    assert (
+        fallback_binding["dispatch_binding_status"]
+        == "hook_default_fanout_extra_resource"
+    )
     assert (
         paperclip_row["request_payload"][
             "llm_route_planner_route_adoption_preconditions"
@@ -918,6 +969,12 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
     assert lean_lsp_row["request_payload"][
         "llm_route_planner_hook_kind"
     ] == "proof_state_feedback"
+    lean_lsp_binding = lean_lsp_row["request_payload"][
+        "llm_route_planner_resource_binding"
+    ]
+    assert lean_lsp_binding["requested_resource_ids"] == ("lean_lsp_mcp",)
+    assert lean_lsp_binding["dispatched_resource_id"] == "lean_lsp_mcp"
+    assert lean_lsp_binding["dispatch_matches_requested_resource"] is True
     assert lean_lsp_row["queue_action_kind"] == "prove_bridge_lemma"
     assert "residual_goals" in lean_lsp_row["response_contract_fields"]
     assert "ask Lean LSP for residual goals" in " ".join(
@@ -983,6 +1040,11 @@ def test_resource_request_queue_dispatches_llm_route_planner_followups() -> None
     assert route_revision_row["expected_response_artifact"] == "route_revision_response"
     assert "residual_goal_context" in route_revision_row["request_contract_fields"]
     residual_context = route_revision_row["request_payload"]["residual_goal_context"]
+    revision_binding = route_revision_row["request_payload"][
+        "llm_route_planner_resource_binding"
+    ]
+    assert revision_binding["requested_resource_ids"] == ()
+    assert revision_binding["dispatch_binding_status"] == "hook_default_fanout"
     assert residual_context["residual_goal"].startswith("rank_uniformity")
     assert residual_context["residual_primitives"] == ("rank_uniformity",)
     assert residual_context["source_refs"] == ("conformal_prediction_textbook",)
@@ -1173,9 +1235,11 @@ def test_resource_request_queue_dispatches_prompt_only_route_planning_brief_gaps
         "route_planning_brief_gap_kind"
     ] == "formal_library_grounding"
     assert "formal_declaration_hits" in formal_row["response_contract_fields"]
-    assert "LLM route-planning brief evidence gaps/request rows" in (
+    report = (
         request_queue_dir / "formalization_gap_planner_resource_request_queue.md"
     ).read_text(encoding="utf-8")
+    assert "LLM route-planning brief evidence gaps/request rows" in report
+    assert "LLM explicit resource binding rows/matches/default-fanout" in report
     assert (
         validate_resource_request_queue_row(
             literature_row,
