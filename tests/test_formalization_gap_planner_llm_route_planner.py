@@ -16039,6 +16039,13 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 1
     assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 0
     assert payload["n_request_model_tier_decision_sonnet_triggers"] == 0
+    assert payload["n_request_model_tier_decision_route_planning_evidence_gaps"] == 0
+    assert (
+        payload[
+            "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers"
+        ]
+        == 0
+    )
     assert payload["n_request_model_tier_decision_evidence_invalid"] == 0
     assert payload["by_request_model_tier_decision_basis"] == {
         "auto_haiku_bounded_route": 1
@@ -16069,6 +16076,7 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         "no_resource_feedback_readiness_context": True,
         "no_formal_attempt_feedback_context": True,
         "no_source_theorem_feedback": True,
+        "no_route_planning_brief_evidence_gaps": True,
         "no_pending_source_grounding_obligations": True,
         "no_residual_source_grounding_obligations": True,
         "no_agentic_proof_strategy_plan_ready": True,
@@ -16084,6 +16092,7 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     stale_haiku_checks.pop("no_interactive_formal_attempt_execution_commands")
     stale_haiku_checks.pop("no_resource_feedback_readiness_context")
     stale_haiku_checks.pop("no_formal_attempt_feedback_context")
+    stale_haiku_checks.pop("no_route_planning_brief_evidence_gaps")
     stale_haiku_errors = validate_llm_route_planner_request(
         stale_haiku_safety_request
     )
@@ -16096,6 +16105,7 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
         and "no_interactive_formal_attempt_execution_commands" in error
         and "no_resource_feedback_readiness_context" in error
         and "no_formal_attempt_feedback_context" in error
+        and "no_route_planning_brief_evidence_gaps" in error
         for error in stale_haiku_errors
     )
     assert packet["model_tier_decision_evidence"]["route_signal_counts"][
@@ -16110,6 +16120,68 @@ def test_llm_route_planner_auto_uses_haiku_for_small_bounded_routes() -> None:
     request = captured["request"]
     assert request.model == "claude-haiku-4-5-20251001"
     assert request.metadata["model_tier"] == "haiku"
+
+
+def test_llm_route_planner_auto_uses_sonnet_for_route_planning_evidence_gaps() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_evidence_gap_sonnet"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    payload_json = json.loads(input_json.read_text(encoding="utf-8"))
+    route = payload_json["routes"][0]
+    route["source_refs"] = []
+    route["source_snippets"] = []
+    input_json.write_text(json.dumps(payload_json, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        invoke_provider=False,
+    )
+
+    assert payload["provider_execution_mode"] == PROVIDER_EXECUTION_MODE_PROMPT_ONLY_STAGED
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    assert payload["n_request_route_planning_evidence_gaps"] == 1
+    assert payload["n_request_model_tier_decision_auto_sonnet_triggered"] == 1
+    assert payload["n_request_model_tier_decision_auto_haiku_bounded"] == 0
+    assert payload["n_request_model_tier_decision_route_planning_evidence_gaps"] == 1
+    assert (
+        payload[
+            "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers"
+        ]
+        == 1
+    )
+    packet = payload["request_packets"][0]
+    assert packet["model_tier"] == "sonnet"
+    assert packet["model"] == "claude-sonnet-4-6"
+    brief = packet["context_packet"]["route_planning_brief"]
+    assert brief["evidence_gaps"][0]["gap_kind"] == "source_grounding"
+    evidence = packet["model_tier_decision_evidence"]
+    assert evidence["decision_basis"] == "auto_sonnet_triggers"
+    assert evidence["route_planning_evidence_gap_counts"] == {
+        "total_count": 1,
+        "target_primitive_count": 0,
+        "target_primitives": [],
+        "by_gap_kind": {"source_grounding": 1},
+        "source_grounding_count": 1,
+        "formal_library_grounding_count": 0,
+        "prover_feedback_count": 0,
+    }
+    assert evidence["route_signal_counts"]["route_planning_evidence_gap_count"] == 1
+    assert any(
+        "route-planning brief evidence gap" in trigger
+        for trigger in evidence["sonnet_triggers"]
+    )
+    ledger_row = payload["model_tier_decision_ledger"][0]
+    assert (
+        ledger_row["route_planning_evidence_gap_counts"]
+        == evidence["route_planning_evidence_gap_counts"]
+    )
+    assert validate_llm_route_planner_manifest(payload) == []
 
 
 def test_llm_route_planner_auto_uses_sonnet_for_light_route_resource_feedback_readiness() -> None:

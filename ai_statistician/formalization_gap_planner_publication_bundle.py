@@ -2667,6 +2667,8 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_model_tier_decision_auto_sonnet_triggered",
             "n_request_model_tier_decision_operator_override",
             "n_request_model_tier_decision_sonnet_triggers",
+            "n_request_model_tier_decision_route_planning_evidence_gaps",
+            "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers",
             "n_request_model_tier_decision_resource_feedback_readiness_rows",
             "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
             "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
@@ -3008,6 +3010,12 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_request_model_tier_decision_sonnet_triggers": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_route_planning_evidence_gaps": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers": (
                 nonnegative_integer
             ),
             "n_request_model_tier_decision_resource_feedback_readiness_rows": (
@@ -6217,6 +6225,8 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_model_tier_decision_auto_sonnet_triggered": 0,
         "n_request_model_tier_decision_operator_override": 0,
         "n_request_model_tier_decision_sonnet_triggers": 0,
+        "n_request_model_tier_decision_route_planning_evidence_gaps": 0,
+        "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers": 0,
         "n_request_model_tier_decision_resource_feedback_readiness_rows": 0,
         "n_request_model_tier_decision_resource_feedback_reuse_ready_rows": 0,
         "n_request_model_tier_decision_resource_feedback_sonnet_triggers": 0,
@@ -7607,6 +7617,34 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                         )
                     )
                     for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_route_planning_evidence_gaps": int(
+            payload.get(
+                "n_request_model_tier_decision_route_planning_evidence_gaps",
+                sum(
+                    int(
+                        _dict_value(
+                            row,
+                            "route_planning_evidence_gap_counts",
+                        ).get("total_count", 0)
+                        or 0
+                    )
+                    for row in model_tier_decision_evidence_rows
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers": int(
+            payload.get(
+                "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers",
+                sum(
+                    1
+                    for row in model_tier_decision_evidence_rows
+                    for trigger in _str_tuple(row.get("sonnet_triggers", []))
+                    if "route-planning brief evidence gap" in trigger
                 ),
             )
             or 0

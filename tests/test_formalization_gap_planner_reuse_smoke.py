@@ -3373,7 +3373,20 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         payload[
             "n_evaluation_llm_route_planner_model_tier_decision_sonnet_triggers"
         ]
-        == 6
+        == 7
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_request_model_tier_decision_route_planning_evidence_gaps"
+        ]
+        == payload["n_llm_route_planner_request_route_planning_evidence_gaps"]
+        > 0
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers"
+        ]
+        > 0
     )
     assert (
         payload["n_evaluation_rows_with_llm_route_planner_source_feedback_tier_signal"]
@@ -3476,7 +3489,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "provider_total_tokens": 0,
             "n_rows_with_request_contract_blocked": 0,
             "n_rows_with_errors": 0,
-            "n_sonnet_triggers": 6,
+            "n_sonnet_triggers": 7,
             "n_source_feedback_rows": 0,
             "n_source_feedback_proof_body_execution_failures": 0,
             "n_source_feedback_formal_environment_blockers": 0,
@@ -3507,7 +3520,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_ok": 1,
             "n_matched_ground_truth": 1,
             "by_model_tier": {"sonnet": 1},
-            "n_sonnet_triggers": 6,
+            "n_sonnet_triggers": 7,
             "n_source_feedback_rows": 0,
             "n_source_feedback_proof_body_execution_failures": 0,
             "n_source_feedback_formal_environment_blockers": 0,

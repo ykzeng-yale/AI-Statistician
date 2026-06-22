@@ -4590,6 +4590,33 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_request_model_tier_decision_route_planning_evidence_gaps": int(
+            payload.get(
+                "n_request_model_tier_decision_route_planning_evidence_gaps",
+                sum(
+                    _nonnegative_int(
+                        _dict_value(
+                            row,
+                            "route_planning_evidence_gap_counts",
+                        ).get("total_count", 0)
+                    )
+                    for row in model_tier_decision_evidence_rows
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers": int(
+            payload.get(
+                "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers",
+                sum(
+                    1
+                    for row in model_tier_decision_evidence_rows
+                    for trigger in _str_tuple(row.get("sonnet_triggers", []))
+                    if "route-planning brief evidence gap" in trigger
+                ),
+            )
+            or 0
+        ),
         "n_request_model_tier_decision_resource_feedback_readiness_rows": int(
             payload.get(
                 "n_request_model_tier_decision_resource_feedback_readiness_rows",

@@ -548,6 +548,7 @@ LLM_ROUTE_PLANNER_MODEL_TIER_POLICY: dict[str, object] = {
         "Use sonnet when resource-feedback readiness rows from prior tool responses are present, even if the current route is otherwise small.",
         "Use sonnet when formal-attempt feedback contexts from prover/resource responses are present.",
         "Use sonnet when source-grounding audit obligations are pending, especially residual goals without source-backed route repair.",
+        "Use sonnet when route-planning briefs contain source, formal-library, or prover-feedback evidence gaps.",
         "Use sonnet when resource-request queue rows, resource-request playbooks, interactive-session resource dispatch bindings, or interactive execution commands are present.",
         "Use sonnet when interactive-session formal-attempt queues, ready prover replay items, blocked formal-attempt dependencies, or formal-attempt execution commands are present.",
         "Use sonnet when interactive-session route-adoption preconditions remain unresolved or carry known pre-response blockers.",
@@ -582,6 +583,7 @@ REQUIRED_HAIKU_SAFETY_CHECK_KEYS = frozenset(
         "no_source_theorem_feedback",
         "no_pending_source_grounding_obligations",
         "no_residual_source_grounding_obligations",
+        "no_route_planning_brief_evidence_gaps",
         "no_agentic_proof_strategy_plan_ready",
     }
 )
@@ -1702,6 +1704,22 @@ def export_formalization_gap_planner_llm_route_planner(
                 )
             )
             for packet in request_packets
+        ),
+        "n_request_model_tier_decision_route_planning_evidence_gaps": sum(
+            int(
+                _dict_value(row, "route_planning_evidence_gap_counts").get(
+                    "total_count",
+                    0,
+                )
+                or 0
+            )
+            for row in model_tier_decision_evidence_rows
+        ),
+        "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers": sum(
+            1
+            for row in model_tier_decision_evidence_rows
+            for trigger in _str_tuple(row.get("sonnet_triggers", []))
+            if "route-planning brief evidence gap" in trigger
         ),
         "n_request_model_tier_decision_resource_feedback_readiness_rows": sum(
             int(
@@ -4616,6 +4634,7 @@ def llm_route_planner_model_tier_decision_ledger_json_schema() -> dict[str, obje
             "context_resource_dispatch_counts",
             "resource_feedback_readiness_counts",
             "interactive_route_adoption_precondition_counts",
+            "route_planning_evidence_gap_counts",
             "source_grounding_obligations",
             "model_tier_escalated",
             "provider_failure",
@@ -4660,6 +4679,7 @@ def llm_route_planner_model_tier_decision_ledger_json_schema() -> dict[str, obje
             "formal_attempt_feedback_counts": {"type": "object"},
             "interactive_route_adoption_precondition_counts": {"type": "object"},
             "source_theorem_feedback_counts": {"type": "object"},
+            "route_planning_evidence_gap_counts": {"type": "object"},
             "source_grounding_obligations": {"type": "object"},
             "model_tier_escalated": {"type": "boolean"},
             "model_tier_escalation_reason": {"type": "string"},
@@ -4775,6 +4795,8 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_model_tier_decision_auto_sonnet_triggered",
             "n_request_model_tier_decision_operator_override",
             "n_request_model_tier_decision_sonnet_triggers",
+            "n_request_model_tier_decision_route_planning_evidence_gaps",
+            "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers",
             "n_request_model_tier_decision_resource_feedback_readiness_rows",
             "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
             "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
@@ -5101,6 +5123,12 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_model_tier_decision_auto_sonnet_triggered": nonnegative_integer,
             "n_request_model_tier_decision_operator_override": nonnegative_integer,
             "n_request_model_tier_decision_sonnet_triggers": nonnegative_integer,
+            "n_request_model_tier_decision_route_planning_evidence_gaps": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers": (
+                nonnegative_integer
+            ),
             "n_request_model_tier_decision_resource_feedback_readiness_rows": (
                 nonnegative_integer
             ),
@@ -7092,6 +7120,40 @@ def validate_llm_route_planner_manifest(
     ):
         errors.append(
             "n_request_model_tier_decision_sonnet_triggers must match request_packets"
+        )
+    if int(
+        manifest.get(
+            "n_request_model_tier_decision_route_planning_evidence_gaps",
+            0,
+        )
+        or 0
+    ) != sum(
+        int(
+            _dict_value(row, "route_planning_evidence_gap_counts").get(
+                "total_count",
+                0,
+            )
+            or 0
+        )
+        for row in decision_evidence_rows
+    ):
+        errors.append(
+            "n_request_model_tier_decision_route_planning_evidence_gaps must match request_packets"
+        )
+    if int(
+        manifest.get(
+            "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers",
+            0,
+        )
+        or 0
+    ) != sum(
+        1
+        for row in decision_evidence_rows
+        for trigger in _str_tuple(row.get("sonnet_triggers", []))
+        if "route-planning brief evidence gap" in trigger
+    ):
+        errors.append(
+            "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers must match request_packets"
         )
     if int(
         manifest.get(
@@ -14928,6 +14990,9 @@ def _llm_route_planner_model_tier_decision(
         context_packet,
         feedback_summary=feedback_summary,
     )
+    route_planning_evidence_gap_counts = _route_planning_evidence_gap_counts(
+        context_packet
+    )
     source_grounding_obligations = _source_grounding_obligation_summary(
         context_packet
     )
@@ -14953,6 +15018,7 @@ def _llm_route_planner_model_tier_decision(
         resource_feedback_readiness_counts=resource_feedback_readiness_counts,
         formal_attempt_feedback_counts=formal_attempt_feedback_counts,
         source_theorem_feedback_counts=source_theorem_feedback_counts,
+        route_planning_evidence_gap_counts=route_planning_evidence_gap_counts,
         source_grounding_obligations=source_grounding_obligations,
         agentic_strategy_plan_counts=agentic_strategy_plan_counts,
         interactive_precondition_counts=interactive_precondition_counts,
@@ -15008,6 +15074,20 @@ def _llm_route_planner_model_tier_decision(
     sonnet_reasons.extend(
         _source_theorem_feedback_sonnet_reasons(source_theorem_feedback_counts)
     )
+    if int(route_planning_evidence_gap_counts.get("total_count", 0) or 0):
+        gap_count = int(route_planning_evidence_gap_counts.get("total_count", 0) or 0)
+        gap_kinds = sorted(
+            str(kind)
+            for kind in _dict_value(
+                route_planning_evidence_gap_counts,
+                "by_gap_kind",
+            )
+            if str(kind).strip()
+        )
+        reason = f"{gap_count} route-planning brief evidence gap(s)"
+        if gap_kinds:
+            reason += " with kind " + ", ".join(gap_kinds[:6])
+        sonnet_reasons.append(reason)
     sonnet_reasons.extend(
         _source_grounding_obligation_sonnet_reasons(source_grounding_obligations)
     )
@@ -15154,6 +15234,10 @@ def _llm_route_planner_model_tier_decision(
         ),
         "no_source_theorem_feedback": (
             source_theorem_feedback_counts["total_count"] == 0
+        ),
+        "no_route_planning_brief_evidence_gaps": (
+            int(route_planning_evidence_gap_counts.get("total_count", 0) or 0)
+            == 0
         ),
         "no_pending_source_grounding_obligations": (
             not bool(source_grounding_obligations.get("pending", False))
@@ -15497,6 +15581,7 @@ def _model_tier_decision_evidence_base(
     resource_feedback_readiness_counts: Mapping[str, int],
     formal_attempt_feedback_counts: Mapping[str, int],
     source_theorem_feedback_counts: Mapping[str, int | bool],
+    route_planning_evidence_gap_counts: Mapping[str, object],
     source_grounding_obligations: Mapping[str, object],
     agentic_strategy_plan_counts: Mapping[str, int],
     interactive_precondition_counts: Mapping[str, int],
@@ -15687,6 +15772,16 @@ def _model_tier_decision_evidence_base(
                 )
                 or 0
             ),
+            "route_planning_evidence_gap_count": int(
+                route_planning_evidence_gap_counts.get("total_count", 0) or 0
+            ),
+            "route_planning_evidence_gap_target_primitive_count": int(
+                route_planning_evidence_gap_counts.get(
+                    "target_primitive_count",
+                    0,
+                )
+                or 0
+            ),
             "source_grounding_row_count": int(
                 source_grounding_obligations.get("n_rows", 0) or 0
             ),
@@ -15737,6 +15832,9 @@ def _model_tier_decision_evidence_base(
             interactive_precondition_counts
         ),
         "source_theorem_feedback_counts": dict(source_theorem_feedback_counts),
+        "route_planning_evidence_gap_counts": dict(
+            route_planning_evidence_gap_counts
+        ),
         "source_grounding_obligations": dict(source_grounding_obligations),
         "agentic_proof_strategy_plan_counts": dict(agentic_strategy_plan_counts),
         "coverage_action_markers": sorted(route_markers),
@@ -16362,6 +16460,10 @@ def _model_tier_decision_ledger_row(
         evidence,
         "source_theorem_feedback_counts",
     )
+    route_planning_evidence_gap_counts = _dict_value(
+        evidence,
+        "route_planning_evidence_gap_counts",
+    )
     source_grounding_obligations = _dict_value(
         evidence,
         "source_grounding_obligations",
@@ -16382,6 +16484,7 @@ def _model_tier_decision_ledger_row(
                     effective_model_tier,
                     str(evidence.get("decision_basis", "")),
                     sonnet_triggers,
+                    route_planning_evidence_gap_counts,
                     source_grounding_obligations,
                     model_tier_escalated,
                 ]
@@ -16416,6 +16519,7 @@ def _model_tier_decision_ledger_row(
             interactive_route_adoption_precondition_counts
         ),
         "source_theorem_feedback_counts": source_theorem_feedback_counts,
+        "route_planning_evidence_gap_counts": route_planning_evidence_gap_counts,
         "source_grounding_obligations": source_grounding_obligations,
         "model_tier_escalated": model_tier_escalated,
         "model_tier_escalation_reason": escalation_reason,
@@ -16687,6 +16791,33 @@ def _model_tier_decision_evidence_errors(
         if selected != "haiku" or effective != "sonnet":
             errors.append(f"{prefix}.model_tier_escalated must be haiku-to-sonnet")
     return errors
+
+
+def _route_planning_evidence_gap_counts(
+    context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    route_planning_brief = _dict_value(context_packet, "route_planning_brief")
+    gaps = _dict_tuple(route_planning_brief.get("evidence_gaps", []))
+    by_gap_kind = Counter(
+        str(gap.get("gap_kind", "") or "unknown") for gap in gaps
+    )
+    target_primitives = _unique_strings(
+        primitive
+        for gap in gaps
+        for primitive in _str_tuple(gap.get("target_primitives", []))
+    )
+    return {
+        "total_count": len(gaps),
+        "target_primitive_count": len(target_primitives),
+        "target_primitives": list(target_primitives),
+        "by_gap_kind": dict(sorted(by_gap_kind.items())),
+        "source_grounding_count": by_gap_kind.get("source_grounding", 0),
+        "formal_library_grounding_count": by_gap_kind.get(
+            "formal_library_grounding",
+            0,
+        ),
+        "prover_feedback_count": by_gap_kind.get("prover_feedback", 0),
+    }
 
 
 def _row_for_request(
@@ -35962,6 +36093,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Request tiers: {payload.get('by_request_model_tier')}",
         f"- Request target prover families: {payload.get('by_request_target_prover_family')}",
         f"- Request tier-decision basis: {payload.get('by_request_model_tier_decision_basis')}",
+        f"- Request tier-decision route-planning evidence gaps/Sonnet triggers: {payload.get('n_request_model_tier_decision_route_planning_evidence_gaps')}/{payload.get('n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers')}",
         f"- Invalid tier-decision evidence: {payload.get('n_request_model_tier_decision_evidence_invalid')}",
         f"- Request model-tier mismatches: {payload.get('n_request_model_tier_mismatches')}",
         f"- Request model freshness warnings: {payload.get('n_request_model_freshness_warnings')}",

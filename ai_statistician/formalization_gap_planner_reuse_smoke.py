@@ -288,6 +288,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_model_tier_decision_ledger_rows",
         "n_model_tier_decision_ledger_rows_with_escalation",
         "n_model_tier_decision_ledger_provider_failure_rows",
+        "n_request_model_tier_decision_route_planning_evidence_gaps",
+        "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers",
         "n_request_model_tier_decision_resource_feedback_readiness_rows",
         "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
         "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
@@ -376,6 +378,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_model_tier_decision_ledger_rows",
         "n_model_tier_decision_ledger_rows_with_escalation",
         "n_model_tier_decision_ledger_provider_failure_rows",
+        "n_request_model_tier_decision_route_planning_evidence_gaps",
+        "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers",
         "n_request_model_tier_decision_resource_feedback_readiness_rows",
         "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
         "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
@@ -2932,6 +2936,34 @@ def run_formalization_gap_planner_reuse_smoke(
             )
             or 0
         ),
+        "n_combined_llm_route_planner_request_model_tier_decision_route_planning_evidence_gaps": int(
+            llm_route_planner_payload.get(
+                "n_request_model_tier_decision_route_planning_evidence_gaps",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_decision_route_planning_evidence_gaps",
+                0,
+            )
+            or 0
+        ),
+        "n_combined_llm_route_planner_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers": int(
+            llm_route_planner_payload.get(
+                "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers",
+                0,
+            )
+            or 0
+        ),
         "n_publication_bundle_combined_llm_route_planner_summary_requests_with_resource_feedback_readiness_summary": int(
             publication_bundle_llm_route_planner_summary.get(
                 "n_requests_with_resource_feedback_readiness_summary",
@@ -3012,6 +3044,34 @@ def run_formalization_gap_planner_reuse_smoke(
         + int(
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_request_model_tier_decision_route_planning_evidence_gaps": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_route_planning_evidence_gaps",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_route_planning_evidence_gaps",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers",
                 0,
             )
             or 0
@@ -3876,6 +3936,18 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_route_planning_evidence_gaps": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_route_planning_evidence_gaps",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers",
+                0,
+            )
+        ),
         "n_publication_bundle_llm_route_planner_summary_request_model_tier_decision_resource_feedback_readiness_rows": (
             publication_bundle_llm_route_planner_summary.get(
                 "n_request_model_tier_decision_resource_feedback_readiness_rows",
@@ -4547,6 +4619,18 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_route_planning_evidence_gaps": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_route_planning_evidence_gaps",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers",
+                0,
+            )
+        ),
         "n_publication_bundle_feedback_llm_route_planner_summary_request_model_tier_decision_resource_feedback_readiness_rows": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_request_model_tier_decision_resource_feedback_readiness_rows",
@@ -4928,6 +5012,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_llm_route_planner_request_model_tier_decision_sonnet_triggers": (
             llm_route_planner_payload.get(
                 "n_request_model_tier_decision_sonnet_triggers",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_model_tier_decision_route_planning_evidence_gaps": (
+            llm_route_planner_payload.get(
+                "n_request_model_tier_decision_route_planning_evidence_gaps",
+                0,
+            )
+        ),
+        "n_llm_route_planner_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers": (
+            llm_route_planner_payload.get(
+                "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers",
                 0,
             )
         ),
@@ -5831,6 +5927,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_request_model_tier_decision_sonnet_triggers": (
             feedback_llm_route_planner_payload.get(
                 "n_request_model_tier_decision_sonnet_triggers",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_model_tier_decision_route_planning_evidence_gaps": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_decision_route_planning_evidence_gaps",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_model_tier_decision_route_planning_evidence_gap_sonnet_triggers",
                 0,
             )
         ),
