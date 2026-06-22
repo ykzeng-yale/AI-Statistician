@@ -27,6 +27,7 @@ from .formalization_gap_planner_route_adoption_blockers import (
     ROUTE_ADOPTION_BLOCKER_DEFINITIONS,
     ROUTE_ADOPTION_BLOCKER_FEEDBACK_ACTIONS,
     ROUTE_ADOPTION_BLOCKER_FEEDBACK_REPLAN,
+    ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE,
     ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES,
     ROUTE_ADOPTION_BLOCKER_OMITTED_COST_HINT_PRIMITIVES,
     ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS,
@@ -3126,6 +3127,12 @@ def export_formalization_gap_planner_llm_route_planner(
             if ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS
             in row.route_adoption_blockers
         ),
+        "n_route_adoption_pending_formal_attempt_queue_blockers": sum(
+            1
+            for row in rows
+            if ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE
+            in row.route_adoption_blockers
+        ),
         "n_route_adoption_omitted_cost_hint_primitives": sum(
             len(_omitted_cost_hint_primitives(row.minimal_delta_plan, request))
             for row, request in zip(rows, request_packets)
@@ -4720,6 +4727,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_route_adoption_pending_formal_gap_boundary_blockers",
             "n_route_adoption_pending_source_grounding_blockers",
             "n_route_adoption_pending_quality_control_blockers",
+            "n_route_adoption_pending_formal_attempt_queue_blockers",
             "n_informal_knowledge_dag_nodes",
             "n_informal_knowledge_dag_edges",
             "n_formal_realization_dag_nodes",
@@ -5173,6 +5181,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_route_adoption_pending_quality_control_blockers": (
+                nonnegative_integer
+            ),
+            "n_route_adoption_pending_formal_attempt_queue_blockers": (
                 nonnegative_integer
             ),
             "n_route_adoption_omitted_cost_hint_primitives": nonnegative_integer,
@@ -16513,6 +16524,7 @@ def _row_for_request(
         residual_interpretations=_dict_tuple(
             payload.get("residual_interpretations", [])
         ),
+        formal_attempt_queue=_dict_tuple(payload.get("formal_attempt_queue", [])),
         feedback_summary=feedback_summary,
         realization_coverage_witness=realization_coverage_witness,
         primitive_evidence_matrix_witness=primitive_evidence_matrix_witness,
@@ -16649,6 +16661,7 @@ def _route_adoption_readiness(
     uncertainty_flags: tuple[str, ...],
     semantic_alignment_risks: tuple[str, ...],
     residual_interpretations: tuple[dict[str, object], ...],
+    formal_attempt_queue: tuple[dict[str, object], ...] = (),
     feedback_summary: Mapping[str, object],
     realization_coverage_witness: Mapping[str, object],
     primitive_evidence_matrix_witness: Mapping[str, object] | None = None,
@@ -16720,10 +16733,30 @@ def _route_adoption_readiness(
         blockers.append(ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING)
     if quality_control_obligations_pending:
         blockers.append(ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS)
+    if not blockers and _formal_attempt_queue_requires_prover_feedback(
+        formal_attempt_queue
+    ):
+        blockers.append(ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE)
     blockers = list(dict.fromkeys(blockers))
     if blockers:
         return (ROUTE_ADOPTION_PENDING_STATUS, tuple(blockers))
     return (ROUTE_ADOPTION_READY_STATUS, tuple())
+
+
+def _formal_attempt_queue_requires_prover_feedback(
+    formal_attempt_queue: tuple[dict[str, object], ...],
+) -> bool:
+    blocking_attempt_kinds = {
+        "bridge_proof",
+        "definition_probe",
+        "proof_state_feedback",
+        "source_port_probe",
+        "wrapper_check",
+    }
+    for item in formal_attempt_queue:
+        if _primitive_key(item.get("attempt_kind", "")) in blocking_attempt_kinds:
+            return True
+    return False
 
 
 def _formal_attempt_queue_schedule(

@@ -395,7 +395,12 @@ that omit selected-route formal nodes or order attempts contrary to
 the selected `minimal_delta_plan` primitives or the formal realization DAG
 primitive set; request-baseline or alternative-route primitives may remain in
 the AND/OR cost graph, but they cannot be scheduled for prover execution unless
-the selected formal route actually realizes them. Minimality rationales are
+the selected formal route actually realizes them. Accepted rows whose queue
+still contains prover-facing wrapper, bridge, source-port, definition, or
+proof-state attempts remain
+`PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION` with the
+`formal_attempt_queue_pending_prover_feedback` blocker until the bottom-up
+attempt feedback is replayed through refinement evidence. Minimality rationales are
 validated as
 evidence-anchored text: they
 must mention selected primitives, the selected route option, coverage/cost
@@ -970,11 +975,12 @@ Accepted rows also carry `route_adoption_status` and
 `route_adoption_blockers`. A row can satisfy the JSON/source/formal alignment
 contract while still being `PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION` because it
 asked for additional literature search, formal-library search, prover feedback,
-planner next actions, quality-control evidence, or uncertainty review. Only
+planner next actions, quality-control evidence, unresolved formal-attempt queue
+work, or uncertainty review. Only
 `READY_FOR_STANDALONE_REPLAY` means the route has no unresolved LLM-planner
 handoff blockers under the current evidence bound. The readiness gate is
 computed from both the current row's structured `realization_coverage_witness`
-the current row's `primitive_evidence_matrix_witness`, and any upstream
+and the current row's `primitive_evidence_matrix_witness`, plus any upstream
 feedback-loop realization summary, so a stale or missing feedback summary
 cannot make an incomplete current response adoption-ready. The matrix witness
 checks that every request-side primitive evidence row is accounted by the
@@ -2149,7 +2155,10 @@ guessing the route order. `target_primitives` are intentionally stricter than
 general planner action targets: they must be drawn from selected
 `minimal_delta_plan` primitives or `formal_realization_dag_nodes` primitives,
 so an LLM cannot smuggle an unselected request-baseline primitive from an
-alternative cost route into the prover worklist. When a staged request includes
+alternative cost route into the prover worklist. A queue can be contract-valid
+and still block route adoption: wrapper, bridge, source-port, definition, and
+proof-state attempts are pending prover-feedback obligations, not verified
+proof evidence. When a staged request includes
 a resource queue or component-resource registry, queue `resource_id`,
 `adapter_id`, `resource_contract_ids`, and quality-control fields are validated
 against that context before the row can be exported as a prover worklist item;

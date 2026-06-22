@@ -31,6 +31,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     PROVIDER_EXECUTION_MODE_SUPPLIED_GENERATOR_BACKEND,
     ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
+    ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
     TARGET_THEOREM_CONTEXT_PACKET_KIND,
     _adapter_targets_match,
@@ -5083,9 +5084,17 @@ def test_llm_route_planner_materializes_formal_attempt_queue_hooks() -> None:
     assert payload["n_accepted_route_plans"] == 1
     assert payload["n_accepted_with_formal_attempt_queue"] == 1
     assert payload["n_formal_attempt_queue_items"] == 2
+    assert payload["n_route_adoption_ready"] == 0
+    assert payload["n_route_adoption_pending_refinement"] == 1
+    assert payload["n_route_adoption_pending_formal_attempt_queue_blockers"] == 1
     row = payload["rows"][0]
     assert row["acceptance_status"] == "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE"
-    assert row["route_adoption_status"] == "READY_FOR_STANDALONE_REPLAY"
+    assert row["route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert row["route_adoption_blockers"] == (
+        ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE,
+    )
     schedule = row["formal_attempt_queue_schedule"]
     assert schedule["n_attempts"] == 2
     assert schedule["n_initial_ready_attempts"] == 1
@@ -12152,7 +12161,7 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     )
 
 
-def test_response_payload_validator_marks_request_bound_ready_payload_adoptable() -> None:
+def test_response_payload_validator_blocks_request_bound_formal_attempt_queue_adoption() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_payload_validate_request_ready"
     )
@@ -12203,26 +12212,34 @@ def test_response_payload_validator_marks_request_bound_ready_payload_adoptable(
     assert validation_payload["all_ok"] is True
     assert validation_payload["n_request_bound_payloads"] == 1
     assert validation_payload["n_request_bound_payloads_with_route_adoption_status"] == 1
-    assert validation_payload["n_request_bound_payloads_route_adoption_ready"] == 1
+    assert validation_payload["n_request_bound_payloads_route_adoption_ready"] == 0
+    assert (
+        validation_payload[
+            "n_request_bound_payloads_route_adoption_pending_refinement"
+        ]
+        == 1
+    )
     assert (
         validation_payload[
             "n_request_bound_payloads_adoptable_for_standalone_replay"
         ]
-        == 1
+        == 0
     )
     assert validation_payload["by_request_bound_payload_route_adoption_status"] == {
-        "READY_FOR_STANDALONE_REPLAY": 1
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
     }
     assert validation_payload[
         "request_bound_payload_route_adoption_blocker_counts"
-    ] == {}
+    ] == {ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE: 1}
     row = validation_payload["rows"][0]
     assert row["request_bound_response_contract_ok"] is True
     assert row["request_bound_route_adoption_status"] == (
-        "READY_FOR_STANDALONE_REPLAY"
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
-    assert row["request_bound_route_adoption_blockers"] == []
-    assert row["request_bound_adoptable_for_standalone_replay"] is True
+    assert row["request_bound_route_adoption_blockers"] == [
+        ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE
+    ]
+    assert row["request_bound_adoptable_for_standalone_replay"] is False
     assert (
         validate_llm_route_planner_response_payload_validation_manifest(
             validation_payload,
@@ -13212,7 +13229,7 @@ def test_llm_route_planner_response_payload_validator_cli_request_context() -> N
     assert manifest["rows"][0]["request_context_validation_mode"] == "request_bound"
 
 
-def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
+def test_llm_route_planner_blocks_replay_ready_on_pending_formal_attempt_queue() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_ready")
     out_dir = root / "llm_route_planner"
     response_json = root / "response.json"
@@ -13240,54 +13257,61 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
         ]
         == 1
     )
-    assert payload["n_route_adoption_ready"] == 1
-    assert payload["n_route_adoption_pending_refinement"] == 0
-    assert payload["standalone_replay_gate_ok"] is True
+    assert payload["n_route_adoption_ready"] == 0
+    assert payload["n_route_adoption_pending_refinement"] == 1
+    assert payload["n_route_adoption_pending_formal_attempt_queue_blockers"] == 1
+    assert payload["standalone_replay_gate_ok"] is False
     assert payload["n_standalone_replay_route_candidates"] == 1
-    assert payload["n_standalone_replay_adoptable_route_candidates"] == 1
-    assert payload["n_standalone_replay_blocked_route_candidates"] == 0
-    assert payload["standalone_replay_gate_blockers"] == []
+    assert payload["n_standalone_replay_adoptable_route_candidates"] == 0
+    assert payload["n_standalone_replay_blocked_route_candidates"] == 1
+    assert payload["standalone_replay_gate_blockers"] == [
+        ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE
+    ]
     assert payload["standalone_replay_gate"]["gate_status"] == (
-        "READY_FOR_STANDALONE_REPLAY"
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
     assert (
         payload["standalone_replay_gate"][
             "selected_route_adoptable_for_standalone_replay"
         ]
-        is True
+        is False
     )
     assert payload["by_route_adoption_status"] == {
-        "READY_FOR_STANDALONE_REPLAY": 1
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION": 1
     }
     row = payload["rows"][0]
     assert row["acceptance_status"] == "ACCEPTED_WITH_FORMAL_ATTEMPT_QUEUE"
-    assert row["route_adoption_status"] == "READY_FOR_STANDALONE_REPLAY"
-    assert row["route_adoption_blockers"] == ()
+    assert row["route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert row["route_adoption_blockers"] == (
+        ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE,
+    )
     seed_route = payload["standalone_seed"]["routes"][0]
     assert (
         seed_route["llm_route_planner_route_adoption_status"]
-        == "READY_FOR_STANDALONE_REPLAY"
+        == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
     assert seed_route["replan_metadata"][
         "llm_route_planner_route_adoption_blockers"
-    ] == []
+    ] == [ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE]
     selection = payload["standalone_seed"][
         "llm_route_planner_seed_route_selection"
     ]
-    assert selection["selected_route_adoptable_for_standalone_replay"] is True
+    assert selection["selected_route_adoptable_for_standalone_replay"] is False
     assert (
         selection["selected_minimal_delta_selected_route_option_id"]
         == "route_option:reuse_exchangeability_bridge_rank"
     )
-    assert selection["n_adoptable_route_candidates"] == 1
-    assert selection["n_selected_route_candidates_not_adoptable"] == 0
+    assert selection["n_adoptable_route_candidates"] == 0
+    assert selection["n_selected_route_candidates_not_adoptable"] == 1
     assert (
         selection["selection_rows"][0]["adoptable_for_standalone_replay"]
-        is True
+        is False
     )
     assert (
         seed_route["llm_route_planner_seed_adoptable_for_standalone_replay"]
-        is True
+        is False
     )
     assert (
         seed_route["llm_route_planner_seed_minimal_delta_selected_route_option_id"]
@@ -13320,21 +13344,21 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
     assert plan_payload["all_ok"]
     assert plan_payload[
         "n_standalone_input_traces_ready_for_route_adoption"
-    ] == 1
+    ] == 0
     assert plan_payload[
         "n_standalone_input_traces_pending_refinement_before_route_adoption"
-    ] == 0
+    ] == 1
     assert (
         plan_payload[
             "n_standalone_input_traces_llm_seed_adoptable_for_standalone_replay"
         ]
-        == 1
+        == 0
     )
     assert (
         plan_payload[
             "n_standalone_input_traces_llm_seed_selected_not_adoptable"
         ]
-        == 0
+        == 1
     )
     assert (
         plan_payload[
@@ -13344,10 +13368,12 @@ def test_llm_route_planner_marks_clean_accepted_route_adoption_ready() -> None:
     )
     trace = plan_payload["rows"][0]["standalone_input_trace"]
     assert trace["llm_route_planner_route_adoption_status"] == (
-        "READY_FOR_STANDALONE_REPLAY"
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     )
-    assert trace["llm_route_planner_route_adoption_blockers"] == []
-    assert trace["llm_route_planner_seed_adoptable_for_standalone_replay"] is True
+    assert trace["llm_route_planner_route_adoption_blockers"] == [
+        ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE
+    ]
+    assert trace["llm_route_planner_seed_adoptable_for_standalone_replay"] is False
     assert (
         trace["llm_route_planner_seed_minimal_delta_selected_route_option_id"]
         == "route_option:reuse_exchangeability_bridge_rank"
@@ -13583,9 +13609,9 @@ def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() ->
     assert selection["selection_status"] == "accepted_llm_routes_ranked"
     assert selection["selected_route_id"] == "rank_route_alt"
     assert selection["selected_seed_route_id"] == "rank_route_low_cost_seed"
-    assert selection["selected_route_adoptable_for_standalone_replay"] is True
-    assert selection["n_adoptable_route_candidates"] == 2
-    assert selection["n_selected_route_candidates_not_adoptable"] == 0
+    assert selection["selected_route_adoptable_for_standalone_replay"] is False
+    assert selection["n_adoptable_route_candidates"] == 0
+    assert selection["n_selected_route_candidates_not_adoptable"] == 1
     assert selection["selected_minimal_delta_route_cost"] == 4.0
     assert (
         selection["selected_minimal_delta_selected_route_option_id"]
@@ -13603,7 +13629,7 @@ def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() ->
     assert seed_routes[0]["llm_route_planner_seed_selected"] is True
     assert (
         seed_routes[0]["llm_route_planner_seed_adoptable_for_standalone_replay"]
-        is True
+        is False
     )
     assert seed_routes[0]["llm_route_planner_seed_selection_rank"] == 1
     assert seed_routes[0]["replan_metadata"][
@@ -13624,7 +13650,7 @@ def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() ->
     assert seed_routes[1]["llm_route_planner_seed_selected"] is False
     assert (
         seed_routes[1]["llm_route_planner_seed_adoptable_for_standalone_replay"]
-        is True
+        is False
     )
     assert seed_routes[1]["llm_route_planner_seed_selection_rank"] == 2
 
@@ -13639,13 +13665,13 @@ def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() ->
         plan_payload[
             "n_standalone_input_traces_llm_seed_adoptable_for_standalone_replay"
         ]
-        == 2
+        == 0
     )
     assert (
         plan_payload[
             "n_standalone_input_traces_llm_seed_selected_not_adoptable"
         ]
-        == 0
+        == 1
     )
     assert plan_payload[
         "standalone_input_trace_by_llm_seed_selection_rank"
@@ -13661,7 +13687,7 @@ def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() ->
     assert [
         trace["llm_route_planner_seed_adoptable_for_standalone_replay"]
         for trace in traces
-    ] == [True, True]
+    ] == [False, False]
     assert [
         trace["llm_route_planner_seed_minimal_delta_route_cost"]
         for trace in traces
@@ -14321,9 +14347,13 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     )
 
     assert discharged_payload["all_ok"]
-    assert discharged_payload["n_route_adoption_ready"] == 1
-    assert discharged_payload["n_route_adoption_pending_refinement"] == 0
+    assert discharged_payload["n_route_adoption_ready"] == 0
+    assert discharged_payload["n_route_adoption_pending_refinement"] == 1
     assert discharged_payload["n_route_adoption_pending_quality_control_blockers"] == 0
+    assert (
+        discharged_payload["n_route_adoption_pending_formal_attempt_queue_blockers"]
+        == 1
+    )
     assert discharged_payload["n_requests_with_quality_control_obligation_inventory"] == 1
     assert (
         discharged_payload[
@@ -14338,8 +14368,12 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     assert discharged_payload["n_request_discharged_quality_control_fields"] == 5
     assert discharged_payload["n_request_discharged_quality_control_values"] == 5
     discharged_row = discharged_payload["rows"][0]
-    assert discharged_row["route_adoption_status"] == "READY_FOR_STANDALONE_REPLAY"
-    assert discharged_row["route_adoption_blockers"] == ()
+    assert discharged_row["route_adoption_status"] == (
+        "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    )
+    assert discharged_row["route_adoption_blockers"] == (
+        ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE,
+    )
     discharged_summary = discharged_payload["request_packets"][0]["context_packet"][
         "feedback_loop_summary"
     ]["quality_control_obligations"]

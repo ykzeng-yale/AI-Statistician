@@ -87,6 +87,9 @@ ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES = (
 )
 ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING = "source_grounding_obligations_pending"
 ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS = "quality_control_obligations_pending"
+ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE = (
+    "formal_attempt_queue_pending_prover_feedback"
+)
 
 ROUTE_ADOPTION_BLOCKER_VALUES = (
     ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED,
@@ -106,6 +109,7 @@ ROUTE_ADOPTION_BLOCKER_VALUES = (
     ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS,
+    ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE,
 )
 
 ROUTE_ADOPTION_BLOCKER_DEFINITIONS = {
@@ -173,6 +177,12 @@ ROUTE_ADOPTION_BLOCKER_DEFINITIONS = {
         "signals, or stop conditions have not been discharged by admissible "
         "resource-response or refinement evidence."
     ),
+    ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE: (
+        "The accepted route still carries prover-facing formal attempt queue "
+        "items such as bridge, wrapper, source-port, definition, or proof-state "
+        "checks. These attempts must be run bottom-up and reflected before the "
+        "route is standalone-replay ready."
+    ),
 }
 
 ROUTE_ADOPTION_BLOCKER_TRIGGER_FIELDS = {
@@ -233,6 +243,10 @@ ROUTE_ADOPTION_BLOCKER_TRIGGER_FIELDS = {
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS: (
         "context_packet.quality_control_obligations.pending",
         "context_packet.context_packet_inventory.pending_quality_control_value_count",
+    ),
+    ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE: (
+        "response_payload.formal_attempt_queue",
+        "rows[].formal_attempt_queue_schedule",
     ),
 }
 
