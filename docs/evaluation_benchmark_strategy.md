@@ -592,7 +592,9 @@ library-alignment planning artifact, not proof evidence.
 Publication bundles lift the same target-family distribution into
 `library_coverage_map_summary`, so public benchmark artifacts expose the
 coverage scope without requiring consumers to inspect the nested coverage-map
-manifest first.
+manifest first. The publication-bundle audit recomputes that summary from the
+copied coverage-map manifest and JSONL rows, rejecting stale target-family
+coverage claims.
 The `formalization-gap-planner-primitive-action-queue` gate consumes that
 coverage map and emits one executable primitive work order per selected route
 primitive. Its row schema records the action kind, owner, priority, required

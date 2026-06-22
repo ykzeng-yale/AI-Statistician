@@ -2050,7 +2050,10 @@ top-level bundle manifest also includes `library_coverage_map_summary`, lifting
 the copied coverage map's `target_prover_family`,
 `n_target_prover_families`, and `by_target_prover_family` so downstream
 Lean/Rocq/Isabelle/Agda/HOL consumers can verify the library-coverage scope
-without opening nested artifacts. The
+without opening nested artifacts. The publication-bundle audit recomputes that
+summary from the packaged coverage-map manifest and JSONL rows, so stale or
+hand-edited target-family coverage summaries are rejected before publication.
+The
 manifest includes the one-command `formalization-gap-planner-reuse-smoke`
 path, the AI Statistician runtime target-intake replay command, the standalone
 planner path, and the refinement rerun path: target-intake-aware LLM route

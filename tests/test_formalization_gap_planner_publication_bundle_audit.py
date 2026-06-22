@@ -4718,6 +4718,13 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert audit_payload["n_optional_portable_plan_audit_row_schema_valid"] == 1
     assert audit_payload["n_optional_library_coverage_map_row_schema_checked"] == 1
     assert audit_payload["n_optional_library_coverage_map_row_schema_valid"] == 1
+    assert audit_payload["n_bundle_library_coverage_map_summary_checked"] == 1
+    assert audit_payload["n_bundle_library_coverage_map_summary_valid"] == 1
+    assert any(
+        row["check_name"] == "bundle_library_coverage_map_summary_consistent"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
     assert audit_payload["n_optional_primitive_action_queue_row_schema_checked"] == 1
     assert audit_payload["n_optional_primitive_action_queue_row_schema_valid"] == 1
     assert audit_payload["n_optional_action_resource_plan_row_schema_checked"] == 1
@@ -13034,6 +13041,81 @@ def test_publication_bundle_audit_rejects_response_payload_validation_queue_acco
             "n_optional_llm_route_planner_response_payload_validation_agentic_proof_strategy_accounting_valid"
         ]
         == 0
+    )
+
+
+def test_publication_bundle_audit_rejects_stale_library_coverage_summary() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_audit_bad_library_coverage_summary"
+    )
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    coverage_dir = root / "coverage"
+    bundle_dir = root / "bundle"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "mathlib4:fixture",
+                "routes": [
+                    {
+                        "display_name": "rank route",
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                                "expected_premises": ["exchangeability"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    export_formalization_gap_planner_library_coverage_map(plan_dir, coverage_dir)
+    export_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        formalization_gap_planner_library_coverage_map_dir=coverage_dir,
+    )
+    accepted = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_ok",
+    )
+    assert accepted["all_ok"]
+    assert accepted["n_bundle_library_coverage_map_summary_checked"] == 1
+    assert accepted["n_bundle_library_coverage_map_summary_valid"] == 1
+
+    manifest_path = (
+        bundle_dir / "formalization_gap_planner_publication_bundle_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["library_coverage_map_summary"]["by_target_prover_family"] = {
+        "rocq": 1
+    }
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    rejected = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejected",
+    )
+
+    failed_names = {row["check_name"] for row in rejected["checks"] if not row["ok"]}
+    assert not rejected["all_ok"]
+    assert "bundle_library_coverage_map_summary_consistent" in failed_names
+    assert rejected["n_bundle_library_coverage_map_summary_checked"] == 1
+    assert rejected["n_bundle_library_coverage_map_summary_valid"] == 0
+    failed_row = next(
+        row
+        for row in rejected["checks"]
+        if row["check_name"] == "bundle_library_coverage_map_summary_consistent"
+    )
+    assert "library_coverage_map_summary.by_target_prover_family mismatch" in (
+        "; ".join(failed_row["errors"])
     )
 
 

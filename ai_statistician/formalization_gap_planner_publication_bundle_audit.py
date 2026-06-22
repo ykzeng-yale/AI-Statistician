@@ -551,6 +551,17 @@ def audit_formalization_gap_planner_publication_bundle(
             == "bundle_llm_route_planner_response_payload_validation_summary_consistent"
             and check.ok
         ),
+        "n_bundle_library_coverage_map_summary_checked": sum(
+            1
+            for check in checks
+            if check.check_name == "bundle_library_coverage_map_summary_consistent"
+        ),
+        "n_bundle_library_coverage_map_summary_valid": sum(
+            1
+            for check in checks
+            if check.check_name == "bundle_library_coverage_map_summary_consistent"
+            and check.ok
+        ),
         "n_component_execution_plan_schema_checked": sum(
             1
             for check in checks
@@ -2844,6 +2855,9 @@ def _manifest_checks(
             manifest,
         )
     )
+    library_coverage_map_summary_errors = (
+        _bundle_library_coverage_map_summary_errors(bundle_dir, manifest)
+    )
     checks = [
         _check(
             "bundle_manifest_exists",
@@ -2937,6 +2951,18 @@ def _manifest_checks(
             ),
             not response_payload_validation_summary_errors,
             errors=response_payload_validation_summary_errors,
+        ),
+        _check(
+            "bundle_library_coverage_map_summary_consistent",
+            "manifest",
+            "library_coverage_map_summary matches packaged library-coverage map artifacts",
+            (
+                "ok"
+                if not library_coverage_map_summary_errors
+                else "; ".join(library_coverage_map_summary_errors[:3])
+            ),
+            not library_coverage_map_summary_errors,
+            errors=library_coverage_map_summary_errors,
         ),
         _check(
             "bundle_root_is_directory",
@@ -3104,6 +3130,58 @@ def _bundle_llm_route_planner_response_payload_validation_summary_errors(
                     f"observed={observed_value} expected={expected_value}"
                 )
         elif isinstance(expected_value, int):
+            observed_int = _int_or_none(observed_value)
+            if observed_int != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, dict):
+            observed_dict, observed_dict_errors = (
+                _bundle_library_coverage_map_summary_int_mapping(observed_value)
+            )
+            expected_dict, _expected_dict_errors = (
+                _bundle_library_coverage_map_summary_int_mapping(expected_value)
+            )
+            for item_error in observed_dict_errors:
+                errors.append(f"{summary_field}.{field_name}.{item_error}")
+            if observed_dict != expected_dict:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_dict} expected={expected_dict}"
+                )
+        elif str(observed_value) != str(expected_value):
+            errors.append(
+                f"{summary_field}.{field_name} mismatch: "
+                f"observed={observed_value} expected={expected_value}"
+            )
+    return tuple(errors)
+
+
+def _bundle_library_coverage_map_summary_errors(
+    bundle_dir: Path,
+    manifest: dict[str, Any],
+) -> tuple[str, ...]:
+    summary_field = "library_coverage_map_summary"
+    observed = manifest.get(summary_field, {})
+    if not isinstance(observed, dict):
+        return (f"{summary_field} missing or not an object",)
+    expected = _expected_bundle_library_coverage_map_summary(bundle_dir)
+    errors: list[str] = []
+    for field_name, expected_value in expected.items():
+        if field_name == "manifest_path":
+            continue
+        if field_name not in observed:
+            errors.append(f"{summary_field}.{field_name} missing")
+            continue
+        observed_value = observed.get(field_name)
+        if isinstance(expected_value, bool):
+            if bool(observed_value) != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, int):
             if int(observed_value or 0) != expected_value:
                 errors.append(
                     f"{summary_field}.{field_name} mismatch: "
@@ -3122,7 +3200,98 @@ def _bundle_llm_route_planner_response_payload_validation_summary_errors(
                 f"{summary_field}.{field_name} mismatch: "
                 f"observed={observed_value} expected={expected_value}"
             )
+    manifest_path = str(observed.get("manifest_path", "") or "").strip()
+    if bool(expected.get("requested", False)):
+        if not manifest_path:
+            errors.append(f"{summary_field}.manifest_path missing")
+        elif Path(manifest_path).name != (
+            "formalization_gap_planner_library_coverage_map_manifest.json"
+        ):
+            errors.append(
+                f"{summary_field}.manifest_path unexpected filename: "
+                f"{manifest_path}"
+            )
+    elif manifest_path:
+        errors.append(
+            f"{summary_field}.manifest_path present without packaged coverage map"
+        )
     return tuple(errors)
+
+
+def _bundle_library_coverage_map_summary_int_mapping(
+    value: Any,
+) -> tuple[dict[str, int], tuple[str, ...]]:
+    if not isinstance(value, dict):
+        return {}, ()
+    mapping: dict[str, int] = {}
+    errors: list[str] = []
+    for key, item in sorted(value.items()):
+        item_int = _int_or_none(item)
+        if item_int is None:
+            errors.append(f"{key} must be integer")
+            continue
+        mapping[str(key)] = item_int
+    return mapping, tuple(errors)
+
+
+def _expected_bundle_library_coverage_map_summary(
+    bundle_dir: Path,
+) -> dict[str, object]:
+    artifact_dir = (
+        bundle_dir / "artifacts" / "formalization_gap_planner_library_coverage_map"
+    )
+    manifest_path = (
+        artifact_dir / "formalization_gap_planner_library_coverage_map_manifest.json"
+    )
+    rows_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_library_coverage_map.jsonl"
+    )
+    payload = _read_json_no_error(manifest_path)
+    rows, _row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    by_target = _int_mapping(payload.get("by_target_prover_family", {}))
+    if not by_target and rows:
+        by_target = dict(
+            sorted(
+                Counter(
+                    _target_prover_key(row.get("target_prover_family", ""))
+                    or "unknown"
+                    for row in rows
+                ).items()
+            )
+        )
+    target_family = str(payload.get("target_prover_family", "") or "").strip()
+    if not target_family and len(by_target) == 1:
+        target_family = next(iter(by_target))
+    n_target_families = int(
+        payload.get("n_target_prover_families", len(by_target)) or 0
+    )
+    if not n_target_families and by_target:
+        n_target_families = len(by_target)
+    return {
+        "requested": artifact_dir.exists(),
+        "manifest_path": str(manifest_path),
+        "target_prover_family": target_family,
+        "n_target_prover_families": n_target_families,
+        "by_target_prover_family": by_target,
+        "n_coverage_rows": int(payload.get("n_coverage_rows", len(rows)) or 0),
+        "n_ok": int(
+            payload.get(
+                "n_ok",
+                sum(1 for row in rows if bool(row.get("ok", False))),
+            )
+            or 0
+        ),
+        "n_failed": int(
+            payload.get(
+                "n_failed",
+                sum(1 for row in rows if not bool(row.get("ok", False))),
+            )
+            or 0
+        ),
+        "n_row_schema_valid": int(payload.get("n_row_schema_valid", 0) or 0),
+        "n_row_schema_invalid": int(payload.get("n_row_schema_invalid", 0) or 0),
+        "all_ok": bool(payload.get("all_ok", False)),
+    }
 
 
 def _expected_bundle_llm_route_planner_response_payload_validation_summary(
@@ -23588,6 +23757,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional evaluation residual-goal context manifest valid: {payload.get('n_optional_evaluation_residual_goal_context_manifest_valid')}/{payload.get('n_optional_evaluation_residual_goal_context_manifest_checked')}",
         f"- Bundle LLM route-planner summary valid: {payload.get('n_bundle_llm_route_planner_summary_valid')}/{payload.get('n_bundle_llm_route_planner_summary_checked')}",
         f"- Bundle feedback LLM route-planner summary valid: {payload.get('n_bundle_feedback_llm_route_planner_summary_valid')}/{payload.get('n_bundle_feedback_llm_route_planner_summary_checked')}",
+        f"- Bundle library-coverage map summary valid: {payload.get('n_bundle_library_coverage_map_summary_valid')}/{payload.get('n_bundle_library_coverage_map_summary_checked')}",
         (
             "- Optional evaluation route-adoption ready/pending/blockers: "
             f"{payload.get('n_optional_evaluation_rows_ready_for_route_adoption')}/"
