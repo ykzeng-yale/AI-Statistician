@@ -75,6 +75,7 @@ from .model_backend import (
     PROHIBITED_AGENT_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
     build_live_generator_backend,
+    claude_model_freshness_warnings,
     claude_model_tier_mismatch,
     default_generator_model,
 )
@@ -1153,6 +1154,9 @@ def export_formalization_gap_planner_llm_route_planner(
         for row in _dict_tuple(summary.get("primitive_alignment", []))
     )
     request_model_tier_mismatches = _request_model_tier_mismatches(request_packets)
+    request_model_freshness_warnings = _request_model_freshness_warnings(
+        request_packets
+    )
     request_schema = llm_route_planner_request_json_schema()
     response_payload_schema = llm_route_planner_response_payload_schema()
     request_schema_errors = [
@@ -1755,6 +1759,10 @@ def export_formalization_gap_planner_llm_route_planner(
         ),
         "n_request_model_tier_mismatches": len(request_model_tier_mismatches),
         "request_model_tier_mismatches": request_model_tier_mismatches,
+        "n_request_model_freshness_warnings": len(
+            request_model_freshness_warnings
+        ),
+        "request_model_freshness_warnings": request_model_freshness_warnings,
         "n_generation_preflight_blocked": len(generation_preflight_errors),
         "generation_preflight_errors": generation_preflight_errors,
         "n_request_residual_goals": sum(
@@ -4635,6 +4643,8 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_llm_generation_policy_current_claude_tier_source",
             "n_request_model_tier_mismatches",
             "request_model_tier_mismatches",
+            "n_request_model_freshness_warnings",
+            "request_model_freshness_warnings",
             "n_generation_preflight_blocked",
             "n_requests_with_component_resource_registry_context",
             "n_component_resource_registry_components_in_prompt",
@@ -4972,6 +4982,8 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             ),
             "n_request_model_tier_mismatches": nonnegative_integer,
             "request_model_tier_mismatches": object_array,
+            "n_request_model_freshness_warnings": nonnegative_integer,
+            "request_model_freshness_warnings": object_array,
             "n_generation_preflight_blocked": nonnegative_integer,
             "generation_preflight_errors": object_array,
             "n_requests_with_component_resource_registry_context": (
@@ -5659,6 +5671,8 @@ def validate_llm_route_planner_request(
         mismatch = _request_model_tier_mismatch(row)
         if mismatch:
             errors.append(str(mismatch["error"]))
+        for freshness_warning in _request_model_freshness_warning(row):
+            errors.append(str(freshness_warning["warning"]))
     errors.extend(
         _model_tier_decision_evidence_errors(
             _dict_value(row, "model_tier_decision_evidence"),
@@ -7065,6 +7079,21 @@ def validate_llm_route_planner_manifest(
     ) != generation_policy_current_claude_tier_source:
         errors.append(
             "n_request_llm_generation_policy_current_claude_tier_source must match request_packets"
+        )
+    request_model_freshness_warnings = _request_model_freshness_warnings(
+        request_packets
+    )
+    if int(manifest.get("n_request_model_freshness_warnings", 0) or 0) != len(
+        request_model_freshness_warnings
+    ):
+        errors.append(
+            "n_request_model_freshness_warnings must match request_packets"
+        )
+    if tuple(_dict_tuple(manifest.get("request_model_freshness_warnings", []))) != tuple(
+        request_model_freshness_warnings
+    ):
+        errors.append(
+            "request_model_freshness_warnings must match request_packets"
         )
     repair_attempt_ledger = _dict_tuple(manifest.get("repair_attempt_ledger", []))
     row_repair_attempt_ledger = tuple(
@@ -14495,6 +14524,16 @@ def _request_model_tier_mismatches(
     ]
 
 
+def _request_model_freshness_warnings(
+    requests: tuple[dict[str, Any], ...],
+) -> list[dict[str, object]]:
+    return [
+        warning
+        for request in requests
+        for warning in _request_model_freshness_warning(request)
+    ]
+
+
 def _row_model_tier_mismatches(
     rows: Iterable[Mapping[str, object]],
 ) -> list[dict[str, object]]:
@@ -14562,6 +14601,28 @@ def _request_model_tier_mismatch(
         "model_tier": model_tier,
         "error": mismatch,
     }
+
+
+def _request_model_freshness_warning(
+    request: Mapping[str, Any],
+) -> tuple[dict[str, object], ...]:
+    provider = str(request.get("provider_name", "") or "").strip().lower()
+    if provider != "anthropic":
+        return ()
+    model = str(request.get("model", "") or "").strip()
+    model_tier = str(request.get("model_tier", "") or "").strip().lower()
+    warnings = claude_model_freshness_warnings({model_tier: model})
+    return tuple(
+        {
+            "request_id": str(request.get("request_id", "")),
+            "route_id": str(request.get("route_id", "")),
+            "provider_name": provider,
+            "model": model,
+            "model_tier": model_tier,
+            "warning": warning,
+        }
+        for warning in warnings
+    )
 
 
 def _row_model_tier_mismatch_error(row: Mapping[str, object]) -> str:
@@ -35485,6 +35546,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Request tier-decision basis: {payload.get('by_request_model_tier_decision_basis')}",
         f"- Invalid tier-decision evidence: {payload.get('n_request_model_tier_decision_evidence_invalid')}",
         f"- Request model-tier mismatches: {payload.get('n_request_model_tier_mismatches')}",
+        f"- Request model freshness warnings: {payload.get('n_request_model_freshness_warnings')}",
         f"- Prompt token budget rows: {payload.get('n_prompt_token_budget_rows')}",
         f"- Estimated prompt tokens input/max-output/total: {payload.get('estimated_prompt_input_tokens')}/{payload.get('estimated_prompt_max_output_tokens')}/{payload.get('estimated_prompt_total_token_budget')}",
         f"- Prompt token budget preflight blocks: {payload.get('n_prompt_token_budget_preflight_blocked')} cap={payload.get('max_estimated_prompt_input_tokens')}",

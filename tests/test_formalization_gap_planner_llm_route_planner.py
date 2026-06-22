@@ -9781,6 +9781,7 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_request_llm_generation_policy_current_claude_tier_source"
         in manifest_schema["required"]
     )
+    assert "n_request_model_freshness_warnings" in manifest_schema["required"]
     assert payload["n_requests_with_route_planning_brief"] == 1
     assert payload["n_request_route_planning_focus_rows"] >= 4
     assert payload["n_request_route_planning_primitive_evidence_rows"] == 2
@@ -10301,6 +10302,35 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_request_llm_generation_policy_current_claude_tier_source must match request_packets"
         in validate_llm_route_planner_manifest(
             drifted_generation_policy_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_model_freshness_count_manifest = deepcopy(payload)
+    drifted_model_freshness_count_manifest[
+        "n_request_model_freshness_warnings"
+    ] = 1
+    assert (
+        "n_request_model_freshness_warnings must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_model_freshness_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_model_freshness_rows_manifest = deepcopy(payload)
+    drifted_model_freshness_rows_manifest["request_model_freshness_warnings"] = [
+        {
+            "request_id": "formalization_gap_planner_llm_route_request:stale",
+            "route_id": "route:rank",
+            "provider_name": "anthropic",
+            "model": "claude-sonnet-4-5",
+            "model_tier": "sonnet",
+            "warning": "stale model",
+        }
+    ]
+    assert (
+        "request_model_freshness_warnings must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_model_freshness_rows_manifest,
             manifest_schema,
         )
     )
@@ -17305,6 +17335,70 @@ def test_llm_route_planner_preflight_blocks_live_provider_on_model_tier_mismatch
     assert plan_trace["llm_route_planner_route_adoption_status"] == (
         "REJECTED_LLM_ROUTE_PLAN"
     )
+
+
+def test_llm_route_planner_preflight_blocks_live_provider_on_stale_claude_model() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_preflight_stale_model"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    calls: list[object] = []
+
+    class ShouldNotCallAnthropicBackend:
+        provider_name = "anthropic"
+
+        def generate(self, request):
+            calls.append(request)
+            raise AssertionError("stale Claude request should not call provider")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="anthropic",
+        model="claude-sonnet-4-5",
+        model_tier="sonnet",
+        invoke_provider=True,
+        generator_backend=ShouldNotCallAnthropicBackend(),
+    )
+
+    assert calls == []
+    assert not payload["all_ok"]
+    assert payload["by_request_model_tier"] == {"sonnet": 1}
+    assert payload["n_request_model_tier_mismatches"] == 0
+    assert payload["n_request_model_freshness_warnings"] == 1
+    freshness_warning = payload["request_model_freshness_warnings"][0]
+    assert freshness_warning["provider_name"] == "anthropic"
+    assert freshness_warning["model"] == "claude-sonnet-4-5"
+    assert freshness_warning["model_tier"] == "sonnet"
+    assert "current source-checked API ID is claude-sonnet-4-6" in (
+        freshness_warning["warning"]
+    )
+    assert payload["n_request_schema_invalid"] == 1
+    assert payload["n_generation_preflight_blocked"] == 1
+    assert payload["n_raw_responses"] == 0
+    assert payload["n_rejected"] == 1
+    preflight_error = payload["generation_preflight_errors"][0]
+    assert preflight_error["model"] == "claude-sonnet-4-5"
+    assert preflight_error["model_tier"] == "sonnet"
+    assert any(
+        "current source-checked API ID is claude-sonnet-4-6" in error
+        for error in preflight_error["errors"]
+    )
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_REQUEST_CONTRACT"
+    assert row["provider_failure"] is False
+    assert row["response_present"] is False
+    assert any(
+        "current source-checked API ID is claude-sonnet-4-6" in error
+        for error in row["errors"]
+    )
+    report = (
+        out_dir / "formalization_gap_planner_llm_route_planner.md"
+    ).read_text(encoding="utf-8")
+    assert "- Request model freshness warnings: 1" in report
 
 
 def test_llm_route_planner_preflight_blocks_live_provider_on_prompt_budget_cap() -> None:

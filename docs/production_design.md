@@ -27,7 +27,7 @@ used by `ai_statistician doctor`, even when only a subset of LLM agents is
 enabled. LLM worker configs carry a `model_tier` and may leave `model` empty;
 the concrete provider model is resolved when a request is built, so
 tier-specific environment overrides apply to direct worker construction as well
-as CLI-created agents. As of the 2026-06-19 Anthropic Models overview and Model
+as CLI-created agents. As of the 2026-06-22 Anthropic Models overview and Model
 IDs/versioning source check, the pinned default Claude API IDs are Haiku
 `claude-haiku-4-5-20251001`, Sonnet `claude-sonnet-4-6`, and Opus
 `claude-opus-4-8`. The policy also records official API aliases by tier, but
@@ -59,6 +59,10 @@ without residuals or feedback can remain on Haiku.
 manifests separately report same-tier freshness warnings when a resolved Claude
 tier does not match the current source-checked API ID, so stale Sonnet/Haiku
 aliases stay visible without being confused with cross-tier routing failures.
+The formalization gap planner treats the same stale same-tier Claude IDs as
+request-contract preflight errors before live provider calls, because route
+planning should use the current pinned API ID for the selected Haiku/Sonnet/Opus
+tier.
 The formalization gap planner's auto route
 tier uses the same split: small source-backed reuse/wrapper triage stays on
 Haiku, while target-intake rows with missing proof sources, library-search
