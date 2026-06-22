@@ -1304,6 +1304,15 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         "lean4": payload["n_llm_route_planner_request_packets"]
     }
     assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_request_target_prover_families"
+        ]
+        == payload["n_llm_route_planner_request_target_prover_families"]
+    )
+    assert payload[
+        "publication_bundle_llm_route_planner_summary_by_request_target_prover_family"
+    ] == payload["llm_route_planner_by_request_target_prover_family"]
+    assert (
         payload["n_llm_route_planner_request_model_tier_haiku"]
         + payload["n_llm_route_planner_request_model_tier_sonnet"]
         + payload["n_llm_route_planner_request_model_tier_opus"]
@@ -1617,6 +1626,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     ).read_text(encoding="utf-8")
     assert "Source prover targets: `lean4` families=1 by={'lean4': 1}" in report_text
     assert "cost-hint-incomplete" in report_text
+    assert "LLM route planner request target families" in report_text
     assert "LLM route planner provider usage rows/input/output/total" in report_text
     assert "LLM route planner prompt budget rows/input/max-output/total" in report_text
     assert (
@@ -1951,6 +1961,36 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["feedback_llm_route_planner_by_request_target_prover_family"] == {
         "lean4": payload["n_feedback_llm_route_planner_request_packets"]
     }
+    combined_target_family_counts = _sum_count_maps(
+        payload["llm_route_planner_by_request_target_prover_family"],
+        payload["feedback_llm_route_planner_by_request_target_prover_family"],
+    )
+    assert (
+        payload["n_combined_llm_route_planner_request_target_prover_families"]
+        == len(combined_target_family_counts)
+    )
+    assert (
+        payload["combined_llm_route_planner_by_request_target_prover_family"]
+        == combined_target_family_counts
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_request_target_prover_families"
+        ]
+        == payload["n_feedback_llm_route_planner_request_target_prover_families"]
+    )
+    assert payload[
+        "publication_bundle_feedback_llm_route_planner_summary_by_request_target_prover_family"
+    ] == payload["feedback_llm_route_planner_by_request_target_prover_family"]
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_request_target_prover_families"
+        ]
+        == len(combined_target_family_counts)
+    )
+    assert payload[
+        "publication_bundle_combined_llm_route_planner_summary_by_request_target_prover_family"
+    ] == combined_target_family_counts
     assert (
         payload["n_feedback_llm_route_planner_request_model_tier_haiku"]
         + payload["n_feedback_llm_route_planner_request_model_tier_sonnet"]

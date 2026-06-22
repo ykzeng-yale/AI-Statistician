@@ -180,6 +180,21 @@ def _combined_route_option_selection_counter_payload(
     }
 
 
+def _sum_count_maps(*maps: object) -> dict[str, int]:
+    keys: set[str] = set()
+    normalized_maps: list[dict[str, object]] = []
+    for value in maps:
+        if not isinstance(value, dict):
+            continue
+        normalized = {str(key): raw for key, raw in value.items()}
+        normalized_maps.append(normalized)
+        keys.update(normalized)
+    return {
+        key: sum(int(mapping.get(key, 0) or 0) for mapping in normalized_maps)
+        for key in sorted(keys)
+    }
+
+
 def _route_option_selection_report_counter(
     payload: dict[str, object],
     public_stem: str,
@@ -2734,6 +2749,30 @@ def run_formalization_gap_planner_reuse_smoke(
             )
             or 0
         ),
+        "n_combined_llm_route_planner_request_target_prover_families": len(
+            _sum_count_maps(
+                llm_route_planner_payload.get(
+                    "by_request_target_prover_family",
+                    {},
+                ),
+                feedback_llm_route_planner_payload.get(
+                    "by_request_target_prover_family",
+                    {},
+                ),
+            )
+        ),
+        "combined_llm_route_planner_by_request_target_prover_family": (
+            _sum_count_maps(
+                llm_route_planner_payload.get(
+                    "by_request_target_prover_family",
+                    {},
+                ),
+                feedback_llm_route_planner_payload.get(
+                    "by_request_target_prover_family",
+                    {},
+                ),
+            )
+        ),
         "n_publication_bundle_combined_llm_route_planner_summary_requests_with_current_goal_plan_rows": int(
             publication_bundle_llm_route_planner_summary.get(
                 "n_requests_with_current_goal_plan_rows",
@@ -2761,6 +2800,30 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
             or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_request_target_prover_families": len(
+            _sum_count_maps(
+                publication_bundle_llm_route_planner_summary.get(
+                    "by_request_target_prover_family",
+                    {},
+                ),
+                publication_bundle_feedback_llm_route_planner_summary.get(
+                    "by_request_target_prover_family",
+                    {},
+                ),
+            )
+        ),
+        "publication_bundle_combined_llm_route_planner_summary_by_request_target_prover_family": (
+            _sum_count_maps(
+                publication_bundle_llm_route_planner_summary.get(
+                    "by_request_target_prover_family",
+                    {},
+                ),
+                publication_bundle_feedback_llm_route_planner_summary.get(
+                    "by_request_target_prover_family",
+                    {},
+                ),
+            )
         ),
         **_combined_target_context_summary_counter_payload(
             llm_route_planner_payload,
@@ -3320,6 +3383,18 @@ def run_formalization_gap_planner_reuse_smoke(
             publication_bundle_llm_route_planner_summary.get(
                 "n_request_current_goal_plan_rows",
                 0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_request_target_prover_families": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_request_target_prover_families",
+                0,
+            )
+        ),
+        "publication_bundle_llm_route_planner_summary_by_request_target_prover_family": (
+            publication_bundle_llm_route_planner_summary.get(
+                "by_request_target_prover_family",
+                {},
             )
         ),
         **_route_option_selection_counter_payload(
@@ -3976,6 +4051,18 @@ def run_formalization_gap_planner_reuse_smoke(
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_request_current_goal_plan_rows",
                 0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_request_target_prover_families": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_request_target_prover_families",
+                0,
+            )
+        ),
+        "publication_bundle_feedback_llm_route_planner_summary_by_request_target_prover_family": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "by_request_target_prover_family",
+                {},
             )
         ),
         "n_publication_bundle_feedback_llm_route_planner_summary_requests_with_resource_feedback_readiness_summary": (
@@ -10971,6 +11058,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"preflight_blocks={payload.get('n_llm_route_planner_generation_preflight_blocked')} "
             f"prompt_budget_blocks={payload.get('n_llm_route_planner_prompt_token_budget_preflight_blocked')} "
             f"generator_metadata_rows={payload.get('n_llm_route_planner_rows_with_generator_metadata')}"
+        ),
+        (
+            f"- LLM route planner request target families: "
+            f"primary={payload.get('llm_route_planner_by_request_target_prover_family')} "
+            f"feedback={payload.get('feedback_llm_route_planner_by_request_target_prover_family')} "
+            f"combined={payload.get('combined_llm_route_planner_by_request_target_prover_family')} "
+            f"bundle={payload.get('publication_bundle_combined_llm_route_planner_summary_by_request_target_prover_family')}"
         ),
         (
             f"- LLM route planner provider usage rows/input/output/total: "

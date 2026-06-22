@@ -782,7 +782,9 @@ counts from the primary and feedback LLM route-planner manifests, so cost-aware
 routing remains auditable in public supplements. They also expose normalized
 request target-prover-family distributions from the primary and feedback
 planner runs, so public supplements can show whether staged routes covered
-Lean, Rocq/Coq, Isabelle, Agda, or another supported prover family. They also expose a
+Lean, Rocq/Coq, Isabelle, Agda, or another supported prover family. Reuse-smoke
+compares those raw planner distributions with the packaged publication-bundle
+primary, feedback, and combined summaries before release. They also expose a
 pre-invocation prompt-token budget ledger for each primary and feedback
 route-planner request, using deterministic prompt-length estimates plus the
 configured maximum output-token cap. These rows are cost-control hints for
