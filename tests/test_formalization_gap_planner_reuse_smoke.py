@@ -1299,6 +1299,10 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     )
     assert payload["llm_route_planner_max_repair_attempts"] == 1
     assert payload["llm_route_planner_by_request_model_tier"]
+    assert payload["n_llm_route_planner_request_target_prover_families"] == 1
+    assert payload["llm_route_planner_by_request_target_prover_family"] == {
+        "lean4": payload["n_llm_route_planner_request_packets"]
+    }
     assert (
         payload["n_llm_route_planner_request_model_tier_haiku"]
         + payload["n_llm_route_planner_request_model_tier_sonnet"]
@@ -1941,6 +1945,13 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["feedback_llm_route_planner_max_repair_attempts"] == 1
     assert payload["feedback_llm_route_planner_by_request_model_tier"]
     assert (
+        payload["n_feedback_llm_route_planner_request_target_prover_families"]
+        == 1
+    )
+    assert payload["feedback_llm_route_planner_by_request_target_prover_family"] == {
+        "lean4": payload["n_feedback_llm_route_planner_request_packets"]
+    }
+    assert (
         payload["n_feedback_llm_route_planner_request_model_tier_haiku"]
         + payload["n_feedback_llm_route_planner_request_model_tier_sonnet"]
         + payload["n_feedback_llm_route_planner_request_model_tier_opus"]
@@ -2089,6 +2100,9 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert llm_stage_summary["by_request_model_tier"] == payload[
         "llm_route_planner_by_request_model_tier"
     ]
+    assert llm_stage_summary["by_request_target_prover_family"] == payload[
+        "llm_route_planner_by_request_target_prover_family"
+    ]
     assert llm_stage_summary[
         "n_route_adoption_pending_omitted_cost_hint_primitive_blockers"
     ] == payload[
@@ -2111,6 +2125,9 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert "n_formal_realization_dag_nodes" in feedback_llm_stage_summary
     assert feedback_llm_stage_summary["by_request_model_tier"] == payload[
         "feedback_llm_route_planner_by_request_model_tier"
+    ]
+    assert feedback_llm_stage_summary["by_request_target_prover_family"] == payload[
+        "feedback_llm_route_planner_by_request_target_prover_family"
     ]
     assert feedback_llm_stage_summary[
         "n_route_adoption_pending_omitted_cost_hint_primitive_blockers"

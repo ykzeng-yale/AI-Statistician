@@ -1544,6 +1544,13 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         "sonnet": 1
     }
     assert (
+        manifest["llm_route_planner_summary"]["n_request_target_prover_families"]
+        == 1
+    )
+    assert manifest["llm_route_planner_summary"][
+        "by_request_target_prover_family"
+    ] == {"lean4": 1}
+    assert (
         manifest["llm_route_planner_summary"][
             "n_requests_with_library_alignment_summary"
         ]
@@ -1814,6 +1821,15 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert manifest["feedback_llm_route_planner_summary"][
         "by_request_model_tier"
     ] == {"sonnet": 1}
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_target_prover_families"
+        ]
+        == 1
+    )
+    assert manifest["feedback_llm_route_planner_summary"][
+        "by_request_target_prover_family"
+    ] == {"lean4": 1}
     assert (
         manifest["feedback_llm_route_planner_summary"][
             "n_requests_with_library_alignment_summary"
@@ -4604,6 +4620,8 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "n_requests_with_residual_goal_contexts" in llm_summary_schema["required"]
     assert "n_request_model_tier_sonnet" in llm_summary_schema["required"]
     assert "by_request_model_tier" in llm_summary_schema["required"]
+    assert "n_request_target_prover_families" in llm_summary_schema["required"]
+    assert "by_request_target_prover_family" in llm_summary_schema["required"]
     assert "n_planner_next_actions" in llm_summary_schema["required"]
     assert "n_row_residual_goal_contexts" in llm_summary_schema["required"]
     assert "n_rows_with_source_snippets" in llm_summary_schema["required"]

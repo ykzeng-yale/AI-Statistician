@@ -243,7 +243,10 @@ provider calls and schema/model-tier-invalid requests are visible before any
 live Claude call. The route planner also records
 `n_request_model_freshness_warnings` and blocks stale same-tier Claude IDs, so
 Sonnet/Haiku/Opus requests use the current source-checked pinned API ID rather
-than an older same-family snapshot. The reuse-smoke manifest/report lifts the validator
+than an older same-family snapshot. The planner manifest also exposes
+`by_request_target_prover_family`, computed from normalized request target
+prover names, so Lean/Rocq/Isabelle/Agda coverage is visible without unpacking
+request packets. The reuse-smoke manifest/report lifts the validator
 target-prover counts, mismatch counter, and request-bound route-precondition
 counters into top-level fields for release gating. When a live generator response
 fails local validation and the planner
@@ -776,7 +779,10 @@ and feedback-aware without requiring consumers to inspect the raw planner
 manifest. They also expose Haiku/Sonnet/Opus request-tier distribution,
 Haiku-to-Sonnet repair-escalation counts, and structured tier-decision evidence
 counts from the primary and feedback LLM route-planner manifests, so cost-aware
-routing remains auditable in public supplements. They also expose a
+routing remains auditable in public supplements. They also expose normalized
+request target-prover-family distributions from the primary and feedback
+planner runs, so public supplements can show whether staged routes covered
+Lean, Rocq/Coq, Isabelle, Agda, or another supported prover family. They also expose a
 pre-invocation prompt-token budget ledger for each primary and feedback
 route-planner request, using deterministic prompt-length estimates plus the
 configured maximum output-token cap. These rows are cost-control hints for
@@ -1180,7 +1186,7 @@ static generator replay, supplied generator backends, and real
 `live_provider_backend` calls stay distinguishable next to the number of
 requested live provider calls, prompt-budget preflight cap/block/error
 counters, and the Haiku/Sonnet/Opus request-tier
-distribution. Auto tiering keeps small,
+distribution plus normalized request target-prover-family distribution. Auto tiering keeps small,
 source-backed reuse/wrapper routes on Haiku, but upgrades target-intake rows
 with missing proof sources, library search requirements, proof-state probes, or
 larger theorem context to Sonnet. It also upgrades source-theorem/proof-body

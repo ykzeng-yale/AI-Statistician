@@ -258,6 +258,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "invoke_provider",
         "model_tier_selection_mode",
         "by_request_model_tier",
+        "n_request_target_prover_families",
+        "by_request_target_prover_family",
         "n_request_model_tier_haiku",
         "n_request_model_tier_sonnet",
         "n_request_model_tier_opus",
@@ -344,6 +346,8 @@ SUMMARY_KEYS_BY_STAGE = {
         "invoke_provider",
         "model_tier_selection_mode",
         "by_request_model_tier",
+        "n_request_target_prover_families",
+        "by_request_target_prover_family",
         "n_request_model_tier_haiku",
         "n_request_model_tier_sonnet",
         "n_request_model_tier_opus",
@@ -4771,6 +4775,18 @@ def run_formalization_gap_planner_reuse_smoke(
             "by_request_model_tier",
             {},
         ),
+        "n_llm_route_planner_request_target_prover_families": (
+            llm_route_planner_payload.get(
+                "n_request_target_prover_families",
+                0,
+            )
+        ),
+        "llm_route_planner_by_request_target_prover_family": (
+            llm_route_planner_payload.get(
+                "by_request_target_prover_family",
+                {},
+            )
+        ),
         "n_llm_route_planner_request_model_tier_haiku": llm_route_planner_payload.get(
             "n_request_model_tier_haiku",
             0,
@@ -5653,6 +5669,18 @@ def run_formalization_gap_planner_reuse_smoke(
         "feedback_llm_route_planner_by_request_model_tier": (
             feedback_llm_route_planner_payload.get(
                 "by_request_model_tier",
+                {},
+            )
+        ),
+        "n_feedback_llm_route_planner_request_target_prover_families": (
+            feedback_llm_route_planner_payload.get(
+                "n_request_target_prover_families",
+                0,
+            )
+        ),
+        "feedback_llm_route_planner_by_request_target_prover_family": (
+            feedback_llm_route_planner_payload.get(
+                "by_request_target_prover_family",
                 {},
             )
         ),

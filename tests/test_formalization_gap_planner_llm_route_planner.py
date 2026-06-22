@@ -9782,7 +9782,11 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         in manifest_schema["required"]
     )
     assert "n_request_model_freshness_warnings" in manifest_schema["required"]
+    assert "n_request_target_prover_families" in manifest_schema["required"]
+    assert "by_request_target_prover_family" in manifest_schema["required"]
     assert payload["n_requests_with_route_planning_brief"] == 1
+    assert payload["n_request_target_prover_families"] == 1
+    assert payload["by_request_target_prover_family"] == {"lean4": 1}
     assert payload["n_request_route_planning_focus_rows"] >= 4
     assert payload["n_request_route_planning_primitive_evidence_rows"] == 2
     assert payload["n_rows_with_primitive_evidence_matrix_witness"] == 1
@@ -10093,6 +10097,24 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         "n_request_current_goal_plan_rows must match request_packets"
         in validate_llm_route_planner_manifest(
             drifted_goal_plan_rows_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_target_family_count_manifest = deepcopy(payload)
+    drifted_target_family_count_manifest["n_request_target_prover_families"] = 999
+    assert (
+        "n_request_target_prover_families must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_target_family_count_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_target_family_manifest = deepcopy(payload)
+    drifted_target_family_manifest["by_request_target_prover_family"] = {"rocq": 1}
+    assert (
+        "by_request_target_prover_family must match request_packets"
+        in validate_llm_route_planner_manifest(
+            drifted_target_family_manifest,
             manifest_schema,
         )
     )

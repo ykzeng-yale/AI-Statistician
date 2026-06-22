@@ -1092,6 +1092,10 @@ def export_formalization_gap_planner_llm_route_planner(
     by_model_tier = Counter(
         str(packet.get("model_tier", "") or "unknown") for packet in request_packets
     )
+    by_request_target_prover_family = Counter(
+        _target_prover_key(packet.get("target_prover_family", "")) or "unknown"
+        for packet in request_packets
+    )
     by_model_tier_decision_basis = Counter(
         str(
             _dict_value(packet, "model_tier_decision_evidence").get(
@@ -1617,6 +1621,12 @@ def export_formalization_gap_planner_llm_route_planner(
                 )
             )
             for packet in request_packets
+        ),
+        "n_request_target_prover_families": len(
+            by_request_target_prover_family
+        ),
+        "by_request_target_prover_family": dict(
+            sorted(by_request_target_prover_family.items())
         ),
         "n_request_model_tier_haiku": by_model_tier.get("haiku", 0),
         "n_request_model_tier_sonnet": by_model_tier.get("sonnet", 0),
@@ -4611,6 +4621,8 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_target_intake_rows",
             "n_requests_with_current_goal_plan_rows",
             "n_request_current_goal_plan_rows",
+            "n_request_target_prover_families",
+            "by_request_target_prover_family",
             "n_request_model_tier_haiku",
             "n_request_model_tier_sonnet",
             "n_request_model_tier_opus",
@@ -4930,6 +4942,8 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_target_intake_rows": nonnegative_integer,
             "n_requests_with_current_goal_plan_rows": nonnegative_integer,
             "n_request_current_goal_plan_rows": nonnegative_integer,
+            "n_request_target_prover_families": nonnegative_integer,
+            "by_request_target_prover_family": {"type": "object"},
             "n_request_model_tier_haiku": nonnegative_integer,
             "n_request_model_tier_sonnet": nonnegative_integer,
             "n_request_model_tier_opus": nonnegative_integer,
@@ -6197,6 +6211,22 @@ def validate_llm_route_planner_manifest(
     ) != n_request_current_goal_plan_rows:
         errors.append(
             "n_request_current_goal_plan_rows must match request_packets"
+        )
+    request_target_prover_family_counts = Counter(
+        _target_prover_key(packet.get("target_prover_family", "")) or "unknown"
+        for packet in request_packets
+    )
+    if int(
+        manifest.get("n_request_target_prover_families", 0) or 0
+    ) != len(request_target_prover_family_counts):
+        errors.append(
+            "n_request_target_prover_families must match request_packets"
+        )
+    if dict(manifest.get("by_request_target_prover_family", {}) or {}) != dict(
+        sorted(request_target_prover_family_counts.items())
+    ):
+        errors.append(
+            "by_request_target_prover_family must match request_packets"
         )
     n_requests_with_route_planning_brief = sum(
         1
@@ -35543,6 +35573,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Provider execution mode: {payload.get('provider_execution_mode')}",
         f"- Model tier mode: {payload.get('model_tier_selection_mode')}",
         f"- Request tiers: {payload.get('by_request_model_tier')}",
+        f"- Request target prover families: {payload.get('by_request_target_prover_family')}",
         f"- Request tier-decision basis: {payload.get('by_request_model_tier_decision_basis')}",
         f"- Invalid tier-decision evidence: {payload.get('n_request_model_tier_decision_evidence_invalid')}",
         f"- Request model-tier mismatches: {payload.get('n_request_model_tier_mismatches')}",

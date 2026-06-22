@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from collections import Counter
 from datetime import datetime, timezone
@@ -2622,6 +2623,8 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_model_tier_decision_ledger_provider_failure_rows",
             "n_rows_with_model_tier_escalation",
             "n_requests_with_model_tier_decision_evidence",
+            "n_request_target_prover_families",
+            "by_request_target_prover_family",
             "n_request_model_tier_haiku",
             "n_request_model_tier_sonnet",
             "n_request_model_tier_opus",
@@ -2954,6 +2957,8 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             ),
             "n_rows_with_model_tier_escalation": nonnegative_integer,
             "n_requests_with_model_tier_decision_evidence": nonnegative_integer,
+            "n_request_target_prover_families": nonnegative_integer,
+            "by_request_target_prover_family": {"type": "object"},
             "n_request_model_tier_haiku": nonnegative_integer,
             "n_request_model_tier_sonnet": nonnegative_integer,
             "n_request_model_tier_opus": nonnegative_integer,
@@ -6106,6 +6111,8 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_model_tier_decision_formal_attempt_feedback_sonnet_triggers": 0,
         "n_request_model_tier_decision_evidence_invalid": 0,
         "by_request_model_tier_decision_basis": {},
+        "n_request_target_prover_families": 0,
+        "by_request_target_prover_family": {},
         "n_request_model_tier_haiku": 0,
         "n_request_model_tier_sonnet": 0,
         "n_request_model_tier_opus": 0,
@@ -6190,6 +6197,10 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
     request_packets = _dict_tuple(payload.get("request_packets", []))
     request_model_tier_counts = Counter(
         str(packet.get("model_tier", "") or "unknown") for packet in request_packets
+    )
+    request_target_prover_family_counts = Counter(
+        _target_prover_key(packet.get("target_prover_family", "")) or "unknown"
+        for packet in request_packets
     )
     decision_basis_counts = _llm_route_planner_decision_basis_counts(request_packets)
     model_tier_decision_evidence_rows = tuple(
@@ -7401,6 +7412,20 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                 ),
             )
             or 0
+        ),
+        "n_request_target_prover_families": int(
+            payload.get(
+                "n_request_target_prover_families",
+                len(request_target_prover_family_counts),
+            )
+            or 0
+        ),
+        "by_request_target_prover_family": dict(
+            payload.get(
+                "by_request_target_prover_family",
+                dict(sorted(request_target_prover_family_counts.items())),
+            )
+            or {}
         ),
         "n_request_model_tier_haiku": int(
             payload.get(
@@ -8766,6 +8791,29 @@ def _target_context_summary_proof_source_ref_support_source_field_count(
 def _dict_value(mapping: Mapping[str, Any], key: str) -> dict[str, Any]:
     value = mapping.get(key, {}) if isinstance(mapping, Mapping) else {}
     return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _source_ref_key(value: object) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
+
+
+def _target_prover_key(value: object) -> str:
+    key = _source_ref_key(value)
+    aliases = {
+        "coq": "rocq",
+        "rocq_coq": "rocq",
+        "coq_rocq": "rocq",
+        "lean": "lean4",
+        "lean_4": "lean4",
+        "lean4": "lean4",
+        "isabelle_hol": "isabelle",
+        "hol_4": "hol4",
+        "hollight": "hol_light",
+        "hol_light": "hol_light",
+        "set_mm": "metamath",
+        "setmm": "metamath",
+    }
+    return aliases.get(key, key)
 
 
 def _jsonl_row_collection_count(
