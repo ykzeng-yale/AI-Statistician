@@ -2539,8 +2539,11 @@ The current implementation composes four existing AI Statistician artifacts:
    compatible resources, execution plans, and response contracts. That context
    is planner guidance only; it cannot justify source-backed claims, formal
    declaration reuse, or residual interpretations without corresponding
-   evidence rows. This is the main intelligence boundary for route synthesis
-   and repair; it is not theorem proof evidence.
+   evidence rows. Generator backend resources such as the Claude API route
+   planner and static JSON replay are exposed only as operator/provenance
+   metadata; they are not valid `search_requests`, `planner_next_actions`, or
+   `formal_attempt_queue` resources. This is the main intelligence boundary for
+   route synthesis and repair; it is not theorem proof evidence.
 
 6. `formalization_gap_planner_standalone_plan`
    Builds the same portable planner manifest from standalone theorem-route JSON

@@ -4462,6 +4462,8 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     }
     assert "paperclip_cli_mcp" in resource_ids
     assert "lean_lsp_mcp" in resource_ids
+    assert "llm_route_planner_static_replay" in resource_ids
+    assert "anthropic_claude_api_generator" in resource_ids
     assert "source_theorem_semantic_primitive_bridge" in resource_ids
     assert "source_theorem_semantic_primitive_from_proof_body_executor_bridge" in (
         resource_ids
@@ -4471,6 +4473,28 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
     assert any(
         row["component_id"] == "literature_grounded_route_synthesis"
         for row in registry_context["component_rows"]
+    )
+    assert any(
+        row["component_id"] == "llm_route_planner_generator"
+        for row in registry_context["component_rows"]
+    )
+    assert set(registry_context["operator_only_resource_ids"]) >= {
+        "llm_route_planner_static_replay",
+        "anthropic_claude_api_generator",
+    }
+    assert "anthropic_claude_api_generator" not in set(
+        registry_context["planner_action_resource_ids"]
+    )
+    assert "llm_route_planner_static_replay" not in set(
+        registry_context["planner_action_resource_ids"]
+    )
+    assert (
+        payload["n_component_resource_registry_operator_only_resources_in_prompt"]
+        >= 2
+    )
+    assert (
+        payload["n_component_resource_registry_planner_action_resources_in_prompt"]
+        > 0
     )
     assert any(
         row["resource_id"] == "paperclip_cli_mcp"
@@ -4542,6 +4566,8 @@ def test_llm_route_planner_stages_component_resource_registry_context() -> None:
         in request["prompt_messages"]["user"]
     )
     assert "registry rows are not evidence" in request["prompt_messages"]["user"]
+    assert "operator_only_resource_ids" in request["prompt_messages"]["user"]
+    assert "not valid search_requests" in request["prompt_messages"]["user"]
 
 
 def test_llm_route_planner_filters_registry_context_for_rocq_target() -> None:
@@ -4759,6 +4785,47 @@ def test_llm_route_planner_accepts_registry_bound_actions_without_queue() -> Non
     row = payload["rows"][0]
     assert row["response_contract_ok"] is True
     assert row["planner_next_actions"][0]["owner"] == "lean_lsp_mcp"
+
+
+def test_llm_route_planner_rejects_operator_only_generator_resource_action() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_generator_resource_action"
+    )
+    out_dir = root / "llm_route_planner"
+    registry_dir = root / "component_resource_registry"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    export_formalization_gap_planner_component_resource_registry(registry_dir)
+    response = _llm_response_payload()
+    response["search_requests"][0]["resource_id"] = "anthropic_claude_api_generator"
+    response["planner_next_actions"][0]["owner"] = "anthropic_claude_api_generator"
+    response_json.write_text(json.dumps(response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_component_resource_registry_dir=registry_dir,
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "search_requests[0] references operator-only generator resource(s)"
+        in error
+        and "anthropic_claude_api_generator" in error
+        for error in row["errors"]
+    )
+    assert any(
+        "planner_next_actions[0] references operator-only generator resource(s)"
+        in error
+        and "anthropic_claude_api_generator" in error
+        for error in row["errors"]
+    )
 
 
 def test_llm_route_planner_rejects_unregistered_formal_attempt_queue_resource() -> None:

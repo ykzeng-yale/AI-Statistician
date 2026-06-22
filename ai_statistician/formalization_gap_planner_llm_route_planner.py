@@ -194,6 +194,18 @@ SOURCE_THEOREM_FORMAL_ENVIRONMENT_BRIDGE_RESOURCE_ID = (
 EXACT_SOURCE_THEOREM_PROOF_BODY_EXECUTOR_RESOURCE_ID = (
     "exact_source_theorem_proof_body_executor"
 )
+LLM_ROUTE_PLANNER_GENERATOR_COMPONENT_ID = "llm_route_planner_generator"
+LLM_ROUTE_PLANNER_STATIC_REPLAY_RESOURCE_ID = "llm_route_planner_static_replay"
+ANTHROPIC_CLAUDE_API_GENERATOR_RESOURCE_ID = "anthropic_claude_api_generator"
+LLM_ROUTE_PLANNER_OPERATOR_ONLY_RESOURCE_IDS = frozenset(
+    {
+        LLM_ROUTE_PLANNER_STATIC_REPLAY_RESOURCE_ID,
+        ANTHROPIC_CLAUDE_API_GENERATOR_RESOURCE_ID,
+    }
+)
+LLM_ROUTE_PLANNER_OPERATOR_ONLY_RESOURCE_CAPABILITY_TAGS = frozenset(
+    {"generator_only_llm", "model_tier_routing"}
+)
 CONTEXT_PACKET_ROW_FIELDS = (
     "target_intake_rows",
     "library_coverage_rows",
@@ -2772,6 +2784,28 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for packet in request_packets
         ),
+        "n_component_resource_registry_operator_only_resources_in_prompt": sum(
+            len(
+                _str_tuple(
+                    _component_resource_context_from_request(packet).get(
+                        "operator_only_resource_ids",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
+        "n_component_resource_registry_planner_action_resources_in_prompt": sum(
+            len(
+                _str_tuple(
+                    _component_resource_context_from_request(packet).get(
+                        "planner_action_resource_ids",
+                        [],
+                    )
+                )
+            )
+            for packet in request_packets
+        ),
         "n_requests_with_source_theorem_semantic_primitive_bridge_context": sum(
             1
             for packet in request_packets
@@ -4763,6 +4797,8 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_component_resource_registry_components_in_prompt",
             "n_component_resource_registry_resources_in_prompt",
             "n_component_resource_registry_contracts_in_prompt",
+            "n_component_resource_registry_operator_only_resources_in_prompt",
+            "n_component_resource_registry_planner_action_resources_in_prompt",
             "n_requests_with_source_theorem_semantic_primitive_bridge_context",
             "n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt",
             "n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt",
@@ -5114,6 +5150,12 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_component_resource_registry_contracts_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_operator_only_resources_in_prompt": (
+                nonnegative_integer
+            ),
+            "n_component_resource_registry_planner_action_resources_in_prompt": (
                 nonnegative_integer
             ),
             "n_requests_with_source_theorem_semantic_primitive_bridge_context": (
@@ -6572,6 +6614,34 @@ def validate_llm_route_planner_manifest(
                     _dict_tuple(
                         _component_resource_context_from_request(packet).get(
                             "resource_contract_rows",
+                            [],
+                        )
+                    )
+                )
+                for packet in request_packets
+            ),
+        ),
+        (
+            "n_component_resource_registry_operator_only_resources_in_prompt",
+            sum(
+                len(
+                    _str_tuple(
+                        _component_resource_context_from_request(packet).get(
+                            "operator_only_resource_ids",
+                            [],
+                        )
+                    )
+                )
+                for packet in request_packets
+            ),
+        ),
+        (
+            "n_component_resource_registry_planner_action_resources_in_prompt",
+            sum(
+                len(
+                    _str_tuple(
+                        _component_resource_context_from_request(packet).get(
+                            "planner_action_resource_ids",
                             [],
                         )
                     )
@@ -12924,7 +12994,7 @@ def _user_prompt(
             "Use context_packet.route_adoption_preconditions as the pre-response forecast of known route-adoption blockers; if known_pre_response_blockers is nonempty, preserve blocker-specific residual interpretations, search_requests, or planner_next_actions instead of presenting the route as replay-ready.",
             "Use context_packet.legacy_context_field_aliases only as a compatibility map; prefer portable fields such as formal_library_grounding_queries and formal_declaration_hits in new route output.",
             "Use context_packet.route_option_selection_brief as the compact route-option comparison table; its lower_bound_selected_route_option_id is a planning hint, not proof evidence, and the returned minimal_delta_plan.and_or_cost_graph.selected_route_option_id must be cost-compatible and residual-aware with that table, especially when same-cost options differ in current prover residual-goal coverage.",
-            "Use context_packet.component_resource_registry_context only to choose bounded search/prover next actions; registry rows are not evidence that a tool was called.",
+            "Use context_packet.component_resource_registry_context only to choose bounded search/prover next actions; registry rows are not evidence that a tool was called, and operator_only_resource_ids/generator backend resources are not valid search_requests, planner_next_actions, or formal_attempt_queue resources.",
             "Use context_packet.source_theorem_semantic_primitive_rows, context_packet.proof_body_semantic_primitive_work_order_rows, context_packet.source_theorem_formal_environment_rows, and context_packet.source_theorem_proof_body_execution_result_rows as ProofEngineer/proof-body feedback for route repair and minimal-delta planning; these rows are not theorem proof evidence and do not by themselves source-ground new mathematical side conditions.",
             "Use context_packet.formal_verifier_agentic_proof_strategy_plan_rows and context_packet.agentic_proof_strategy_plan_summary as bounded live-tool/evaluator-gated proof-search work contracts for planner_next_actions or formal_attempt_queue; these rows are planning input, not theorem proof evidence.",
             "For agentic_strategy_kind=global_goal_cache_source_discovery emit literature/source/RAG search_requests or planner_next_actions; for agentic_strategy_kind=evolve_block_residual_patch emit bounded proof-candidate or patch-evolve formal_attempt_queue/planner_next_actions; for agentic_strategy_kind=kernel_overlay_composition_patch_seed emit evaluator-gated overlay-composition actions that require later kernel replay.",
@@ -23619,6 +23689,25 @@ def _response_resource_request_alignment_errors(
         context_packet,
         registry_context=registry_context,
     )
+    operator_only_resource_ids = {
+        _resource_ref_key(value)
+        for value in LLM_ROUTE_PLANNER_OPERATOR_ONLY_RESOURCE_IDS
+        if _resource_ref_key(value)
+    }
+    operator_only_resource_ids.update(
+        _operator_only_resource_ids_for_registry_context(
+            registry_context,
+            normalized=True,
+        )
+    )
+    operator_only_resource_contract_ids = set(operator_only_resource_ids)
+    operator_only_resource_contract_ids.update(
+        _operator_only_resource_contract_ids_for_registry_context(
+            registry_context,
+            operator_only_resource_ids=operator_only_resource_ids,
+            normalized=True,
+        )
+    )
     has_registry_context = any(
         _dict_tuple(registry_context.get(row_key, []))
         for row_key in (
@@ -23629,7 +23718,11 @@ def _response_resource_request_alignment_errors(
         )
     )
     has_resource_id_context = bool(queue_rows or has_registry_context)
-    if not has_resource_id_context and not allowed_resource_contract_ids:
+    if (
+        not has_resource_id_context
+        and not allowed_resource_contract_ids
+        and not operator_only_resource_ids
+    ):
         return []
 
     allowed_resource_ids = set(queued_resource_ids)
@@ -23713,6 +23806,15 @@ def _response_resource_request_alignment_errors(
                 "in request queue or registry context: "
                 + ", ".join(unknown_resource_ids[:8])
             )
+        blocked_operator_resources = sorted(
+            (resource_ids | tool_owner_ids) & operator_only_resource_ids
+        )
+        if blocked_operator_resources:
+            errors.append(
+                f"{collection_name}[{index}] references operator-only generator "
+                "resource(s) that cannot be scheduled as planner actions: "
+                + ", ".join(blocked_operator_resources[:8])
+            )
         unknown_resource_contract_ids = sorted(
             resource_contract_ids - allowed_resource_contract_ids
         )
@@ -23722,6 +23824,16 @@ def _response_resource_request_alignment_errors(
                 "not present in request queue, interactive policy, feedback "
                 "summary, or registry context: "
                 + ", ".join(unknown_resource_contract_ids[:8])
+            )
+        blocked_operator_resource_contract_ids = sorted(
+            resource_contract_ids & operator_only_resource_contract_ids
+        )
+        if blocked_operator_resource_contract_ids:
+            errors.append(
+                f"{collection_name}[{index}] references operator-only generator "
+                "resource_contract_id(s) that cannot be scheduled as planner "
+                "actions: "
+                + ", ".join(blocked_operator_resource_contract_ids[:8])
             )
         errors.extend(
             _quality_control_grounding_errors(
@@ -27677,6 +27789,31 @@ def _component_resource_registry_context(
             and _resource_targets_match(row, target)
         )
     ][:40]
+    registry_rows = {
+        "component_rows": tuple(component_rows),
+        "execution_plan_rows": tuple(execution_plan_rows),
+        "resource_rows": tuple(resource_rows),
+        "resource_contract_rows": tuple(resource_contract_rows),
+    }
+    operator_only_resource_ids = _operator_only_resource_ids_for_registry_context(
+        registry_rows,
+        normalized=False,
+    )
+    operator_only_resource_id_set = set(operator_only_resource_ids)
+    operator_only_resource_contract_ids = (
+        _operator_only_resource_contract_ids_for_registry_context(
+            registry_rows,
+            operator_only_resource_ids=operator_only_resource_ids,
+            normalized=False,
+        )
+    )
+    planner_action_resource_ids = tuple(
+        sorted(
+            resource_id
+            for resource_id in referenced_resource_ids
+            if resource_id and resource_id not in operator_only_resource_id_set
+        )
+    )
     context = {
         "component_resource_registry_fingerprint": str(
             payload.get("component_resource_registry_fingerprint", "")
@@ -27690,8 +27827,84 @@ def _component_resource_registry_context(
         "execution_plan_rows": tuple(execution_plan_rows),
         "resource_rows": tuple(resource_rows),
         "resource_contract_rows": tuple(resource_contract_rows),
+        "operator_only_resource_ids": operator_only_resource_ids,
+        "operator_only_resource_contract_ids": operator_only_resource_contract_ids,
+        "planner_action_resource_ids": planner_action_resource_ids,
+        "resource_action_policy": (
+            "operator_only_resource_ids describe the LLM/static generator "
+            "backend and must not be scheduled as search_requests, "
+            "planner_next_actions, or formal_attempt_queue resources"
+        ),
     }
     return context if any(context[key] for key in ("component_rows", "resource_rows")) else {}
+
+
+def _operator_only_resource_ids_for_registry_context(
+    registry_context: Mapping[str, Any],
+    *,
+    normalized: bool,
+) -> tuple[str, ...]:
+    explicit_ids = {
+        str(value).strip()
+        for value in _str_tuple(registry_context.get("operator_only_resource_ids", []))
+        if str(value).strip()
+    }
+    resource_ids = set(explicit_ids)
+    generator_component_rows: list[dict[str, object]] = []
+    for row in _dict_tuple(registry_context.get("resource_rows", [])):
+        resource_id = str(row.get("resource_id", "")).strip()
+        if not resource_id:
+            continue
+        capability_tags = {
+            _resource_ref_key(tag)
+            for tag in _str_tuple(row.get("capability_tags", []))
+            if _resource_ref_key(tag)
+        }
+        if (
+            resource_id in LLM_ROUTE_PLANNER_OPERATOR_ONLY_RESOURCE_IDS
+            or capability_tags
+            & {
+                _resource_ref_key(tag)
+                for tag in LLM_ROUTE_PLANNER_OPERATOR_ONLY_RESOURCE_CAPABILITY_TAGS
+            }
+        ):
+            resource_ids.add(resource_id)
+    for row_key in ("component_rows", "execution_plan_rows"):
+        for row in _dict_tuple(registry_context.get(row_key, [])):
+            if (
+                _resource_ref_key(row.get("component_id", ""))
+                == _resource_ref_key(LLM_ROUTE_PLANNER_GENERATOR_COMPONENT_ID)
+            ):
+                generator_component_rows.append(row)
+    resource_ids.update(_resource_ids_for_registry_context(generator_component_rows))
+    if normalized:
+        return tuple(sorted(_resource_ref_key(value) for value in resource_ids if value))
+    return tuple(sorted(value for value in resource_ids if value))
+
+
+def _operator_only_resource_contract_ids_for_registry_context(
+    registry_context: Mapping[str, Any],
+    *,
+    operator_only_resource_ids: tuple[str, ...] | set[str],
+    normalized: bool,
+) -> tuple[str, ...]:
+    operator_only_keys = {
+        _resource_ref_key(value)
+        for value in operator_only_resource_ids
+        if _resource_ref_key(value)
+    }
+    contract_ids: set[str] = set()
+    contract_resource_ids: set[str] = set()
+    for row in _dict_tuple(registry_context.get("resource_contract_rows", [])):
+        resource_id = _resource_ref_key(row.get("resource_id", ""))
+        if resource_id not in operator_only_keys:
+            continue
+        contract_resource_ids.add(str(row.get("resource_id", "")).strip())
+        contract_ids.update(_resource_contract_ids_for_rows((dict(row),)))
+    values = contract_ids if normalized else contract_resource_ids | contract_ids
+    if normalized:
+        return tuple(sorted(_resource_ref_key(value) for value in values if value))
+    return tuple(sorted(value for value in values if value))
 
 
 def _target_filtered_registry_row(
@@ -35787,6 +36000,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Delta action witness required/missing: {payload.get('n_delta_action_witness_required_primitives')}/{payload.get('n_delta_action_witness_missing_primitives')}",
         f"- Route-option action witness required/missing: {payload.get('n_route_option_action_witness_required_primitives')}/{payload.get('n_route_option_action_witness_missing_primitives')}",
         f"- Component-resource registry context/resources/contracts: {payload.get('n_requests_with_component_resource_registry_context')}/{payload.get('n_component_resource_registry_resources_in_prompt')}/{payload.get('n_component_resource_registry_contracts_in_prompt')}",
+        f"- Component-resource registry action/operator resources: {payload.get('n_component_resource_registry_planner_action_resources_in_prompt')}/{payload.get('n_component_resource_registry_operator_only_resources_in_prompt')}",
         f"- Source-theorem semantic primitive bridge resources/contracts: {payload.get('n_component_resource_registry_source_theorem_semantic_primitive_bridge_resources_in_prompt')}/{payload.get('n_component_resource_registry_source_theorem_semantic_primitive_bridge_contracts_in_prompt')}",
         f"- Source-theorem semantic primitive bridge from proof-body feedback resources/contracts: {payload.get('n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_resources_in_prompt')}/{payload.get('n_component_resource_registry_source_theorem_semantic_primitive_from_proof_body_executor_bridge_contracts_in_prompt')}",
         f"- Source-theorem formal-environment bridge resources/contracts: {payload.get('n_component_resource_registry_source_theorem_formal_environment_bridge_resources_in_prompt')}/{payload.get('n_component_resource_registry_source_theorem_formal_environment_bridge_contracts_in_prompt')}",
