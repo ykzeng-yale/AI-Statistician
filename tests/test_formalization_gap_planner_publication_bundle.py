@@ -3401,6 +3401,27 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
                 "n_llm_prompt_model_tier_haiku": 0,
                 "n_llm_prompt_model_tier_sonnet": 1,
                 "n_llm_prompt_model_tier_opus": 0,
+                "n_llm_prompt_model_tier_decision_sonnet_triggers": 0,
+                "n_llm_prompt_requests_with_formal_attempt_feedback_summary": 0,
+                "n_llm_prompt_formal_attempt_feedback_contexts": 0,
+                "n_llm_prompt_formal_attempt_feedback_residual_goals": 0,
+                "n_llm_prompt_formal_attempt_feedback_failed_statuses": 0,
+                (
+                    "n_llm_prompt_model_tier_decision_"
+                    "formal_attempt_feedback_contexts"
+                ): 0,
+                (
+                    "n_llm_prompt_model_tier_decision_"
+                    "formal_attempt_feedback_residual_goals"
+                ): 0,
+                (
+                    "n_llm_prompt_model_tier_decision_"
+                    "formal_attempt_feedback_failed_statuses"
+                ): 0,
+                (
+                    "n_llm_prompt_model_tier_decision_"
+                    "formal_attempt_feedback_sonnet_triggers"
+                ): 0,
                 "n_component_resource_registry_smoke_ok": 1,
                 "n_component_resource_registry_components_in_prompt": 2,
                 "n_component_resource_registry_resources_in_prompt": 3,

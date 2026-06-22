@@ -2462,6 +2462,25 @@ def audit_formalization_gap_planner_publication_bundle(
             }
             and check.ok
         ),
+        "n_optional_runtime_handoff_audit_formal_attempt_feedback_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            in {
+                "optional_runtime_handoff_audit_formal_attempt_feedback_accounting",
+                "optional_runtime_handoff_audit_formal_attempt_feedback_sonnet_trigger",
+            }
+        ),
+        "n_optional_runtime_handoff_audit_formal_attempt_feedback_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            in {
+                "optional_runtime_handoff_audit_formal_attempt_feedback_accounting",
+                "optional_runtime_handoff_audit_formal_attempt_feedback_sonnet_trigger",
+            }
+            and check.ok
+        ),
         "n_optional_ablation_study_row_schema_checked": sum(
             1
             for check in checks
@@ -21509,6 +21528,85 @@ def _runtime_handoff_audit_optional_checks(
     n_tier_sonnet = int(manifest.get("n_llm_prompt_model_tier_sonnet", 0) or 0)
     n_tier_opus = int(manifest.get("n_llm_prompt_model_tier_opus", 0) or 0)
     n_tier_accounted = n_tier_haiku + n_tier_sonnet + n_tier_opus
+    n_model_tier_sonnet_triggers = int(
+        manifest.get("n_llm_prompt_model_tier_decision_sonnet_triggers", 0) or 0
+    )
+    n_formal_attempt_feedback_requests = int(
+        manifest.get(
+            "n_llm_prompt_requests_with_formal_attempt_feedback_summary",
+            0,
+        )
+        or 0
+    )
+    n_formal_attempt_feedback_contexts = int(
+        manifest.get("n_llm_prompt_formal_attempt_feedback_contexts", 0) or 0
+    )
+    n_formal_attempt_feedback_residual_goals = int(
+        manifest.get(
+            "n_llm_prompt_formal_attempt_feedback_residual_goals",
+            0,
+        )
+        or 0
+    )
+    n_formal_attempt_feedback_failed_statuses = int(
+        manifest.get(
+            "n_llm_prompt_formal_attempt_feedback_failed_statuses",
+            0,
+        )
+        or 0
+    )
+    n_tier_formal_attempt_feedback_contexts = int(
+        manifest.get(
+            "n_llm_prompt_model_tier_decision_formal_attempt_feedback_contexts",
+            0,
+        )
+        or 0
+    )
+    n_tier_formal_attempt_feedback_residual_goals = int(
+        manifest.get(
+            "n_llm_prompt_model_tier_decision_formal_attempt_feedback_residual_goals",
+            0,
+        )
+        or 0
+    )
+    n_tier_formal_attempt_feedback_failed_statuses = int(
+        manifest.get(
+            "n_llm_prompt_model_tier_decision_formal_attempt_feedback_failed_statuses",
+            0,
+        )
+        or 0
+    )
+    n_tier_formal_attempt_feedback_sonnet_triggers = int(
+        manifest.get(
+            "n_llm_prompt_model_tier_decision_formal_attempt_feedback_sonnet_triggers",
+            0,
+        )
+        or 0
+    )
+    formal_attempt_feedback_manifest_fields = (
+        "n_llm_prompt_requests_with_formal_attempt_feedback_summary",
+        "n_llm_prompt_formal_attempt_feedback_contexts",
+        "n_llm_prompt_formal_attempt_feedback_residual_goals",
+        "n_llm_prompt_formal_attempt_feedback_failed_statuses",
+        "n_llm_prompt_model_tier_decision_formal_attempt_feedback_contexts",
+        "n_llm_prompt_model_tier_decision_formal_attempt_feedback_residual_goals",
+        "n_llm_prompt_model_tier_decision_formal_attempt_feedback_failed_statuses",
+        "n_llm_prompt_model_tier_decision_formal_attempt_feedback_sonnet_triggers",
+    )
+    formal_attempt_feedback_fields_present = all(
+        field_name in manifest
+        for field_name in formal_attempt_feedback_manifest_fields
+    )
+    formal_attempt_feedback_counts = (
+        n_formal_attempt_feedback_requests,
+        n_formal_attempt_feedback_contexts,
+        n_formal_attempt_feedback_residual_goals,
+        n_formal_attempt_feedback_failed_statuses,
+        n_tier_formal_attempt_feedback_contexts,
+        n_tier_formal_attempt_feedback_residual_goals,
+        n_tier_formal_attempt_feedback_failed_statuses,
+        n_tier_formal_attempt_feedback_sonnet_triggers,
+    )
     checks = [
         _check(
             "optional_runtime_handoff_audit_row_schema_file",
@@ -21636,6 +21734,63 @@ def _runtime_handoff_audit_optional_checks(
                 or 0
             )
             > 0,
+        ),
+        _check(
+            "optional_runtime_handoff_audit_formal_attempt_feedback_accounting",
+            "optional_artifacts",
+            (
+                "runtime handoff prompt formal-attempt feedback counts match "
+                "model-tier decision evidence"
+            ),
+            (
+                f"requests={n_formal_attempt_feedback_requests}; "
+                f"contexts={n_formal_attempt_feedback_contexts}; "
+                f"residual_goals={n_formal_attempt_feedback_residual_goals}; "
+                f"failed_statuses={n_formal_attempt_feedback_failed_statuses}; "
+                f"tier_contexts={n_tier_formal_attempt_feedback_contexts}; "
+                f"tier_residual_goals={n_tier_formal_attempt_feedback_residual_goals}; "
+                f"tier_failed_statuses={n_tier_formal_attempt_feedback_failed_statuses}; "
+                f"tier_sonnet_triggers={n_tier_formal_attempt_feedback_sonnet_triggers}; "
+                f"fields_present={formal_attempt_feedback_fields_present}"
+            ),
+            n_prompt_packets > 0
+            and formal_attempt_feedback_fields_present
+            and all(count >= 0 for count in formal_attempt_feedback_counts)
+            and n_formal_attempt_feedback_requests <= n_prompt_packets
+            and (
+                n_formal_attempt_feedback_requests == 0
+                or n_formal_attempt_feedback_contexts
+                >= n_formal_attempt_feedback_requests
+            )
+            and n_tier_formal_attempt_feedback_contexts
+            == n_formal_attempt_feedback_contexts
+            and n_tier_formal_attempt_feedback_residual_goals
+            == n_formal_attempt_feedback_residual_goals
+            and n_tier_formal_attempt_feedback_failed_statuses
+            == n_formal_attempt_feedback_failed_statuses,
+        ),
+        _check(
+            "optional_runtime_handoff_audit_formal_attempt_feedback_sonnet_trigger",
+            "optional_artifacts",
+            (
+                "formal-attempt feedback context triggers Sonnet routing when "
+                "present"
+            ),
+            (
+                f"contexts={n_formal_attempt_feedback_contexts}; "
+                f"requests={n_formal_attempt_feedback_requests}; "
+                f"sonnet_requests={n_tier_sonnet}; "
+                f"feedback_sonnet_triggers="
+                f"{n_tier_formal_attempt_feedback_sonnet_triggers}; "
+                f"all_sonnet_triggers={n_model_tier_sonnet_triggers}"
+            ),
+            n_formal_attempt_feedback_contexts == 0
+            or (
+                n_tier_formal_attempt_feedback_sonnet_triggers > 0
+                and n_tier_formal_attempt_feedback_sonnet_triggers
+                <= n_model_tier_sonnet_triggers
+                and n_tier_sonnet >= n_formal_attempt_feedback_requests
+            ),
         ),
         _check(
             "optional_runtime_handoff_audit_standalone_smoke",
@@ -23523,6 +23678,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional route-replan handoff-audit target-context-summary trace valid: {payload.get('n_optional_route_replan_handoff_audit_roundtrip_target_context_summary_valid')}/{payload.get('n_optional_route_replan_handoff_audit_roundtrip_target_context_summary_checked')}",
         f"- Optional runtime handoff-audit schema valid: {payload.get('n_optional_runtime_handoff_audit_row_schema_valid')}/{payload.get('n_optional_runtime_handoff_audit_row_schema_checked')}",
         f"- Optional runtime handoff-audit cost controls valid: {payload.get('n_optional_runtime_handoff_audit_cost_control_valid')}/{payload.get('n_optional_runtime_handoff_audit_cost_control_checked')}",
+        f"- Optional runtime handoff-audit formal-attempt feedback valid: {payload.get('n_optional_runtime_handoff_audit_formal_attempt_feedback_valid')}/{payload.get('n_optional_runtime_handoff_audit_formal_attempt_feedback_checked')}",
         f"- Optional ablation-study schema valid: {payload.get('n_optional_ablation_study_row_schema_valid')}/{payload.get('n_optional_ablation_study_row_schema_checked')}",
         f"- Optional ablation-study route-adoption manifest valid: {payload.get('n_optional_ablation_study_route_adoption_manifest_valid')}/{payload.get('n_optional_ablation_study_route_adoption_manifest_checked')}",
         (

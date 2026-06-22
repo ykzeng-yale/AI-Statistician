@@ -269,6 +269,27 @@ def test_publication_bundle_audit_checks_runtime_handoff_registry_context() -> N
                 "n_llm_prompt_model_tier_haiku": 0,
                 "n_llm_prompt_model_tier_sonnet": 1,
                 "n_llm_prompt_model_tier_opus": 0,
+                "n_llm_prompt_model_tier_decision_sonnet_triggers": 1,
+                "n_llm_prompt_requests_with_formal_attempt_feedback_summary": 1,
+                "n_llm_prompt_formal_attempt_feedback_contexts": 1,
+                "n_llm_prompt_formal_attempt_feedback_residual_goals": 1,
+                "n_llm_prompt_formal_attempt_feedback_failed_statuses": 1,
+                (
+                    "n_llm_prompt_model_tier_decision_"
+                    "formal_attempt_feedback_contexts"
+                ): 1,
+                (
+                    "n_llm_prompt_model_tier_decision_"
+                    "formal_attempt_feedback_residual_goals"
+                ): 1,
+                (
+                    "n_llm_prompt_model_tier_decision_"
+                    "formal_attempt_feedback_failed_statuses"
+                ): 1,
+                (
+                    "n_llm_prompt_model_tier_decision_"
+                    "formal_attempt_feedback_sonnet_triggers"
+                ): 1,
                 "n_component_resource_registry_smoke_ok": 1,
                 "n_component_resource_registry_components_in_prompt": 2,
                 "n_component_resource_registry_resources_in_prompt": 3,
@@ -308,6 +329,12 @@ def test_publication_bundle_audit_checks_runtime_handoff_registry_context() -> N
     assert by_name[
         "optional_runtime_handoff_audit_registry_context_in_prompt"
     ].ok
+    assert by_name[
+        "optional_runtime_handoff_audit_formal_attempt_feedback_accounting"
+    ].ok
+    assert by_name[
+        "optional_runtime_handoff_audit_formal_attempt_feedback_sonnet_trigger"
+    ].ok
     assert by_name["optional_runtime_handoff_audit_row_0_schema_valid"].ok
 
     manifest_path = (
@@ -320,6 +347,16 @@ def test_publication_bundle_audit_checks_runtime_handoff_registry_context() -> N
     rejected_by_name = {check.check_name: check for check in rejected_checks}
     assert not rejected_by_name[
         "optional_runtime_handoff_audit_prompt_tier_accounting"
+    ].ok
+    bad_manifest["n_llm_prompt_model_tier_sonnet"] = 1
+    bad_manifest[
+        "n_llm_prompt_model_tier_decision_formal_attempt_feedback_contexts"
+    ] = 0
+    manifest_path.write_text(json.dumps(bad_manifest, indent=2), encoding="utf-8")
+    mismatch_checks = _runtime_handoff_audit_optional_checks(root / "bundle")
+    mismatch_by_name = {check.check_name: check for check in mismatch_checks}
+    assert not mismatch_by_name[
+        "optional_runtime_handoff_audit_formal_attempt_feedback_accounting"
     ].ok
 
 
