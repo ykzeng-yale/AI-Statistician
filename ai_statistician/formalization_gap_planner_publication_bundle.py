@@ -81,6 +81,7 @@ from .formalization_gap_planner_llm_route_planner import (
 )
 from .formalization_gap_planner_route_adoption_blockers import (
     ROUTE_ADOPTION_AWAITING_STATUS,
+    ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE,
     ROUTE_ADOPTION_BLOCKER_FORMAL_GAP_BOUNDARIES,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID,
     ROUTE_ADOPTION_BLOCKER_TAXONOMY_SCHEMA_ID,
@@ -2315,6 +2316,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_llm_route_adoption_blockers",
             "n_llm_route_adoption_pending_quality_control_blockers",
             "n_llm_route_adoption_pending_source_grounding_blockers",
+            "n_llm_route_adoption_pending_formal_attempt_queue_blockers",
             "n_rows_with_llm_route_planner_route_adoption_preconditions",
             "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions",
             "n_llm_route_planner_route_adoption_precondition_known_blockers",
@@ -2436,6 +2438,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_llm_route_adoption_pending_source_grounding_blockers": (
+                nonnegative_integer
+            ),
+            "n_llm_route_adoption_pending_formal_attempt_queue_blockers": (
                 nonnegative_integer
             ),
             "n_rows_with_llm_route_planner_route_adoption_preconditions": (
@@ -2689,6 +2694,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_route_adoption_awaiting_llm_response",
             "n_route_adoption_rejected",
             "n_route_adoption_pending_formal_gap_boundary_blockers",
+            "n_route_adoption_pending_formal_attempt_queue_blockers",
             "n_route_adoption_blockers",
             "route_adoption_blockers",
             "route_adoption_blocker_counts",
@@ -3079,6 +3085,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_route_adoption_awaiting_llm_response": nonnegative_integer,
             "n_route_adoption_rejected": nonnegative_integer,
             "n_route_adoption_pending_formal_gap_boundary_blockers": (
+                nonnegative_integer
+            ),
+            "n_route_adoption_pending_formal_attempt_queue_blockers": (
                 nonnegative_integer
             ),
             "n_route_adoption_blockers": nonnegative_integer,
@@ -5132,6 +5141,7 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         "n_llm_route_adoption_blockers": 0,
         "n_llm_route_adoption_pending_quality_control_blockers": 0,
         "n_llm_route_adoption_pending_source_grounding_blockers": 0,
+        "n_llm_route_adoption_pending_formal_attempt_queue_blockers": 0,
         "n_rows_with_llm_route_planner_route_adoption_preconditions": 0,
         "n_rows_with_llm_route_planner_blocking_route_adoption_preconditions": 0,
         "n_llm_route_planner_route_adoption_precondition_known_blockers": 0,
@@ -5732,6 +5742,20 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
             )
             or 0
         ),
+        "n_llm_route_adoption_pending_formal_attempt_queue_blockers": int(
+            payload.get(
+                "n_llm_route_adoption_pending_formal_attempt_queue_blockers",
+                sum(
+                    1
+                    for row in rows
+                    if ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE
+                    in _str_tuple(
+                        row.get("llm_route_planner_route_adoption_blockers", [])
+                    )
+                ),
+            )
+            or 0
+        ),
         "n_rows_with_llm_route_planner_route_adoption_preconditions": int(
             payload.get(
                 "n_rows_with_llm_route_planner_route_adoption_preconditions",
@@ -6141,6 +6165,7 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_route_adoption_awaiting_llm_response": 0,
         "n_route_adoption_rejected": 0,
         "n_route_adoption_pending_formal_gap_boundary_blockers": 0,
+        "n_route_adoption_pending_formal_attempt_queue_blockers": 0,
         "n_route_adoption_blockers": 0,
         "route_adoption_blockers": (),
         "route_adoption_blocker_counts": {},
@@ -8064,6 +8089,16 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
             )
             or 0
         ),
+        "n_route_adoption_pending_formal_attempt_queue_blockers": int(
+            payload.get(
+                "n_route_adoption_pending_formal_attempt_queue_blockers",
+                route_adoption_blocker_counts.get(
+                    ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE,
+                    0,
+                ),
+            )
+            or 0
+        ),
         "n_route_adoption_blockers": sum(route_adoption_blocker_counts.values()),
         "route_adoption_blockers": tuple(route_adoption_blocker_counts),
         "route_adoption_blocker_counts": route_adoption_blocker_counts,
@@ -8915,7 +8950,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('evaluation_summary', {}).get('n_rows_pending_refinement_before_route_adoption')}/"
             f"{payload.get('evaluation_summary', {}).get('n_llm_route_adoption_blockers')} "
             f"source_grounding={payload.get('evaluation_summary', {}).get('n_llm_route_adoption_pending_source_grounding_blockers')} "
-            f"quality_controls={payload.get('evaluation_summary', {}).get('n_llm_route_adoption_pending_quality_control_blockers')}"
+            f"quality_controls={payload.get('evaluation_summary', {}).get('n_llm_route_adoption_pending_quality_control_blockers')} "
+            f"formal_attempt_queue={payload.get('evaluation_summary', {}).get('n_llm_route_adoption_pending_formal_attempt_queue_blockers')}"
         ),
         (
             f"- Evaluation LLM provider usage rows/input/output/total: "

@@ -14,6 +14,7 @@ from .formalization_gap_planner_contract import (
 )
 from .formalization_gap_planner_route_adoption_blockers import (
     ROUTE_ADOPTION_AWAITING_STATUS,
+    ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE,
     ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
@@ -556,6 +557,12 @@ def evaluate_formalization_gap_planner(
             1
             for row in evaluation_rows
             if ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING
+            in row.llm_route_planner_route_adoption_blockers
+        ),
+        "n_llm_route_adoption_pending_formal_attempt_queue_blockers": sum(
+            1
+            for row in evaluation_rows
+            if ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE
             in row.llm_route_planner_route_adoption_blockers
         ),
         "n_llm_route_adoption_pending_primitive_evidence_matrix_blockers": sum(

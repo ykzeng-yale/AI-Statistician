@@ -721,6 +721,10 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert payload["n_llm_route_adoption_pending_quality_control_blockers"] == 1
     assert payload["n_llm_route_adoption_pending_source_grounding_blockers"] == 1
     assert (
+        payload["n_llm_route_adoption_pending_formal_attempt_queue_blockers"]
+        == 0
+    )
+    assert (
         payload["n_rows_with_llm_route_planner_route_adoption_preconditions"] == 1
     )
     assert (

@@ -198,6 +198,12 @@ def test_ablation_study_compares_literature_lean_feedback_and_null_baselines() -
         ]
         == 0.0
     )
+    assert (
+        by_variant["full_planner_observed"][
+            "mean_route_adoption_pending_formal_attempt_queue_blockers"
+        ]
+        == 0.0
+    )
     assert by_variant["no_literature_evidence"]["mean_route_recall"] < 1.0
     assert by_variant["no_literature_evidence"]["n_impacted_primitives"] == 2
     assert by_variant["no_literature_evidence"]["route_adoption_ready_rate"] == 0.0
@@ -217,6 +223,12 @@ def test_ablation_study_compares_literature_lean_feedback_and_null_baselines() -
     assert (
         by_variant["no_literature_evidence"][
             "mean_route_adoption_pending_source_grounding_blockers"
+        ]
+        == 0.0
+    )
+    assert (
+        by_variant["no_literature_evidence"][
+            "mean_route_adoption_pending_formal_attempt_queue_blockers"
         ]
         == 0.0
     )
@@ -413,6 +425,10 @@ def test_ablation_study_tracks_quality_control_route_adoption_blockers() -> None
         full["mean_route_adoption_pending_source_grounding_blockers"]
         == 0.0
     )
+    assert (
+        full["mean_route_adoption_pending_formal_attempt_queue_blockers"]
+        == 0.0
+    )
     assert full["mean_route_adoption_precondition_known_blockers"] == 1.0
     assert (
         full["mean_route_adoption_precondition_required_response_fields"]
@@ -443,5 +459,9 @@ def test_ablation_study_tracks_quality_control_route_adoption_blockers() -> None
     )
     assert all(
         row["mean_route_adoption_pending_source_grounding_blockers"] == 0.0
+        for row in payload["rows"]
+    )
+    assert all(
+        row["mean_route_adoption_pending_formal_attempt_queue_blockers"] == 0.0
         for row in payload["rows"]
     )

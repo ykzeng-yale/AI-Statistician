@@ -691,10 +691,11 @@ therefore inspect minimal-route, realization-coverage, and bounded-tool-policy
 evidence without depending on Lean-specific internals. Evaluation and
 publication summaries also expose
 `n_llm_route_adoption_pending_quality_control_blockers` and
-`n_llm_route_adoption_pending_source_grounding_blockers`, so unmet tool-policy
-and source-grounding obligations can be reported separately from literature,
-prover, or cost-hint blockers. The publication-bundle audit recomputes these
-quality-control
+`n_llm_route_adoption_pending_source_grounding_blockers`, and
+`n_llm_route_adoption_pending_formal_attempt_queue_blockers`, so unmet
+tool-policy, source-grounding, and pending prover-feedback obligations can be
+reported separately from literature, prover, or cost-hint blockers. The
+publication-bundle audit recomputes these route-adoption
 aggregates from packaged evaluation JSONL rows, and also recomputes omitted
 cost-hint counters, rejecting bundles whose evaluation manifest drops or mutates
 them.
@@ -1081,9 +1082,10 @@ manifests. The bundle audit recomputes those fields from the copied planner
 artifacts, so a public manifest cannot silently under-report residual
 source-grounding work.
 Publication and reuse-smoke LLM-route summaries also surface
-`n_route_adoption_pending_formal_gap_boundary_blockers`, keeping declared
-formal-boundary gaps visible beside source-grounding, quality-control,
-resource, and cost-hint blockers.
+`n_route_adoption_pending_formal_gap_boundary_blockers` and
+`n_route_adoption_pending_formal_attempt_queue_blockers`, keeping declared
+formal-boundary gaps and unresolved prover-attempt feedback visible beside
+source-grounding, quality-control, resource, and cost-hint blockers.
 Blocker labels are part of the published
 `formalization_gap_planner_route_adoption_blocker_taxonomy:1` vocabulary, and
 publication bundles now package that vocabulary as
@@ -1609,10 +1611,12 @@ feedback readiness, and
 route-adoption readiness under the current evidence bound. It also separates
 generic route-adoption blockers from
 `mean_route_adoption_pending_quality_control_blockers` and
-`mean_route_adoption_pending_source_grounding_blockers`, so ablation rows can
-show when readiness loss reflects unmet resource/response-validation policy or
-source-grounding obligations rather than missing literature, formal-library,
-proof-state, or route-planner signals. The same rows also report
+`mean_route_adoption_pending_source_grounding_blockers`, and
+`mean_route_adoption_pending_formal_attempt_queue_blockers`, so ablation rows
+can show when readiness loss reflects unmet resource/response-validation policy,
+source-grounding obligations, or pending prover-feedback queues rather than
+missing literature, formal-library, proof-state, or route-planner signals. The
+same rows also report
 `mean_route_adoption_precondition_known_blockers` and
 `mean_route_adoption_precondition_required_response_fields` together with
 `mean_route_adoption_precondition_target_primitives`, preserving the LLM route

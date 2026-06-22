@@ -4588,6 +4588,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
             "llm_route_planner_route_adoption_precondition_known_blockers"
         ]["items"]["enum"]
     ) == set(ROUTE_ADOPTION_BLOCKER_VALUES)
+    assert (
+        "n_llm_route_adoption_pending_formal_attempt_queue_blockers"
+        in evaluation_summary_schema["required"]
+    )
     llm_summary_schema = publication_bundle_manifest_schema_payload[
         "properties"
     ]["llm_route_planner_summary"]
@@ -4606,6 +4610,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "n_formal_attempt_queue_items" in llm_summary_schema["required"]
     assert "n_rows_with_formal_attempt_queue" in llm_summary_schema["required"]
     assert "n_accepted_with_formal_attempt_queue" in llm_summary_schema["required"]
+    assert (
+        "n_route_adoption_pending_formal_attempt_queue_blockers"
+        in llm_summary_schema["required"]
+    )
     assert (
         "n_requests_with_formal_attempt_feedback_summary"
         in llm_summary_schema["required"]
