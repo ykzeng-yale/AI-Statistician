@@ -334,6 +334,95 @@ def audit_formalization_gap_planner_runtime_handoffs(
             )
             for summary in smoke_summaries
         ),
+        "n_llm_prompt_requests_with_formal_attempt_feedback_summary": sum(
+            int(
+                summary.get(
+                    "llm_prompt_requests_with_formal_attempt_feedback_summary",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_formal_attempt_feedback_contexts": sum(
+            int(
+                summary.get(
+                    "llm_prompt_formal_attempt_feedback_contexts",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_formal_attempt_feedback_residual_goals": sum(
+            int(
+                summary.get(
+                    "llm_prompt_formal_attempt_feedback_residual_goals",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_formal_attempt_feedback_failed_statuses": sum(
+            int(
+                summary.get(
+                    "llm_prompt_formal_attempt_feedback_failed_statuses",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_model_tier_decision_formal_attempt_feedback_contexts": sum(
+            int(
+                summary.get(
+                    "llm_prompt_model_tier_decision_formal_attempt_feedback_contexts",
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_model_tier_decision_formal_attempt_feedback_residual_goals": sum(
+            int(
+                summary.get(
+                    (
+                        "llm_prompt_model_tier_decision_"
+                        "formal_attempt_feedback_residual_goals"
+                    ),
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_model_tier_decision_formal_attempt_feedback_failed_statuses": sum(
+            int(
+                summary.get(
+                    (
+                        "llm_prompt_model_tier_decision_"
+                        "formal_attempt_feedback_failed_statuses"
+                    ),
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
+        "n_llm_prompt_model_tier_decision_formal_attempt_feedback_sonnet_triggers": sum(
+            int(
+                summary.get(
+                    (
+                        "llm_prompt_model_tier_decision_"
+                        "formal_attempt_feedback_sonnet_triggers"
+                    ),
+                    0,
+                )
+                or 0
+            )
+            for summary in smoke_summaries
+        ),
         "n_llm_prompt_model_tier_decision_evidence_invalid": sum(
             int(
                 summary.get(
@@ -441,6 +530,7 @@ def runtime_handoff_audit_row_json_schema() -> dict[str, object]:
                     "llm_prompt_smoke",
                     "proof_boundary",
                     "row",
+                    "route_replan_handoff",
                     "standalone_seed",
                     "standalone_smoke",
                     "reuse_smoke",
@@ -496,10 +586,17 @@ def _audit_handoff_row(
     target_intake_path_text = str(handoff.get("target_intake_path", "")).strip()
     target_intake_dir_text = str(handoff.get("target_intake_dir", "")).strip()
     standalone_plan_dir_text = str(handoff.get("standalone_plan_dir", "")).strip()
+    route_replan_handoff_dir_text = str(
+        handoff.get(
+            "formalization_gap_planner_route_replan_handoff_dir",
+            handoff.get("route_replan_handoff_dir", ""),
+        )
+    ).strip()
     seed_path = Path(seed_path_text)
     target_intake_path = Path(target_intake_path_text)
     target_intake_dir = Path(target_intake_dir_text)
     standalone_plan_dir = Path(standalone_plan_dir_text)
+    route_replan_handoff_dir = Path(route_replan_handoff_dir_text)
     standalone_plan_cli = str(handoff.get("standalone_plan_cli", ""))
     target_intake_cli = str(handoff.get("target_intake_cli", ""))
     prompt_cli = str(handoff.get("llm_route_planner_prompt_cli", ""))
@@ -517,6 +614,9 @@ def _audit_handoff_row(
         "bridge_id": bridge_id,
         "standalone_seed_path": seed_path_text,
         "standalone_plan_dir": standalone_plan_dir_text,
+        "formalization_gap_planner_route_replan_handoff_dir": (
+            route_replan_handoff_dir_text
+        ),
         "target_intake_path": target_intake_path_text,
         "target_intake_dir": target_intake_dir_text,
         "target_prover_family": handoff_target,
@@ -529,6 +629,10 @@ def _audit_handoff_row(
         ),
         "standalone_plan_dir_exists": (
             bool(standalone_plan_dir_text) and standalone_plan_dir.exists()
+        ),
+        "route_replan_handoff_dir_exists": (
+            bool(route_replan_handoff_dir_text)
+            and route_replan_handoff_dir.exists()
         ),
         "seed_schema_ok": False,
         "cost_control_ok": False,
@@ -561,6 +665,14 @@ def _audit_handoff_row(
         "llm_prompt_model_tier_decision_auto_sonnet_triggered": 0,
         "llm_prompt_model_tier_decision_operator_override": 0,
         "llm_prompt_model_tier_decision_sonnet_triggers": 0,
+        "llm_prompt_requests_with_formal_attempt_feedback_summary": 0,
+        "llm_prompt_formal_attempt_feedback_contexts": 0,
+        "llm_prompt_formal_attempt_feedback_residual_goals": 0,
+        "llm_prompt_formal_attempt_feedback_failed_statuses": 0,
+        "llm_prompt_model_tier_decision_formal_attempt_feedback_contexts": 0,
+        "llm_prompt_model_tier_decision_formal_attempt_feedback_residual_goals": 0,
+        "llm_prompt_model_tier_decision_formal_attempt_feedback_failed_statuses": 0,
+        "llm_prompt_model_tier_decision_formal_attempt_feedback_sonnet_triggers": 0,
         "llm_prompt_model_tier_decision_evidence_invalid": 0,
         "llm_prompt_by_model_tier_decision_basis": {},
         "llm_prompt_max_estimated_prompt_input_tokens": 0,
@@ -593,12 +705,14 @@ def _audit_handoff_row(
         standalone_plan_dir_text=standalone_plan_dir_text,
         target_intake_dir_text=target_intake_dir_text,
         component_resource_registry_dir_text=component_resource_registry_dir_text,
+        route_replan_handoff_dir_text=route_replan_handoff_dir_text,
     )
     live_explicit_ok = _live_cli_explicit_ok(
         live_cli,
         standalone_plan_dir_text=standalone_plan_dir_text,
         target_intake_dir_text=target_intake_dir_text,
         component_resource_registry_dir_text=component_resource_registry_dir_text,
+        route_replan_handoff_dir_text=route_replan_handoff_dir_text,
     )
     reuse_smoke_cost_control_ok = _reuse_smoke_cli_cost_control_ok(
         reuse_smoke_cli,
@@ -832,6 +946,22 @@ def _audit_handoff_row(
             ),
         ),
         _row_check(
+            "row_prompt_cli_has_route_replan_handoff_context",
+            "route_replan_handoff",
+            handoff_id,
+            bridge_id,
+            "--formalization-gap-planner-route-replan-handoff-dir when declared",
+            prompt_cli,
+            (
+                not route_replan_handoff_dir_text
+                or (
+                    "--formalization-gap-planner-route-replan-handoff-dir"
+                    in prompt_cli
+                    and route_replan_handoff_dir_text in prompt_cli
+                )
+            ),
+        ),
+        _row_check(
             "row_live_cli_has_component_resource_registry_context",
             "component_resource_registry",
             handoff_id,
@@ -843,6 +973,22 @@ def _audit_handoff_row(
             and (
                 not component_resource_registry_dir_text
                 or component_resource_registry_dir_text in live_cli
+            ),
+        ),
+        _row_check(
+            "row_live_cli_has_route_replan_handoff_context",
+            "route_replan_handoff",
+            handoff_id,
+            bridge_id,
+            "--formalization-gap-planner-route-replan-handoff-dir when declared",
+            live_cli,
+            (
+                not route_replan_handoff_dir_text
+                or (
+                    "--formalization-gap-planner-route-replan-handoff-dir"
+                    in live_cli
+                    and route_replan_handoff_dir_text in live_cli
+                )
             ),
         ),
         _row_check(
@@ -1027,6 +1173,12 @@ def _audit_handoff_row(
             ),
             target_intake_dir=llm_prompt_target_intake_dir,
             component_resource_registry_dir=registry_dir if registry_ok else None,
+            formalization_gap_planner_route_replan_handoff_dir=(
+                route_replan_handoff_dir
+                if route_replan_handoff_dir_text
+                and route_replan_handoff_dir.exists()
+                else None
+            ),
         )
         summary.update(llm_counts)
         summary["llm_prompt_smoke_ok"] = llm_ok
@@ -1470,6 +1622,7 @@ def _run_llm_prompt_smoke(
     goal_conditioned_minimal_formalization_plan_dir: Path | None = None,
     target_intake_dir: Path | None = None,
     component_resource_registry_dir: Path | None = None,
+    formalization_gap_planner_route_replan_handoff_dir: Path | None = None,
 ) -> tuple[bool, str, dict[str, object]]:
     try:
         payload = export_formalization_gap_planner_llm_route_planner(
@@ -1488,6 +1641,9 @@ def _run_llm_prompt_smoke(
             formalization_gap_planner_target_intake_dir=target_intake_dir,
             formalization_gap_planner_component_resource_registry_dir=(
                 component_resource_registry_dir
+            ),
+            formalization_gap_planner_route_replan_handoff_dir=(
+                formalization_gap_planner_route_replan_handoff_dir
             ),
         )
     except Exception as exc:  # pragma: no cover - defensive audit surface
@@ -1513,6 +1669,14 @@ def _run_llm_prompt_smoke(
                 "llm_prompt_model_tier_decision_auto_sonnet_triggered": 0,
                 "llm_prompt_model_tier_decision_operator_override": 0,
                 "llm_prompt_model_tier_decision_sonnet_triggers": 0,
+                "llm_prompt_requests_with_formal_attempt_feedback_summary": 0,
+                "llm_prompt_formal_attempt_feedback_contexts": 0,
+                "llm_prompt_formal_attempt_feedback_residual_goals": 0,
+                "llm_prompt_formal_attempt_feedback_failed_statuses": 0,
+                "llm_prompt_model_tier_decision_formal_attempt_feedback_contexts": 0,
+                "llm_prompt_model_tier_decision_formal_attempt_feedback_residual_goals": 0,
+                "llm_prompt_model_tier_decision_formal_attempt_feedback_failed_statuses": 0,
+                "llm_prompt_model_tier_decision_formal_attempt_feedback_sonnet_triggers": 0,
                 "llm_prompt_model_tier_decision_evidence_invalid": 0,
                 "llm_prompt_by_model_tier_decision_basis": {},
                 "llm_prompt_max_estimated_prompt_input_tokens": 0,
@@ -1573,6 +1737,46 @@ def _run_llm_prompt_smoke(
     )
     n_tier_decision_sonnet_triggers = int(
         payload.get("n_request_model_tier_decision_sonnet_triggers", 0) or 0
+    )
+    n_requests_with_formal_attempt_feedback = int(
+        payload.get("n_requests_with_formal_attempt_feedback_summary", 0) or 0
+    )
+    n_formal_attempt_feedback_contexts = int(
+        payload.get("n_request_formal_attempt_feedback_contexts", 0) or 0
+    )
+    n_formal_attempt_feedback_residual_goals = int(
+        payload.get("n_request_formal_attempt_feedback_residual_goals", 0) or 0
+    )
+    n_formal_attempt_feedback_failed_statuses = int(
+        payload.get("n_request_formal_attempt_feedback_failed_statuses", 0) or 0
+    )
+    n_tier_decision_formal_attempt_feedback_contexts = int(
+        payload.get(
+            "n_request_model_tier_decision_formal_attempt_feedback_contexts",
+            0,
+        )
+        or 0
+    )
+    n_tier_decision_formal_attempt_feedback_residual_goals = int(
+        payload.get(
+            "n_request_model_tier_decision_formal_attempt_feedback_residual_goals",
+            0,
+        )
+        or 0
+    )
+    n_tier_decision_formal_attempt_feedback_failed_statuses = int(
+        payload.get(
+            "n_request_model_tier_decision_formal_attempt_feedback_failed_statuses",
+            0,
+        )
+        or 0
+    )
+    n_tier_decision_formal_attempt_feedback_sonnet_triggers = int(
+        payload.get(
+            "n_request_model_tier_decision_formal_attempt_feedback_sonnet_triggers",
+            0,
+        )
+        or 0
     )
     n_tier_decision_invalid = int(
         payload.get("n_request_model_tier_decision_evidence_invalid", 0) or 0
@@ -1640,6 +1844,15 @@ def _run_llm_prompt_smoke(
         f"model_tier_decision_evidence={n_tier_decision_evidence} "
         f"model_tier_decision_basis={by_tier_decision_basis} "
         f"model_tier_decision_sonnet_triggers={n_tier_decision_sonnet_triggers} "
+        f"formal_attempt_feedback=requests:{n_requests_with_formal_attempt_feedback},"
+        f"contexts:{n_formal_attempt_feedback_contexts},"
+        f"residual_goals:{n_formal_attempt_feedback_residual_goals},"
+        f"failed_statuses:{n_formal_attempt_feedback_failed_statuses} "
+        f"model_tier_decision_formal_attempt_feedback="
+        f"contexts:{n_tier_decision_formal_attempt_feedback_contexts},"
+        f"residual_goals:{n_tier_decision_formal_attempt_feedback_residual_goals},"
+        f"failed_statuses:{n_tier_decision_formal_attempt_feedback_failed_statuses},"
+        f"sonnet_triggers:{n_tier_decision_formal_attempt_feedback_sonnet_triggers} "
         f"model_tier_decision_invalid={n_tier_decision_invalid} "
         f"prompt_budget_cap={max_estimated_prompt_input_tokens} "
         f"prompt_budget_blocks={n_prompt_budget_preflight_blocked} "
@@ -1675,6 +1888,30 @@ def _run_llm_prompt_smoke(
         ),
         "llm_prompt_model_tier_decision_sonnet_triggers": (
             n_tier_decision_sonnet_triggers
+        ),
+        "llm_prompt_requests_with_formal_attempt_feedback_summary": (
+            n_requests_with_formal_attempt_feedback
+        ),
+        "llm_prompt_formal_attempt_feedback_contexts": (
+            n_formal_attempt_feedback_contexts
+        ),
+        "llm_prompt_formal_attempt_feedback_residual_goals": (
+            n_formal_attempt_feedback_residual_goals
+        ),
+        "llm_prompt_formal_attempt_feedback_failed_statuses": (
+            n_formal_attempt_feedback_failed_statuses
+        ),
+        "llm_prompt_model_tier_decision_formal_attempt_feedback_contexts": (
+            n_tier_decision_formal_attempt_feedback_contexts
+        ),
+        "llm_prompt_model_tier_decision_formal_attempt_feedback_residual_goals": (
+            n_tier_decision_formal_attempt_feedback_residual_goals
+        ),
+        "llm_prompt_model_tier_decision_formal_attempt_feedback_failed_statuses": (
+            n_tier_decision_formal_attempt_feedback_failed_statuses
+        ),
+        "llm_prompt_model_tier_decision_formal_attempt_feedback_sonnet_triggers": (
+            n_tier_decision_formal_attempt_feedback_sonnet_triggers
         ),
         "llm_prompt_model_tier_decision_evidence_invalid": n_tier_decision_invalid,
         "llm_prompt_by_model_tier_decision_basis": by_tier_decision_basis,
@@ -1741,6 +1978,7 @@ def _prompt_cli_cost_control_ok(
     standalone_plan_dir_text: str,
     target_intake_dir_text: str,
     component_resource_registry_dir_text: str,
+    route_replan_handoff_dir_text: str = "",
 ) -> bool:
     return (
         "formalization-gap-planner-llm-route-planner" in prompt_cli
@@ -1760,6 +1998,14 @@ def _prompt_cli_cost_control_ok(
         and (
             not component_resource_registry_dir_text
             or component_resource_registry_dir_text in prompt_cli
+        )
+        and (
+            not route_replan_handoff_dir_text
+            or (
+                "--formalization-gap-planner-route-replan-handoff-dir"
+                in prompt_cli
+                and route_replan_handoff_dir_text in prompt_cli
+            )
         )
         and "--invoke-provider" not in prompt_cli
     )
@@ -1798,6 +2044,7 @@ def _live_cli_explicit_ok(
     standalone_plan_dir_text: str,
     target_intake_dir_text: str,
     component_resource_registry_dir_text: str,
+    route_replan_handoff_dir_text: str = "",
 ) -> bool:
     return (
         "formalization-gap-planner-llm-route-planner" in live_cli
@@ -1814,6 +2061,14 @@ def _live_cli_explicit_ok(
         and (
             not component_resource_registry_dir_text
             or component_resource_registry_dir_text in live_cli
+        )
+        and (
+            not route_replan_handoff_dir_text
+            or (
+                "--formalization-gap-planner-route-replan-handoff-dir"
+                in live_cli
+                and route_replan_handoff_dir_text in live_cli
+            )
         )
         and "--invoke-provider" in live_cli
     )
@@ -2113,6 +2368,17 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
             f"evidence={payload.get('n_llm_prompt_requests_with_model_tier_decision_evidence')} "
             f"sonnet_triggers={payload.get('n_llm_prompt_model_tier_decision_sonnet_triggers')} "
             f"invalid={payload.get('n_llm_prompt_model_tier_decision_evidence_invalid')}"
+        ),
+        (
+            f"- LLM prompt formal-attempt feedback: "
+            f"requests={payload.get('n_llm_prompt_requests_with_formal_attempt_feedback_summary')} "
+            f"contexts={payload.get('n_llm_prompt_formal_attempt_feedback_contexts')} "
+            f"residual_goals={payload.get('n_llm_prompt_formal_attempt_feedback_residual_goals')} "
+            f"failed_statuses={payload.get('n_llm_prompt_formal_attempt_feedback_failed_statuses')} "
+            f"tier_contexts={payload.get('n_llm_prompt_model_tier_decision_formal_attempt_feedback_contexts')} "
+            f"tier_residual_goals={payload.get('n_llm_prompt_model_tier_decision_formal_attempt_feedback_residual_goals')} "
+            f"tier_failed_statuses={payload.get('n_llm_prompt_model_tier_decision_formal_attempt_feedback_failed_statuses')} "
+            f"tier_sonnet_triggers={payload.get('n_llm_prompt_model_tier_decision_formal_attempt_feedback_sonnet_triggers')}"
         ),
         f"- Seed routes/primitives: {payload.get('n_seed_routes')}/{payload.get('n_seed_primitives')}",
         f"- Seed residual goals: {payload.get('n_seed_residual_goals')}",

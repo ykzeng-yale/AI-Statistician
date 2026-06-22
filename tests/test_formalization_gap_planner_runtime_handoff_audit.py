@@ -19,8 +19,10 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     standalone_plan_dir = root / "standalone_plan"
     target_intake_dir = root / "target_intake_dir"
     registry_dir = root / "component_resource_registry"
+    route_replan_handoff_dir = root / "route_replan_handoff"
     shutil.rmtree(root, ignore_errors=True)
     root.mkdir(parents=True, exist_ok=True)
+    route_replan_handoff_dir.mkdir(parents=True, exist_ok=True)
     seed_payload = {
         "schema_version": 1,
         "component_name": "formalization_gap_planner_standalone_input",
@@ -92,6 +94,92 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
         json.dumps(target_intake_payload, indent=2),
         encoding="utf-8",
     )
+    formal_attempt_context = {
+        "attempt_id": "attempt:rocq_rank_uniformity_bridge",
+        "formal_node_id": "formal:rocq_rank_uniformity",
+        "formal_attempt_queue_index": 0,
+        "formal_attempt_dependency_status": "initial_ready",
+        "attempt_kind": "bridge_lemma",
+        "primitive": "rank_uniformity",
+        "target_primitives": ["rank_uniformity"],
+        "target_prover_family": "rocq",
+        "prerequisite_formal_node_ids": [],
+        "prerequisite_attempt_ids": [],
+        "missing_prerequisite_formal_node_ids": [],
+        "expected_feedback": ["kernel_status", "residual_goals"],
+    }
+    (
+        route_replan_handoff_dir
+        / "formalization_gap_planner_route_replan_handoff_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_route_replan_handoff",
+                "rows": [
+                    {
+                        "route_replan_handoff_id": (
+                            "handoff:rocq_rank_route_formal_attempt_feedback"
+                        ),
+                        "route_revision_overlay_id": (
+                            "overlay:rocq_rank_route_formal_attempt_feedback"
+                        ),
+                        "goal_plan_id": "rocq_rank_route",
+                        "route_id": "rocq_rank_route",
+                        "display_name": "rocq_rank_route",
+                        "applied_hook_kinds": ["resource_response_ledger"],
+                        "applied_resource_response_traces": [
+                            {
+                                "resource_response_ledger_id": (
+                                    "ledger:rocq_rank_uniformity_attempt"
+                                ),
+                                "resource_request_id": (
+                                    "request:rocq_rank_uniformity_attempt"
+                                ),
+                                "resource_id": "rocq_lsp_mcp",
+                                "target_primitives": ["rank_uniformity"],
+                                "formal_attempt_context": formal_attempt_context,
+                                "residual_goals": [
+                                    (
+                                        "rocq_rank_uniformity needs an explicit "
+                                        "measurability side condition"
+                                    )
+                                ],
+                                "prover_attempt_status": (
+                                    "failed_with_residual_goals"
+                                ),
+                                "prover_diagnostic_signature": (
+                                    "residual_goal:rocq_rank_uniformity_measurability"
+                                ),
+                                "route_revision_recommended": True,
+                                "route_revision_reasons": [
+                                    (
+                                        "formal attempt exposed a source-backed "
+                                        "measurability side condition"
+                                    )
+                                ],
+                            }
+                        ],
+                        "applied_llm_route_planner_hook_traces": [
+                            {
+                                "llm_route_planner_row_id": (
+                                    "llm_route:rocq_rank_uniformity_feedback"
+                                ),
+                                "llm_route_planner_request_id": (
+                                    "llm_request:rocq_rank_uniformity_feedback"
+                                ),
+                                "llm_route_planner_hook_kind": (
+                                    "formal_attempt_feedback"
+                                ),
+                                "formal_attempt_context": formal_attempt_context,
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     handoff_target = "rocq"
     handoff_row = {
         "schema_version": 1,
@@ -106,6 +194,9 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
         "library_snapshot_ref": "portable:runtime-mixed-targets",
         "recommended_llm_provider": "anthropic",
         "recommended_model_tier": "auto",
+        "formalization_gap_planner_route_replan_handoff_dir": str(
+            route_replan_handoff_dir
+        ),
         "component_resource_registry_dir": str(registry_dir),
         "component_resource_registry_cli": (
             "python3 -m ai_statistician.cli "
@@ -130,6 +221,8 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
             "--goal-conditioned-minimal-formalization-plan-dir "
             f"{standalone_plan_dir} "
             f"--formalization-gap-planner-target-intake-dir {target_intake_dir} "
+            "--formalization-gap-planner-route-replan-handoff-dir "
+            f"{route_replan_handoff_dir} "
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{registry_dir} --out {root / 'llm_prompt'}"
         ),
@@ -141,6 +234,8 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
             "--goal-conditioned-minimal-formalization-plan-dir "
             f"{standalone_plan_dir} "
             f"--formalization-gap-planner-target-intake-dir {target_intake_dir} "
+            "--formalization-gap-planner-route-replan-handoff-dir "
+            f"{route_replan_handoff_dir} "
             "--formalization-gap-planner-component-resource-registry-dir "
             f"{registry_dir} --invoke-provider --out {root / 'llm_live'}"
         ),
@@ -192,6 +287,34 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     assert payload["n_llm_prompt_model_tier_decision_auto_sonnet_triggered"] == 2
     assert payload["n_llm_prompt_model_tier_decision_operator_override"] == 0
     assert payload["n_llm_prompt_model_tier_decision_sonnet_triggers"] > 0
+    assert payload["n_llm_prompt_requests_with_formal_attempt_feedback_summary"] == 1
+    assert payload["n_llm_prompt_formal_attempt_feedback_contexts"] == 1
+    assert payload["n_llm_prompt_formal_attempt_feedback_residual_goals"] == 1
+    assert payload["n_llm_prompt_formal_attempt_feedback_failed_statuses"] == 1
+    assert (
+        payload[
+            "n_llm_prompt_model_tier_decision_formal_attempt_feedback_contexts"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_prompt_model_tier_decision_formal_attempt_feedback_residual_goals"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_prompt_model_tier_decision_formal_attempt_feedback_failed_statuses"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_prompt_model_tier_decision_formal_attempt_feedback_sonnet_triggers"
+        ]
+        == 1
+    )
     assert payload["n_llm_prompt_model_tier_decision_evidence_invalid"] == 0
     assert payload["llm_prompt_by_model_tier_decision_basis"] == {
         "auto_sonnet_triggers": 2
@@ -214,6 +337,34 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     assert summary["llm_prompt_model_tier_decision_auto_sonnet_triggered"] == 2
     assert summary["llm_prompt_model_tier_decision_operator_override"] == 0
     assert summary["llm_prompt_model_tier_decision_sonnet_triggers"] > 0
+    assert summary["llm_prompt_requests_with_formal_attempt_feedback_summary"] == 1
+    assert summary["llm_prompt_formal_attempt_feedback_contexts"] == 1
+    assert summary["llm_prompt_formal_attempt_feedback_residual_goals"] == 1
+    assert summary["llm_prompt_formal_attempt_feedback_failed_statuses"] == 1
+    assert (
+        summary[
+            "llm_prompt_model_tier_decision_formal_attempt_feedback_contexts"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "llm_prompt_model_tier_decision_formal_attempt_feedback_residual_goals"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "llm_prompt_model_tier_decision_formal_attempt_feedback_failed_statuses"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "llm_prompt_model_tier_decision_formal_attempt_feedback_sonnet_triggers"
+        ]
+        == 1
+    )
     assert summary["llm_prompt_model_tier_decision_evidence_invalid"] == 0
     assert summary["llm_prompt_by_model_tier_decision_basis"] == {
         "auto_sonnet_triggers": 2
@@ -227,6 +378,12 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     assert (
         "- LLM prompt model-tier decision basis: {'auto_sonnet_triggers': 2} "
         "evidence=2"
+    ) in report
+    assert (
+        "- LLM prompt formal-attempt feedback: requests=1 contexts=1 "
+        "residual_goals=1 failed_statuses=1 tier_contexts=1 "
+        "tier_residual_goals=1 tier_failed_statuses=1 "
+        "tier_sonnet_triggers=1"
     ) in report
     seed_target_checks = {
         str(check["check_name"]).split(":", 1)[0]: check
