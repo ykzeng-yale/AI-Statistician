@@ -373,6 +373,36 @@ def export_formalization_gap_planner_route_replan_handoff(
             for trace in row.applied_resource_response_traces
             if "minimal_delta_cost_score" in trace
         ),
+        "n_applied_resource_response_target_theorem_context_packet_traces": sum(
+            1
+            for row in rows
+            for trace in row.applied_resource_response_traces
+            if _trace_has_dict(
+                trace,
+                "target_theorem_context_packet",
+                "llm_route_planner_target_theorem_context_packet",
+            )
+        ),
+        "n_applied_resource_response_target_context_summary_traces": sum(
+            1
+            for row in rows
+            for trace in row.applied_resource_response_traces
+            if _trace_has_dict(
+                trace,
+                "target_context_summary",
+                "llm_route_planner_target_context_summary",
+            )
+        ),
+        "n_applied_resource_response_route_planning_brief_traces": sum(
+            1
+            for row in rows
+            for trace in row.applied_resource_response_traces
+            if _trace_has_dict(
+                trace,
+                "route_planning_brief",
+                "llm_route_planner_route_planning_brief",
+            )
+        ),
         "average_applied_resource_response_reuse_readiness_score": _average_int(
             trace.get("reuse_readiness_score", 0)
             for row in rows
@@ -387,6 +417,36 @@ def export_formalization_gap_planner_route_replan_handoff(
         ),
         "n_applied_llm_route_planner_hook_traces": sum(
             len(row.applied_llm_route_planner_hook_traces) for row in rows
+        ),
+        "n_applied_llm_route_planner_target_theorem_context_packet_traces": sum(
+            1
+            for row in rows
+            for trace in row.applied_llm_route_planner_hook_traces
+            if _trace_has_dict(
+                trace,
+                "target_theorem_context_packet",
+                "llm_route_planner_target_theorem_context_packet",
+            )
+        ),
+        "n_applied_llm_route_planner_target_context_summary_traces": sum(
+            1
+            for row in rows
+            for trace in row.applied_llm_route_planner_hook_traces
+            if _trace_has_dict(
+                trace,
+                "target_context_summary",
+                "llm_route_planner_target_context_summary",
+            )
+        ),
+        "n_applied_llm_route_planner_route_planning_brief_traces": sum(
+            1
+            for row in rows
+            for trace in row.applied_llm_route_planner_hook_traces
+            if _trace_has_dict(
+                trace,
+                "route_planning_brief",
+                "llm_route_planner_route_planning_brief",
+            )
         ),
         "n_routes_with_quality_controls": sum(
             1 for row in rows if row.quality_controls
@@ -1881,6 +1941,11 @@ def _target_theorem_context_packet_for_handoff(
         overlay_row.get("target_theorem_context_packet", {}),
         overlay_metadata.get("target_theorem_context_packet", {}),
         overlay_metadata.get("llm_route_planner_target_theorem_context_packet", {}),
+        *_applied_trace_context_sources(
+            overlay_row,
+            "target_theorem_context_packet",
+            "llm_route_planner_target_theorem_context_packet",
+        ),
         trace.get("target_theorem_context_packet", {}),
         trace_metadata.get("target_theorem_context_packet", {}),
         trace_metadata.get("llm_route_planner_target_theorem_context_packet", {}),
@@ -1906,6 +1971,11 @@ def _target_context_summary_for_handoff(
         overlay_row.get("llm_route_planner_target_context_summary", {}),
         overlay_metadata.get("target_context_summary", {}),
         overlay_metadata.get("llm_route_planner_target_context_summary", {}),
+        *_applied_trace_context_sources(
+            overlay_row,
+            "target_context_summary",
+            "llm_route_planner_target_context_summary",
+        ),
         trace.get("target_context_summary", {}),
         trace.get("llm_route_planner_target_context_summary", {}),
         trace_metadata.get("target_context_summary", {}),
@@ -1978,6 +2048,11 @@ def _route_planning_brief_for_handoff(
         overlay_row.get("llm_route_planner_route_planning_brief", {}),
         overlay_metadata.get("route_planning_brief", {}),
         overlay_metadata.get("llm_route_planner_route_planning_brief", {}),
+        *_applied_trace_context_sources(
+            overlay_row,
+            "route_planning_brief",
+            "llm_route_planner_route_planning_brief",
+        ),
         trace.get("route_planning_brief", {}),
         trace.get("llm_route_planner_route_planning_brief", {}),
         trace_metadata.get("route_planning_brief", {}),
@@ -1989,6 +2064,23 @@ def _route_planning_brief_for_handoff(
         if brief:
             return dict(brief)
     return {}
+
+
+def _applied_trace_context_sources(
+    overlay_row: dict[str, Any],
+    *field_names: str,
+) -> tuple[Any, ...]:
+    sources: list[Any] = []
+    for trace_field in (
+        "applied_resource_response_traces",
+        "applied_llm_route_planner_hook_traces",
+    ):
+        for trace in _dict_tuple(overlay_row.get(trace_field, [])):
+            trace_metadata = _dict_value(trace.get("replan_metadata", {}))
+            for field_name in field_names:
+                sources.append(trace.get(field_name, {}))
+                sources.append(trace_metadata.get(field_name, {}))
+    return tuple(sources)
 
 
 def _route_adoption_preconditions_for_handoff(
@@ -2418,6 +2510,16 @@ def _dict_value(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
 
 
+def _trace_has_dict(trace: dict[str, object], *field_names: str) -> bool:
+    trace_metadata = _dict_value(trace.get("replan_metadata", {}))
+    for field_name in field_names:
+        if _dict_value(trace.get(field_name, {})):
+            return True
+        if _dict_value(trace_metadata.get(field_name, {})):
+            return True
+    return False
+
+
 def _merge_dicts(
     *values: tuple[dict[str, object], ...],
 ) -> tuple[dict[str, object], ...]:
@@ -2494,11 +2596,25 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_applied_resource_response_traces_with_minimal_delta_priority')}"
         ),
         (
+            "- Applied resource-response target context traces "
+            "(packet/summary/brief): "
+            f"{payload.get('n_applied_resource_response_target_theorem_context_packet_traces')}/"
+            f"{payload.get('n_applied_resource_response_target_context_summary_traces')}/"
+            f"{payload.get('n_applied_resource_response_route_planning_brief_traces')}"
+        ),
+        (
             "- Applied resource-response reuse/evidence readiness: "
             f"{payload.get('average_applied_resource_response_reuse_readiness_score')}/"
             f"{payload.get('average_applied_resource_response_evidence_readiness_score')}"
         ),
         f"- Applied LLM route-planner hook traces: {payload.get('n_applied_llm_route_planner_hook_traces')}",
+        (
+            "- Applied LLM route-planner target context traces "
+            "(packet/summary/brief): "
+            f"{payload.get('n_applied_llm_route_planner_target_theorem_context_packet_traces')}/"
+            f"{payload.get('n_applied_llm_route_planner_target_context_summary_traces')}/"
+            f"{payload.get('n_applied_llm_route_planner_route_planning_brief_traces')}"
+        ),
         f"- Applied hook kinds: {payload.get('by_applied_hook_kind')}",
         f"- Row schema valid: {payload.get('n_row_schema_valid')}/{payload.get('n_handoff_rows')}",
         f"- All OK: {payload.get('all_ok')}",

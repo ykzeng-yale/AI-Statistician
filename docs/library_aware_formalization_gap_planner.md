@@ -1435,6 +1435,13 @@ applied resource-response and LLM hook traces by source kind and preserve the
 same `llm_route_planner_target_theorem_context_packet`,
 `llm_route_planner_target_context_summary`, and
 `llm_route_planner_route_planning_brief` fields in those applied traces. The
+route-replan handoff also scans those applied traces directly, so a replan
+seed still receives the target theorem packet, target context summary, and
+route-planning brief even when they only appear inside accepted feedback traces
+rather than on the overlay row or prior standalone trace. Its manifest and
+markdown report count resource-response and LLM-hook trace-level
+packet/summary/brief provenance separately, making lost theorem-context
+handoffs visible before the next LLM planner call. The
 source-grounding audit also consumes residual contexts: context
 `source_refs`/`source_snippets` count as source backing, context
 `queries`/`source_search_queries` count as bounded search hooks, and a
@@ -2722,6 +2729,10 @@ The current implementation composes four existing AI Statistician artifacts:
    `replan_metadata` preserve the same packet, including the
    `llm_route_planner_target_theorem_context_packet` alias, so feedback-driven
    replan rounds do not lose the original target theorem identity.
+   The same recovery path now includes accepted applied resource-response
+   traces and applied LLM route-planner hook traces, including nested
+   `replan_metadata`, so trace-only target packets, target summaries, and
+   route-planning briefs are lifted into the handoff row and replayable seed.
    If the prior standalone trace also carries
    `llm_route_planner_route_planning_brief`, the handoff row, seed route, and
    seed `replan_metadata` preserve it too, so the next LLM route-planner call

@@ -1191,6 +1191,272 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     )
 
 
+def test_route_replan_handoff_lifts_target_context_from_applied_traces() -> None:
+    root = Path("runs/test_formalization_gap_planner_route_replan_handoff_trace_context")
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    overlay_dir = root / "overlay"
+    handoff_dir = root / "handoff"
+    next_plan_dir = root / "next_plan"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "mathlib4:trace-context-fixture",
+                "routes": [
+                    {
+                        "display_name": "trace_only_context_route",
+                        "theorem_statement": "Trace-only context should survive replanning.",
+                        "theorem_skeleton": "theorem trace_only_context_route : True := by trivial",
+                        "source_refs": ["trace context note"],
+                        "primitives": [
+                            {
+                                "primitive": "trace_context_bridge",
+                                "coverage_status": "bridge_needed",
+                                "candidate_declarations": ["Trace.Context.bridge"],
+                                "source_refs": ["trace context note"],
+                                "cost": 3,
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    plan_payload = export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    plan_row = plan_payload["rows"][0]
+    target_theorem_context_packet = {
+        "packet_kind": (
+            "formalization_gap_planner_llm_route_planner_target_theorem_context_packet"
+        ),
+        "target_prover_family": "lean4",
+        "target_theorem_name": "trace_only_context_route",
+        "target_theorem_statement": "Trace-only context should survive replanning.",
+        "source_refs": ["trace context note"],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    target_context_summary = {
+        "summary_kind": (
+            "formalization_gap_planner_llm_route_planner_target_context_summary"
+        ),
+        "route_id": plan_row["route_id"],
+        "normalized_objects": ["trace context"],
+        "normalized_assumptions": ["applied trace is accepted"],
+        "normalized_procedures": ["route-replan handoff"],
+        "desired_conclusions": ["context survives nested trace handoff"],
+        "desired_theorem_shapes": ["replayable standalone seed"],
+        "proof_source_refs": ["trace context note"],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    route_planning_brief = {
+        "brief_kind": "formalization_gap_planner_llm_route_planner_route_planning_brief",
+        "route_id": plan_row["route_id"],
+        "display_name": "trace_only_context_route",
+        "target_prover_family": "lean4",
+        "planner_focus": [
+            {
+                "focus_id": "preserve_trace_context",
+                "priority": 1,
+                "action": "reuse accepted applied-trace context during replan",
+                "target_primitives": ["trace_context_bridge"],
+            }
+        ],
+        "evidence_gaps": [
+            {
+                "gap_id": "trace_context_gap",
+                "gap_kind": "handoff_context",
+                "recommended_action": "carry nested trace context into seed",
+                "target_primitives": ["trace_context_bridge"],
+            }
+        ],
+        "proof_evidence_status": (
+            "FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_NOT_PROOF_EVIDENCE"
+        ),
+    }
+    overlay_row = {
+        "route_revision_overlay_id": "overlay:trace_only_context_route",
+        "goal_plan_id": plan_row["goal_plan_id"],
+        "route_id": plan_row["route_id"],
+        "display_name": plan_row["display_name"],
+        "revision_status": "ROUTE_REVISION_APPLIED",
+        "original_selected_primitives": plan_row["selected_primitives"],
+        "revised_selected_primitives": plan_row["selected_primitives"],
+        "added_primitives": [],
+        "removed_primitives": [],
+        "original_delta_primitives": [
+            node["primitive"]
+            for node in plan_row["minimal_additional_formalization_nodes"]
+        ],
+        "revised_delta_primitives": [
+            node["primitive"]
+            for node in plan_row["minimal_additional_formalization_nodes"]
+        ],
+        "added_delta_primitives": [],
+        "source_refs": ["trace context note"],
+        "applied_hook_kinds": ["resource_response_ledger"],
+        "applied_resource_response_traces": [
+            {
+                "resource_response_ledger_id": "trace_context_bridge",
+                "resource_request_id": "request:trace_context_bridge",
+                "goal_plan_id": plan_row["goal_plan_id"],
+                "route_id": plan_row["route_id"],
+                "primitive": "trace_context_bridge",
+                "target_primitives": ["trace_context_bridge"],
+                "resource_id": "paperqa",
+                "acceptance_status": "ACCEPTED_WITH_ROUTE_REVISION",
+                "llm_route_planner_target_theorem_context_packet": (
+                    target_theorem_context_packet
+                ),
+            }
+        ],
+        "applied_llm_route_planner_hook_traces": [
+            {
+                "trace_source": "resource_response_ledger",
+                "resource_response_ledger_id": "trace_context_bridge",
+                "resource_request_id": "request:trace_context_bridge",
+                "route_id": plan_row["route_id"],
+                "goal_plan_id": plan_row["goal_plan_id"],
+                "llm_route_planner_row_id": "llm_route_row:trace_context_bridge",
+                "llm_route_planner_request_id": "llm_route_request:trace_context_bridge",
+                "target_primitives": ["trace_context_bridge"],
+                "replan_metadata": {
+                    "llm_route_planner_target_context_summary": target_context_summary,
+                    "llm_route_planner_route_planning_brief": route_planning_brief,
+                },
+            }
+        ],
+        "formal_declaration_hits": [
+            {
+                "primitive": "trace_context_bridge",
+                "coverage_status": "bridge_needed",
+                "declaration": "Trace.Context.bridge",
+            }
+        ],
+        "route_revision_reasons": ["accepted trace context should guide the replan"],
+        "route_revision_summaries": ["lift nested trace context into seed"],
+        "revised_informal_knowledge_dag_nodes": [
+            {
+                "node_id": "informal:trace_context_bridge",
+                "label": "trace_context_bridge",
+                "primitive": "trace_context_bridge",
+                "source_ref": "trace context note",
+            }
+        ],
+        "revised_formal_realization_dag_nodes": [
+            {
+                "node_id": "formal:trace_context_bridge",
+                "label": "trace_context_bridge",
+                "primitive": "trace_context_bridge",
+                "coverage_status": "bridge_needed",
+            }
+        ],
+        "revised_route_alignment_edges": [
+            {
+                "source": "informal:trace_context_bridge",
+                "target": "formal:trace_context_bridge",
+                "kind": "aligned_to_formal_realization_candidate",
+                "edge_type": "revised_informal_to_formal_alignment",
+                "primitive": "trace_context_bridge",
+                "alignment_status": "bridge_needed",
+            }
+        ],
+        "unaligned_primitives": [],
+    }
+    (overlay_dir / "formalization_gap_planner_route_revision_overlay_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_route_revision_overlay",
+                "rows": [overlay_row],
+                "all_ok": True,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_route_replan_handoff(
+        plan_dir,
+        overlay_dir,
+        handoff_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_routes_with_target_theorem_context_packet"] == 1
+    assert payload["n_routes_with_llm_target_context_summary"] == 1
+    assert payload["n_routes_with_llm_route_planning_brief"] == 1
+    assert (
+        payload["n_applied_resource_response_target_theorem_context_packet_traces"]
+        == 1
+    )
+    assert payload["n_applied_resource_response_target_context_summary_traces"] == 0
+    assert payload["n_applied_resource_response_route_planning_brief_traces"] == 0
+    assert (
+        payload["n_applied_llm_route_planner_target_theorem_context_packet_traces"]
+        == 0
+    )
+    assert payload["n_applied_llm_route_planner_target_context_summary_traces"] == 1
+    assert payload["n_applied_llm_route_planner_route_planning_brief_traces"] == 1
+    row = payload["rows"][0]
+    assert row["target_theorem_context_packet"] == target_theorem_context_packet
+    assert row["target_context_summary"] == target_context_summary
+    assert row["route_planning_brief"] == route_planning_brief
+    assert row["standalone_route"]["target_theorem_context_packet"] == (
+        target_theorem_context_packet
+    )
+    assert row["standalone_route"]["llm_route_planner_target_context_summary"] == (
+        target_context_summary
+    )
+    assert row["standalone_route"]["llm_route_planner_route_planning_brief"] == (
+        route_planning_brief
+    )
+    assert row["standalone_route"]["replan_metadata"][
+        "llm_route_planner_target_theorem_context_packet"
+    ] == target_theorem_context_packet
+    assert row["standalone_route"]["replan_metadata"][
+        "llm_route_planner_target_context_summary"
+    ] == target_context_summary
+    assert row["standalone_route"]["replan_metadata"][
+        "llm_route_planner_route_planning_brief"
+    ] == route_planning_brief
+    seed = json.loads(
+        (
+            handoff_dir
+            / "formalization_gap_planner_route_replan_standalone_seed.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert seed["routes"][0]["target_theorem_context_packet"] == (
+        target_theorem_context_packet
+    )
+    assert seed["routes"][0]["llm_route_planner_target_context_summary"] == (
+        target_context_summary
+    )
+    assert seed["routes"][0]["llm_route_planner_route_planning_brief"] == (
+        route_planning_brief
+    )
+
+    next_plan = export_formalization_gap_planner_standalone_plan(
+        handoff_dir / "formalization_gap_planner_route_replan_standalone_seed.json",
+        next_plan_dir,
+    )
+
+    assert next_plan["all_ok"]
+    trace = next_plan["rows"][0]["standalone_input_trace"]
+    assert trace["target_theorem_context_packet"] == target_theorem_context_packet
+    assert trace["llm_route_planner_target_context_summary"] == target_context_summary
+    assert trace["llm_route_planner_route_planning_brief"] == route_planning_brief
+
+
 def test_route_replan_handoff_preserves_overlay_target_prover_family_for_rocq() -> None:
     root = Path("runs/test_formalization_gap_planner_route_replan_handoff_rocq")
     input_json = root / "standalone_input.json"
