@@ -84,6 +84,9 @@ class FormalizationGapPlannerResourceResponseLedgerRow:
     llm_route_planner_hook_kind: str
     llm_route_planner_queries: tuple[str, ...]
     llm_route_planner_source_item: dict[str, object]
+    llm_route_planner_target_theorem_context_packet: dict[str, object]
+    llm_route_planner_target_context_summary: dict[str, object]
+    llm_route_planner_route_planning_brief: dict[str, object]
     residual_goal_context: dict[str, object]
     formal_attempt_context: dict[str, object]
     llm_route_planner_response_trace_grounded: bool
@@ -297,6 +300,24 @@ def export_formalization_gap_planner_resource_response_ledger(
         ),
         "n_llm_route_planner_response_trace_mismatches": sum(
             len(row.llm_route_planner_response_trace_mismatches) for row in rows
+        ),
+        "n_llm_route_planner_traced_target_theorem_context_packets": sum(
+            1
+            for row in rows
+            if row.llm_route_planner_trace_present
+            and row.llm_route_planner_target_theorem_context_packet
+        ),
+        "n_llm_route_planner_traced_target_context_summaries": sum(
+            1
+            for row in rows
+            if row.llm_route_planner_trace_present
+            and row.llm_route_planner_target_context_summary
+        ),
+        "n_llm_route_planner_traced_route_planning_briefs": sum(
+            1
+            for row in rows
+            if row.llm_route_planner_trace_present
+            and row.llm_route_planner_route_planning_brief
         ),
         "n_llm_route_planner_response_trace_missing_echo": sum(
             1
@@ -703,6 +724,11 @@ def resource_response_ledger_row_json_schema() -> dict[str, object]:
             "llm_route_planner_hook_kind": {"type": "string"},
             "llm_route_planner_queries": string_array,
             "llm_route_planner_source_item": {"type": "object"},
+            "llm_route_planner_target_theorem_context_packet": {
+                "type": "object"
+            },
+            "llm_route_planner_target_context_summary": {"type": "object"},
+            "llm_route_planner_route_planning_brief": {"type": "object"},
             "residual_goal_context": {"type": "object"},
             "formal_attempt_context": {"type": "object"},
             "llm_route_planner_response_trace_grounded": {"type": "boolean"},
@@ -1122,6 +1148,18 @@ def _ledger_row(
         llm_route_planner_hook_kind=str(llm_trace["hook_kind"]),
         llm_route_planner_queries=_str_tuple(llm_trace["queries"]),
         llm_route_planner_source_item=_dict_value(llm_trace, "source_item"),
+        llm_route_planner_target_theorem_context_packet=_dict_value(
+            llm_trace,
+            "target_theorem_context_packet",
+        ),
+        llm_route_planner_target_context_summary=_dict_value(
+            llm_trace,
+            "target_context_summary",
+        ),
+        llm_route_planner_route_planning_brief=_dict_value(
+            llm_trace,
+            "route_planning_brief",
+        ),
         residual_goal_context=_dict_value(llm_trace, "residual_goal_context"),
         formal_attempt_context=formal_attempt_context,
         llm_route_planner_response_trace_grounded=llm_trace_grounded,
@@ -1202,6 +1240,41 @@ def _llm_route_planner_trace_from_request(
         _dict_value(request_payload, "llm_route_planner_source_item")
         or _dict_value(request_playbook, "llm_route_planner_source_item")
     )
+    target_theorem_context_packet = _first_dict(
+        request_payload.get("llm_route_planner_target_theorem_context_packet", {}),
+        request_playbook.get("llm_route_planner_target_theorem_context_packet", {}),
+        playbook_summary.get("llm_route_planner_target_theorem_context_packet", {}),
+        source_item.get("llm_route_planner_target_theorem_context_packet", {}),
+        source_item.get("target_theorem_context_packet", {}),
+    )
+    target_context_summary = _first_dict(
+        request_payload.get("llm_route_planner_target_context_summary", {}),
+        request_playbook.get("llm_route_planner_target_context_summary", {}),
+        playbook_summary.get("llm_route_planner_target_context_summary", {}),
+        source_item.get("llm_route_planner_target_context_summary", {}),
+        source_item.get("target_context_summary", {}),
+    )
+    route_planning_brief = _first_dict(
+        request_payload.get("llm_route_planner_route_planning_brief", {}),
+        request_playbook.get("llm_route_planner_route_planning_brief", {}),
+        playbook_summary.get("llm_route_planner_route_planning_brief", {}),
+        source_item.get("llm_route_planner_route_planning_brief", {}),
+        source_item.get("route_planning_brief", {}),
+    )
+    if not target_theorem_context_packet:
+        target_theorem_context_packet = _dict_value(
+            route_planning_brief,
+            "target_context",
+        )
+    if not target_context_summary and target_theorem_context_packet:
+        target_context_summary = _target_context_summary_from_packet(
+            target_theorem_context_packet,
+            fallback_route_id=str(request_row.get("route_id", "")),
+            fallback_display_name=str(request_row.get("display_name", "")),
+            fallback_target_prover_family=str(
+                request_row.get("target_prover_family", "")
+            ),
+        )
     residual_goal_context = _residual_goal_context_value(
         _dict_value(request_payload, "residual_goal_context")
         or _dict_value(request_playbook, "residual_goal_context")
@@ -1209,7 +1282,14 @@ def _llm_route_planner_trace_from_request(
     )
     return {
         "trace_present": bool(
-            row_id or source_kind or hook_kind or source_item or residual_goal_context
+            row_id
+            or source_kind
+            or hook_kind
+            or source_item
+            or residual_goal_context
+            or target_theorem_context_packet
+            or target_context_summary
+            or route_planning_brief
         ),
         "row_id": row_id,
         "request_id": request_id,
@@ -1218,6 +1298,9 @@ def _llm_route_planner_trace_from_request(
         "hook_kind": hook_kind,
         "queries": queries,
         "source_item": source_item,
+        "target_theorem_context_packet": target_theorem_context_packet,
+        "target_context_summary": target_context_summary,
+        "route_planning_brief": route_planning_brief,
         "residual_goal_context": residual_goal_context,
     }
 
@@ -1781,6 +1864,13 @@ def _first_string(*values: Any) -> str:
     return ""
 
 
+def _first_dict(*values: Any) -> dict[str, object]:
+    for value in values:
+        if isinstance(value, dict) and value:
+            return dict(value)
+    return {}
+
+
 def _first_int(*values: Any, default: int = -1) -> int:
     for value in values:
         try:
@@ -1788,6 +1878,28 @@ def _first_int(*values: Any, default: int = -1) -> int:
         except Exception:
             continue
     return default
+
+
+def _target_context_summary_from_packet(
+    packet: dict[str, object],
+    *,
+    fallback_route_id: str,
+    fallback_display_name: str,
+    fallback_target_prover_family: str,
+) -> dict[str, object]:
+    if not packet:
+        return {}
+    return {
+        "route_id": str(packet.get("route_id", fallback_route_id)),
+        "display_name": str(packet.get("display_name", fallback_display_name)),
+        "target_prover_family": str(
+            packet.get("target_prover_family", fallback_target_prover_family)
+        ),
+        "library_snapshot_ref": str(packet.get("library_snapshot_ref", "")),
+        "theorem_statement": str(packet.get("theorem_statement", "")),
+        "primitive_candidates": _str_tuple(packet.get("primitive_candidates", [])),
+        "proof_source_refs": _str_tuple(packet.get("proof_source_refs", [])),
+    }
 
 
 def _validate_with_schema(
@@ -1807,7 +1919,7 @@ def _validate_with_schema(
                     _schema_property_errors(field_name, row[field_name], field_schema)
                 )
     if schema.get("additionalProperties") is False:
-        allowed = set(required)
+        allowed = set(properties) if isinstance(properties, dict) else set(required)
         for field_name in row:
             if field_name not in allowed:
                 errors.append(f"{field_name} unexpected")
@@ -2132,6 +2244,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
         (
             f"- LLM route-planner response trace mismatches: "
             f"{payload.get('n_llm_route_planner_response_trace_mismatches')}"
+        ),
+        (
+            f"- LLM route-planner target context packets/summaries/briefs: "
+            f"{payload.get('n_llm_route_planner_traced_target_theorem_context_packets')}/"
+            f"{payload.get('n_llm_route_planner_traced_target_context_summaries')}/"
+            f"{payload.get('n_llm_route_planner_traced_route_planning_briefs')}"
         ),
         (
             f"- LLM route-planner residual context rows: "

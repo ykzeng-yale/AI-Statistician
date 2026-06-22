@@ -1423,8 +1423,12 @@ boundary. LLM-derived dispatch rows also preserve
 playbook input summary, so external Paperclip/PaperQA/formal-source/prover
 adapters can understand the theorem statement, primitive candidates, source
 refs, target prover, and route-planning evidence gaps without reopening the
-upstream route-planner manifest. Route-planning-brief evidence-gap dispatches
-are traced the same
+upstream route-planner manifest. The resource-response ledger copies the same
+three fields into each validated LLM-traced response row and reports traced
+target-context packet, target-context summary, and route-planning brief counts,
+so accepted/rejected adapter feedback can still be routed back into route
+revision or interactive replanning with the original theorem context intact.
+Route-planning-brief evidence-gap dispatches are traced the same
 way: resource-response ledgers count traced, responded, and response-grounded
 `route_planning_brief_evidence_gap` rows, while route-revision overlays expose
 applied resource-response and LLM hook traces by source kind. The

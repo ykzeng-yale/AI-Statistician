@@ -478,6 +478,27 @@ def test_resource_response_ledger_preserves_llm_route_planner_trace() -> None:
     assert ledger_row["llm_route_planner_source_item"]["request_kind"] == (
         "literature_discovery"
     )
+    assert (
+        payload["n_llm_route_planner_traced_target_theorem_context_packets"]
+        == request_payload["n_llm_route_planner_resource_request_rows"]
+    )
+    assert (
+        payload["n_llm_route_planner_traced_target_context_summaries"]
+        == request_payload["n_llm_route_planner_resource_request_rows"]
+    )
+    assert (
+        payload["n_llm_route_planner_traced_route_planning_briefs"]
+        == request_payload["n_llm_route_planner_resource_request_rows"]
+    )
+    assert ledger_row["llm_route_planner_target_theorem_context_packet"][
+        "route_id"
+    ] == "distribution_free_rank_bound"
+    assert ledger_row["llm_route_planner_target_context_summary"][
+        "primitive_candidates"
+    ] == ["rank_uniformity"]
+    assert ledger_row["llm_route_planner_route_planning_brief"][
+        "target_context"
+    ]["route_id"] == "distribution_free_rank_bound"
     assert ledger_row["llm_route_planner_response_trace_grounded"]
     assert ledger_row["llm_route_planner_response_trace_mismatches"] == ()
     assert validate_resource_response_ledger_row(
@@ -602,6 +623,30 @@ def test_resource_response_ledger_counts_route_brief_evidence_gap_trace() -> Non
     assert ledger_row["llm_route_planner_source_item"][
         "route_planning_brief_gap_kind"
     ] == "source_grounding"
+    assert ledger_row["llm_route_planner_target_theorem_context_packet"][
+        "route_id"
+    ] == "rank_route_prompt_only_response"
+    assert (
+        "distribution-free rank bound"
+        in ledger_row["llm_route_planner_target_context_summary"][
+            "theorem_statement"
+        ]
+    )
+    assert ledger_row["llm_route_planner_route_planning_brief"][
+        "target_context"
+    ]["route_id"] == "rank_route_prompt_only_response"
+    assert (
+        payload["n_llm_route_planner_traced_target_theorem_context_packets"]
+        == request_payload[
+            "n_llm_route_planner_route_planning_brief_resource_request_rows"
+        ]
+    )
+    assert (
+        payload["n_llm_route_planner_traced_route_planning_briefs"]
+        == request_payload[
+            "n_llm_route_planner_route_planning_brief_resource_request_rows"
+        ]
+    )
     assert ledger_row["llm_route_planner_response_trace_grounded"]
     assert validate_resource_response_ledger_row(
         ledger_row,
