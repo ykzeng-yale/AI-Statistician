@@ -15,6 +15,7 @@ from .formalization_gap_planner_contract import (
     PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY as PLANNER_PROOF_EVIDENCE_BOUNDARY,
 )
+from .formalization_gap_planner_target_summary import target_prover_family_summary
 
 
 FORMALIZATION_GAP_PLANNER_LIBRARY_COVERAGE_MAP_SCHEMA_VERSION = 1
@@ -121,6 +122,10 @@ def export_formalization_gap_planner_library_coverage_map(
     n_row_schema_valid = sum(1 for row_errors in row_schema_errors if not row_errors)
     n_row_schema_invalid = len(row_schema_errors) - n_row_schema_valid
     by_bucket = Counter(row.coverage_bucket for row in rows)
+    target_summary = target_prover_family_summary(
+        rows,
+        fallback_target_prover_family=manifest.get("target_prover_family", ""),
+    )
     payload: dict[str, object] = {
         "schema_version": FORMALIZATION_GAP_PLANNER_LIBRARY_COVERAGE_MAP_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -129,7 +134,9 @@ def export_formalization_gap_planner_library_coverage_map(
         "portable_schema_id": str(manifest.get("portable_schema_id", "")),
         "goal_conditioned_minimal_formalization_plan_dir": str(plan_dir),
         "goal_conditioned_minimal_formalization_plan_manifest": str(manifest_path),
-        "target_prover_family": str(manifest.get("target_prover_family", "")),
+        "target_prover_family": target_summary["target_prover_family"],
+        "n_target_prover_families": target_summary["n_target_prover_families"],
+        "by_target_prover_family": target_summary["by_target_prover_family"],
         "library_snapshot_ref": str(manifest.get("library_snapshot_ref", "")),
         "n_plan_rows": len(plan_rows),
         "n_coverage_rows": len(rows),
@@ -1052,6 +1059,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
     lines = [
         "# Formalization Gap Planner Library Coverage Map",
         "",
+        f"- Target prover family: {payload.get('target_prover_family')}",
+        f"- Target prover families: {payload.get('n_target_prover_families')} "
+        f"by={payload.get('by_target_prover_family')}",
         f"- Coverage rows: {payload.get('n_ok')}/{payload.get('n_coverage_rows')}",
         f"- Exact exists: {payload.get('n_exact_exists')}",
         f"- Near exists: {payload.get('n_near_exists')}",

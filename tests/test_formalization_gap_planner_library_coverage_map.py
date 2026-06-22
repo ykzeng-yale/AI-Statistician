@@ -87,6 +87,9 @@ def test_library_coverage_map_exports_per_primitive_route_mapping() -> None:
     assert payload["all_ok"]
     assert payload["n_plan_rows"] == 1
     assert payload["n_coverage_rows"] == 3
+    assert payload["target_prover_family"] == "isabelle"
+    assert payload["n_target_prover_families"] == 1
+    assert payload["by_target_prover_family"] == {"isabelle": 3}
     assert payload["n_row_schema_valid"] == payload["n_coverage_rows"]
     assert payload["n_row_schema_invalid"] == 0
     assert payload["n_exact_exists"] == 1
@@ -128,6 +131,10 @@ def test_library_coverage_map_exports_per_primitive_route_mapping() -> None:
     assert "not theorem proof evidence" in by_primitive["exchangeability"][
         "proof_evidence_boundary"
     ]
+    report_text = (
+        coverage_dir / "formalization_gap_planner_library_coverage_map.md"
+    ).read_text(encoding="utf-8")
+    assert "Target prover families: 1 by={'isabelle': 3}" in report_text
     assert validate_library_coverage_map_row(
         by_primitive["exchangeability"],
         library_coverage_map_row_json_schema(),

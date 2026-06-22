@@ -1337,7 +1337,10 @@ library realization candidate and classifying it as exact reuse, near reuse,
 wrapper, bridge, source port, new theory, or unknown/unaligned. It writes
 `formalization_gap_planner_library_coverage_map.jsonl` plus
 `formalization_gap_planner_library_coverage_map_row.schema.json` so downstream
-prover systems can inspect library coverage without parsing the full plan. The
+prover systems can inspect library coverage without parsing the full plan. Its
+manifest also records `target_prover_family`, `n_target_prover_families`, and
+`by_target_prover_family`, so cross-prover consumers can verify which prover
+family the coverage classification applies to before scheduling replay. The
 primitive-action-queue command consumes that coverage map and writes
 `formalization_gap_planner_primitive_action_queue.jsonl` plus
 `formalization_gap_planner_primitive_action_queue_row.schema.json`: one
@@ -2240,8 +2243,9 @@ the audit JSONL itself before using its route diagnostics.
 
 The library-coverage map writes
 `formalization_gap_planner_library_coverage_map_row.schema.json` and records
-`n_coverage_rows`, coverage-bucket counts, `n_rows_with_alignment`, and row
-schema-valid counts. This is the compact artifact for deciding which selected
+`n_coverage_rows`, coverage-bucket counts, `n_rows_with_alignment`,
+`by_target_prover_family`, and row schema-valid counts. This is the compact
+artifact for deciding which selected
 route primitives are already covered by the current library and which require a
 wrapper, bridge lemma, source port, or new theory before prover replay.
 Rows keep the legacy flat `candidate_declarations` list for simple consumers,

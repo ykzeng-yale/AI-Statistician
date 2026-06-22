@@ -1629,6 +1629,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert "LLM route planner request target families" in report_text
     assert "LLM route planner provider usage rows/input/output/total" in report_text
     assert "LLM route planner prompt budget rows/input/max-output/total" in report_text
+    assert "Library-coverage map target families" in report_text
     assert (
         "Bundle LLM route planner prompt budget rows/input/max-output/total"
         in report_text
@@ -2861,6 +2862,11 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
     )
     assert payload["n_library_coverage_rows"] == payload["n_route_alignment_edges"]
+    assert payload["library_coverage_target_prover_family"] == "lean4"
+    assert payload["n_library_coverage_target_prover_families"] == 1
+    assert payload["library_coverage_by_target_prover_family"] == {
+        "lean4": payload["n_library_coverage_rows"]
+    }
     assert payload["n_library_coverage_ok"] == payload["n_library_coverage_rows"]
     assert payload["n_library_coverage_failed"] == 0
     assert (
@@ -4171,6 +4177,14 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     }
     assert all(stage["proof_boundary_ok"] for stage in payload["stages"])
     stage_by_name = {stage["stage_name"]: stage for stage in payload["stages"]}
+    library_coverage_summary = stage_by_name[
+        "formalization_gap_planner_library_coverage_map"
+    ]["summary"]
+    assert library_coverage_summary["target_prover_family"] == "lean4"
+    assert library_coverage_summary["n_target_prover_families"] == 1
+    assert library_coverage_summary["by_target_prover_family"] == {
+        "lean4": payload["n_library_coverage_rows"]
+    }
     refinement_queue_summary = stage_by_name[
         "formalization_gap_planner_refinement_queue"
     ]["summary"]

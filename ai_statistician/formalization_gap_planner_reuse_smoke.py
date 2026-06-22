@@ -494,6 +494,9 @@ SUMMARY_KEYS_BY_STAGE = {
         "n_rows_without_kernel_claims",
     ),
     "formalization_gap_planner_library_coverage_map": (
+        "target_prover_family",
+        "n_target_prover_families",
+        "by_target_prover_family",
         "n_coverage_rows",
         "n_ok",
         "n_failed",
@@ -8033,6 +8036,18 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_coverage_rows",
             0,
         ),
+        "library_coverage_target_prover_family": library_coverage_map_payload.get(
+            "target_prover_family",
+            "",
+        ),
+        "n_library_coverage_target_prover_families": library_coverage_map_payload.get(
+            "n_target_prover_families",
+            0,
+        ),
+        "library_coverage_by_target_prover_family": library_coverage_map_payload.get(
+            "by_target_prover_family",
+            {},
+        ),
         "n_library_coverage_ok": library_coverage_map_payload.get("n_ok", 0),
         "n_library_coverage_failed": library_coverage_map_payload.get("n_failed", 0),
         "n_library_coverage_exact_exists": library_coverage_map_payload.get(
@@ -11563,6 +11578,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Library-coverage map rows valid: "
             f"{payload.get('n_library_coverage_row_schema_valid')}/"
             f"{payload.get('n_library_coverage_rows')}"
+        ),
+        (
+            f"- Library-coverage map target families: "
+            f"{payload.get('library_coverage_target_prover_family')} "
+            f"by={payload.get('library_coverage_by_target_prover_family')}"
         ),
         (
             f"- Structured candidate declaration rows: "

@@ -585,7 +585,8 @@ The `formalization-gap-planner-library-coverage-map` gate exports the compact
 per-primitive library coverage view from the same portable plan. It records
 which selected route primitives are exact current-library reuse, near reuse,
 wrapper work, bridge lemmas, source ports, new theory, or unknown/unaligned,
-and validates those rows against
+records the manifest-level `by_target_prover_family` distribution for the
+coverage rows, and validates those rows against
 `formalization_gap_planner_library_coverage_map_row.schema.json`. This is a
 library-alignment planning artifact, not proof evidence.
 The `formalization-gap-planner-primitive-action-queue` gate consumes that
