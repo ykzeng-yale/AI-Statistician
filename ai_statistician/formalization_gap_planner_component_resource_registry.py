@@ -921,6 +921,22 @@ def _resource_request_contract_fields(
         fields.append("source_theorem_formal_environment_work_orders")
     if "exact_source_theorem_proof_body_execution_queue_rows" in row.evidence_contract:
         fields.append("exact_source_theorem_proof_body_execution_queue_rows")
+    if set(row.evidence_contract) & {
+        "request_packets",
+        "json_only_route_plan_response",
+        "response_payload_validation",
+        "model_tier_decision_ledger",
+        "provider_usage_rows",
+        "generator_metadata",
+    }:
+        fields.extend(
+            [
+                "prompt_packet",
+                "response_schema",
+                "model_tier",
+                "llm_generation_policy",
+            ]
+        )
     if row.online_dependency:
         fields.append("source_query_or_search_plan")
     if row.mcp_compatible or "mcp" in row.surface.lower():
@@ -975,6 +991,11 @@ def _resource_output_artifact_kind(row: FormalizationGapPlannerResourceRow) -> s
         return "exact_source_theorem_proof_body_execution_response"
     if "source_theorem_formal_environment_work_orders" in row.evidence_contract:
         return "source_theorem_formal_environment_bridge_response"
+    if (
+        "json_only_route_plan_response" in row.evidence_contract
+        or "response_payload_validation" in row.evidence_contract
+    ):
+        return "llm_route_planner_response_or_static_replay"
     if "source_theorem_semantic_primitive_work_orders" in row.evidence_contract:
         return "source_theorem_semantic_primitive_bridge_response"
     if "source_refs" in row.evidence_contract:
@@ -1155,6 +1176,23 @@ def _resource_capability_tags(
         tags.append("literature_source_grounding")
     if fields & {"informal_knowledge_dag_nodes", "semantic_grounding_checks", "blueprint_nodes"}:
         tags.append("informal_route_dag_decomposition")
+    if fields & {
+        "request_packets",
+        "json_only_route_plan_response",
+        "response_payload_validation",
+        "model_tier_decision_ledger",
+        "provider_usage_rows",
+        "generator_metadata",
+    }:
+        tags.append("llm_route_planning")
+    if fields & {
+        "json_only_route_plan_response",
+        "provider_usage_rows",
+        "generator_metadata",
+    }:
+        tags.append("generator_only_llm")
+    if "model_tier_decision_ledger" in fields:
+        tags.append("model_tier_routing")
     if fields & {"formal_declaration_hits", "lean_declaration_hits", "declaration_hits", "premise_candidates", "coverage_updates", "definition_hits"}:
         tags.append("formal_library_search")
     if fields & {"prover_diagnostics", "residual_goals", "completion_candidates"}:
@@ -1217,6 +1255,14 @@ def _resource_validation_signals(
         signals.append("route_evidence_nodes_present")
     if fields & {"answer_contexts", "retrieved_papers"}:
         signals.append("citation_contexts_present")
+    if fields & {"json_only_route_plan_response", "response_payload_validation"}:
+        signals.append("json_only_response_validated")
+    if "model_tier_decision_ledger" in fields:
+        signals.append("model_tier_decision_recorded")
+    if "provider_usage_rows" in fields:
+        signals.append("provider_usage_recorded")
+    if "generator_metadata" in fields:
+        signals.append("generator_only_boundary_recorded")
     if fields & {"formal_declaration_hits", "lean_declaration_hits", "declaration_hits", "premise_candidates", "definition_hits"}:
         signals.append("formal_hits_or_premises_present")
     if "coverage_updates" in fields:
@@ -1276,6 +1322,10 @@ def _component_required_quality_signals(spec: dict[str, Any]) -> tuple[str, ...]
         signals.append("source_refs_or_literature_gap_recorded")
     if fields & {"informal_knowledge_dag_nodes", "route alternatives", "lemma candidates", "revised_informal_knowledge_dag_nodes"}:
         signals.append("informal_dag_nodes_have_source_or_search_status")
+    if fields & {"request_packets", "response_payload", "validated route-plan rows"}:
+        signals.append("json_only_route_plan_response_validated")
+    if fields & {"model_tier_decision_ledger", "provider_usage_rows", "generator metadata"}:
+        signals.append("model_tier_and_provider_usage_recorded")
     if fields & {"formal_declaration_hits", "lean_declaration_hits", "coverage_updates", "existing declarations", "coverage_status"}:
         signals.append("formal_coverage_classification_recorded")
     if fields & {"residual_goals", "prover_diagnostics", "diagnostic signatures"}:
@@ -1378,6 +1428,22 @@ def _resource_specs() -> tuple[dict[str, Any], ...]:
             "evidence_contract": ("required_primitives", "coverage_status", "expected_route_delta"),
         },
         {
+            "resource_id": "llm_route_planner_static_replay",
+            "resource_name": "LLM route-planner static JSON replay",
+            "resource_kind": "local_fallback",
+            "surface": "json_fixture_and_response_payload_validator",
+            "role": (
+                "no-cost replay of reviewed LLM route-plan JSON through the "
+                "same request, schema, repair, and proof-boundary validators"
+            ),
+            "local_dependency": True,
+            "evidence_contract": (
+                "request_packets",
+                "response_payload_validation",
+                "model_tier_decision_ledger",
+            ),
+        },
+        {
             "resource_id": "local_literature_corpus",
             "resource_name": "Local literature corpus",
             "resource_kind": "local_fallback",
@@ -1434,6 +1500,29 @@ def _resource_specs() -> tuple[dict[str, Any], ...]:
             ),
             "online_dependency": True,
             "evidence_contract": ("informal_knowledge_dag_nodes", "semantic_grounding_checks"),
+        },
+        {
+            "resource_id": "anthropic_claude_api_generator",
+            "resource_name": "Anthropic Claude API generator",
+            "resource_kind": "frontier_tool",
+            "surface": "messages_api_json_generator",
+            "role": (
+                "generator-only LLM backend for route planning with Haiku/Sonnet "
+                "cost-aware tier selection and JSON-only response contracts"
+            ),
+            "resource_urls": (
+                "https://docs.anthropic.com/en/docs/about-claude/models/overview",
+                "https://docs.anthropic.com/en/api/messages",
+            ),
+            "online_dependency": True,
+            "evidence_contract": (
+                "request_packets",
+                "json_only_route_plan_response",
+                "response_payload_validation",
+                "model_tier_decision_ledger",
+                "provider_usage_rows",
+                "generator_metadata",
+            ),
         },
         {
             "resource_id": "lean_blueprint_leanarchitect",
@@ -1871,6 +1960,50 @@ def _component_specs() -> tuple[dict[str, Any], ...]:
             "expected_outputs": ("informal_knowledge_dag_nodes", "route alternatives", "lemma candidates"),
             "feedback_actions": ("split overloaded DAG node", "add bridge lemma", "reorder leaves bottom-up"),
             "evaluation_hooks": ("portable_plan_audit", "route_stability_audit"),
+        },
+        {
+            "component_id": "llm_route_planner_generator",
+            "component_name": "LLM route-planner generator",
+            "planner_stage": "context packet -> JSON route-planning proposal",
+            "role": (
+                "call a generator-only LLM or static replay backend under "
+                "schema validation, Haiku/Sonnet tier policy, and proof-boundary gates"
+            ),
+            "required_capabilities": (
+                "json-only generation",
+                "model-tier routing",
+                "provider usage accounting",
+            ),
+            "local_fallback_resource_ids": ("llm_route_planner_static_replay",),
+            "frontier_resource_ids": ("anthropic_claude_api_generator",),
+            "adapter_ids": (),
+            "integration_contract_fields": (
+                "request_packets",
+                "response_payload",
+                "model_tier_decision_ledger",
+                "provider_usage_rows",
+            ),
+            "evidence_inputs": (
+                "target theorem context packet",
+                "source snippets",
+                "library coverage hits",
+                "prover residuals",
+            ),
+            "expected_outputs": (
+                "validated route-plan rows",
+                "standalone seed",
+                "generator metadata",
+            ),
+            "feedback_actions": (
+                "repair invalid JSON response",
+                "escalate failed Haiku repair to Sonnet",
+                "reject agent-style providers",
+            ),
+            "evaluation_hooks": (
+                "llm_route_planner_model_tier_decision_ledger",
+                "provider_usage_summary",
+                "response_payload_validation_manifest",
+            ),
         },
         {
             "component_id": "formal_library_coverage_mapping",

@@ -109,6 +109,8 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "target_intake_schema" in resource_ids
     assert "target_intake_row_schema" in resource_ids
     assert "portable_gap_plan_row_schema" in resource_ids
+    assert "llm_route_planner_static_replay" in resource_ids
+    assert "anthropic_claude_api_generator" in resource_ids
     assert "local_target_formal_source_index" in resource_ids
     assert "source_theorem_semantic_primitive_bridge" in resource_ids
     assert (
@@ -143,6 +145,27 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "proof_state_diagnostics_or_residuals_present" in by_resource[
         "lean_lsp_mcp"
     ]["validation_signals"]
+    assert "llm_route_planning" in by_resource[
+        "anthropic_claude_api_generator"
+    ]["capability_tags"]
+    assert "generator_only_llm" in by_resource[
+        "anthropic_claude_api_generator"
+    ]["capability_tags"]
+    assert "model_tier_routing" in by_resource[
+        "anthropic_claude_api_generator"
+    ]["capability_tags"]
+    assert "json_only_response_validated" in by_resource[
+        "anthropic_claude_api_generator"
+    ]["validation_signals"]
+    assert "model_tier_decision_recorded" in by_resource[
+        "anthropic_claude_api_generator"
+    ]["validation_signals"]
+    assert "provider_usage_recorded" in by_resource[
+        "anthropic_claude_api_generator"
+    ]["validation_signals"]
+    assert "model_tier_routing" in by_resource[
+        "llm_route_planner_static_replay"
+    ]["capability_tags"]
     semantic_bridge = by_resource["source_theorem_semantic_primitive_bridge"]
     assert semantic_bridge["target_prover_families"] == ("lean4",)
     assert "source_theorem_semantic_bridge" in semantic_bridge["capability_tags"]
@@ -215,6 +238,18 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     ]
     assert "source_refs_or_literature_gap_recorded" in by_component[
         "literature_grounded_route_synthesis"
+    ]["required_quality_signals"]
+    assert "llm_route_planner_static_replay" in by_component[
+        "llm_route_planner_generator"
+    ]["local_fallback_resource_ids"]
+    assert "anthropic_claude_api_generator" in by_component[
+        "llm_route_planner_generator"
+    ]["frontier_resource_ids"]
+    assert "json_only_route_plan_response_validated" in by_component[
+        "llm_route_planner_generator"
+    ]["required_quality_signals"]
+    assert "model_tier_and_provider_usage_recorded" in by_component[
+        "llm_route_planner_generator"
     ]["required_quality_signals"]
     assert "leanexplore_mcp" in by_component["formal_library_coverage_mapping"][
         "frontier_resource_ids"
@@ -313,6 +348,24 @@ def test_component_resource_registry_covers_planner_components_and_frontier_tool
     assert "mcp_tool_call" in contracts_by_resource["paperclip_cli_mcp"][
         "request_contract_fields"
     ]
+    assert "prompt_packet" in contracts_by_resource[
+        "anthropic_claude_api_generator"
+    ]["request_contract_fields"]
+    assert "response_schema" in contracts_by_resource[
+        "anthropic_claude_api_generator"
+    ]["request_contract_fields"]
+    assert "model_tier" in contracts_by_resource[
+        "anthropic_claude_api_generator"
+    ]["request_contract_fields"]
+    assert "json_only_route_plan_response" in contracts_by_resource[
+        "anthropic_claude_api_generator"
+    ]["response_contract_fields"]
+    assert "model_tier_decision_recorded" in contracts_by_resource[
+        "anthropic_claude_api_generator"
+    ]["response_validation_signals"]
+    assert contracts_by_resource[
+        "anthropic_claude_api_generator"
+    ]["output_artifact_kind"] == "llm_route_planner_response_or_static_replay"
     assert "not theorem proof evidence" in contracts_by_resource["lean_lsp_mcp"][
         "acceptance_gate"
     ]

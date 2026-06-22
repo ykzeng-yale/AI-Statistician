@@ -4312,12 +4312,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert audit_payload["all_ok"]
     assert audit_payload["n_failed"] == 0
     assert audit_payload["n_bundle_files"] >= 10
-    assert audit_payload["n_component_execution_plan_schema_checked"] == 8
+    assert audit_payload["n_component_execution_plan_schema_checked"] == 9
     assert (
         audit_payload["n_component_execution_plan_schema_valid"]
         == audit_payload["n_component_execution_plan_schema_checked"]
     )
-    assert audit_payload["n_component_resource_component_row_schema_checked"] == 8
+    assert audit_payload["n_component_resource_component_row_schema_checked"] == 9
     assert (
         audit_payload["n_component_resource_component_row_schema_valid"]
         == audit_payload["n_component_resource_component_row_schema_checked"]

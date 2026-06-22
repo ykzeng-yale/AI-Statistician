@@ -1716,14 +1716,15 @@ and cross-prover reuse surfaces; it also checks response fields, resource URLs,
 portability targets, adapter-registry JSONL row schema conformance, and
 proof-boundary discipline.
 The component-resource registry sits one level above adapters: it maps target
-intake, literature route synthesis, informal DAG decomposition, formal-library
-coverage, minimal-delta planning, prover feedback, route revision, and
-cross-prover publication to local fallbacks and frontier tools such as
+intake, literature route synthesis, informal DAG decomposition, the LLM
+route-planner generator, formal-library coverage, minimal-delta planning,
+prover feedback, route revision, and cross-prover publication to local
+fallbacks and frontier tools such as static JSON replay, Anthropic Claude API,
 Paperclip/PaperQA/OpenScholar, LeanSearch/Loogle/LeanExplore, Lean/LSP,
 LeanDojo/ReProver, the source-theorem semantic primitive ProofEngineer bridge,
 the source-theorem formal-environment bridge, the exact source-theorem
-proof-body executor, Rocq LSP/SerAPI, Isabelle/Sledgehammer, Agda
-Search/Auto, HOL4/HOL Light, Mizar, and Metamath surfaces. It also emits one
+proof-body executor, Rocq LSP/SerAPI, Isabelle/Sledgehammer, Agda Search/Auto,
+HOL4/HOL Light, Mizar, and Metamath surfaces. It also emits one
 execution-plan row per planner
 component with local-first resources, frontier escalation resources, adapter
 ids, evidence inputs, expected outputs, escalation triggers, and stop
@@ -1733,8 +1734,11 @@ component rows include `required_quality_signals`, execution-plan rows include
 `response_validation_signals`. These fields make local-first/frontier
 escalation auditable: a source-search tool must return source refs or explicit
 literature gaps, a library-search tool must return formal hits or coverage
-updates, and a prover-feedback tool must return diagnostics or residuals
-without promoting proof claims. It now also emits one resource-contract row per
+updates, a prover-feedback tool must return diagnostics or residuals without
+promoting proof claims, and an LLM generator must return JSON-only route-plan
+payloads with model-tier decisions, provider usage, and generator-only metadata
+rather than acting as an environment-controlling agent. It now also emits one
+resource-contract row per
 local fallback, frontier tool, MCP surface, or prover resource, recording the
 request fields, response fields, deployment requirements, output artifact kind,
 escalation policy, and acceptance gate. Its audit checks architecture,
