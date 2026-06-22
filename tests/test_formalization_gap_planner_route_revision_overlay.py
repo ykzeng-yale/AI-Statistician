@@ -964,6 +964,53 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
                             "resource_id": "lean_lsp_mcp",
                             "target_primitives": ["rank_uniformity"],
                         },
+                        "llm_route_planner_target_theorem_context_packet": {
+                            "context_packet_kind": (
+                                "formalization_gap_planner_llm_route_planner_target_theorem_context_packet"
+                            ),
+                            "route_id": "route:ledger",
+                            "display_name": display_name,
+                            "target_prover_family": "lean4",
+                            "library_snapshot_ref": "snapshot:test",
+                            "theorem_statement": (
+                                "A finite rank-uniformity bridge follows from "
+                                "exchangeability after the nonzero-denominator "
+                                "side condition is made explicit."
+                            ),
+                            "primitive_candidates": ["rank_uniformity"],
+                            "proof_source_refs": [
+                                "Vovk-Gammerman-Shafer conformal prediction"
+                            ],
+                        },
+                        "llm_route_planner_target_context_summary": {
+                            "route_id": "route:ledger",
+                            "theorem_statement": (
+                                "A finite rank-uniformity bridge follows from "
+                                "exchangeability after the nonzero-denominator "
+                                "side condition is made explicit."
+                            ),
+                            "primitive_candidates": ["rank_uniformity"],
+                            "proof_source_refs": [
+                                "Vovk-Gammerman-Shafer conformal prediction"
+                            ],
+                        },
+                        "llm_route_planner_route_planning_brief": {
+                            "brief_kind": (
+                                "formalization_gap_planner_llm_route_planner_route_planning_brief"
+                            ),
+                            "route_id": "route:ledger",
+                            "target_context": {
+                                "route_id": "route:ledger",
+                                "theorem_statement": (
+                                    "A finite rank-uniformity bridge follows "
+                                    "from exchangeability after the "
+                                    "nonzero-denominator side condition is "
+                                    "made explicit."
+                                ),
+                                "primitive_candidates": ["rank_uniformity"],
+                            },
+                            "evidence_gaps": [],
+                        },
                         "residual_goal_context": {
                             "source_kind": "planner_next_action",
                             "residual_goal": "prove finite denominator is nonzero",
@@ -1091,9 +1138,29 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     )
     assert (
         overlay_payload[
+            "n_applied_resource_response_target_theorem_context_packet_traces"
+        ]
+        == 1
+    )
+    assert (
+        overlay_payload["n_applied_resource_response_route_planning_brief_traces"]
+        == 1
+    )
+    assert (
+        overlay_payload[
             "n_applied_llm_route_planner_route_planning_brief_evidence_gap_traces"
         ]
         == 0
+    )
+    assert (
+        overlay_payload[
+            "n_applied_llm_route_planner_target_theorem_context_packet_traces"
+        ]
+        == 1
+    )
+    assert (
+        overlay_payload["n_applied_llm_route_planner_route_planning_brief_traces"]
+        == 1
     )
     assert overlay_payload[
         "applied_resource_response_trace_by_llm_source_kind"
@@ -1199,6 +1266,18 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert trace["llm_route_planner_source_kind"] == "planner_next_action"
     assert trace["llm_route_planner_source_index"] == 0
     assert trace["llm_route_planner_hook_kind"] == "proof_state_feedback"
+    assert trace["llm_route_planner_target_theorem_context_packet"][
+        "route_id"
+    ] == "route:ledger"
+    assert (
+        "finite rank-uniformity bridge"
+        in trace["llm_route_planner_target_context_summary"][
+            "theorem_statement"
+        ]
+    )
+    assert trace["llm_route_planner_route_planning_brief"][
+        "target_context"
+    ]["route_id"] == "route:ledger"
     assert trace["llm_route_planner_response_trace_grounded"] is True
     assert trace["llm_route_planner_response_trace_mismatches"] == ()
     assert trace["residual_goal_context"]["residual_goal"] == (
@@ -1227,6 +1306,12 @@ def test_route_revision_overlay_applies_resource_response_ledger_feedback() -> N
     assert llm_trace["llm_route_planner_source_item"]["resource_id"] == (
         "lean_lsp_mcp"
     )
+    assert llm_trace["llm_route_planner_target_theorem_context_packet"][
+        "route_id"
+    ] == "route:ledger"
+    assert llm_trace["llm_route_planner_route_planning_brief"][
+        "target_context"
+    ]["route_id"] == "route:ledger"
     assert llm_trace["llm_route_planner_response_trace_grounded"] is True
     assert llm_trace["residual_goal_context"]["residual_primitives"] == (
         "rank_uniformity",

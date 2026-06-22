@@ -1431,7 +1431,10 @@ revision or interactive replanning with the original theorem context intact.
 Route-planning-brief evidence-gap dispatches are traced the same
 way: resource-response ledgers count traced, responded, and response-grounded
 `route_planning_brief_evidence_gap` rows, while route-revision overlays expose
-applied resource-response and LLM hook traces by source kind. The
+applied resource-response and LLM hook traces by source kind and preserve the
+same `llm_route_planner_target_theorem_context_packet`,
+`llm_route_planner_target_context_summary`, and
+`llm_route_planner_route_planning_brief` fields in those applied traces. The
 source-grounding audit also consumes residual contexts: context
 `source_refs`/`source_snippets` count as source backing, context
 `queries`/`source_search_queries` count as bounded search hooks, and a
@@ -2694,7 +2697,8 @@ The current implementation composes four existing AI Statistician artifacts:
    include the resource-response ledger also validate overlay evidence ids
    against accepted ledger rows and validate the compact
    `applied_resource_response_traces` copied from those ledger rows, including
-   minimal-delta/readiness priority fields.
+   minimal-delta/readiness priority fields and LLM target theorem
+   context/route-planning brief fields.
 
 22. `formalization_gap_planner_route_stability_audit`
    Decides whether each route has stabilized under the current evidence bound

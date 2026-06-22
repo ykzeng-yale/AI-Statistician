@@ -267,6 +267,18 @@ def export_formalization_gap_planner_route_revision_overlay(
             for trace in row.applied_resource_response_traces
             if _dict_value(trace, "formal_attempt_context")
         ),
+        "n_applied_resource_response_target_theorem_context_packet_traces": sum(
+            1
+            for row in rows
+            for trace in row.applied_resource_response_traces
+            if _dict_value(trace, "llm_route_planner_target_theorem_context_packet")
+        ),
+        "n_applied_resource_response_route_planning_brief_traces": sum(
+            1
+            for row in rows
+            for trace in row.applied_resource_response_traces
+            if _dict_value(trace, "llm_route_planner_route_planning_brief")
+        ),
         "n_applied_resource_response_traces_with_minimal_delta_priority": sum(
             1
             for row in rows
@@ -287,6 +299,18 @@ def export_formalization_gap_planner_route_revision_overlay(
         ),
         "n_applied_llm_route_planner_hook_traces": sum(
             len(row.applied_llm_route_planner_hook_traces) for row in rows
+        ),
+        "n_applied_llm_route_planner_target_theorem_context_packet_traces": sum(
+            1
+            for row in rows
+            for trace in row.applied_llm_route_planner_hook_traces
+            if _dict_value(trace, "llm_route_planner_target_theorem_context_packet")
+        ),
+        "n_applied_llm_route_planner_route_planning_brief_traces": sum(
+            1
+            for row in rows
+            for trace in row.applied_llm_route_planner_hook_traces
+            if _dict_value(trace, "llm_route_planner_route_planning_brief")
         ),
         "n_applied_llm_route_planner_route_planning_brief_evidence_gap_traces": (
             applied_llm_trace_by_source_kind.get(
@@ -1365,6 +1389,18 @@ def _resource_response_trace(row: dict[str, Any]) -> dict[str, object]:
         "llm_route_planner_hook_kind": str(
             row.get("llm_route_planner_hook_kind", "")
         ),
+        "llm_route_planner_target_theorem_context_packet": _dict_value(
+            row,
+            "llm_route_planner_target_theorem_context_packet",
+        ),
+        "llm_route_planner_target_context_summary": _dict_value(
+            row,
+            "llm_route_planner_target_context_summary",
+        ),
+        "llm_route_planner_route_planning_brief": _dict_value(
+            row,
+            "llm_route_planner_route_planning_brief",
+        ),
         "residual_goal_context": _residual_goal_context_value(
             _dict_value(row, "residual_goal_context")
         ),
@@ -1427,6 +1463,18 @@ def _resource_response_llm_route_planner_trace(
         "llm_route_planner_source_item": _dict_value(
             row,
             "llm_route_planner_source_item",
+        ),
+        "llm_route_planner_target_theorem_context_packet": _dict_value(
+            row,
+            "llm_route_planner_target_theorem_context_packet",
+        ),
+        "llm_route_planner_target_context_summary": _dict_value(
+            row,
+            "llm_route_planner_target_context_summary",
+        ),
+        "llm_route_planner_route_planning_brief": _dict_value(
+            row,
+            "llm_route_planner_route_planning_brief",
         ),
         "residual_goal_context": _residual_goal_context_value(
             _dict_value(row, "residual_goal_context")
@@ -2245,6 +2293,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_applied_resource_response_route_planning_brief_evidence_gap_traces')}"
         ),
         (
+            "- Applied resource-response target-context packets/briefs: "
+            f"{payload.get('n_applied_resource_response_target_theorem_context_packet_traces')}/"
+            f"{payload.get('n_applied_resource_response_route_planning_brief_traces')}"
+        ),
+        (
             "- Applied resource-response traces with minimal-delta priority: "
             f"{payload.get('n_applied_resource_response_traces_with_minimal_delta_priority')}"
         ),
@@ -2257,6 +2310,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
         (
             "- Applied LLM route-planner route-brief evidence-gap traces: "
             f"{payload.get('n_applied_llm_route_planner_route_planning_brief_evidence_gap_traces')}"
+        ),
+        (
+            "- Applied LLM route-planner target-context packets/briefs: "
+            f"{payload.get('n_applied_llm_route_planner_target_theorem_context_packet_traces')}/"
+            f"{payload.get('n_applied_llm_route_planner_route_planning_brief_traces')}"
         ),
         (
             "- Applied LLM route-planner hook traces by source kind: "
