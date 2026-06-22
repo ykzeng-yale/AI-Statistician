@@ -452,11 +452,11 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
         == ANTHROPIC_MODEL_SOURCE_EVIDENCE
     )
     assert ANTHROPIC_MODEL_SOURCE_EVIDENCE["models_overview_url"].startswith(
-        "https://docs.anthropic.com/"
+        "https://platform.claude.com/"
     )
     assert ANTHROPIC_MODEL_SOURCE_EVIDENCE[
         "model_ids_and_versioning_url"
-    ].startswith("https://docs.anthropic.com/")
+    ].startswith("https://platform.claude.com/")
     assert ANTHROPIC_MODEL_SOURCE_EVIDENCE["verified_latest_cost_tier_api_ids"] == {
         "haiku": "claude-haiku-4-5-20251001",
         "sonnet": "claude-sonnet-4-6",

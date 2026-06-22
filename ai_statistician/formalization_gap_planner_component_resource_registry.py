@@ -1511,8 +1511,8 @@ def _resource_specs() -> tuple[dict[str, Any], ...]:
                 "cost-aware tier selection and JSON-only response contracts"
             ),
             "resource_urls": (
-                "https://docs.anthropic.com/en/docs/about-claude/models/overview",
-                "https://docs.anthropic.com/en/api/messages",
+                "https://platform.claude.com/docs/en/about-claude/models/overview",
+                "https://platform.claude.com/docs/en/api/messages",
             ),
             "online_dependency": True,
             "evidence_contract": (

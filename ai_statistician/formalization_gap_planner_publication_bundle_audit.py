@@ -6636,10 +6636,10 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             and llm_model_ids_and_versioning_url
             == ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL
             and str(ANTHROPIC_MODELS_OVERVIEW_URL).startswith(
-                "https://docs.anthropic.com/"
+                "https://platform.claude.com/"
             )
             and str(ANTHROPIC_MODEL_IDS_AND_VERSIONING_URL).startswith(
-                "https://docs.anthropic.com/"
+                "https://platform.claude.com/"
             ),
         ),
         _check(

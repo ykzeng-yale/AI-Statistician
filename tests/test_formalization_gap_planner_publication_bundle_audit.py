@@ -5064,7 +5064,7 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert any(
         row["check_name"] == "llm_model_policy_official_source_urls"
-        and "docs.anthropic.com" in row["observed"]
+        and "platform.claude.com" in row["observed"]
         and row["ok"]
         for row in audit_payload["checks"]
     )
