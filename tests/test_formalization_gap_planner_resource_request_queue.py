@@ -1130,6 +1130,37 @@ def test_resource_request_queue_dispatches_prompt_only_route_planning_brief_gaps
     assert literature_row["request_playbook"]["llm_route_planner_source_item"][
         "route_planning_brief_gap_kind"
     ] == "source_grounding"
+    assert (
+        "llm_route_planner_target_theorem_context_packet"
+        in literature_row["request_contract_fields"]
+    )
+    assert (
+        "llm_route_planner_route_planning_brief"
+        in literature_row["request_contract_fields"]
+    )
+    assert literature_row["request_payload"][
+        "llm_route_planner_target_theorem_context_packet"
+    ]["route_id"] == "rank_route_prompt_only"
+    assert (
+        "distribution-free rank bound"
+        in literature_row["request_payload"][
+            "llm_route_planner_target_context_summary"
+        ]["theorem_statement"]
+    )
+    assert literature_row["request_payload"][
+        "llm_route_planner_route_planning_brief"
+    ]["target_context"]["route_id"] == "rank_route_prompt_only"
+    assert (
+        literature_row["request_payload"][
+            "llm_route_planner_target_theorem_context_packet"
+        ]
+        == literature_row["request_playbook"][
+            "llm_route_planner_target_theorem_context_packet"
+        ]
+        == literature_row["request_playbook"]["input_summary"][
+            "llm_route_planner_target_theorem_context_packet"
+        ]
+    )
     assert "rank_uniformity" in literature_row["target_primitives"]
     assert "route_planning_brief evidence gap" in " ".join(
         literature_row["actionable_work_items"]

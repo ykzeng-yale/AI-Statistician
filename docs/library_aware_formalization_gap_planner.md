@@ -1416,7 +1416,15 @@ LLM-originated residual repairs. When proof-state feedback reports residual
 goals but omits that field, refinement evidence derives a conservative
 `proof_state_feedback` context from the residuals, diagnostics, target
 primitives, and route-revision reasons while retaining the not-proof-evidence
-boundary. Route-planning-brief evidence-gap dispatches are traced the same
+boundary. LLM-derived dispatch rows also preserve
+`llm_route_planner_target_theorem_context_packet`,
+`llm_route_planner_target_context_summary`, and
+`llm_route_planner_route_planning_brief` in the request payload, playbook, and
+playbook input summary, so external Paperclip/PaperQA/formal-source/prover
+adapters can understand the theorem statement, primitive candidates, source
+refs, target prover, and route-planning evidence gaps without reopening the
+upstream route-planner manifest. Route-planning-brief evidence-gap dispatches
+are traced the same
 way: resource-response ledgers count traced, responded, and response-grounded
 `route_planning_brief_evidence_gap` rows, while route-revision overlays expose
 applied resource-response and LLM hook traces by source kind. The
@@ -1984,8 +1992,11 @@ stale interactive ledger cannot silently narrow the scoped repair obligation.
 Those session and decision-policy rows can be passed back into
 `formalization_gap_planner_llm_route_planner`, so the next LLM route-planning
 packet sees the current bounded interaction state, selected tools, quality
-gates, stop conditions, and fallback actions rather than replanning from only
-static route artifacts. For `route_replan` rows, the session ledger requires
+gates, stop conditions, fallback actions, and the compact
+`llm_route_planner_target_theorem_context_packet` /
+`llm_route_planner_route_planning_brief` lifted from linked request traces
+rather than replanning from only static route artifacts. For `route_replan`
+rows, the session ledger requires
 the LLM route-planner request, response-payload, and model-tier decision-ledger
 schemas. It also injects prompt-only plus explicit live Anthropic
 `--model-tier auto` LLM route-planner commands if a legacy/manual replan handoff

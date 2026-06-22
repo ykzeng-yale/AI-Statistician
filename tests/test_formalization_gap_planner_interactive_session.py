@@ -344,7 +344,55 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
             "request_payload": {
                 "llm_route_planner_queries": [
                     "conditional coverage split conformal proof assumptions"
-                ]
+                ],
+                "llm_route_planner_target_theorem_context_packet": {
+                    "context_packet_kind": (
+                        "formalization_gap_planner_llm_route_planner_target_theorem_context_packet"
+                    ),
+                    "route_id": "route:literature",
+                    "display_name": "literature expansion conformal route",
+                    "target_prover_family": "lean4",
+                    "library_snapshot_ref": "lean_mathlib_snapshot",
+                    "theorem_statement": (
+                        "Split conformal conditional coverage follows from "
+                        "exchangeability and rank uniformity."
+                    ),
+                    "primitive_candidates": [
+                        "conditional_coverage",
+                        "rank_uniformity",
+                    ],
+                    "proof_source_refs": ["conformal_prediction_textbook"],
+                },
+                "llm_route_planner_target_context_summary": {
+                    "route_id": "route:literature",
+                    "theorem_statement": (
+                        "Split conformal conditional coverage follows from "
+                        "exchangeability and rank uniformity."
+                    ),
+                    "primitive_candidates": [
+                        "conditional_coverage",
+                        "rank_uniformity",
+                    ],
+                    "proof_source_refs": ["conformal_prediction_textbook"],
+                },
+                "llm_route_planner_route_planning_brief": {
+                    "brief_kind": (
+                        "formalization_gap_planner_llm_route_planner_route_planning_brief"
+                    ),
+                    "route_id": "route:literature",
+                    "target_context": {
+                        "route_id": "route:literature",
+                        "theorem_statement": (
+                            "Split conformal conditional coverage follows from "
+                            "exchangeability and rank uniformity."
+                        ),
+                        "primitive_candidates": [
+                            "conditional_coverage",
+                            "rank_uniformity",
+                        ],
+                    },
+                    "evidence_gaps": [],
+                },
             },
         },
         {
@@ -434,12 +482,21 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
     assert payload["n_run_lean_grounding"] == 0
     assert payload["n_rows_with_source_refs"] == 2
     assert payload["n_rows_with_resource_requests"] == 2
+    assert payload["n_rows_with_llm_route_planner_context"] == 1
+    assert (
+        payload["n_rows_with_llm_route_planner_target_theorem_context_packet"]
+        == 1
+    )
+    assert payload["n_rows_with_llm_route_planner_route_planning_brief"] == 1
     assert payload["n_resource_requests_linked"] == 2
     assert payload["n_resource_request_dispatch_summaries"] == 2
     assert payload["n_resource_request_execution_commands"] == 2
     assert "resource_request_ids" in payload["interactive_session_row_schema"][
         "properties"
     ]
+    assert "llm_route_planner_target_theorem_context_packet" in payload[
+        "interactive_session_row_schema"
+    ]["properties"]
     by_route = {row["route_id"]: row for row in payload["rows"]}
     assert by_route["route:stable"]["next_interaction_kind"] == "target_prover_replay"
     assert (
@@ -490,6 +547,25 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
     )
     assert by_route["route:literature"]["resource_request_queue_action_kinds"] == (
         "literature_discovery",
+    )
+    assert by_route["route:literature"]["llm_route_planner_context_available"]
+    assert by_route["route:literature"][
+        "llm_route_planner_target_theorem_context_packet"
+    ]["route_id"] == "route:literature"
+    assert (
+        "conditional coverage"
+        in by_route["route:literature"][
+            "llm_route_planner_target_context_summary"
+        ]["theorem_statement"]
+    )
+    assert by_route["route:literature"][
+        "llm_route_planner_route_planning_brief"
+    ]["target_context"]["route_id"] == "route:literature"
+    assert (
+        by_route["route:literature"]["evidence_summary"][
+            "llm_route_planner_context_available"
+        ]
+        == 1
     )
     assert "paperclip_cli_mcp" in by_route["route:literature"]["next_tools"]
     assert any(
@@ -599,6 +675,15 @@ def test_interactive_session_summarizes_next_bounded_route_actions() -> None:
         "trigger_signals"
     ]
     assert "resource_request_queue_dispatch_specs" in policy_by_route[
+        "route:literature"
+    ]["evidence_inputs"]
+    assert "llm_route_planner_context_available" in policy_by_route[
+        "route:literature"
+    ]["trigger_signals"]
+    assert "llm_route_planner_target_theorem_context_packet" in policy_by_route[
+        "route:literature"
+    ]["evidence_inputs"]
+    assert "llm_route_planner_route_planning_brief" in policy_by_route[
         "route:literature"
     ]["evidence_inputs"]
     assert "literature_grounded_route_synthesis" in policy_by_route[

@@ -111,6 +111,10 @@ class FormalizationGapPlannerInteractiveSessionRow:
     route_adoption_precondition_known_blocker_count: int
     route_adoption_precondition_required_response_field_count: int
     route_adoption_precondition_target_primitive_count: int
+    llm_route_planner_context_available: bool
+    llm_route_planner_target_theorem_context_packet: dict[str, object]
+    llm_route_planner_target_context_summary: dict[str, object]
+    llm_route_planner_route_planning_brief: dict[str, object]
     resource_request_ids: tuple[str, ...]
     resource_request_resource_ids: tuple[str, ...]
     resource_request_queue_action_kinds: tuple[str, ...]
@@ -370,6 +374,17 @@ def export_formalization_gap_planner_interactive_session(
         "n_route_adoption_precondition_target_primitives": sum(
             row.route_adoption_precondition_target_primitive_count for row in rows
         ),
+        "n_rows_with_llm_route_planner_context": sum(
+            1 for row in rows if row.llm_route_planner_context_available
+        ),
+        "n_rows_with_llm_route_planner_target_theorem_context_packet": sum(
+            1
+            for row in rows
+            if row.llm_route_planner_target_theorem_context_packet
+        ),
+        "n_rows_with_llm_route_planner_route_planning_brief": sum(
+            1 for row in rows if row.llm_route_planner_route_planning_brief
+        ),
         "n_resource_requests_linked": sum(
             len(row.resource_request_ids) for row in rows
         ),
@@ -605,6 +620,10 @@ def interactive_session_row_json_schema() -> dict[str, object]:
             "route_adoption_precondition_target_primitive_count": {
                 "type": "integer"
             },
+            "llm_route_planner_context_available": {"type": "boolean"},
+            "llm_route_planner_target_theorem_context_packet": {"type": "object"},
+            "llm_route_planner_target_context_summary": {"type": "object"},
+            "llm_route_planner_route_planning_brief": {"type": "object"},
             "resource_request_ids": string_array,
             "resource_request_resource_ids": string_array,
             "resource_request_queue_action_kinds": string_array,
@@ -1178,6 +1197,12 @@ def _decision_trigger_signals(
         signals.append("resource_requests_ready")
     if row.resource_request_dispatch_summaries:
         signals.append("resource_request_dispatch_specs_ready")
+    if row.llm_route_planner_context_available:
+        signals.append("llm_route_planner_context_available")
+    if row.llm_route_planner_target_theorem_context_packet:
+        signals.append("llm_route_planner_target_theorem_context_packet")
+    if row.llm_route_planner_route_planning_brief:
+        signals.append("llm_route_planner_route_planning_brief")
     if row.formal_attempt_queue_items:
         signals.append("llm_formal_attempt_queue_present")
     if row.formal_attempt_queue_schedule.get("has_formal_attempt_queue"):
@@ -1229,6 +1254,12 @@ def _decision_evidence_inputs(
         inputs.append("route_adoption_preconditions")
     if row.resource_request_ids:
         inputs.append("resource_request_queue_dispatch_specs")
+    if row.llm_route_planner_context_available:
+        inputs.append("llm_route_planner_context")
+    if row.llm_route_planner_target_theorem_context_packet:
+        inputs.append("llm_route_planner_target_theorem_context_packet")
+    if row.llm_route_planner_route_planning_brief:
+        inputs.append("llm_route_planner_route_planning_brief")
     if row.formal_attempt_queue_items:
         inputs.append("llm_route_planner_formal_attempt_queue")
     if row.formal_attempt_queue_schedule.get("has_formal_attempt_queue"):
@@ -1669,6 +1700,38 @@ def _session_row(
         resource_request_rows,
         next_kind,
     )
+    llm_route_planner_target_theorem_context_packet = (
+        _llm_route_planner_target_theorem_context_packet_for_session(
+            plan_row,
+            stability_row,
+            resource_request_rows,
+        )
+    )
+    llm_route_planner_target_context_summary = (
+        _llm_route_planner_target_context_summary_for_session(
+            plan_row,
+            stability_row,
+            resource_request_rows,
+            target_theorem_context_packet=(
+                llm_route_planner_target_theorem_context_packet
+            ),
+        )
+    )
+    llm_route_planner_route_planning_brief = (
+        _llm_route_planner_route_planning_brief_for_session(
+            plan_row,
+            stability_row,
+            resource_request_rows,
+            target_theorem_context_packet=(
+                llm_route_planner_target_theorem_context_packet
+            ),
+        )
+    )
+    llm_route_planner_context_available = bool(
+        llm_route_planner_target_theorem_context_packet
+        or llm_route_planner_target_context_summary
+        or llm_route_planner_route_planning_brief
+    )
     resource_request_ids = _str_tuple(
         row.get("resource_request_id", "") for row in selected_resource_request_rows
     )
@@ -1887,6 +1950,15 @@ def _session_row(
             "route_adoption_precondition_unresolved": int(
                 route_adoption_precondition_unresolved
             ),
+            "llm_route_planner_context_available": int(
+                llm_route_planner_context_available
+            ),
+            "llm_route_planner_target_theorem_context_packet": int(
+                bool(llm_route_planner_target_theorem_context_packet)
+            ),
+            "llm_route_planner_route_planning_brief": int(
+                bool(llm_route_planner_route_planning_brief)
+            ),
         },
         coverage_summary=coverage_summary,
         stability_decision=stability_decision,
@@ -1929,6 +2001,16 @@ def _session_row(
         ),
         route_adoption_precondition_target_primitive_count=(
             route_adoption_precondition_target_primitive_count
+        ),
+        llm_route_planner_context_available=llm_route_planner_context_available,
+        llm_route_planner_target_theorem_context_packet=(
+            llm_route_planner_target_theorem_context_packet
+        ),
+        llm_route_planner_target_context_summary=(
+            llm_route_planner_target_context_summary
+        ),
+        llm_route_planner_route_planning_brief=(
+            llm_route_planner_route_planning_brief
         ),
         resource_request_ids=resource_request_ids,
         resource_request_resource_ids=resource_request_resource_ids,
@@ -2809,6 +2891,159 @@ def _all_node_dicts(plan_row: dict[str, Any]) -> list[dict[str, Any]]:
     return nodes
 
 
+def _llm_route_planner_target_theorem_context_packet_for_session(
+    plan_row: dict[str, Any],
+    stability_row: dict[str, Any],
+    resource_request_rows: list[dict[str, Any]],
+) -> dict[str, object]:
+    for container in _llm_route_planner_context_containers(
+        plan_row,
+        stability_row,
+        resource_request_rows,
+    ):
+        for field_name in (
+            "llm_route_planner_target_theorem_context_packet",
+            "target_theorem_context_packet",
+        ):
+            packet = _dict_value(container, field_name)
+            if packet:
+                return packet
+        brief = (
+            _dict_value(container, "llm_route_planner_route_planning_brief")
+            or _dict_value(container, "route_planning_brief")
+        )
+        target_context = _dict_value(brief, "target_context")
+        if target_context:
+            return target_context
+    return {}
+
+
+def _llm_route_planner_target_context_summary_for_session(
+    plan_row: dict[str, Any],
+    stability_row: dict[str, Any],
+    resource_request_rows: list[dict[str, Any]],
+    *,
+    target_theorem_context_packet: dict[str, object],
+) -> dict[str, object]:
+    for container in _llm_route_planner_context_containers(
+        plan_row,
+        stability_row,
+        resource_request_rows,
+    ):
+        for field_name in (
+            "llm_route_planner_target_context_summary",
+            "target_context_summary",
+        ):
+            summary = _dict_value(container, field_name)
+            if summary:
+                return summary
+    return _target_context_summary_from_packet(
+        target_theorem_context_packet,
+        fallback_route_id=str(plan_row.get("route_id", "")),
+        fallback_display_name=str(plan_row.get("display_name", "")),
+        fallback_target_prover_family=str(plan_row.get("target_prover_family", "")),
+    )
+
+
+def _llm_route_planner_route_planning_brief_for_session(
+    plan_row: dict[str, Any],
+    stability_row: dict[str, Any],
+    resource_request_rows: list[dict[str, Any]],
+    *,
+    target_theorem_context_packet: dict[str, object],
+) -> dict[str, object]:
+    for container in _llm_route_planner_context_containers(
+        plan_row,
+        stability_row,
+        resource_request_rows,
+    ):
+        for field_name in (
+            "llm_route_planner_route_planning_brief",
+            "route_planning_brief",
+        ):
+            brief = _dict_value(container, field_name)
+            if brief:
+                return brief
+    if not target_theorem_context_packet:
+        return {}
+    return {
+        "brief_kind": (
+            "formalization_gap_planner_llm_route_planner_route_planning_brief"
+        ),
+        "route_id": str(
+            target_theorem_context_packet.get(
+                "route_id",
+                plan_row.get("route_id", ""),
+            )
+        ),
+        "display_name": str(
+            target_theorem_context_packet.get(
+                "display_name",
+                plan_row.get("display_name", ""),
+            )
+        ),
+        "target_prover_family": str(
+            target_theorem_context_packet.get(
+                "target_prover_family",
+                plan_row.get("target_prover_family", ""),
+            )
+        ),
+        "library_snapshot_ref": str(
+            target_theorem_context_packet.get("library_snapshot_ref", "")
+        ),
+        "target_context": dict(target_theorem_context_packet),
+        "evidence_gaps": (),
+    }
+
+
+def _llm_route_planner_context_containers(
+    plan_row: dict[str, Any],
+    stability_row: dict[str, Any],
+    resource_request_rows: list[dict[str, Any]],
+) -> tuple[dict[str, Any], ...]:
+    containers: list[dict[str, Any]] = [
+        dict(container)
+        for container in _route_adoption_trace_containers(stability_row, plan_row)
+        if isinstance(container, dict)
+    ]
+    for request_row in resource_request_rows:
+        containers.append(dict(request_row))
+        payload = _dict_value(request_row, "request_payload")
+        playbook = _dict_value(request_row, "request_playbook")
+        input_summary = _dict_value(playbook, "input_summary")
+        source_item = (
+            _dict_value(payload, "llm_route_planner_source_item")
+            or _dict_value(playbook, "llm_route_planner_source_item")
+            or _dict_value(input_summary, "llm_route_planner_source_item")
+        )
+        for candidate in (payload, playbook, input_summary, source_item):
+            if candidate:
+                containers.append(dict(candidate))
+    return tuple(containers)
+
+
+def _target_context_summary_from_packet(
+    packet: dict[str, object],
+    *,
+    fallback_route_id: str,
+    fallback_display_name: str,
+    fallback_target_prover_family: str,
+) -> dict[str, object]:
+    if not packet:
+        return {}
+    return {
+        "route_id": str(packet.get("route_id", fallback_route_id)),
+        "display_name": str(packet.get("display_name", fallback_display_name)),
+        "target_prover_family": str(
+            packet.get("target_prover_family", fallback_target_prover_family)
+        ),
+        "library_snapshot_ref": str(packet.get("library_snapshot_ref", "")),
+        "theorem_statement": str(packet.get("theorem_statement", "")),
+        "primitive_candidates": _str_tuple(packet.get("primitive_candidates", [])),
+        "proof_source_refs": _str_tuple(packet.get("proof_source_refs", [])),
+    }
+
+
 def _route_adoption_status_for_session(
     stability_row: dict[str, Any],
     plan_row: dict[str, Any],
@@ -3267,6 +3502,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Rows with unresolved route-adoption preconditions: {payload.get('n_rows_with_unresolved_route_adoption_preconditions')}/{payload.get('n_rows_with_route_adoption_preconditions')}",
         f"- Linked resource requests: {payload.get('n_resource_requests_linked')}",
         f"- Resource request execution commands: {payload.get('n_resource_request_execution_commands')}",
+        f"- Rows with LLM route-planner context: {payload.get('n_rows_with_llm_route_planner_context')}",
+        f"- Rows with target theorem context packets: {payload.get('n_rows_with_llm_route_planner_target_theorem_context_packet')}",
+        f"- Rows with route-planning briefs: {payload.get('n_rows_with_llm_route_planner_route_planning_brief')}",
         f"- Formal attempt queue items ready/blocked/total: {payload.get('n_formal_attempt_queue_ready_items')}/{payload.get('n_formal_attempt_queue_blocked_items')}/{payload.get('n_formal_attempt_queue_items')}",
         f"- Formal attempt queue execution commands: {payload.get('n_formal_attempt_queue_execution_commands')}",
         f"- Rows with formal attempt queue schedules: {payload.get('n_rows_with_formal_attempt_queue_schedule')}",
@@ -3299,6 +3537,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
                 f"- Next interaction: `{row.get('next_interaction_kind')}`",
                 f"- Owner: `{row.get('next_owner_agent')}`",
                 f"- Resource requests: {len(row.get('resource_request_ids', []))}",
+                f"- LLM route-planner context: {row.get('llm_route_planner_context_available')}",
                 f"- Formal attempt queue: {row.get('formal_attempt_queue_ready_item_count')}/{row.get('formal_attempt_queue_item_count')} ready",
                 f"- Formal attempt schedule: complete={row.get('formal_attempt_queue_bottom_up_schedule_complete')} source={row.get('formal_attempt_queue_schedule_source')}",
                 f"- User checkpoint: {row.get('user_checkpoint')}",

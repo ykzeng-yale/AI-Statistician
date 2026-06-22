@@ -1488,6 +1488,15 @@ def _with_llm_route_planner_trace(
     request_playbook = dict(row.request_playbook)
     input_summary = dict(request_playbook.get("input_summary", {}))
     route_adoption_preconditions = _llm_route_adoption_preconditions(planner_row)
+    target_theorem_context_packet = _llm_target_theorem_context_packet(planner_row)
+    target_context_summary = _llm_target_context_summary(
+        planner_row,
+        target_theorem_context_packet=target_theorem_context_packet,
+    )
+    route_planning_brief = _llm_route_planning_brief(
+        planner_row,
+        target_theorem_context_packet=target_theorem_context_packet,
+    )
     input_summary.update(
         {
             "llm_route_planner_row_id": planner_row_id,
@@ -1496,6 +1505,11 @@ def _with_llm_route_planner_trace(
             "llm_route_planner_source_index": source_index,
             "llm_route_planner_hook_kind": hook_kind,
             "llm_route_planner_queries": queries,
+            "llm_route_planner_target_theorem_context_packet": (
+                target_theorem_context_packet
+            ),
+            "llm_route_planner_target_context_summary": target_context_summary,
+            "llm_route_planner_route_planning_brief": route_planning_brief,
         }
     )
     residual_goal_context = _llm_residual_goal_context(
@@ -1520,6 +1534,11 @@ def _with_llm_route_planner_trace(
             "llm_route_planner_source_index": source_index,
             "llm_route_planner_hook_kind": hook_kind,
             "llm_route_planner_source_item": dict(source_item),
+            "llm_route_planner_target_theorem_context_packet": (
+                target_theorem_context_packet
+            ),
+            "llm_route_planner_target_context_summary": target_context_summary,
+            "llm_route_planner_route_planning_brief": route_planning_brief,
         }
     )
     if route_adoption_preconditions:
@@ -1563,6 +1582,11 @@ def _with_llm_route_planner_trace(
             "llm_route_planner_hook_kind": hook_kind,
             "llm_route_planner_queries": queries,
             "llm_route_planner_source_item": dict(source_item),
+            "llm_route_planner_target_theorem_context_packet": (
+                target_theorem_context_packet
+            ),
+            "llm_route_planner_target_context_summary": target_context_summary,
+            "llm_route_planner_route_planning_brief": route_planning_brief,
             "request_playbook": request_playbook,
         }
     )
@@ -1579,6 +1603,147 @@ def _with_llm_route_planner_trace(
         request_payload=request_payload,
         request_playbook=request_playbook,
     )
+
+
+def _llm_target_theorem_context_packet(
+    planner_row: dict[str, Any],
+) -> dict[str, object]:
+    packet = _dict_value(planner_row, "target_theorem_context_packet")
+    if packet:
+        return packet
+    summary = _dict_value(planner_row, "target_context_summary")
+    if summary:
+        return {
+            "context_packet_kind": (
+                "formalization_gap_planner_llm_route_planner_target_theorem_context_packet"
+            ),
+            "route_id": str(planner_row.get("route_id", "")),
+            "display_name": str(planner_row.get("display_name", "")),
+            "target_prover_family": str(planner_row.get("target_prover_family", "")),
+            "library_snapshot_ref": str(
+                planner_row.get("library_snapshot_ref", "")
+            ),
+            "theorem_statement": str(summary.get("theorem_statement", "")),
+            "primitive_candidates": _str_tuple(
+                summary.get("primitive_candidates", [])
+            ),
+            "proof_source_refs": _str_tuple(summary.get("proof_source_refs", [])),
+        }
+    standalone_route = _dict_value(planner_row, "standalone_route")
+    theorem_statement = str(
+        standalone_route.get("theorem_statement", "")
+        or planner_row.get("theorem_statement", "")
+    ).strip()
+    selected_primitives = _str_tuple(
+        _dict_value(planner_row, "minimal_delta_plan").get(
+            "selected_primitives",
+            [],
+        )
+    )
+    if not theorem_statement and not selected_primitives:
+        return {}
+    return {
+        "context_packet_kind": (
+            "formalization_gap_planner_llm_route_planner_target_theorem_context_packet"
+        ),
+        "route_id": str(planner_row.get("route_id", "")),
+        "display_name": str(planner_row.get("display_name", "")),
+        "target_prover_family": str(planner_row.get("target_prover_family", "")),
+        "library_snapshot_ref": str(planner_row.get("library_snapshot_ref", "")),
+        "theorem_statement": theorem_statement,
+        "primitive_candidates": selected_primitives,
+        "proof_source_refs": _str_tuple(standalone_route.get("source_refs", [])),
+    }
+
+
+def _llm_target_context_summary(
+    planner_row: dict[str, Any],
+    *,
+    target_theorem_context_packet: dict[str, object],
+) -> dict[str, object]:
+    summary = _dict_value(planner_row, "target_context_summary")
+    if summary:
+        return summary
+    if not target_theorem_context_packet:
+        return {}
+    return {
+        "route_id": str(
+            target_theorem_context_packet.get(
+                "route_id",
+                planner_row.get("route_id", ""),
+            )
+        ),
+        "display_name": str(
+            target_theorem_context_packet.get(
+                "display_name",
+                planner_row.get("display_name", ""),
+            )
+        ),
+        "target_prover_family": str(
+            target_theorem_context_packet.get(
+                "target_prover_family",
+                planner_row.get("target_prover_family", ""),
+            )
+        ),
+        "library_snapshot_ref": str(
+            target_theorem_context_packet.get(
+                "library_snapshot_ref",
+                planner_row.get("library_snapshot_ref", ""),
+            )
+        ),
+        "theorem_statement": str(
+            target_theorem_context_packet.get("theorem_statement", "")
+        ),
+        "primitive_candidates": _str_tuple(
+            target_theorem_context_packet.get("primitive_candidates", [])
+        ),
+        "proof_source_refs": _str_tuple(
+            target_theorem_context_packet.get("proof_source_refs", [])
+        ),
+    }
+
+
+def _llm_route_planning_brief(
+    planner_row: dict[str, Any],
+    *,
+    target_theorem_context_packet: dict[str, object],
+) -> dict[str, object]:
+    brief = _dict_value(planner_row, "route_planning_brief")
+    if brief:
+        return brief
+    if not target_theorem_context_packet:
+        return {}
+    return {
+        "brief_kind": (
+            "formalization_gap_planner_llm_route_planner_route_planning_brief"
+        ),
+        "route_id": str(
+            target_theorem_context_packet.get(
+                "route_id",
+                planner_row.get("route_id", ""),
+            )
+        ),
+        "display_name": str(
+            target_theorem_context_packet.get(
+                "display_name",
+                planner_row.get("display_name", ""),
+            )
+        ),
+        "target_prover_family": str(
+            target_theorem_context_packet.get(
+                "target_prover_family",
+                planner_row.get("target_prover_family", ""),
+            )
+        ),
+        "library_snapshot_ref": str(
+            target_theorem_context_packet.get(
+                "library_snapshot_ref",
+                planner_row.get("library_snapshot_ref", ""),
+            )
+        ),
+        "target_context": dict(target_theorem_context_packet),
+        "evidence_gaps": (),
+    }
 
 
 def _llm_hook_kind(
@@ -1785,6 +1950,9 @@ def _llm_request_contract_fields_for_hook(
         "resource_request_id",
         "llm_route_planner_row_id",
         "llm_route_planner_source_kind",
+        "llm_route_planner_target_theorem_context_packet",
+        "llm_route_planner_target_context_summary",
+        "llm_route_planner_route_planning_brief",
         "route_id",
         "target_prover_family",
         "target_primitives",
