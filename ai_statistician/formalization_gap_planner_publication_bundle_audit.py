@@ -3773,6 +3773,67 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_requests_with_formal_attempt_feedback_summary": int(
+            payload.get(
+                "n_requests_with_formal_attempt_feedback_summary",
+                sum(
+                    1
+                    for packet in request_packets
+                    if _nonnegative_int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "formal_attempt_feedback_summary",
+                        ).get("total_count", 0)
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_formal_attempt_feedback_contexts": int(
+            payload.get(
+                "n_request_formal_attempt_feedback_contexts",
+                sum(
+                    _nonnegative_int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "formal_attempt_feedback_summary",
+                        ).get("total_count", 0)
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_formal_attempt_feedback_residual_goals": int(
+            payload.get(
+                "n_request_formal_attempt_feedback_residual_goals",
+                sum(
+                    _nonnegative_int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "formal_attempt_feedback_summary",
+                        ).get("residual_goal_count", 0)
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_formal_attempt_feedback_failed_statuses": int(
+            payload.get(
+                "n_request_formal_attempt_feedback_failed_statuses",
+                sum(
+                    _nonnegative_int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "formal_attempt_feedback_summary",
+                        ).get("failed_status_count", 0)
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": int(
             payload.get(
                 "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
@@ -4375,6 +4436,63 @@ def _expected_bundle_llm_route_planner_summary(
                     for row in model_tier_decision_evidence_rows
                     for trigger in _str_tuple(row.get("sonnet_triggers", []))
                     if "resource-feedback readiness row" in trigger
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_formal_attempt_feedback_contexts": int(
+            payload.get(
+                "n_request_model_tier_decision_formal_attempt_feedback_contexts",
+                sum(
+                    _nonnegative_int(
+                        _dict_value(row, "formal_attempt_feedback_counts").get(
+                            "total_count",
+                            0,
+                        )
+                    )
+                    for row in model_tier_decision_evidence_rows
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_formal_attempt_feedback_residual_goals": int(
+            payload.get(
+                "n_request_model_tier_decision_formal_attempt_feedback_residual_goals",
+                sum(
+                    _nonnegative_int(
+                        _dict_value(row, "formal_attempt_feedback_counts").get(
+                            "residual_goal_count",
+                            0,
+                        )
+                    )
+                    for row in model_tier_decision_evidence_rows
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_formal_attempt_feedback_failed_statuses": int(
+            payload.get(
+                "n_request_model_tier_decision_formal_attempt_feedback_failed_statuses",
+                sum(
+                    _nonnegative_int(
+                        _dict_value(row, "formal_attempt_feedback_counts").get(
+                            "failed_status_count",
+                            0,
+                        )
+                    )
+                    for row in model_tier_decision_evidence_rows
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_formal_attempt_feedback_sonnet_triggers": int(
+            payload.get(
+                "n_request_model_tier_decision_formal_attempt_feedback_sonnet_triggers",
+                sum(
+                    1
+                    for row in model_tier_decision_evidence_rows
+                    for trigger in _str_tuple(row.get("sonnet_triggers", []))
+                    if "formal-attempt feedback context" in trigger
                 ),
             )
             or 0

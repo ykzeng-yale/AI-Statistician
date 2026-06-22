@@ -253,6 +253,7 @@ def _write_prompt_only_llm_route_planner_artifact(
     root: Path,
     *,
     resource_response_ledger_dir: Path | None = None,
+    route_replan_handoff_dir: Path | None = None,
 ) -> Path:
     input_json = _write_llm_route_planner_fixture_input(root)
     out_dir = root / "llm_route_planner"
@@ -262,6 +263,7 @@ def _write_prompt_only_llm_route_planner_artifact(
         formalization_gap_planner_resource_response_ledger_dir=(
             resource_response_ledger_dir
         ),
+        formalization_gap_planner_route_replan_handoff_dir=route_replan_handoff_dir,
     )
     assert payload["all_ok"]
     return out_dir
@@ -364,6 +366,84 @@ def _write_resource_feedback_response_ledger(root: Path) -> Path:
         encoding="utf-8",
     )
     return ledger_dir
+
+
+def _write_formal_attempt_feedback_handoff(root: Path) -> Path:
+    handoff_dir = root / "route_replan_handoff"
+    handoff_dir.mkdir(parents=True, exist_ok=True)
+    formal_attempt_context = {
+        "attempt_id": "attempt:fixture_bridge_conclusion",
+        "formal_node_id": "formal:bridge_conclusion",
+        "formal_attempt_queue_index": 0,
+        "formal_attempt_dependency_status": "initial_ready",
+        "attempt_kind": "bridge_proof",
+        "primitive": "bridge_conclusion",
+        "target_primitives": ["bridge_conclusion"],
+        "target_prover_family": "lean4",
+        "prerequisite_formal_node_ids": [],
+        "prerequisite_attempt_ids": [],
+        "missing_prerequisite_formal_node_ids": [],
+        "expected_feedback": ["residual_goals", "diagnostic_signature"],
+    }
+    (
+        handoff_dir
+        / "formalization_gap_planner_route_replan_handoff_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_route_replan_handoff",
+                "rows": [
+                    {
+                        "route_replan_handoff_id": (
+                            "handoff:fixture_formal_attempt_feedback"
+                        ),
+                        "route_revision_overlay_id": (
+                            "overlay:fixture_formal_attempt_feedback"
+                        ),
+                        "goal_plan_id": "goal:fixture-route",
+                        "route_id": "route:fixture",
+                        "display_name": "fixture formalization route",
+                        "applied_hook_kinds": ["resource_response_ledger"],
+                        "applied_resource_response_traces": [
+                            {
+                                "resource_response_ledger_id": (
+                                    "ledger:fixture_formal_attempt"
+                                ),
+                                "resource_request_id": (
+                                    "request:fixture_formal_attempt"
+                                ),
+                                "resource_id": "lean_lsp_mcp",
+                                "target_primitives": ["bridge_conclusion"],
+                                "formal_attempt_context": formal_attempt_context,
+                                "residual_goals": [
+                                    (
+                                        "bridge_conclusion: missing source_assumption "
+                                        "side condition"
+                                    )
+                                ],
+                                "prover_attempt_status": (
+                                    "failed_with_residual_goals"
+                                ),
+                                "prover_diagnostic_signature": (
+                                    "residual_goal:fixture_bridge_side_condition"
+                                ),
+                                "route_revision_recommended": True,
+                                "route_revision_reasons": [
+                                    (
+                                        "formal attempt exposed a bridge side "
+                                        "condition"
+                                    )
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return handoff_dir
 
 
 def _write_llm_response_payload_validation_artifact(root: Path) -> Path:
@@ -1221,6 +1301,30 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     )
     assert (
         manifest["llm_route_planner_summary"][
+            "n_requests_with_formal_attempt_feedback_summary"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_formal_attempt_feedback_contexts"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_formal_attempt_feedback_residual_goals"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_formal_attempt_feedback_failed_statuses"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
             "n_request_model_tier_decision_resource_feedback_readiness_rows"
         ]
         == 0
@@ -1234,6 +1338,30 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert (
         manifest["llm_route_planner_summary"][
             "n_request_model_tier_decision_resource_feedback_sonnet_triggers"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_model_tier_decision_formal_attempt_feedback_contexts"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_model_tier_decision_formal_attempt_feedback_residual_goals"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_model_tier_decision_formal_attempt_feedback_failed_statuses"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_request_model_tier_decision_formal_attempt_feedback_sonnet_triggers"
         ]
         == 0
     )
@@ -1839,6 +1967,30 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         ]
         == 0
     )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_model_tier_decision_formal_attempt_feedback_contexts"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_model_tier_decision_formal_attempt_feedback_residual_goals"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_model_tier_decision_formal_attempt_feedback_failed_statuses"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_request_model_tier_decision_formal_attempt_feedback_sonnet_triggers"
+        ]
+        == 0
+    )
     report = (
         out_dir / "formalization_gap_planner_publication_bundle.md"
     ).read_text(encoding="utf-8")
@@ -2303,6 +2455,95 @@ def test_publication_bundle_summarizes_llm_resource_feedback_readiness() -> None
     assert (
         summary[
             "n_request_model_tier_decision_resource_feedback_sonnet_triggers"
+        ]
+        == 1
+    )
+
+
+def test_publication_bundle_summarizes_llm_formal_attempt_feedback() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_formal_attempt_feedback"
+    )
+    shutil.rmtree(root, ignore_errors=True)
+    handoff_dir = _write_formal_attempt_feedback_handoff(
+        root / "formal_attempt_feedback"
+    )
+    primary_dir = _write_prompt_only_llm_route_planner_artifact(
+        root / "primary",
+        route_replan_handoff_dir=handoff_dir,
+    )
+    out_dir = root / "bundle"
+
+    payload = export_formalization_gap_planner_publication_bundle(
+        out_dir,
+        formalization_gap_planner_llm_route_planner_dir=primary_dir,
+    )
+
+    assert payload["all_ok"]
+    raw_manifest = json.loads(
+        (
+            primary_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    manifest = json.loads(
+        (
+            out_dir / "formalization_gap_planner_publication_bundle_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    summary = manifest["llm_route_planner_summary"]
+    assert raw_manifest["n_requests_with_formal_attempt_feedback_summary"] == 1
+    assert raw_manifest["n_request_formal_attempt_feedback_contexts"] == 1
+    assert raw_manifest["n_request_formal_attempt_feedback_residual_goals"] == 1
+    assert raw_manifest["n_request_formal_attempt_feedback_failed_statuses"] == 1
+    assert (
+        raw_manifest[
+            "n_request_model_tier_decision_formal_attempt_feedback_contexts"
+        ]
+        == 1
+    )
+    assert (
+        raw_manifest[
+            "n_request_model_tier_decision_formal_attempt_feedback_residual_goals"
+        ]
+        == 1
+    )
+    assert (
+        raw_manifest[
+            "n_request_model_tier_decision_formal_attempt_feedback_failed_statuses"
+        ]
+        == 1
+    )
+    assert (
+        raw_manifest[
+            "n_request_model_tier_decision_formal_attempt_feedback_sonnet_triggers"
+        ]
+        == 1
+    )
+    assert summary["n_requests_with_formal_attempt_feedback_summary"] == 1
+    assert summary["n_request_formal_attempt_feedback_contexts"] == 1
+    assert summary["n_request_formal_attempt_feedback_residual_goals"] == 1
+    assert summary["n_request_formal_attempt_feedback_failed_statuses"] == 1
+    assert (
+        summary[
+            "n_request_model_tier_decision_formal_attempt_feedback_contexts"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_request_model_tier_decision_formal_attempt_feedback_residual_goals"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_request_model_tier_decision_formal_attempt_feedback_failed_statuses"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_request_model_tier_decision_formal_attempt_feedback_sonnet_triggers"
         ]
         == 1
     )
@@ -4344,6 +4585,38 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "n_formal_attempt_queue_items" in llm_summary_schema["required"]
     assert "n_rows_with_formal_attempt_queue" in llm_summary_schema["required"]
     assert "n_accepted_with_formal_attempt_queue" in llm_summary_schema["required"]
+    assert (
+        "n_requests_with_formal_attempt_feedback_summary"
+        in llm_summary_schema["required"]
+    )
+    assert (
+        "n_request_formal_attempt_feedback_contexts"
+        in llm_summary_schema["required"]
+    )
+    assert (
+        "n_request_formal_attempt_feedback_residual_goals"
+        in llm_summary_schema["required"]
+    )
+    assert (
+        "n_request_formal_attempt_feedback_failed_statuses"
+        in llm_summary_schema["required"]
+    )
+    assert (
+        "n_request_model_tier_decision_formal_attempt_feedback_contexts"
+        in llm_summary_schema["required"]
+    )
+    assert (
+        "n_request_model_tier_decision_formal_attempt_feedback_residual_goals"
+        in llm_summary_schema["required"]
+    )
+    assert (
+        "n_request_model_tier_decision_formal_attempt_feedback_failed_statuses"
+        in llm_summary_schema["required"]
+    )
+    assert (
+        "n_request_model_tier_decision_formal_attempt_feedback_sonnet_triggers"
+        in llm_summary_schema["required"]
+    )
     assert (
         "n_request_agentic_proof_execution_materializer_rows"
         in llm_summary_schema["required"]

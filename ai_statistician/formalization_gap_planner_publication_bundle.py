@@ -2547,6 +2547,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_resource_feedback_readiness_summary",
             "n_request_resource_feedback_readiness_rows",
             "n_request_resource_feedback_reuse_ready_rows",
+            "n_requests_with_formal_attempt_feedback_summary",
+            "n_request_formal_attempt_feedback_contexts",
+            "n_request_formal_attempt_feedback_residual_goals",
+            "n_request_formal_attempt_feedback_failed_statuses",
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_feedback_loop_summary_interactive_resource_requests",
@@ -2624,6 +2628,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_model_tier_decision_resource_feedback_readiness_rows",
             "n_request_model_tier_decision_resource_feedback_reuse_ready_rows",
             "n_request_model_tier_decision_resource_feedback_sonnet_triggers",
+            "n_request_model_tier_decision_formal_attempt_feedback_contexts",
+            "n_request_model_tier_decision_formal_attempt_feedback_residual_goals",
+            "n_request_model_tier_decision_formal_attempt_feedback_failed_statuses",
+            "n_request_model_tier_decision_formal_attempt_feedback_sonnet_triggers",
             "n_request_model_tier_decision_evidence_invalid",
             "by_request_model_tier_decision_basis",
             "n_requests_with_library_alignment_summary",
@@ -2765,6 +2773,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             ),
             "n_request_resource_feedback_readiness_rows": nonnegative_integer,
             "n_request_resource_feedback_reuse_ready_rows": nonnegative_integer,
+            "n_requests_with_formal_attempt_feedback_summary": nonnegative_integer,
+            "n_request_formal_attempt_feedback_contexts": nonnegative_integer,
+            "n_request_formal_attempt_feedback_residual_goals": nonnegative_integer,
+            "n_request_formal_attempt_feedback_failed_statuses": nonnegative_integer,
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": (
                 nonnegative_integer
             ),
@@ -2959,6 +2971,18 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_request_model_tier_decision_resource_feedback_sonnet_triggers": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_formal_attempt_feedback_contexts": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_formal_attempt_feedback_residual_goals": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_formal_attempt_feedback_failed_statuses": (
+                nonnegative_integer
+            ),
+            "n_request_model_tier_decision_formal_attempt_feedback_sonnet_triggers": (
                 nonnegative_integer
             ),
             "n_request_model_tier_decision_evidence_invalid": (
@@ -5966,6 +5990,10 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_requests_with_resource_feedback_readiness_summary": 0,
         "n_request_resource_feedback_readiness_rows": 0,
         "n_request_resource_feedback_reuse_ready_rows": 0,
+        "n_requests_with_formal_attempt_feedback_summary": 0,
+        "n_request_formal_attempt_feedback_contexts": 0,
+        "n_request_formal_attempt_feedback_residual_goals": 0,
+        "n_request_formal_attempt_feedback_failed_statuses": 0,
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_feedback_loop_summary_interactive_resource_requests": 0,
@@ -6048,6 +6076,10 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_model_tier_decision_resource_feedback_readiness_rows": 0,
         "n_request_model_tier_decision_resource_feedback_reuse_ready_rows": 0,
         "n_request_model_tier_decision_resource_feedback_sonnet_triggers": 0,
+        "n_request_model_tier_decision_formal_attempt_feedback_contexts": 0,
+        "n_request_model_tier_decision_formal_attempt_feedback_residual_goals": 0,
+        "n_request_model_tier_decision_formal_attempt_feedback_failed_statuses": 0,
+        "n_request_model_tier_decision_formal_attempt_feedback_sonnet_triggers": 0,
         "n_request_model_tier_decision_evidence_invalid": 0,
         "by_request_model_tier_decision_basis": {},
         "n_request_model_tier_haiku": 0,
@@ -6631,6 +6663,71 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                             _dict_value(packet, "context_packet"),
                             "resource_feedback_readiness_summary",
                         ).get("reuse_ready_count", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_requests_with_formal_attempt_feedback_summary": int(
+            payload.get(
+                "n_requests_with_formal_attempt_feedback_summary",
+                sum(
+                    1
+                    for packet in request_packets
+                    if int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "formal_attempt_feedback_summary",
+                        ).get("total_count", 0)
+                        or 0
+                    )
+                ),
+            )
+            or 0
+        ),
+        "n_request_formal_attempt_feedback_contexts": int(
+            payload.get(
+                "n_request_formal_attempt_feedback_contexts",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "formal_attempt_feedback_summary",
+                        ).get("total_count", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_formal_attempt_feedback_residual_goals": int(
+            payload.get(
+                "n_request_formal_attempt_feedback_residual_goals",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "formal_attempt_feedback_summary",
+                        ).get("residual_goal_count", 0)
+                        or 0
+                    )
+                    for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_request_formal_attempt_feedback_failed_statuses": int(
+            payload.get(
+                "n_request_formal_attempt_feedback_failed_statuses",
+                sum(
+                    int(
+                        _dict_value(
+                            _dict_value(packet, "context_packet"),
+                            "formal_attempt_feedback_summary",
+                        ).get("failed_status_count", 0)
                         or 0
                     )
                     for packet in request_packets
@@ -7386,6 +7483,66 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                     for row in model_tier_decision_evidence_rows
                     for trigger in _str_tuple(row.get("sonnet_triggers", []))
                     if "resource-feedback readiness row" in trigger
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_formal_attempt_feedback_contexts": int(
+            payload.get(
+                "n_request_model_tier_decision_formal_attempt_feedback_contexts",
+                sum(
+                    int(
+                        _dict_value(row, "formal_attempt_feedback_counts").get(
+                            "total_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in model_tier_decision_evidence_rows
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_formal_attempt_feedback_residual_goals": int(
+            payload.get(
+                "n_request_model_tier_decision_formal_attempt_feedback_residual_goals",
+                sum(
+                    int(
+                        _dict_value(row, "formal_attempt_feedback_counts").get(
+                            "residual_goal_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in model_tier_decision_evidence_rows
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_formal_attempt_feedback_failed_statuses": int(
+            payload.get(
+                "n_request_model_tier_decision_formal_attempt_feedback_failed_statuses",
+                sum(
+                    int(
+                        _dict_value(row, "formal_attempt_feedback_counts").get(
+                            "failed_status_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in model_tier_decision_evidence_rows
+                ),
+            )
+            or 0
+        ),
+        "n_request_model_tier_decision_formal_attempt_feedback_sonnet_triggers": int(
+            payload.get(
+                "n_request_model_tier_decision_formal_attempt_feedback_sonnet_triggers",
+                sum(
+                    1
+                    for row in model_tier_decision_evidence_rows
+                    for trigger in _str_tuple(row.get("sonnet_triggers", []))
+                    if "formal-attempt feedback context" in trigger
                 ),
             )
             or 0
