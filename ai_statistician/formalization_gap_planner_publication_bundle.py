@@ -1925,6 +1925,9 @@ def export_formalization_gap_planner_publication_bundle(
                 formalization_gap_planner_llm_route_planner_response_payload_validation_dir
             )
         ),
+        "library_coverage_map_summary": _library_coverage_map_summary(
+            formalization_gap_planner_library_coverage_map_dir
+        ),
         "adapter_registry_summary": {
             "n_adapters": adapter_registry_payload.get("n_adapters", 0),
             "n_adapter_row_schema_valid": adapter_registry_payload.get(
@@ -3315,6 +3318,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "llm_route_planner_summary",
             "feedback_llm_route_planner_summary",
             "llm_route_planner_response_payload_validation_summary",
+            "library_coverage_map_summary",
             "cross_prover_formal_attempt_dependency_summary",
             "schema_catalog_summary",
             "all_ok",
@@ -3343,6 +3347,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "llm_route_planner_response_payload_validation_summary": (
                 response_payload_validation_summary_schema
             ),
+            "library_coverage_map_summary": {"type": "object"},
             "cross_prover_formal_attempt_dependency_summary": (
                 cross_prover_formal_attempt_dependency_summary_schema
             ),
@@ -4976,6 +4981,79 @@ def _manifest_summary(
         "requested": True,
         "manifest_path": str(manifest_path),
         **{key: payload.get(key, 0) for key in keys},
+    }
+
+
+def _library_coverage_map_summary(source_dir: Path | None) -> dict[str, object]:
+    zero_summary: dict[str, object] = {
+        "requested": False,
+        "manifest_path": "",
+        "target_prover_family": "",
+        "n_target_prover_families": 0,
+        "by_target_prover_family": {},
+        "n_coverage_rows": 0,
+        "n_ok": 0,
+        "n_failed": 0,
+        "n_row_schema_valid": 0,
+        "n_row_schema_invalid": 0,
+        "all_ok": False,
+    }
+    if source_dir is None:
+        return zero_summary
+    manifest_path = (
+        source_dir
+        / "formalization_gap_planner_library_coverage_map_manifest.json"
+    )
+    payload = _read_json_no_error(manifest_path)
+    rows = _read_jsonl_dict_rows_no_error(
+        source_dir / "formalization_gap_planner_library_coverage_map.jsonl"
+    )
+    by_target = _count_map(payload.get("by_target_prover_family", {}))
+    if not by_target and rows:
+        by_target = dict(
+            sorted(
+                Counter(
+                    _target_prover_key(row.get("target_prover_family", ""))
+                    or "unknown"
+                    for row in rows
+                ).items()
+            )
+        )
+    target_family = str(payload.get("target_prover_family", "") or "").strip()
+    if not target_family and len(by_target) == 1:
+        target_family = next(iter(by_target))
+    n_target_families = int(
+        payload.get("n_target_prover_families", len(by_target)) or 0
+    )
+    if not n_target_families and by_target:
+        n_target_families = len(by_target)
+    return {
+        **zero_summary,
+        "requested": True,
+        "manifest_path": str(manifest_path),
+        "target_prover_family": target_family,
+        "n_target_prover_families": n_target_families,
+        "by_target_prover_family": by_target,
+        "n_coverage_rows": int(
+            payload.get("n_coverage_rows", len(rows)) or 0
+        ),
+        "n_ok": int(
+            payload.get(
+                "n_ok",
+                sum(1 for row in rows if bool(row.get("ok", False))),
+            )
+            or 0
+        ),
+        "n_failed": int(
+            payload.get(
+                "n_failed",
+                sum(1 for row in rows if not bool(row.get("ok", False))),
+            )
+            or 0
+        ),
+        "n_row_schema_valid": int(payload.get("n_row_schema_valid", 0) or 0),
+        "n_row_schema_invalid": int(payload.get("n_row_schema_invalid", 0) or 0),
+        "all_ok": bool(payload.get("all_ok", False)),
     }
 
 
@@ -9012,6 +9090,11 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Evaluation quality controls: "
             f"rows={payload.get('evaluation_summary', {}).get('n_rows_with_quality_controls')} "
             f"fields={payload.get('evaluation_summary', {}).get('quality_control_fields')}"
+        ),
+        (
+            f"- Library coverage map target families: "
+            f"{payload.get('library_coverage_map_summary', {}).get('target_prover_family')} "
+            f"by={payload.get('library_coverage_map_summary', {}).get('by_target_prover_family')}"
         ),
         (
             f"- Cross-prover formal-attempt dependency: "

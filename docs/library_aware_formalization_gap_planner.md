@@ -2046,6 +2046,11 @@ so downstream consumers can validate the index directly, including
 bundle-local relative-path resolution when they have the exported bundle, plus
 `reproduce/formalization_gap_planner_reproduction_manifest.json` with
 bundle-relative artifacts, entry points, and commands for external reuse. The
+top-level bundle manifest also includes `library_coverage_map_summary`, lifting
+the copied coverage map's `target_prover_family`,
+`n_target_prover_families`, and `by_target_prover_family` so downstream
+Lean/Rocq/Isabelle/Agda/HOL consumers can verify the library-coverage scope
+without opening nested artifacts. The
 manifest includes the one-command `formalization-gap-planner-reuse-smoke`
 path, the AI Statistician runtime target-intake replay command, the standalone
 planner path, and the refinement rerun path: target-intake-aware LLM route

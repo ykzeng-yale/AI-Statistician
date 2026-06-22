@@ -3122,6 +3122,9 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         json.dumps(
             {
                 "component_name": "formalization_gap_planner_library_coverage_map",
+                "target_prover_family": "lean4",
+                "n_target_prover_families": 1,
+                "by_target_prover_family": {"lean4": 1},
                 "n_coverage_rows": 1,
                 "n_ok": 1,
                 "n_failed": 0,
@@ -3882,6 +3885,22 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         == 0
     )
     assert payload["evaluation_summary"]["mean_alignment_coverage"] == 1.0
+    assert payload["library_coverage_map_summary"]["requested"] is True
+    assert payload["library_coverage_map_summary"]["target_prover_family"] == "lean4"
+    assert payload["library_coverage_map_summary"]["n_target_prover_families"] == 1
+    assert payload["library_coverage_map_summary"]["by_target_prover_family"] == {
+        "lean4": 1
+    }
+    assert payload["library_coverage_map_summary"]["n_coverage_rows"] == 1
+    assert payload["library_coverage_map_summary"]["n_ok"] == 1
+    assert payload["library_coverage_map_summary"]["all_ok"] is True
+    report_text = (
+        out_dir / "formalization_gap_planner_publication_bundle.md"
+    ).read_text(encoding="utf-8")
+    assert (
+        "Library coverage map target families: lean4 by={'lean4': 1}"
+        in report_text
+    )
     assert (
         payload["evaluation_summary"][
             "n_rows_with_llm_route_planner_residual_goal_contexts"
@@ -4589,6 +4608,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert (
         "cross_prover_formal_attempt_dependency_summary"
+        in publication_bundle_manifest_schema_payload["required"]
+    )
+    assert (
+        "library_coverage_map_summary"
         in publication_bundle_manifest_schema_payload["required"]
     )
     evaluation_summary_schema = publication_bundle_manifest_schema_payload[

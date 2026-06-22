@@ -589,6 +589,10 @@ records the manifest-level `by_target_prover_family` distribution for the
 coverage rows, and validates those rows against
 `formalization_gap_planner_library_coverage_map_row.schema.json`. This is a
 library-alignment planning artifact, not proof evidence.
+Publication bundles lift the same target-family distribution into
+`library_coverage_map_summary`, so public benchmark artifacts expose the
+coverage scope without requiring consumers to inspect the nested coverage-map
+manifest first.
 The `formalization-gap-planner-primitive-action-queue` gate consumes that
 coverage map and emits one executable primitive work order per selected route
 primitive. Its row schema records the action kind, owner, priority, required
