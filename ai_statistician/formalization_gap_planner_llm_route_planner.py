@@ -210,6 +210,16 @@ LLM_ROUTE_PLANNER_OPERATOR_ONLY_RESOURCE_CAPABILITY_TAGS = frozenset(
 ROUTE_BRIEF_GAP_RESPONSE_CONTRACT_REJECTION_STATUS = (
     "REJECTED_ROUTE_PLANNING_BRIEF_GAP_RESPONSE_CONTRACT"
 )
+ROUTE_BRIEF_GAP_RESPONSE_CONTRACT_SUMMARY_FORBIDDEN_EVIDENCE_FIELDS = (
+    "source_refs",
+    "source_snippets",
+    "route_evidence_nodes",
+    "formal_declaration_hits",
+    "lean_declaration_hits",
+    "coverage_updates",
+    "residual_goals",
+    "prover_diagnostics",
+)
 CONTEXT_PACKET_ROW_FIELDS = (
     "target_intake_rows",
     "library_coverage_rows",
@@ -5905,6 +5915,7 @@ def validate_llm_route_planner_request(
             "context_packet.residual_goal_contexts"
         )
     errors.extend(_llm_generation_policy_errors(row))
+    errors.extend(_route_brief_gap_response_contract_summary_errors(context_packet))
     errors.extend(_context_packet_inventory_errors(row))
     return sorted(set(errors))
 
@@ -29262,6 +29273,59 @@ def _route_brief_gap_response_contract_summary(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _route_brief_gap_response_contract_summary_errors(
+    context_packet: Mapping[str, Any],
+) -> list[str]:
+    summary = _dict_value(context_packet, "route_brief_gap_response_contract_summary")
+    expected = _route_brief_gap_response_contract_summary(context_packet)
+    if not summary and not expected:
+        return []
+    errors: list[str] = []
+    if summary != expected:
+        errors.append(
+            "context_packet.route_brief_gap_response_contract_summary must "
+            "match rejected route-planning brief gap resource-response rows"
+        )
+    forbidden_paths = _forbidden_route_brief_gap_summary_evidence_paths(summary)
+    if forbidden_paths:
+        errors.append(
+            "context_packet.route_brief_gap_response_contract_summary must not "
+            "carry evidence fields; forbidden paths: "
+            + ", ".join(forbidden_paths[:8])
+        )
+    return errors
+
+
+def _forbidden_route_brief_gap_summary_evidence_paths(
+    value: Any,
+    *,
+    path: str = "context_packet.route_brief_gap_response_contract_summary",
+) -> list[str]:
+    paths: list[str] = []
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            child_path = f"{path}.{key}"
+            if str(key) in (
+                ROUTE_BRIEF_GAP_RESPONSE_CONTRACT_SUMMARY_FORBIDDEN_EVIDENCE_FIELDS
+            ):
+                paths.append(child_path)
+            paths.extend(
+                _forbidden_route_brief_gap_summary_evidence_paths(
+                    item,
+                    path=child_path,
+                )
+            )
+    elif isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            paths.extend(
+                _forbidden_route_brief_gap_summary_evidence_paths(
+                    item,
+                    path=f"{path}[{index}]",
+                )
+            )
+    return paths
 
 
 def _route_brief_gap_response_contract_next_actions(
