@@ -29216,7 +29216,10 @@ def _route_brief_gap_response_contract_summary(
         gap_missing_fields = _str_tuple(
             row.get("missing_response_contract_fields", [])
         )
-        row_target_primitives = _feedback_row_target_primitives(row)
+        row_target_primitives = _route_brief_gap_contract_target_primitives(
+            row,
+            source_item,
+        )
         resource_request_id = str(row.get("resource_request_id", "")).strip()
         resource_id = str(row.get("resource_id", "")).strip()
         by_gap_kind[gap_kind or "unknown"] += 1
@@ -29273,6 +29276,33 @@ def _route_brief_gap_response_contract_summary(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _route_brief_gap_contract_target_primitives(
+    row: Mapping[str, object],
+    source_item: Mapping[str, object],
+) -> tuple[str, ...]:
+    request_playbook = _dict_value(row, "request_playbook")
+    request_payload = _dict_value(row, "request_payload")
+    input_summary = _dict_value(request_playbook, "input_summary")
+    request_input_summary = _dict_value(request_payload, "input_summary")
+    source_gap = _dict_value(source_item, "route_planning_brief_evidence_gap")
+    values: list[str] = []
+    for container in (
+        source_item,
+        source_gap,
+        request_payload,
+        request_playbook,
+        input_summary,
+        request_input_summary,
+    ):
+        values.extend(_str_tuple(container.get("target_primitives", [])))
+        values.extend(_str_tuple(container.get("target_primitive", [])))
+        values.extend(
+            _str_tuple(container.get("route_planning_brief_gap_target_primitives", []))
+        )
+        values.append(str(container.get("primitive", "")).strip())
+    return _unique_strings(values)
 
 
 def _route_brief_gap_response_contract_summary_errors(

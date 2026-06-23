@@ -6966,12 +6966,19 @@ def test_llm_route_planner_rejected_route_brief_gap_contract_requests_redispatch
     row["llm_route_planner_source_item"] = {
         "route_planning_brief_gap_id": "missing_source_evidence",
         "route_planning_brief_gap_kind": "source_grounding",
+        "target_primitives": ["rank_uniformity"],
         "route_planning_brief_gap_required_response_fields": [
             "source_refs",
             "source_snippets",
             "route_evidence_nodes",
         ],
     }
+    row["primitive"] = "spectral_gap"
+    row["target_primitives"] = ["spectral_gap"]
+    row["response_payload"]["target_primitives"] = ["spectral_gap"]
+    row["response_payload"]["source_snippets"][0]["target_primitives"] = [
+        "spectral_gap"
+    ]
     row["response_contract_ok"] = False
     row["response_contract_minimum_met"] = True
     row["matched_response_contract_fields"] = [
@@ -7008,6 +7015,9 @@ def test_llm_route_planner_rejected_route_brief_gap_contract_requests_redispatch
     summary = context["route_brief_gap_response_contract_summary"]
     assert summary["total_count"] == 1
     assert summary["by_gap_kind"] == {"source_grounding": 1}
+    assert summary["target_primitives"] == ["rank_uniformity"]
+    assert summary["rows"][0]["target_primitives"] == ["rank_uniformity"]
+    assert "spectral_gap" not in json.dumps(summary)
     assert summary["required_response_fields"] == [
         "source_refs",
         "source_snippets",
@@ -7048,6 +7058,7 @@ def test_llm_route_planner_rejected_route_brief_gap_contract_requests_redispatch
     )
     assert "planner_next_actions" in preconditions["response_required_fields"]
     assert "search_requests" in preconditions["response_required_fields"]
+    assert preconditions["target_primitives"] == ["rank_uniformity"]
     route_brief = context["route_planning_brief"]
     assert (
         route_brief["evidence_summary"][
@@ -7067,6 +7078,7 @@ def test_llm_route_planner_rejected_route_brief_gap_contract_requests_redispatch
     )
     assert rejected_gap["gap_kind"] == "source_grounding"
     assert rejected_gap["target_primitives"] == ["rank_uniformity"]
+    assert "spectral_gap" not in json.dumps(rejected_gap)
     assert "route_brief_gap_response_contract_summary" in request[
         "prompt_messages"
     ]["user"]
@@ -7096,6 +7108,7 @@ def test_llm_route_planner_request_rejects_route_brief_gap_contract_summary_evid
     row["llm_route_planner_source_item"] = {
         "route_planning_brief_gap_id": "missing_source_evidence",
         "route_planning_brief_gap_kind": "source_grounding",
+        "target_primitives": ["rank_uniformity"],
         "route_planning_brief_gap_required_response_fields": [
             "source_refs",
             "source_snippets",
@@ -7198,6 +7211,109 @@ def test_llm_route_planner_rejects_action_primitive_from_rejected_context_row() 
     ledger_row = request["context_packet"]["resource_response_ledger_rows"][0]
     assert "spectral_gap" in json.dumps(ledger_row)
     assert ledger_row["response_contract_ok"] is False
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "planner_next_actions[0].target_primitives must be drawn from request"
+        in error
+        and "spectral_gap" in error
+        for error in row["errors"]
+    )
+
+
+def test_llm_route_planner_rejects_action_primitive_from_route_brief_contract_rejected_response_scope() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_route_brief_contract_rejected_response_scope"
+    )
+    response_json = root / "bad_response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    manifest_path = (
+        resource_response_ledger_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    row = manifest["rows"][0]
+    row["acceptance_status"] = "REJECTED_ROUTE_PLANNING_BRIEF_GAP_RESPONSE_CONTRACT"
+    row["llm_route_planner_source_kind"] = "route_planning_brief_evidence_gap"
+    row["llm_route_planner_hook_kind"] = "literature_discovery"
+    row["llm_route_planner_source_item"] = {
+        "route_planning_brief_gap_id": "missing_source_evidence",
+        "route_planning_brief_gap_kind": "source_grounding",
+        "target_primitives": ["rank_uniformity"],
+        "route_planning_brief_gap_required_response_fields": [
+            "source_refs",
+            "source_snippets",
+            "route_evidence_nodes",
+        ],
+    }
+    row["primitive"] = "spectral_gap"
+    row["target_primitives"] = ["spectral_gap"]
+    row["response_payload"]["target_primitives"] = ["spectral_gap"]
+    row["response_payload"]["source_snippets"][0]["target_primitives"] = [
+        "spectral_gap"
+    ]
+    row["response_contract_ok"] = False
+    row["response_contract_minimum_met"] = True
+    row["matched_response_contract_fields"] = [
+        "assumption_or_theorem_variant_updates"
+    ]
+    row["missing_response_contract_fields"] = [
+        "source_refs",
+        "source_snippets",
+        "route_evidence_nodes",
+    ]
+    row["ok"] = False
+    row["errors"] = [
+        (
+            "route_planning_brief evidence gap response missing required "
+            "fields for source_grounding: source_refs, source_snippets, "
+            "route_evidence_nodes"
+        )
+    ]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    bad_response = _llm_response_payload()
+    bad_response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": (
+                "proof_state_feedback for spectral_gap from rejected "
+                "route-brief gap contract row"
+            ),
+            "query": "spectral_gap residual goals",
+            "target_primitives": ["spectral_gap"],
+        }
+    ]
+    response_json.write_text(json.dumps(bad_response), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    ledger_row = context["resource_response_ledger_rows"][0]
+    assert "spectral_gap" in json.dumps(ledger_row)
+    summary = context["route_brief_gap_response_contract_summary"]
+    assert summary["target_primitives"] == ["rank_uniformity"]
+    assert summary["rows"][0]["target_primitives"] == ["rank_uniformity"]
+    assert "spectral_gap" not in json.dumps(summary)
+    route_brief = context["route_planning_brief"]
+    rejected_gap = next(
+        gap
+        for gap in route_brief["evidence_gaps"]
+        if gap["gap_id"].startswith("rejected_route_brief_gap_response_contract:")
+    )
+    assert rejected_gap["target_primitives"] == ["rank_uniformity"]
     row = payload["rows"][0]
     assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
     assert any(
