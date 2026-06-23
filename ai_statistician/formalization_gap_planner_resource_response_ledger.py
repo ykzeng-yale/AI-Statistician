@@ -879,6 +879,35 @@ def validate_resource_response_ledger_row(
         errors.append(
             "actionable scope expansion rows must not set response_contract_ok=true"
         )
+    if (
+        str(row.get("acceptance_status", ""))
+        == "REJECTED_ROUTE_PLANNING_BRIEF_GAP_RESPONSE_CONTRACT"
+    ):
+        source_item = _dict_value(row, "llm_route_planner_source_item")
+        required_fields = _str_tuple(
+            source_item.get("route_planning_brief_gap_required_response_fields", [])
+        )
+        if required_fields:
+            response_values = _merged_response_values(
+                row,
+                _dict_value(row, "response_payload"),
+            )
+            _, expected_missing = _contract_field_matches(
+                required_fields,
+                response_values,
+            )
+            if not expected_missing:
+                errors.append(
+                    "route-brief gap rejected rows must have missing "
+                    "gap-specific response fields"
+                )
+            row_missing = _str_tuple(row.get("missing_response_contract_fields", []))
+            if row_missing != expected_missing:
+                errors.append(
+                    "route-brief gap rejected rows must report gap-specific "
+                    "missing_response_contract_fields: "
+                    + ", ".join(expected_missing)
+                )
     return errors
 
 
@@ -952,8 +981,9 @@ def _ledger_row(
         route_brief_gap_missing_fields,
     ) = _contract_field_matches(route_brief_gap_required_fields, response_values)
     route_brief_gap_response_contract_missing = (
-        bool(route_brief_gap_required_fields)
-        and not bool(route_brief_gap_matched_fields)
+        response_present
+        and bool(route_brief_gap_required_fields)
+        and bool(route_brief_gap_missing_fields)
     )
     kernel_claimed = _kernel_verified_claimed(response or {}, response_payload)
     route_revision_reasons = _str_tuple(response_values.get("route_revision_reasons", []))
@@ -1121,6 +1151,11 @@ def _ledger_row(
         str(key): str(value)
         for key, value in _dict_value(response_values, "coverage_updates").items()
     }
+    reported_missing_fields = (
+        route_brief_gap_missing_fields
+        if route_brief_gap_response_contract_missing
+        else missing_fields
+    )
     return FormalizationGapPlannerResourceResponseLedgerRow(
         schema_version=FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_SCHEMA_VERSION,
         resource_response_ledger_id="formalization_gap_planner_resource_response:"
@@ -1204,7 +1239,7 @@ def _ledger_row(
         response_summary=str(response_values.get("response_summary", "")),
         response_artifacts=_str_tuple(response_values.get("response_artifacts", [])),
         matched_response_contract_fields=matched_fields,
-        missing_response_contract_fields=missing_fields,
+        missing_response_contract_fields=reported_missing_fields,
         source_refs=source_refs,
         route_evidence_nodes=route_evidence_nodes,
         formal_declaration_hits=formal_declaration_hits,

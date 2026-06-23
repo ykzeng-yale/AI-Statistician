@@ -745,6 +745,97 @@ def test_resource_response_ledger_rejects_route_brief_gap_response_without_gap_r
     ) == []
 
 
+def test_resource_response_ledger_rejects_partial_route_brief_gap_required_fields() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_resource_response_ledger_partial_route_brief_gap_contract"
+    )
+    ledger_dir = root / "ledger"
+    response_jsonl = root / "resource_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    _, request_payload, request_queue_dir = _build_prompt_only_route_brief_request_queue(
+        root
+    )
+    brief_request = next(
+        row
+        for row in request_payload["rows"]
+        if row["request_payload"].get("llm_route_planner_source_kind")
+        == "route_planning_brief_evidence_gap"
+        and row["resource_id"] == "paperclip_cli_mcp"
+    )
+    response = {
+        "resource_request_id": brief_request["resource_request_id"],
+        "resource_id": brief_request["resource_id"],
+        "tool_name": "paperclip_cli_mcp",
+        "expected_response_artifact": brief_request["expected_response_artifact"],
+        "llm_route_planner_row_id": brief_request["request_payload"][
+            "llm_route_planner_row_id"
+        ],
+        "llm_route_planner_request_id": brief_request["request_payload"][
+            "llm_route_planner_request_id"
+        ],
+        "llm_route_planner_source_kind": "route_planning_brief_evidence_gap",
+        "llm_route_planner_source_index": brief_request["request_payload"][
+            "llm_route_planner_source_index"
+        ],
+        "llm_route_planner_hook_kind": "literature_discovery",
+        "response_payload": {
+            "source_refs": ["source:rank_uniformity_partial"],
+            "assumption_or_theorem_variant_updates": [
+                {"variant": "rank_uniformity informal wording only"}
+            ],
+            "response_summary": (
+                "rank_uniformity route_planning_brief source grounding "
+                "returned a citation but no snippets or route evidence nodes"
+            ),
+        },
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+    response_jsonl.write_text(
+        json.dumps(response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert not payload["all_ok"]
+    ledger_row = next(
+        row
+        for row in payload["rows"]
+        if row["resource_request_id"] == brief_request["resource_request_id"]
+    )
+    assert (
+        ledger_row["acceptance_status"]
+        == "REJECTED_ROUTE_PLANNING_BRIEF_GAP_RESPONSE_CONTRACT"
+    )
+    assert ledger_row["response_contract_minimum_met"] is True
+    assert ledger_row["response_contract_ok"] is False
+    assert "source_refs" in ledger_row["matched_response_contract_fields"]
+    assert "assumption_or_theorem_variant_updates" in (
+        ledger_row["matched_response_contract_fields"]
+    )
+    assert ledger_row["missing_response_contract_fields"] == (
+        "source_snippets",
+        "route_evidence_nodes",
+    )
+    assert any(
+        "route_planning_brief evidence gap response missing required fields"
+        in error
+        and "source_snippets" in error
+        and "route_evidence_nodes" in error
+        and "source_refs" not in error
+        for error in ledger_row["errors"]
+    )
+    assert validate_resource_response_ledger_row(
+        ledger_row,
+        resource_response_ledger_row_json_schema(),
+    ) == []
+
+
 def test_resource_response_ledger_preserves_llm_residual_goal_context() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_resource_response_ledger_llm_residual"
