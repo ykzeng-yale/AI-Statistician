@@ -5183,6 +5183,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "available exchangeability declaration"
         )
     ]
+    exchangeability_refinement_evidence_id = (
+        "formalization_gap_planner_refinement_evidence:7ff8b6475ac8d8c6"
+    )
+    rank_step_refinement_evidence_id = (
+        "formalization_gap_planner_refinement_evidence:2d71da08c04b26c9"
+    )
     for attempt in feedback_response["formal_attempt_queue"]:
         if attempt.get("formal_node_id") == "formal:exchangeability":
             attempt["attempt_id"] = "formal_attempt:exchangeability_wrapper"
@@ -5195,6 +5201,9 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
                 "wrapper_statement",
                 "residual_goals",
             ]
+            attempt["refinement_evidence_id"] = (
+                exchangeability_refinement_evidence_id
+            )
     feedback_response["minimal_delta_plan"]["and_or_cost_graph"]["route_options"][0][
         "route_cost"
     ] = 6
@@ -5275,6 +5284,10 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
                 "so the replan queues source evidence before route adoption."
             ),
             "target_primitives": ["exchangeability", "rank_uniformity"],
+            "refinement_evidence_ids": [
+                exchangeability_refinement_evidence_id,
+                rank_step_refinement_evidence_id,
+            ],
         }
     )
     feedback_response_path.write_text(

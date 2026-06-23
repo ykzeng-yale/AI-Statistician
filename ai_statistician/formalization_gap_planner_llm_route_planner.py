@@ -17950,6 +17950,7 @@ def _response_contract_errors(
     errors.extend(_response_source_snippet_provenance_errors(payload, request))
     errors.extend(_response_source_snippet_primitive_support_errors(payload, request))
     errors.extend(_response_resource_request_alignment_errors(payload, request))
+    errors.extend(_response_feedback_provenance_preservation_errors(payload, request))
     errors.extend(_response_agentic_proof_strategy_plan_obligation_errors(payload, request))
     errors.extend(_response_route_adoption_precondition_errors(payload, request))
     errors.extend(_response_route_planning_evidence_gap_coverage_errors(payload, request))
@@ -24519,6 +24520,207 @@ def _response_resource_request_alignment_errors(
             "queued resource_request_id or resource_id"
         )
     return errors
+
+
+def _response_feedback_provenance_preservation_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    context_packet = _dict_value(request, "context_packet")
+    requirements = _accepted_feedback_provenance_requirements(context_packet)
+    if not requirements:
+        return []
+    evidence_requests = [
+        ("search_requests", index, row)
+        for index, row in enumerate(_dict_tuple(payload.get("search_requests", [])))
+    ]
+    evidence_requests.extend(
+        ("planner_next_actions", index, row)
+        for index, row in enumerate(_dict_tuple(payload.get("planner_next_actions", [])))
+    )
+    evidence_requests.extend(
+        ("formal_attempt_queue", index, row)
+        for index, row in enumerate(_dict_tuple(payload.get("formal_attempt_queue", [])))
+    )
+    errors: list[str] = []
+    for collection_name, index, row in evidence_requests:
+        row_primary_ids = _primary_feedback_provenance_keys(row)
+        row_source_refs = _source_ref_keys_for_value(row)
+        row_tokens = _planner_action_content_tokens(row)
+        row_target_keys = _planner_action_target_primitive_keys(row)
+        matched_primary_ids: set[str] = set()
+        matched_source_kinds: set[str] = set()
+        matched_target_keys: set[str] = set()
+        for requirement in requirements:
+            primary_ids = set(requirement.get("primary_ids", set()))
+            target_keys = set(requirement.get("target_keys", set()))
+            target_scoped = (
+                not row_target_keys
+                or not target_keys
+                or bool(row_target_keys & target_keys)
+            )
+            if not target_scoped:
+                continue
+            token_overlap = row_tokens & set(requirement.get("specific_tokens", set()))
+            derives_from_feedback = bool(
+                row_source_refs & set(requirement.get("source_refs", set()))
+                or len(token_overlap) >= 2
+            )
+            if not derives_from_feedback:
+                continue
+            matched_primary_ids.update(primary_ids)
+            matched_source_kinds.add(
+                str(requirement.get("source_kind", "accepted_feedback"))
+            )
+            matched_target_keys.update(target_keys)
+        if not matched_primary_ids or row_primary_ids & matched_primary_ids:
+            continue
+        source_kind = "/".join(sorted(matched_source_kinds)) or "accepted_feedback"
+        primitive_text = ",".join(
+            sorted(str(value) for value in matched_target_keys if str(value))
+        )
+        errors.append(
+            f"{collection_name}[{index}] appears derived from accepted "
+            f"{source_kind} feedback"
+            + (f" for primitive(s) {primitive_text}" if primitive_text else "")
+            + " but must preserve the primary feedback provenance id: "
+            + ", ".join(sorted(matched_primary_ids)[:8])
+        )
+    return errors
+
+
+def _accepted_feedback_provenance_requirements(
+    context_packet: Mapping[str, Any],
+) -> tuple[dict[str, object], ...]:
+    requirements: list[dict[str, object]] = []
+    for row in _dict_tuple(context_packet.get("resource_response_ledger_rows", [])):
+        if not _resource_response_row_is_admissible_feedback(row):
+            continue
+        primary_ids = _primary_feedback_provenance_keys(row)
+        if not primary_ids:
+            continue
+        requirements.append(
+            _accepted_feedback_provenance_requirement(
+                "resource_response_ledger",
+                row,
+                primary_ids=primary_ids,
+            )
+        )
+    for row in _dict_tuple(context_packet.get("refinement_evidence_rows", [])):
+        if not _refinement_evidence_row_is_admissible_feedback(row):
+            continue
+        primary_ids = _primary_feedback_provenance_keys(row)
+        if not primary_ids:
+            continue
+        requirements.append(
+            _accepted_feedback_provenance_requirement(
+                "refinement_evidence",
+                row,
+                primary_ids=primary_ids,
+            )
+        )
+    return tuple(requirement for requirement in requirements if requirement)
+
+
+def _accepted_feedback_provenance_requirement(
+    source_kind: str,
+    row: Mapping[str, object],
+    *,
+    primary_ids: set[str],
+) -> dict[str, object]:
+    target_keys = {
+        _primitive_key(primitive)
+        for primitive in _feedback_row_target_primitives(row)
+        if _primitive_key(primitive)
+    }
+    specific_tokens = _feedback_specific_grounding_tokens(row, target_keys)
+    return {
+        "source_kind": source_kind,
+        "primary_ids": primary_ids,
+        "target_keys": target_keys,
+        "source_refs": _source_ref_keys_for_value(row),
+        "specific_tokens": specific_tokens,
+    }
+
+
+def _primary_feedback_provenance_keys(row: Mapping[str, object]) -> set[str]:
+    values: list[str] = []
+    for field_name in (
+        "resource_response_ledger_id",
+        "resource_response_ledger_ids",
+        "refinement_evidence_id",
+        "refinement_evidence_ids",
+    ):
+        values.extend(_str_tuple(row.get(field_name, [])))
+    return {
+        _resource_ref_key(value)
+        for value in values
+        if _resource_ref_key(value)
+    }
+
+
+def _source_ref_keys_for_value(value: Any) -> set[str]:
+    refs: list[str] = []
+    _collect_source_refs(value, refs)
+    return {
+        _source_ref_key(source_ref)
+        for source_ref in refs
+        if _source_ref_key(source_ref)
+    }
+
+
+def _feedback_specific_grounding_tokens(
+    row: Mapping[str, object],
+    target_keys: set[str],
+) -> set[str]:
+    tokens = _grounding_tokens(json.dumps(row, default=str))
+    target_parts: set[str] = set()
+    for target_key in target_keys:
+        target_parts.add(target_key)
+        target_parts.update(part for part in target_key.split("_") if part)
+    generic_feedback_tokens = {
+        "accepted",
+        "acceptance",
+        "acceptance_status",
+        "after",
+        "before",
+        "bridge",
+        "condition",
+        "conditions",
+        "contract",
+        "declaration",
+        "display_name",
+        "feedback",
+        "formal",
+        "goal",
+        "goal_plan_id",
+        "hook_kind",
+        "lemma",
+        "lean",
+        "lean4",
+        "mathlib",
+        "paperclip",
+        "probability",
+        "recommended",
+        "refinement",
+        "requested",
+        "residual_goals",
+        "revision",
+        "route_id",
+        "side",
+        "snippet",
+        "source_ref",
+        "source_refs",
+        "source_snippets",
+        "status",
+        "target_primitives",
+        "true",
+    }
+    return {
+        token
+        for token in tokens
+        if token not in target_parts and token not in generic_feedback_tokens
+    }
 
 
 def _quality_control_context_for_request(
@@ -31433,6 +31635,9 @@ def _feedback_row_target_primitives(row: Mapping[str, object]) -> tuple[str, ...
     request_playbook = _dict_value(row, "request_playbook")
     request_payload = _dict_value(row, "request_payload")
     response_payload = _dict_value(row, "response_payload")
+    quality_controls = _dict_value(row, "quality_controls")
+    request_quality_controls = _dict_value(request_payload, "quality_controls")
+    response_quality_controls = _dict_value(response_payload, "quality_controls")
     input_summary = _dict_value(request_playbook, "input_summary")
     row_input_summary = _dict_value(row, "input_summary")
     values: list[str] = [
@@ -31455,6 +31660,15 @@ def _feedback_row_target_primitives(row: Mapping[str, object]) -> tuple[str, ...
         *_str_tuple(response_payload.get("target_primitives", [])),
         *_str_tuple(response_payload.get("target_primitive", [])),
         str(response_payload.get("primitive", "")).strip(),
+        *_str_tuple(quality_controls.get("target_primitives", [])),
+        *_str_tuple(quality_controls.get("target_primitive", [])),
+        str(quality_controls.get("primitive", "")).strip(),
+        *_str_tuple(request_quality_controls.get("target_primitives", [])),
+        *_str_tuple(request_quality_controls.get("target_primitive", [])),
+        str(request_quality_controls.get("primitive", "")).strip(),
+        *_str_tuple(response_quality_controls.get("target_primitives", [])),
+        *_str_tuple(response_quality_controls.get("target_primitive", [])),
+        str(response_quality_controls.get("primitive", "")).strip(),
     ]
     for field_name in (
         "resource_request_dispatch_summaries",
