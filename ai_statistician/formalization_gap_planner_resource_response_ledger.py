@@ -1383,7 +1383,12 @@ def _route_planning_brief_gap_required_response_fields_from_trace(
     if explicit_fields:
         return explicit_fields
     return route_planning_brief_gap_required_response_fields(
-        str(source_item.get("route_planning_brief_gap_kind", "") or "")
+        str(source_item.get("route_planning_brief_gap_kind", "") or ""),
+        target_prover_family=str(
+            source_item.get("target_prover_family", "")
+            or source_item.get("target_prover", "")
+            or ""
+        ),
     )
 
 

@@ -1266,6 +1266,126 @@ def test_resource_request_queue_dispatches_prompt_only_route_planning_brief_gaps
     )
 
 
+def test_resource_request_queue_dispatches_hol4_formal_gap_without_lean_contract() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_resource_request_queue_hol4_brief_gap"
+    )
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    coverage_dir = root / "coverage"
+    action_queue_dir = root / "action_queue"
+    component_resource_registry_dir = root / "component_resource_registry"
+    action_resource_plan_dir = root / "action_resource_plan"
+    llm_route_planner_dir = root / "llm_route_planner"
+    request_queue_dir = root / "request_queue"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "hol_4",
+                "library_snapshot_ref": "hol4_probability_snapshot",
+                "routes": [
+                    {
+                        "route_id": "hol4_rank_route_prompt_only",
+                        "display_name": "hol4_rank_route_prompt_only",
+                        "theorem_statement": (
+                            "A HOL4 rank-uniformity bridge should be planned "
+                            "from target-prover library evidence."
+                        ),
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    export_formalization_gap_planner_library_coverage_map(plan_dir, coverage_dir)
+    export_formalization_gap_planner_primitive_action_queue(
+        coverage_dir,
+        action_queue_dir,
+    )
+    export_formalization_gap_planner_component_resource_registry(
+        component_resource_registry_dir
+    )
+    export_formalization_gap_planner_action_resource_plan(
+        action_queue_dir,
+        component_resource_registry_dir,
+        action_resource_plan_dir,
+    )
+    llm_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        llm_route_planner_dir,
+        provider_name="prompt_only",
+    )
+    assert llm_payload["n_request_route_planning_evidence_gaps"] == 2
+
+    payload = export_formalization_gap_planner_resource_request_queue(
+        action_resource_plan_dir,
+        request_queue_dir,
+        formalization_gap_planner_llm_route_planner_dir=llm_route_planner_dir,
+    )
+
+    assert payload["all_ok"]
+    brief_rows = [
+        row
+        for row in payload["rows"]
+        if row["request_payload"].get("llm_route_planner_source_kind")
+        == "route_planning_brief_evidence_gap"
+    ]
+    formal_rows = [
+        row
+        for row in brief_rows
+        if row["request_payload"].get("llm_route_planner_hook_kind")
+        == "formal_library_grounding"
+    ]
+    resource_ids = {row["resource_id"] for row in formal_rows}
+    assert "local_target_formal_source_index" in resource_ids
+    assert "hol4_tactic_kernel_tools" in resource_ids
+    assert "target_prover_library_search" not in resource_ids
+    assert "loogle_leansearch" not in resource_ids
+    hol4_row = next(
+        row for row in formal_rows if row["resource_id"] == "hol4_tactic_kernel_tools"
+    )
+    source_item = hol4_row["request_playbook"]["llm_route_planner_source_item"]
+    assert source_item["target_prover_family"] == "hol_4"
+    assert source_item["route_planning_brief_gap_kind"] == "formal_library_grounding"
+    required_fields = source_item[
+        "route_planning_brief_gap_required_response_fields"
+    ]
+    assert "formal_declaration_hits" in required_fields
+    assert "target_prover_family" in required_fields
+    assert "coverage_updates" in required_fields
+    assert "lean_declaration_hits" not in required_fields
+    assert "formal_declaration_hits" in hol4_row["response_contract_fields"]
+    assert "target_prover_family" in hol4_row["response_contract_fields"]
+    assert "lean_declaration_hits" not in hol4_row["response_contract_fields"]
+    assert hol4_row["target_prover_family"] == "hol_4"
+    assert hol4_row["request_payload"]["target_prover_family"] == "hol_4"
+    assert (
+        hol4_row["request_payload"]["llm_route_planner_route_planning_brief"][
+            "target_prover_family"
+        ]
+        == "hol_4"
+    )
+    assert (
+        validate_resource_request_queue_row(
+            hol4_row,
+            resource_request_queue_row_json_schema(),
+        )
+        == []
+    )
+
+
 def test_resource_request_queue_target_scopes_llm_lean_search_followup_for_rocq() -> None:
     root = Path("runs/test_formalization_gap_planner_resource_request_queue_llm_rocq")
     input_json = root / "standalone_input.json"

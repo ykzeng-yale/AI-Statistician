@@ -1132,6 +1132,11 @@ def _route_planning_brief_evidence_gap_source_item(
     recommended_action = str(evidence_gap.get("recommended_action", "") or "").strip()
     target_context = _dict_value(route_planning_brief, "target_context")
     theorem_statement = str(target_context.get("theorem_statement", "") or "").strip()
+    target_prover_family = (
+        str(route_planning_brief.get("target_prover_family", "")).strip()
+        or str(request_packet.get("target_prover_family", "")).strip()
+        or str(target_context.get("target_prover_family", "")).strip()
+    )
     query = _route_planning_brief_gap_query(
         gap_kind=gap_kind,
         gap_id=gap_id,
@@ -1148,11 +1153,15 @@ def _route_planning_brief_evidence_gap_source_item(
         "recommended_next_action": recommended_action,
         "action": recommended_action,
         "target_primitives": target_primitives,
+        "target_prover_family": target_prover_family,
         "route_planning_brief_gap_id": gap_id,
         "route_planning_brief_gap_kind": gap_kind,
         "route_planning_brief_evidence_fields": evidence_fields,
         "route_planning_brief_gap_required_response_fields": (
-            route_planning_brief_gap_required_response_fields(gap_kind)
+            route_planning_brief_gap_required_response_fields(
+                gap_kind,
+                target_prover_family=target_prover_family,
+            )
         ),
         "route_planning_brief_id": str(
             route_planning_brief.get("route_id", "")
@@ -1179,11 +1188,20 @@ def _route_planning_brief_gap_request_kind(gap_kind: str) -> str:
 
 def route_planning_brief_gap_required_response_fields(
     gap_kind: str,
+    *,
+    target_prover_family: str = "",
 ) -> tuple[str, ...]:
     key = _text_key(gap_kind)
+    target = _target_prover_key(target_prover_family)
     if "source" in key or "literature" in key:
         return ("source_refs", "source_snippets", "route_evidence_nodes")
     if "formal_library" in key or "library" in key or "declaration" in key:
+        if target and target != "lean4":
+            return (
+                "formal_declaration_hits",
+                "target_prover_family",
+                "coverage_updates",
+            )
         return (
             "formal_declaration_hits",
             "lean_declaration_hits",
@@ -1807,6 +1825,15 @@ def _llm_hook_kind(
     *,
     source_kind: str,
 ) -> str:
+    if source_kind == "route_planning_brief_evidence_gap":
+        request_kind = str(
+            item.get("request_kind", "") or item.get("kind", "")
+        ).strip()
+        if request_kind:
+            return _target_scoped_llm_hook_kind(
+                request_kind,
+                target_prover_family=str(item.get("target_prover_family", "") or ""),
+            )
     if source_kind == "residual_interpretation":
         residual_directive = _text_key(
             " ".join(
@@ -1964,6 +1991,10 @@ def _target_library_frontier_resource(target_prover_family: str) -> str:
         "isabelle": "isabelle_sledgehammer_afp",
         "agda": "agda_search_auto",
         "lean4": "loogle_leansearch",
+        "hol4": "hol4_tactic_kernel_tools",
+        "hol_light": "hol_light_tactic_search",
+        "mizar": "mizar_mml_search",
+        "metamath": "metamath_set_mm",
     }.get(target, "target_prover_library_search")
 
 
@@ -3351,13 +3382,19 @@ def _formal_declaration_key(value: object) -> str:
 
 
 def _target_prover_key(value: object) -> str:
-    key = str(value).strip().lower().replace("-", "_")
+    key = re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower()).strip("_")
     aliases = {
         "coq": "rocq",
         "coq8": "rocq",
+        "rocq_coq": "rocq",
+        "coq_rocq": "rocq",
         "lean": "lean4",
         "lean_4": "lean4",
         "isabelle_hol": "isabelle",
+        "hol_4": "hol4",
+        "hollight": "hol_light",
+        "set_mm": "metamath",
+        "setmm": "metamath",
     }
     return aliases.get(key, key)
 
