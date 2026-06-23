@@ -935,6 +935,17 @@ def _llm_route_planner_hook_trace(hook: dict[str, Any]) -> dict[str, object]:
         "llm_route_planner_semantic_alignment_risks",
         "llm_route_planner_quality_control_obligations",
         "llm_route_planner_review_source",
+        "resource_response_ledger_id",
+        "resource_response_ledger_ids",
+        "refinement_evidence_id",
+        "refinement_evidence_ids",
+        "evidence_ids",
+        "residual_evidence_ids",
+        "prover_attempt_ids",
+        "diagnostic_signature",
+        "residual_diagnostic_signature",
+        "provider_diagnostic_signature",
+        "prover_diagnostic_signature",
     ):
         if field_name in hook:
             trace[field_name] = hook[field_name]

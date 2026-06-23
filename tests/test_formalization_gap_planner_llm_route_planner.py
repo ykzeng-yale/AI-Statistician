@@ -5155,6 +5155,114 @@ def test_llm_route_planner_materializes_action_only_refinement_hooks() -> None:
     )
 
 
+def test_llm_route_planner_propagates_feedback_provenance_to_refinement_hooks() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_hook_feedback_provenance"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response["residual_interpretations"] = [
+        {
+            "residual_goal": "rank_uniformity: deterministic tie handling",
+            "interpretation": (
+                "Accepted Paperclip feedback identifies deterministic tie "
+                "handling as the missing route side condition."
+            ),
+            "route_repair": (
+                "Preserve deterministic tie handling in the rank_uniformity "
+                "proof-state repair."
+            ),
+            "target_primitives": ["rank_uniformity"],
+            "source_refs": ["conformal_prediction_textbook"],
+            "source_search_status": "SOURCE_BACKED",
+            "resource_response_ledger_id": "resource-response:rank_route",
+            "evidence_ids": ["resource-response:rank_route"],
+        }
+    ]
+    response["planner_next_actions"] = [
+        {
+            "owner": "lean_lsp_mcp",
+            "action": (
+                "attempt proof-state repair from accepted Paperclip feedback "
+                "for rank_uniformity deterministic tie handling"
+            ),
+            "query": "rank_uniformity deterministic tie handling residual goals",
+            "target_primitives": ["rank_uniformity"],
+            "resource_id": "lean_lsp_mcp",
+            "resource_response_ledger_id": "resource-response:rank_route",
+            "evidence_ids": ["resource-response:rank_route"],
+        }
+    ]
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    seed_route = payload["standalone_seed"]["routes"][0]
+    hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook.get("llm_route_planner_planner_next_action_index") == 0
+    )
+    assert hook["resource_response_ledger_id"] == "resource-response:rank_route"
+    assert hook["resource_response_ledger_ids"] == ["resource-response:rank_route"]
+    assert hook["evidence_ids"] == ["resource-response:rank_route"]
+    trigger = next(
+        trigger
+        for trigger in seed_route["route_revision_triggers"]
+        if trigger.get("llm_route_planner_planner_next_action_index") == 0
+    )
+    assert trigger["resource_response_ledger_id"] == "resource-response:rank_route"
+    assert trigger["resource_response_ledger_ids"] == [
+        "resource-response:rank_route"
+    ]
+
+    plan_dir = root / "standalone_plan_from_hook_feedback_provenance_seed"
+    refinement_queue_dir = root / "refinement_queue_from_hook_feedback_provenance_seed"
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    queue_payload = export_formalization_gap_planner_refinement_queue(
+        plan_dir,
+        refinement_queue_dir,
+    )
+    assert queue_payload["all_ok"]
+    queue_row = next(
+        row
+        for row in queue_payload["rows"]
+        if row["llm_route_planner_hook_trace"].get(
+            "llm_route_planner_planner_next_action_index"
+        )
+        == 0
+    )
+    hook_trace = queue_row["llm_route_planner_hook_trace"]
+    assert hook_trace["resource_response_ledger_id"] == (
+        "resource-response:rank_route"
+    )
+    assert hook_trace["resource_response_ledger_ids"] == [
+        "resource-response:rank_route"
+    ]
+    assert hook_trace["evidence_ids"] == ["resource-response:rank_route"]
+
+
 def test_llm_route_planner_materializes_formal_attempt_queue_hooks() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_formal_attempt_queue_hooks"

@@ -24753,6 +24753,51 @@ def _primary_feedback_provenance_keys(row: Mapping[str, object]) -> set[str]:
     }
 
 
+def _feedback_provenance_record_fields_for_row(
+    row: Mapping[str, object],
+) -> dict[str, object]:
+    fields: dict[str, object] = {}
+    resource_response_ids = _unique_strings(
+        [
+            *_str_tuple(row.get("resource_response_ledger_id", "")),
+            *_str_tuple(row.get("resource_response_ledger_ids", [])),
+        ]
+    )
+    if resource_response_ids:
+        fields["resource_response_ledger_id"] = resource_response_ids[0]
+        fields["resource_response_ledger_ids"] = list(resource_response_ids)
+
+    refinement_evidence_ids = _unique_strings(
+        [
+            *_str_tuple(row.get("refinement_evidence_id", "")),
+            *_str_tuple(row.get("refinement_evidence_ids", [])),
+        ]
+    )
+    if refinement_evidence_ids:
+        fields["refinement_evidence_id"] = refinement_evidence_ids[0]
+        fields["refinement_evidence_ids"] = list(refinement_evidence_ids)
+
+    for field_name in (
+        "evidence_ids",
+        "residual_evidence_ids",
+        "prover_attempt_ids",
+    ):
+        values = _unique_strings(_str_tuple(row.get(field_name, [])))
+        if values:
+            fields[field_name] = list(values)
+
+    for field_name in (
+        "diagnostic_signature",
+        "residual_diagnostic_signature",
+        "provider_diagnostic_signature",
+        "prover_diagnostic_signature",
+    ):
+        value = str(row.get(field_name, "") or "").strip()
+        if value:
+            fields[field_name] = value
+    return fields
+
+
 def _source_ref_keys_for_value(value: Any) -> set[str]:
     refs: list[str] = []
     _collect_source_refs(value, refs)
@@ -34129,6 +34174,7 @@ def _llm_refinement_hooks_for_search_requests(
                 "acceptance_record": _acceptance_record_for_llm_hook(hook_kind),
                 "llm_route_planner_search_request_index": index,
                 "llm_route_planner_search_request": dict(request),
+                **_feedback_provenance_record_fields_for_row(request),
                 **_quality_control_record_fields_for_row(
                     request,
                     target_prover_family=target_prover_family,
@@ -34177,6 +34223,7 @@ def _llm_route_revision_triggers_for_search_requests(
                 "next_action": _next_action_for_llm_hook(hook_kind, query=query),
                 "llm_route_planner_search_request_index": index,
                 "llm_route_planner_search_request": dict(request),
+                **_feedback_provenance_record_fields_for_row(request),
                 **_quality_control_record_fields_for_row(
                     request,
                     target_prover_family=target_prover_family,
@@ -34243,6 +34290,7 @@ def _llm_refinement_hooks_for_planner_next_actions(
                 "acceptance_record": _acceptance_record_for_llm_hook(hook_kind),
                 "llm_route_planner_planner_next_action_index": index,
                 "llm_route_planner_planner_next_action": dict(action),
+                **_feedback_provenance_record_fields_for_row(action),
                 **_quality_control_record_fields_for_row(
                     action,
                     target_prover_family=target_prover_family,
@@ -34293,6 +34341,7 @@ def _llm_route_revision_triggers_for_planner_next_actions(
                 "next_action": _next_action_for_llm_hook(hook_kind, query=query),
                 "llm_route_planner_planner_next_action_index": index,
                 "llm_route_planner_planner_next_action": dict(action),
+                **_feedback_provenance_record_fields_for_row(action),
                 **_quality_control_record_fields_for_row(
                     action,
                     target_prover_family=target_prover_family,
@@ -34380,6 +34429,7 @@ def _llm_refinement_hooks_for_formal_attempt_queue(
                 ],
                 "minimal_delta_action_witness_count": len(action_witnesses),
                 "has_minimal_delta_action_witness": bool(action_witnesses),
+                **_feedback_provenance_record_fields_for_row(attempt),
                 **_quality_control_record_fields_for_row(
                     attempt,
                     target_prover_family=target_prover_family,
@@ -34455,6 +34505,7 @@ def _llm_route_revision_triggers_for_formal_attempt_queue(
                 ],
                 "minimal_delta_action_witness_count": len(action_witnesses),
                 "has_minimal_delta_action_witness": bool(action_witnesses),
+                **_feedback_provenance_record_fields_for_row(attempt),
                 **_quality_control_record_fields_for_row(
                     attempt,
                     target_prover_family=target_prover_family,
@@ -34659,6 +34710,7 @@ def _llm_refinement_hooks_for_residual_interpretations(
                 "acceptance_record": _acceptance_record_for_llm_hook("route_revision"),
                 "llm_route_planner_residual_interpretation_index": index,
                 "llm_route_planner_residual_interpretation": dict(residual),
+                **_feedback_provenance_record_fields_for_row(residual),
                 **_quality_control_record_fields_for_row(
                     residual,
                     target_prover_family=target_prover_family,
@@ -34717,6 +34769,7 @@ def _llm_route_revision_triggers_for_residual_interpretations(
                 ),
                 "llm_route_planner_residual_interpretation_index": index,
                 "llm_route_planner_residual_interpretation": dict(residual),
+                **_feedback_provenance_record_fields_for_row(residual),
                 **_quality_control_record_fields_for_row(
                     residual,
                     target_prover_family=target_prover_family,
