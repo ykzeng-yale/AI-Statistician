@@ -4,6 +4,8 @@ import json
 import shutil
 from pathlib import Path
 
+import pytest
+
 from ai_statistician.formalization_gap_planner_refinement_queue import (
     export_formalization_gap_planner_refinement_queue,
     refinement_work_item_json_schema,
@@ -185,6 +187,98 @@ def test_refinement_queue_uses_target_prover_proof_state_fallback_tools() -> Non
     assert "lean-lsp-mcp" not in row["recommended_tools"]
     assert "lake build" not in row["frontier_resource_adapters"]
     assert "rocq proof-state and kernel-check tools" in row["execution_commands"][0]
+
+
+@pytest.mark.parametrize(
+    ("target_prover_family", "expected_tools"),
+    [
+        (
+            "hol_4",
+            ("hol4_tactic_kernel_tools", "HOL4 kernel replay", "Holmake"),
+        ),
+        (
+            "hol_light",
+            (
+                "hol_light_tactic_search",
+                "HOL Light tactic feedback",
+                "HOL Light proof checker",
+            ),
+        ),
+        (
+            "mizar",
+            ("mizar_mml_search", "Mizar verifier", "Mizar environment check"),
+        ),
+        (
+            "metamath",
+            ("metamath_set_mm", "Metamath verifier", "set.mm proof checker"),
+        ),
+    ],
+)
+def test_refinement_queue_uses_extended_target_prover_proof_state_tools(
+    target_prover_family: str,
+    expected_tools: tuple[str, ...],
+) -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_refinement_queue_extended_tools"
+    ) / target_prover_family
+    plan_dir = root / "plan"
+    out_dir = root / "queue"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": "library_aware_formalization_gap_planner",
+                "portable_schema_id": (
+                    "urn:ai-statistician:schemas:"
+                    "library-aware-formalization-gap-plan:1"
+                ),
+                "rows": [
+                    {
+                        "goal_plan_id": f"goal:{target_prover_family}-queue",
+                        "route_id": f"route:{target_prover_family}-queue",
+                        "display_name": f"{target_prover_family} queue route",
+                        "target_prover_family": target_prover_family,
+                        "theorem_statement": (
+                            "A target prover bridge lemma has a replayable proof state."
+                        ),
+                        "route_class": "source_backed_bridge_route",
+                        "pareto_profile": "lowest_delta",
+                        "selected_primitives": ["rank_uniformity"],
+                        "minimal_additional_formalization_nodes": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "action_class": "bridge_needed",
+                            }
+                        ],
+                        "interactive_refinement_hooks": [
+                            {
+                                "hook_kind": "proof_state_feedback",
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_refinement_queue(plan_dir, out_dir)
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["target_prover_family"] == target_prover_family
+    for expected_tool in expected_tools:
+        assert expected_tool in row["recommended_tools"]
+        assert expected_tool in row["frontier_resource_adapters"]
+    assert "target-prover proof-state adapter" not in row["recommended_tools"]
+    assert "lean-lsp-mcp" not in row["recommended_tools"]
+    assert "lake build" not in row["frontier_resource_adapters"]
+    assert (
+        f"{target_prover_family} proof-state and kernel-check tools"
+        in row["execution_commands"][0]
+    )
 
 
 def test_refinement_queue_target_scopes_legacy_lean_library_hook_for_rocq() -> None:

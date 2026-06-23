@@ -1220,6 +1220,30 @@ def _formal_library_tools_for_target_prover(
             "Agda standard-library search",
             "target-prover library search/RAG",
         )
+    if target in {"hol4", "hol_4"}:
+        return (
+            "local formal-source index",
+            "hol4_tactic_kernel_tools",
+            "HOL4 theorem search",
+        )
+    if target in {"hol_light", "hollight"}:
+        return (
+            "local formal-source index",
+            "hol_light_tactic_search",
+            "HOL Light theorem search",
+        )
+    if target == "mizar":
+        return (
+            "local formal-source index",
+            "mizar_mml_search",
+            "Mizar MML search",
+        )
+    if target in {"metamath", "set_mm", "setmm"}:
+        return (
+            "local formal-source index",
+            "metamath_set_mm",
+            "Metamath set.mm theorem search",
+        )
     return (
         "local formal-source index",
         "target prover library search",
@@ -1267,6 +1291,30 @@ def _proof_state_tools_for_target_prover(target_prover_family: str) -> tuple[str
             "Agda interaction-mode proof-state adapter",
             "agda --interaction-json",
             "agda type-check command",
+        )
+    if target in {"hol4", "hol_4"}:
+        return (
+            "hol4_tactic_kernel_tools",
+            "HOL4 kernel replay",
+            "Holmake",
+        )
+    if target in {"hol_light", "hollight"}:
+        return (
+            "hol_light_tactic_search",
+            "HOL Light tactic feedback",
+            "HOL Light proof checker",
+        )
+    if target == "mizar":
+        return (
+            "mizar_mml_search",
+            "Mizar verifier",
+            "Mizar environment check",
+        )
+    if target in {"metamath", "set_mm", "setmm"}:
+        return (
+            "metamath_set_mm",
+            "Metamath verifier",
+            "set.mm proof checker",
         )
     return (
         "target-prover proof-state adapter",

@@ -20329,6 +20329,7 @@ def test_llm_route_planner_accepts_target_specific_hol4_tools_for_hol4_target() 
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_accepts_hol4_tool_for_hol4"
     )
+    out_dir = root / "planner"
     response_json = root / "response.json"
     shutil.rmtree(root, ignore_errors=True)
     root.mkdir(parents=True, exist_ok=True)
@@ -20375,6 +20376,7 @@ def test_llm_route_planner_accepts_target_specific_hol4_tools_for_hol4_target() 
 
     payload = export_formalization_gap_planner_llm_route_planner(
         input_json,
+        out_dir,
         provider_name="static",
         static_response_json=response_json,
     )
@@ -20382,6 +20384,49 @@ def test_llm_route_planner_accepts_target_specific_hol4_tools_for_hol4_target() 
     assert payload["all_ok"]
     assert payload["n_response_contract_ok"] == 1
     assert payload["rows"][0]["target_prover_family"] == "hol_4"
+    seed_route = payload["standalone_seed"]["routes"][0]
+    proof_hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook["hook_kind"] == "proof_state_feedback"
+    )
+    assert "hol4_tactic_kernel_tools" in proof_hook["recommended_tools"]
+    assert "HOL4 kernel replay" in proof_hook["recommended_tools"]
+    assert "Holmake" in proof_hook["recommended_tools"]
+    assert "lean-lsp-mcp" not in proof_hook["recommended_tools"]
+    assert "lake build" not in proof_hook["recommended_tools"]
+
+    formal_hook = next(
+        hook
+        for hook in seed_route["interactive_refinement_hooks"]
+        if hook["hook_kind"] == "formal_library_grounding"
+    )
+    assert "hol4_tactic_kernel_tools" in formal_hook["recommended_tools"]
+    assert "HOL4 theorem search" in formal_hook["recommended_tools"]
+    assert "LeanSearch" not in formal_hook["recommended_tools"]
+    assert "Loogle" not in formal_hook["recommended_tools"]
+
+    plan_dir = root / "standalone_plan"
+    queue_dir = root / "refinement_queue"
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        plan_dir,
+    )
+    assert plan_payload["all_ok"]
+    queue_payload = export_formalization_gap_planner_refinement_queue(
+        plan_dir,
+        queue_dir,
+    )
+    assert queue_payload["all_ok"]
+    queue_row = next(
+        row
+        for row in queue_payload["rows"]
+        if row["hook_kind"] == "proof_state_feedback"
+        and row["target_prover_family"] == "hol_4"
+    )
+    assert "hol4_tactic_kernel_tools" in queue_row["recommended_tools"]
+    assert "HOL4 kernel replay" in queue_row["frontier_resource_adapters"]
+    assert "lean-lsp-mcp" not in queue_row["recommended_tools"]
 
 
 def test_llm_route_planner_rejects_target_specific_hol4_tools_for_isabelle_target() -> None:

@@ -36204,6 +36204,8 @@ def _recommended_tools_for_llm_hook(
 ) -> tuple[str, ...]:
     if hook_kind == "proof_state_feedback":
         return _proof_state_tools_for_target_prover(target_prover_family)
+    if hook_kind == "formal_library_grounding":
+        return _formal_library_tools_for_target_prover(target_prover_family)
     return {
         "literature_discovery": (
             "Paperclip MCP/CLI",
@@ -36217,12 +36219,6 @@ def _recommended_tools_for_llm_hook(
             "LeanExplore",
             "Loogle",
         ),
-        "formal_library_grounding": (
-            "target-prover formal-source index",
-            "target-prover library search/RAG",
-            "Rocq/Isabelle/Agda adapter search",
-            "local formal-source index",
-        ),
         "route_revision": (
             "literature_discovery",
             "formal_library_grounding",
@@ -36231,8 +36227,75 @@ def _recommended_tools_for_llm_hook(
     }.get(hook_kind, ("planner",))
 
 
+def _formal_library_tools_for_target_prover(
+    target_prover_family: str,
+) -> tuple[str, ...]:
+    target = _target_prover_key(target_prover_family)
+    if target in {"lean", "lean4"}:
+        return (
+            "local Lean RAG DB",
+            "LeanSearch",
+            "LeanExplore",
+            "Loogle",
+        )
+    if target == "rocq":
+        return (
+            "target-prover formal-source index",
+            "Rocq/coq-lsp/SerAPI search",
+            "target-prover library search/RAG",
+            "local formal-source index",
+        )
+    if target in {"isabelle", "hol"}:
+        return (
+            "target-prover formal-source index",
+            "Isabelle find_theorems/Sledgehammer",
+            "target-prover library search/RAG",
+            "local formal-source index",
+        )
+    if target == "agda":
+        return (
+            "target-prover formal-source index",
+            "Agda standard-library search",
+            "target-prover library search/RAG",
+            "local formal-source index",
+        )
+    if target == "hol4":
+        return (
+            "target-prover formal-source index",
+            "hol4_tactic_kernel_tools",
+            "HOL4 theorem search",
+            "local formal-source index",
+        )
+    if target == "hol_light":
+        return (
+            "target-prover formal-source index",
+            "hol_light_tactic_search",
+            "HOL Light theorem search",
+            "local formal-source index",
+        )
+    if target == "mizar":
+        return (
+            "target-prover formal-source index",
+            "mizar_mml_search",
+            "Mizar MML search",
+            "local formal-source index",
+        )
+    if target == "metamath":
+        return (
+            "target-prover formal-source index",
+            "metamath_set_mm",
+            "Metamath set.mm theorem search",
+            "local formal-source index",
+        )
+    return (
+        "target-prover formal-source index",
+        "target-prover library search/RAG",
+        "local formal-source index",
+    )
+
+
 def _proof_state_tools_for_target_prover(target_prover_family: str) -> tuple[str, ...]:
-    target = _source_ref_key(target_prover_family)
+    target = _target_prover_key(target_prover_family)
     if target in {"lean", "lean4"}:
         return (
             "lean-lsp-mcp",
@@ -36256,6 +36319,30 @@ def _proof_state_tools_for_target_prover(target_prover_family: str) -> tuple[str
             "Agda interaction-mode proof-state adapter",
             "agda --interaction-json",
             "agda type-check command",
+        )
+    if target == "hol4":
+        return (
+            "hol4_tactic_kernel_tools",
+            "HOL4 kernel replay",
+            "Holmake",
+        )
+    if target == "hol_light":
+        return (
+            "hol_light_tactic_search",
+            "HOL Light tactic feedback",
+            "HOL Light proof checker",
+        )
+    if target == "mizar":
+        return (
+            "mizar_mml_search",
+            "Mizar verifier",
+            "Mizar environment check",
+        )
+    if target == "metamath":
+        return (
+            "metamath_set_mm",
+            "Metamath verifier",
+            "set.mm proof checker",
         )
     return (
         "target-prover proof-state adapter",
