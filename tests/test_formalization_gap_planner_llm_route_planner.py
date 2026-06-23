@@ -15284,6 +15284,52 @@ def test_llm_route_planner_blocks_route_adoption_on_pending_resource_request_que
     assert "queued_resource_response_required" in queue_item["trigger_kinds"]
 
 
+def test_llm_route_planner_rejects_resource_id_only_route_adoption_discharge() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_resource_id_only_precondition_scope"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_request_queue_dir = _write_resource_request_queue(root)
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = [
+        {
+            "owner": "paperclip_cli_mcp",
+            "action": "dispatch queued rank_uniformity literature evidence request",
+            "resource_id": "paperclip_cli_mcp",
+        }
+    ]
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_request_queue_dir=(
+            resource_request_queue_dir
+        ),
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    error_text = "\n".join(row["errors"])
+    assert (
+        "route_adoption_preconditions require search_requests or "
+        "planner_next_actions scoped to precondition target_primitives: "
+        "rank_uniformity"
+    ) in error_text
+    assert "not grounded in the queued request_playbook" not in error_text
+
+
 def test_llm_route_planner_accepts_candidate_declaration_rows_only_response() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_candidate_rows_only"

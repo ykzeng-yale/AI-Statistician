@@ -18325,10 +18325,7 @@ def _route_adoption_followup_target_primitives(
     for row in followup_rows:
         targets.update(_planner_action_target_primitive_keys(row))
         refs = _structured_resource_refs(row)
-        for value in (
-            *refs.get("resource_request_ids", []),
-            *refs.get("resource_ids", []),
-        ):
+        for value in refs.get("resource_request_ids", []):
             targets.update(resource_target_index.get(_resource_ref_key(value), set()))
     targets.discard("")
     return targets
