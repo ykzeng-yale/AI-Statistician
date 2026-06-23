@@ -13182,7 +13182,7 @@ def _user_prompt(
             "When context_packet.route_replan_handoff_rows is present, preserve its applied evidence ids, quality controls, and next_commands as prior handoff context; route-replan handoff rows are planning input, not proof evidence.",
             "Resource-response ledger rows with awaiting, rejected, absent-response, failed-contract, or unmet-contract-minimum status are status-only; do not use them as residual-goal or route-repair evidence.",
             "When context_packet.route_brief_gap_response_contract_summary is present, the rejected rows are still not mathematical evidence; use the summary only to emit kind-compatible search_requests or planner_next_actions that redispatch the missing gap-specific required_response_fields.",
-            "Accepted context_packet.resource_response_ledger_rows and context_packet.refinement_evidence_rows that provide residual goals, route revisions, source snippets, formal_declaration_hits, prover diagnostics, or coverage updates are bounded feedback: any informal_knowledge_dag_nodes, formal_realization_dag_nodes, standalone_route.primitives, route_alignment_edges, minimal_delta_plan primitive-cost/route-option rows, residual_interpretations, search_requests, planner_next_actions, or formal_attempt_queue rows derived from them must preserve available resource_response_ledger_id/refinement_evidence_id, resource_request_id, target_primitives, source_refs/source_snippets, and prover-feedback provenance ids or diagnostic signatures.",
+            "Accepted context_packet.resource_response_ledger_rows and context_packet.refinement_evidence_rows that provide residual goals, route revisions, source snippets, formal_declaration_hits, prover diagnostics, or coverage updates are bounded feedback: any informal_knowledge_dag_nodes, informal_knowledge_dag_edges, formal_realization_dag_nodes, formal_realization_dag_edges, standalone_route.primitives, route_alignment_edges, minimal_delta_plan primitive-cost/route-option rows, residual_interpretations, search_requests, planner_next_actions, or formal_attempt_queue rows derived from them must preserve available resource_response_ledger_id/refinement_evidence_id, resource_request_id, target_primitives, source_refs/source_snippets, and prover-feedback provenance ids or diagnostic signatures.",
             "Residual interpretations may cover only residual_goals listed in the request packet.",
             "If request residual_goals are present, every residual goal must have an interpretation and a route_repair or repair_action.",
             "When context_packet.residual_goal_contexts is present, residual_interpretations must preserve each carried context's residual_goal, target/residual primitive scope, source refs, and prover-feedback provenance ids or diagnostic signatures.",
@@ -24549,12 +24549,24 @@ def _response_feedback_provenance_preservation_errors(
         )
     )
     evidence_requests.extend(
+        ("informal_knowledge_dag_edges", index, row)
+        for index, row in enumerate(
+            _dict_tuple(payload.get("informal_knowledge_dag_edges", []))
+        )
+    )
+    evidence_requests.extend(
         ("formal_realization_dag_nodes", index, row)
         for index, row in enumerate(
             _formal_realization_nodes_from_payload(
                 payload,
                 target_prover_family=str(request.get("target_prover_family", "")),
             )
+        )
+    )
+    evidence_requests.extend(
+        ("formal_realization_dag_edges", index, row)
+        for index, row in enumerate(
+            _dict_tuple(payload.get("formal_realization_dag_edges", []))
         )
     )
     standalone_route = _standalone_route_from_payload(
@@ -24761,6 +24773,11 @@ def _feedback_provenance_content_tokens(row: Mapping[str, object]) -> set[str]:
             "action",
             "rationale",
             "description",
+            "edge_kind",
+            "source_node_id",
+            "target_node_id",
+            "informal_node_id",
+            "formal_node_id",
             "route_repair",
             "repair_action",
             "residual_goal",
@@ -24792,9 +24809,19 @@ def _feedback_provenance_row_target_keys(
         for primitive in _str_tuple(row.get("selected_primitives", []))
         if _primitive_key(primitive)
     )
-    if collection_name != "route_alignment_edges":
+    edge_like_collections = {
+        "informal_knowledge_dag_edges",
+        "formal_realization_dag_edges",
+        "route_alignment_edges",
+    }
+    if collection_name not in edge_like_collections:
         return target_keys
-    for field_name in ("formal_node_id", "informal_node_id"):
+    for field_name in (
+        "source_node_id",
+        "target_node_id",
+        "formal_node_id",
+        "informal_node_id",
+    ):
         node_id = str(row.get(field_name, "") or "").strip()
         if not node_id:
             continue
@@ -24856,7 +24883,9 @@ def _feedback_adoption_cue_present(tokens: set[str]) -> bool:
 def _feedback_provenance_structural_collection(collection_name: str) -> bool:
     return (
         collection_name == "informal_knowledge_dag_nodes"
+        or collection_name == "informal_knowledge_dag_edges"
         or collection_name == "formal_realization_dag_nodes"
+        or collection_name == "formal_realization_dag_edges"
         or collection_name == "standalone_route.primitives"
         or collection_name == "route_alignment_edges"
         or collection_name == "minimal_delta_plan.primitive_costs"
@@ -24869,7 +24898,9 @@ def _feedback_provenance_structural_collection(collection_name: str) -> bool:
 
 def _feedback_provenance_source_ref_cue_required(collection_name: str) -> bool:
     return collection_name in {
+        "informal_knowledge_dag_edges",
         "informal_knowledge_dag_nodes",
+        "formal_realization_dag_edges",
         "standalone_route.primitives",
     }
 

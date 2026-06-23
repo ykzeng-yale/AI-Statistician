@@ -5786,7 +5786,8 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
         "prompt_messages"
     ]["user"]
     assert (
-        "any informal_knowledge_dag_nodes, formal_realization_dag_nodes, "
+        "any informal_knowledge_dag_nodes, informal_knowledge_dag_edges, "
+        "formal_realization_dag_nodes, formal_realization_dag_edges, "
         "standalone_route.primitives"
     ) in request["prompt_messages"]["user"]
     assert "preserve available resource_response_ledger_id" in request[
@@ -6248,6 +6249,88 @@ def test_llm_route_planner_rejects_informal_node_repair_without_feedback_provena
     passing_payload = export_formalization_gap_planner_llm_route_planner(
         input_json,
         root / "llm_route_planner_with_informal_node_provenance",
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    passing_error_text = "\n".join(passing_payload["rows"][0]["errors"])
+    assert "must preserve the primary feedback provenance id" not in (
+        passing_error_text
+    )
+
+
+def test_llm_route_planner_rejects_dag_edge_repair_without_feedback_provenance() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_dag_edge_feedback_provenance"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    response = _llm_response_payload()
+    response["residual_interpretations"] = []
+    informal_edge = response["informal_knowledge_dag_edges"][0]
+    formal_edge = response["formal_realization_dag_edges"][0]
+    informal_edge["rationale"] = (
+        "Accepted Paperclip feedback identified deterministic tie handling, "
+        "so the rank_uniformity informal edge records the extra route dependency."
+    )
+    formal_edge["rationale"] = (
+        "Accepted Paperclip feedback identified deterministic tie handling, "
+        "so the rank_uniformity formal bridge edge waits for that dependency."
+    )
+    for collection_name in (
+        "search_requests",
+        "planner_next_actions",
+        "formal_attempt_queue",
+        "route_alignment_edges",
+    ):
+        for item in response.get(collection_name, []):
+            if "rank_uniformity" in json.dumps(item):
+                item["resource_response_ledger_id"] = (
+                    "resource-response:rank_route"
+                )
+    for row in response["minimal_delta_plan"]["primitive_costs"]:
+        if row.get("primitive") == "rank_uniformity":
+            row["resource_response_ledger_id"] = "resource-response:rank_route"
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert (
+        "informal_knowledge_dag_edges[0] appears derived from accepted "
+        "resource_response_ledger feedback"
+    ) in error_text
+    assert (
+        "formal_realization_dag_edges[0] appears derived from accepted "
+        "resource_response_ledger feedback"
+    ) in error_text
+    assert "must preserve the primary feedback provenance id" in error_text
+    assert "resource_response_rank_route" in error_text
+
+    informal_edge["resource_response_ledger_id"] = "resource-response:rank_route"
+    formal_edge["resource_response_ledger_id"] = "resource-response:rank_route"
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+    passing_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        root / "llm_route_planner_with_dag_edge_provenance",
         provider_name="static",
         static_response_json=response_json,
         formalization_gap_planner_resource_response_ledger_dir=(
