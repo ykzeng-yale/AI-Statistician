@@ -40,6 +40,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     _available_formal_declaration_rows_for_context,
     _generator_model_for_request,
     _minimal_delta_route_option_selection_brief_errors,
+    _response_route_planning_evidence_gap_coverage_errors,
     _route_adoption_readiness,
     _route_option_selection_brief,
     _target_compatible_formal_declaration_rows,
@@ -14252,6 +14253,109 @@ def test_route_adoption_readiness_uses_current_realization_witness() -> None:
 
     assert status == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     assert blockers == (ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS,)
+
+
+def test_route_planning_evidence_gap_coverage_requires_kind_specific_followup() -> None:
+    def request_for(gap_kind: str) -> dict[str, object]:
+        return {
+            "target_prover_family": "lean4",
+            "context_packet": {
+                "route_planning_brief": {
+                    "evidence_gaps": [
+                        {
+                            "gap_id": f"gap:{gap_kind}",
+                            "gap_kind": gap_kind,
+                            "target_primitives": ["rank_uniformity"],
+                        }
+                    ]
+                },
+                "route_adoption_preconditions": {
+                    "target_primitives": ["rank_uniformity"],
+                },
+            },
+        }
+
+    literature_payload = {
+        "search_requests": [
+            {
+                "request_kind": "literature",
+                "query": "rank_uniformity source evidence",
+                "reason": "source support is missing",
+                "target_primitives": ["rank_uniformity"],
+            }
+        ],
+        "planner_next_actions": [],
+    }
+    formal_payload = {
+        "search_requests": [
+            {
+                "request_kind": "formal_library",
+                "query": "rank_uniformity target prover declaration",
+                "reason": "formal coverage is missing",
+                "target_primitives": ["rank_uniformity"],
+            }
+        ],
+        "planner_next_actions": [],
+    }
+    proof_state_payload = {
+        "search_requests": [],
+        "planner_next_actions": [
+            {
+                "owner": "lean_lsp_mcp",
+                "action": "collect proof_state diagnostics for rank_uniformity",
+                "query": "rank_uniformity residual goals",
+                "target_primitives": ["rank_uniformity"],
+            }
+        ],
+    }
+
+    formal_gap_errors = _response_route_planning_evidence_gap_coverage_errors(
+        literature_payload,
+        request_for("formal_library_grounding"),
+    )
+    assert any(
+        "formal_library_grounding" in error and "formal_library" in error
+        for error in formal_gap_errors
+    )
+    assert (
+        _response_route_planning_evidence_gap_coverage_errors(
+            formal_payload,
+            request_for("formal_library_grounding"),
+        )
+        == []
+    )
+
+    source_gap_errors = _response_route_planning_evidence_gap_coverage_errors(
+        formal_payload,
+        request_for("source_grounding"),
+    )
+    assert any(
+        "source_grounding" in error and "literature/source" in error
+        for error in source_gap_errors
+    )
+    assert (
+        _response_route_planning_evidence_gap_coverage_errors(
+            literature_payload,
+            request_for("source_grounding"),
+        )
+        == []
+    )
+
+    proof_gap_errors = _response_route_planning_evidence_gap_coverage_errors(
+        literature_payload,
+        request_for("proof_state_feedback"),
+    )
+    assert any(
+        "proof_state_feedback" in error and "proof_state" in error
+        for error in proof_gap_errors
+    )
+    assert (
+        _response_route_planning_evidence_gap_coverage_errors(
+            proof_state_payload,
+            request_for("proof_state_feedback"),
+        )
+        == []
+    )
 
 
 def test_route_adoption_taxonomy_publishes_blocker_trigger_fields() -> None:

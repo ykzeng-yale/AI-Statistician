@@ -5262,6 +5262,21 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         },
         rank_adapter_residual,
     ]
+    feedback_response["search_requests"].append(
+        {
+            "request_kind": "literature",
+            "query": (
+                "source grounding for exchangeability to rank_uniformity "
+                "finite-rank proof step"
+            ),
+            "reason": (
+                "The feedback route-planning brief reports pending source "
+                "grounding for the exchangeability and rank_uniformity step, "
+                "so the replan queues source evidence before route adoption."
+            ),
+            "target_primitives": ["exchangeability", "rank_uniformity"],
+        }
+    )
     feedback_response_path.write_text(
         json.dumps(feedback_response, indent=2),
         encoding="utf-8",
@@ -6023,7 +6038,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         > 0
     )
     assert payload["n_feedback_llm_route_planner_awaiting"] == 0
-    assert payload["n_feedback_llm_route_planner_search_requests"] == 1
+    assert payload["n_feedback_llm_route_planner_search_requests"] == 2
     assert payload["n_llm_route_planner_feedback_loop_realization_witnesses"] == 0
     assert payload["n_feedback_llm_route_planner_feedback_loop_realization_witnesses"] == 1
     assert payload["n_library_coverage_rows_with_candidate_declaration_rows"] > 0

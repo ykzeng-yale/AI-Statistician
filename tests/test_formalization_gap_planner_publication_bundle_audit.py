@@ -962,7 +962,17 @@ def _write_accepted_llm_route_planner_artifact(
                             "before route adoption."
                         ),
                         "target_primitives": ["rank_uniformity"],
-                    }
+                    },
+                    {
+                        "request_kind": "formal_library",
+                        "query": "rank_uniformity bridge target prover declarations",
+                        "reason": (
+                            "The route-planning brief has no declaration row "
+                            "available for the bridge, so formal-library grounding "
+                            "must be searched before route adoption."
+                        ),
+                        "target_primitives": ["rank_uniformity"],
+                    },
                 ],
                 "uncertainty_flags": [],
                 "semantic_alignment_risks": [],

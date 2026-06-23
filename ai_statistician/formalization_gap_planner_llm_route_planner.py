@@ -13082,6 +13082,7 @@ def _user_prompt(
             "Use context_packet.route_planning_brief.primitive_evidence_matrix as the compact per-primitive join of source snippets, formal declaration coverage, residual goals, and minimal-delta cost hints.",
             "Use context_packet.context_packet_inventory as the compact inventory of available evidence and feedback rows; raw context_packet rows remain the source of truth if a count is surprising.",
             "Use context_packet.route_adoption_preconditions as the pre-response forecast of known route-adoption blockers; if known_pre_response_blockers is nonempty, preserve blocker-specific residual interpretations, search_requests, or planner_next_actions instead of presenting the route as replay-ready.",
+            "When context_packet.route_planning_brief.evidence_gaps is nonempty, answer each substantive gap with a kind-compatible follow-up: source_grounding uses literature/source search, formal_library_grounding uses formal-library search, proof_state/prover gaps use proof-state feedback, and quality_control gaps preserve required gates/signals.",
             "Use context_packet.legacy_context_field_aliases only as a compatibility map; prefer portable fields such as formal_library_grounding_queries and formal_declaration_hits in new route output.",
             "Use context_packet.route_option_selection_brief as the compact route-option comparison table; its lower_bound_selected_route_option_id is a planning hint, not proof evidence, and the returned minimal_delta_plan.and_or_cost_graph.selected_route_option_id must be cost-compatible and residual-aware with that table, especially when same-cost options differ in current prover residual-goal coverage.",
             "Use context_packet.component_resource_registry_context only to choose bounded search/prover next actions; registry rows are not evidence that a tool was called, and operator_only_resource_ids/generator backend resources are not valid search_requests, planner_next_actions, or formal_attempt_queue resources.",
@@ -16832,8 +16833,16 @@ def _route_planning_evidence_gap_counts(
 def _route_planning_adoption_blocking_evidence_gap_counts(
     context_packet: Mapping[str, Any],
 ) -> dict[str, object]:
+    return _route_planning_evidence_gap_counts_from_gaps(
+        _route_planning_adoption_blocking_evidence_gaps(context_packet)
+    )
+
+
+def _route_planning_adoption_blocking_evidence_gaps(
+    context_packet: Mapping[str, Any],
+) -> tuple[dict[str, object], ...]:
     route_planning_brief = _dict_value(context_packet, "route_planning_brief")
-    gaps = tuple(
+    return tuple(
         gap
         for gap in _dict_tuple(route_planning_brief.get("evidence_gaps", []))
         if str(gap.get("gap_kind", "")).strip()
@@ -16846,7 +16855,6 @@ def _route_planning_adoption_blocking_evidence_gap_counts(
             "quality_control",
         }
     )
-    return _route_planning_evidence_gap_counts_from_gaps(gaps)
 
 
 def _route_planning_evidence_gap_counts_from_gaps(
@@ -17842,6 +17850,7 @@ def _response_contract_errors(
     errors.extend(_response_resource_request_alignment_errors(payload, request))
     errors.extend(_response_agentic_proof_strategy_plan_obligation_errors(payload, request))
     errors.extend(_response_route_adoption_precondition_errors(payload, request))
+    errors.extend(_response_route_planning_evidence_gap_coverage_errors(payload, request))
     for index, node in enumerate(formal_nodes):
         if not str(node.get("node_id", "")).strip():
             errors.append(f"formal_realization_dag_nodes[{index}].node_id missing")
@@ -18296,6 +18305,249 @@ def _response_route_adoption_precondition_errors(
                 + ", ".join(sorted(target_primitives)[:8])
             )
     return errors
+
+
+def _response_route_planning_evidence_gap_coverage_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    context_packet = _dict_value(request, "context_packet")
+    gaps = _route_planning_adoption_blocking_evidence_gaps(context_packet)
+    if not gaps:
+        return []
+
+    target_prover_family = str(request.get("target_prover_family", ""))
+    search_requests = _dict_tuple(payload.get("search_requests", []))
+    planner_next_actions = _dict_tuple(payload.get("planner_next_actions", []))
+    rows: list[tuple[str, dict[str, object], str]] = []
+    rows.extend(
+        (
+            "search_requests",
+            row,
+            _target_scoped_llm_hook_kind(
+                _hook_kind_for_llm_search_request(row),
+                target_prover_family=target_prover_family,
+            ),
+        )
+        for row in search_requests
+    )
+    rows.extend(
+        (
+            "planner_next_actions",
+            row,
+            _target_scoped_llm_hook_kind(
+                _hook_kind_for_llm_planner_action(row),
+                target_prover_family=target_prover_family,
+            ),
+        )
+        for row in planner_next_actions
+    )
+    if not rows:
+        return []
+
+    errors: list[str] = []
+    for index, gap in enumerate(gaps):
+        gap_kind = _primitive_key(gap.get("gap_kind", ""))
+        target_primitives = {
+            primitive
+            for primitive in (
+                _primitive_key(value)
+                for value in _str_tuple(gap.get("target_primitives", []))
+            )
+            if primitive
+        }
+        scoped_rows = [
+            (collection_name, row, hook_kind)
+            for collection_name, row, hook_kind in rows
+            if _route_planning_gap_row_targets_match(
+                row,
+                context_packet,
+                target_primitives=target_primitives,
+            )
+        ]
+        if not scoped_rows:
+            continue
+        if any(
+            _route_planning_gap_hook_kind_matches(
+                gap,
+                hook_kind=hook_kind,
+                row=row,
+                context_packet=context_packet,
+            )
+            for _, row, hook_kind in scoped_rows
+        ):
+            continue
+        gap_id = str(gap.get("gap_id", "")).strip() or gap_kind or "unknown"
+        expected = _route_planning_gap_expected_followup(gap_kind)
+        target_suffix = (
+            " scoped to target_primitives: "
+            + ", ".join(sorted(target_primitives)[:8])
+            if target_primitives
+            else ""
+        )
+        errors.append(
+            "context_packet.route_planning_brief.evidence_gaps"
+            f"[{index}] {gap_id} ({gap_kind or 'unknown'}) requires "
+            f"{expected}{target_suffix}"
+        )
+    return errors
+
+
+def _route_planning_gap_row_targets_match(
+    row: Mapping[str, Any],
+    context_packet: Mapping[str, Any],
+    *,
+    target_primitives: set[str],
+) -> bool:
+    if not target_primitives:
+        return True
+    row_targets = _route_adoption_followup_target_primitives(
+        (dict(row),),
+        context_packet,
+    )
+    return bool(row_targets & target_primitives)
+
+
+def _route_planning_gap_hook_kind_matches(
+    gap: Mapping[str, Any],
+    *,
+    hook_kind: str,
+    row: Mapping[str, Any],
+    context_packet: Mapping[str, Any],
+) -> bool:
+    gap_kind = _primitive_key(gap.get("gap_kind", ""))
+    allowed = _route_planning_gap_allowed_hook_kinds(gap)
+    if hook_kind in allowed:
+        return True
+    if gap_kind == "quality_control":
+        return _route_planning_quality_control_row_matches(row, context_packet)
+    return False
+
+
+def _route_planning_gap_allowed_hook_kinds(gap: Mapping[str, Any]) -> set[str]:
+    gap_kind = _primitive_key(gap.get("gap_kind", ""))
+    if gap_kind == "source_grounding":
+        return {"literature_discovery"}
+    if gap_kind == "formal_library_grounding":
+        return {"formal_library_grounding", "lean_library_grounding"}
+    if gap_kind in {"prover_feedback", "proof_state_feedback"}:
+        allowed = {"proof_state_feedback"}
+        if _route_planning_gap_requests_source_discovery(gap):
+            allowed.add("literature_discovery")
+        return allowed
+    if gap_kind == "proof_body_feedback":
+        return {
+            "literature_discovery",
+            "formal_library_grounding",
+            "lean_library_grounding",
+            "proof_state_feedback",
+            "route_revision",
+        }
+    if gap_kind == "quality_control":
+        return {"proof_state_feedback"}
+    return {"route_revision"}
+
+
+def _route_planning_gap_requests_source_discovery(gap: Mapping[str, Any]) -> bool:
+    gap_text = _primitive_key(
+        " ".join(
+            [
+                str(gap.get("gap_id", "")),
+                str(gap.get("reason", "")),
+                str(gap.get("recommended_action", "")),
+                " ".join(_str_tuple(gap.get("evidence_fields", []))),
+            ]
+        )
+    )
+    return any(
+        token in gap_text
+        for token in (
+            "source_discovery",
+            "source_search",
+            "source_rag",
+            "literature",
+            "paper",
+            "paperclip",
+            "paperqa",
+            "rag",
+        )
+    )
+
+
+def _route_planning_quality_control_row_matches(
+    row: Mapping[str, Any],
+    context_packet: Mapping[str, Any],
+) -> bool:
+    if _route_planning_quality_control_fields_present(row):
+        return True
+    row_ref_keys = _route_planning_quality_control_ref_keys(row)
+    if not row_ref_keys:
+        return False
+    for context_row in (
+        *_dict_tuple(context_packet.get("resource_request_queue_rows", [])),
+        *_dict_tuple(context_packet.get("resource_request_playbooks", [])),
+    ):
+        request_playbook = _dict_value(context_row, "request_playbook")
+        scoped_rows = (
+            (context_row, request_playbook)
+            if request_playbook
+            else (context_row,)
+        )
+        if not any(
+            row_ref_keys & _route_planning_quality_control_ref_keys(scoped_row)
+            for scoped_row in scoped_rows
+        ):
+            continue
+        if any(
+            _route_planning_quality_control_fields_present(scoped_row)
+            for scoped_row in scoped_rows
+        ):
+            return True
+    return False
+
+
+def _route_planning_quality_control_ref_keys(row: Mapping[str, Any]) -> set[str]:
+    refs = _structured_resource_refs(row)
+    return {
+        _resource_ref_key(value)
+        for values in refs.values()
+        for value in values
+        if _resource_ref_key(value)
+    }
+
+
+def _route_planning_quality_control_fields_present(row: Mapping[str, Any]) -> bool:
+    quality_fields = {
+        "acceptance_gate",
+        "acceptance_checklist",
+        "expected_response_fields",
+        "quality_controls",
+        "quality_gates",
+        "request_contract_fields",
+        "required_quality_signals",
+        "resource_contract_ids",
+        "response_contract_fields",
+        "response_validation_signals",
+        "stop_conditions",
+    }
+    if quality_fields & set(row):
+        return True
+    nested_quality_controls = _dict_value(row, "quality_controls")
+    return bool(nested_quality_controls)
+
+
+def _route_planning_gap_expected_followup(gap_kind: str) -> str:
+    if gap_kind == "source_grounding":
+        return "a literature/source search_request or literature-discovery planner_next_action"
+    if gap_kind == "formal_library_grounding":
+        return "a formal_library/library search_request or formal-library planner_next_action"
+    if gap_kind in {"prover_feedback", "proof_state_feedback"}:
+        return "a proof_state/prover-feedback search_request or proof-state planner_next_action"
+    if gap_kind == "proof_body_feedback":
+        return "a bounded source, formal-library, proof-state, or route-revision follow-up"
+    if gap_kind == "quality_control":
+        return "a quality-control/proof-state planner_next_action with required gates or signals"
+    return "a bounded route-revision follow-up"
 
 
 def _response_payload_validation_primitive_matrix_errors(
