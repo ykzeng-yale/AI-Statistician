@@ -5155,6 +5155,15 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         encoding="utf-8",
     )
     feedback_response = _reviewed_llm_route_response_payload()
+    exchangeability_refinement_evidence_id = (
+        "formalization_gap_planner_refinement_evidence:7ff8b6475ac8d8c6"
+    )
+    rank_step_refinement_evidence_id = (
+        "formalization_gap_planner_refinement_evidence:2d71da08c04b26c9"
+    )
+    rank_adapter_refinement_evidence_id = (
+        "formalization_gap_planner_refinement_evidence:52d237ebce01893a"
+    )
     feedback_response["lean_realization_dag_nodes"][0]["coverage_bucket"] = (
         "wrapper_needed"
     )
@@ -5168,6 +5177,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
                 "The Rocq feedback pass needs a target-prover wrapper for the "
                 "exchangeability declaration before reuse."
             )
+            edge["refinement_evidence_id"] = exchangeability_refinement_evidence_id
     feedback_response["minimal_delta_plan"]["route_cost"] = 6
     feedback_response["minimal_delta_plan"]["primitive_costs"][0][
         "coverage_bucket"
@@ -5183,15 +5193,6 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "available exchangeability declaration"
         )
     ]
-    exchangeability_refinement_evidence_id = (
-        "formalization_gap_planner_refinement_evidence:7ff8b6475ac8d8c6"
-    )
-    rank_step_refinement_evidence_id = (
-        "formalization_gap_planner_refinement_evidence:2d71da08c04b26c9"
-    )
-    rank_adapter_refinement_evidence_id = (
-        "formalization_gap_planner_refinement_evidence:52d237ebce01893a"
-    )
     for attempt in feedback_response["formal_attempt_queue"]:
         if attempt.get("formal_node_id") == "formal:exchangeability":
             attempt["attempt_id"] = "formal_attempt:exchangeability_wrapper"

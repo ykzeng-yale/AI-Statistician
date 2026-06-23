@@ -13182,7 +13182,7 @@ def _user_prompt(
             "When context_packet.route_replan_handoff_rows is present, preserve its applied evidence ids, quality controls, and next_commands as prior handoff context; route-replan handoff rows are planning input, not proof evidence.",
             "Resource-response ledger rows with awaiting, rejected, absent-response, failed-contract, or unmet-contract-minimum status are status-only; do not use them as residual-goal or route-repair evidence.",
             "When context_packet.route_brief_gap_response_contract_summary is present, the rejected rows are still not mathematical evidence; use the summary only to emit kind-compatible search_requests or planner_next_actions that redispatch the missing gap-specific required_response_fields.",
-            "Accepted context_packet.resource_response_ledger_rows and context_packet.refinement_evidence_rows that provide residual goals, route revisions, source snippets, formal_declaration_hits, prover diagnostics, or coverage updates are bounded feedback: any residual_interpretations, search_requests, planner_next_actions, or formal_attempt_queue rows derived from them must preserve available resource_response_ledger_id/refinement_evidence_id, resource_request_id, target_primitives, source_refs/source_snippets, and prover-feedback provenance ids or diagnostic signatures.",
+            "Accepted context_packet.resource_response_ledger_rows and context_packet.refinement_evidence_rows that provide residual goals, route revisions, source snippets, formal_declaration_hits, prover diagnostics, or coverage updates are bounded feedback: any route_alignment_edges, residual_interpretations, search_requests, planner_next_actions, or formal_attempt_queue rows derived from them must preserve available resource_response_ledger_id/refinement_evidence_id, resource_request_id, target_primitives, source_refs/source_snippets, and prover-feedback provenance ids or diagnostic signatures.",
             "Residual interpretations may cover only residual_goals listed in the request packet.",
             "If request residual_goals are present, every residual goal must have an interpretation and a route_repair or repair_action.",
             "When context_packet.residual_goal_contexts is present, residual_interpretations must preserve each carried context's residual_goal, target/residual primitive scope, source refs, and prover-feedback provenance ids or diagnostic signatures.",
@@ -24543,17 +24543,31 @@ def _response_feedback_provenance_preservation_errors(
         for index, row in enumerate(_dict_tuple(payload.get("formal_attempt_queue", [])))
     )
     evidence_requests.extend(
+        ("route_alignment_edges", index, row)
+        for index, row in enumerate(
+            _dict_tuple(payload.get("route_alignment_edges", []))
+        )
+    )
+    evidence_requests.extend(
         ("residual_interpretations", index, row)
         for index, row in enumerate(
             _dict_tuple(payload.get("residual_interpretations", []))
         )
+    )
+    alignment_node_primitives = _route_alignment_node_primitive_keys(
+        payload,
+        target_prover_family=str(request.get("target_prover_family", "")),
     )
     errors: list[str] = []
     for collection_name, index, row in evidence_requests:
         row_primary_ids = _primary_feedback_provenance_keys(row)
         row_source_refs = _source_ref_keys_for_value(row)
         row_tokens = _feedback_provenance_content_tokens(row)
-        row_target_keys = _planner_action_target_primitive_keys(row)
+        row_target_keys = _feedback_provenance_row_target_keys(
+            row,
+            collection_name=collection_name,
+            alignment_node_primitives=alignment_node_primitives,
+        )
         matched_primary_ids: set[str] = set()
         matched_source_kinds: set[str] = set()
         matched_target_keys: set[str] = set()
@@ -24568,9 +24582,17 @@ def _response_feedback_provenance_preservation_errors(
             if not target_scoped:
                 continue
             token_overlap = row_tokens & set(requirement.get("specific_tokens", set()))
+            source_ref_overlap = row_source_refs & set(
+                requirement.get("source_refs", set())
+            )
+            token_overlap_sufficient = len(token_overlap) >= 2
+            if collection_name == "route_alignment_edges":
+                token_overlap_sufficient = (
+                    token_overlap_sufficient
+                    and _feedback_adoption_cue_present(row_tokens)
+                )
             derives_from_feedback = bool(
-                row_source_refs & set(requirement.get("source_refs", set()))
-                or len(token_overlap) >= 2
+                source_ref_overlap or token_overlap_sufficient
             )
             if not derives_from_feedback:
                 continue
@@ -24690,9 +24712,82 @@ def _feedback_provenance_content_tokens(row: Mapping[str, object]) -> set[str]:
             "interpretation",
             "formal_gap_boundary",
             "source_search_status",
+            "alignment_status",
+            "alignment_rationale",
         )
     ]
     return _grounding_tokens(" ".join(text_parts))
+
+
+def _feedback_provenance_row_target_keys(
+    row: Mapping[str, object],
+    *,
+    collection_name: str,
+    alignment_node_primitives: Mapping[str, str],
+) -> set[str]:
+    target_keys = _planner_action_target_primitive_keys(row)
+    if collection_name != "route_alignment_edges":
+        return target_keys
+    for field_name in ("formal_node_id", "informal_node_id"):
+        node_id = str(row.get(field_name, "") or "").strip()
+        if not node_id:
+            continue
+        primitive = alignment_node_primitives.get(node_id) or _node_id_primitive_key(
+            node_id
+        )
+        if primitive:
+            target_keys.add(primitive)
+    target_keys.discard("")
+    return target_keys
+
+
+def _route_alignment_node_primitive_keys(
+    payload: Mapping[str, Any],
+    *,
+    target_prover_family: str,
+) -> dict[str, str]:
+    node_primitives: dict[str, str] = {}
+    for node in _formal_realization_nodes_from_payload(
+        payload,
+        target_prover_family=target_prover_family,
+    ):
+        node_id = str(node.get("node_id", "") or "").strip()
+        primitive = _primitive_key(node.get("primitive", ""))
+        if node_id and primitive:
+            node_primitives[node_id] = primitive
+    for node in _dict_tuple(payload.get("informal_knowledge_dag_nodes", [])):
+        node_id = str(node.get("node_id", "") or "").strip()
+        if node_id:
+            primitive = _node_id_primitive_key(node_id)
+            if primitive:
+                node_primitives.setdefault(node_id, primitive)
+    return node_primitives
+
+
+def _node_id_primitive_key(node_id: object) -> str:
+    text = str(node_id or "").strip()
+    if not text:
+        return ""
+    if ":" in text:
+        text = text.rsplit(":", 1)[-1]
+    return _primitive_key(text)
+
+
+def _feedback_adoption_cue_present(tokens: set[str]) -> bool:
+    return bool(
+        tokens
+        & {
+            "accepted",
+            "diagnostic",
+            "diagnostics",
+            "feedback",
+            "paperclip",
+            "prover",
+            "refinement",
+            "residual",
+            "residuals",
+        }
+    )
 
 
 def _feedback_specific_grounding_tokens(
