@@ -620,10 +620,20 @@ def _model_for_subsystem_provider(
     if explicit_model:
         return explicit_model
     primary_provider = getattr(args, "provider", _default_live_generator_provider())
-    if provider_choice == primary_provider:
-        return _default_model_for_provider(primary_provider, model_tier=model_tier)
     if provider_choice == "same":
-        return default_model
+        if str(primary_provider).strip().lower() == "anthropic":
+            return _default_model_for_provider(primary_provider, model_tier=model_tier)
+        return default_model or _default_model_for_provider(
+            primary_provider,
+            model_tier=model_tier,
+        )
+    if provider_choice == primary_provider:
+        if str(primary_provider).strip().lower() == "anthropic":
+            return _default_model_for_provider(primary_provider, model_tier=model_tier)
+        return default_model or _default_model_for_provider(
+            primary_provider,
+            model_tier=model_tier,
+        )
     return _default_model_for_provider(provider_choice, model_tier=model_tier)
 
 

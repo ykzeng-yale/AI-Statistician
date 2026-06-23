@@ -4,10 +4,15 @@ import asyncio
 import json
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from ai_statistician.cli import _load_runtime_learning_memory, main
+from ai_statistician.cli import (
+    _load_runtime_learning_memory,
+    _model_for_subsystem_provider,
+    main,
+)
 from ai_statistician.algorithm_engineer_llm import (
     AlgorithmEngineerConfig,
     LLMAlgorithmEngineerAgent,
@@ -6803,6 +6808,31 @@ def test_runtime_audit_resolves_workspace_relative_run_paths(tmp_path: Path) -> 
     paths = _resolve_manifest_paths(runtime_dir, manifest)
 
     assert paths == [result_path]
+
+
+def test_same_anthropic_subsystem_provider_resolves_model_by_subsystem_tier() -> None:
+    args = SimpleNamespace(provider="anthropic")
+
+    assert (
+        _model_for_subsystem_provider(
+            provider_choice="same",
+            explicit_model="",
+            args=args,
+            default_model="claude-sonnet-4-6",
+            model_tier="haiku",
+        )
+        == "claude-haiku-4-5-20251001"
+    )
+    assert (
+        _model_for_subsystem_provider(
+            provider_choice="anthropic",
+            explicit_model="",
+            args=args,
+            default_model="claude-sonnet-4-6",
+            model_tier="haiku",
+        )
+        == "claude-haiku-4-5-20251001"
+    )
 
 
 def test_runtime_topology_resolves_empty_config_model_from_tier(

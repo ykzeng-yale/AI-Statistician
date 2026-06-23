@@ -296,7 +296,7 @@ so Haiku uses `claude-haiku-4-5-20251001` rather than relying on the shorter
 `claude-haiku-4-5` alias. The current pinned Claude cost-tier API IDs are
 `claude-haiku-4-5-20251001`, `claude-sonnet-4-6`, and
 `claude-opus-4-8`, checked against the Anthropic models overview on
-2026-06-22. Claude Fable/Mythos family models are tracked outside this
+2026-06-23. Claude Fable/Mythos family models are tracked outside this
 Haiku/Sonnet/Opus cost-aware tier contract, and complete coding agents such as
 `codex`, `codex_exec`, `claude_code`, `cursor`, and `gemini_cli` are prohibited
 as normal pure-LLM providers. Runtime topology manifests publish this prohibited
