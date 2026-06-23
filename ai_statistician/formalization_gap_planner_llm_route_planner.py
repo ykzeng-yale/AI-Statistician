@@ -18442,8 +18442,6 @@ def _response_route_planning_evidence_gap_coverage_errors(
         )
         for row in planner_next_actions
     )
-    if not rows:
-        return []
 
     errors: list[str] = []
     for index, gap in enumerate(gaps):
@@ -18456,6 +18454,22 @@ def _response_route_planning_evidence_gap_coverage_errors(
             )
             if primitive
         }
+        gap_id = str(gap.get("gap_id", "")).strip() or gap_kind or "unknown"
+        expected = _route_planning_gap_expected_followup(gap_kind)
+        target_suffix = (
+            " scoped to target_primitives: "
+            + ", ".join(sorted(target_primitives)[:8])
+            if target_primitives
+            else ""
+        )
+        if not rows:
+            errors.append(
+                "context_packet.route_planning_brief.evidence_gaps"
+                f"[{index}] {gap_id} ({gap_kind or 'unknown'}) requires "
+                f"{expected}{target_suffix}; response provided no "
+                "search_requests or planner_next_actions"
+            )
+            continue
         scoped_rows = [
             (collection_name, row, hook_kind)
             for collection_name, row, hook_kind in rows
@@ -18477,14 +18491,6 @@ def _response_route_planning_evidence_gap_coverage_errors(
             for _, row, hook_kind in scoped_rows
         ):
             continue
-        gap_id = str(gap.get("gap_id", "")).strip() or gap_kind or "unknown"
-        expected = _route_planning_gap_expected_followup(gap_kind)
-        target_suffix = (
-            " scoped to target_primitives: "
-            + ", ".join(sorted(target_primitives)[:8])
-            if target_primitives
-            else ""
-        )
         errors.append(
             "context_packet.route_planning_brief.evidence_gaps"
             f"[{index}] {gap_id} ({gap_kind or 'unknown'}) requires "

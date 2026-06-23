@@ -15470,6 +15470,17 @@ def test_route_planning_evidence_gap_coverage_requires_kind_specific_followup() 
             }
         ],
     }
+    empty_payload = {"search_requests": [], "planner_next_actions": []}
+
+    empty_gap_errors = _response_route_planning_evidence_gap_coverage_errors(
+        empty_payload,
+        request_for("source_grounding"),
+    )
+    assert any(
+        "source_grounding" in error
+        and "provided no search_requests or planner_next_actions" in error
+        for error in empty_gap_errors
+    )
 
     formal_gap_errors = _response_route_planning_evidence_gap_coverage_errors(
         literature_payload,
@@ -17553,6 +17564,47 @@ def test_llm_route_planner_auto_uses_sonnet_for_route_planning_evidence_gaps() -
     assert (
         ledger_row["route_planning_evidence_gap_counts"]
         == evidence["route_planning_evidence_gap_counts"]
+    )
+    assert validate_llm_route_planner_manifest(payload) == []
+
+
+def test_llm_route_planner_rejects_response_that_ignores_route_planning_evidence_gaps() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_ignored_evidence_gap"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    route = input_payload["routes"][0]
+    route["source_refs"] = []
+    route["source_snippets"] = []
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+    response = _llm_response_payload()
+    response["search_requests"] = []
+    response["planner_next_actions"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+    )
+
+    assert not payload["all_ok"]
+    assert payload["n_rejected"] == 1
+    assert payload["n_response_contract_ok"] == 0
+    assert payload["n_request_route_planning_evidence_gaps"] == 1
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "context_packet.route_planning_brief.evidence_gaps[0]" in error
+        and "source_grounding" in error
+        and "provided no search_requests or planner_next_actions" in error
+        for error in row["errors"]
     )
     assert validate_llm_route_planner_manifest(payload) == []
 
@@ -20851,10 +20903,15 @@ def test_response_payload_validation_enforces_route_adoption_preconditions() -> 
         "response_not_accepted"
     ]
     assert silent_row["request_bound_adoptable_for_standalone_replay"] is False
-    assert silent_row["n_request_context_errors"] == 1
+    assert silent_row["n_request_context_errors"] == 2
     assert any(
         "route_adoption_preconditions require at least one nonempty "
         "search_requests or planner_next_actions row" in error
+        for error in silent_row["errors"]
+    )
+    assert any(
+        "context_packet.route_planning_brief.evidence_gaps" in error
+        and "provided no search_requests or planner_next_actions" in error
         for error in silent_row["errors"]
     )
 
