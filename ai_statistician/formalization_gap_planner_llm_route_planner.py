@@ -24542,11 +24542,17 @@ def _response_feedback_provenance_preservation_errors(
         ("formal_attempt_queue", index, row)
         for index, row in enumerate(_dict_tuple(payload.get("formal_attempt_queue", [])))
     )
+    evidence_requests.extend(
+        ("residual_interpretations", index, row)
+        for index, row in enumerate(
+            _dict_tuple(payload.get("residual_interpretations", []))
+        )
+    )
     errors: list[str] = []
     for collection_name, index, row in evidence_requests:
         row_primary_ids = _primary_feedback_provenance_keys(row)
         row_source_refs = _source_ref_keys_for_value(row)
-        row_tokens = _planner_action_content_tokens(row)
+        row_tokens = _feedback_provenance_content_tokens(row)
         row_target_keys = _planner_action_target_primitive_keys(row)
         matched_primary_ids: set[str] = set()
         matched_source_kinds: set[str] = set()
@@ -24667,6 +24673,26 @@ def _source_ref_keys_for_value(value: Any) -> set[str]:
         for source_ref in refs
         if _source_ref_key(source_ref)
     }
+
+
+def _feedback_provenance_content_tokens(row: Mapping[str, object]) -> set[str]:
+    text_parts = [
+        str(row.get(field_name, ""))
+        for field_name in (
+            "query",
+            "reason",
+            "action",
+            "rationale",
+            "description",
+            "route_repair",
+            "repair_action",
+            "residual_goal",
+            "interpretation",
+            "formal_gap_boundary",
+            "source_search_status",
+        )
+    ]
+    return _grounding_tokens(" ".join(text_parts))
 
 
 def _feedback_specific_grounding_tokens(

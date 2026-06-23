@@ -5189,6 +5189,9 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     rank_step_refinement_evidence_id = (
         "formalization_gap_planner_refinement_evidence:2d71da08c04b26c9"
     )
+    rank_adapter_refinement_evidence_id = (
+        "formalization_gap_planner_refinement_evidence:52d237ebce01893a"
+    )
     for attempt in feedback_response["formal_attempt_queue"]:
         if attempt.get("formal_node_id") == "formal:exchangeability":
             attempt["attempt_id"] = "formal_attempt:exchangeability_wrapper"
@@ -5252,6 +5255,9 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     rank_adapter_residual["prover_diagnostic_signature"] = (
         "prover_diagnostic_signature:eeb72ab055ebf6ae"
     )
+    rank_adapter_residual["refinement_evidence_id"] = (
+        rank_adapter_refinement_evidence_id
+    )
     feedback_response["residual_interpretations"] = [
         {
             "residual_goal": "exchangeability: non-Lean theorem skeleton",
@@ -5268,6 +5274,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
             "prover_diagnostic_signature": (
                 "prover_diagnostic_signature:8c73dbe715c999ff"
             ),
+            "refinement_evidence_id": exchangeability_refinement_evidence_id,
         },
         rank_adapter_residual,
     ]
