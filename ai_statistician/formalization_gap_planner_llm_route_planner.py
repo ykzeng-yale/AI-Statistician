@@ -13209,7 +13209,7 @@ def _user_prompt(
             "Every wrapper_lemmas, bridge_lemmas, source_port_lemmas, new_definitions, new_theory_primitives, or first_principles_primitives item used as a selected-delta or route-option action witness must be an actionable work item, not only the primitive name; include the primitive plus a theorem statement, definition goal, porting target, proof obligation, or construction description.",
             "When a route_options[].primitive_costs row uses a wrapper, bridge, source_port, new_definition, or new_theory bucket, that same route option must include a matching actionable wrapper_lemmas, bridge_lemmas, source_port_lemmas, new_definitions, new_theory_primitives, or first_principles_primitives work item; selected route options may also use the top-level minimal_delta_plan action lists.",
             "New selected, route option, or delta primitives not already present in the target route or context packet must be justified by an aligned informal node with grounded source_refs, a matching literature search_request, or a formal_gap_boundary.",
-            "When context_packet.resource_request_queue_rows is present, evidence-gathering search_requests and planner_next_actions should reference queued resource_request_id or resource_id entries instead of inventing new tool dispatches.",
+            "When context_packet.resource_request_queue_rows is present, evidence-gathering search_requests and planner_next_actions should reference queued resource_request_id entries instead of inventing new tool dispatches; resource_id alone is only acceptable when it maps to one unambiguous queued playbook.",
             "When context_packet.resource_request_playbooks is present, use each playbook's operator_prompt, expected_response_fields, and acceptance_checklist as the bounded ask for search_requests and planner_next_actions.",
             "Do not claim kernel verification or theorem proof evidence.",
         ],
@@ -13777,7 +13777,7 @@ def _repair_user_prompt(
             "Use only source_refs and candidate_declarations/candidate_declaration_rows available in the original request context.",
             "Prefer candidate_declaration_rows so target_prover_family provenance is preserved.",
             "If evidence is missing, emit search_requests instead of inventing facts.",
-            "When the original request has resource_request_queue_rows, align search_requests and planner_next_actions to queued resource_request_id/resource_id values.",
+            "When the original request has resource_request_queue_rows, align search_requests and planner_next_actions to queued resource_request_id values; use resource_id alone only when it maps to one unambiguous queued playbook.",
             "When the original request has resource_request_playbooks, keep repaired search_requests and planner_next_actions aligned to those playbook operator prompts and acceptance checklists.",
             "Include a complete minimal_delta_plan with selected_primitives, primitive_costs, and and_or_cost_graph.",
             "If a selected primitive needs wrapper, bridge, source-port, definition, or new-theory work, list an actionable work item in the matching minimal_delta_plan bucket; a bare primitive name is not enough.",
@@ -24772,15 +24772,77 @@ def _resource_request_playbook_grounding_errors(
     playbooks_by_resource_id: Mapping[str, list[dict[str, object]]],
 ) -> list[str]:
     matched_playbooks: list[dict[str, object]] = []
+    content_tokens = _planner_action_content_tokens(row)
     for request_id in sorted(request_ids):
         matched_playbooks.extend(playbooks_by_request_id.get(request_id, []))
     if not matched_playbooks:
+        resource_matched_playbooks: list[dict[str, object]] = []
         for resource_id in sorted(resource_ids):
-            matched_playbooks.extend(playbooks_by_resource_id.get(resource_id, []))
+            resource_matched_playbooks.extend(
+                playbooks_by_resource_id.get(resource_id, [])
+            )
+        resource_matched_request_ids = sorted(
+            {
+                _resource_ref_key(playbook.get("resource_request_id", ""))
+                for playbook in resource_matched_playbooks
+                if _resource_ref_key(playbook.get("resource_request_id", ""))
+            }
+        )
+        if len(resource_matched_request_ids) > 1:
+            target_keys = _planner_action_target_primitive_keys(row)
+            token_request_counts: dict[str, int] = {}
+            tokens_by_request_id: dict[str, set[str]] = {}
+            for playbook in resource_matched_playbooks:
+                request_id = _resource_ref_key(
+                    playbook.get("resource_request_id", "")
+                )
+                if not request_id:
+                    continue
+                tokens_by_request_id.setdefault(request_id, set()).update(
+                    _playbook_grounding_tokens(playbook)
+                )
+            for tokens in tokens_by_request_id.values():
+                for token in tokens:
+                    token_request_counts[token] = token_request_counts.get(token, 0) + 1
+            scoped_playbooks = [
+                playbook
+                for playbook in resource_matched_playbooks
+                if content_tokens
+                & {
+                    token
+                    for token in _playbook_grounding_tokens(playbook)
+                    if token_request_counts.get(token, 0) == 1
+                }
+                and (
+                    not target_keys
+                    or target_keys
+                    & {
+                        _primitive_key(primitive)
+                        for primitive in _feedback_row_target_primitives(playbook)
+                        if _primitive_key(primitive)
+                    }
+                )
+            ]
+            scoped_request_ids = sorted(
+                {
+                    _resource_ref_key(playbook.get("resource_request_id", ""))
+                    for playbook in scoped_playbooks
+                    if _resource_ref_key(playbook.get("resource_request_id", ""))
+                }
+            )
+            if len(scoped_request_ids) != 1:
+                return [
+                    f"{collection_name}[{index}] references resource_id without "
+                    "resource_request_id, but the resource_id matches multiple "
+                    "queued request_playbooks: "
+                    + ", ".join(resource_matched_request_ids[:8])
+                ]
+            matched_playbooks.extend(scoped_playbooks)
+        else:
+            matched_playbooks.extend(resource_matched_playbooks)
     if not matched_playbooks:
         return []
 
-    content_tokens = _planner_action_content_tokens(row)
     if not content_tokens:
         return [
             f"{collection_name}[{index}] has no substantive query/action terms "

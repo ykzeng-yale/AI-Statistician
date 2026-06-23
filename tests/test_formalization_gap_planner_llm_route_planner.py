@@ -8036,6 +8036,95 @@ def test_llm_route_planner_rejects_resource_request_not_grounded_in_playbook() -
     assert "not grounded in the queued request_playbook" in error_text
 
 
+def test_llm_route_planner_rejects_ambiguous_resource_id_playbook_binding() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_queue_ambiguous_resource_id"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_request_queue_dir = _write_resource_request_queue(root)
+    manifest_path = (
+        resource_request_queue_dir
+        / "formalization_gap_planner_resource_request_queue_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    spectral_row = deepcopy(manifest["rows"][0])
+    spectral_row["resource_request_id"] = "resource-request:spectral_gap_route"
+    spectral_row["primitive_action_id"] = "primitive-action:spectral_gap_route"
+    spectral_row["primitive"] = "spectral_gap"
+    spectral_row["target_primitives"] = ["spectral_gap"]
+    spectral_row["candidate_declaration_rows"] = []
+    spectral_row["request_playbook"]["resource_request_id"] = (
+        "resource-request:spectral_gap_route"
+    )
+    spectral_row["request_playbook"]["operator_prompt"] = (
+        "Use paperclip_cli_mcp to find mixing-time source evidence for the "
+        "spectral_gap primitive."
+    )
+    spectral_row["request_playbook"]["input_summary"]["primitive"] = "spectral_gap"
+    spectral_row["request_playbook"]["input_summary"][
+        "candidate_declarations"
+    ] = []
+    spectral_row["request_playbook"]["execution_command"] = (
+        "paperclip search --query 'mixing time spectral gap'"
+    )
+    spectral_row["request_payload"]["resource_request_id"] = (
+        "resource-request:spectral_gap_route"
+    )
+    spectral_row["request_payload"]["primitive"] = "spectral_gap"
+    spectral_row["request_payload"]["candidate_declaration_rows"] = []
+    spectral_row["request_payload"]["source_query"] = "mixing time spectral gap"
+    spectral_row["request_payload"]["request_playbook"]["resource_request_id"] = (
+        "resource-request:spectral_gap_route"
+    )
+    spectral_row["request_payload"]["request_playbook"]["operator_prompt"] = (
+        "Use paperclip_cli_mcp to find mixing-time source evidence for the "
+        "spectral_gap primitive."
+    )
+    manifest["rows"].append(spectral_row)
+    manifest["n_resource_request_rows"] = 2
+    manifest["n_with_request_playbooks"] = 2
+    manifest["n_request_playbook_identity_valid"] = 2
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    response = _llm_response_payload()
+    response["search_requests"] = [
+        {
+            "request_kind": "literature",
+            "query": "mixing time source evidence",
+            "reason": "ambiguous shared Paperclip resource id without request id",
+            "resource_id": "paperclip_cli_mcp",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response["planner_next_actions"] = []
+    response["uncertainty_flags"] = []
+    response["semantic_alignment_risks"] = []
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_request_queue_dir=(
+            resource_request_queue_dir
+        ),
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert row["response_contract_ok"] is False
+    error_text = "\n".join(row["errors"])
+    assert "references resource_id without resource_request_id" in error_text
+    assert "matches multiple queued request_playbooks" in error_text
+    assert "resource_request_spectral_gap_route" in error_text
+    assert "resource_request_rank_route" in error_text
+
+
 def test_llm_route_planner_stages_interactive_session_context() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_interactive_context")
     out_dir = root / "llm_route_planner"
