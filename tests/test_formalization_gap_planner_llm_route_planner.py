@@ -6452,6 +6452,101 @@ def test_llm_route_planner_rejects_dag_edge_repair_without_feedback_provenance()
     )
 
 
+def test_llm_route_planner_rejects_and_or_graph_repair_without_feedback_provenance() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_graph_feedback_provenance"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    response = _llm_response_payload()
+    response["residual_interpretations"] = []
+    graph = response["minimal_delta_plan"]["and_or_cost_graph"]
+    or_node = graph["or_nodes"][0]
+    and_edge = next(
+        edge
+        for edge in graph["and_edges"]
+        if edge.get("route_option_id") == "route_option:reuse_exchangeability_bridge_rank"
+    )
+    or_node["selection_rationale"] = (
+        "Accepted Paperclip feedback identified deterministic tie handling, "
+        "so the rank_uniformity bridge option remains selected."
+    )
+    and_edge["rationale"] = (
+        "Accepted Paperclip feedback identified deterministic tie handling, "
+        "so the selected route still requires rank_uniformity."
+    )
+    for collection_name in (
+        "search_requests",
+        "planner_next_actions",
+        "formal_attempt_queue",
+        "route_alignment_edges",
+    ):
+        for item in response.get(collection_name, []):
+            if "rank_uniformity" in json.dumps(item):
+                item["resource_response_ledger_id"] = (
+                    "resource-response:rank_route"
+                )
+    for row in response["minimal_delta_plan"]["primitive_costs"]:
+        if row.get("primitive") == "rank_uniformity":
+            row["resource_response_ledger_id"] = "resource-response:rank_route"
+    for option in graph["route_options"]:
+        if "rank_uniformity" in json.dumps(option):
+            option["resource_response_ledger_id"] = "resource-response:rank_route"
+            for cost_row in option.get("primitive_costs", []):
+                if cost_row.get("primitive") == "rank_uniformity":
+                    cost_row["resource_response_ledger_id"] = (
+                        "resource-response:rank_route"
+                    )
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert (
+        "minimal_delta_plan.and_or_cost_graph.or_nodes[0] appears derived "
+        "from accepted resource_response_ledger feedback"
+    ) in error_text
+    assert (
+        "minimal_delta_plan.and_or_cost_graph.and_edges[0] appears derived "
+        "from accepted resource_response_ledger feedback"
+    ) in error_text
+    assert "must preserve the primary feedback provenance id" in error_text
+    assert "resource_response_rank_route" in error_text
+
+    or_node["resource_response_ledger_id"] = "resource-response:rank_route"
+    and_edge["resource_response_ledger_id"] = "resource-response:rank_route"
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+    passing_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        root / "llm_route_planner_with_graph_provenance",
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    passing_error_text = "\n".join(passing_payload["rows"][0]["errors"])
+    assert "must preserve the primary feedback provenance id" not in (
+        passing_error_text
+    )
+
+
 def test_llm_route_planner_stages_source_theorem_feedback_rows() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_source_theorem_feedback"
