@@ -4,7 +4,12 @@ import json
 from dataclasses import replace
 from typing import Any, Callable, Mapping
 
-from .model_backend import GeneratorBackend, GeneratorRequest, GeneratorResponse
+from .model_backend import (
+    GeneratorBackend,
+    GeneratorRequest,
+    GeneratorResponse,
+    resolve_generator_model,
+)
 
 
 PacketBuilder = Callable[[Mapping[str, Any], GeneratorResponse, str], dict[str, Any]]
@@ -35,15 +40,30 @@ def generate_validated_json_packet(
     history: list[dict[str, Any]] = []
     last_errors: list[str] = []
     attempts = max(0, max_repair_attempts) + 1
+    requested_model_tier = _request_model_tier(request.metadata)
+    effective_model_tier = requested_model_tier
+    model_tier_escalated = False
+    model_tier_escalation_reason = ""
     for attempt_index in range(attempts):
+        request_model = _model_for_repair_attempt(
+            provider,
+            request,
+            effective_model_tier=effective_model_tier,
+            requested_model_tier=requested_model_tier,
+        )
         response = provider.generate(
             replace(
                 request,
                 user_prompt=user_prompt,
+                model=request_model,
                 metadata={
                     **dict(request.metadata),
                     "json_repair_attempt": attempt_index,
                     "json_repair_max_attempts": max_repair_attempts,
+                    "requested_model_tier": requested_model_tier,
+                    "effective_model_tier": effective_model_tier,
+                    "model_tier_escalated": model_tier_escalated,
+                    "model_tier_escalation_reason": model_tier_escalation_reason,
                 },
             )
         )
@@ -61,6 +81,10 @@ def generate_validated_json_packet(
                 "attempt_index": attempt_index,
                 "provider": response.provider,
                 "model": response.model,
+                "requested_model_tier": requested_model_tier,
+                "effective_model_tier": effective_model_tier,
+                "model_tier_escalated": model_tier_escalated,
+                "model_tier_escalation_reason": model_tier_escalation_reason,
                 "ok": not last_errors,
                 "errors": last_errors,
                 "raw_response_fingerprint": _stable_text_fingerprint(raw_text),
@@ -81,6 +105,15 @@ def generate_validated_json_packet(
                 errors=last_errors,
                 validation_label=validation_label,
             )
+            next_model_tier, escalation_reason = _next_repair_model_tier(
+                provider,
+                request,
+                current_model_tier=effective_model_tier,
+            )
+            if next_model_tier != effective_model_tier:
+                model_tier_escalated = True
+                model_tier_escalation_reason = escalation_reason
+            effective_model_tier = next_model_tier
     raise ValueError(
         f"{validation_label} failed validation after {attempts} attempt(s): "
         + "; ".join(last_errors)
@@ -130,6 +163,10 @@ def _compact_response_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
         "provider_reported_model_tier",
         "provider_reported_model_tier_mismatch",
         "requested_model_tier_mismatch",
+        "requested_model_tier",
+        "effective_model_tier",
+        "model_tier_escalated",
+        "model_tier_escalation_reason",
     )
     compact: dict[str, Any] = {}
     for key in keep_keys:
@@ -153,6 +190,86 @@ def _compact_metadata_value(value: Any) -> Any:
     if isinstance(value, list):
         return [_compact_metadata_value(item) for item in value[:8]]
     return str(value)[:400]
+
+
+def _request_model_tier(metadata: Mapping[str, Any]) -> str:
+    for key in ("effective_model_tier", "model_tier", "requested_model_tier"):
+        tier = str(metadata.get(key, "") or "").strip().lower()
+        if tier:
+            return tier
+    return ""
+
+
+def _provider_name(provider: GeneratorBackend, request: GeneratorRequest) -> str:
+    return str(
+        request.metadata.get("provider_name", "")
+        or getattr(provider, "provider_name", "")
+        or ""
+    ).strip().lower()
+
+
+def _model_for_repair_attempt(
+    provider: GeneratorBackend,
+    request: GeneratorRequest,
+    *,
+    effective_model_tier: str,
+    requested_model_tier: str,
+) -> str:
+    provider_name = _provider_name(provider, request)
+    if (
+        provider_name == "anthropic"
+        and effective_model_tier
+        and requested_model_tier
+        and effective_model_tier != requested_model_tier
+    ):
+        return resolve_generator_model(
+            provider_name=provider_name,
+            model_tier=effective_model_tier,
+        )
+    return request.model
+
+
+def _next_repair_model_tier(
+    provider: GeneratorBackend,
+    request: GeneratorRequest,
+    *,
+    current_model_tier: str,
+) -> tuple[str, str]:
+    current = str(current_model_tier or "").strip().lower()
+    if _provider_name(provider, request) != "anthropic" or current != "haiku":
+        return current, ""
+    if _explicit_model_override_blocks_escalation(request, current_model_tier=current):
+        return current, ""
+    return (
+        "sonnet",
+        (
+            "auto escalated Anthropic JSON repair from Claude Haiku to Claude "
+            "Sonnet after local validation failed"
+        ),
+    )
+
+
+def _explicit_model_override_blocks_escalation(
+    request: GeneratorRequest,
+    *,
+    current_model_tier: str,
+) -> bool:
+    metadata = request.metadata
+    if bool(metadata.get("json_repair_model_tier_escalation_disabled", False)):
+        return True
+    explicit = bool(
+        metadata.get("explicit_model_configured", False)
+        or metadata.get("explicit_model_override", False)
+    )
+    if not explicit:
+        return False
+    provider_name = str(metadata.get("provider_name", "") or "").strip().lower()
+    configured_model = str(request.model or "").strip()
+    tier_default = resolve_generator_model(
+        provider_name=provider_name or "anthropic",
+        model_tier=current_model_tier,
+    )
+    return bool(configured_model and configured_model != tier_default)
 
 
 def _repair_prompt(

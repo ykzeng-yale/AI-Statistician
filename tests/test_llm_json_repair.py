@@ -4,7 +4,12 @@ import json
 
 import pytest
 
-from ai_statistician.llm_json_repair import _repair_prompt, extract_json_object
+from ai_statistician.llm_json_repair import (
+    _repair_prompt,
+    extract_json_object,
+    generate_validated_json_packet,
+)
+from ai_statistician.model_backend import GeneratorRequest, GeneratorResponse
 
 
 def test_extract_json_object_handles_fenced_json() -> None:
@@ -50,3 +55,120 @@ def test_repair_prompt_compacts_large_original_request() -> None:
     assert original_request["head"].startswith("START")
     assert original_request["tail"].endswith("required_output_contract")
     assert "x" * 9000 not in prompt
+
+
+def test_generate_validated_json_packet_escalates_haiku_repair_to_sonnet() -> None:
+    class FakeAnthropicBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            ok = len(self.requests) > 1
+            return GeneratorResponse(
+                text=json.dumps({"ok": ok}),
+                provider="anthropic",
+                model=request.model,
+                metadata=dict(request.metadata),
+            )
+
+    backend = FakeAnthropicBackend()
+    request = GeneratorRequest(
+        system_prompt="return json",
+        user_prompt="make packet",
+        model="claude-haiku-4-5-20251001",
+        schema={"type": "object"},
+        metadata={
+            "provider_name": "anthropic",
+            "model_tier": "haiku",
+            "resolved_model": "claude-haiku-4-5-20251001",
+        },
+    )
+
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=request,
+        extract_payload=extract_json_object,
+        build_packet=lambda payload, response, _raw_text: {
+            "ok": payload.get("ok"),
+            "model": response.model,
+            "model_tier": response.metadata.get("effective_model_tier"),
+        },
+        validate_packet=lambda packet: [] if packet.get("ok") else ["not ok"],
+        validation_label="test packet",
+        max_repair_attempts=1,
+    )
+
+    assert [item.model for item in backend.requests] == [
+        "claude-haiku-4-5-20251001",
+        "claude-sonnet-4-6",
+    ]
+    assert packet["model"] == "claude-sonnet-4-6"
+    assert packet["model_tier"] == "sonnet"
+    assert packet["llm_json_repair_attempts"] == 1
+    assert packet["llm_json_repair_history"][1]["model_tier_escalated"] is True
+    expected_reason = (
+        "auto escalated Anthropic JSON repair from Claude Haiku to Claude "
+        "Sonnet after local validation failed"
+    )
+    assert (
+        packet["llm_json_repair_history"][1]["model_tier_escalation_reason"]
+        == expected_reason
+    )
+
+
+def test_generate_validated_json_packet_keeps_explicit_custom_model_on_repair() -> None:
+    class FakeAnthropicBackend:
+        provider_name = "anthropic"
+
+        def __init__(self) -> None:
+            self.requests: list[GeneratorRequest] = []
+
+        def generate(self, request: GeneratorRequest) -> GeneratorResponse:
+            self.requests.append(request)
+            ok = len(self.requests) > 1
+            return GeneratorResponse(
+                text=json.dumps({"ok": ok}),
+                provider="anthropic",
+                model=request.model,
+                metadata=dict(request.metadata),
+            )
+
+    backend = FakeAnthropicBackend()
+    request = GeneratorRequest(
+        system_prompt="return json",
+        user_prompt="make packet",
+        model="claude-haiku-custom",
+        schema={"type": "object"},
+        metadata={
+            "provider_name": "anthropic",
+            "model_tier": "haiku",
+            "resolved_model": "claude-haiku-custom",
+            "explicit_model_configured": True,
+        },
+    )
+
+    packet = generate_validated_json_packet(
+        provider=backend,
+        request=request,
+        extract_payload=extract_json_object,
+        build_packet=lambda payload, response, _raw_text: {
+            "ok": payload.get("ok"),
+            "model": response.model,
+            "model_tier": response.metadata.get("effective_model_tier"),
+        },
+        validate_packet=lambda packet: [] if packet.get("ok") else ["not ok"],
+        validation_label="test packet",
+        max_repair_attempts=1,
+    )
+
+    assert [item.model for item in backend.requests] == [
+        "claude-haiku-custom",
+        "claude-haiku-custom",
+    ]
+    assert packet["model"] == "claude-haiku-custom"
+    assert packet["model_tier"] == "haiku"
+    assert packet["llm_json_repair_attempts"] == 1
+    assert packet["llm_json_repair_history"][1]["model_tier_escalated"] is False

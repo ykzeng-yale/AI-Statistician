@@ -79,6 +79,7 @@ class LLMAlgorithmEngineerAgent:
                 "provider_name": self.config.provider_name,
                 "model_tier": self.config.model_tier,
                 "resolved_model": request_model,
+                "explicit_model_configured": bool(self.config.model),
             },
         )
 
@@ -87,7 +88,10 @@ class LLMAlgorithmEngineerAgent:
                 payload,
                 question=question,
                 model=response.model or request_model,
-                model_tier=self.config.model_tier,
+                model_tier=str(
+                    response.metadata.get("effective_model_tier", "")
+                    or self.config.model_tier
+                ),
                 provider_name=self.config.provider_name or response.provider,
                 raw_response=raw_text,
                 implementation_gaps=implementation_gaps,
