@@ -5187,6 +5187,9 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
     feedback_response["minimal_delta_plan"]["primitive_costs"][0][
         "cost_rationale"
     ] = "The feedback pass requires a target-prover exchangeability wrapper."
+    feedback_response["minimal_delta_plan"]["primitive_costs"][0][
+        "refinement_evidence_id"
+    ] = exchangeability_refinement_evidence_id
     feedback_response["minimal_delta_plan"]["wrapper_lemmas"] = [
         (
             "exchangeability: write the target-prover wrapper around the "
@@ -5237,6 +5240,9 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
                     cost_row["cost_rationale"] = (
                         "The feedback pass requires a target-prover "
                         "exchangeability wrapper before the source-port route."
+                    )
+                    cost_row["refinement_evidence_id"] = (
+                        exchangeability_refinement_evidence_id
                     )
         if (
             option["route_option_id"]

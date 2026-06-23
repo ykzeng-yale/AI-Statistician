@@ -5785,7 +5785,7 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     assert "Accepted context_packet.resource_response_ledger_rows" in request[
         "prompt_messages"
     ]["user"]
-    assert "any route_alignment_edges, residual_interpretations" in request[
+    assert "any formal_realization_dag_nodes, route_alignment_edges" in request[
         "prompt_messages"
     ]["user"]
     assert "preserve available resource_response_ledger_id" in request[
@@ -6029,6 +6029,75 @@ def test_llm_route_planner_rejects_alignment_repair_without_feedback_provenance(
     passing_payload = export_formalization_gap_planner_llm_route_planner(
         input_json,
         root / "llm_route_planner_with_alignment_provenance",
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    passing_error_text = "\n".join(passing_payload["rows"][0]["errors"])
+    assert "must preserve the primary feedback provenance id" not in (
+        passing_error_text
+    )
+
+
+def test_llm_route_planner_rejects_cost_repair_without_feedback_provenance() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_cost_feedback_provenance"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    response = _llm_response_payload()
+    response["residual_interpretations"] = []
+    rank_cost = response["minimal_delta_plan"]["primitive_costs"][1]
+    rank_cost["cost_rationale"] = (
+        "Accepted Paperclip feedback identified deterministic tie handling, "
+        "so the rank_uniformity bridge remains the minimal delta primitive."
+    )
+    for collection_name in (
+        "search_requests",
+        "planner_next_actions",
+        "formal_attempt_queue",
+        "route_alignment_edges",
+    ):
+        for item in response.get(collection_name, []):
+            if "rank_uniformity" in json.dumps(item):
+                item["resource_response_ledger_id"] = (
+                    "resource-response:rank_route"
+                )
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert not payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    error_text = "\n".join(row["errors"])
+    assert (
+        "minimal_delta_plan.primitive_costs[1] appears derived from accepted "
+        "resource_response_ledger feedback"
+    ) in error_text
+    assert "must preserve the primary feedback provenance id" in error_text
+    assert "resource_response_rank_route" in error_text
+
+    rank_cost["resource_response_ledger_id"] = "resource-response:rank_route"
+    response_json.write_text(json.dumps(response, indent=2), encoding="utf-8")
+    passing_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        root / "llm_route_planner_with_cost_provenance",
         provider_name="static",
         static_response_json=response_json,
         formalization_gap_planner_resource_response_ledger_dir=(
