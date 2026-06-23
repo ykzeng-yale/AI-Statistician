@@ -207,6 +207,9 @@ LLM_ROUTE_PLANNER_OPERATOR_ONLY_RESOURCE_IDS = frozenset(
 LLM_ROUTE_PLANNER_OPERATOR_ONLY_RESOURCE_CAPABILITY_TAGS = frozenset(
     {"generator_only_llm", "model_tier_routing"}
 )
+ROUTE_BRIEF_GAP_RESPONSE_CONTRACT_REJECTION_STATUS = (
+    "REJECTED_ROUTE_PLANNING_BRIEF_GAP_RESPONSE_CONTRACT"
+)
 CONTEXT_PACKET_ROW_FIELDS = (
     "target_intake_rows",
     "library_coverage_rows",
@@ -8899,6 +8902,9 @@ def _request_packet(
     context_packet["resource_feedback_readiness_summary"] = (
         _resource_feedback_readiness_summary(context_packet)
     )
+    context_packet["route_brief_gap_response_contract_summary"] = (
+        _route_brief_gap_response_contract_summary(context_packet)
+    )
     context_packet["formal_attempt_feedback_summary"] = (
         _formal_attempt_feedback_summary(context_packet)
     )
@@ -9791,6 +9797,10 @@ def _route_planning_brief(
         context_packet,
         "resource_feedback_readiness_summary",
     )
+    route_brief_gap_response_contract_summary = _dict_value(
+        context_packet,
+        "route_brief_gap_response_contract_summary",
+    )
     formal_attempt_feedback = _dict_value(
         context_packet,
         "formal_attempt_feedback_summary",
@@ -10023,6 +10033,70 @@ def _route_planning_brief(
                 [row.get("primitive", "") for row in high_priority_rows]
             ),
         )
+    if int(route_brief_gap_response_contract_summary.get("total_count", 0) or 0):
+        summary_rows = _dict_tuple(
+            route_brief_gap_response_contract_summary.get("rows", [])
+        )
+        summary_targets = _str_tuple(
+            route_brief_gap_response_contract_summary.get("target_primitives", [])
+        )
+        add_focus(
+            "redispatch_rejected_route_brief_gap_resource_responses",
+            priority=1,
+            action=(
+                "redispatch route-planning brief evidence-gap resource "
+                "responses whose generic contract fields matched but whose "
+                "gap-specific required evidence fields were absent"
+            ),
+            reason=(
+                "resource-response ledger rejected route-planning brief "
+                "evidence-gap responses under the gap-specific response contract"
+            ),
+            evidence_fields=(
+                "context_packet.route_brief_gap_response_contract_summary",
+                "context_packet.resource_response_ledger_rows",
+            ),
+            required_output_fields=("planner_next_actions", "search_requests"),
+            target_primitives=summary_targets,
+        )
+        for index, contract_row in enumerate(summary_rows[:6]):
+            gap_kind = str(
+                contract_row.get("route_planning_brief_gap_kind", "")
+                or "route_revision"
+            )
+            gap_id = str(
+                contract_row.get("route_planning_brief_gap_id", "")
+                or contract_row.get("resource_request_id", "")
+                or index
+            )
+            required_fields = _str_tuple(
+                contract_row.get("required_response_fields", [])
+            )
+            missing_fields = _str_tuple(
+                contract_row.get("missing_response_contract_fields", [])
+            )
+            add_gap(
+                "rejected_route_brief_gap_response_contract:" + gap_id,
+                gap_kind=gap_kind,
+                reason=(
+                    "resource response for route-planning brief gap was rejected "
+                    "because it missed required fields: "
+                    + ", ".join(missing_fields or required_fields)
+                ),
+                recommended_action=(
+                    "redispatch the matching "
+                    + _route_brief_gap_contract_hook_name(gap_kind)
+                    + " resource request and require "
+                    + ", ".join(required_fields)
+                ),
+                evidence_fields=(
+                    "context_packet.route_brief_gap_response_contract_summary",
+                    "context_packet.resource_response_ledger_rows",
+                ),
+                target_primitives=_str_tuple(
+                    contract_row.get("target_primitives", [])
+                ),
+            )
     if int(patch_rerun_residual_obligations.get("total_rows", 0) or 0):
         add_focus(
             "repair_patch_rerun_residual_obligations",
@@ -10438,6 +10512,9 @@ def _route_planning_brief(
         "resource_feedback_average_evidence_readiness_score": int(
             resource_feedback_readiness.get("average_evidence_readiness_score", 0)
             or 0
+        ),
+        "route_brief_gap_response_contract_rejection_count": int(
+            route_brief_gap_response_contract_summary.get("total_count", 0) or 0
         ),
         "proof_execution_feedback_row_count": int(
             proof_execution_feedback.get("total_rows", 0) or 0
@@ -13093,6 +13170,7 @@ def _user_prompt(
             "When context_packet.feedback_loop_summary.interactive_route_adoption_preconditions is present, preserve its known_pre_response_blockers, response_required_fields, and target_primitives as blocking route-repair obligations for the next LLM plan.",
             "When context_packet.route_replan_handoff_rows is present, preserve its applied evidence ids, quality controls, and next_commands as prior handoff context; route-replan handoff rows are planning input, not proof evidence.",
             "Resource-response ledger rows with awaiting, rejected, absent-response, failed-contract, or unmet-contract-minimum status are status-only; do not use them as residual-goal or route-repair evidence.",
+            "When context_packet.route_brief_gap_response_contract_summary is present, the rejected rows are still not mathematical evidence; use the summary only to emit kind-compatible search_requests or planner_next_actions that redispatch the missing gap-specific required_response_fields.",
             "Accepted context_packet.resource_response_ledger_rows and context_packet.refinement_evidence_rows that provide residual goals, route revisions, source snippets, formal_declaration_hits, prover diagnostics, or coverage updates are bounded feedback: any residual_interpretations, search_requests, planner_next_actions, or formal_attempt_queue rows derived from them must preserve available resource_response_ledger_id/refinement_evidence_id, resource_request_id, target_primitives, source_refs/source_snippets, and prover-feedback provenance ids or diagnostic signatures.",
             "Residual interpretations may cover only residual_goals listed in the request packet.",
             "If request residual_goals are present, every residual goal must have an interpretation and a route_repair or repair_action.",
@@ -17371,6 +17449,10 @@ def _route_adoption_preconditions(
     source_grounding_obligations = _source_grounding_obligation_summary(
         context_packet
     )
+    route_brief_gap_response_contract_summary = _dict_value(
+        context_packet,
+        "route_brief_gap_response_contract_summary",
+    )
     realization_coverage = _dict_value(feedback_summary, "realization_coverage")
 
     blockers: list[str] = []
@@ -17423,6 +17505,9 @@ def _route_adoption_preconditions(
     if bool(quality_control_obligations.get("pending", False)):
         blockers.append(ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS)
         response_required_fields.extend(["search_requests", "planner_next_actions"])
+    if int(route_brief_gap_response_contract_summary.get("total_count", 0) or 0):
+        blockers.append(ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS)
+        response_required_fields.extend(["search_requests", "planner_next_actions"])
 
     target_primitives = _unique_strings(
         [
@@ -17430,6 +17515,12 @@ def _route_adoption_preconditions(
             *_feedback_summary_target_primitives(feedback_summary),
             *_str_tuple(source_grounding_obligations.get("target_primitives", [])),
             *_str_tuple(quality_control_obligations.get("target_primitives", [])),
+            *_str_tuple(
+                route_brief_gap_response_contract_summary.get(
+                    "target_primitives",
+                    [],
+                )
+            ),
             *_str_tuple(
                 interactive_route_adoption_preconditions.get(
                     "target_primitives",
@@ -29083,6 +29174,154 @@ def _resource_feedback_readiness_row(
     }
 
 
+def _route_brief_gap_response_contract_summary(
+    context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    rows: list[dict[str, object]] = []
+    resource_request_ids: list[str] = []
+    resource_ids: list[str] = []
+    target_primitives: list[str] = []
+    required_fields: list[str] = []
+    missing_fields: list[str] = []
+    by_gap_kind: Counter[str] = Counter()
+    for row in _dict_tuple(context_packet.get("resource_response_ledger_rows", [])):
+        if str(row.get("acceptance_status", "")).strip() != (
+            ROUTE_BRIEF_GAP_RESPONSE_CONTRACT_REJECTION_STATUS
+        ):
+            continue
+        if str(row.get("llm_route_planner_source_kind", "")).strip() != (
+            "route_planning_brief_evidence_gap"
+        ):
+            continue
+        source_item = _dict_value(row, "llm_route_planner_source_item")
+        gap_kind = str(
+            source_item.get("route_planning_brief_gap_kind", "")
+            or row.get("llm_route_planner_hook_kind", "")
+            or "route_revision"
+        ).strip()
+        gap_required_fields = _str_tuple(
+            source_item.get("route_planning_brief_gap_required_response_fields", [])
+        )
+        gap_missing_fields = _str_tuple(
+            row.get("missing_response_contract_fields", [])
+        )
+        row_target_primitives = _feedback_row_target_primitives(row)
+        resource_request_id = str(row.get("resource_request_id", "")).strip()
+        resource_id = str(row.get("resource_id", "")).strip()
+        by_gap_kind[gap_kind or "unknown"] += 1
+        resource_request_ids.append(resource_request_id)
+        resource_ids.append(resource_id)
+        target_primitives.extend(row_target_primitives)
+        required_fields.extend(gap_required_fields)
+        missing_fields.extend(gap_missing_fields)
+        rows.append(
+            {
+                "source": "resource_response_ledger",
+                "resource_response_ledger_id": str(
+                    row.get("resource_response_ledger_id", "")
+                ).strip(),
+                "resource_request_id": resource_request_id,
+                "resource_id": resource_id,
+                "acceptance_status": str(row.get("acceptance_status", "")).strip(),
+                "llm_route_planner_source_kind": str(
+                    row.get("llm_route_planner_source_kind", "")
+                ).strip(),
+                "llm_route_planner_hook_kind": str(
+                    row.get("llm_route_planner_hook_kind", "")
+                ).strip(),
+                "route_planning_brief_gap_id": str(
+                    source_item.get("route_planning_brief_gap_id", "")
+                ).strip(),
+                "route_planning_brief_gap_kind": gap_kind,
+                "target_primitives": list(row_target_primitives[:8]),
+                "required_response_fields": list(gap_required_fields[:8]),
+                "missing_response_contract_fields": list(gap_missing_fields[:8]),
+                "matched_response_contract_fields": list(
+                    _str_tuple(row.get("matched_response_contract_fields", []))[:8]
+                ),
+                "errors": list(_str_tuple(row.get("errors", []))[:6]),
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+    if not rows:
+        return {}
+    return {
+        "summary_kind": (
+            "formalization_gap_planner_llm_route_planner_"
+            "route_brief_gap_response_contract_summary"
+        ),
+        "total_count": len(rows),
+        "by_gap_kind": dict(sorted(by_gap_kind.items())),
+        "resource_request_ids": list(_unique_strings(resource_request_ids)[:20]),
+        "resource_ids": list(_unique_strings(resource_ids)[:20]),
+        "target_primitives": list(_unique_strings(target_primitives)[:20]),
+        "required_response_fields": list(_unique_strings(required_fields)[:20]),
+        "missing_response_contract_fields": list(_unique_strings(missing_fields)[:20]),
+        "rows": rows[:12],
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _route_brief_gap_response_contract_next_actions(
+    summary: Mapping[str, Any],
+) -> tuple[dict[str, object], ...]:
+    actions: list[dict[str, object]] = []
+    for row in _dict_tuple(summary.get("rows", [])):
+        gap_kind = str(row.get("route_planning_brief_gap_kind", "") or "").strip()
+        hook = _route_brief_gap_contract_hook_name(gap_kind)
+        target_primitives = _str_tuple(row.get("target_primitives", []))
+        actions.append(
+            {
+                "source": "resource_response_ledger",
+                "owner": str(row.get("resource_id", "") or "").strip(),
+                "action": f"{hook}_redispatch_route_planning_brief_gap_response_contract",
+                "resource_request_id": str(
+                    row.get("resource_request_id", "")
+                ).strip(),
+                "resource_response_ledger_id": str(
+                    row.get("resource_response_ledger_id", "")
+                ).strip(),
+                "primitive": target_primitives[0] if target_primitives else "",
+                "target_primitives": list(target_primitives[:8]),
+                "acceptance_status": ROUTE_BRIEF_GAP_RESPONSE_CONTRACT_REJECTION_STATUS,
+                "route_planning_brief_gap_kind": gap_kind,
+                "route_planning_brief_gap_id": str(
+                    row.get("route_planning_brief_gap_id", "")
+                ).strip(),
+                "required_response_fields": list(
+                    _str_tuple(row.get("required_response_fields", []))[:8]
+                ),
+                "missing_response_contract_fields": list(
+                    _str_tuple(row.get("missing_response_contract_fields", []))[:8]
+                ),
+                "matched_response_contract_fields": list(
+                    _str_tuple(row.get("matched_response_contract_fields", []))[:8]
+                ),
+                "reason": (
+                    "route-planning brief evidence gap response satisfied only "
+                    "generic response-contract fields and missed gap-specific "
+                    "required evidence fields"
+                ),
+            }
+        )
+    return tuple(actions[:8])
+
+
+def _route_brief_gap_contract_hook_name(gap_kind: str) -> str:
+    key = _source_ref_key(gap_kind)
+    if "source" in key or "literature" in key:
+        return "literature_search"
+    if "formal_library" in key or "library" in key or "declaration" in key:
+        return "formal_library_search"
+    if "proof_state" in key or "proof_body" in key or "prover" in key:
+        return "proof_state_feedback"
+    if "quality" in key:
+        return "route_revision_quality_control"
+    return "route_revision"
+
+
 def _formal_attempt_feedback_summary(
     context_packet: Mapping[str, Any],
 ) -> dict[str, object]:
@@ -29443,6 +29682,23 @@ def _feedback_loop_summary(
             _dict_tuple(source_theorem_feedback.get("recommended_next_actions", [])),
             key_fields=("source", "action", "work_order_id", "execution_result_id"),
         )
+    route_brief_gap_response_contract_summary = _dict_value(
+        context_packet,
+        "route_brief_gap_response_contract_summary",
+    ) or _route_brief_gap_response_contract_summary(context_packet)
+    if route_brief_gap_response_contract_summary:
+        recommended_next_actions = _merge_dict_rows(
+            recommended_next_actions,
+            _route_brief_gap_response_contract_next_actions(
+                route_brief_gap_response_contract_summary
+            ),
+            key_fields=(
+                "source",
+                "action",
+                "resource_request_id",
+                "route_planning_brief_gap_id",
+            ),
+        )
     patch_rerun_residual_obligations = _patch_rerun_residual_obligation_summary(
         context_packet
     )
@@ -29504,6 +29760,8 @@ def _feedback_loop_summary(
     )
     if interactive_route_adoption_preconditions.get("unresolved_count", 0):
         replan_required = True
+    if int(route_brief_gap_response_contract_summary.get("total_count", 0) or 0):
+        replan_required = True
     needs_more_library_grounding = any(
         _truthy(row.get("needs_more_lean_grounding"))
         or _truthy(row.get("needs_more_library_grounding"))
@@ -29524,6 +29782,12 @@ def _feedback_loop_summary(
         agentic_strategy_plan.get("source_discovery_cache_item_count", 0)
         if agentic_strategy_plan
         else 0
+    )
+    route_brief_gap_kinds = set(
+        _dict_value(
+            route_brief_gap_response_contract_summary,
+            "by_gap_kind",
+        ).keys()
     )
     summary: dict[str, object] = {
         "summary_kind": "formalization_gap_planner_feedback_loop_summary",
@@ -29558,10 +29822,27 @@ def _feedback_loop_summary(
         "replan_required": replan_required,
         "needs_more_literature": any(
             _truthy(row.get("needs_more_literature")) for row in all_rows
+        )
+        or any(
+            "source" in _source_ref_key(gap_kind)
+            or "literature" in _source_ref_key(gap_kind)
+            for gap_kind in route_brief_gap_kinds
         ),
-        "needs_more_library_grounding": needs_more_library_grounding,
+        "needs_more_library_grounding": needs_more_library_grounding
+        or any(
+            "formal_library" in _source_ref_key(gap_kind)
+            or "library" in _source_ref_key(gap_kind)
+            or "declaration" in _source_ref_key(gap_kind)
+            for gap_kind in route_brief_gap_kinds
+        ),
         "needs_more_proof_state_feedback": any(
             _truthy(row.get("needs_more_proof_state_feedback")) for row in all_rows
+        )
+        or any(
+            "proof_state" in _source_ref_key(gap_kind)
+            or "proof_body" in _source_ref_key(gap_kind)
+            or "prover" in _source_ref_key(gap_kind)
+            for gap_kind in route_brief_gap_kinds
         ),
         "repair_focus": list(repair_focus[:20]),
         "route_revision_reasons": list(route_revision_reasons[:20]),
@@ -29616,6 +29897,10 @@ def _feedback_loop_summary(
         summary["agentic_proof_strategy_plan"] = agentic_strategy_plan
     if resource_feedback_readiness:
         summary["resource_feedback_readiness_summary"] = resource_feedback_readiness
+    if route_brief_gap_response_contract_summary:
+        summary["route_brief_gap_response_contract_summary"] = (
+            route_brief_gap_response_contract_summary
+        )
     if formal_attempt_feedback:
         summary["formal_attempt_feedback_summary"] = formal_attempt_feedback
     if quality_control_obligations.get("present"):
@@ -31429,6 +31714,12 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "response_summary",
         "response_payload",
         "response_artifacts",
+        "llm_route_planner_row_id",
+        "llm_route_planner_request_id",
+        "llm_route_planner_source_kind",
+        "llm_route_planner_source_index",
+        "llm_route_planner_hook_kind",
+        "llm_route_planner_source_item",
         "coverage_bucket",
         "coverage_status",
         "priority_score",

@@ -6945,6 +6945,136 @@ def test_llm_route_planner_rejected_resource_response_is_status_not_repair_signa
     assert summary["recommended_next_actions"] == []
 
 
+def test_llm_route_planner_rejected_route_brief_gap_contract_requests_redispatch() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_route_brief_gap_contract_reject"
+    )
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    manifest_path = (
+        resource_response_ledger_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    row = manifest["rows"][0]
+    row["acceptance_status"] = "REJECTED_ROUTE_PLANNING_BRIEF_GAP_RESPONSE_CONTRACT"
+    row["llm_route_planner_source_kind"] = "route_planning_brief_evidence_gap"
+    row["llm_route_planner_hook_kind"] = "literature_discovery"
+    row["llm_route_planner_source_item"] = {
+        "route_planning_brief_gap_id": "missing_source_evidence",
+        "route_planning_brief_gap_kind": "source_grounding",
+        "route_planning_brief_gap_required_response_fields": [
+            "source_refs",
+            "source_snippets",
+            "route_evidence_nodes",
+        ],
+    }
+    row["response_contract_ok"] = False
+    row["response_contract_minimum_met"] = True
+    row["matched_response_contract_fields"] = [
+        "assumption_or_theorem_variant_updates"
+    ]
+    row["missing_response_contract_fields"] = [
+        "source_refs",
+        "source_snippets",
+        "route_evidence_nodes",
+    ]
+    row["request_playbook_present"] = True
+    row["response_playbook_grounded"] = True
+    row["ok"] = False
+    row["errors"] = [
+        (
+            "route_planning_brief evidence gap response missing required "
+            "fields for source_grounding: source_refs, source_snippets, "
+            "route_evidence_nodes"
+        )
+    ]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert payload["all_ok"]
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    summary = context["route_brief_gap_response_contract_summary"]
+    assert summary["total_count"] == 1
+    assert summary["by_gap_kind"] == {"source_grounding": 1}
+    assert summary["required_response_fields"] == [
+        "source_refs",
+        "source_snippets",
+        "route_evidence_nodes",
+    ]
+    assert summary["missing_response_contract_fields"] == [
+        "source_refs",
+        "source_snippets",
+        "route_evidence_nodes",
+    ]
+    assert "Paperclip extracted" not in json.dumps(
+        context["available_source_snippets"]
+    )
+
+    feedback_summary = context["feedback_loop_summary"]
+    assert feedback_summary["replan_required"] is True
+    assert feedback_summary["needs_more_literature"] is True
+    assert (
+        feedback_summary["route_brief_gap_response_contract_summary"] == summary
+    )
+    action = next(
+        row
+        for row in feedback_summary["recommended_next_actions"]
+        if row["action"]
+        == "literature_search_redispatch_route_planning_brief_gap_response_contract"
+    )
+    assert action["resource_request_id"] == "resource-request:rank_route"
+    assert action["target_primitives"] == ["rank_uniformity"]
+    assert action["required_response_fields"] == [
+        "source_refs",
+        "source_snippets",
+        "route_evidence_nodes",
+    ]
+
+    preconditions = context["route_adoption_preconditions"]
+    assert ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS in (
+        preconditions["known_pre_response_blockers"]
+    )
+    assert "planner_next_actions" in preconditions["response_required_fields"]
+    assert "search_requests" in preconditions["response_required_fields"]
+    route_brief = context["route_planning_brief"]
+    assert (
+        route_brief["evidence_summary"][
+            "route_brief_gap_response_contract_rejection_count"
+        ]
+        == 1
+    )
+    assert any(
+        focus["focus_id"]
+        == "redispatch_rejected_route_brief_gap_resource_responses"
+        for focus in route_brief["planner_focus"]
+    )
+    rejected_gap = next(
+        gap
+        for gap in route_brief["evidence_gaps"]
+        if gap["gap_id"].startswith("rejected_route_brief_gap_response_contract:")
+    )
+    assert rejected_gap["gap_kind"] == "source_grounding"
+    assert rejected_gap["target_primitives"] == ["rank_uniformity"]
+    assert "route_brief_gap_response_contract_summary" in request[
+        "prompt_messages"
+    ]["user"]
+    assert "rejected rows are still not mathematical evidence" in request[
+        "prompt_messages"
+    ]["user"]
+
+
 def test_llm_route_planner_rejects_action_primitive_from_rejected_context_row() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_llm_route_planner_rejected_context_scope"
