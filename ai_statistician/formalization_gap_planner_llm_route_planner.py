@@ -39,6 +39,7 @@ from .formalization_gap_planner_route_adoption_blockers import (
     ROUTE_ADOPTION_BLOCKER_RESOURCE_REQUEST_QUEUE,
     ROUTE_ADOPTION_BLOCKER_RESPONSE_MISSING,
     ROUTE_ADOPTION_BLOCKER_RESPONSE_NOT_ACCEPTED,
+    ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS,
     ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS,
     ROUTE_ADOPTION_BLOCKER_SEMANTIC_ALIGNMENT_RISKS,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
@@ -3131,6 +3132,12 @@ def export_formalization_gap_planner_llm_route_planner(
         "route_adoption_blocker_counts": route_adoption_blocker_counts,
         "by_route_adoption_status": dict(sorted(by_route_adoption_status.items())),
         "by_route_adoption_blocker": by_route_adoption_blocker,
+        "n_route_adoption_pending_route_planning_evidence_gap_blockers": sum(
+            1
+            for row in rows
+            if ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS
+            in row.route_adoption_blockers
+        ),
         "n_route_adoption_pending_search_request_blockers": sum(
             1
             for row in rows
@@ -4904,6 +4911,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "route_adoption_blocker_counts",
             "by_route_adoption_status",
             "by_route_adoption_blocker",
+            "n_route_adoption_pending_route_planning_evidence_gap_blockers",
             "n_route_adoption_pending_primitive_evidence_matrix_blockers",
             "n_route_adoption_pending_formal_gap_boundary_blockers",
             "n_route_adoption_pending_source_grounding_blockers",
@@ -5371,6 +5379,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "route_adoption_blocker_counts": {"type": "object"},
             "by_route_adoption_status": {"type": "object"},
             "by_route_adoption_blocker": {"type": "object"},
+            "n_route_adoption_pending_route_planning_evidence_gap_blockers": (
+                nonnegative_integer
+            ),
             "n_route_adoption_pending_primitive_evidence_matrix_blockers": (
                 nonnegative_integer
             ),
@@ -8934,6 +8945,18 @@ def _request_packet(
         target_prover_family=target_prover_family,
         library_snapshot_ref=library_snapshot_ref,
     )
+    context_packet["route_adoption_preconditions"] = (
+        _route_adoption_preconditions_with_route_planning_evidence_gaps(
+            context_packet["route_adoption_preconditions"],
+            context_packet,
+        )
+    )
+    context_packet["route_planning_brief"] = (
+        _route_planning_brief_with_route_adoption_precondition_summary(
+            context_packet["route_planning_brief"],
+            context_packet["route_adoption_preconditions"],
+        )
+    )
     context_packet["context_packet_inventory"] = _context_packet_inventory(
         context_packet,
         residual_goals=residual_goals,
@@ -12252,9 +12275,14 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
             "context_packet.route_adoption_preconditions"
         )
     if route_adoption_preconditions:
-        expected_preconditions = _route_adoption_preconditions(
-            context_packet,
-            residual_goals=_str_tuple(context_packet.get("residual_goals", [])),
+        expected_preconditions = (
+            _route_adoption_preconditions_with_route_planning_evidence_gaps(
+                _route_adoption_preconditions(
+                    context_packet,
+                    residual_goals=_str_tuple(context_packet.get("residual_goals", [])),
+                ),
+                context_packet,
+            )
         )
         for field_name in (
             "precondition_kind",
@@ -13046,9 +13074,9 @@ def _user_prompt(
             "Any formal-realization node or standalone primitive with unknown/formal-library-search-pending coverage must have a matching formal_library/library search_request unless it declares a formal gap boundary or concrete delta action.",
             "Any wrapper or wrapper_needed formal-realization node or standalone primitive must name the existing formal declaration it wraps via candidate_declarations/candidate_declaration_rows, or emit a matching formal_library search_request/formal_gap_boundary.",
             "Every search_requests row must use a supported request_kind, include a nonempty query, and include a nonempty reason.",
-            "search_requests.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
+            "search_requests.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, residual interpretations, route-adoption preconditions, or route-planning evidence gaps.",
             "Every planner_next_actions row must include owner and action, and the row must resolve to a supported literature/formal-library/proof-state/route-revision hook family.",
-            "planner_next_actions.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, or residual interpretations.",
+            "planner_next_actions.target_primitives may mention only primitives already present in the request context, selected/delta/cost-hint plan, formal realization DAG, standalone route, alignment edges, residual interpretations, route-adoption preconditions, or route-planning evidence gaps.",
             "Return formal_attempt_queue as the bottom-up execution schedule for the selected formal_realization_dag_nodes: each row must name an existing formal_node_id, target_prover_family, owner, action, attempt_kind, expected_feedback, target_primitives, and prerequisite_formal_node_ids.",
             "formal_attempt_queue order and prerequisite_formal_node_ids must follow formal_realization_dag_edges for selected-route formal nodes and their DAG ancestors; prerequisites must appear earlier in the queue.",
             "Use context_packet.route_planning_brief.primitive_evidence_matrix as the compact per-primitive join of source snippets, formal declaration coverage, residual goals, and minimal-delta cost hints.",
@@ -14990,8 +15018,8 @@ def _llm_route_planner_model_tier_decision(
         context_packet,
         feedback_summary=feedback_summary,
     )
-    route_planning_evidence_gap_counts = _route_planning_evidence_gap_counts(
-        context_packet
+    route_planning_evidence_gap_counts = (
+        _route_planning_adoption_blocking_evidence_gap_counts(context_packet)
     )
     source_grounding_obligations = _source_grounding_obligation_summary(
         context_packet
@@ -16798,6 +16826,32 @@ def _route_planning_evidence_gap_counts(
 ) -> dict[str, object]:
     route_planning_brief = _dict_value(context_packet, "route_planning_brief")
     gaps = _dict_tuple(route_planning_brief.get("evidence_gaps", []))
+    return _route_planning_evidence_gap_counts_from_gaps(gaps)
+
+
+def _route_planning_adoption_blocking_evidence_gap_counts(
+    context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    route_planning_brief = _dict_value(context_packet, "route_planning_brief")
+    gaps = tuple(
+        gap
+        for gap in _dict_tuple(route_planning_brief.get("evidence_gaps", []))
+        if str(gap.get("gap_kind", "")).strip()
+        in {
+            "source_grounding",
+            "formal_library_grounding",
+            "prover_feedback",
+            "proof_state_feedback",
+            "proof_body_feedback",
+            "quality_control",
+        }
+    )
+    return _route_planning_evidence_gap_counts_from_gaps(gaps)
+
+
+def _route_planning_evidence_gap_counts_from_gaps(
+    gaps: tuple[dict[str, object], ...],
+) -> dict[str, object]:
     by_gap_kind = Counter(
         str(gap.get("gap_kind", "") or "unknown") for gap in gaps
     )
@@ -16919,6 +16973,9 @@ def _row_for_request(
         context_packet,
         "context_packet_inventory",
     )
+    route_planning_evidence_gap_counts = (
+        _route_planning_adoption_blocking_evidence_gap_counts(context_packet)
+    )
     target_context_summary = _payload_target_context_summary(
         payload,
         request=request,
@@ -16975,6 +17032,9 @@ def _row_for_request(
         formal_gap_boundary_obligations=_formal_gap_boundary_obligations(
             payload,
             request,
+        ),
+        route_planning_evidence_gap_count=int(
+            route_planning_evidence_gap_counts.get("total_count", 0) or 0
         ),
         quality_control_obligations_pending=bool(
             quality_control_obligations.get("pending", False)
@@ -17109,6 +17169,7 @@ def _route_adoption_readiness(
     formal_gap_boundary_obligations: tuple[str, ...],
     quality_control_obligations_pending: bool,
     source_grounding_obligations_pending: bool = False,
+    route_planning_evidence_gap_count: int = 0,
 ) -> tuple[str, tuple[str, ...]]:
     if (
         request_errors
@@ -17130,6 +17191,8 @@ def _route_adoption_readiness(
         blockers.append(ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS)
     if planner_next_actions:
         blockers.append(ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS)
+    if route_planning_evidence_gap_count > 0:
+        blockers.append(ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS)
     if uncertainty_flags:
         blockers.append(ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS)
     if semantic_alignment_risks:
@@ -17404,6 +17467,78 @@ def _route_adoption_preconditions(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _route_adoption_preconditions_with_route_planning_evidence_gaps(
+    preconditions: Mapping[str, Any],
+    context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    gap_counts = _route_planning_adoption_blocking_evidence_gap_counts(
+        context_packet
+    )
+    if int(gap_counts.get("total_count", 0) or 0) <= 0:
+        return dict(preconditions)
+
+    updated = dict(preconditions)
+    blockers = list(
+        _str_tuple(updated.get("known_pre_response_blockers", []))
+    )
+    blockers.append(ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS)
+    blockers = list(dict.fromkeys(blockers))
+
+    required_fields = list(_str_tuple(updated.get("response_required_fields", [])))
+    required_fields.extend(["search_requests", "planner_next_actions"])
+    required_fields = list(dict.fromkeys(required_fields))
+
+    target_primitives = list(_str_tuple(updated.get("target_primitives", [])))
+    target_primitives.extend(_str_tuple(gap_counts.get("target_primitives", [])))
+    target_primitives = list(_unique_strings(target_primitives))
+
+    updated.update(
+        {
+            "status": "PENDING_CONTEXT_OBLIGATIONS",
+            "blocked_before_response": True,
+            "known_pre_response_blockers": blockers,
+            "n_known_pre_response_blockers": len(blockers),
+            "response_required_fields": required_fields,
+            "n_response_required_fields": len(required_fields),
+            "target_primitives": target_primitives[:20],
+            "blocker_trigger_fields": {
+                blocker: list(ROUTE_ADOPTION_BLOCKER_TRIGGER_FIELDS.get(blocker, ()))
+                for blocker in blockers
+            },
+        }
+    )
+    return updated
+
+
+def _route_planning_brief_with_route_adoption_precondition_summary(
+    route_planning_brief: Mapping[str, Any],
+    route_adoption_preconditions: Mapping[str, Any],
+) -> dict[str, object]:
+    updated = dict(route_planning_brief)
+    evidence_summary = dict(_dict_value(updated, "evidence_summary"))
+    evidence_summary.update(
+        {
+            "route_adoption_precondition_known_blocker_count": int(
+                route_adoption_preconditions.get(
+                    "n_known_pre_response_blockers",
+                    0,
+                )
+                or 0
+            ),
+            "route_adoption_precondition_required_response_field_count": len(
+                _str_tuple(
+                    route_adoption_preconditions.get(
+                        "response_required_fields",
+                        [],
+                    )
+                )
+            ),
+        }
+    )
+    updated["evidence_summary"] = evidence_summary
+    return updated
 
 
 def _quality_control_obligations_pending(
@@ -23105,7 +23240,8 @@ def _response_target_primitive_grounding_errors(
         if ungrounded:
             errors.append(
                 f"{collection_name}[{index}].target_primitives must be drawn from request, route, "
-                "formal-realization, residual, or cost-hint primitive evidence; "
+                "formal-realization, residual, cost-hint, route-adoption "
+                "precondition, or route-planning evidence-gap primitive evidence; "
                 "ungrounded target_primitives: "
                 + ", ".join(ungrounded[:8])
             )
@@ -23129,6 +23265,25 @@ def _bounded_action_allowed_primitive_keys(
     allowed.update(selected_primitives)
     allowed.update(_minimal_delta_primitives(minimal_delta, selected_primitives))
     allowed.update(_cost_hint_baseline_primitives(request))
+    context_packet = _dict_value(request, "context_packet")
+    route_adoption_preconditions = _dict_value(
+        context_packet,
+        "route_adoption_preconditions",
+    )
+    allowed.update(
+        _primitive_key(primitive)
+        for primitive in _str_tuple(
+            route_adoption_preconditions.get("target_primitives", [])
+        )
+        if _primitive_key(primitive)
+    )
+    route_planning_brief = _dict_value(context_packet, "route_planning_brief")
+    for gap in _dict_tuple(route_planning_brief.get("evidence_gaps", [])):
+        allowed.update(
+            _primitive_key(primitive)
+            for primitive in _str_tuple(gap.get("target_primitives", []))
+            if _primitive_key(primitive)
+        )
     for row in _dict_tuple(minimal_delta.get("primitive_costs", [])):
         primitive = _primitive_key(row.get("primitive", ""))
         if primitive:

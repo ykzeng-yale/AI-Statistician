@@ -58,6 +58,9 @@ ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS = "search_requests_pending_evidence"
 ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS = (
     "planner_next_actions_pending_evidence"
 )
+ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS = (
+    "route_planning_brief_evidence_gaps_pending"
+)
 ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS = "uncertainty_flags_require_review"
 ROUTE_ADOPTION_BLOCKER_SEMANTIC_ALIGNMENT_RISKS = (
     "semantic_alignment_risks_require_review"
@@ -96,6 +99,7 @@ ROUTE_ADOPTION_BLOCKER_VALUES = (
     ROUTE_ADOPTION_BLOCKER_RESPONSE_MISSING,
     ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS,
     ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS,
+    ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS,
     ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS,
     ROUTE_ADOPTION_BLOCKER_SEMANTIC_ALIGNMENT_RISKS,
     ROUTE_ADOPTION_BLOCKER_RESIDUAL_INTERPRETATIONS,
@@ -126,6 +130,11 @@ ROUTE_ADOPTION_BLOCKER_DEFINITIONS = {
     ),
     ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS: (
         "The accepted route carries unresolved planner next-action hooks."
+    ),
+    ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS: (
+        "The request-side route-planning brief contains source, formal-library, "
+        "or prover-feedback evidence gaps that must be resolved by bounded "
+        "search, resource responses, or route repair before standalone adoption."
     ),
     ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS: (
         "The accepted route carries uncertainty flags requiring review."
@@ -195,6 +204,10 @@ ROUTE_ADOPTION_BLOCKER_TRIGGER_FIELDS = {
     ROUTE_ADOPTION_BLOCKER_SEARCH_REQUESTS: ("response_payload.search_requests",),
     ROUTE_ADOPTION_BLOCKER_PLANNER_NEXT_ACTIONS: (
         "response_payload.planner_next_actions",
+    ),
+    ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS: (
+        "context_packet.route_planning_brief.evidence_gaps",
+        "context_packet.context_packet_inventory.route_planning_brief_evidence_gap_count",
     ),
     ROUTE_ADOPTION_BLOCKER_UNCERTAINTY_FLAGS: (
         "response_payload.uncertainty_flags",

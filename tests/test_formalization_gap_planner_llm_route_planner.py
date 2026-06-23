@@ -30,6 +30,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     PROVIDER_EXECUTION_MODE_STATIC_GENERATOR_BACKEND,
     PROVIDER_EXECUTION_MODE_STATIC_RESPONSE_REPLAY,
     PROVIDER_EXECUTION_MODE_SUPPLIED_GENERATOR_BACKEND,
+    ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS,
     ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
     ROUTE_ADOPTION_BLOCKER_REALIZATION_COVERAGE,
     ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE,
@@ -6114,7 +6115,16 @@ def test_llm_route_planner_routes_source_theorem_feedback_hooks() -> None:
     feedback_dirs = _write_source_theorem_planner_feedback(root)
     response = _llm_response_payload()
     response["search_requests"] = []
-    response["planner_next_actions"] = []
+    response["planner_next_actions"] = [
+        {
+            "owner": "proof_engineer",
+            "action": (
+                "repair source-theorem feedback blockers before route adoption"
+            ),
+            "query": "rank_uniformity source theorem semantic and proof-body blockers",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
     response["uncertainty_flags"] = []
     response["semantic_alignment_risks"] = []
     response["residual_interpretations"] = []
@@ -6143,10 +6153,19 @@ def test_llm_route_planner_routes_source_theorem_feedback_hooks() -> None:
     assert payload["n_response_contract_ok"] == 1
     assert payload["n_route_adoption_ready"] == 0
     assert payload["n_route_adoption_pending_refinement"] == 1
+    assert (
+        payload[
+            "n_route_adoption_pending_route_planning_evidence_gap_blockers"
+        ]
+        == 1
+    )
+    assert payload["n_route_adoption_pending_planner_next_action_blockers"] == 1
     assert payload["n_route_adoption_pending_feedback_action_blockers"] == 1
     assert payload["n_route_adoption_pending_feedback_replan_blockers"] == 1
     row = payload["rows"][0]
     assert set(row["route_adoption_blockers"]) >= {
+        "planner_next_actions_pending_evidence",
+        ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS,
         "feedback_summary_actions_pending_resolution",
         "feedback_loop_replan_required",
     }
@@ -14213,6 +14232,27 @@ def test_route_adoption_readiness_uses_current_realization_witness() -> None:
     assert status == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
     assert blockers == ("primitive_evidence_matrix_incomplete",)
 
+    status, blockers = _route_adoption_readiness(
+        response_present=True,
+        provider_failure=False,
+        response_contract_ok=True,
+        search_requests=(),
+        planner_next_actions=(),
+        uncertainty_flags=(),
+        semantic_alignment_risks=(),
+        residual_interpretations=(),
+        feedback_summary={},
+        realization_coverage_witness={"realization_coverage_complete": True},
+        primitive_evidence_matrix_witness={"matrix_accounting_complete": True},
+        omitted_cost_hint_primitives=(),
+        formal_gap_boundary_obligations=(),
+        quality_control_obligations_pending=False,
+        route_planning_evidence_gap_count=2,
+    )
+
+    assert status == "PENDING_REFINEMENT_BEFORE_ROUTE_ADOPTION"
+    assert blockers == (ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS,)
+
 
 def test_route_adoption_taxonomy_publishes_blocker_trigger_fields() -> None:
     payload = route_adoption_blocker_taxonomy_payload()
@@ -14237,6 +14277,12 @@ def test_route_adoption_taxonomy_publishes_blocker_trigger_fields() -> None:
         "n_pending_quality_control_values" in field
         for field in quality_control_trigger_fields
     )
+    route_planning_gap_trigger_fields = payload["blocker_trigger_fields"][
+        ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS
+    ]
+    assert "context_packet.route_planning_brief.evidence_gaps" in (
+        route_planning_gap_trigger_fields
+    )
     trigger_schema = schema["properties"]["blocker_trigger_fields"]
     assert trigger_schema["additionalProperties"] is False
     assert trigger_schema["properties"][
@@ -14245,6 +14291,9 @@ def test_route_adoption_taxonomy_publishes_blocker_trigger_fields() -> None:
     assert trigger_schema["properties"][
         "quality_control_obligations_pending"
     ]["const"] == quality_control_trigger_fields
+    assert trigger_schema["properties"][
+        ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS
+    ]["const"] == route_planning_gap_trigger_fields
 
     corrupted_payload = deepcopy(payload)
     corrupted_payload["blocker_trigger_fields"][
@@ -14346,7 +14395,7 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     assert pending_payload["n_requests_with_route_adoption_preconditions"] == 1
     assert (
         pending_payload["n_request_route_adoption_precondition_known_blockers"]
-        == 1
+        == 2
     )
     assert (
         pending_payload[
@@ -14361,6 +14410,7 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     )
     assert pending_row["route_adoption_blockers"] == (
         "planner_next_actions_pending_evidence",
+        ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS,
         "quality_control_obligations_pending",
     )
     pending_summary = pending_payload["request_packets"][0]["context_packet"][
@@ -14376,7 +14426,8 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     pending_preconditions = pending_context["route_adoption_preconditions"]
     assert pending_preconditions["blocked_before_response"] is True
     assert pending_preconditions["known_pre_response_blockers"] == [
-        "quality_control_obligations_pending"
+        "quality_control_obligations_pending",
+        ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS,
     ]
     assert pending_preconditions["response_required_fields"] == [
         "search_requests",
@@ -14399,7 +14450,7 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     assert pending_payload["n_rows_with_route_adoption_preconditions"] == 1
     assert (
         pending_payload["n_row_route_adoption_precondition_known_blockers"]
-        == 1
+        == 2
     )
     assert pending_inventory["quality_control_obligation_present"] is True
     assert pending_inventory["quality_control_obligation_pending"] is True
@@ -14411,7 +14462,7 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
     assert pending_inventory["discharged_quality_control_field_count"] == 0
     assert pending_inventory["discharged_quality_control_value_count"] == 0
     assert pending_inventory["route_adoption_precondition_pending"] is True
-    assert pending_inventory["route_adoption_precondition_known_blocker_count"] == 1
+    assert pending_inventory["route_adoption_precondition_known_blocker_count"] == 2
     drifted_pending_request = deepcopy(pending_payload["request_packets"][0])
     drifted_pending_request["context_packet"]["context_packet_inventory"][
         "pending_quality_control_value_count"
@@ -14427,6 +14478,7 @@ def test_llm_route_planner_blocks_route_adoption_on_unmet_quality_controls() -> 
         ]
         == [
             "planner_next_actions_pending_evidence",
+            ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS,
             "quality_control_obligations_pending",
         ]
     )
@@ -16158,6 +16210,15 @@ def test_llm_route_planner_auto_uses_sonnet_for_route_planning_evidence_gaps() -
     packet = payload["request_packets"][0]
     assert packet["model_tier"] == "sonnet"
     assert packet["model"] == "claude-sonnet-4-6"
+    preconditions = packet["context_packet"]["route_adoption_preconditions"]
+    assert preconditions["blocked_before_response"] is True
+    assert ROUTE_ADOPTION_BLOCKER_ROUTE_PLANNING_EVIDENCE_GAPS in preconditions[
+        "known_pre_response_blockers"
+    ]
+    assert set(preconditions["response_required_fields"]) >= {
+        "search_requests",
+        "planner_next_actions",
+    }
     brief = packet["context_packet"]["route_planning_brief"]
     assert brief["evidence_gaps"][0]["gap_kind"] == "source_grounding"
     evidence = packet["model_tier_decision_evidence"]
@@ -18019,6 +18080,7 @@ def test_llm_route_planner_repair_guidance_dispatches_agentic_strategy_obligatio
             "strategy_id": "strategy:rank_route:tie-source",
             "residual_obligation_id": "residual-obligation:rank_route:tie-source",
             "agentic_strategy_kind": "global_goal_cache_source_discovery",
+            "target_primitives": ["calibration_quantile_tie_policy"],
         },
     ]
     requests = []
@@ -19736,6 +19798,7 @@ def test_response_payload_validation_enforces_agentic_strategy_plan_obligations(
                 "Answer strategy:rank_route:source_gap before route adoption"
             ),
             "strategy_id": "strategy:rank_route:source_gap",
+            "target_primitives": ["source_cache_rank_uniformity_gap"],
         }
     )
     valid_payload["planner_next_actions"].append(
@@ -19744,7 +19807,7 @@ def test_response_payload_validation_enforces_agentic_strategy_plan_obligations(
             "action": (
                 "run lean_lsp patch evolve block for exchangeability_patch_gap"
             ),
-            "target_primitives": ["exchangeability"],
+            "target_primitives": ["exchangeability_patch_gap"],
             "strategy_id": "strategy:rank_route:patch_gap",
             "agentic_strategy_kind": "evolve_block_residual_patch",
         }
@@ -19823,8 +19886,18 @@ def test_response_payload_validation_enforces_agentic_strategy_plan_obligations(
     assert valid_row["n_agentic_proof_strategy_plan_obligation_errors"] == 0
     assert silent_row["ok"] is False
     assert silent_row["n_agentic_proof_strategy_plan_obligation_errors"] == 2
-    assert silent_row["n_request_context_errors"] == 2
-    assert all(
+    assert silent_row["n_request_context_errors"] == 3
+    assert sum(
+        1
+        for error in silent_row["errors"]
+        if "agentic proof strategy plan ready row" in error
+    ) == 2
+    assert any(
+        "route_adoption_preconditions require search_requests or planner_next_actions"
+        in error
+        for error in silent_row["errors"]
+    )
+    assert any(
         "agentic proof strategy plan ready row" in error
         for error in silent_row["errors"]
     )
