@@ -127,6 +127,10 @@ LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-model-tier-decision-ledger:1"
 )
+LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID = (
+    "urn:ai-statistician:schemas:"
+    "formalization-gap-planner-llm-route-planner-provider-usage-row:1"
+)
 MODEL_TIER_DECISION_LEDGER_KIND = (
     "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger"
 )
@@ -3086,6 +3090,7 @@ def export_formalization_gap_planner_llm_route_planner(
         "n_rows_with_generator_metadata": sum(
             1 for row in rows if row.generator_metadata
         ),
+        "provider_usage_row_schema": llm_route_planner_provider_usage_row_json_schema(),
         "provider_usage_rows": [dict(row) for row in provider_usage_rows],
         "provider_usage_summary": provider_usage_summary,
         "n_rows_with_provider_usage": len(provider_usage_rows),
@@ -4720,6 +4725,69 @@ def llm_route_planner_model_tier_decision_ledger_json_schema() -> dict[str, obje
     }
 
 
+def llm_route_planner_provider_usage_row_json_schema() -> dict[str, object]:
+    nonnegative_integer = {"type": "integer", "minimum": 0}
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID,
+        "title": "Formalization Gap Planner LLM Route Planner Provider Usage Row",
+        "description": (
+            "Runtime token-usage accounting emitted by an LLM generator provider. "
+            "Rows are cost metadata, not mathematical or theorem proof evidence."
+        ),
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "usage_row_id",
+            "request_id",
+            "route_id",
+            "llm_route_planner_row_id",
+            "provider_name",
+            "model",
+            "model_tier",
+            "response_present",
+            "provider_failure",
+            "acceptance_status",
+            "route_adoption_status",
+            "provider_usage",
+            "input_tokens",
+            "output_tokens",
+            "cache_creation_input_tokens",
+            "cache_read_input_tokens",
+            "total_tokens",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ],
+        "properties": {
+            "usage_row_id": {"type": "string", "minLength": 1},
+            "request_id": {"type": "string", "minLength": 1},
+            "route_id": {"type": "string"},
+            "llm_route_planner_row_id": {"type": "string"},
+            "provider_name": {"type": "string", "minLength": 1},
+            "model": {"type": "string"},
+            "model_tier": {
+                "type": "string",
+                "enum": ["haiku", "sonnet", "opus", ""],
+            },
+            "response_present": {"type": "boolean"},
+            "provider_failure": {"type": "boolean"},
+            "acceptance_status": {"type": "string"},
+            "route_adoption_status": {"type": "string"},
+            "provider_usage": {"type": "object"},
+            "input_tokens": nonnegative_integer,
+            "output_tokens": nonnegative_integer,
+            "cache_creation_input_tokens": nonnegative_integer,
+            "cache_read_input_tokens": nonnegative_integer,
+            "total_tokens": nonnegative_integer,
+            "proof_evidence_status": {
+                "type": "string",
+                "const": PROOF_EVIDENCE_STATUS,
+            },
+            "proof_evidence_boundary": {"type": "string", "minLength": 1},
+        },
+    }
+
+
 def llm_route_planner_manifest_json_schema() -> dict[str, object]:
     string_array = {"type": "array", "items": {"type": "string"}}
     object_array = {"type": "array", "items": {"type": "object"}}
@@ -4904,6 +4972,7 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_response_model_tier_mismatches",
             "response_model_tier_mismatches",
             "n_rows_with_generator_metadata",
+            "provider_usage_row_schema",
             "provider_usage_rows",
             "provider_usage_summary",
             "n_rows_with_provider_usage",
@@ -5367,6 +5436,15 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_response_model_tier_mismatches": nonnegative_integer,
             "response_model_tier_mismatches": object_array,
             "n_rows_with_generator_metadata": nonnegative_integer,
+            "provider_usage_row_schema": {
+                "type": "object",
+                "required": ["$id"],
+                "properties": {
+                    "$id": {
+                        "const": LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID
+                    }
+                },
+            },
             "provider_usage_rows": object_array,
             "provider_usage_summary": {"type": "object"},
             "n_rows_with_provider_usage": nonnegative_integer,
@@ -37434,6 +37512,19 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
         + ("\n" if payload.get("model_tier_decision_ledger") else ""),
         encoding="utf-8",
     )
+    provider_usage_rows = [
+        row
+        for row in payload.get("provider_usage_rows", [])
+        if isinstance(row, dict)
+    ]
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_provider_usage.jsonl"
+    ).write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in provider_usage_rows)
+        + ("\n" if provider_usage_rows else ""),
+        encoding="utf-8",
+    )
     (out_dir / "formalization_gap_planner_llm_route_planner_request.schema.json").write_text(
         json.dumps(llm_route_planner_request_json_schema(), indent=2),
         encoding="utf-8",
@@ -37503,6 +37594,16 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
     ).write_text(
         json.dumps(
             llm_route_planner_model_tier_decision_ledger_json_schema(),
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_provider_usage_row.schema.json"
+    ).write_text(
+        json.dumps(
+            llm_route_planner_provider_usage_row_json_schema(),
             indent=2,
         ),
         encoding="utf-8",

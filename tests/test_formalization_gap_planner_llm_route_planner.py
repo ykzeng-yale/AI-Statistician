@@ -14,6 +14,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
@@ -48,6 +49,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     llm_route_planner_library_alignment_summary_json_schema,
     llm_route_planner_manifest_json_schema,
     llm_route_planner_model_tier_decision_ledger_json_schema,
+    llm_route_planner_provider_usage_row_json_schema,
     llm_route_planner_route_planning_brief_json_schema,
     llm_route_planner_target_theorem_context_packet_json_schema,
     llm_route_planner_response_payload_schema,
@@ -11109,6 +11111,7 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert "n_repair_attempt_ledger_rows" in manifest_schema["required"]
     assert "model_tier_decision_ledger" in manifest_schema["required"]
     assert "n_model_tier_decision_ledger_rows" in manifest_schema["required"]
+    assert "provider_usage_row_schema" in manifest_schema["required"]
     assert "provider_usage_rows" in manifest_schema["required"]
     assert "provider_usage_summary" in manifest_schema["required"]
     assert "n_rows_with_provider_usage" in manifest_schema["required"]
@@ -11181,6 +11184,17 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
         ledger_schema["properties"]["source_grounding_obligations"]["type"]
         == "object"
     )
+    usage_schema = llm_route_planner_provider_usage_row_json_schema()
+    assert usage_schema["$id"] == LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID
+    assert "usage_row_id" in usage_schema["required"]
+    assert "provider_usage" in usage_schema["required"]
+    assert "total_tokens" in usage_schema["required"]
+    assert (
+        manifest_schema["properties"]["provider_usage_row_schema"]["properties"][
+            "$id"
+        ]["const"]
+        == LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID
+    )
     assert "standalone_replay_gate" in manifest_schema["required"]
     assert "standalone_replay_gate_ok" in manifest_schema["required"]
     component_resource_manifest_fields = (
@@ -11225,6 +11239,24 @@ def test_llm_route_planner_accepts_source_grounded_static_response() -> None:
     assert payload["n_rows_with_provider_usage"] == 0
     assert payload["provider_usage_rows"] == []
     assert payload["provider_usage_summary"]["row_count"] == 0
+    assert (
+        payload["provider_usage_row_schema"]["$id"]
+        == LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID
+    )
+    provider_usage_jsonl = (
+        out_dir / "formalization_gap_planner_llm_route_planner_provider_usage.jsonl"
+    )
+    provider_usage_schema_path = (
+        out_dir
+        / "formalization_gap_planner_llm_route_planner_provider_usage_row.schema.json"
+    )
+    assert provider_usage_jsonl.exists()
+    assert provider_usage_jsonl.read_text(encoding="utf-8") == ""
+    assert provider_usage_schema_path.exists()
+    assert (
+        json.loads(provider_usage_schema_path.read_text(encoding="utf-8"))
+        == llm_route_planner_provider_usage_row_json_schema()
+    )
     assert payload["total_provider_input_tokens"] == 0
     assert payload["total_provider_output_tokens"] == 0
     assert payload["total_provider_total_tokens"] == 0
@@ -17219,6 +17251,34 @@ def test_llm_route_planner_invokes_anthropic_generator_backend_without_live_api(
     assert usage_row["output_tokens"] == 45
     assert usage_row["cache_read_input_tokens"] == 7
     assert usage_row["total_tokens"] == 175
+    assert (
+        payload["provider_usage_row_schema"]["$id"]
+        == LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID
+    )
+    assert (
+        payload["provider_usage_row_schema"]
+        == llm_route_planner_provider_usage_row_json_schema()
+    )
+    provider_usage_rows = [
+        json.loads(line)
+        for line in (
+            out_dir
+            / "formalization_gap_planner_llm_route_planner_provider_usage.jsonl"
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    assert provider_usage_rows == payload["provider_usage_rows"]
+    assert (
+        json.loads(
+            (
+                out_dir
+                / "formalization_gap_planner_llm_route_planner_provider_usage_row.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        == payload["provider_usage_row_schema"]
+    )
     assert payload["n_response_contract_ok"] == 1
     assert payload["n_accepted_route_plans"] == 1
     row = payload["rows"][0]

@@ -43,6 +43,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_ROW_SCHEMA_ID,
@@ -58,6 +59,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     ROUTE_ADOPTION_BLOCKER_VALUES,
     export_formalization_gap_planner_llm_route_planner,
     llm_route_planner_library_alignment_summary_json_schema,
+    llm_route_planner_provider_usage_row_json_schema,
     llm_route_planner_route_planning_brief_json_schema,
     llm_route_planner_target_theorem_context_packet_json_schema,
     route_adoption_blocker_taxonomy_json_schema,
@@ -5079,6 +5081,23 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         "llm_route_planner_model_tier_decision_ledger_schema"
     ]["schema_id"] == LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID
     assert (
+        "llm_route_planner_provider_usage_row_schema"
+        in schema_catalog_entry_names
+    )
+    assert schema_catalog_entries_by_name[
+        "llm_route_planner_provider_usage_row_schema"
+    ]["schema_id"] == LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID
+    provider_usage_schema_payload = json.loads(
+        (
+            out_dir
+            / "contract"
+            / "formalization_gap_planner_llm_route_planner_provider_usage_row.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert provider_usage_schema_payload == (
+        llm_route_planner_provider_usage_row_json_schema()
+    )
+    assert (
         "llm_route_planner_seed_route_selection_schema"
         in schema_catalog_entry_names
     )
@@ -5726,6 +5745,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert (
         "contract/formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json"
+        in reproduction_payload["bundle_relative_artifacts"]
+    )
+    assert (
+        "contract/formalization_gap_planner_llm_route_planner_provider_usage_row.schema.json"
         in reproduction_payload["bundle_relative_artifacts"]
     )
     assert (
