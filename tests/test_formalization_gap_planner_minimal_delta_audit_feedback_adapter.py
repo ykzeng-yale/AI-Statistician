@@ -231,7 +231,7 @@ def _write_route_revision_queue(queue_dir: Path) -> None:
             "refinement_stage": "minimal_delta_audit_feedback",
             "owner_agent": "minimal_delta_audit_feedback_adapter",
             "target_prover_family": "lean4",
-            "target_primitives": ["expensive_bridge"],
+            "target_primitives": ["expensive_bridge", "cheap_wrapper"],
             "trigger_kinds": ["minimal_delta_audit_failed"],
             "trigger_conditions": ["selected route option is not minimal"],
             "trigger_next_actions": ["revise selected route option"],

@@ -1774,9 +1774,15 @@ def _target_prover_key(target_prover_family: object) -> str:
     aliases = {
         "coq": "rocq",
         "coq8": "rocq",
+        "rocq_coq": "rocq",
+        "coq_rocq": "rocq",
         "lean": "lean4",
         "lean_4": "lean4",
         "isabelle_hol": "isabelle",
+        "hol_4": "hol4",
+        "hollight": "hol_light",
+        "set_mm": "metamath",
+        "setmm": "metamath",
     }
     return aliases.get(key, key)
 
@@ -1810,6 +1816,21 @@ def _source_type_target_prover_key(value: object) -> str:
         return "isabelle"
     if key in {"agda_library"} or "agda" in tokens:
         return "agda"
+    if key in {"hol4", "hol4_library"} or {"hol4", "hol_4"} & tokens:
+        return "hol4"
+    if key in {"hol_light", "hollight", "hol_light_library"} or {
+        "hol_light",
+        "hollight",
+    } & tokens:
+        return "hol_light"
+    if key in {"mizar", "mml", "mizar_library"} or {"mizar", "mml"} & tokens:
+        return "mizar"
+    if key in {"metamath", "set_mm", "setmm", "metamath_library"} or {
+        "metamath",
+        "set_mm",
+        "setmm",
+    } & tokens:
+        return "metamath"
     return ""
 
 

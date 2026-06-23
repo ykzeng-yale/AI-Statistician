@@ -679,6 +679,160 @@ def test_route_revision_overlay_keeps_rocq_resource_hits_portable() -> None:
     assert trace["lean_declaration_hits"] == ()
 
 
+def test_route_revision_overlay_accepts_hol4_resource_hits_portable() -> None:
+    root = Path("runs/test_formalization_gap_planner_route_revision_overlay_hol4_ledger")
+    plan_dir = root / "plan"
+    evidence_dir = root / "evidence"
+    ledger_dir = root / "ledger"
+    overlay_dir = root / "overlay"
+    shutil.rmtree(root, ignore_errors=True)
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    ledger_dir.mkdir(parents=True, exist_ok=True)
+    (plan_dir / "goal_conditioned_minimal_formalization_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "component_name": "library_aware_formalization_gap_planner",
+                "target_prover_family": "hol_4",
+                "rows": [
+                    {
+                        "goal_plan_id": "goal:hol4_ledger",
+                        "route_id": "route:hol4_ledger",
+                        "display_name": "hol4 ledger route",
+                        "selected_primitives": ["finite_rank_bridge"],
+                        "minimal_additional_formalization_nodes": [],
+                        "informal_knowledge_dag": {
+                            "nodes": [
+                                {
+                                    "node_id": "informal:finite_rank_bridge",
+                                    "label": "finite_rank_bridge",
+                                }
+                            ]
+                        },
+                        "lean_realization_dag": {
+                            "nodes": [
+                                {
+                                    "node_id": "formal:finite_rank_bridge",
+                                    "label": "finite_rank_bridge",
+                                    "target_prover_family": "hol_4",
+                                }
+                            ]
+                        },
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        evidence_dir / "formalization_gap_planner_refinement_evidence_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_refinement_evidence",
+                "route_revision_proposals": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (
+        ledger_dir / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_resource_response_ledger",
+                "rows": [
+                    {
+                        "schema_version": 11,
+                        "resource_response_ledger_id": "ledger:hol4_rank",
+                        "resource_request_id": "request:hol4_rank",
+                        "goal_plan_id": "goal:hol4_ledger",
+                        "route_id": "route:hol4_ledger",
+                        "display_name": "hol4 ledger route",
+                        "primitive": "finite_rank_bridge",
+                        "target_primitives": ["finite_rank_bridge"],
+                        "resource_id": "hol4_lsp_mcp",
+                        "target_prover_family": "hol4",
+                        "response_present": True,
+                        "response_contract_ok": True,
+                        "response_payload": {},
+                        "response_summary": "HOL4 search found a reusable rank bridge",
+                        "formal_declaration_hits": [
+                            {
+                                "primitive": "finite_rank_bridge",
+                                "declaration": "probabilityTheory.FINITE_RANK_BRIDGE",
+                                "target_prover_family": "hol4",
+                                "source_type": "HOL4 library",
+                                "source_field": "formal_declaration_hits",
+                            }
+                        ],
+                        "matched_response_contract_fields": [
+                            "formal_declaration_hits"
+                        ],
+                        "acceptance_status": "ACCEPTED_WITH_ROUTE_REVISION",
+                        "route_revision_recommended": True,
+                        "ok": True,
+                        "proof_evidence_status": (
+                            "FORMALIZATION_GAP_PLANNER_RESOURCE_RESPONSE_LEDGER_NOT_PROOF_EVIDENCE"
+                        ),
+                        "proof_evidence_boundary": "not theorem proof evidence",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_route_revision_overlay(
+        plan_dir,
+        evidence_dir,
+        overlay_dir,
+        formalization_gap_planner_resource_response_ledger_dir=ledger_dir,
+    )
+
+    assert payload["all_ok"]
+    row = payload["rows"][0]
+    assert row["target_prover_families"] == ("hol_4",)
+    assert row["formal_declaration_hits"] == (
+        {
+            "primitive": "finite_rank_bridge",
+            "declaration": "probabilityTheory.FINITE_RANK_BRIDGE",
+            "target_prover_family": "hol4",
+            "source_type": "HOL4 library",
+            "source_field": "formal_declaration_hits",
+        },
+    )
+    assert row["lean_declaration_hits"] == ()
+    assert row["revised_lean_realization_dag_nodes"] == ()
+    assert any(
+        node.get("kind") == "resource_response_formal_declaration_hit"
+        for node in row["revised_formal_realization_dag_nodes"]
+    )
+    trace = row["applied_resource_response_traces"][0]
+    assert trace["formal_declaration_hits"] == row["formal_declaration_hits"]
+    assert trace["lean_declaration_hits"] == ()
+
+    bad_source_type_row = dict(row)
+    bad_source_type_row["formal_declaration_hits"] = [
+        {
+            "primitive": "finite_rank_bridge",
+            "declaration": "Mizar.FINITE_RANK_BRIDGE",
+            "source_type": "mizar_library",
+        }
+    ]
+    assert (
+        "formal_declaration_hits[0].source_type implies mizar "
+        "but row target_prover_families are hol4"
+        in validate_route_revision_overlay_row(
+            bad_source_type_row,
+            route_revision_overlay_row_json_schema(),
+        )
+    )
+
+
 def test_route_revision_overlay_ignores_rejected_refinement_evidence_proposals() -> None:
     root = Path("runs/test_formalization_gap_planner_route_revision_overlay_rejected_evidence")
     plan_dir = root / "plan"
