@@ -11,6 +11,7 @@ from typing import Any
 from .fingerprint import stable_hash
 from .formalization_gap_planner_resource_request_queue import (
     RESOURCE_REQUEST_QUEUE_ROW_SCHEMA_ID,
+    route_planning_brief_gap_required_response_fields,
     validate_resource_request_queue_row,
 )
 from .formalization_gap_planner_target_summary import target_prover_family_summary
@@ -943,6 +944,17 @@ def _ledger_row(
         response_values,
     )
     response_contract_minimum_met = bool(matched_fields)
+    route_brief_gap_required_fields = (
+        _route_planning_brief_gap_required_response_fields_from_trace(llm_trace)
+    )
+    (
+        route_brief_gap_matched_fields,
+        route_brief_gap_missing_fields,
+    ) = _contract_field_matches(route_brief_gap_required_fields, response_values)
+    route_brief_gap_response_contract_missing = (
+        bool(route_brief_gap_required_fields)
+        and not bool(route_brief_gap_matched_fields)
+    )
     kernel_claimed = _kernel_verified_claimed(response or {}, response_payload)
     route_revision_reasons = _str_tuple(response_values.get("route_revision_reasons", []))
     residual_goals = _str_tuple(response_values.get("residual_goals", []))
@@ -1012,6 +1024,20 @@ def _ledger_row(
             "resource response missing all queued response_contract_fields: "
             + ",".join(response_contract_fields)
         )
+    if response_present and route_brief_gap_response_contract_missing:
+        gap_kind = str(
+            _dict_value(llm_trace, "source_item").get(
+                "route_planning_brief_gap_kind",
+                "",
+            )
+            or ""
+        )
+        row_errors.append(
+            "route_planning_brief evidence gap response missing required fields"
+            + (f" for {gap_kind}" if gap_kind else "")
+            + ": "
+            + ", ".join(route_brief_gap_missing_fields)
+        )
     if response_present and expanded_target_primitives:
         row_errors.append(
             "target_primitives must not expand beyond resource request target_primitives: "
@@ -1049,6 +1075,7 @@ def _ledger_row(
         and not response_request_errors
         and not kernel_claimed
         and response_contract_minimum_met
+        and not route_brief_gap_response_contract_missing
         and not expanded_target_primitives
         and not expanded_actionable_work_items
         and not evidence_scope_errors
@@ -1067,6 +1094,8 @@ def _ledger_row(
         acceptance_status = "REJECTED_RESPONSE_REQUEST_MISMATCH"
     elif not matched_fields:
         acceptance_status = "REJECTED_MISSING_RESPONSE_CONTRACT_FIELDS"
+    elif route_brief_gap_response_contract_missing:
+        acceptance_status = "REJECTED_ROUTE_PLANNING_BRIEF_GAP_RESPONSE_CONTRACT"
     elif expanded_target_primitives:
         acceptance_status = "REJECTED_RESPONSE_TARGET_SCOPE_EXPANSION"
     elif expanded_actionable_work_items:
@@ -1303,6 +1332,24 @@ def _llm_route_planner_trace_from_request(
         "route_planning_brief": route_planning_brief,
         "residual_goal_context": residual_goal_context,
     }
+
+
+def _route_planning_brief_gap_required_response_fields_from_trace(
+    llm_trace: dict[str, Any],
+) -> tuple[str, ...]:
+    if str(llm_trace.get("source_kind", "") or "") != (
+        "route_planning_brief_evidence_gap"
+    ):
+        return tuple()
+    source_item = _dict_value(llm_trace, "source_item")
+    explicit_fields = _str_tuple(
+        source_item.get("route_planning_brief_gap_required_response_fields", [])
+    )
+    if explicit_fields:
+        return explicit_fields
+    return route_planning_brief_gap_required_response_fields(
+        str(source_item.get("route_planning_brief_gap_kind", "") or "")
+    )
 
 
 def _residual_goal_context_value(value: Any) -> dict[str, object]:

@@ -1151,6 +1151,9 @@ def _route_planning_brief_evidence_gap_source_item(
         "route_planning_brief_gap_id": gap_id,
         "route_planning_brief_gap_kind": gap_kind,
         "route_planning_brief_evidence_fields": evidence_fields,
+        "route_planning_brief_gap_required_response_fields": (
+            route_planning_brief_gap_required_response_fields(gap_kind)
+        ),
         "route_planning_brief_id": str(
             route_planning_brief.get("route_id", "")
         ),
@@ -1172,6 +1175,29 @@ def _route_planning_brief_gap_request_kind(gap_kind: str) -> str:
     if "proof_state" in key or "proof_body" in key or "prover" in key:
         return "proof_state_feedback"
     return "route_revision"
+
+
+def route_planning_brief_gap_required_response_fields(
+    gap_kind: str,
+) -> tuple[str, ...]:
+    key = _text_key(gap_kind)
+    if "source" in key or "literature" in key:
+        return ("source_refs", "source_snippets", "route_evidence_nodes")
+    if "formal_library" in key or "library" in key or "declaration" in key:
+        return (
+            "formal_declaration_hits",
+            "lean_declaration_hits",
+            "coverage_updates",
+        )
+    if "proof_state" in key or "proof_body" in key or "prover" in key:
+        return ("prover_diagnostics", "residual_goals", "proof_attempts")
+    if "quality" in key:
+        return ("quality_controls", "quality_gates", "response_validation_signals")
+    return (
+        "route_revision_decision",
+        "route_revision_reasons",
+        "route_revision_recommended",
+    )
 
 
 def _route_planning_brief_gap_query(

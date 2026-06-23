@@ -1192,6 +1192,12 @@ def test_resource_request_queue_dispatches_prompt_only_route_planning_brief_gaps
     assert literature_row["request_playbook"]["llm_route_planner_source_item"][
         "route_planning_brief_gap_kind"
     ] == "source_grounding"
+    literature_required_fields = literature_row["request_playbook"][
+        "llm_route_planner_source_item"
+    ]["route_planning_brief_gap_required_response_fields"]
+    assert "source_refs" in literature_required_fields
+    assert "source_snippets" in literature_required_fields
+    assert "route_evidence_nodes" in literature_required_fields
     assert (
         "llm_route_planner_target_theorem_context_packet"
         in literature_row["request_contract_fields"]
@@ -1234,6 +1240,10 @@ def test_resource_request_queue_dispatches_prompt_only_route_planning_brief_gaps
     assert formal_row["request_playbook"]["llm_route_planner_source_item"][
         "route_planning_brief_gap_kind"
     ] == "formal_library_grounding"
+    formal_required_fields = formal_row["request_playbook"][
+        "llm_route_planner_source_item"
+    ]["route_planning_brief_gap_required_response_fields"]
+    assert "formal_declaration_hits" in formal_required_fields
     assert "formal_declaration_hits" in formal_row["response_contract_fields"]
     report = (
         request_queue_dir / "formalization_gap_planner_resource_request_queue.md"
