@@ -1362,9 +1362,12 @@ executable work order per selected primitive, with action kinds such as target
 prover replay, compose existing declarations, write wrapper, prove bridge
 lemma, source port, design new theory fragment, or rerun library alignment.
 Each work order also publishes a deterministic `minimal_delta_cost_score`,
-`reuse_readiness_score`, `evidence_readiness_score`, and `priority_rationale`,
-so a downstream prover team can choose cheap exact/near reuse before expanding
-source ports or new theory.
+`reuse_readiness_score`, `evidence_readiness_score`, `source_aware_rerank_policy`,
+source-aware rerank counters, and `priority_rationale`, so a downstream prover
+team can choose cheap exact/near reuse before expanding source ports or new
+theory. The source-aware pass only breaks ties inside the same minimal-delta
+class: it prefers importable/local verified declarations and demotes WIP,
+sorry/admit, axiom, unsafe, or unverified declaration evidence.
 These are operational work orders and acceptance gates, not proof evidence. The
 action-resource-plan command then joins those primitive work orders to the
 component-resource registry and writes

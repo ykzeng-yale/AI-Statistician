@@ -59,6 +59,52 @@ OWNER_AGENTS = (
     "literature_router",
     "tooling_engineer",
 )
+SOURCE_AWARE_RERANK_POLICY = {
+    "policy_id": "formalization_gap_planner_source_aware_rerank_policy:1",
+    "ranking_position": "after minimal_delta_cost_score, before reuse/evidence readiness",
+    "preferred_signals": (
+        "importable/local verified declaration source fields",
+        "target-compatible candidate declaration rows",
+        "compiled or kernel-checked current-library declarations",
+    ),
+    "penalized_signals": (
+        "wip/prototype/draft/placeholder/todo declaration evidence",
+        "sorry/admit/admitted declaration evidence",
+        "axiom/unsafe/unverified declaration evidence",
+    ),
+    "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+}
+_SOURCE_AWARE_PREFERRED_TOKENS = frozenset(
+    {
+        "compiled",
+        "current",
+        "exact",
+        "importable",
+        "kernel",
+        "library",
+        "local",
+        "mathlib",
+        "replayable",
+        "snapshot",
+        "stdlib",
+        "target",
+        "verified",
+    }
+)
+_SOURCE_AWARE_PREFERRED_PHRASES = (
+    "current_library",
+    "exact_exists",
+    "exact_match",
+    "kernel_checked",
+    "local_verified",
+    "target_compatible",
+)
+_SOURCE_AWARE_HIGH_RISK_TOKENS = frozenset(
+    {"admit", "admitted", "axiom", "sorry", "unsafe", "unverified"}
+)
+_SOURCE_AWARE_LOW_RISK_TOKENS = frozenset(
+    {"draft", "placeholder", "prototype", "stub", "todo", "wip"}
+)
 
 
 @dataclass(frozen=True)
@@ -135,6 +181,16 @@ def export_formalization_gap_planner_primitive_action_queue(
     by_action_kind = Counter(row.queue_action_kind for row in rows)
     by_owner = Counter(row.owner_agent for row in rows)
     by_bucket = Counter(row.coverage_bucket for row in rows)
+    source_aware_scores = [_source_aware_rerank_score(row) for row in rows]
+    by_source_aware_rerank_signal = Counter(
+        signal
+        for row in rows
+        for signal in _source_aware_rerank_signals(
+            row.candidate_declaration_rows,
+            row.candidate_declarations,
+            source_refs=row.source_refs,
+        )
+    )
     target_summary = target_prover_family_summary(
         rows,
         fallback_target_prover_family=manifest.get("target_prover_family", ""),
@@ -206,6 +262,20 @@ def export_formalization_gap_planner_primitive_action_queue(
         ),
         "average_evidence_readiness_score": _average_int(
             row.evidence_readiness_score for row in rows
+        ),
+        "source_aware_rerank_policy": SOURCE_AWARE_RERANK_POLICY,
+        "average_source_aware_rerank_score": _average_int(source_aware_scores),
+        "n_source_aware_rerank_preferred_rows": sum(
+            1 for score in source_aware_scores if score > 0
+        ),
+        "n_source_aware_rerank_penalized_rows": sum(
+            1 for score in source_aware_scores if score < 0
+        ),
+        "n_source_aware_rerank_neutral_rows": sum(
+            1 for score in source_aware_scores if score == 0
+        ),
+        "by_source_aware_rerank_signal": dict(
+            sorted(by_source_aware_rerank_signal.items())
         ),
         "n_row_schema_valid": n_row_schema_valid,
         "n_row_schema_invalid": n_row_schema_invalid,
@@ -512,6 +582,7 @@ def _rank_rows(
         rows,
         key=lambda row: (
             row.minimal_delta_cost_score,
+            -_source_aware_rerank_score(row),
             -row.reuse_readiness_score,
             -row.evidence_readiness_score,
             -row.priority_score,
@@ -621,6 +692,17 @@ def _priority_rationale(
         f"reuse_readiness_score={reuse_readiness_score}",
         f"evidence_readiness_score={evidence_readiness_score}",
     ]
+    source_aware_rerank_score = _source_aware_candidate_score(
+        _candidate_declaration_rows(coverage_row),
+        _str_tuple(coverage_row.get("candidate_declarations", [])),
+        source_refs=_str_tuple(coverage_row.get("source_refs", [])),
+    )
+    source_aware_signals = _source_aware_rerank_signals(
+        _candidate_declaration_rows(coverage_row),
+        _str_tuple(coverage_row.get("candidate_declarations", [])),
+        source_refs=_str_tuple(coverage_row.get("source_refs", [])),
+    )
+    lines.append(f"source_aware_rerank_score={source_aware_rerank_score}")
     if coverage_bucket == EXACT_EXISTS:
         lines.append("prefer exact current-library reuse before adding declarations")
     elif coverage_bucket == NEAR_EXISTS:
@@ -643,7 +725,159 @@ def _priority_rationale(
         lines.append("source references available")
     if _str_tuple(coverage_row.get("actionable_work_items", [])):
         lines.append("route-level actionable work item available")
+    if "preferred_importable_or_verified_candidate" in source_aware_signals:
+        lines.append(
+            "source-aware rerank prefers importable/local verified candidate evidence"
+        )
+    if "penalized_sorry_admit_axiom_candidate" in source_aware_signals:
+        lines.append(
+            "source-aware rerank penalizes sorry/admit/axiom-like candidate evidence"
+        )
+    if "penalized_wip_or_draft_candidate" in source_aware_signals:
+        lines.append(
+            "source-aware rerank penalizes WIP/prototype/draft candidate evidence"
+        )
+    if (
+        source_aware_rerank_score == 0
+        and _candidate_declaration_rows(coverage_row)
+        and not any(signal.startswith("penalized_") for signal in source_aware_signals)
+    ):
+        lines.append("source-aware rerank neutral: no declaration quality signal")
     return tuple(lines)
+
+
+def _source_aware_rerank_score(
+    row: FormalizationGapPlannerPrimitiveActionQueueRow,
+) -> int:
+    return _source_aware_candidate_score(
+        row.candidate_declaration_rows,
+        row.candidate_declarations,
+        source_refs=row.source_refs,
+    )
+
+
+def _source_aware_candidate_score(
+    candidate_declaration_rows: Any,
+    candidate_declarations: Any,
+    *,
+    source_refs: Any = (),
+) -> int:
+    candidate_rows = _dict_tuple(candidate_declaration_rows)
+    declaration_names = _str_tuple(candidate_declarations)
+    source_references = _str_tuple(source_refs)
+    score = 0
+    if candidate_rows:
+        score += 20
+    if _source_aware_has_preferred_signal(
+        candidate_rows,
+        declaration_names,
+        source_references,
+    ):
+        score += 40
+    if source_references:
+        score += 10
+    if _source_aware_has_high_risk_signal(
+        candidate_rows,
+        declaration_names,
+        source_references,
+    ):
+        score -= 60
+    if _source_aware_has_low_risk_signal(
+        candidate_rows,
+        declaration_names,
+        source_references,
+    ):
+        score -= 30
+    return max(-100, min(100, score))
+
+
+def _source_aware_rerank_signals(
+    candidate_declaration_rows: Any,
+    candidate_declarations: Any,
+    *,
+    source_refs: Any = (),
+) -> tuple[str, ...]:
+    candidate_rows = _dict_tuple(candidate_declaration_rows)
+    declaration_names = _str_tuple(candidate_declarations)
+    source_references = _str_tuple(source_refs)
+    signals: list[str] = []
+    if candidate_rows:
+        signals.append("candidate_declaration_rows_available")
+    if declaration_names:
+        signals.append("candidate_declarations_available")
+    if source_references:
+        signals.append("source_refs_available")
+    if _source_aware_has_preferred_signal(
+        candidate_rows,
+        declaration_names,
+        source_references,
+    ):
+        signals.append("preferred_importable_or_verified_candidate")
+    if _source_aware_has_high_risk_signal(
+        candidate_rows,
+        declaration_names,
+        source_references,
+    ):
+        signals.append("penalized_sorry_admit_axiom_candidate")
+    if _source_aware_has_low_risk_signal(
+        candidate_rows,
+        declaration_names,
+        source_references,
+    ):
+        signals.append("penalized_wip_or_draft_candidate")
+    return tuple(signals)
+
+
+def _source_aware_has_preferred_signal(
+    candidate_rows: tuple[dict[str, object], ...],
+    declaration_names: tuple[str, ...],
+    source_refs: tuple[str, ...],
+) -> bool:
+    text = _source_aware_quality_text(candidate_rows, declaration_names, source_refs)
+    tokens = _source_aware_quality_tokens(text)
+    return bool(tokens & _SOURCE_AWARE_PREFERRED_TOKENS) or any(
+        phrase in text for phrase in _SOURCE_AWARE_PREFERRED_PHRASES
+    )
+
+
+def _source_aware_has_high_risk_signal(
+    candidate_rows: tuple[dict[str, object], ...],
+    declaration_names: tuple[str, ...],
+    source_refs: tuple[str, ...],
+) -> bool:
+    tokens = _source_aware_quality_tokens(
+        _source_aware_quality_text(candidate_rows, declaration_names, source_refs)
+    )
+    return bool(tokens & _SOURCE_AWARE_HIGH_RISK_TOKENS)
+
+
+def _source_aware_has_low_risk_signal(
+    candidate_rows: tuple[dict[str, object], ...],
+    declaration_names: tuple[str, ...],
+    source_refs: tuple[str, ...],
+) -> bool:
+    tokens = _source_aware_quality_tokens(
+        _source_aware_quality_text(candidate_rows, declaration_names, source_refs)
+    )
+    return bool(tokens & _SOURCE_AWARE_LOW_RISK_TOKENS)
+
+
+def _source_aware_quality_text(
+    candidate_rows: tuple[dict[str, object], ...],
+    declaration_names: tuple[str, ...],
+    source_refs: tuple[str, ...],
+) -> str:
+    pieces: list[str] = list(declaration_names) + list(source_refs)
+    for row in candidate_rows:
+        pieces.extend(
+            str(row.get(field_name, ""))
+            for field_name in ("declaration", "source_field", "target_prover_family")
+        )
+    return " ".join(piece.lower() for piece in pieces if piece)
+
+
+def _source_aware_quality_tokens(text: str) -> set[str]:
+    return {token for token in re.split(r"[^a-z0-9]+|_", text.lower()) if token}
 
 
 def _required_inputs(coverage_bucket: str) -> tuple[str, ...]:

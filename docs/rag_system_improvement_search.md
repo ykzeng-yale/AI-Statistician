@@ -531,9 +531,12 @@ python3 -m ai_statistician.cli claim-ledger \
 2. Add query-intent expansion for missing primitives:
    primitive name, theorem goal, problem class, local gap reason, and candidate
    proof-bank bridge names should all become retriever queries.
-3. Add source-aware reranking:
-   prefer importable/local verified declarations, penalize WIP/sorry-heavy
-   retrieval-only corpora for proof-bank promotion, and keep them available for
+3. Extend source-aware reranking beyond the primitive queue:
+   `formalization-gap-planner-primitive-action-queue` now prefers
+   importable/local verified candidate declarations and demotes WIP,
+   sorry/admit, axiom, unsafe, or unverified declaration evidence within the
+   same minimal-delta class. The remaining work is to carry the same policy into
+   proof-bank promotion while keeping retrieval-only corpora available for
    theorem-shape planning.
 4. Add proof-state/premise feedback:
    successful proof candidates become positive premise examples; retrieved but

@@ -605,7 +605,11 @@ primitive. Its row schema records the action kind, owner, priority, required
 inputs, expected outputs, recommended tools, acceptance gate, and reproduction
 commands for target-prover replay, composition, wrappers, bridge lemmas, source
 ports, new theory fragments, or rerunning library alignment. This is the
-planner's primitive-level work queue and remains not proof evidence.
+planner's primitive-level work queue and remains not proof evidence. Within a
+fixed minimal-delta class, the queue also publishes and applies a
+`source_aware_rerank_policy`: importable/local verified candidate declarations
+are preferred, while WIP, sorry/admit, axiom, unsafe, or unverified declaration
+evidence is demoted before prover work is scheduled.
 The `formalization-gap-planner-action-resource-plan` gate joins those primitive
 work orders to the component-resource registry. It validates that each queued
 action has planner component ids, local-first resources, frontier escalation

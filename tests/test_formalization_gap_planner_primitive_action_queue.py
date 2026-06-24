@@ -210,6 +210,115 @@ def test_primitive_action_queue_exports_per_coverage_row_work_orders() -> None:
     ).exists()
 
 
+def test_primitive_action_queue_source_aware_reranks_same_delta_candidates() -> None:
+    root = Path("runs/test_formalization_gap_planner_primitive_action_queue_rerank")
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    coverage_dir = root / "coverage"
+    action_queue_dir = root / "action_queue"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "lean_mathlib_snapshot",
+                "routes": [
+                    {
+                        "display_name": "trusted_vs_wip_exact_reuse",
+                        "theorem_statement": "Two exact library candidates differ in source trust.",
+                        "primitives": [
+                            {
+                                "primitive": "trusted_reuse",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": ["Demo.trustedReuse"],
+                            },
+                            {
+                                "primitive": "wip_reuse",
+                                "coverage_status": "exact_exists",
+                                "candidate_declarations": ["Demo.wipSorryReuse"],
+                            },
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    export_formalization_gap_planner_library_coverage_map(plan_dir, coverage_dir)
+    manifest_path = (
+        coverage_dir / "formalization_gap_planner_library_coverage_map_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for row in manifest["rows"]:
+        if row["primitive"] == "trusted_reuse":
+            row["candidate_declaration_rows"] = [
+                {
+                    "declaration": "Demo.trustedReuse",
+                    "target_prover_family": "lean4",
+                    "source_field": "local_verified_importable_declaration",
+                }
+            ]
+        elif row["primitive"] == "wip_reuse":
+            row["candidate_declaration_rows"] = [
+                {
+                    "declaration": "Demo.wip_sorry_reuse",
+                    "target_prover_family": "lean4",
+                    "source_field": "wip_sorry_heavy_declaration",
+                }
+            ]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_primitive_action_queue(
+        coverage_dir,
+        action_queue_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["source_aware_rerank_policy"]["policy_id"] == (
+        "formalization_gap_planner_source_aware_rerank_policy:1"
+    )
+    assert payload["n_source_aware_rerank_preferred_rows"] >= 1
+    assert payload["n_source_aware_rerank_penalized_rows"] >= 1
+    assert payload["by_source_aware_rerank_signal"][
+        "preferred_importable_or_verified_candidate"
+    ] == 1
+    assert payload["by_source_aware_rerank_signal"][
+        "penalized_sorry_admit_axiom_candidate"
+    ] == 1
+    assert payload["by_source_aware_rerank_signal"][
+        "penalized_wip_or_draft_candidate"
+    ] == 1
+    by_primitive = {row["primitive"]: row for row in payload["rows"]}
+    assert by_primitive["trusted_reuse"]["rank"] < by_primitive["wip_reuse"]["rank"]
+    assert "source_aware_rerank_score=60" in by_primitive["trusted_reuse"][
+        "priority_rationale"
+    ]
+    assert "source_aware_rerank_score=-70" in by_primitive["wip_reuse"][
+        "priority_rationale"
+    ]
+    assert (
+        "source-aware rerank prefers importable/local verified candidate evidence"
+        in by_primitive["trusted_reuse"]["priority_rationale"]
+    )
+    assert (
+        "source-aware rerank penalizes sorry/admit/axiom-like candidate evidence"
+        in by_primitive["wip_reuse"]["priority_rationale"]
+    )
+    assert (
+        "source-aware rerank penalizes WIP/prototype/draft candidate evidence"
+        in by_primitive["wip_reuse"]["priority_rationale"]
+    )
+    assert validate_primitive_action_queue_row(
+        by_primitive["trusted_reuse"],
+        primitive_action_queue_row_json_schema(),
+    ) == []
+
+
 def test_primitive_action_queue_preserves_unknown_alignment_blocker() -> None:
     root = Path("runs/test_formalization_gap_planner_primitive_action_queue_rejects")
     input_json = root / "standalone_input.json"
