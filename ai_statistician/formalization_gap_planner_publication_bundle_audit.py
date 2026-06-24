@@ -573,6 +573,19 @@ def audit_formalization_gap_planner_publication_bundle(
             == "bundle_combined_llm_provider_usage_summary_consistent"
             and check.ok
         ),
+        "n_bundle_interactive_feedback_loop_summary_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_interactive_feedback_loop_summary_consistent"
+        ),
+        "n_bundle_interactive_feedback_loop_summary_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_interactive_feedback_loop_summary_consistent"
+            and check.ok
+        ),
         "n_bundle_cross_prover_formal_attempt_dependency_summary_checked": sum(
             1
             for check in checks
@@ -2972,6 +2985,9 @@ def _manifest_checks(
     combined_llm_provider_usage_summary_errors = (
         _bundle_combined_llm_provider_usage_summary_errors(manifest)
     )
+    interactive_feedback_loop_summary_errors = (
+        _bundle_interactive_feedback_loop_summary_errors(manifest)
+    )
     cross_prover_formal_attempt_dependency_summary_errors = (
         _bundle_cross_prover_formal_attempt_dependency_summary_errors(
             bundle_dir,
@@ -3080,6 +3096,18 @@ def _manifest_checks(
             ),
             not combined_llm_provider_usage_summary_errors,
             errors=combined_llm_provider_usage_summary_errors,
+        ),
+        _check(
+            "bundle_interactive_feedback_loop_summary_consistent",
+            "manifest",
+            "interactive_feedback_loop_summary matches request/response summaries",
+            (
+                "ok"
+                if not interactive_feedback_loop_summary_errors
+                else "; ".join(interactive_feedback_loop_summary_errors[:3])
+            ),
+            not interactive_feedback_loop_summary_errors,
+            errors=interactive_feedback_loop_summary_errors,
         ),
         _check(
             "bundle_cross_prover_formal_attempt_dependency_summary_consistent",
@@ -3481,6 +3509,140 @@ def _sum_summary_counts(
     return _nonnegative_int(primary_summary.get(key)) + _nonnegative_int(
         feedback_summary.get(key)
     )
+
+
+def _bundle_interactive_feedback_loop_summary_errors(
+    manifest: dict[str, Any],
+) -> tuple[str, ...]:
+    summary_field = "interactive_feedback_loop_summary"
+    observed = manifest.get(summary_field, {})
+    if not isinstance(observed, dict):
+        return (f"{summary_field} missing or not an object",)
+    expected = _expected_bundle_interactive_feedback_loop_summary(manifest)
+    errors: list[str] = []
+    for field_name, expected_value in expected.items():
+        if field_name not in observed:
+            errors.append(f"{summary_field}.{field_name} missing")
+            continue
+        observed_value = observed.get(field_name)
+        if isinstance(expected_value, bool):
+            if bool(observed_value) != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, int):
+            if _int_or_none(observed_value) != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif str(observed_value) != str(expected_value):
+            errors.append(
+                f"{summary_field}.{field_name} mismatch: "
+                f"observed={observed_value} expected={expected_value}"
+            )
+    return tuple(errors)
+
+
+def _expected_bundle_interactive_feedback_loop_summary(
+    manifest: dict[str, Any],
+) -> dict[str, object]:
+    resource_request_summary = _dict_value(
+        manifest,
+        "resource_request_queue_summary",
+    )
+    resource_response_summary = _dict_value(
+        manifest,
+        "resource_response_ledger_summary",
+    )
+    staged_gap_rows = _nonnegative_int(
+        resource_request_summary.get(
+            "n_llm_route_planner_route_planning_brief_evidence_gap_rows"
+        )
+    )
+    request_rows = _nonnegative_int(
+        resource_request_summary.get(
+            "n_llm_route_planner_route_planning_brief_resource_request_rows"
+        )
+    )
+    response_gap_rows = _nonnegative_int(
+        resource_response_summary.get(
+            "n_llm_route_planner_traced_route_planning_brief_evidence_gap_responses"
+        )
+    )
+    grounded_gap_rows = _nonnegative_int(
+        resource_response_summary.get(
+            "n_llm_route_planner_traced_route_planning_brief_evidence_gap_grounded_responses"
+        )
+    )
+    response_contract_ok = _nonnegative_int(
+        resource_response_summary.get("n_response_contract_ok")
+    )
+    formal_feedback_rows = _nonnegative_int(
+        resource_response_summary.get("n_rows_with_formal_declaration_hits")
+    )
+    formal_feedback_hits = _nonnegative_int(
+        resource_response_summary.get("n_formal_declaration_hits")
+    )
+    residual_feedback_rows = _nonnegative_int(
+        resource_response_summary.get("n_rows_with_residual_goals")
+    )
+    residual_feedback_goals = _nonnegative_int(
+        resource_response_summary.get("n_residual_goals")
+    )
+    residual_context_rows = _nonnegative_int(
+        resource_response_summary.get("n_llm_route_planner_residual_context_rows")
+    )
+    return {
+        "requested": bool(
+            resource_request_summary.get("requested")
+            or resource_response_summary.get("requested")
+        ),
+        "resource_request_queue_requested": bool(
+            resource_request_summary.get("requested")
+        ),
+        "resource_response_ledger_requested": bool(
+            resource_response_summary.get("requested")
+        ),
+        "n_route_planning_brief_evidence_gap_rows": staged_gap_rows,
+        "n_route_planning_brief_resource_request_rows": request_rows,
+        "n_route_planning_brief_evidence_gap_responses": response_gap_rows,
+        "n_route_planning_brief_evidence_gap_grounded_responses": (
+            grounded_gap_rows
+        ),
+        "n_response_contract_ok": response_contract_ok,
+        "n_response_playbook_grounded": _nonnegative_int(
+            resource_response_summary.get("n_response_playbook_grounded")
+        ),
+        "n_formal_declaration_feedback_rows": formal_feedback_rows,
+        "n_formal_declaration_feedback_hits": formal_feedback_hits,
+        "n_legacy_lean_declaration_feedback_rows": _nonnegative_int(
+            resource_response_summary.get(
+                "n_rows_with_legacy_lean_declaration_hits"
+            )
+        ),
+        "n_residual_goal_feedback_rows": residual_feedback_rows,
+        "n_residual_goal_feedback_goals": residual_feedback_goals,
+        "n_residual_goal_context_rows": residual_context_rows,
+        "n_route_revision_recommended": _nonnegative_int(
+            resource_response_summary.get("n_route_revision_recommended")
+        ),
+        "route_brief_feedback_ready": (
+            staged_gap_rows > 0 and grounded_gap_rows > 0
+        ),
+        "formal_library_feedback_present": (
+            formal_feedback_rows > 0 or formal_feedback_hits > 0
+        ),
+        "prover_residual_feedback_present": (
+            residual_feedback_rows > 0 or residual_context_rows > 0
+        ),
+        "interactive_feedback_loop_ready": (
+            staged_gap_rows > 0
+            and grounded_gap_rows > 0
+            and response_contract_ok > 0
+        ),
+    }
 
 
 def _bundle_cross_prover_formal_attempt_dependency_summary_errors(
@@ -24979,6 +25141,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Bundle LLM route-planner summary valid: {payload.get('n_bundle_llm_route_planner_summary_valid')}/{payload.get('n_bundle_llm_route_planner_summary_checked')}",
         f"- Bundle feedback LLM route-planner summary valid: {payload.get('n_bundle_feedback_llm_route_planner_summary_valid')}/{payload.get('n_bundle_feedback_llm_route_planner_summary_checked')}",
         f"- Bundle combined LLM provider usage summary valid: {payload.get('n_bundle_combined_llm_provider_usage_summary_valid')}/{payload.get('n_bundle_combined_llm_provider_usage_summary_checked')}",
+        f"- Bundle interactive feedback-loop summary valid: {payload.get('n_bundle_interactive_feedback_loop_summary_valid')}/{payload.get('n_bundle_interactive_feedback_loop_summary_checked')}",
         f"- Bundle cross-prover formal-attempt dependency summary valid: {payload.get('n_bundle_cross_prover_formal_attempt_dependency_summary_valid')}/{payload.get('n_bundle_cross_prover_formal_attempt_dependency_summary_checked')}",
         f"- Bundle library-coverage map summary valid: {payload.get('n_bundle_library_coverage_map_summary_valid')}/{payload.get('n_bundle_library_coverage_map_summary_checked')}",
         (

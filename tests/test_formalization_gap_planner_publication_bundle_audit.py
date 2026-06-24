@@ -4452,6 +4452,58 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         ]
         == 3
     )
+    assert audit_payload["n_bundle_interactive_feedback_loop_summary_checked"] == 1
+    assert audit_payload["n_bundle_interactive_feedback_loop_summary_valid"] == 1
+    assert any(
+        row["check_name"] == "bundle_interactive_feedback_loop_summary_consistent"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    manifest_path = bundle_dir / "formalization_gap_planner_publication_bundle_manifest.json"
+    manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    corrupted_interactive_summary = json.loads(json.dumps(manifest_payload))
+    corrupted_interactive_summary["interactive_feedback_loop_summary"][
+        "requested"
+    ] = True
+    corrupted_interactive_summary["interactive_feedback_loop_summary"][
+        "n_route_planning_brief_evidence_gap_rows"
+    ] = 1
+    manifest_path.write_text(
+        json.dumps(corrupted_interactive_summary, indent=2),
+        encoding="utf-8",
+    )
+    rejected_interactive_summary = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_interactive_feedback_loop_summary_drift",
+        )
+    )
+    interactive_summary_failed_names = {
+        row["check_name"]
+        for row in rejected_interactive_summary["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_interactive_summary["all_ok"]
+    assert (
+        "bundle_interactive_feedback_loop_summary_consistent"
+        in interactive_summary_failed_names
+    )
+    assert (
+        rejected_interactive_summary[
+            "n_bundle_interactive_feedback_loop_summary_checked"
+        ]
+        == 1
+    )
+    assert (
+        rejected_interactive_summary[
+            "n_bundle_interactive_feedback_loop_summary_valid"
+        ]
+        == 0
+    )
+    manifest_path.write_text(
+        json.dumps(manifest_payload, indent=2),
+        encoding="utf-8",
+    )
     assert (
         audit_payload[
             "n_bundle_cross_prover_formal_attempt_dependency_summary_checked"
@@ -4470,8 +4522,6 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         and row["ok"]
         for row in audit_payload["checks"]
     )
-    manifest_path = bundle_dir / "formalization_gap_planner_publication_bundle_manifest.json"
-    manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     corrupted_cross_prover_summary = json.loads(json.dumps(manifest_payload))
     corrupted_cross_prover_summary[
         "cross_prover_formal_attempt_dependency_summary"
