@@ -573,6 +573,19 @@ def audit_formalization_gap_planner_publication_bundle(
             == "bundle_combined_llm_provider_usage_summary_consistent"
             and check.ok
         ),
+        "n_bundle_cross_prover_formal_attempt_dependency_summary_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_cross_prover_formal_attempt_dependency_summary_consistent"
+        ),
+        "n_bundle_cross_prover_formal_attempt_dependency_summary_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_cross_prover_formal_attempt_dependency_summary_consistent"
+            and check.ok
+        ),
         "n_bundle_llm_route_planner_response_payload_validation_summary_checked": sum(
             1
             for check in checks
@@ -2959,6 +2972,12 @@ def _manifest_checks(
     combined_llm_provider_usage_summary_errors = (
         _bundle_combined_llm_provider_usage_summary_errors(manifest)
     )
+    cross_prover_formal_attempt_dependency_summary_errors = (
+        _bundle_cross_prover_formal_attempt_dependency_summary_errors(
+            bundle_dir,
+            manifest,
+        )
+    )
     response_payload_validation_summary_errors = (
         _bundle_llm_route_planner_response_payload_validation_summary_errors(
             bundle_dir,
@@ -3061,6 +3080,20 @@ def _manifest_checks(
             ),
             not combined_llm_provider_usage_summary_errors,
             errors=combined_llm_provider_usage_summary_errors,
+        ),
+        _check(
+            "bundle_cross_prover_formal_attempt_dependency_summary_consistent",
+            "manifest",
+            "cross_prover_formal_attempt_dependency_summary matches bundled cross-prover artifacts",
+            (
+                "ok"
+                if not cross_prover_formal_attempt_dependency_summary_errors
+                else "; ".join(
+                    cross_prover_formal_attempt_dependency_summary_errors[:3]
+                )
+            ),
+            not cross_prover_formal_attempt_dependency_summary_errors,
+            errors=cross_prover_formal_attempt_dependency_summary_errors,
         ),
         _check(
             "bundle_llm_route_planner_response_payload_validation_summary_consistent",
@@ -3448,6 +3481,179 @@ def _sum_summary_counts(
     return _nonnegative_int(primary_summary.get(key)) + _nonnegative_int(
         feedback_summary.get(key)
     )
+
+
+def _bundle_cross_prover_formal_attempt_dependency_summary_errors(
+    bundle_dir: Path,
+    manifest: dict[str, Any],
+) -> tuple[str, ...]:
+    summary_field = "cross_prover_formal_attempt_dependency_summary"
+    observed = manifest.get(summary_field, {})
+    if not isinstance(observed, dict):
+        return (f"{summary_field} missing or not an object",)
+    expected = _expected_bundle_cross_prover_formal_attempt_dependency_summary(
+        bundle_dir
+    )
+    compare_fields = (
+        "requested",
+        "n_total_packets",
+        "n_total_packets_with_formal_attempt_dependency",
+        "n_total_packets_formal_attempt_initial_ready",
+        "n_total_packets_formal_attempt_waiting",
+        "n_total_packets_formal_attempt_missing_prerequisites",
+        "by_total_packet_formal_attempt_dependency_status",
+        "n_total_response_minimal_delta_action_witnesses_required",
+        "n_total_response_minimal_delta_action_witnesses_acknowledged",
+        "n_total_response_minimal_delta_action_witnesses_unacknowledged",
+        "n_total_response_addressed_minimal_delta_action_witnesses",
+        "target_summary_consistent",
+    )
+    errors: list[str] = []
+    for field_name in compare_fields:
+        if field_name not in observed:
+            errors.append(f"{summary_field}.{field_name} missing")
+            continue
+        expected_value = expected[field_name]
+        observed_value = observed.get(field_name)
+        if isinstance(expected_value, bool):
+            if bool(observed_value) != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, int):
+            if _int_or_none(observed_value) != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, dict):
+            observed_counts = _int_mapping(observed_value)
+            expected_counts = _int_mapping(expected_value)
+            if observed_counts != expected_counts:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_counts} expected={expected_counts}"
+                )
+        elif str(observed_value) != str(expected_value):
+            errors.append(
+                f"{summary_field}.{field_name} mismatch: "
+                f"observed={observed_value} expected={expected_value}"
+            )
+    if expected["requested"]:
+        for path_field in ("manifest_path", "target_summary_path"):
+            if not str(observed.get(path_field, "")).strip():
+                errors.append(f"{summary_field}.{path_field} missing")
+    else:
+        for path_field in ("manifest_path", "target_summary_path"):
+            if str(observed.get(path_field, "")).strip():
+                errors.append(
+                    f"{summary_field}.{path_field} should be empty when not requested"
+                )
+    return tuple(errors)
+
+
+def _expected_bundle_cross_prover_formal_attempt_dependency_summary(
+    bundle_dir: Path,
+) -> dict[str, object]:
+    artifact_dir = (
+        bundle_dir
+        / "artifacts"
+        / "formalization_gap_planner_cross_prover_matrix_audit"
+    )
+    zero_summary: dict[str, object] = {
+        "requested": False,
+        "manifest_path": "",
+        "target_summary_path": "",
+        "n_total_packets": 0,
+        "n_total_packets_with_formal_attempt_dependency": 0,
+        "n_total_packets_formal_attempt_initial_ready": 0,
+        "n_total_packets_formal_attempt_waiting": 0,
+        "n_total_packets_formal_attempt_missing_prerequisites": 0,
+        "by_total_packet_formal_attempt_dependency_status": {},
+        "n_total_response_minimal_delta_action_witnesses_required": 0,
+        "n_total_response_minimal_delta_action_witnesses_acknowledged": 0,
+        "n_total_response_minimal_delta_action_witnesses_unacknowledged": 0,
+        "n_total_response_addressed_minimal_delta_action_witnesses": 0,
+        "target_summary_consistent": False,
+    }
+    if not artifact_dir.exists():
+        return zero_summary
+    manifest_path = (
+        artifact_dir
+        / "formalization_gap_planner_cross_prover_matrix_audit_manifest.json"
+    )
+    target_summary_path = (
+        artifact_dir / "formalization_gap_planner_cross_prover_target_summary.json"
+    )
+    artifact_manifest = _read_json_no_error(manifest_path)
+    target_summary = _read_json_no_error(target_summary_path)
+    counter_fields = (
+        "n_total_packets_with_formal_attempt_dependency",
+        "n_total_packets_formal_attempt_initial_ready",
+        "n_total_packets_formal_attempt_waiting",
+        "n_total_packets_formal_attempt_missing_prerequisites",
+    )
+    witness_counter_fields = (
+        (
+            "n_response_minimal_delta_action_witnesses_required",
+            "n_total_response_minimal_delta_action_witnesses_required",
+        ),
+        (
+            "n_response_minimal_delta_action_witnesses_acknowledged",
+            "n_total_response_minimal_delta_action_witnesses_acknowledged",
+        ),
+        (
+            "n_response_minimal_delta_action_witnesses_unacknowledged",
+            "n_total_response_minimal_delta_action_witnesses_unacknowledged",
+        ),
+        (
+            "n_response_addressed_minimal_delta_action_witnesses",
+            "n_total_response_addressed_minimal_delta_action_witnesses",
+        ),
+    )
+    manifest_counters = {
+        field_name: _nonnegative_int(artifact_manifest.get(field_name))
+        for field_name in counter_fields
+    }
+    target_summary_counters = {
+        field_name: _nonnegative_int(target_summary.get(field_name))
+        for field_name in counter_fields
+    }
+    manifest_witness_counters = {
+        target_field_name: _nonnegative_int(
+            artifact_manifest.get(manifest_field_name)
+        )
+        for manifest_field_name, target_field_name in witness_counter_fields
+    }
+    target_summary_witness_counters = {
+        target_field_name: _nonnegative_int(target_summary.get(target_field_name))
+        for _, target_field_name in witness_counter_fields
+    }
+    manifest_histogram = _int_mapping(
+        artifact_manifest.get("by_total_packet_formal_attempt_dependency_status")
+    )
+    target_summary_histogram = _int_mapping(
+        target_summary.get("by_total_packet_formal_attempt_dependency_status")
+    )
+    total_packets = _nonnegative_int(artifact_manifest.get("n_total_packets"))
+    target_total_packets = _nonnegative_int(target_summary.get("n_total_packets"))
+    return {
+        **zero_summary,
+        "requested": True,
+        "manifest_path": str(manifest_path),
+        "target_summary_path": str(target_summary_path),
+        "n_total_packets": total_packets,
+        **manifest_counters,
+        **manifest_witness_counters,
+        "by_total_packet_formal_attempt_dependency_status": manifest_histogram,
+        "target_summary_consistent": (
+            total_packets == target_total_packets
+            and manifest_counters == target_summary_counters
+            and manifest_witness_counters == target_summary_witness_counters
+            and manifest_histogram == target_summary_histogram
+        ),
+    }
 
 
 def _bundle_llm_route_planner_response_payload_validation_summary_errors(
@@ -24773,6 +24979,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Bundle LLM route-planner summary valid: {payload.get('n_bundle_llm_route_planner_summary_valid')}/{payload.get('n_bundle_llm_route_planner_summary_checked')}",
         f"- Bundle feedback LLM route-planner summary valid: {payload.get('n_bundle_feedback_llm_route_planner_summary_valid')}/{payload.get('n_bundle_feedback_llm_route_planner_summary_checked')}",
         f"- Bundle combined LLM provider usage summary valid: {payload.get('n_bundle_combined_llm_provider_usage_summary_valid')}/{payload.get('n_bundle_combined_llm_provider_usage_summary_checked')}",
+        f"- Bundle cross-prover formal-attempt dependency summary valid: {payload.get('n_bundle_cross_prover_formal_attempt_dependency_summary_valid')}/{payload.get('n_bundle_cross_prover_formal_attempt_dependency_summary_checked')}",
         f"- Bundle library-coverage map summary valid: {payload.get('n_bundle_library_coverage_map_summary_valid')}/{payload.get('n_bundle_library_coverage_map_summary_checked')}",
         (
             "- Optional evaluation route-adoption ready/pending/blockers: "

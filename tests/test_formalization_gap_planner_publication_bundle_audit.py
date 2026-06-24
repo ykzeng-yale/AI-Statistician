@@ -4452,6 +4452,66 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         ]
         == 3
     )
+    assert (
+        audit_payload[
+            "n_bundle_cross_prover_formal_attempt_dependency_summary_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_bundle_cross_prover_formal_attempt_dependency_summary_valid"
+        ]
+        == 1
+    )
+    assert any(
+        row["check_name"]
+        == "bundle_cross_prover_formal_attempt_dependency_summary_consistent"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    manifest_path = bundle_dir / "formalization_gap_planner_publication_bundle_manifest.json"
+    manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    corrupted_cross_prover_summary = json.loads(json.dumps(manifest_payload))
+    corrupted_cross_prover_summary[
+        "cross_prover_formal_attempt_dependency_summary"
+    ]["n_total_packets"] = 0
+    manifest_path.write_text(
+        json.dumps(corrupted_cross_prover_summary, indent=2),
+        encoding="utf-8",
+    )
+    rejected_cross_prover_summary = (
+        audit_formalization_gap_planner_publication_bundle(
+            bundle_dir,
+            root / "audit_rejects_cross_prover_summary_drift",
+        )
+    )
+    cross_prover_summary_failed_names = {
+        row["check_name"]
+        for row in rejected_cross_prover_summary["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_cross_prover_summary["all_ok"]
+    assert (
+        "bundle_cross_prover_formal_attempt_dependency_summary_consistent"
+        in cross_prover_summary_failed_names
+    )
+    assert (
+        rejected_cross_prover_summary[
+            "n_bundle_cross_prover_formal_attempt_dependency_summary_checked"
+        ]
+        == 1
+    )
+    assert (
+        rejected_cross_prover_summary[
+            "n_bundle_cross_prover_formal_attempt_dependency_summary_valid"
+        ]
+        == 0
+    )
+    manifest_path.write_text(
+        json.dumps(manifest_payload, indent=2),
+        encoding="utf-8",
+    )
     assert audit_payload["n_benchmark_route_row_schema_checked"] == bundle_payload[
         "benchmark_summary"
     ]["n_routes"]
