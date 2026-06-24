@@ -11,6 +11,8 @@ from typing import Any
 from .fingerprint import stable_hash
 from .formalization_gap_planner_contract import (
     LEGACY_FORMAL_REALIZATION_FIELD_ALIASES,
+    TARGET_PROVER_FAMILY,
+    normalize_target_prover_family,
     portable_gap_plan_row_json_schema,
     route_alignment_edge_json_schema,
     validate_portable_gap_plan_row,
@@ -27,7 +29,6 @@ PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID = (
     "urn:ai-statistician:schemas:library-aware-formalization-gap-plan:1"
 )
 LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME = "library_aware_formalization_gap_planner"
-TARGET_PROVER_FAMILY = "lean4_adapter_with_portable_gap_schema"
 FORMALIZATION_DELTA_OBJECTIVE = (
     "Given a target theorem T and a current formal library snapshot L, find a "
     "small additional formalization Delta of existing reuse, wrappers, bridge "
@@ -185,7 +186,8 @@ def export_goal_conditioned_minimal_formalization_plan(
     )[: max(0, max_routes)]
     by_route_class = Counter(row.route_class for row in rows)
     by_target = Counter(
-        str(row.target_prover_family or "").strip() or "missing" for row in rows
+        normalize_target_prover_family(row.target_prover_family) or "missing"
+        for row in rows
     )
     target_prover_family = _manifest_target_prover_family(
         rows,
@@ -1084,7 +1086,7 @@ def _source_target_prover_family(
             or ""
         ).strip()
         if value:
-            return value
+            return normalize_target_prover_family(value) or value
     return TARGET_PROVER_FAMILY
 
 
@@ -1094,12 +1096,13 @@ def _target_prover_family(
     *,
     source_target_prover_family: str,
 ) -> str:
-    return str(
+    raw_target = str(
         route.get("target_prover_family")
         or queue_row.get("target_prover_family")
         or source_target_prover_family
         or TARGET_PROVER_FAMILY
     ).strip()
+    return normalize_target_prover_family(raw_target) or raw_target
 
 
 def _manifest_target_prover_family(
@@ -1109,9 +1112,9 @@ def _manifest_target_prover_family(
 ) -> str:
     targets = sorted(
         {
-            str(row.target_prover_family or "").strip()
+            normalize_target_prover_family(row.target_prover_family)
             for row in rows
-            if str(row.target_prover_family or "").strip()
+            if normalize_target_prover_family(row.target_prover_family)
         }
     )
     if len(targets) == 1:
@@ -1122,7 +1125,8 @@ def _manifest_target_prover_family(
 
 
 def _prover_family_key(target_prover_family: str) -> str:
-    return re.sub(
+    canonical = normalize_target_prover_family(target_prover_family)
+    return canonical or re.sub(
         r"[^a-z0-9]+",
         "_",
         str(target_prover_family).strip().lower(),

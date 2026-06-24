@@ -1385,7 +1385,10 @@ wrapper, bridge, source port, new theory, or unknown/unaligned. It writes
 prover systems can inspect library coverage without parsing the full plan. Its
 manifest also records `target_prover_family`, `n_target_prover_families`, and
 `by_target_prover_family`, so cross-prover consumers can verify which prover
-family the coverage classification applies to before scheduling replay. The
+family the coverage classification applies to before scheduling replay.
+Published manifests use canonical portable family keys such as `lean4`, `rocq`,
+`isabelle`, `agda`, and `hol4`, while validators accept legacy aliases such as
+`lean4_adapter_with_portable_gap_schema`, `coq`, `coq8`, and `isabelle_hol`. The
 primitive-action-queue command consumes that coverage map and writes
 `formalization_gap_planner_primitive_action_queue.jsonl` plus
 `formalization_gap_planner_primitive_action_queue_row.schema.json`: one
@@ -2492,6 +2495,9 @@ The current implementation composes four existing AI Statistician artifacts:
    `n_target_prover_families` and `by_target_prover_family`; when selected
    routes span prover ecosystems, `target_prover_family` is the
    `mixed:<targets>` summary while each row keeps its concrete route target.
+   Those summaries use canonical portable target-prover family keys; accepted
+   legacy aliases are normalized before row counts and manifest targets are
+   compared.
 
 4. `formalization_gap_planner_target_intake`
    Normalizes a raw theorem request into objects, assumptions, procedure,
@@ -2610,7 +2616,10 @@ The current implementation composes four existing AI Statistician artifacts:
    preserves that route target instead of falling back to a Lean default. This is
    also reflected in `by_target_prover_family`; mixed standalone manifests use
    a `mixed:<targets>` manifest target while each route row keeps its concrete
-   prover family. Target intake therefore writes route-level prover families
+   prover family. Canonical export keys are `lean4`, `rocq`, `isabelle`, `agda`,
+   and `hol4`; validators normalize legacy labels such as
+   `lean4_adapter_with_portable_gap_schema`, `coq`, `coq8`, and `isabelle_hol`.
+   Target intake therefore writes route-level prover families
    into standalone seeds, and LLM route-planner request packets use the
    effective route target rather than a top-level default. This is the
    independent reuse entry point for systems that do not run the AI Statistician

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ai_statistician.formalization_gap_planner_contract import (
     LEGACY_FORMAL_REALIZATION_FIELD_ALIASES,
+    LEGACY_LEAN_TARGET_PROVER_FAMILY,
     PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
     PORTABLE_FORMALIZATION_GAP_PLAN_ROW_SCHEMA_ID,
     ROUTE_ALIGNMENT_EDGE_SCHEMA_ID,
@@ -1049,6 +1050,55 @@ def test_standalone_gap_planner_reports_mixed_route_targets() -> None:
     by_route = {row["route_id"]: row for row in plan_payload["rows"]}
     assert by_route["lean_rank_route"]["target_prover_family"] == "lean4"
     assert by_route["rocq_rank_route"]["target_prover_family"] == "rocq"
+
+
+def test_standalone_gap_planner_canonicalizes_legacy_lean_target_family() -> None:
+    root = Path("runs/test_formalization_gap_planner_standalone_legacy_lean")
+    input_json = root / "standalone_input.json"
+    out_dir = root / "plan"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "library_snapshot_ref": "legacy-lean:target-summary-fixture",
+        "target_prover_family": LEGACY_LEAN_TARGET_PROVER_FAMILY,
+        "routes": [
+            {
+                "route_id": "legacy_lean_rank_route",
+                "display_name": "legacy_lean_rank_route",
+                "target_prover_family": LEGACY_LEAN_TARGET_PROVER_FAMILY,
+                "theorem_statement": "A legacy Lean rank route.",
+                "primitives": [{"primitive": "exchangeability"}],
+            },
+        ],
+    }
+    input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    assert validate_standalone_input_payload(payload) == []
+    plan_payload = export_formalization_gap_planner_standalone_plan(input_json, out_dir)
+
+    assert plan_payload["all_ok"]
+    assert plan_payload["target_prover_family"] == "lean4"
+    assert plan_payload["n_target_prover_families"] == 1
+    assert plan_payload["by_target_prover_family"] == {"lean4": 1}
+    assert validate_portable_gap_plan_payload(plan_payload) == []
+    row = plan_payload["rows"][0]
+    assert row["target_prover_family"] == "lean4"
+    assert row["standalone_input_trace"]["target_prover_family"] == "lean4"
+
+    legacy_plan_payload = {
+        **plan_payload,
+        "target_prover_family": LEGACY_LEAN_TARGET_PROVER_FAMILY,
+        "by_target_prover_family": {LEGACY_LEAN_TARGET_PROVER_FAMILY: 1},
+        "rows": [
+            {
+                **row,
+                "target_prover_family": LEGACY_LEAN_TARGET_PROVER_FAMILY,
+            }
+        ],
+    }
+    assert validate_portable_gap_plan_payload(legacy_plan_payload) == []
 
 
 def test_standalone_input_rejects_cross_prover_candidate_declaration_rows() -> None:

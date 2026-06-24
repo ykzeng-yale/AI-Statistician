@@ -16,7 +16,19 @@ ROUTE_ALIGNMENT_EDGE_SCHEMA_ID = (
     "urn:ai-statistician:schemas:formalization-gap-planner-route-alignment-edge:1"
 )
 LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME = "library_aware_formalization_gap_planner"
-TARGET_PROVER_FAMILY = "lean4_adapter_with_portable_gap_schema"
+LEGACY_LEAN_TARGET_PROVER_FAMILY = "lean4_adapter_with_portable_gap_schema"
+TARGET_PROVER_FAMILY = "lean4"
+LEGACY_TARGET_PROVER_FAMILY_ALIASES = {
+    "coq": "rocq",
+    "coq8": "rocq",
+    "coq_rocq": "rocq",
+    "rocq_coq": "rocq",
+    "hol_4": "hol4",
+    "lean": "lean4",
+    "lean_4": "lean4",
+    LEGACY_LEAN_TARGET_PROVER_FAMILY: "lean4",
+    "isabelle_hol": "isabelle",
+}
 FORMALIZATION_DELTA_OBJECTIVE = (
     "Given a target theorem T and a current formal library snapshot L, find a "
     "small additional formalization Delta of existing reuse, wrappers, bridge "
@@ -78,6 +90,86 @@ LEGACY_FORMAL_REALIZATION_FIELD_ALIASES = {
     "lean_realization_dag_edges": "formal_realization_dag_edges",
     "revised_lean_realization_dag_nodes": "revised_formal_realization_dag_nodes",
 }
+
+
+def normalize_target_prover_family(value: object) -> str:
+    """Return the portable canonical target-prover family key."""
+
+    key = (
+        str(value or "")
+        .strip()
+        .lower()
+        .replace("-", "_")
+        .replace(" ", "_")
+    )
+    key = "_".join(part for part in key.split("_") if part)
+    key = LEGACY_TARGET_PROVER_FAMILY_ALIASES.get(key, key)
+    if key in {"lean", "lean4", "lean_4"} or key.startswith(
+        ("lean4_", "lean_4_", "lean_")
+    ):
+        return "lean4"
+    if key in {"coq", "coq8", "rocq"} or key.startswith(
+        ("rocq_", "coq_", "coq8_")
+    ):
+        return "rocq"
+    if key in {"isabelle", "isabelle_hol"} or key.startswith(
+        ("isabelle_", "isabellehol_")
+    ):
+        return "isabelle"
+    if key == "agda" or key.startswith("agda_"):
+        return "agda"
+    if key in {"hol4", "hol_4"} or key.startswith(("hol4_", "hol_4_")):
+        return "hol4"
+    return key
+
+
+def normalize_manifest_target_prover_family(value: object) -> str:
+    """Normalize a scalar or mixed target-prover manifest value."""
+
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if not text.lower().startswith("mixed:"):
+        return normalize_target_prover_family(text)
+    targets = sorted(
+        {
+            normalize_target_prover_family(item)
+            for item in text.split(":", 1)[1].split(",")
+            if normalize_target_prover_family(item)
+        }
+    )
+    if not targets:
+        return ""
+    if len(targets) == 1:
+        return targets[0]
+    return "mixed:" + ",".join(targets)
+
+
+def normalized_target_prover_family_counts(values: object) -> dict[str, int]:
+    """Normalize target-prover count-map keys from rows or manifests."""
+
+    if isinstance(values, dict):
+        counts: dict[str, int] = {}
+        for key, raw_count in values.items():
+            target = (
+                "missing"
+                if str(key or "").strip() == "missing"
+                else normalize_target_prover_family(key)
+            )
+            if not target:
+                target = "missing"
+            try:
+                count = int(raw_count)
+            except (TypeError, ValueError):
+                continue
+            counts[target] = counts.get(target, 0) + count
+        return dict(sorted(counts.items()))
+    counts: dict[str, int] = {}
+    if isinstance(values, (list, tuple)):
+        for value in values:
+            target = normalize_target_prover_family(value) or "missing"
+            counts[target] = counts.get(target, 0) + 1
+    return dict(sorted(counts.items()))
 
 
 def planner_contract(library_snapshot_ref: str) -> dict[str, object]:
@@ -874,12 +966,35 @@ def validate_portable_gap_plan_payload(payload: dict[str, Any]) -> list[str]:
     target_counts: dict[str, int] = {}
     for row in rows:
         if isinstance(row, dict):
-            target = str(row.get("target_prover_family", "")).strip() or "missing"
+            target = (
+                normalize_target_prover_family(row.get("target_prover_family", ""))
+                or "missing"
+            )
             target_counts[target] = target_counts.get(target, 0) + 1
     expected_target_summary = dict(sorted(target_counts.items()))
-    declared_target_summary = payload.get("by_target_prover_family")
+    declared_target_summary = (
+        normalized_target_prover_family_counts(payload.get("by_target_prover_family"))
+        if payload.get("by_target_prover_family") is not None
+        else None
+    )
     if declared_target_summary is not None and declared_target_summary != expected_target_summary:
         errors.append("by_target_prover_family does not match row target_prover_family counts")
+    declared_manifest_target = normalize_manifest_target_prover_family(
+        payload.get("target_prover_family", "")
+    )
+    if declared_manifest_target:
+        non_missing_targets = tuple(
+            target for target in expected_target_summary if target != "missing"
+        )
+        expected_manifest_target = (
+            non_missing_targets[0]
+            if len(non_missing_targets) == 1
+            else "mixed:" + ",".join(non_missing_targets)
+            if len(non_missing_targets) > 1
+            else ""
+        )
+        if expected_manifest_target and declared_manifest_target != expected_manifest_target:
+            errors.append("target_prover_family does not match normalized row target families")
     declared_target_family_count = payload.get("n_target_prover_families")
     if declared_target_family_count is not None:
         expected_target_family_count = sum(

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from ai_statistician.formalization_gap_planner_contract import (
     LEGACY_FORMAL_REALIZATION_FIELD_ALIASES,
+    LEGACY_LEAN_TARGET_PROVER_FAMILY,
     validate_portable_gap_plan_payload,
 )
 from ai_statistician.goal_conditioned_minimal_formalization_plan import (
@@ -125,6 +126,96 @@ def test_goal_conditioned_plan_preserves_route_target_prover_family() -> None:
         "target_prover_family"
         in row["portable_work_packet_contract"]["required_fields"]
     )
+
+
+def test_goal_conditioned_plan_canonicalizes_legacy_lean_target_family() -> None:
+    root = Path("runs/test_formalization_gap_planner_goal_conditioned_legacy_lean")
+    delta_dir = root / "delta"
+    queue_dir = root / "queue"
+    out_dir = root / "plan"
+    shutil.rmtree(root, ignore_errors=True)
+    delta_dir.mkdir(parents=True, exist_ok=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    (delta_dir / "formalization_delta_plan_manifest.json").write_text(
+        json.dumps(
+            {
+                "target_prover_family": LEGACY_LEAN_TARGET_PROVER_FAMILY,
+                "rows": [{"primitive": "lean_reuse"}],
+                "theorem_formalization_routes": [
+                    {
+                        "route_id": "route:legacy_lean",
+                        "task_id": "task:legacy_lean",
+                        "display_name": "Legacy Lean target",
+                        "theorem_skeleton": "theorem lean_reuse : True := by trivial",
+                        "theorem_statement": "Lean route can reuse True.intro.",
+                        "target_prover_family": LEGACY_LEAN_TARGET_PROVER_FAMILY,
+                        "route_class": "reuse_or_composition",
+                        "total_estimated_cost": 1,
+                        "actions": [
+                            {
+                                "primitive": "lean_reuse",
+                                "action_id": "action:lean_reuse",
+                                "action_class": "reuse_exact_proof_bank_obligation",
+                                "total_cost": 1,
+                                "candidate_declarations": ["True.intro"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (queue_dir / "formal_verifier_queue_manifest.json").write_text(
+        json.dumps(
+            {
+                "target_prover_family": LEGACY_LEAN_TARGET_PROVER_FAMILY,
+                "rows": [
+                    {
+                        "route_id": "route:legacy_lean",
+                        "target_prover_family": LEGACY_LEAN_TARGET_PROVER_FAMILY,
+                        "import_cone_size": 0,
+                        "dependency_graph_depth": 0,
+                        "blocker_count": 0,
+                        "source_trust_level": "local_candidate_declarations",
+                        "recommended_action": "reuse Lean declaration",
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_goal_conditioned_minimal_formalization_plan(
+        delta_dir,
+        queue_dir,
+        out_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["target_prover_family"] == "lean4"
+    assert payload["n_target_prover_families"] == 1
+    assert payload["by_target_prover_family"] == {"lean4": 1}
+    assert validate_portable_gap_plan_payload(payload) == []
+    row = payload["rows"][0]
+    assert row["target_prover_family"] == "lean4"
+    assert row["next_work_packets"][0]["target_prover_family"] == "lean4"
+    assert row["portable_work_packets"][0]["target_prover_family"] == "lean4"
+
+    legacy_payload = {
+        **payload,
+        "target_prover_family": LEGACY_LEAN_TARGET_PROVER_FAMILY,
+        "by_target_prover_family": {LEGACY_LEAN_TARGET_PROVER_FAMILY: 1},
+        "rows": [
+            {
+                **row,
+                "target_prover_family": LEGACY_LEAN_TARGET_PROVER_FAMILY,
+            }
+        ],
+    }
+    assert validate_portable_gap_plan_payload(legacy_payload) == []
 
 
 def test_goal_conditioned_plan_honors_explicit_selected_primitives() -> None:

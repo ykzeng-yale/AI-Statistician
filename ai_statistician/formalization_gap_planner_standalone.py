@@ -16,8 +16,10 @@ from .formalization_gap_planner_contract import (
     PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_VERSION,
     PROOF_EVIDENCE_BOUNDARY,
     PROOF_EVIDENCE_STATUS,
+    TARGET_PROVER_FAMILY,
     evaluation_protocol,
     interactive_route_synthesis_contract,
+    normalize_target_prover_family,
     planner_contract,
     portable_gap_plan_row_json_schema,
     route_alignment_edge_json_schema,
@@ -33,7 +35,6 @@ from .formalization_gap_planner_route_adoption_blockers import (
 )
 from .goal_conditioned_minimal_formalization_plan import (
     GOAL_CONDITIONED_MINIMAL_FORMALIZATION_PLAN_SCHEMA_VERSION,
-    TARGET_PROVER_FAMILY,
     _graph_count,
     _markdown_report,
     _plan_row,
@@ -131,7 +132,8 @@ def export_formalization_gap_planner_standalone_plan(
     )[: max(0, max_routes)]
     by_route_class = Counter(row.route_class for row in rows)
     by_target_prover_family = Counter(
-        str(row.target_prover_family or "").strip() or "missing" for row in rows
+        normalize_target_prover_family(row.target_prover_family) or "missing"
+        for row in rows
     )
     route_alignment_edge_schema = route_alignment_edge_json_schema()
     route_alignment_edge_schema_errors = [
@@ -2407,13 +2409,17 @@ def _route_specs(
         primitive_costs = _minimal_delta_primitive_costs(raw_route)
         metadata = raw_route.get("replan_metadata", {})
         metadata = metadata if isinstance(metadata, dict) else {}
-        route_target_prover_family = str(
+        raw_route_target_prover_family = str(
             raw_route.get("target_prover_family", "")
             or raw_route.get("target_prover", "")
             or metadata.get("target_prover_family", "")
             or metadata.get("target_prover", "")
             or target_prover_family
         ).strip()
+        route_target_prover_family = (
+            normalize_target_prover_family(raw_route_target_prover_family)
+            or raw_route_target_prover_family
+        )
         actions = [
             _action_for_primitive(
                 route_id,
@@ -2620,28 +2626,29 @@ def _standalone_input_trace(
         for primitive in _raw_primitives(raw_route)
         if _str_list(primitive.get("source_refs", []))
     ]
+    raw_candidate_target_prover_family = str(
+        raw_route.get("target_prover_family", "")
+        or metadata.get("target_prover_family", "")
+        or target_prover_family
+    ).strip()
+    candidate_target_prover_family = (
+        normalize_target_prover_family(raw_candidate_target_prover_family)
+        or raw_candidate_target_prover_family
+    )
     primitive_candidate_declaration_rows = [
         {
             "primitive": str(primitive.get("primitive", "")),
             "candidate_declaration_rows": list(
                 _candidate_declaration_rows_for_primitive(
                     primitive,
-                    target_prover_family=str(
-                        raw_route.get("target_prover_family", "")
-                        or metadata.get("target_prover_family", "")
-                        or target_prover_family
-                    ),
+                    target_prover_family=candidate_target_prover_family,
                 )
             ),
         }
         for primitive in _raw_primitives(raw_route)
         if _candidate_declaration_rows_for_primitive(
             primitive,
-            target_prover_family=str(
-                raw_route.get("target_prover_family", "")
-                or metadata.get("target_prover_family", "")
-                or target_prover_family
-            ),
+            target_prover_family=candidate_target_prover_family,
         )
     ]
     cost_graph = _minimal_delta_and_or_cost_graph(raw_route)
@@ -2780,11 +2787,15 @@ def _standalone_input_trace(
             raw_route.get("llm_route_planner_route_adoption_preconditions", {}),
         )
     )
-    trace_target_prover_family = str(
+    raw_trace_target_prover_family = str(
         raw_route.get("target_prover_family", "")
         or metadata.get("target_prover_family", "")
         or target_prover_family
     ).strip()
+    trace_target_prover_family = (
+        normalize_target_prover_family(raw_trace_target_prover_family)
+        or raw_trace_target_prover_family
+    )
     target_context_target = str(
         target_context_packet.get("target_prover_family", "")
     ).strip()
@@ -3519,10 +3530,10 @@ def _declaration_hits_for_standalone_trace(
 def _target_prover_family(payload: dict[str, Any]) -> str:
     value = str(payload.get("target_prover_family", "")).strip()
     if value:
-        return value
+        return normalize_target_prover_family(value) or value
     route_targets = _route_declared_target_prover_families(payload)
     if len({_target_prover_key(target) for target in route_targets}) == 1:
-        return route_targets[0]
+        return normalize_target_prover_family(route_targets[0]) or route_targets[0]
     return TARGET_PROVER_FAMILY
 
 
@@ -3557,9 +3568,13 @@ def _manifest_target_prover_family(
 ) -> str:
     targets = sorted(
         {
-            str(getattr(row, "target_prover_family", "")).strip()
+            normalize_target_prover_family(
+                getattr(row, "target_prover_family", "")
+            )
             for row in rows
-            if str(getattr(row, "target_prover_family", "")).strip()
+            if normalize_target_prover_family(
+                getattr(row, "target_prover_family", "")
+            )
         }
     )
     if len(targets) == 1:
@@ -3609,6 +3624,9 @@ def _is_lean_target_prover(target_prover_family: str) -> bool:
 
 
 def _target_prover_key(value: object) -> str:
+    key = normalize_target_prover_family(value)
+    if key:
+        return key
     key = _normalize_status(str(value or ""))
     aliases = {
         "coq": "rocq",
