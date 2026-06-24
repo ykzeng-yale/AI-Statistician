@@ -9874,6 +9874,11 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert audit_payload["n_bundle_llm_route_planner_summary_valid"] == 1
     assert audit_payload["n_bundle_feedback_llm_route_planner_summary_checked"] == 1
     assert audit_payload["n_bundle_feedback_llm_route_planner_summary_valid"] == 1
+    assert (
+        audit_payload["n_bundle_combined_llm_provider_usage_summary_checked"]
+        == 1
+    )
+    assert audit_payload["n_bundle_combined_llm_provider_usage_summary_valid"] == 1
     assert any(
         row["check_name"] == "bundle_llm_route_planner_summary_consistent"
         and row["ok"]
@@ -12967,6 +12972,45 @@ def test_publication_bundle_audit_rejects_bundle_llm_summary_drift() -> None:
     )
     manifest_path = bundle_dir / "formalization_gap_planner_publication_bundle_manifest.json"
     original_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    accepted = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_accepts_combined_llm_usage_summary",
+    )
+    assert accepted["n_bundle_combined_llm_provider_usage_summary_checked"] == 1
+    assert accepted["n_bundle_combined_llm_provider_usage_summary_valid"] == 1
+
+    corrupted_combined = json.loads(json.dumps(original_manifest))
+    corrupted_combined["combined_llm_provider_usage_summary"]["row_count"] = (
+        int(
+            corrupted_combined["combined_llm_provider_usage_summary"].get(
+                "row_count", 0
+            )
+            or 0
+        )
+        + 1
+    )
+    manifest_path.write_text(
+        json.dumps(corrupted_combined, indent=2),
+        encoding="utf-8",
+    )
+    rejected_combined = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_combined_llm_usage_summary_drift",
+    )
+    combined_failed_names = {
+        row["check_name"] for row in rejected_combined["checks"] if not row["ok"]
+    }
+    assert not rejected_combined["all_ok"]
+    assert (
+        "bundle_combined_llm_provider_usage_summary_consistent"
+        in combined_failed_names
+    )
+    assert (
+        rejected_combined["n_bundle_combined_llm_provider_usage_summary_checked"]
+        == 1
+    )
+    assert rejected_combined["n_bundle_combined_llm_provider_usage_summary_valid"] == 0
 
     corrupted_primary = json.loads(json.dumps(original_manifest))
     corrupted_primary["llm_route_planner_summary"][

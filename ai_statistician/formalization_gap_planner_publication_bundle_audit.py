@@ -19,6 +19,8 @@ from .formalization_gap_planner_contract import (
     LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
     PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
     PORTABLE_FORMALIZATION_GAP_PLAN_ROW_SCHEMA_ID,
+    PROOF_EVIDENCE_BOUNDARY as PLANNER_CONTRACT_PROOF_EVIDENCE_BOUNDARY,
+    PROOF_EVIDENCE_STATUS as PLANNER_CONTRACT_PROOF_EVIDENCE_STATUS,
     validate_portable_gap_plan_payload,
     validate_portable_gap_plan_row,
 )
@@ -556,6 +558,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name
             == "bundle_feedback_llm_route_planner_summary_consistent"
+            and check.ok
+        ),
+        "n_bundle_combined_llm_provider_usage_summary_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_combined_llm_provider_usage_summary_consistent"
+        ),
+        "n_bundle_combined_llm_provider_usage_summary_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_combined_llm_provider_usage_summary_consistent"
             and check.ok
         ),
         "n_bundle_llm_route_planner_response_payload_validation_summary_checked": sum(
@@ -2941,6 +2956,9 @@ def _manifest_checks(
             artifact_name="formalization_gap_planner_feedback_llm_route_planner",
         )
     )
+    combined_llm_provider_usage_summary_errors = (
+        _bundle_combined_llm_provider_usage_summary_errors(manifest)
+    )
     response_payload_validation_summary_errors = (
         _bundle_llm_route_planner_response_payload_validation_summary_errors(
             bundle_dir,
@@ -3031,6 +3049,18 @@ def _manifest_checks(
             ),
             not feedback_llm_route_planner_summary_errors,
             errors=feedback_llm_route_planner_summary_errors,
+        ),
+        _check(
+            "bundle_combined_llm_provider_usage_summary_consistent",
+            "manifest",
+            "combined_llm_provider_usage_summary matches primary and feedback route-planner usage summaries",
+            (
+                "ok"
+                if not combined_llm_provider_usage_summary_errors
+                else "; ".join(combined_llm_provider_usage_summary_errors[:3])
+            ),
+            not combined_llm_provider_usage_summary_errors,
+            errors=combined_llm_provider_usage_summary_errors,
         ),
         _check(
             "bundle_llm_route_planner_response_payload_validation_summary_consistent",
@@ -3196,6 +3226,228 @@ def _bundle_llm_route_planner_summary_errors(
                 f"observed={observed_value} expected={expected_value}"
             )
     return tuple(errors)
+
+
+def _bundle_combined_llm_provider_usage_summary_errors(
+    manifest: dict[str, Any],
+) -> tuple[str, ...]:
+    summary_field = "combined_llm_provider_usage_summary"
+    observed = manifest.get(summary_field, {})
+    if not isinstance(observed, dict):
+        return (f"{summary_field} missing or not an object",)
+    expected = _expected_combined_llm_provider_usage_summary(manifest)
+    errors: list[str] = []
+    for field_name, expected_value in expected.items():
+        if field_name not in observed:
+            errors.append(f"{summary_field}.{field_name} missing")
+            continue
+        observed_value = observed.get(field_name)
+        if isinstance(expected_value, bool):
+            if bool(observed_value) != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, int):
+            observed_int = _int_or_none(observed_value)
+            if observed_int != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, dict):
+            observed_dict = observed_value if isinstance(observed_value, dict) else {}
+            normalized_observed = _normalized_summary_dict(observed_dict)
+            normalized_expected = _normalized_summary_dict(expected_value)
+            if normalized_observed != normalized_expected:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={normalized_observed} expected={normalized_expected}"
+                )
+        elif str(observed_value) != str(expected_value):
+            errors.append(
+                f"{summary_field}.{field_name} mismatch: "
+                f"observed={observed_value} expected={expected_value}"
+            )
+    return tuple(errors)
+
+
+def _expected_combined_llm_provider_usage_summary(
+    manifest: dict[str, Any],
+) -> dict[str, object]:
+    primary_summary = _dict_value(manifest, "llm_route_planner_summary")
+    feedback_summary = _dict_value(manifest, "feedback_llm_route_planner_summary")
+    primary_bucket = _provider_usage_bucket_from_summary(primary_summary)
+    feedback_bucket = _provider_usage_bucket_from_summary(feedback_summary)
+    combined_bucket = _empty_provider_usage_bucket()
+    _add_provider_usage_bucket(combined_bucket, primary_bucket)
+    _add_provider_usage_bucket(combined_bucket, feedback_bucket)
+    primary_requested = bool(primary_summary.get("requested"))
+    feedback_requested = bool(feedback_summary.get("requested"))
+    return {
+        "summary_kind": (
+            "formalization_gap_planner_publication_bundle_combined_"
+            "llm_provider_usage_summary"
+        ),
+        "requested": primary_requested or feedback_requested,
+        "primary_requested": primary_requested,
+        "feedback_requested": feedback_requested,
+        "n_route_planner_passes_requested": int(primary_requested)
+        + int(feedback_requested),
+        "primary_row_count": primary_bucket["n_rows"],
+        "feedback_row_count": feedback_bucket["n_rows"],
+        "row_count": combined_bucket["n_rows"],
+        **combined_bucket,
+        "by_provider": _combined_provider_usage_group_map(
+            primary_summary,
+            feedback_summary,
+            group_key="by_provider",
+        ),
+        "by_model_tier": _combined_provider_usage_group_map(
+            primary_summary,
+            feedback_summary,
+            group_key="by_model_tier",
+        ),
+        "by_model": _combined_provider_usage_group_map(
+            primary_summary,
+            feedback_summary,
+            group_key="by_model",
+        ),
+        "n_model_tier_decision_ledger_rows": _sum_summary_counts(
+            primary_summary,
+            feedback_summary,
+            "n_model_tier_decision_ledger_rows",
+        ),
+        "n_model_tier_decision_ledger_rows_with_escalation": (
+            _sum_summary_counts(
+                primary_summary,
+                feedback_summary,
+                "n_model_tier_decision_ledger_rows_with_escalation",
+            )
+        ),
+        "n_model_tier_decision_ledger_provider_failure_rows": (
+            _sum_summary_counts(
+                primary_summary,
+                feedback_summary,
+                "n_model_tier_decision_ledger_provider_failure_rows",
+            )
+        ),
+        "n_provider_failures": _sum_summary_counts(
+            primary_summary,
+            feedback_summary,
+            "n_provider_failures",
+        ),
+        "n_generated_responses_model_tier_escalated": _sum_summary_counts(
+            primary_summary,
+            feedback_summary,
+            "n_generated_responses_model_tier_escalated",
+        ),
+        "n_generated_responses_haiku_to_sonnet_escalated": _sum_summary_counts(
+            primary_summary,
+            feedback_summary,
+            "n_generated_responses_haiku_to_sonnet_escalated",
+        ),
+        "n_repair_attempt_ledger_model_tier_escalations": _sum_summary_counts(
+            primary_summary,
+            feedback_summary,
+            "n_repair_attempt_ledger_model_tier_escalations",
+        ),
+        "usage_boundary": (
+            "Combined primary and feedback LLM route-planner provider usage is "
+            "runtime/cost accounting metadata, not mathematical or theorem "
+            "proof evidence."
+        ),
+        "proof_evidence_status": PLANNER_CONTRACT_PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PLANNER_CONTRACT_PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _empty_provider_usage_bucket() -> dict[str, int]:
+    return {
+        "n_rows": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "total_tokens": 0,
+    }
+
+
+def _provider_usage_bucket_from_summary(
+    summary: dict[str, Any],
+) -> dict[str, int]:
+    usage = _dict_value(summary, "provider_usage_summary")
+    row_count = _nonnegative_int(
+        usage.get("row_count", summary.get("n_rows_with_provider_usage"))
+    )
+    return {
+        "n_rows": _nonnegative_int(usage.get("n_rows", row_count)),
+        "input_tokens": _nonnegative_int(
+            usage.get("input_tokens", summary.get("total_provider_input_tokens"))
+        ),
+        "output_tokens": _nonnegative_int(
+            usage.get("output_tokens", summary.get("total_provider_output_tokens"))
+        ),
+        "cache_creation_input_tokens": _nonnegative_int(
+            usage.get(
+                "cache_creation_input_tokens",
+                summary.get("total_provider_cache_creation_input_tokens"),
+            )
+        ),
+        "cache_read_input_tokens": _nonnegative_int(
+            usage.get(
+                "cache_read_input_tokens",
+                summary.get("total_provider_cache_read_input_tokens"),
+            )
+        ),
+        "total_tokens": _nonnegative_int(
+            usage.get("total_tokens", summary.get("total_provider_total_tokens"))
+        ),
+    }
+
+
+def _add_provider_usage_bucket(
+    target: dict[str, int],
+    source: dict[str, Any],
+) -> None:
+    for key in (
+        "n_rows",
+        "input_tokens",
+        "output_tokens",
+        "cache_creation_input_tokens",
+        "cache_read_input_tokens",
+        "total_tokens",
+    ):
+        target[key] = _nonnegative_int(target.get(key)) + _nonnegative_int(
+            source.get(key)
+        )
+
+
+def _combined_provider_usage_group_map(
+    primary_summary: dict[str, Any],
+    feedback_summary: dict[str, Any],
+    *,
+    group_key: str,
+) -> dict[str, dict[str, int]]:
+    combined: dict[str, dict[str, int]] = {}
+    for summary in (primary_summary, feedback_summary):
+        usage = _dict_value(summary, "provider_usage_summary")
+        for group_name, bucket_value in _dict_value(usage, group_key).items():
+            if not isinstance(bucket_value, dict):
+                continue
+            bucket = combined.setdefault(str(group_name), _empty_provider_usage_bucket())
+            _add_provider_usage_bucket(bucket, bucket_value)
+    return dict(sorted(combined.items()))
+
+
+def _sum_summary_counts(
+    primary_summary: dict[str, Any],
+    feedback_summary: dict[str, Any],
+    key: str,
+) -> int:
+    return _nonnegative_int(primary_summary.get(key)) + _nonnegative_int(
+        feedback_summary.get(key)
+    )
 
 
 def _bundle_llm_route_planner_response_payload_validation_summary_errors(
@@ -24520,6 +24772,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional evaluation residual-goal context manifest valid: {payload.get('n_optional_evaluation_residual_goal_context_manifest_valid')}/{payload.get('n_optional_evaluation_residual_goal_context_manifest_checked')}",
         f"- Bundle LLM route-planner summary valid: {payload.get('n_bundle_llm_route_planner_summary_valid')}/{payload.get('n_bundle_llm_route_planner_summary_checked')}",
         f"- Bundle feedback LLM route-planner summary valid: {payload.get('n_bundle_feedback_llm_route_planner_summary_valid')}/{payload.get('n_bundle_feedback_llm_route_planner_summary_checked')}",
+        f"- Bundle combined LLM provider usage summary valid: {payload.get('n_bundle_combined_llm_provider_usage_summary_valid')}/{payload.get('n_bundle_combined_llm_provider_usage_summary_checked')}",
         f"- Bundle library-coverage map summary valid: {payload.get('n_bundle_library_coverage_map_summary_valid')}/{payload.get('n_bundle_library_coverage_map_summary_checked')}",
         (
             "- Optional evaluation route-adoption ready/pending/blockers: "
