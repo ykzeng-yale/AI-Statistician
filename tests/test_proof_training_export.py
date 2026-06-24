@@ -96,6 +96,9 @@ def test_proof_training_export_publishes_source_aware_training_boundaries(
     assert payload["n_source_aware_training_eligible"] == 1
     assert payload["n_source_aware_training_quarantined_positive"] == 2
     assert payload["n_source_aware_training_hard_negative"] == 1
+    assert payload["n_premise_feedback_examples"] == 3
+    assert payload["n_positive_premise_feedback"] == 1
+    assert payload["n_hard_negative_premise_feedback"] == 2
     assert payload["n_source_aware_non_kernel_quarantined"] == 1
     assert payload["n_source_aware_forbidden_token_quarantined"] == 1
     assert payload["n_source_aware_wip_or_placeholder_quarantined"] == 1
@@ -136,6 +139,34 @@ def test_proof_training_export_publishes_source_aware_training_boundaries(
     assert hard_negative_rows[0]["hard_negative_reasons"] == [
         "failed_or_rejected_attempt"
     ]
+    premise_rows = [
+        json.loads(line)
+        for line in Path(payload["premise_feedback_jsonl"]).read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line.strip()
+    ]
+    assert {
+        (row["label"], row["feedback_type"], row["candidate_premise_id"])
+        for row in premise_rows
+    } == {
+        ("positive", "successful_expected_lemma", "True.intro"),
+        (
+            "hard_negative",
+            "retrieved_unused_in_successful_attempt",
+            "neighbor_clean",
+        ),
+        ("hard_negative", "retrieved_from_failed_attempt", "neighbor_failed"),
+    }
+    assert payload["by_premise_feedback_label"] == {
+        "hard_negative": 2,
+        "positive": 1,
+    }
+    assert payload["by_premise_feedback_type"] == {
+        "retrieved_from_failed_attempt": 1,
+        "retrieved_unused_in_successful_attempt": 1,
+        "successful_expected_lemma": 1,
+    }
     compatibility_rows = [
         json.loads(line)
         for line in Path(payload["all_jsonl"]).read_text(encoding="utf-8").splitlines()

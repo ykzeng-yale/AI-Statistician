@@ -541,9 +541,13 @@ python3 -m ai_statistician.cli claim-ledger \
    publishing kernel-clean source-aware SFT sidecars, quarantined-positive
    sidecars, and hard-negative sidecars while keeping compatibility SFT files
    available for theorem-shape planning and audit replay.
-4. Add proof-state/premise feedback:
-   successful proof candidates become positive premise examples; retrieved but
-   unused or failed candidates become hard negatives.
+4. Extend proof-state/premise feedback beyond attempt-level labels:
+   `proof-training-export` now writes `proof_premise_feedback.jsonl`, where
+   successful expected lemmas become positive premise examples,
+   retrieved-but-unused hits from successful attempts become hard negatives,
+   and retrieval hits from failed attempts become hard negatives. The remaining
+   work is to add tactic-state and earliest-error premise feedback once a Lean
+   step environment is available.
 5. Only after the expanded benchmark exposes semantic misses, add a local
    embedding provider or external LeanSearch/LeanExplore provider behind an
    ablation gate.

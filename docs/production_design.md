@@ -2000,12 +2000,17 @@ source-aware training-promotion sidecars:
 `proof_sft_source_aware_validation.jsonl`,
 `proof_sft_source_aware_all.jsonl`,
 `proof_sft_quarantined_positive.jsonl`, and
-`proof_sft_hard_negatives.jsonl`. The source-aware set contains only
+`proof_sft_hard_negatives.jsonl`. It also writes
+`proof_premise_feedback.jsonl`, where expected lemmas from successful proof
+attempts become positive premise labels, retrieved-but-unused premises from
+successful attempts become hard negatives, and retrieval hits from failed
+attempts become hard negatives. The source-aware set contains only
 kernel-verified positives with no `sorry`/`admit`/`axiom`/`unsafe`/unverified
 or WIP/placeholder markers; mock/static positives remain in the compatibility
 SFT files but are quarantined for publication-grade training promotion. Failed
 attempts are exported as hard negatives for future repair/value datasets, not
-as SFT completions. The train/validation split is deterministic from the
+as SFT completions. Premise feedback rows are training labels derived from
+verifier outcomes, not theorem proof evidence. The train/validation split is deterministic from the
 attempt id so reruns are comparable. The release-style `research-system-audit`
 now emits this export automatically from its proof-audit attempt log so
 training data provenance is captured beside the proof, retrieval, simulation,
