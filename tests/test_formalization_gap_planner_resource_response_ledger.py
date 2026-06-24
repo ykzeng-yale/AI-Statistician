@@ -2116,6 +2116,126 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     ).exists()
 
 
+def test_prover_residual_feedback_round_trips_into_next_planner_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_resource_response_ledger_prover_residual_round_trip"
+    )
+    ledger_dir = root / "ledger"
+    replan_dir = root / "llm_route_planner_replan"
+    response_jsonl = root / "resource_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = root / "standalone_input.json"
+    request_payload, request_queue_dir = _build_request_queue(root)
+    proof_request = next(
+        row for row in request_payload["rows"] if row["resource_id"] == "lean_lsp_mcp"
+    )
+    residual_goal = "prove finite rank denominator is nonzero"
+    response = {
+        "resource_request_id": proof_request["request_payload"][
+            "resource_request_id"
+        ],
+        "resource_id": proof_request["resource_id"],
+        "tool_name": "lean_lsp_mcp",
+        "expected_response_artifact": proof_request["request_payload"][
+            "expected_response_artifact"
+        ],
+        "response_payload": {
+            "target_primitives": proof_request["target_primitives"],
+            "actionable_work_items": proof_request["actionable_work_items"],
+            "prover_diagnostics": ["unknown identifier rank_uniformity"],
+            "residual_goals": [residual_goal],
+            "prover_attempt_status": "failed_with_residual_goals",
+            "prover_diagnostic_signature": "unknown_identifier:rank_uniformity",
+            "route_revision_recommended": True,
+            "route_revision_reasons": [
+                "proof-state feedback exposed a missing finite-rank bridge"
+            ],
+        },
+        "prover_diagnostics": ["unknown identifier rank_uniformity"],
+        "actionable_work_items": proof_request["actionable_work_items"],
+        "residual_goals": [residual_goal],
+        "route_revision_recommended": True,
+        "route_revision_reasons": [
+            "proof-state feedback exposed a missing finite-rank bridge"
+        ],
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+    response_jsonl.write_text(
+        json.dumps(response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    ledger_payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+        response_jsonl=response_jsonl,
+    )
+    replan_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        replan_dir,
+        provider_name="prompt_only",
+        formalization_gap_planner_resource_response_ledger_dir=ledger_dir,
+    )
+
+    assert ledger_payload["all_ok"]
+    proof_ledger = next(
+        row
+        for row in ledger_payload["rows"]
+        if row["resource_request_id"] == proof_request["resource_request_id"]
+    )
+    assert proof_ledger["acceptance_status"] == "ACCEPTED_WITH_ROUTE_REVISION"
+    assert proof_ledger["residual_goals"] == (residual_goal,)
+    assert proof_ledger["prover_diagnostic_signature"] == (
+        "unknown_identifier:rank_uniformity"
+    )
+
+    assert replan_payload["all_ok"]
+    request = replan_payload["request_packets"][0]
+    context = request["context_packet"]
+    assert residual_goal in context["residual_goals"]
+    residual_context = next(
+        row
+        for row in context["residual_goal_contexts"]
+        if row["residual_goal"] == residual_goal
+    )
+    assert residual_context["source_kind"] == "resource_response_ledger"
+    assert residual_context["resource_request_id"] == proof_request[
+        "resource_request_id"
+    ]
+    assert residual_context["resource_response_ledger_id"] == proof_ledger[
+        "resource_response_ledger_id"
+    ]
+    assert residual_context["target_primitives"] == ("rank_uniformity",)
+    assert residual_context["prover_diagnostic_signature"] == (
+        "unknown_identifier:rank_uniformity"
+    )
+    assert "proof-state feedback exposed" in residual_context["route_repair"]
+
+    feedback_summary = context["feedback_loop_summary"]
+    assert feedback_summary["replan_required"] is True
+    assert feedback_summary["residual_goal_count"] == 1
+    assert residual_goal in feedback_summary["residual_goals"]
+    assert (
+        feedback_summary["resource_response_admissibility"]["admissible_count"] == 1
+    )
+    assert "unknown_identifier:rank_uniformity" in feedback_summary["repair_focus"]
+
+    brief = context["route_planning_brief"]
+    focus_ids = {focus["focus_id"] for focus in brief["planner_focus"]}
+    assert "interpret_residual_goals" in focus_ids
+    assert "repair_from_residual_goal_contexts" in focus_ids
+    assert brief["evidence_summary"]["residual_goal_count"] == 1
+    assert brief["evidence_summary"]["residual_goal_context_count"] == 1
+    rank_row = next(
+        row
+        for row in brief["primitive_evidence_matrix"]
+        if row["primitive"] == "rank_uniformity"
+    )
+    assert rank_row["residual_goal_count"] == 1
+    assert residual_goal in rank_row["residual_goals"]
+
+
 def test_resource_response_ledger_preserves_formal_attempt_context() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_resource_response_ledger_formal_attempt"
