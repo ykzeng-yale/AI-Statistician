@@ -607,6 +607,9 @@ recomputes them from the packaged planner manifest so summary drift is rejected.
 The route-replan handoff audit checks that `quality_controls` survive from
 handoff rows into both the standalone route and its `replan_metadata`, and that
 roundtrip standalone traces preserve the same metadata controls.
+It also recomputes route-option formal-source retrieval counters from handoff
+rows and standalone seed routes, checking candidate metadata/semantic/hit totals
+and the lower-bound-selected route-option totals against the manifest.
 The
 cost witness uses
 `formalization_gap_planner_minimal_delta_cost_policy:1` and must include a
@@ -1478,7 +1481,10 @@ route-planning brief even when they only appear inside accepted feedback traces
 rather than on the overlay row or prior standalone trace. Its manifest and
 markdown report count resource-response and LLM-hook trace-level
 packet/summary/brief provenance separately, making lost theorem-context
-handoffs visible before the next LLM planner call. The
+handoffs visible before the next LLM planner call. The same handoff report
+publishes route-option formal-source retrieval counters for both exported rows
+and seed routes, separating all candidate retrieval evidence from the selected
+lower-bound route option used for minimal-delta replanning. The
 source-grounding audit also consumes residual contexts: context
 `source_refs`/`source_snippets` count as source backing, context
 `queries`/`source_search_queries` count as bounded search hooks, and a

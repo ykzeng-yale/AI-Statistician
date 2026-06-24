@@ -38,6 +38,14 @@ _REVISED_DAG_FIELDS = (
     "revised_informal_knowledge_dag_nodes",
     "revised_formal_realization_dag_nodes",
 )
+_ROUTE_OPTION_FORMAL_SOURCE_COUNTERS = (
+    "candidate_formal_source_retrieval_metadata_rows",
+    "candidate_formal_source_semantic_rerank_rows",
+    "candidate_formal_source_target_compatible_hits",
+    "lower_bound_formal_source_retrieval_metadata_rows",
+    "lower_bound_formal_source_semantic_rerank_rows",
+    "lower_bound_formal_source_target_compatible_hits",
+)
 
 
 @dataclass(frozen=True)
@@ -123,6 +131,16 @@ def audit_formalization_gap_planner_route_replan_handoff(
         "n_failed": sum(1 for check in checks if not check.ok),
         "n_handoff_rows": len(_rows(manifest)),
         "n_seed_routes": n_seed_routes,
+        **_manifest_route_option_counter_payload(
+            manifest,
+            output_prefix="n_handoff_route_option_selection_",
+            manifest_prefix="n_route_option_selection_",
+        ),
+        **_manifest_route_option_counter_payload(
+            manifest,
+            output_prefix="n_seed_route_option_selection_",
+            manifest_prefix="n_standalone_seed_route_option_selection_",
+        ),
         "n_roundtrip_goal_plans": int(roundtrip_payload.get("n_goal_plans", 0) or 0),
         "n_roundtrip_route_alignment_edges": int(
             roundtrip_payload.get("n_route_alignment_edges", 0) or 0
@@ -390,6 +408,13 @@ def _manifest_checks(
     manifest: dict[str, Any],
 ) -> list[FormalizationGapPlannerRouteReplanHandoffAuditCheck]:
     rows = _rows(manifest)
+    manifest_route_option_counts = _manifest_route_option_counter_summary(
+        manifest,
+        seed=False,
+    )
+    row_route_option_counts = _route_option_counter_summary(
+        row.get("route_option_selection_brief", {}) for row in rows
+    )
     return [
         _check(
             "handoff_manifest_exists",
@@ -419,6 +444,13 @@ def _manifest_checks(
             "at least one handoff row",
             str(len(rows)),
             bool(rows),
+        ),
+        _check(
+            "handoff_route_option_formal_source_counters",
+            "manifest",
+            _route_option_counter_summary_text(row_route_option_counts),
+            _route_option_counter_summary_text(manifest_route_option_counts),
+            manifest_route_option_counts == row_route_option_counts,
         ),
         _check(
             "handoff_boundary",
@@ -474,6 +506,13 @@ def _seed_checks(
     validation_errors = validate_standalone_input_payload(seed)
     seed_routes = seed.get("routes", [])
     expected_routes = int(manifest.get("n_standalone_seed_routes", 0) or 0)
+    manifest_seed_route_option_counts = _manifest_route_option_counter_summary(
+        manifest,
+        seed=True,
+    )
+    seed_route_option_counts = _route_option_counter_summary(
+        _seed_route_option_selection_briefs(seed).values()
+    )
     return [
         _check(
             "standalone_seed_exists",
@@ -516,6 +555,13 @@ def _seed_checks(
             str(expected_routes),
             str(len(seed_routes) if isinstance(seed_routes, list) else 0),
             isinstance(seed_routes, list) and len(seed_routes) == expected_routes,
+        ),
+        _check(
+            "standalone_seed_route_option_formal_source_counters",
+            "standalone_seed",
+            _route_option_counter_summary_text(seed_route_option_counts),
+            _route_option_counter_summary_text(manifest_seed_route_option_counts),
+            manifest_seed_route_option_counts == seed_route_option_counts,
         ),
         _check(
             "standalone_seed_boundary",
@@ -1732,6 +1778,119 @@ def _seed_route_option_selection_briefs(
     return result
 
 
+def _manifest_route_option_counter_summary(
+    manifest: dict[str, Any],
+    *,
+    seed: bool,
+) -> dict[str, int]:
+    prefix = (
+        "n_standalone_seed_route_option_selection_"
+        if seed
+        else "n_route_option_selection_"
+    )
+    return {
+        counter_name: _nonnegative_int(manifest.get(prefix + counter_name, 0))
+        for counter_name in _ROUTE_OPTION_FORMAL_SOURCE_COUNTERS
+    }
+
+
+def _manifest_route_option_counter_payload(
+    manifest: dict[str, Any],
+    *,
+    output_prefix: str,
+    manifest_prefix: str,
+) -> dict[str, int]:
+    return {
+        output_prefix + counter_name: _nonnegative_int(
+            manifest.get(manifest_prefix + counter_name, 0)
+        )
+        for counter_name in _ROUTE_OPTION_FORMAL_SOURCE_COUNTERS
+    }
+
+
+def _route_option_counter_summary(
+    briefs: Any,
+) -> dict[str, int]:
+    summary = {counter_name: 0 for counter_name in _ROUTE_OPTION_FORMAL_SOURCE_COUNTERS}
+    for brief in briefs:
+        brief_dict = _dict_value(brief)
+        for counter_name in _ROUTE_OPTION_FORMAL_SOURCE_COUNTERS:
+            summary[counter_name] += _route_option_selection_counter(
+                brief_dict,
+                counter_name,
+            )
+    return summary
+
+
+def _route_option_selection_counter(
+    brief: dict[str, Any],
+    counter_name: str,
+) -> int:
+    key_map = {
+        "candidate_formal_source_retrieval_metadata_rows": (
+            "n_candidate_route_option_formal_source_retrieval_metadata_rows",
+            "n_formal_source_retrieval_metadata_rows",
+        ),
+        "candidate_formal_source_semantic_rerank_rows": (
+            "n_candidate_route_option_formal_source_semantic_rerank_rows",
+            "n_formal_source_semantic_rerank_rows",
+        ),
+        "candidate_formal_source_target_compatible_hits": (
+            "n_candidate_route_option_formal_source_target_compatible_hits",
+            "n_formal_source_target_compatible_hits",
+        ),
+        "lower_bound_formal_source_retrieval_metadata_rows": (
+            "lower_bound_selected_formal_source_retrieval_metadata_rows",
+            "n_formal_source_retrieval_metadata_rows",
+        ),
+        "lower_bound_formal_source_semantic_rerank_rows": (
+            "lower_bound_selected_formal_source_semantic_rerank_rows",
+            "n_formal_source_semantic_rerank_rows",
+        ),
+        "lower_bound_formal_source_target_compatible_hits": (
+            "lower_bound_selected_formal_source_target_compatible_hits",
+            "n_formal_source_target_compatible_hits",
+        ),
+    }
+    explicit_key, candidate_key = key_map.get(counter_name, ("", ""))
+    if not explicit_key:
+        return 0
+    explicit = _nonnegative_int_or_none(brief.get(explicit_key, None))
+    if explicit is not None:
+        return explicit
+    candidates = _dict_tuple(brief.get("candidate_route_options", []))
+    if counter_name.startswith("candidate_"):
+        return sum(
+            _nonnegative_int(option.get(candidate_key, 0))
+            for option in candidates
+        )
+    selected_id = str(brief.get("lower_bound_selected_route_option_id", "")).strip()
+    for option in candidates:
+        if str(option.get("route_option_id", "")).strip() == selected_id:
+            return _nonnegative_int(option.get(candidate_key, 0))
+    return 0
+
+
+def _route_option_counter_summary_text(summary: dict[str, int]) -> str:
+    return "/".join(
+        str(summary.get(counter_name, 0))
+        for counter_name in _ROUTE_OPTION_FORMAL_SOURCE_COUNTERS
+    )
+
+
+def _nonnegative_int(value: Any) -> int:
+    parsed = _nonnegative_int_or_none(value)
+    return int(parsed or 0)
+
+
+def _nonnegative_int_or_none(value: Any) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
 def _seed_route_primitive_evidence_matrix_witnesses(
     seed: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
@@ -2473,6 +2632,8 @@ def _seed_route_option_selection_brief_observed(
         f"metadata={metadata_brief == row_brief if row_brief else bool(metadata_brief)} "
         "candidate_options="
         f"{len(_dict_tuple(row_brief.get('candidate_route_options', [])))} "
+        "formal_source_counts="
+        f"{_route_option_counter_summary_text(_route_option_counter_summary([row_brief]))} "
         "selected="
         f"{str(row_brief.get('lower_bound_selected_route_option_id', ''))}"
     )
@@ -2879,6 +3040,34 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Audit row schema valid: {payload.get('n_row_schema_valid')}/{payload.get('n_checks')}",
         f"- Handoff rows: {payload.get('n_handoff_rows')}",
         f"- Seed routes: {payload.get('n_seed_routes')}",
+        (
+            "- Handoff route-option formal-source retrieval candidate "
+            "metadata/semantic/hits: "
+            f"{payload.get('n_handoff_route_option_selection_candidate_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('n_handoff_route_option_selection_candidate_formal_source_semantic_rerank_rows')}/"
+            f"{payload.get('n_handoff_route_option_selection_candidate_formal_source_target_compatible_hits')}"
+        ),
+        (
+            "- Handoff route-option formal-source retrieval lower-bound "
+            "metadata/semantic/hits: "
+            f"{payload.get('n_handoff_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('n_handoff_route_option_selection_lower_bound_formal_source_semantic_rerank_rows')}/"
+            f"{payload.get('n_handoff_route_option_selection_lower_bound_formal_source_target_compatible_hits')}"
+        ),
+        (
+            "- Seed route-option formal-source retrieval candidate "
+            "metadata/semantic/hits: "
+            f"{payload.get('n_seed_route_option_selection_candidate_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('n_seed_route_option_selection_candidate_formal_source_semantic_rerank_rows')}/"
+            f"{payload.get('n_seed_route_option_selection_candidate_formal_source_target_compatible_hits')}"
+        ),
+        (
+            "- Seed route-option formal-source retrieval lower-bound "
+            "metadata/semantic/hits: "
+            f"{payload.get('n_seed_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('n_seed_route_option_selection_lower_bound_formal_source_semantic_rerank_rows')}/"
+            f"{payload.get('n_seed_route_option_selection_lower_bound_formal_source_target_compatible_hits')}"
+        ),
         f"- Roundtrip plans: {payload.get('n_roundtrip_goal_plans')}",
         f"- Roundtrip traces with target theorem context: {payload.get('n_roundtrip_standalone_input_traces_with_target_theorem_context_packet')}",
         f"- Roundtrip traces with LLM target context summary: {payload.get('n_roundtrip_standalone_input_traces_with_llm_target_context_summary')}",

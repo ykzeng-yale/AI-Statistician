@@ -46,6 +46,14 @@ ROUTE_REVISION_STATUSES = (
     "NO_ROUTE_REVISION_PROPOSAL",
     "ORPHAN_ROUTE_REVISION_PROPOSAL",
 )
+_ROUTE_OPTION_FORMAL_SOURCE_COUNTERS = (
+    "candidate_formal_source_retrieval_metadata_rows",
+    "candidate_formal_source_semantic_rerank_rows",
+    "candidate_formal_source_target_compatible_hits",
+    "lower_bound_formal_source_retrieval_metadata_rows",
+    "lower_bound_formal_source_semantic_rerank_rows",
+    "lower_bound_formal_source_target_compatible_hits",
+)
 
 
 @dataclass(frozen=True)
@@ -227,6 +235,10 @@ def export_formalization_gap_planner_route_replan_handoff(
         "n_routes_with_llm_route_option_selection_brief": sum(
             1 for row in rows if row.route_option_selection_brief
         ),
+        **_route_option_selection_counter_payload(
+            "n_route_option_selection_",
+            (row.route_option_selection_brief for row in rows),
+        ),
         "n_routes_with_llm_route_option_selected_route_option": sum(
             1
             for row in rows
@@ -289,6 +301,14 @@ def export_formalization_gap_planner_route_replan_handoff(
                     )
                 )
             )
+        ),
+        **_route_option_selection_counter_payload(
+            "n_standalone_seed_route_option_selection_",
+            (
+                _route_option_selection_brief_from_route(route)
+                for route in standalone_seed.get("routes", [])
+                if isinstance(route, dict)
+            ),
         ),
         "n_standalone_seed_routes_with_llm_route_option_selected_route_option": sum(
             1
@@ -2510,6 +2530,86 @@ def _dict_value(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
 
 
+def _route_option_selection_brief_from_route(route: dict[str, object]) -> dict[str, Any]:
+    metadata = _dict_value(route.get("replan_metadata", {}))
+    return _dict_value(
+        route.get("llm_route_planner_route_option_selection_brief", {})
+    ) or _dict_value(
+        metadata.get("llm_route_planner_route_option_selection_brief", {})
+    )
+
+
+def _route_option_selection_counter_payload(
+    prefix: str,
+    briefs: Any,
+) -> dict[str, int]:
+    brief_tuple = tuple(_dict_value(brief) for brief in briefs)
+    return {
+        prefix + counter_name: sum(
+            _route_option_selection_counter(brief, counter_name)
+            for brief in brief_tuple
+        )
+        for counter_name in _ROUTE_OPTION_FORMAL_SOURCE_COUNTERS
+    }
+
+
+def _route_option_selection_counter(
+    brief: dict[str, object],
+    counter_name: str,
+) -> int:
+    key_map = {
+        "candidate_formal_source_retrieval_metadata_rows": (
+            "n_candidate_route_option_formal_source_retrieval_metadata_rows",
+            "n_formal_source_retrieval_metadata_rows",
+        ),
+        "candidate_formal_source_semantic_rerank_rows": (
+            "n_candidate_route_option_formal_source_semantic_rerank_rows",
+            "n_formal_source_semantic_rerank_rows",
+        ),
+        "candidate_formal_source_target_compatible_hits": (
+            "n_candidate_route_option_formal_source_target_compatible_hits",
+            "n_formal_source_target_compatible_hits",
+        ),
+        "lower_bound_formal_source_retrieval_metadata_rows": (
+            "lower_bound_selected_formal_source_retrieval_metadata_rows",
+            "n_formal_source_retrieval_metadata_rows",
+        ),
+        "lower_bound_formal_source_semantic_rerank_rows": (
+            "lower_bound_selected_formal_source_semantic_rerank_rows",
+            "n_formal_source_semantic_rerank_rows",
+        ),
+        "lower_bound_formal_source_target_compatible_hits": (
+            "lower_bound_selected_formal_source_target_compatible_hits",
+            "n_formal_source_target_compatible_hits",
+        ),
+    }
+    explicit_key, candidate_key = key_map.get(counter_name, ("", ""))
+    if not explicit_key:
+        return 0
+    explicit = _nonnegative_int(brief.get(explicit_key, None))
+    if explicit is not None:
+        return explicit
+    candidates = _dict_tuple(brief.get("candidate_route_options", []))
+    if counter_name.startswith("candidate_"):
+        return sum(
+            int(_nonnegative_int(option.get(candidate_key, 0)) or 0)
+            for option in candidates
+        )
+    selected_id = str(brief.get("lower_bound_selected_route_option_id", "")).strip()
+    for option in candidates:
+        if str(option.get("route_option_id", "")).strip() == selected_id:
+            return int(_nonnegative_int(option.get(candidate_key, 0)) or 0)
+    return 0
+
+
+def _nonnegative_int(value: Any) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
 def _trace_has_dict(trace: dict[str, object], *field_names: str) -> bool:
     trace_metadata = _dict_value(trace.get("replan_metadata", {}))
     for field_name in field_names:
@@ -2582,6 +2682,34 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Seed routes with LLM route-planning briefs: {payload.get('n_standalone_seed_routes_with_llm_route_planning_brief')}/{payload.get('n_standalone_seed_routes')}",
         f"- LLM route-option selection briefs: {payload.get('n_routes_with_llm_route_option_selection_brief')}/{payload.get('n_handoff_rows')}",
         f"- Seed routes with LLM route-option selection briefs: {payload.get('n_standalone_seed_routes_with_llm_route_option_selection_brief')}/{payload.get('n_standalone_seed_routes')}",
+        (
+            "- Route-option formal-source retrieval handoff candidate "
+            "metadata/semantic/hits: "
+            f"{payload.get('n_route_option_selection_candidate_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('n_route_option_selection_candidate_formal_source_semantic_rerank_rows')}/"
+            f"{payload.get('n_route_option_selection_candidate_formal_source_target_compatible_hits')}"
+        ),
+        (
+            "- Route-option formal-source retrieval handoff lower-bound "
+            "metadata/semantic/hits: "
+            f"{payload.get('n_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('n_route_option_selection_lower_bound_formal_source_semantic_rerank_rows')}/"
+            f"{payload.get('n_route_option_selection_lower_bound_formal_source_target_compatible_hits')}"
+        ),
+        (
+            "- Route-option formal-source retrieval seed candidate "
+            "metadata/semantic/hits: "
+            f"{payload.get('n_standalone_seed_route_option_selection_candidate_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('n_standalone_seed_route_option_selection_candidate_formal_source_semantic_rerank_rows')}/"
+            f"{payload.get('n_standalone_seed_route_option_selection_candidate_formal_source_target_compatible_hits')}"
+        ),
+        (
+            "- Route-option formal-source retrieval seed lower-bound "
+            "metadata/semantic/hits: "
+            f"{payload.get('n_standalone_seed_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('n_standalone_seed_route_option_selection_lower_bound_formal_source_semantic_rerank_rows')}/"
+            f"{payload.get('n_standalone_seed_route_option_selection_lower_bound_formal_source_target_compatible_hits')}"
+        ),
         f"- LLM primitive-evidence matrix witnesses: {payload.get('n_routes_with_llm_primitive_evidence_matrix_witness')}/{payload.get('n_handoff_rows')}",
         f"- Seed routes with LLM primitive-evidence matrix witnesses: {payload.get('n_standalone_seed_routes_with_llm_primitive_evidence_matrix_witness')}/{payload.get('n_standalone_seed_routes')}",
         f"- LLM route-adoption preconditions: {payload.get('n_routes_with_llm_route_adoption_preconditions')}/{payload.get('n_handoff_rows')}",

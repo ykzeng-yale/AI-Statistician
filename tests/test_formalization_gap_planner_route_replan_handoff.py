@@ -99,6 +99,9 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
                 "route_cost": 6.0,
                 "selected_primitives": ["exchangeability", "rank_uniformity"],
                 "n_selected_primitives": 2,
+                "n_formal_source_retrieval_metadata_rows": 3,
+                "n_formal_source_semantic_rerank_rows": 2,
+                "n_formal_source_target_compatible_hits": 1,
                 "selected_by_lower_bound_policy": True,
                 "lower_bound_tied_for_best": True,
                 "primitive_costs": [
@@ -523,11 +526,83 @@ def test_route_replan_handoff_exports_replayable_standalone_seed() -> None:
     assert payload["n_standalone_seed_routes_with_llm_route_planning_brief"] == 1
     assert payload["n_routes_with_llm_route_option_selection_brief"] == 1
     assert (
+        payload[
+            "n_route_option_selection_candidate_formal_source_retrieval_metadata_rows"
+        ]
+        == 3
+    )
+    assert (
+        payload[
+            "n_route_option_selection_candidate_formal_source_semantic_rerank_rows"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_route_option_selection_candidate_formal_source_target_compatible_hits"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows"
+        ]
+        == 3
+    )
+    assert (
+        payload[
+            "n_route_option_selection_lower_bound_formal_source_semantic_rerank_rows"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_route_option_selection_lower_bound_formal_source_target_compatible_hits"
+        ]
+        == 1
+    )
+    assert (
         payload["n_routes_with_llm_route_option_selected_route_option"]
         == 1
     )
     assert (
         payload["n_standalone_seed_routes_with_llm_route_option_selection_brief"]
+        == 1
+    )
+    assert (
+        payload[
+            "n_standalone_seed_route_option_selection_candidate_formal_source_retrieval_metadata_rows"
+        ]
+        == 3
+    )
+    assert (
+        payload[
+            "n_standalone_seed_route_option_selection_candidate_formal_source_semantic_rerank_rows"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_standalone_seed_route_option_selection_candidate_formal_source_target_compatible_hits"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_standalone_seed_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows"
+        ]
+        == 3
+    )
+    assert (
+        payload[
+            "n_standalone_seed_route_option_selection_lower_bound_formal_source_semantic_rerank_rows"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_standalone_seed_route_option_selection_lower_bound_formal_source_target_compatible_hits"
+        ]
         == 1
     )
     assert (

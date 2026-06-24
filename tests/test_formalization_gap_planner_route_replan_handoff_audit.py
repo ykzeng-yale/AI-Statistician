@@ -89,6 +89,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "n_lower_bound_tied_route_options": 1,
         "lower_bound_selected_route_option_id": "route_option:rank_bridge",
         "lower_bound_selected_route_cost": 5.0,
+        "lower_bound_selected_formal_source_retrieval_metadata_rows": 2,
+        "lower_bound_selected_formal_source_semantic_rerank_rows": 1,
+        "lower_bound_selected_formal_source_target_compatible_hits": 1,
         "candidate_route_options": [
             {
                 "route_option_id": "route_option:rank_bridge",
@@ -97,6 +100,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
                 "n_selected_primitives": 1,
                 "selected_by_lower_bound_policy": True,
                 "lower_bound_tied_for_best": True,
+                "n_formal_source_retrieval_metadata_rows": 2,
+                "n_formal_source_semantic_rerank_rows": 1,
+                "n_formal_source_target_compatible_hits": 1,
                 "primitive_costs": [
                     {"primitive": "rank_uniformity", "cost": 5.0}
                 ],
@@ -409,6 +415,18 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
         "n_standalone_seed_routes": 1,
         "n_route_alignment_edges": 1,
         "n_unaligned_primitives": 0,
+        "n_route_option_selection_candidate_formal_source_retrieval_metadata_rows": 2,
+        "n_route_option_selection_candidate_formal_source_semantic_rerank_rows": 1,
+        "n_route_option_selection_candidate_formal_source_target_compatible_hits": 1,
+        "n_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": 2,
+        "n_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": 1,
+        "n_route_option_selection_lower_bound_formal_source_target_compatible_hits": 1,
+        "n_standalone_seed_route_option_selection_candidate_formal_source_retrieval_metadata_rows": 2,
+        "n_standalone_seed_route_option_selection_candidate_formal_source_semantic_rerank_rows": 1,
+        "n_standalone_seed_route_option_selection_candidate_formal_source_target_compatible_hits": 1,
+        "n_standalone_seed_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": 2,
+        "n_standalone_seed_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": 1,
+        "n_standalone_seed_route_option_selection_lower_bound_formal_source_target_compatible_hits": 1,
         "n_ok": 1,
         "all_ok": True,
         "rows": [row],
@@ -448,6 +466,42 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert payload["n_failed"] == 0
     assert payload["n_row_schema_valid"] == payload["n_checks"]
     assert payload["n_row_schema_invalid"] == 0
+    assert (
+        payload[
+            "n_handoff_route_option_selection_candidate_formal_source_retrieval_metadata_rows"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_handoff_route_option_selection_candidate_formal_source_semantic_rerank_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_handoff_route_option_selection_candidate_formal_source_target_compatible_hits"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_handoff_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_seed_route_option_selection_candidate_formal_source_retrieval_metadata_rows"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_seed_route_option_selection_lower_bound_formal_source_target_compatible_hits"
+        ]
+        == 1
+    )
     assert payload["route_replan_handoff_audit_row_schema"]["$id"] == (
         "urn:ai-statistician:schemas:formalization-gap-planner-route-replan-handoff-audit-row:1"
     )
@@ -532,6 +586,8 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     }
     assert "handoff_alignment_edges_present" in ok_checks
     assert "handoff_no_unaligned_primitives" in ok_checks
+    assert "handoff_route_option_formal_source_counters" in ok_checks
+    assert "standalone_seed_route_option_formal_source_counters" in ok_checks
     assert "standalone_seed_schema_id" in ok_checks
     assert "roundtrip_alignment_edges" in ok_checks
     assert "roundtrip_alignment_contract" in ok_checks
@@ -601,6 +657,9 @@ def test_route_replan_handoff_audit_roundtrips_seed_and_blocks_proof_claims() ->
     assert "route=True" in route_option_brief_check["observed"]
     assert "metadata=True" in route_option_brief_check["observed"]
     assert "candidate_options=1" in route_option_brief_check["observed"]
+    assert "formal_source_counts=2/1/1/2/1/1" in route_option_brief_check[
+        "observed"
+    ]
     matrix_witness_check = next(
         check
         for check in payload["checks"]
