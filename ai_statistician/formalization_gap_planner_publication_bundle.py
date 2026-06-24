@@ -2372,7 +2372,13 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_llm_route_planner_route_option_selection_candidate_primitives",
             "n_llm_route_planner_route_option_selection_candidates_with_residual_goals",
             "n_llm_route_planner_route_option_selection_candidate_residual_goals",
+            "n_llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows",
+            "n_llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows",
+            "n_llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits",
             "n_llm_route_planner_route_option_selection_lower_bound_residual_goals",
+            "n_llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows",
+            "n_llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows",
+            "n_llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits",
             "n_rows_with_llm_route_planner_route_option_selected_route_option",
             "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals",
             "n_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta",
@@ -2463,7 +2469,25 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_llm_route_planner_route_option_selection_candidate_residual_goals": (
                 nonnegative_integer
             ),
+            "n_llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits": (
+                nonnegative_integer
+            ),
             "n_llm_route_planner_route_option_selection_lower_bound_residual_goals": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": (
+                nonnegative_integer
+            ),
+            "n_llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits": (
                 nonnegative_integer
             ),
             "n_rows_with_llm_route_planner_route_option_selected_route_option": (
@@ -5321,7 +5345,13 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
         "n_llm_route_planner_route_option_selection_candidate_primitives": 0,
         "n_llm_route_planner_route_option_selection_candidates_with_residual_goals": 0,
         "n_llm_route_planner_route_option_selection_candidate_residual_goals": 0,
+        "n_llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows": 0,
+        "n_llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows": 0,
+        "n_llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits": 0,
         "n_llm_route_planner_route_option_selection_lower_bound_residual_goals": 0,
+        "n_llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": 0,
+        "n_llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": 0,
+        "n_llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits": 0,
         "n_rows_with_llm_route_planner_route_option_selected_route_option": 0,
         "n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals": 0,
         "n_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta": 0,
@@ -5673,6 +5703,54 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
             )
             or 0
         ),
+        "n_llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows": int(
+            payload.get(
+                "n_llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows": int(
+            payload.get(
+                "n_llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits": int(
+            payload.get(
+                "n_llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
         "n_llm_route_planner_route_option_selection_lower_bound_residual_goals": int(
             payload.get(
                 "n_llm_route_planner_route_option_selection_lower_bound_residual_goals",
@@ -5680,6 +5758,54 @@ def _evaluation_manifest_summary(source_dir: Path | None) -> dict[str, object]:
                     int(
                         row.get(
                             "llm_route_planner_route_option_selection_lower_bound_residual_goal_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": int(
+            payload.get(
+                "n_llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": int(
+            payload.get(
+                "n_llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in rows
+                ),
+            )
+            or 0
+        ),
+        "n_llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits": int(
+            payload.get(
+                "n_llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits",
+                sum(
+                    int(
+                        row.get(
+                            "llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits",
                             0,
                         )
                         or 0
@@ -9330,7 +9456,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         (
             f"- Evaluation route-option selection "
             f"rows/options/primitives/residual-options/residual-goals/"
-            f"lower-bound-residuals/selected-residuals/lb-md-matches/"
+            f"candidate-formal-source-metadata/candidate-formal-source-semantic/"
+            f"candidate-formal-source-hits/lower-bound-residuals/"
+            f"lower-bound-formal-source-metadata/lower-bound-formal-source-semantic/"
+            f"lower-bound-formal-source-hits/selected-residuals/lb-md-matches/"
             f"lb-md-mismatches/selected-ids/selected-lb-matches/"
             f"selected-md-matches: "
             f"{payload.get('evaluation_summary', {}).get('n_rows_with_llm_route_planner_route_option_selection_brief')}/"
@@ -9338,7 +9467,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_candidate_primitives')}/"
             f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_candidates_with_residual_goals')}/"
             f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_candidate_residual_goals')}/"
+            f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows')}/"
+            f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits')}/"
             f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_lower_bound_residual_goals')}/"
+            f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows')}/"
+            f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits')}/"
             f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals')}/"
             f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta')}/"
             f"{payload.get('evaluation_summary', {}).get('n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta')}/"

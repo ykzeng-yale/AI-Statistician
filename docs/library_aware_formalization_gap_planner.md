@@ -155,10 +155,10 @@ retrieval metadata is available, the same route-option rows aggregate retrieval
 metadata rows, semantic-rerank rows, target-compatible formal-source hits,
 search backends, and semantic providers, so library search evidence can affect
 route choice without being treated as theorem proof evidence. The route-planner
-manifest, publication-bundle summaries, and reuse-smoke summaries also expose
-candidate and lower-bound-selected route-option retrieval counters, separating
-available retrieval evidence from the retrieval evidence used by the selected
-lower-bound route option.
+manifest, evaluation rows and summaries, publication-bundle summaries, and
+reuse-smoke summaries also expose candidate and lower-bound-selected
+route-option retrieval counters, separating available retrieval evidence from
+the retrieval evidence used by the selected lower-bound route option.
 Each staged request also writes
 `formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl`.
 Those rows are the reusable, source-grounded route-synthesis briefs supplied to

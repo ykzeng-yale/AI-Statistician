@@ -322,6 +322,29 @@ def _assert_evaluation_llm_route_option_selection_summary(
                 "n_evaluation_llm_route_planner_route_option_selection_candidate_residual_goals"
             ]
         )
+        for suffix in (
+            "candidate_formal_source_retrieval_metadata_rows",
+            "candidate_formal_source_semantic_rerank_rows",
+            "candidate_formal_source_target_compatible_hits",
+            "lower_bound_formal_source_retrieval_metadata_rows",
+            "lower_bound_formal_source_semantic_rerank_rows",
+            "lower_bound_formal_source_target_compatible_hits",
+        ):
+            assert (
+                payload[
+                    "n_evaluation_llm_route_planner_route_option_selection_"
+                    + suffix
+                ]
+                >= 0
+            )
+        assert (
+            payload[
+                "n_evaluation_llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows"
+            ]
+            <= payload[
+                "n_evaluation_llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows"
+            ]
+        )
 
 
 def test_reuse_smoke_llm_execution_mode_uses_planner_manifest_before_provider_flags() -> None:
@@ -3540,7 +3563,13 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_route_option_selection_candidate_primitives": 10,
             "n_route_option_selection_candidates_with_residual_goals": 0,
             "n_route_option_selection_candidate_residual_goals": 0,
+            "n_route_option_selection_candidate_formal_source_retrieval_metadata_rows": 0,
+            "n_route_option_selection_candidate_formal_source_semantic_rerank_rows": 0,
+            "n_route_option_selection_candidate_formal_source_target_compatible_hits": 0,
             "n_route_option_selection_lower_bound_residual_goals": 0,
+            "n_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": 0,
+            "n_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": 0,
+            "n_route_option_selection_lower_bound_formal_source_target_compatible_hits": 0,
             "n_rows_with_route_option_selected_route_option": 1,
             "n_route_option_selection_minimal_delta_selected_residual_goals": 0,
             "n_route_option_selection_lower_bound_matches_minimal_delta": 0,
@@ -3579,7 +3608,13 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             "n_route_option_selection_candidate_primitives": 10,
             "n_route_option_selection_candidates_with_residual_goals": 0,
             "n_route_option_selection_candidate_residual_goals": 0,
+            "n_route_option_selection_candidate_formal_source_retrieval_metadata_rows": 0,
+            "n_route_option_selection_candidate_formal_source_semantic_rerank_rows": 0,
+            "n_route_option_selection_candidate_formal_source_target_compatible_hits": 0,
             "n_route_option_selection_lower_bound_residual_goals": 0,
+            "n_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": 0,
+            "n_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": 0,
+            "n_route_option_selection_lower_bound_formal_source_target_compatible_hits": 0,
             "n_rows_with_route_option_selected_route_option": 1,
             "n_route_option_selection_minimal_delta_selected_residual_goals": 0,
             "n_route_option_selection_lower_bound_matches_minimal_delta": 0,

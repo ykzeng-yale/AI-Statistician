@@ -128,9 +128,15 @@ class FormalizationGapPlannerEvaluationRow:
     llm_route_planner_route_option_selection_candidate_primitive_count: int
     llm_route_planner_route_option_selection_candidates_with_residual_goals: int
     llm_route_planner_route_option_selection_candidate_residual_goal_count: int
+    llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows: int
+    llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows: int
+    llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits: int
     llm_route_planner_route_option_selection_lower_bound_selected_route_option_id: str
     llm_route_planner_route_option_selected_route_option_id: str
     llm_route_planner_route_option_selection_lower_bound_residual_goal_count: int
+    llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows: int
+    llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows: int
+    llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits: int
     llm_route_planner_route_option_selection_minimal_delta_selected_residual_goal_count: int
     llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta: bool
     llm_route_planner_route_option_selected_matches_lower_bound: bool
@@ -463,8 +469,32 @@ def evaluate_formalization_gap_planner(
             row.llm_route_planner_route_option_selection_candidate_residual_goal_count
             for row in evaluation_rows
         ),
+        "n_llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows": sum(
+            row.llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows": sum(
+            row.llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits": sum(
+            row.llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits
+            for row in evaluation_rows
+        ),
         "n_llm_route_planner_route_option_selection_lower_bound_residual_goals": sum(
             row.llm_route_planner_route_option_selection_lower_bound_residual_goal_count
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": sum(
+            row.llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": sum(
+            row.llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows
+            for row in evaluation_rows
+        ),
+        "n_llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits": sum(
+            row.llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits
             for row in evaluation_rows
         ),
         "n_rows_with_llm_route_planner_route_option_selected_route_option": sum(
@@ -944,9 +974,15 @@ def evaluation_row_json_schema() -> dict[str, object]:
             "llm_route_planner_route_option_selection_candidate_primitive_count",
             "llm_route_planner_route_option_selection_candidates_with_residual_goals",
             "llm_route_planner_route_option_selection_candidate_residual_goal_count",
+            "llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows",
+            "llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows",
+            "llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits",
             "llm_route_planner_route_option_selection_lower_bound_selected_route_option_id",
             "llm_route_planner_route_option_selected_route_option_id",
             "llm_route_planner_route_option_selection_lower_bound_residual_goal_count",
+            "llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows",
+            "llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows",
+            "llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits",
             "llm_route_planner_route_option_selection_minimal_delta_selected_residual_goal_count",
             "llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta",
             "llm_route_planner_route_option_selected_matches_lower_bound",
@@ -1127,6 +1163,18 @@ def evaluation_row_json_schema() -> dict[str, object]:
                 "type": "integer",
                 "minimum": 0,
             },
+            "llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits": {
+                "type": "integer",
+                "minimum": 0,
+            },
             "llm_route_planner_route_option_selection_lower_bound_selected_route_option_id": {
                 "type": "string"
             },
@@ -1134,6 +1182,18 @@ def evaluation_row_json_schema() -> dict[str, object]:
                 "type": "string"
             },
             "llm_route_planner_route_option_selection_lower_bound_residual_goal_count": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": {
+                "type": "integer",
+                "minimum": 0,
+            },
+            "llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits": {
                 "type": "integer",
                 "minimum": 0,
             },
@@ -1519,6 +1579,21 @@ def _evaluate_row(
         llm_route_planner_route_option_selection_candidate_residual_goal_count=int(
             llm_trace["route_option_selection_candidate_residual_goal_count"]
         ),
+        llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows=int(
+            llm_trace[
+                "route_option_selection_candidate_formal_source_retrieval_metadata_rows"
+            ]
+        ),
+        llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows=int(
+            llm_trace[
+                "route_option_selection_candidate_formal_source_semantic_rerank_rows"
+            ]
+        ),
+        llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits=int(
+            llm_trace[
+                "route_option_selection_candidate_formal_source_target_compatible_hits"
+            ]
+        ),
         llm_route_planner_route_option_selection_lower_bound_selected_route_option_id=str(
             llm_trace[
                 "route_option_selection_lower_bound_selected_route_option_id"
@@ -1530,6 +1605,21 @@ def _evaluate_row(
         llm_route_planner_route_option_selection_lower_bound_residual_goal_count=int(
             llm_trace[
                 "route_option_selection_lower_bound_residual_goal_count"
+            ]
+        ),
+        llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows=int(
+            llm_trace[
+                "route_option_selection_lower_bound_formal_source_retrieval_metadata_rows"
+            ]
+        ),
+        llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows=int(
+            llm_trace[
+                "route_option_selection_lower_bound_formal_source_semantic_rerank_rows"
+            ]
+        ),
+        llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits=int(
+            llm_trace[
+                "route_option_selection_lower_bound_formal_source_target_compatible_hits"
             ]
         ),
         llm_route_planner_route_option_selection_minimal_delta_selected_residual_goal_count=int(
@@ -2502,9 +2592,47 @@ def _llm_route_option_selection_brief_trace(
             ),
         )
     )
+    candidate_formal_source_retrieval_metadata_rows = _int_value(
+        brief.get(
+            "n_candidate_route_option_formal_source_retrieval_metadata_rows",
+            sum(
+                _int_value(
+                    option.get("n_formal_source_retrieval_metadata_rows", 0)
+                )
+                for option in candidates
+            ),
+        )
+    )
+    candidate_formal_source_semantic_rerank_rows = _int_value(
+        brief.get(
+            "n_candidate_route_option_formal_source_semantic_rerank_rows",
+            sum(
+                _int_value(
+                    option.get("n_formal_source_semantic_rerank_rows", 0)
+                )
+                for option in candidates
+            ),
+        )
+    )
+    candidate_formal_source_target_compatible_hits = _int_value(
+        brief.get(
+            "n_candidate_route_option_formal_source_target_compatible_hits",
+            sum(
+                _int_value(
+                    option.get("n_formal_source_target_compatible_hits", 0)
+                )
+                for option in candidates
+            ),
+        )
+    )
     lower_bound_selected_id = str(
         brief.get("lower_bound_selected_route_option_id", "")
     ).strip()
+    lower_bound_selected_option = {}
+    for option in candidates:
+        if str(option.get("route_option_id", "")).strip() == lower_bound_selected_id:
+            lower_bound_selected_option = option
+            break
     metadata = _dict_value(trace, "replan_metadata")
     route_option_selected_id = str(
         trace.get(
@@ -2518,6 +2646,33 @@ def _llm_route_option_selection_brief_trace(
     ).strip()
     lower_bound_residual_goal_count = _int_value(
         brief.get("lower_bound_selected_residual_goal_count", 0)
+    )
+    lower_bound_formal_source_retrieval_metadata_rows = _int_value(
+        brief.get(
+            "lower_bound_selected_formal_source_retrieval_metadata_rows",
+            lower_bound_selected_option.get(
+                "n_formal_source_retrieval_metadata_rows",
+                0,
+            ),
+        )
+    )
+    lower_bound_formal_source_semantic_rerank_rows = _int_value(
+        brief.get(
+            "lower_bound_selected_formal_source_semantic_rerank_rows",
+            lower_bound_selected_option.get(
+                "n_formal_source_semantic_rerank_rows",
+                0,
+            ),
+        )
+    )
+    lower_bound_formal_source_target_compatible_hits = _int_value(
+        brief.get(
+            "lower_bound_selected_formal_source_target_compatible_hits",
+            lower_bound_selected_option.get(
+                "n_formal_source_target_compatible_hits",
+                0,
+            ),
+        )
     )
     minimal_delta_selected_id = str(
         minimal_delta_selected_route_option_id or ""
@@ -2544,12 +2699,30 @@ def _llm_route_option_selection_brief_trace(
         "route_option_selection_candidate_residual_goal_count": (
             candidate_residual_goal_count
         ),
+        "route_option_selection_candidate_formal_source_retrieval_metadata_rows": (
+            candidate_formal_source_retrieval_metadata_rows
+        ),
+        "route_option_selection_candidate_formal_source_semantic_rerank_rows": (
+            candidate_formal_source_semantic_rerank_rows
+        ),
+        "route_option_selection_candidate_formal_source_target_compatible_hits": (
+            candidate_formal_source_target_compatible_hits
+        ),
         "route_option_selection_lower_bound_selected_route_option_id": (
             lower_bound_selected_id
         ),
         "route_option_selected_route_option_id": route_option_selected_id,
         "route_option_selection_lower_bound_residual_goal_count": (
             lower_bound_residual_goal_count
+        ),
+        "route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": (
+            lower_bound_formal_source_retrieval_metadata_rows
+        ),
+        "route_option_selection_lower_bound_formal_source_semantic_rerank_rows": (
+            lower_bound_formal_source_semantic_rerank_rows
+        ),
+        "route_option_selection_lower_bound_formal_source_target_compatible_hits": (
+            lower_bound_formal_source_target_compatible_hits
         ),
         "route_option_selection_minimal_delta_selected_residual_goal_count": (
             minimal_delta_selected_residual_goal_count
@@ -3249,8 +3422,32 @@ def _llm_route_option_selection_summary(
             row.llm_route_planner_route_option_selection_candidate_residual_goal_count
             for row in rows
         ),
+        "n_route_option_selection_candidate_formal_source_retrieval_metadata_rows": sum(
+            row.llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows
+            for row in rows
+        ),
+        "n_route_option_selection_candidate_formal_source_semantic_rerank_rows": sum(
+            row.llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows
+            for row in rows
+        ),
+        "n_route_option_selection_candidate_formal_source_target_compatible_hits": sum(
+            row.llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits
+            for row in rows
+        ),
         "n_route_option_selection_lower_bound_residual_goals": sum(
             row.llm_route_planner_route_option_selection_lower_bound_residual_goal_count
+            for row in rows
+        ),
+        "n_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": sum(
+            row.llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows
+            for row in rows
+        ),
+        "n_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": sum(
+            row.llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows
+            for row in rows
+        ),
+        "n_route_option_selection_lower_bound_formal_source_target_compatible_hits": sum(
+            row.llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits
             for row in rows
         ),
         "n_rows_with_route_option_selected_route_option": sum(
@@ -3738,7 +3935,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         (
             "- LLM route-option selection "
             "rows/options/primitives/residual-options/residual-goals/"
-            "lower-bound-residuals/selected-residuals/lb-md-matches/"
+            "candidate-formal-source-metadata/candidate-formal-source-semantic/"
+            "candidate-formal-source-hits/lower-bound-residuals/"
+            "lower-bound-formal-source-metadata/lower-bound-formal-source-semantic/"
+            "lower-bound-formal-source-hits/selected-residuals/lb-md-matches/"
             "lb-md-mismatches/selected-ids/selected-lb-matches/"
             "selected-md-matches: "
             f"{payload.get('n_rows_with_llm_route_planner_route_option_selection_brief')}/"
@@ -3746,7 +3946,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_llm_route_planner_route_option_selection_candidate_primitives')}/"
             f"{payload.get('n_llm_route_planner_route_option_selection_candidates_with_residual_goals')}/"
             f"{payload.get('n_llm_route_planner_route_option_selection_candidate_residual_goals')}/"
+            f"{payload.get('n_llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('n_llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows')}/"
+            f"{payload.get('n_llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits')}/"
             f"{payload.get('n_llm_route_planner_route_option_selection_lower_bound_residual_goals')}/"
+            f"{payload.get('n_llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('n_llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows')}/"
+            f"{payload.get('n_llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits')}/"
             f"{payload.get('n_llm_route_planner_route_option_selection_minimal_delta_selected_residual_goals')}/"
             f"{payload.get('n_llm_route_planner_route_option_selection_lower_bound_matches_minimal_delta')}/"
             f"{payload.get('n_llm_route_planner_route_option_selection_lower_bound_mismatches_minimal_delta')}/"

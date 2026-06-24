@@ -348,6 +348,9 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
         "lower_bound_selected_route_option_id": "route_option:bridge_rank",
         "lower_bound_selected_route_cost": 4,
         "lower_bound_selected_residual_goal_count": 1,
+        "lower_bound_selected_formal_source_retrieval_metadata_rows": 2,
+        "lower_bound_selected_formal_source_semantic_rerank_rows": 1,
+        "lower_bound_selected_formal_source_target_compatible_hits": 1,
         "candidate_route_options": [
             {
                 "route_option_id": "route_option:bridge_rank",
@@ -362,6 +365,9 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
                 "n_target_compatible_reuse_declarations": 1,
                 "n_residual_goals": 1,
                 "n_residual_goal_contexts": 1,
+                "n_formal_source_retrieval_metadata_rows": 2,
+                "n_formal_source_semantic_rerank_rows": 1,
+                "n_formal_source_target_compatible_hits": 1,
                 "residual_target_primitives": ["rank_uniformity"],
                 "residual_goal_samples": [
                     "rank_uniformity: missing bridge proof"
@@ -380,6 +386,9 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
                 "n_target_compatible_reuse_declarations": 1,
                 "n_residual_goals": 0,
                 "n_residual_goal_contexts": 0,
+                "n_formal_source_retrieval_metadata_rows": 1,
+                "n_formal_source_semantic_rerank_rows": 1,
+                "n_formal_source_target_compatible_hits": 0,
                 "residual_target_primitives": [],
                 "residual_goal_samples": [],
             },
@@ -660,7 +669,43 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     )
     assert (
         payload[
+            "n_llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows"
+        ]
+        == 3
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits"
+        ]
+        == 1
+    )
+    assert (
+        payload[
             "n_llm_route_planner_route_option_selection_lower_bound_residual_goals"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits"
         ]
         == 1
     )
@@ -869,7 +914,13 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "n_route_option_selection_candidate_primitives": 4,
             "n_route_option_selection_candidates_with_residual_goals": 1,
             "n_route_option_selection_candidate_residual_goals": 1,
+            "n_route_option_selection_candidate_formal_source_retrieval_metadata_rows": 3,
+            "n_route_option_selection_candidate_formal_source_semantic_rerank_rows": 2,
+            "n_route_option_selection_candidate_formal_source_target_compatible_hits": 1,
             "n_route_option_selection_lower_bound_residual_goals": 1,
+            "n_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": 2,
+            "n_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": 1,
+            "n_route_option_selection_lower_bound_formal_source_target_compatible_hits": 1,
             "n_rows_with_route_option_selected_route_option": 1,
             "n_route_option_selection_minimal_delta_selected_residual_goals": 1,
             "n_route_option_selection_lower_bound_matches_minimal_delta": 1,
@@ -908,7 +959,13 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
             "n_route_option_selection_candidate_primitives": 4,
             "n_route_option_selection_candidates_with_residual_goals": 1,
             "n_route_option_selection_candidate_residual_goals": 1,
+            "n_route_option_selection_candidate_formal_source_retrieval_metadata_rows": 3,
+            "n_route_option_selection_candidate_formal_source_semantic_rerank_rows": 2,
+            "n_route_option_selection_candidate_formal_source_target_compatible_hits": 1,
             "n_route_option_selection_lower_bound_residual_goals": 1,
+            "n_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": 2,
+            "n_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": 1,
+            "n_route_option_selection_lower_bound_formal_source_target_compatible_hits": 1,
             "n_rows_with_route_option_selected_route_option": 1,
             "n_route_option_selection_minimal_delta_selected_residual_goals": 1,
             "n_route_option_selection_lower_bound_matches_minimal_delta": 1,
@@ -982,6 +1039,24 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     )
     assert (
         row[
+            "llm_route_planner_route_option_selection_candidate_formal_source_retrieval_metadata_rows"
+        ]
+        == 3
+    )
+    assert (
+        row[
+            "llm_route_planner_route_option_selection_candidate_formal_source_semantic_rerank_rows"
+        ]
+        == 2
+    )
+    assert (
+        row[
+            "llm_route_planner_route_option_selection_candidate_formal_source_target_compatible_hits"
+        ]
+        == 1
+    )
+    assert (
+        row[
             "llm_route_planner_route_option_selection_lower_bound_selected_route_option_id"
         ]
         == "route_option:bridge_rank"
@@ -993,6 +1068,24 @@ def test_evaluation_reports_minimal_delta_cost_graph_trace() -> None:
     assert (
         row[
             "llm_route_planner_route_option_selection_lower_bound_residual_goal_count"
+        ]
+        == 1
+    )
+    assert (
+        row[
+            "llm_route_planner_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows"
+        ]
+        == 2
+    )
+    assert (
+        row[
+            "llm_route_planner_route_option_selection_lower_bound_formal_source_semantic_rerank_rows"
+        ]
+        == 1
+    )
+    assert (
+        row[
+            "llm_route_planner_route_option_selection_lower_bound_formal_source_target_compatible_hits"
         ]
         == 1
     )
