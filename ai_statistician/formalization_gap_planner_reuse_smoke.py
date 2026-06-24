@@ -146,6 +146,11 @@ TARGET_CONTEXT_SUMMARY_COUNTER_KEYS = (
     "n_rows_with_target_context_summary_proof_source_ref_support_rows",
     "n_target_context_summary_proof_source_ref_support_source_fields",
 )
+FORMAL_SOURCE_RETRIEVAL_COUNTER_KEYS = (
+    "n_requests_with_formal_source_retrieval_summary",
+    "n_request_formal_source_retrieval_metadata_rows",
+    "n_request_formal_source_semantic_rerank_rows",
+)
 
 
 def _route_option_selection_payload_key(public_stem: str, key: str) -> str:
@@ -207,6 +212,53 @@ def _route_option_selection_report_counter(
             )
         )
         for key in ROUTE_OPTION_SELECTION_SUMMARY_KEYS
+    )
+
+
+def _formal_source_retrieval_payload_key(public_stem: str, key: str) -> str:
+    if key.startswith("n_"):
+        return f"n_{public_stem}_{key[2:]}"
+    return f"{public_stem}_{key}"
+
+
+def _formal_source_retrieval_counter_payload(
+    payload: dict[str, object],
+    public_stem: str,
+) -> dict[str, int]:
+    return {
+        _formal_source_retrieval_payload_key(public_stem, key): int(
+            payload.get(key, 0) or 0
+        )
+        for key in FORMAL_SOURCE_RETRIEVAL_COUNTER_KEYS
+    }
+
+
+def _combined_formal_source_retrieval_counter_payload(
+    primary_payload: dict[str, object],
+    feedback_payload: dict[str, object],
+    public_stem: str,
+) -> dict[str, int]:
+    return {
+        _formal_source_retrieval_payload_key(public_stem, key): int(
+            primary_payload.get(key, 0) or 0
+        )
+        + int(feedback_payload.get(key, 0) or 0)
+        for key in FORMAL_SOURCE_RETRIEVAL_COUNTER_KEYS
+    }
+
+
+def _formal_source_retrieval_report_counter(
+    payload: dict[str, object],
+    public_stem: str,
+) -> str:
+    return "/".join(
+        str(
+            payload.get(
+                _formal_source_retrieval_payload_key(public_stem, key),
+                0,
+            )
+        )
+        for key in FORMAL_SOURCE_RETRIEVAL_COUNTER_KEYS
     )
 
 
@@ -2847,7 +2899,17 @@ def run_formalization_gap_planner_reuse_smoke(
             feedback_llm_route_planner_payload,
             "combined_llm_route_planner",
         ),
+        **_combined_formal_source_retrieval_counter_payload(
+            llm_route_planner_payload,
+            feedback_llm_route_planner_payload,
+            "combined_llm_route_planner",
+        ),
         **_combined_route_option_selection_counter_payload(
+            publication_bundle_llm_route_planner_summary,
+            publication_bundle_feedback_llm_route_planner_summary,
+            "publication_bundle_combined_llm_route_planner_summary",
+        ),
+        **_combined_formal_source_retrieval_counter_payload(
             publication_bundle_llm_route_planner_summary,
             publication_bundle_feedback_llm_route_planner_summary,
             "publication_bundle_combined_llm_route_planner_summary",
@@ -3461,6 +3523,10 @@ def run_formalization_gap_planner_reuse_smoke(
             )
         ),
         **_route_option_selection_counter_payload(
+            publication_bundle_llm_route_planner_summary,
+            "publication_bundle_llm_route_planner_summary",
+        ),
+        **_formal_source_retrieval_counter_payload(
             publication_bundle_llm_route_planner_summary,
             "publication_bundle_llm_route_planner_summary",
         ),
@@ -4415,6 +4481,10 @@ def run_formalization_gap_planner_reuse_smoke(
             publication_bundle_feedback_llm_route_planner_summary,
             "publication_bundle_feedback_llm_route_planner_summary",
         ),
+        **_formal_source_retrieval_counter_payload(
+            publication_bundle_feedback_llm_route_planner_summary,
+            "publication_bundle_feedback_llm_route_planner_summary",
+        ),
         "n_publication_bundle_feedback_llm_route_planner_summary_route_alignment_edges": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_route_alignment_edges",
@@ -4818,6 +4888,10 @@ def run_formalization_gap_planner_reuse_smoke(
             0,
         ),
         **_route_option_selection_counter_payload(
+            llm_route_planner_payload,
+            "llm_route_planner",
+        ),
+        **_formal_source_retrieval_counter_payload(
             llm_route_planner_payload,
             "llm_route_planner",
         ),
@@ -5687,6 +5761,10 @@ def run_formalization_gap_planner_reuse_smoke(
             )
         ),
         **_route_option_selection_counter_payload(
+            feedback_llm_route_planner_payload,
+            "feedback_llm_route_planner",
+        ),
+        **_formal_source_retrieval_counter_payload(
             feedback_llm_route_planner_payload,
             "feedback_llm_route_planner",
         ),
@@ -11249,6 +11327,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"feedback={_route_option_selection_report_counter(payload, 'feedback_llm_route_planner')} "
             f"combined={_route_option_selection_report_counter(payload, 'combined_llm_route_planner')} "
             f"bundle={_route_option_selection_report_counter(payload, 'publication_bundle_combined_llm_route_planner_summary')}"
+        ),
+        (
+            f"- LLM route planner formal-source retrieval requests/metadata/semantic-rerank: "
+            f"primary={_formal_source_retrieval_report_counter(payload, 'llm_route_planner')} "
+            f"feedback={_formal_source_retrieval_report_counter(payload, 'feedback_llm_route_planner')} "
+            f"combined={_formal_source_retrieval_report_counter(payload, 'combined_llm_route_planner')} "
+            f"bundle={_formal_source_retrieval_report_counter(payload, 'publication_bundle_combined_llm_route_planner_summary')}"
         ),
         (
             f"- LLM route planner resource-feedback readiness requests/rows/reuse-ready: "

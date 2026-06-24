@@ -9284,6 +9284,12 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         ]
         == 1
     )
+    for key in (
+        "n_requests_with_formal_source_retrieval_summary",
+        "n_request_formal_source_retrieval_metadata_rows",
+        "n_request_formal_source_semantic_rerank_rows",
+    ):
+        assert bundle_manifest["llm_route_planner_summary"][key] == 0
     assert (
         bundle_manifest["llm_route_planner_summary"][
             "n_component_resource_registry_resources_in_prompt"
@@ -9507,6 +9513,12 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         ]
         == 1
     )
+    for key in (
+        "n_requests_with_formal_source_retrieval_summary",
+        "n_request_formal_source_retrieval_metadata_rows",
+        "n_request_formal_source_semantic_rerank_rows",
+    ):
+        assert bundle_manifest["feedback_llm_route_planner_summary"][key] == 0
     assert (
         bundle_manifest["feedback_llm_route_planner_summary"][
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces"
@@ -12809,6 +12821,15 @@ def test_publication_bundle_audit_rejects_bundle_llm_summary_drift() -> None:
         "n_rows_with_context_packet_inventory"
     ] = 0
     corrupted_primary["llm_route_planner_summary"][
+        "n_requests_with_formal_source_retrieval_summary"
+    ] = 1
+    corrupted_primary["llm_route_planner_summary"][
+        "n_request_formal_source_retrieval_metadata_rows"
+    ] = 1
+    corrupted_primary["llm_route_planner_summary"][
+        "n_request_formal_source_semantic_rerank_rows"
+    ] = 1
+    corrupted_primary["llm_route_planner_summary"][
         "n_formal_realization_dag_nodes"
     ] = 0
     corrupted_primary["llm_route_planner_summary"][
@@ -12861,6 +12882,15 @@ def test_publication_bundle_audit_rejects_bundle_llm_summary_drift() -> None:
     corrupted_feedback["feedback_llm_route_planner_summary"][
         "n_rows_with_context_packet_inventory"
     ] = 0
+    corrupted_feedback["feedback_llm_route_planner_summary"][
+        "n_requests_with_formal_source_retrieval_summary"
+    ] = 1
+    corrupted_feedback["feedback_llm_route_planner_summary"][
+        "n_request_formal_source_retrieval_metadata_rows"
+    ] = 1
+    corrupted_feedback["feedback_llm_route_planner_summary"][
+        "n_request_formal_source_semantic_rerank_rows"
+    ] = 1
     corrupted_feedback["feedback_llm_route_planner_summary"][
         "n_route_alignment_edges"
     ] = 0

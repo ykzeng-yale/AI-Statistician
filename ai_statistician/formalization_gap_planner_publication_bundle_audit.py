@@ -3591,6 +3591,13 @@ def _expected_bundle_llm_route_planner_summary(
         )
         for packet in request_packets
     )
+    formal_source_retrieval_summaries = tuple(
+        _dict_value(
+            _dict_value(packet, "context_packet"),
+            "formal_source_retrieval_summary",
+        )
+        for packet in request_packets
+    )
     row_route_adoption_preconditions = tuple(
         _dict_value(row, "route_adoption_preconditions") for row in rows
     )
@@ -3970,6 +3977,37 @@ def _expected_bundle_llm_route_planner_summary(
                         or 0
                     )
                     for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_requests_with_formal_source_retrieval_summary": int(
+            payload.get(
+                "n_requests_with_formal_source_retrieval_summary",
+                sum(
+                    1
+                    for summary in formal_source_retrieval_summaries
+                    if int(summary.get("total_count", 0) or 0)
+                ),
+            )
+            or 0
+        ),
+        "n_request_formal_source_retrieval_metadata_rows": int(
+            payload.get(
+                "n_request_formal_source_retrieval_metadata_rows",
+                sum(
+                    int(summary.get("total_count", 0) or 0)
+                    for summary in formal_source_retrieval_summaries
+                ),
+            )
+            or 0
+        ),
+        "n_request_formal_source_semantic_rerank_rows": int(
+            payload.get(
+                "n_request_formal_source_semantic_rerank_rows",
+                sum(
+                    int(summary.get("semantic_rerank_count", 0) or 0)
+                    for summary in formal_source_retrieval_summaries
                 ),
             )
             or 0

@@ -2624,6 +2624,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_resource_feedback_readiness_summary",
             "n_request_resource_feedback_readiness_rows",
             "n_request_resource_feedback_reuse_ready_rows",
+            "n_requests_with_formal_source_retrieval_summary",
+            "n_request_formal_source_retrieval_metadata_rows",
+            "n_request_formal_source_semantic_rerank_rows",
             "n_requests_with_formal_attempt_feedback_summary",
             "n_request_formal_attempt_feedback_contexts",
             "n_request_formal_attempt_feedback_residual_goals",
@@ -2856,6 +2859,11 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             ),
             "n_request_resource_feedback_readiness_rows": nonnegative_integer,
             "n_request_resource_feedback_reuse_ready_rows": nonnegative_integer,
+            "n_requests_with_formal_source_retrieval_summary": (
+                nonnegative_integer
+            ),
+            "n_request_formal_source_retrieval_metadata_rows": nonnegative_integer,
+            "n_request_formal_source_semantic_rerank_rows": nonnegative_integer,
             "n_requests_with_formal_attempt_feedback_summary": nonnegative_integer,
             "n_request_formal_attempt_feedback_contexts": nonnegative_integer,
             "n_request_formal_attempt_feedback_residual_goals": nonnegative_integer,
@@ -6180,6 +6188,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_requests_with_resource_feedback_readiness_summary": 0,
         "n_request_resource_feedback_readiness_rows": 0,
         "n_request_resource_feedback_reuse_ready_rows": 0,
+        "n_requests_with_formal_source_retrieval_summary": 0,
+        "n_request_formal_source_retrieval_metadata_rows": 0,
+        "n_request_formal_source_semantic_rerank_rows": 0,
         "n_requests_with_formal_attempt_feedback_summary": 0,
         "n_request_formal_attempt_feedback_contexts": 0,
         "n_request_formal_attempt_feedback_residual_goals": 0,
@@ -6374,6 +6385,13 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         _dict_value(
             _dict_value(packet, "context_packet"),
             "route_adoption_preconditions",
+        )
+        for packet in request_packets
+    )
+    formal_source_retrieval_summaries = tuple(
+        _dict_value(
+            _dict_value(packet, "context_packet"),
+            "formal_source_retrieval_summary",
         )
         for packet in request_packets
     )
@@ -6868,6 +6886,37 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                         or 0
                     )
                     for packet in request_packets
+                ),
+            )
+            or 0
+        ),
+        "n_requests_with_formal_source_retrieval_summary": int(
+            payload.get(
+                "n_requests_with_formal_source_retrieval_summary",
+                sum(
+                    1
+                    for summary in formal_source_retrieval_summaries
+                    if int(summary.get("total_count", 0) or 0)
+                ),
+            )
+            or 0
+        ),
+        "n_request_formal_source_retrieval_metadata_rows": int(
+            payload.get(
+                "n_request_formal_source_retrieval_metadata_rows",
+                sum(
+                    int(summary.get("total_count", 0) or 0)
+                    for summary in formal_source_retrieval_summaries
+                ),
+            )
+            or 0
+        ),
+        "n_request_formal_source_semantic_rerank_rows": int(
+            payload.get(
+                "n_request_formal_source_semantic_rerank_rows",
+                sum(
+                    int(summary.get("semantic_rerank_count", 0) or 0)
+                    for summary in formal_source_retrieval_summaries
                 ),
             )
             or 0
@@ -9256,6 +9305,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"feedback={payload.get('feedback_llm_route_planner_summary', {}).get('n_request_source_grounding_rows')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_requests_with_pending_source_grounding_obligation_inventory')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_request_residual_source_grounding_unresolved_rows')}"
+        ),
+        (
+            f"- LLM formal-source retrieval requests/metadata/semantic-rerank: "
+            f"{payload.get('llm_route_planner_summary', {}).get('n_requests_with_formal_source_retrieval_summary')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_request_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_request_formal_source_semantic_rerank_rows')} "
+            f"feedback={payload.get('feedback_llm_route_planner_summary', {}).get('n_requests_with_formal_source_retrieval_summary')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_request_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_request_formal_source_semantic_rerank_rows')}"
         ),
         (
             f"- LLM formal-attempt queues primary/feedback: "

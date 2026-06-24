@@ -167,6 +167,33 @@ def _assert_llm_resource_feedback_readiness_summary(payload: dict[str, object]) 
         assert payload[bundle_combined_key] == payload[combined_key]
 
 
+def _assert_llm_formal_source_retrieval_summary(payload: dict[str, object]) -> None:
+    suffixes = (
+        "requests_with_formal_source_retrieval_summary",
+        "request_formal_source_retrieval_metadata_rows",
+        "request_formal_source_semantic_rerank_rows",
+    )
+    for suffix in suffixes:
+        assert (
+            payload[f"n_publication_bundle_llm_route_planner_summary_{suffix}"]
+            == payload[f"n_llm_route_planner_{suffix}"]
+        )
+        assert (
+            payload[f"n_publication_bundle_feedback_llm_route_planner_summary_{suffix}"]
+            == payload[f"n_feedback_llm_route_planner_{suffix}"]
+        )
+        assert payload[f"n_combined_llm_route_planner_{suffix}"] == (
+            payload[f"n_llm_route_planner_{suffix}"]
+            + payload[f"n_feedback_llm_route_planner_{suffix}"]
+        )
+        assert (
+            payload[
+                f"n_publication_bundle_combined_llm_route_planner_summary_{suffix}"
+            ]
+            == payload[f"n_combined_llm_route_planner_{suffix}"]
+        )
+
+
 ROUTE_OPTION_SELECTION_SUFFIXES = (
     "requests_with_route_option_selection_brief",
     "request_route_option_selection_candidate_options",
@@ -2292,6 +2319,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == payload["n_combined_llm_route_planner_request_current_goal_plan_rows"]
     )
     _assert_llm_resource_feedback_readiness_summary(payload)
+    _assert_llm_formal_source_retrieval_summary(payload)
     _assert_llm_route_option_selection_summary(payload)
     assert (
         payload["n_feedback_llm_route_planner_requests_with_library_coverage_rows"]
@@ -6815,6 +6843,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         == payload["n_combined_llm_route_planner_request_current_goal_plan_rows"]
     )
     _assert_llm_resource_feedback_readiness_summary(payload)
+    _assert_llm_formal_source_retrieval_summary(payload)
     _assert_llm_route_option_selection_summary(payload)
     assert (
         payload[

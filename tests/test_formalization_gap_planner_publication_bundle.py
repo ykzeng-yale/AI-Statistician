@@ -259,6 +259,7 @@ def _write_prompt_only_llm_route_planner_artifact(
     *,
     resource_response_ledger_dir: Path | None = None,
     route_replan_handoff_dir: Path | None = None,
+    refinement_evidence_dir: Path | None = None,
 ) -> Path:
     input_json = _write_llm_route_planner_fixture_input(root)
     out_dir = root / "llm_route_planner"
@@ -269,9 +270,74 @@ def _write_prompt_only_llm_route_planner_artifact(
             resource_response_ledger_dir
         ),
         formalization_gap_planner_route_replan_handoff_dir=route_replan_handoff_dir,
+        formalization_gap_planner_refinement_evidence_dir=refinement_evidence_dir,
     )
     assert payload["all_ok"]
     return out_dir
+
+
+def _write_formal_source_retrieval_refinement_evidence(root: Path) -> Path:
+    evidence_dir = root / "refinement_evidence_formal_source_retrieval"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    metadata = {
+        "search_backend": "sqlite_fts_shape+local_char_ngram_semantic",
+        "semantic_rerank_enabled": True,
+        "semantic_provider_id": "local_char_ngram",
+        "semantic_candidate_multiplier": 8,
+        "semantic_weight": 8.0,
+    }
+    (
+        evidence_dir / "formalization_gap_planner_refinement_evidence_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_refinement_evidence",
+                "n_evidence_rows": 1,
+                "n_rows_with_formal_source_retrieval_metadata": 1,
+                "n_formal_grounding_rows_with_semantic_rerank": 1,
+                "rows": [
+                    {
+                        "refinement_evidence_id": (
+                            "refinement-evidence:fixture-route:formal-source"
+                        ),
+                        "refinement_item_id": "refinement:fixture-route:formal",
+                        "goal_plan_id": "goal:fixture-route",
+                        "route_id": "route:fixture",
+                        "display_name": "fixture formalization route",
+                        "hook_kind": "formal_library_grounding",
+                        "response_present": True,
+                        "response_contract_ok": True,
+                        "evidence_kind": "formal_library_grounding",
+                        "tool_name": "local_formal_source_index_adapter",
+                        "target_prover_family": "lean4",
+                        "target_primitives": ["bridge_conclusion"],
+                        "formal_source_retrieval_metadata": metadata,
+                        "formal_declaration_hits": [
+                            {
+                                "primitive": "bridge_conclusion",
+                                "declaration": "Fixture.bridgeConclusion",
+                                "source_type": "lean_library",
+                                "target_prover_family": "lean4",
+                                "matched_terms": ["local_char_ngram_semantic"],
+                            }
+                        ],
+                        "coverage_updates": {"bridge_conclusion": "wrapper_needed"},
+                        "route_revision_recommended": True,
+                        "route_revision_reasons": [
+                            "bridge_conclusion classified as wrapper_needed",
+                        ],
+                        "acceptance_status": (
+                            "REFINEMENT_EVIDENCE_RECORDED_NOT_PROOF_EVIDENCE"
+                        ),
+                        "ok": True,
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return evidence_dir
 
 
 def _write_resource_feedback_response_ledger(root: Path) -> Path:
@@ -2570,6 +2636,51 @@ def test_publication_bundle_summarizes_llm_resource_feedback_readiness() -> None
         ]
         == 1
     )
+
+
+def test_publication_bundle_summarizes_llm_formal_source_retrieval() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_formal_source_retrieval"
+    )
+    shutil.rmtree(root, ignore_errors=True)
+    refinement_evidence_dir = _write_formal_source_retrieval_refinement_evidence(
+        root / "refinement_evidence"
+    )
+    primary_dir = _write_prompt_only_llm_route_planner_artifact(
+        root / "primary",
+        refinement_evidence_dir=refinement_evidence_dir,
+    )
+    out_dir = root / "bundle"
+
+    payload = export_formalization_gap_planner_publication_bundle(
+        out_dir,
+        formalization_gap_planner_llm_route_planner_dir=primary_dir,
+    )
+
+    assert payload["all_ok"]
+    raw_manifest = json.loads(
+        (
+            primary_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    manifest = json.loads(
+        (
+            out_dir / "formalization_gap_planner_publication_bundle_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    summary = manifest["llm_route_planner_summary"]
+    assert raw_manifest["n_requests_with_formal_source_retrieval_summary"] == 1
+    assert raw_manifest["n_request_formal_source_retrieval_metadata_rows"] == 1
+    assert raw_manifest["n_request_formal_source_semantic_rerank_rows"] == 1
+    assert summary["n_requests_with_formal_source_retrieval_summary"] == 1
+    assert summary["n_request_formal_source_retrieval_metadata_rows"] == 1
+    assert summary["n_request_formal_source_semantic_rerank_rows"] == 1
+    request_packet = raw_manifest["request_packets"][0]
+    retrieval_summary = request_packet["context_packet"][
+        "formal_source_retrieval_summary"
+    ]
+    assert retrieval_summary["total_count"] == 1
+    assert retrieval_summary["semantic_rerank_count"] == 1
 
 
 def test_publication_bundle_summarizes_llm_formal_attempt_feedback() -> None:
