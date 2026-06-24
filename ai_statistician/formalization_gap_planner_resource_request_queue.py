@@ -387,6 +387,31 @@ def export_formalization_gap_planner_resource_request_queue(
             if row.request_payload.get("llm_route_planner_source_kind")
             == "route_planning_brief_evidence_gap"
         ),
+        "n_llm_route_planner_resource_request_rows_with_query_intents": sum(
+            1
+            for row in all_llm_resource_request_rows
+            if _dict_tuple(
+                row.request_payload.get("llm_route_planner_query_intents", [])
+            )
+        ),
+        "n_llm_route_planner_resource_request_query_intents": sum(
+            len(
+                _dict_tuple(
+                    row.request_payload.get("llm_route_planner_query_intents", [])
+                )
+            )
+            for row in all_llm_resource_request_rows
+        ),
+        "n_llm_route_planning_brief_evidence_gap_query_intents": sum(
+            len(
+                _dict_tuple(
+                    row.request_payload.get("llm_route_planner_query_intents", [])
+                )
+            )
+            for row in all_llm_resource_request_rows
+            if row.request_payload.get("llm_route_planner_source_kind")
+            == "route_planning_brief_evidence_gap"
+        ),
         "n_resource_request_rows": len(rows),
         "n_ok": sum(1 for row in rows if row.ok),
         "n_failed": sum(1 for row in rows if not row.ok),
@@ -1577,6 +1602,17 @@ def _with_llm_route_planner_trace(
             "llm_route_planner_route_planning_brief": route_planning_brief,
         }
     )
+    query_intents = _llm_query_intents(
+        planner_row,
+        source_item,
+        source_kind=source_kind,
+        hook_kind=hook_kind,
+        queries=queries,
+        target_primitives=row.target_primitives,
+        target_context_summary=target_context_summary,
+        route_planning_brief=route_planning_brief,
+    )
+    input_summary["llm_route_planner_query_intents"] = query_intents
     resource_binding = _llm_resource_binding_witness(
         source_item,
         dispatched_resource_id=row.resource_id,
@@ -1611,6 +1647,7 @@ def _with_llm_route_planner_trace(
             ),
             "llm_route_planner_target_context_summary": target_context_summary,
             "llm_route_planner_route_planning_brief": route_planning_brief,
+            "llm_route_planner_query_intents": query_intents,
             "llm_route_planner_resource_binding": resource_binding,
         }
     )
@@ -1660,6 +1697,7 @@ def _with_llm_route_planner_trace(
             ),
             "llm_route_planner_target_context_summary": target_context_summary,
             "llm_route_planner_route_planning_brief": route_planning_brief,
+            "llm_route_planner_query_intents": query_intents,
             "llm_route_planner_resource_binding": resource_binding,
             "request_playbook": request_playbook,
         }
@@ -2044,6 +2082,7 @@ def _llm_request_contract_fields_for_hook(
         "target_prover_family",
         "target_primitives",
         "queries",
+        "llm_route_planner_query_intents",
         "proof_evidence_boundary",
     ]
     if hook_kind in {"lean_library_grounding", "formal_library_grounding"}:
@@ -2365,6 +2404,203 @@ def _llm_query_tuple(item: dict[str, object]) -> tuple[str, ...]:
     ):
         values.append(item.get(field_name, []))
     return _str_tuple(_flatten_llm_strings(values))
+
+
+def _llm_query_intents(
+    planner_row: dict[str, Any],
+    source_item: dict[str, object],
+    *,
+    source_kind: str,
+    hook_kind: str,
+    queries: tuple[str, ...],
+    target_primitives: tuple[str, ...],
+    target_context_summary: dict[str, object],
+    route_planning_brief: dict[str, object],
+) -> tuple[dict[str, object], ...]:
+    target_context = _dict_value(route_planning_brief, "target_context")
+    if not target_context:
+        target_context = target_context_summary
+    standalone_route = _dict_value(planner_row, "standalone_route")
+    minimal_delta_plan = _dict_value(planner_row, "minimal_delta_plan")
+    replan_metadata = _dict_value(standalone_route, "replan_metadata")
+    replan_minimal_delta = _dict_value(
+        replan_metadata,
+        "llm_route_planner_minimal_delta_plan",
+    )
+    route_id = str(
+        planner_row.get("route_id")
+        or target_context.get("route_id")
+        or route_planning_brief.get("route_id")
+        or ""
+    ).strip()
+    route_target_primitives = _str_tuple(target_context.get("primitive_candidates", []))
+    primitives = tuple(
+        dict.fromkeys(
+            primitive
+            for primitive in (*target_primitives, *route_target_primitives)
+            if str(primitive).strip()
+        )
+    )
+    target_prover_family = str(
+        planner_row.get("target_prover_family")
+        or target_context.get("target_prover_family")
+        or route_planning_brief.get("target_prover_family")
+        or ""
+    ).strip()
+    entries: list[dict[str, object]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add(
+        query_kind: str,
+        query: object,
+        *,
+        source_fields: tuple[str, ...],
+        target_values: tuple[str, ...] | None = None,
+    ) -> None:
+        query_text = _query_intent_text(query)
+        if not query_text:
+            return
+        key = (query_kind, query_text.lower())
+        if key in seen:
+            return
+        seen.add(key)
+        intent_id = (
+            "formalization_gap_planner_resource_request_query_intent:"
+            + stable_hash(
+                [
+                    route_id,
+                    source_kind,
+                    hook_kind,
+                    query_kind,
+                    query_text,
+                    target_values or primitives,
+                ]
+            )[:20]
+        )
+        entries.append(
+            {
+                "query_intent_id": intent_id,
+                "query_kind": query_kind,
+                "query": query_text,
+                "source_kind": source_kind,
+                "hook_kind": hook_kind,
+                "route_id": route_id,
+                "target_prover_family": target_prover_family,
+                "target_primitives": target_values or primitives,
+                "source_fields": source_fields,
+                "retrieval_targets": _query_intent_retrieval_targets(hook_kind),
+                "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+                "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+            }
+        )
+
+    for query in queries:
+        add("planner_query", query, source_fields=("query", "queries"))
+    for primitive in primitives:
+        add(
+            "primitive_name",
+            primitive,
+            source_fields=("target_primitives", "primitive_candidates"),
+            target_values=(primitive,),
+        )
+    theorem_statement = str(
+        target_context.get("theorem_statement")
+        or target_context_summary.get("theorem_statement")
+        or standalone_route.get("theorem_statement")
+        or ""
+    ).strip()
+    add(
+        "theorem_goal",
+        theorem_statement,
+        source_fields=(
+            "target_context.theorem_statement",
+            "standalone_route.theorem_statement",
+        ),
+    )
+    for field_name, query_kind in (
+        ("problem_class", "problem_class"),
+        ("route_class", "route_class"),
+        ("display_name", "route_display_name"),
+    ):
+        add(
+            query_kind,
+            standalone_route.get(field_name) or target_context.get(field_name),
+            source_fields=(f"standalone_route.{field_name}", f"target_context.{field_name}"),
+        )
+    add(
+        "gap_reason",
+        source_item.get("reason", ""),
+        source_fields=("source_item.reason",),
+    )
+    add(
+        "recommended_action",
+        source_item.get("recommended_next_action")
+        or source_item.get("recommended_action")
+        or source_item.get("action", ""),
+        source_fields=("source_item.recommended_next_action", "source_item.action"),
+    )
+    for field_name, query_kind in (
+        ("candidate_bridge_lemma_name", "candidate_bridge_name"),
+        ("candidate_bridge_lemma", "candidate_bridge_name"),
+        ("bridge_lemmas", "candidate_bridge_work"),
+        ("wrapper_lemmas", "candidate_wrapper_work"),
+        ("source_port_lemmas", "candidate_source_port_work"),
+        ("new_definitions", "candidate_definition_work"),
+        ("new_theory_primitives", "candidate_new_theory_work"),
+    ):
+        for value in _flatten_llm_strings(source_item.get(field_name, [])):
+            add(query_kind, value, source_fields=(f"source_item.{field_name}",))
+    for source_name, plan in (
+        ("minimal_delta_plan", minimal_delta_plan),
+        ("standalone_route.replan_metadata.llm_route_planner_minimal_delta_plan", replan_minimal_delta),
+    ):
+        for field_name, query_kind in (
+            ("bridge_lemmas", "candidate_bridge_work"),
+            ("wrapper_lemmas", "candidate_wrapper_work"),
+            ("source_port_lemmas", "candidate_source_port_work"),
+            ("new_definitions", "candidate_definition_work"),
+            ("new_theory_primitives", "candidate_new_theory_work"),
+        ):
+            for value in _flatten_llm_strings(plan.get(field_name, [])):
+                add(query_kind, value, source_fields=(f"{source_name}.{field_name}",))
+    for declaration_row in _llm_candidate_declaration_rows(
+        source_item,
+        target_prover_family=target_prover_family,
+    ):
+        add(
+            "candidate_formal_declaration",
+            declaration_row.get("declaration", ""),
+            source_fields=("source_item.candidate_declaration_rows",),
+        )
+    for field_name, query_kind in (
+        ("literature_queries", "literature_query"),
+        ("formal_library_grounding_queries", "formal_library_query"),
+        ("proof_style_hints", "proof_style_hint"),
+    ):
+        for value in _str_tuple(target_context.get(field_name, [])):
+            add(query_kind, value, source_fields=(f"target_context.{field_name}",))
+    return tuple(entries)
+
+
+def _query_intent_text(value: object) -> str:
+    if value is None:
+        return ""
+    text = " ".join(str(value).split())
+    if text.lower() in {"none", "null", "nan"}:
+        return ""
+    return text[:320]
+
+
+def _query_intent_retrieval_targets(hook_kind: str) -> tuple[str, ...]:
+    if hook_kind == "literature_discovery":
+        return ("literature", "source_grounding")
+    if hook_kind in {"lean_library_grounding", "formal_library_grounding"}:
+        return ("formal_library", "library_coverage")
+    if hook_kind == "proof_state_feedback":
+        return ("prover_feedback", "residual_goals")
+    if hook_kind == "route_revision":
+        return ("route_revision", "planner_repair")
+    return ("planner_followup",)
 
 
 def _llm_residual_goal_context(
@@ -3430,6 +3666,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- LLM route-planning brief evidence gaps/request rows: "
             f"{payload.get('n_llm_route_planner_route_planning_brief_evidence_gaps')}/"
             f"{payload.get('n_llm_route_planner_route_planning_brief_resource_request_rows')}"
+        ),
+        (
+            f"- LLM resource request query intents rows/intents/brief-gap intents: "
+            f"{payload.get('n_llm_route_planner_resource_request_rows_with_query_intents')}/"
+            f"{payload.get('n_llm_route_planner_resource_request_query_intents')}/"
+            f"{payload.get('n_llm_route_planning_brief_evidence_gap_query_intents')}"
         ),
         (
             f"- LLM explicit resource binding rows/matches/default-fanout: "

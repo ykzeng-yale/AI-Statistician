@@ -1109,10 +1109,28 @@ def test_resource_request_queue_dispatches_prompt_only_route_planning_brief_gaps
                     {
                         "route_id": "rank_route_prompt_only",
                         "display_name": "rank_route_prompt_only",
+                        "problem_class": "conformal_prediction",
+                        "route_class": "bridge_or_wrapper",
                         "theorem_statement": (
                             "A distribution-free rank bound follows from a "
                             "missing source-backed rank-uniformity argument."
                         ),
+                        "replan_metadata": {
+                            "llm_route_planner_minimal_delta_plan": {
+                                "bridge_lemmas": [
+                                    (
+                                        "rank_uniformity_bridge: prove rank "
+                                        "uniformity from exchangeability"
+                                    )
+                                ],
+                                "source_port_lemmas": [
+                                    (
+                                        "rank_uniformity_source_lemma: locate "
+                                        "the source theorem for rank uniformity"
+                                    )
+                                ],
+                            }
+                        },
                         "primitives": [
                             {
                                 "primitive": "rank_uniformity",
@@ -1168,6 +1186,9 @@ def test_resource_request_queue_dispatches_prompt_only_route_planning_brief_gaps
     )
     assert payload["n_llm_route_planner_total_resource_request_rows"] == 7
     assert payload["n_llm_route_planner_route_planning_brief_evidence_gap_rows"] == 7
+    assert payload["n_llm_route_planner_resource_request_rows_with_query_intents"] == 7
+    assert payload["n_llm_route_planner_resource_request_query_intents"] >= 70
+    assert payload["n_llm_route_planning_brief_evidence_gap_query_intents"] >= 70
     brief_rows = [
         row
         for row in payload["rows"]
@@ -1198,6 +1219,9 @@ def test_resource_request_queue_dispatches_prompt_only_route_planning_brief_gaps
     assert "source_refs" in literature_required_fields
     assert "source_snippets" in literature_required_fields
     assert "route_evidence_nodes" in literature_required_fields
+    assert "llm_route_planner_query_intents" in literature_row[
+        "request_contract_fields"
+    ]
     assert (
         "llm_route_planner_target_theorem_context_packet"
         in literature_row["request_contract_fields"]
@@ -1229,6 +1253,43 @@ def test_resource_request_queue_dispatches_prompt_only_route_planning_brief_gaps
             "llm_route_planner_target_theorem_context_packet"
         ]
     )
+    literature_query_intents = literature_row["request_payload"][
+        "llm_route_planner_query_intents"
+    ]
+    assert literature_query_intents == literature_row["request_playbook"][
+        "llm_route_planner_query_intents"
+    ]
+    assert literature_query_intents == literature_row["request_playbook"][
+        "input_summary"
+    ]["llm_route_planner_query_intents"]
+    literature_query_kinds = {
+        intent["query_kind"] for intent in literature_query_intents
+    }
+    assert {
+        "primitive_name",
+        "theorem_goal",
+        "problem_class",
+        "route_class",
+        "gap_reason",
+        "recommended_action",
+        "candidate_bridge_work",
+        "candidate_source_port_work",
+    }.issubset(literature_query_kinds)
+    assert any(
+        intent["query_kind"] == "problem_class"
+        and intent["query"] == "conformal_prediction"
+        and intent["retrieval_targets"] == ("literature", "source_grounding")
+        for intent in literature_query_intents
+    )
+    assert any(
+        intent["query_kind"] == "candidate_bridge_work"
+        and "rank_uniformity_bridge" in intent["query"]
+        for intent in literature_query_intents
+    )
+    assert all(
+        intent["query"] not in {"None", "null", ""}
+        for intent in literature_query_intents
+    )
     assert "rank_uniformity" in literature_row["target_primitives"]
     assert "route_planning_brief evidence gap" in " ".join(
         literature_row["actionable_work_items"]
@@ -1245,10 +1306,30 @@ def test_resource_request_queue_dispatches_prompt_only_route_planning_brief_gaps
     ]["route_planning_brief_gap_required_response_fields"]
     assert "formal_declaration_hits" in formal_required_fields
     assert "formal_declaration_hits" in formal_row["response_contract_fields"]
+    formal_query_intents = formal_row["request_payload"][
+        "llm_route_planner_query_intents"
+    ]
+    assert any(
+        intent["query_kind"] == "primitive_name"
+        and intent["query"] == "rank_uniformity"
+        and intent["retrieval_targets"] == ("formal_library", "library_coverage")
+        for intent in formal_query_intents
+    )
+    assert any(
+        intent["query_kind"] == "route_class"
+        and intent["query"] == "bridge_or_wrapper"
+        for intent in formal_query_intents
+    )
+    assert any(
+        intent["query_kind"] == "candidate_source_port_work"
+        and "rank_uniformity_source_lemma" in intent["query"]
+        for intent in formal_query_intents
+    )
     report = (
         request_queue_dir / "formalization_gap_planner_resource_request_queue.md"
     ).read_text(encoding="utf-8")
     assert "LLM route-planning brief evidence gaps/request rows" in report
+    assert "LLM resource request query intents rows/intents/brief-gap intents" in report
     assert "LLM explicit resource binding rows/matches/default-fanout" in report
     assert (
         validate_resource_request_queue_row(

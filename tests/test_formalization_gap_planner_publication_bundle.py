@@ -2707,6 +2707,9 @@ def test_publication_bundle_lifts_route_brief_resource_request_counts() -> None:
                 "n_llm_route_planner_resource_request_rows_matching_explicit_resource_binding": 2,
                 "n_llm_route_planner_resource_request_rows_from_hook_default_fanout": 5,
                 "n_llm_route_planner_route_planning_brief_evidence_gap_rows": 7,
+                "n_llm_route_planner_resource_request_rows_with_query_intents": 11,
+                "n_llm_route_planner_resource_request_query_intents": 88,
+                "n_llm_route_planning_brief_evidence_gap_query_intents": 56,
                 "n_llm_route_planner_rows_with_route_adoption_preconditions": 1,
                 "n_llm_route_planner_route_adoption_precondition_known_blockers": 2,
                 "n_llm_route_planner_route_adoption_precondition_required_response_fields": 3,
@@ -2756,6 +2759,12 @@ def test_publication_bundle_lifts_route_brief_resource_request_counts() -> None:
         == 5
     )
     assert summary["n_llm_route_planner_route_planning_brief_evidence_gap_rows"] == 7
+    assert (
+        summary["n_llm_route_planner_resource_request_rows_with_query_intents"]
+        == 11
+    )
+    assert summary["n_llm_route_planner_resource_request_query_intents"] == 88
+    assert summary["n_llm_route_planning_brief_evidence_gap_query_intents"] == 56
 
 
 def test_publication_bundle_lifts_route_brief_resource_response_counts() -> None:

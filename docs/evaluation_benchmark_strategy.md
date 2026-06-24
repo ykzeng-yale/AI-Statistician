@@ -624,7 +624,11 @@ adapter dispatch surface for literature, formal-library, prover-feedback,
 route-revision, and cross-prover resources; the nested `request_payload`
 includes the generated `resource_request_id`, request rank, expected response
 artifact, response-contract fields, and dispatch spec needed for an external
-MCP/CLI adapter to emit a valid response row. It is not theorem proof evidence.
+MCP/CLI adapter to emit a valid response row. LLM route-planner follow-up rows
+also include `llm_route_planner_query_intents`, a structured query inventory
+over primitive names, theorem goals, problem classes, gap reasons, candidate
+bridge/source-port work items, and target retrieval surfaces. It is not theorem
+proof evidence.
 For LLM route-planner follow-ups, the manifest also reports route-adoption
 precondition rows, blockers, required response fields, target primitives, copied
 request packets, and copied request-payload target scopes, so benchmark traces
