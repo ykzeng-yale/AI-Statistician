@@ -1012,6 +1012,165 @@ def test_route_brief_gap_resource_responses_round_trip_into_next_planner_request
     assert formal_declaration in set(rank_row["target_compatible_declarations"])
 
 
+def test_hol4_route_brief_formal_gap_response_round_trips_into_next_planner_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_resource_response_ledger_hol4_round_trip"
+    )
+    ledger_dir = root / "ledger"
+    replan_dir = root / "llm_route_planner_replan"
+    response_jsonl = root / "resource_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = root / "standalone_input.json"
+    llm_payload, request_payload, request_queue_dir = (
+        _build_prompt_only_route_brief_request_queue(
+            root,
+            input_payload={
+                "schema_version": 1,
+                "component_name": "formalization_gap_planner_standalone_input",
+                "target_prover_family": "hol_4",
+                "library_snapshot_ref": "hol4_probability_snapshot",
+                "routes": [
+                    {
+                        "route_id": "hol4_rank_route_prompt_only_round_trip",
+                        "display_name": "hol4_rank_route_prompt_only_round_trip",
+                        "theorem_statement": (
+                            "A HOL4 rank-uniformity bridge should be grounded "
+                            "against target-prover library evidence."
+                        ),
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+    )
+    formal_request = next(
+        row
+        for row in request_payload["rows"]
+        if row["request_payload"].get("llm_route_planner_source_kind")
+        == "route_planning_brief_evidence_gap"
+        and row["request_playbook"]["llm_route_planner_source_item"][
+            "route_planning_brief_gap_kind"
+        ]
+        == "formal_library_grounding"
+        and row["resource_id"] == "hol4_tactic_kernel_tools"
+    )
+    assert "lean_declaration_hits" not in formal_request["response_contract_fields"]
+    formal_declaration = "HOL4.Probability.rank_uniformity_round_trip_bridge"
+    response = {
+        "resource_request_id": formal_request["resource_request_id"],
+        "resource_id": formal_request["resource_id"],
+        "tool_name": "hol4_tactic_kernel_tools",
+        "expected_response_artifact": formal_request["expected_response_artifact"],
+        "llm_route_planner_row_id": formal_request["request_payload"][
+            "llm_route_planner_row_id"
+        ],
+        "llm_route_planner_request_id": formal_request["request_payload"][
+            "llm_route_planner_request_id"
+        ],
+        "llm_route_planner_source_kind": "route_planning_brief_evidence_gap",
+        "llm_route_planner_source_index": formal_request["request_payload"][
+            "llm_route_planner_source_index"
+        ],
+        "llm_route_planner_hook_kind": "formal_library_grounding",
+        "response_payload": {
+            "target_prover_family": "hol4",
+            "formal_declaration_hits": [
+                {
+                    "declaration": formal_declaration,
+                    "target_prover_family": "hol4",
+                    "target_primitives": ["rank_uniformity"],
+                    "supported_target_primitives": ["rank_uniformity"],
+                    "source_field": "formal_declaration_hits",
+                }
+            ],
+            "coverage_updates": {"rank_uniformity": "bridge_needed"},
+            "route_revision_recommended": True,
+            "response_summary": (
+                "HOL4 theorem search found a target-compatible "
+                "rank-uniformity bridge candidate."
+            ),
+        },
+        "proof_evidence_boundary": "not theorem proof evidence",
+    }
+    response_jsonl.write_text(
+        json.dumps(response, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    ledger_payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+        response_jsonl=response_jsonl,
+    )
+    replan_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        replan_dir,
+        provider_name="prompt_only",
+        formalization_gap_planner_resource_response_ledger_dir=ledger_dir,
+    )
+
+    assert llm_payload["n_request_route_planning_evidence_gaps"] == 2
+    assert ledger_payload["all_ok"]
+    assert ledger_payload["target_prover_family"] == "hol4"
+    ledger_row = next(
+        row
+        for row in ledger_payload["rows"]
+        if row["resource_request_id"] == formal_request["resource_request_id"]
+    )
+    assert ledger_row["acceptance_status"] == "ACCEPTED_WITH_ROUTE_REVISION"
+    assert ledger_row["target_prover_family"] == "hol4"
+    assert ledger_row["lean_declaration_hits"] == ()
+    assert "lean_declaration_hits" not in ledger_row["matched_response_contract_fields"]
+
+    assert replan_payload["all_ok"]
+    request = replan_payload["request_packets"][0]
+    assert request["target_prover_family"] == "hol4"
+    context = request["context_packet"]
+    assert context["target_prover_family"] == "hol4"
+    assert formal_declaration in set(context["available_formal_declarations"])
+    declaration_rows = [
+        row
+        for row in context["available_formal_declaration_rows"]
+        if row["declaration"] == formal_declaration
+    ]
+    assert len(declaration_rows) == 1
+    assert declaration_rows[0]["target_prover_family"] == "hol4"
+    assert declaration_rows[0]["supported_target_primitives"] == [
+        "rank_uniformity"
+    ]
+
+    feedback_summary = context["feedback_loop_summary"]
+    assert feedback_summary["replan_required"] is True
+    assert (
+        feedback_summary["resource_response_admissibility"]["admissible_count"] == 1
+    )
+    assert formal_declaration in set(
+        feedback_summary["admissible_formal_declarations"]
+    )
+
+    brief = context["route_planning_brief"]
+    assert brief["target_prover_family"] == "hol4"
+    focus_ids = {focus["focus_id"] for focus in brief["planner_focus"]}
+    assert "map_formal_library_coverage" in focus_ids
+    gap_ids = {gap["gap_id"] for gap in brief["evidence_gaps"]}
+    assert "missing_formal_library_grounding" not in gap_ids
+    rank_row = next(
+        row
+        for row in brief["primitive_evidence_matrix"]
+        if row["primitive"] == "rank_uniformity"
+    )
+    assert rank_row["formal_support_status"] == (
+        "target_compatible_candidate_available"
+    )
+    assert formal_declaration in set(rank_row["target_compatible_declarations"])
+
+
 def test_resource_response_ledger_rejects_route_brief_gap_response_without_gap_required_fields() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_resource_response_ledger_route_brief_gap_contract"
