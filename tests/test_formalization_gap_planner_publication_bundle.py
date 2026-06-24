@@ -2907,8 +2907,66 @@ def test_publication_bundle_lifts_route_brief_resource_response_counts() -> None
         "runs/test_formalization_gap_planner_publication_bundle_resource_response_brief_counts"
     )
     shutil.rmtree(root, ignore_errors=True)
+    resource_request_dir = root / "resource_request_queue"
     resource_response_dir = root / "resource_response_ledger"
+    resource_request_dir.mkdir(parents=True)
     resource_response_dir.mkdir(parents=True)
+    (resource_request_dir / "formalization_gap_planner_resource_request_queue.jsonl").write_text(
+        "",
+        encoding="utf-8",
+    )
+    (
+        resource_request_dir
+        / "formalization_gap_planner_resource_request_queue_row.schema.json"
+    ).write_text(
+        json.dumps(resource_request_queue_row_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (resource_request_dir / "formalization_gap_planner_resource_request_queue.md").write_text(
+        "# fixture\n",
+        encoding="utf-8",
+    )
+    (
+        resource_request_dir
+        / "formalization_gap_planner_resource_request_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_resource_request_queue",
+                "n_resource_request_rows": 11,
+                "n_ok": 11,
+                "n_failed": 0,
+                "n_local_first_requests": 5,
+                "n_frontier_escalation_requests": 6,
+                "n_distinct_resources": 7,
+                "n_llm_route_planner_rows": 1,
+                "n_llm_route_planner_request_packets": 1,
+                "n_llm_route_planner_request_route_planning_briefs": 1,
+                "n_llm_route_planner_route_planning_brief_evidence_gaps": 2,
+                "n_llm_route_planner_resource_request_rows": 4,
+                "n_llm_route_planner_route_planning_brief_resource_request_rows": 7,
+                "n_llm_route_planner_total_resource_request_rows": 11,
+                "n_llm_route_planner_resource_request_rows_with_explicit_resource_binding": 6,
+                "n_llm_route_planner_resource_request_rows_matching_explicit_resource_binding": 2,
+                "n_llm_route_planner_resource_request_rows_from_hook_default_fanout": 5,
+                "n_llm_route_planner_route_planning_brief_evidence_gap_rows": 7,
+                "n_llm_route_planner_resource_request_rows_with_query_intents": 11,
+                "n_llm_route_planner_resource_request_query_intents": 88,
+                "n_llm_route_planning_brief_evidence_gap_query_intents": 56,
+                "n_llm_route_planner_rows_with_route_adoption_preconditions": 1,
+                "n_llm_route_planner_route_adoption_precondition_known_blockers": 2,
+                "n_llm_route_planner_route_adoption_precondition_required_response_fields": 3,
+                "n_llm_route_planner_route_adoption_precondition_target_primitives": 1,
+                "n_llm_route_planner_resource_request_rows_with_route_adoption_preconditions": 4,
+                "n_llm_route_planner_resource_request_route_adoption_precondition_target_primitives": 4,
+                "n_row_schema_valid": 11,
+                "n_row_schema_invalid": 0,
+                "all_ok": True,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     (resource_response_dir / "formalization_gap_planner_resource_response_ledger.jsonl").write_text(
         "",
         encoding="utf-8",
@@ -2943,11 +3001,18 @@ def test_publication_bundle_lifts_route_brief_resource_response_counts() -> None
                 "n_response_present": 1,
                 "n_awaiting_response": 6,
                 "n_response_contract_ok": 1,
+                "n_response_playbook_grounded": 1,
                 "n_llm_route_planner_traced_requests": 7,
                 "n_llm_route_planner_traced_responses": 1,
                 "n_llm_route_planner_traced_route_planning_brief_evidence_gap_rows": 7,
                 "n_llm_route_planner_traced_route_planning_brief_evidence_gap_responses": 1,
                 "n_llm_route_planner_traced_route_planning_brief_evidence_gap_grounded_responses": 1,
+                "n_llm_route_planner_residual_context_rows": 1,
+                "n_rows_with_formal_declaration_hits": 1,
+                "n_formal_declaration_hits": 2,
+                "n_rows_with_legacy_lean_declaration_hits": 0,
+                "n_rows_with_residual_goals": 1,
+                "n_residual_goals": 1,
                 "n_route_revision_recommended": 0,
                 "n_rejected": 0,
                 "n_ledger_row_schema_valid": 7,
@@ -2961,6 +3026,7 @@ def test_publication_bundle_lifts_route_brief_resource_response_counts() -> None
 
     payload = export_formalization_gap_planner_publication_bundle(
         root / "bundle",
+        formalization_gap_planner_resource_request_queue_dir=resource_request_dir,
         formalization_gap_planner_resource_response_ledger_dir=(
             resource_response_dir
         ),
@@ -2989,6 +3055,30 @@ def test_publication_bundle_lifts_route_brief_resource_response_counts() -> None
         ]
         == 1
     )
+    loop_summary = payload["interactive_feedback_loop_summary"]
+    assert loop_summary["requested"] is True
+    assert loop_summary["resource_request_queue_requested"] is True
+    assert loop_summary["resource_response_ledger_requested"] is True
+    assert loop_summary["n_route_planning_brief_evidence_gap_rows"] == 7
+    assert loop_summary["n_route_planning_brief_resource_request_rows"] == 7
+    assert loop_summary["n_route_planning_brief_evidence_gap_responses"] == 1
+    assert (
+        loop_summary["n_route_planning_brief_evidence_gap_grounded_responses"]
+        == 1
+    )
+    assert loop_summary["n_response_contract_ok"] == 1
+    assert loop_summary["n_response_playbook_grounded"] == 1
+    assert loop_summary["n_formal_declaration_feedback_rows"] == 1
+    assert loop_summary["n_formal_declaration_feedback_hits"] == 2
+    assert loop_summary["n_residual_goal_feedback_rows"] == 1
+    assert loop_summary["n_residual_goal_feedback_goals"] == 1
+    assert loop_summary["n_residual_goal_context_rows"] == 1
+    assert loop_summary["route_brief_feedback_ready"] is True
+    assert loop_summary["formal_library_feedback_present"] is True
+    assert loop_summary["prover_residual_feedback_present"] is True
+    assert loop_summary["interactive_feedback_loop_ready"] is True
+    readme = Path(str(payload["readme_path"])).read_text(encoding="utf-8")
+    assert "Interactive feedback loop ready: True" in readme
 
 
 def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts() -> None:

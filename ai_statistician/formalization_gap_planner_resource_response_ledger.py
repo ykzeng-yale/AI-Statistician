@@ -386,6 +386,10 @@ def export_formalization_gap_planner_resource_response_ledger(
         "n_rows_with_legacy_lean_declaration_hits": sum(
             1 for row in rows if row.lean_declaration_hits
         ),
+        "n_rows_with_residual_goals": sum(
+            1 for row in rows if row.residual_goals
+        ),
+        "n_residual_goals": sum(len(row.residual_goals) for row in rows),
         "n_declaration_hit_target_mismatch_rows": sum(
             1 for count in declaration_hit_target_error_counts if count
         ),

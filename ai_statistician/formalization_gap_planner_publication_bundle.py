@@ -2134,6 +2134,13 @@ def export_formalization_gap_planner_publication_bundle(
                 "n_llm_route_planner_traced_route_planning_brief_evidence_gap_rows",
                 "n_llm_route_planner_traced_route_planning_brief_evidence_gap_responses",
                 "n_llm_route_planner_traced_route_planning_brief_evidence_gap_grounded_responses",
+                "n_response_playbook_grounded",
+                "n_llm_route_planner_residual_context_rows",
+                "n_rows_with_formal_declaration_hits",
+                "n_formal_declaration_hits",
+                "n_rows_with_legacy_lean_declaration_hits",
+                "n_rows_with_residual_goals",
+                "n_residual_goals",
                 "n_route_revision_recommended",
                 "n_rejected",
                 "n_ledger_row_schema_valid",
@@ -2253,6 +2260,12 @@ def export_formalization_gap_planner_publication_bundle(
     manifest_path = out_dir / "formalization_gap_planner_publication_bundle_manifest.json"
     payload["manifest_path"] = str(manifest_path)
     payload["readme_path"] = str(readme_path)
+    payload["interactive_feedback_loop_summary"] = (
+        _interactive_feedback_loop_summary(
+            payload.get("resource_request_queue_summary", {}),
+            payload.get("resource_response_ledger_summary", {}),
+        )
+    )
     readme_path.write_text(_markdown_report(payload), encoding="utf-8")
     manifest_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
     return payload
@@ -3413,6 +3426,56 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "all_ok": {"type": "boolean"},
         },
     }
+    interactive_feedback_loop_summary_schema = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "requested",
+            "resource_request_queue_requested",
+            "resource_response_ledger_requested",
+            "n_route_planning_brief_evidence_gap_rows",
+            "n_route_planning_brief_resource_request_rows",
+            "n_route_planning_brief_evidence_gap_responses",
+            "n_route_planning_brief_evidence_gap_grounded_responses",
+            "n_response_contract_ok",
+            "n_response_playbook_grounded",
+            "n_formal_declaration_feedback_rows",
+            "n_formal_declaration_feedback_hits",
+            "n_legacy_lean_declaration_feedback_rows",
+            "n_residual_goal_feedback_rows",
+            "n_residual_goal_feedback_goals",
+            "n_residual_goal_context_rows",
+            "n_route_revision_recommended",
+            "route_brief_feedback_ready",
+            "formal_library_feedback_present",
+            "prover_residual_feedback_present",
+            "interactive_feedback_loop_ready",
+        ],
+        "properties": {
+            "requested": {"type": "boolean"},
+            "resource_request_queue_requested": {"type": "boolean"},
+            "resource_response_ledger_requested": {"type": "boolean"},
+            "n_route_planning_brief_evidence_gap_rows": nonnegative_integer,
+            "n_route_planning_brief_resource_request_rows": nonnegative_integer,
+            "n_route_planning_brief_evidence_gap_responses": nonnegative_integer,
+            "n_route_planning_brief_evidence_gap_grounded_responses": (
+                nonnegative_integer
+            ),
+            "n_response_contract_ok": nonnegative_integer,
+            "n_response_playbook_grounded": nonnegative_integer,
+            "n_formal_declaration_feedback_rows": nonnegative_integer,
+            "n_formal_declaration_feedback_hits": nonnegative_integer,
+            "n_legacy_lean_declaration_feedback_rows": nonnegative_integer,
+            "n_residual_goal_feedback_rows": nonnegative_integer,
+            "n_residual_goal_feedback_goals": nonnegative_integer,
+            "n_residual_goal_context_rows": nonnegative_integer,
+            "n_route_revision_recommended": nonnegative_integer,
+            "route_brief_feedback_ready": {"type": "boolean"},
+            "formal_library_feedback_present": {"type": "boolean"},
+            "prover_residual_feedback_present": {"type": "boolean"},
+            "interactive_feedback_loop_ready": {"type": "boolean"},
+        },
+    }
     cross_prover_formal_attempt_dependency_summary_schema = {
         "type": "object",
         "additionalProperties": True,
@@ -3481,6 +3544,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "feedback_llm_route_planner_summary",
             "llm_route_planner_response_payload_validation_summary",
             "library_coverage_map_summary",
+            "interactive_feedback_loop_summary",
             "cross_prover_formal_attempt_dependency_summary",
             "schema_catalog_summary",
             "all_ok",
@@ -3510,6 +3574,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 response_payload_validation_summary_schema
             ),
             "library_coverage_map_summary": {"type": "object"},
+            "interactive_feedback_loop_summary": (
+                interactive_feedback_loop_summary_schema
+            ),
             "cross_prover_formal_attempt_dependency_summary": (
                 cross_prover_formal_attempt_dependency_summary_schema
             ),
@@ -5229,6 +5296,97 @@ def _int_or_zero(value: object) -> int:
         return int(value or 0)
     except (TypeError, ValueError):
         return 0
+
+
+def _interactive_feedback_loop_summary(
+    resource_request_summary: Mapping[str, object],
+    resource_response_summary: Mapping[str, object],
+) -> dict[str, object]:
+    staged_gap_rows = _int_or_zero(
+        resource_request_summary.get(
+            "n_llm_route_planner_route_planning_brief_evidence_gap_rows"
+        )
+    )
+    request_rows = _int_or_zero(
+        resource_request_summary.get(
+            "n_llm_route_planner_route_planning_brief_resource_request_rows"
+        )
+    )
+    response_gap_rows = _int_or_zero(
+        resource_response_summary.get(
+            "n_llm_route_planner_traced_route_planning_brief_evidence_gap_responses"
+        )
+    )
+    grounded_gap_rows = _int_or_zero(
+        resource_response_summary.get(
+            "n_llm_route_planner_traced_route_planning_brief_evidence_gap_grounded_responses"
+        )
+    )
+    response_contract_ok = _int_or_zero(
+        resource_response_summary.get("n_response_contract_ok")
+    )
+    formal_feedback_rows = _int_or_zero(
+        resource_response_summary.get("n_rows_with_formal_declaration_hits")
+    )
+    formal_feedback_hits = _int_or_zero(
+        resource_response_summary.get("n_formal_declaration_hits")
+    )
+    residual_feedback_rows = _int_or_zero(
+        resource_response_summary.get("n_rows_with_residual_goals")
+    )
+    residual_feedback_goals = _int_or_zero(
+        resource_response_summary.get("n_residual_goals")
+    )
+    residual_context_rows = _int_or_zero(
+        resource_response_summary.get("n_llm_route_planner_residual_context_rows")
+    )
+    return {
+        "requested": bool(
+            resource_request_summary.get("requested")
+            or resource_response_summary.get("requested")
+        ),
+        "resource_request_queue_requested": bool(
+            resource_request_summary.get("requested")
+        ),
+        "resource_response_ledger_requested": bool(
+            resource_response_summary.get("requested")
+        ),
+        "n_route_planning_brief_evidence_gap_rows": staged_gap_rows,
+        "n_route_planning_brief_resource_request_rows": request_rows,
+        "n_route_planning_brief_evidence_gap_responses": response_gap_rows,
+        "n_route_planning_brief_evidence_gap_grounded_responses": (
+            grounded_gap_rows
+        ),
+        "n_response_contract_ok": response_contract_ok,
+        "n_response_playbook_grounded": _int_or_zero(
+            resource_response_summary.get("n_response_playbook_grounded")
+        ),
+        "n_formal_declaration_feedback_rows": formal_feedback_rows,
+        "n_formal_declaration_feedback_hits": formal_feedback_hits,
+        "n_legacy_lean_declaration_feedback_rows": _int_or_zero(
+            resource_response_summary.get("n_rows_with_legacy_lean_declaration_hits")
+        ),
+        "n_residual_goal_feedback_rows": residual_feedback_rows,
+        "n_residual_goal_feedback_goals": residual_feedback_goals,
+        "n_residual_goal_context_rows": residual_context_rows,
+        "n_route_revision_recommended": _int_or_zero(
+            resource_response_summary.get("n_route_revision_recommended")
+        ),
+        "route_brief_feedback_ready": (
+            staged_gap_rows > 0 and grounded_gap_rows > 0
+        ),
+        "formal_library_feedback_present": (
+            formal_feedback_rows > 0 or formal_feedback_hits > 0
+        ),
+        "prover_residual_feedback_present": (
+            residual_feedback_rows > 0 or residual_context_rows > 0
+        ),
+        "interactive_feedback_loop_ready": (
+            staged_gap_rows > 0
+            and grounded_gap_rows > 0
+            and response_contract_ok > 0
+        ),
+    }
 
 
 def _count_map(value: object) -> dict[str, int]:
@@ -9539,6 +9697,22 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Library coverage map target families: "
             f"{payload.get('library_coverage_map_summary', {}).get('target_prover_family')} "
             f"by={payload.get('library_coverage_map_summary', {}).get('by_target_prover_family')}"
+        ),
+        (
+            f"- Interactive feedback loop ready: "
+            f"{payload.get('interactive_feedback_loop_summary', {}).get('interactive_feedback_loop_ready')} "
+            f"route_brief="
+            f"{payload.get('interactive_feedback_loop_summary', {}).get('route_brief_feedback_ready')} "
+            f"formal_library="
+            f"{payload.get('interactive_feedback_loop_summary', {}).get('formal_library_feedback_present')} "
+            f"prover_residual="
+            f"{payload.get('interactive_feedback_loop_summary', {}).get('prover_residual_feedback_present')} "
+            f"gaps="
+            f"{payload.get('interactive_feedback_loop_summary', {}).get('n_route_planning_brief_evidence_gap_rows')} "
+            f"grounded_responses="
+            f"{payload.get('interactive_feedback_loop_summary', {}).get('n_route_planning_brief_evidence_gap_grounded_responses')} "
+            f"residual_goals="
+            f"{payload.get('interactive_feedback_loop_summary', {}).get('n_residual_goal_feedback_goals')}"
         ),
         (
             f"- Cross-prover formal-attempt dependency: "

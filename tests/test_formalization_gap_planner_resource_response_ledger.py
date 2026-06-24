@@ -1948,6 +1948,8 @@ def test_resource_response_ledger_accepts_adapter_feedback_without_proof_claims(
     assert payload["n_rows_with_formal_declaration_hits"] == 1
     assert payload["n_formal_declaration_hits"] == 1
     assert payload["n_rows_with_legacy_lean_declaration_hits"] == 1
+    assert payload["n_rows_with_residual_goals"] == 1
+    assert payload["n_residual_goals"] == 1
     assert payload["n_route_revision_recommended"] == 1
     assert payload["n_rejected"] == 0
     assert payload["resource_response_schema"]["$id"] == RESOURCE_RESPONSE_SCHEMA_ID
@@ -2186,6 +2188,8 @@ def test_prover_residual_feedback_round_trips_into_next_planner_request() -> Non
     )
     assert proof_ledger["acceptance_status"] == "ACCEPTED_WITH_ROUTE_REVISION"
     assert proof_ledger["residual_goals"] == (residual_goal,)
+    assert ledger_payload["n_rows_with_residual_goals"] == 1
+    assert ledger_payload["n_residual_goals"] == 1
     assert proof_ledger["prover_diagnostic_signature"] == (
         "unknown_identifier:rank_uniformity"
     )
