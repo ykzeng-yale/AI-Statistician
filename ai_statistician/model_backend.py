@@ -36,6 +36,18 @@ DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER = {
     "sonnet": DEFAULT_CLAUDE_SONNET_GENERATOR_MODEL,
     "opus": DEFAULT_CLAUDE_OPUS_GENERATOR_MODEL,
 }
+AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY = {
+    "ArchitectCoordinator": "sonnet",
+    "TheoryDeveloper": "sonnet",
+    "FormalizerProofEngineer": "sonnet",
+    "formalization_gap_planner_route_synthesis": "auto",
+    "TheoryIntake": "haiku",
+    "SimulationEngineer": "haiku",
+    "SimulatorEngineer": "haiku",
+    "AlgorithmEngineer": "haiku",
+    "CriticEvaluator": "haiku",
+    "bounded_route_triage": "haiku",
+}
 CLAUDE_FAMILY_MODELS_OUTSIDE_COST_TIERS = {
     "fable": DEFAULT_CLAUDE_FABLE_GENERATOR_MODEL,
     "mythos_limited_availability": DEFAULT_CLAUDE_MYTHOS_GENERATOR_MODEL,
@@ -100,6 +112,7 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
     "default_model_tier": "sonnet",
     "models_by_tier": DEFAULT_CLAUDE_GENERATOR_MODELS_BY_TIER,
     "api_aliases_by_tier": DEFAULT_CLAUDE_GENERATOR_MODEL_ALIASES_BY_TIER,
+    "subsystem_model_tier_policy": AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     "runtime_model_id_policy": (
         "AI Statistician resolves runtime calls to the Claude API IDs in "
         "models_by_tier. API aliases are recorded for operator reference only "
@@ -139,6 +152,15 @@ ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY = {
         "opus": ["operator_explicit_only"],
     },
 }
+
+
+def llm_subsystem_expected_model_tier(subsystem: str) -> str:
+    """Return the expected Claude cost tier for a named LLM subsystem."""
+
+    return AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY.get(
+        str(subsystem or "").strip(),
+        "",
+    )
 
 
 def default_generator_provider(env: Mapping[str, str] | None = None) -> str:

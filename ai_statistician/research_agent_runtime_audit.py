@@ -9,6 +9,7 @@ from typing import Any, Mapping
 
 from .fingerprint import stable_hash
 from .model_backend import (
+    AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     PROHIBITED_AGENT_GENERATOR_PROVIDERS,
     SUPPORTED_LIVE_GENERATOR_PROVIDERS,
 )
@@ -769,6 +770,35 @@ def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
                 "resolved Claude model tier map missing: "
                 + ",".join(missing_tiers)
             )
+    expected_subsystem_tiers = policy.get("expected_subsystem_model_tiers", {})
+    if not isinstance(expected_subsystem_tiers, Mapping):
+        errors.append("expected subsystem model-tier policy missing")
+        expected_subsystem_tiers = {}
+    else:
+        expected_map = {
+            str(key): str(value)
+            for key, value in AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY.items()
+        }
+        observed_map = {
+            str(key): str(value)
+            for key, value in expected_subsystem_tiers.items()
+        }
+        missing_policy = sorted(set(expected_map) - set(observed_map))
+        changed_policy = sorted(
+            key
+            for key in set(expected_map) & set(observed_map)
+            if observed_map[key] != expected_map[key]
+        )
+        if missing_policy:
+            errors.append(
+                "expected subsystem model-tier policy missing subsystem(s): "
+                + ",".join(missing_policy)
+            )
+        if changed_policy:
+            errors.append(
+                "expected subsystem model-tier policy changed for subsystem(s): "
+                + ",".join(changed_policy)
+            )
     agents = topology.get("llm_agents", []) if isinstance(topology.get("llm_agents"), list) else []
     enabled_agents = [
         agent
@@ -793,6 +823,21 @@ def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
         errors.append(
             "llm_runtime_topology environment_acting_enabled_agents count does not match agents"
         )
+    subsystem_tier_mismatch_count = sum(
+        1 for agent in enabled_agents if _subsystem_model_tier_mismatch(agent)
+    )
+    if "subsystem_model_tier_policy_mismatches" not in counts:
+        errors.append(
+            "llm_runtime_topology counts missing subsystem_model_tier_policy_mismatches"
+        )
+    elif (
+        int(counts.get("subsystem_model_tier_policy_mismatches", 0) or 0)
+        != subsystem_tier_mismatch_count
+    ):
+        errors.append(
+            "llm_runtime_topology subsystem_model_tier_policy_mismatches count "
+            "does not match agents"
+        )
     for agent in agents:
         if not isinstance(agent, Mapping) or not agent.get("enabled"):
             continue
@@ -811,7 +856,25 @@ def _audit_topology(manifest: Mapping[str, Any]) -> list[str]:
                 f"{agent.get('subsystem')} uses unsupported provider(s): "
                 + ",".join(unsupported_names)
             )
+        tier_mismatch = _subsystem_model_tier_mismatch(agent)
+        if tier_mismatch:
+            errors.append(tier_mismatch)
     return sorted(set(errors))
+
+
+def _subsystem_model_tier_mismatch(agent: Mapping[str, Any]) -> str:
+    subsystem = str(agent.get("subsystem", "") or "").strip()
+    configured = str(agent.get("model_tier", "") or "").strip().lower()
+    expected = str(
+        agent.get("expected_model_tier")
+        or AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY.get(subsystem, "")
+    ).strip().lower()
+    if not expected or expected == "auto" or configured == expected:
+        return ""
+    return (
+        f"{subsystem} expected model_tier {expected} by AI Statistician LLM "
+        f"subsystem policy but is configured with {configured or 'missing'}"
+    )
 
 
 def _topology_unsupported_count(manifest: Mapping[str, Any]) -> int:

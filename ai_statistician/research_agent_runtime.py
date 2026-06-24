@@ -63,6 +63,7 @@ from .formalizer_llm import (
     LLMFormalizerProofEngineerAgent,
 )
 from .model_backend import (
+    AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     CLAUDE_MODEL_TIERS,
     DEFAULT_LIVE_GENERATOR_TIMEOUT_SECONDS,
@@ -71,6 +72,7 @@ from .model_backend import (
     claude_model_freshness_warnings,
     claude_model_tier_mismatch,
     claude_model_tier_policy_violations,
+    llm_subsystem_expected_model_tier,
     resolve_generator_model,
 )
 from .formal_source_index import FormalSourceHit, FormalSourceRetriever
@@ -4184,6 +4186,9 @@ def _runtime_llm_topology(
             "resolved_claude_model_freshness_warnings": (
                 resolved_claude_model_freshness_warnings
             ),
+            "expected_subsystem_model_tiers": (
+                AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY
+            ),
             "primary_cost_split": "sonnet_for_architect_theory_formalizer__haiku_for_simulation_algorithm_critic",
             "backend_boundary": (
                 "LLM backends generate structured proposals only. AgentRuntime owns "
@@ -4214,6 +4219,9 @@ def _runtime_llm_topology(
             ),
             "anthropic_model_tier_mismatches": sum(
                 1 for row in enabled if _anthropic_model_tier_mismatch(row)
+            ),
+            "subsystem_model_tier_policy_mismatches": sum(
+                1 for row in enabled if _subsystem_model_tier_mismatch(row)
             ),
             "resolved_claude_model_tier_policy_violations": len(
                 resolved_claude_model_tier_policy_violations
@@ -4259,6 +4267,9 @@ def _llm_topology_policy_violations(agents: list[dict[str, Any]]) -> list[str]:
         mismatch = _anthropic_model_tier_mismatch(row)
         if mismatch:
             violations.append(mismatch)
+        subsystem_tier_mismatch = _subsystem_model_tier_mismatch(row)
+        if subsystem_tier_mismatch:
+            violations.append(subsystem_tier_mismatch)
     return violations
 
 
@@ -4290,6 +4301,22 @@ def _anthropic_model_tier_mismatch(row: Mapping[str, Any]) -> str:
     )
 
 
+def _subsystem_model_tier_mismatch(row: Mapping[str, Any]) -> str:
+    expected = str(row.get("expected_model_tier", "") or "").strip().lower()
+    configured = str(row.get("model_tier", "") or "").strip().lower()
+    if not expected:
+        return ""
+    if expected == "auto":
+        return ""
+    if configured == expected:
+        return ""
+    return (
+        f"{row.get('subsystem')} expected model_tier {expected} by "
+        f"AI Statistician LLM subsystem policy but is configured with "
+        f"{configured or 'missing'}"
+    )
+
+
 def _llm_agent_topology_row(
     subsystem: str,
     agent: Any | None,
@@ -4297,6 +4324,7 @@ def _llm_agent_topology_row(
     model_tier: str,
     role: str,
 ) -> dict[str, Any]:
+    expected_model_tier = llm_subsystem_expected_model_tier(subsystem) or model_tier
     if agent is None:
         return {
             "subsystem": subsystem,
@@ -4305,6 +4333,7 @@ def _llm_agent_topology_row(
             "backend_provider_name": "",
             "model": "",
             "model_tier": model_tier,
+            "expected_model_tier": expected_model_tier,
             "role": role,
             "generator_only": True,
             "acts_in_environment": False,
@@ -4327,6 +4356,7 @@ def _llm_agent_topology_row(
         "model": resolved_model,
         "configured_model": requested_model,
         "model_tier": config_model_tier,
+        "expected_model_tier": expected_model_tier,
         "role": role,
         "generator_only": True,
         "acts_in_environment": False,

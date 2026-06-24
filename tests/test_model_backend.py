@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from ai_statistician.model_backend import (
+    AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY,
     ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY,
     ANTHROPIC_CLAUDE_TIER_ENV_VARS,
     ANTHROPIC_MODEL_ID_VERSIONING_POLICY,
@@ -31,6 +32,7 @@ from ai_statistician.model_backend import (
     claude_model_tier_policy_violations,
     default_generator_model,
     default_generator_provider,
+    llm_subsystem_expected_model_tier,
     resolve_generator_model,
 )
 
@@ -446,6 +448,16 @@ def test_live_generator_defaults_to_anthropic_cost_aware_tiers(monkeypatch: pyte
     assert "runtime calls" in ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY[
         "runtime_model_id_policy"
     ]
+    assert (
+        ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["subsystem_model_tier_policy"]
+        == AI_STATISTICIAN_LLM_SUBSYSTEM_MODEL_TIER_POLICY
+    )
+    assert llm_subsystem_expected_model_tier("TheoryDeveloper") == "sonnet"
+    assert llm_subsystem_expected_model_tier("FormalizerProofEngineer") == "sonnet"
+    assert llm_subsystem_expected_model_tier("SimulationEngineer") == "haiku"
+    assert llm_subsystem_expected_model_tier("AlgorithmEngineer") == "haiku"
+    assert llm_subsystem_expected_model_tier("CriticEvaluator") == "haiku"
+    assert llm_subsystem_expected_model_tier("unknown") == ""
     assert ANTHROPIC_MODEL_SOURCE_CHECKED_DATE == "2026-06-24"
     assert (
         ANTHROPIC_CLAUDE_MODEL_SELECTION_POLICY["source_evidence"]
