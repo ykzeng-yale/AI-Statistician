@@ -40,6 +40,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     _adapter_targets_match,
     _available_formal_declaration_rows_for_context,
     _generator_model_for_request,
+    _library_alignment_summary,
     _minimal_delta_route_option_selection_brief_errors,
     _response_route_planning_evidence_gap_coverage_errors,
     _route_adoption_readiness,
@@ -214,6 +215,92 @@ def test_route_option_selection_brief_uses_residual_coverage_tie_breaker() -> No
     assert selected["residual_goal_samples"] == [residual_goal]
 
 
+def test_route_option_selection_brief_uses_formal_source_retrieval_tie_breaker() -> None:
+    context_packet = {
+        "minimal_delta_cost_hints": {
+            "primitive_cost_hints": [
+                {
+                    "primitive": "exchangeability",
+                    "minimum_coverage_bucket": "wrapper_needed",
+                    "minimum_base_cost": 4,
+                    "minimum_cost_source": "fixture",
+                    "minimum_cost_marker": "wrapper_needed",
+                },
+                {
+                    "primitive": "rank_uniformity",
+                    "minimum_coverage_bucket": "wrapper_needed",
+                    "minimum_base_cost": 4,
+                    "minimum_cost_source": "fixture",
+                    "minimum_cost_marker": "wrapper_needed",
+                },
+            ],
+            "route_option_hints": [
+                {
+                    "route_option_id": "reuse_without_retrieval",
+                    "option_kind": "wrapper",
+                    "selected_primitives": ["exchangeability"],
+                    "minimum_route_base_cost": 4,
+                    "cost_rationale": "Same lower-bound cost.",
+                },
+                {
+                    "route_option_id": "semantic_formal_source",
+                    "option_kind": "wrapper",
+                    "selected_primitives": ["rank_uniformity"],
+                    "minimum_route_base_cost": 4,
+                    "cost_rationale": "Same cost with formal-source retrieval.",
+                },
+            ],
+        },
+        "formal_source_retrieval_summary": {
+            "rows": [
+                {
+                    "target_primitives": ["rank_uniformity"],
+                    "search_backend": "sqlite_fts_shape+local_char_ngram_semantic",
+                    "semantic_rerank_enabled": True,
+                    "semantic_provider_id": "local_char_ngram",
+                    "target_compatible_formal_declaration_hit_count": 1,
+                }
+            ]
+        },
+    }
+    alignment = _library_alignment_summary(
+        context_packet,
+        route_id="rank_route",
+        display_name="rank route",
+        target_prover_family="lean4",
+        library_snapshot_ref="lean_mathlib_snapshot",
+    )
+    context_packet["library_alignment_summary"] = alignment
+
+    brief = _route_option_selection_brief(
+        context_packet,
+        route_id="rank_route",
+        display_name="rank route",
+        target_prover_family="lean4",
+        library_snapshot_ref="lean_mathlib_snapshot",
+    )
+
+    rank_primitive = {
+        row["primitive"]: row for row in alignment["primitive_alignment"]
+    }["rank_uniformity"]
+    assert rank_primitive["formal_source_retrieval_metadata_count"] == 1
+    assert rank_primitive["formal_source_semantic_rerank_count"] == 1
+    assert rank_primitive["formal_source_target_compatible_hit_count"] == 1
+    assert alignment["route_option_alignment"][1][
+        "n_formal_source_target_compatible_hits"
+    ] == 1
+    assert brief["lower_bound_selected_route_option_id"] == "semantic_formal_source"
+    selected = brief["candidate_route_options"][0]
+    assert selected["route_option_id"] == "semantic_formal_source"
+    assert selected["n_formal_source_retrieval_metadata_rows"] == 1
+    assert selected["n_formal_source_semantic_rerank_rows"] == 1
+    assert selected["n_formal_source_target_compatible_hits"] == 1
+    assert selected["formal_source_search_backends"] == [
+        "sqlite_fts_shape+local_char_ngram_semantic",
+    ]
+    assert selected["formal_source_semantic_providers"] == ["local_char_ngram"]
+
+
 def test_route_option_selection_validation_rejects_residual_blind_same_cost_choice() -> None:
     request = {
         "context_packet": {
@@ -280,6 +367,85 @@ def test_route_option_selection_validation_rejects_residual_blind_same_cost_choi
     assert (
         _minimal_delta_route_option_selection_brief_errors(
             residual_aware_payload,
+            request,
+        )
+        == []
+    )
+
+
+def test_route_option_selection_validation_rejects_formal_source_blind_same_cost_choice() -> None:
+    request = {
+        "context_packet": {
+            "route_option_selection_brief": {
+                "candidate_route_options": [
+                    {
+                        "route_option_id": "reuse_without_retrieval",
+                        "selected_primitives": ["exchangeability"],
+                        "minimum_route_base_cost": 4,
+                        "n_residual_goals": 0,
+                        "n_formal_source_target_compatible_hits": 0,
+                        "n_formal_source_semantic_rerank_rows": 0,
+                        "n_formal_source_retrieval_metadata_rows": 0,
+                    },
+                    {
+                        "route_option_id": "semantic_formal_source",
+                        "selected_primitives": ["rank_uniformity"],
+                        "minimum_route_base_cost": 4,
+                        "n_residual_goals": 0,
+                        "n_formal_source_target_compatible_hits": 1,
+                        "n_formal_source_semantic_rerank_rows": 1,
+                        "n_formal_source_retrieval_metadata_rows": 1,
+                    },
+                ],
+                "lower_bound_selected_route_option_id": "semantic_formal_source",
+                "lower_bound_selected_route_cost": 4,
+                "lower_bound_selected_residual_goal_count": 0,
+            }
+        }
+    }
+    payload = {
+        "minimal_delta_plan": {
+            "and_or_cost_graph": {
+                "selected_route_option_id": "reuse_without_retrieval",
+                "route_options": [
+                    {
+                        "route_option_id": "reuse_without_retrieval",
+                        "selected": True,
+                        "selected_primitives": ["exchangeability"],
+                        "route_cost": 4,
+                        "cost_rationale": "Same base cost.",
+                    },
+                    {
+                        "route_option_id": "semantic_formal_source",
+                        "selected": False,
+                        "selected_primitives": ["rank_uniformity"],
+                        "route_cost": 4,
+                        "cost_rationale": (
+                            "Same cost with stronger formal-source retrieval."
+                        ),
+                    },
+                ],
+            }
+        }
+    }
+
+    errors = _minimal_delta_route_option_selection_brief_errors(payload, request)
+
+    assert any(
+        "formal-source lower-bound route option semantic_formal_source" in error
+        and "selected reuse_without_retrieval has 0 target-compatible "
+        "formal-source hit(s)" in error
+        for error in errors
+    )
+
+    formal_source_aware_payload = deepcopy(payload)
+    graph = formal_source_aware_payload["minimal_delta_plan"]["and_or_cost_graph"]
+    graph["selected_route_option_id"] = "semantic_formal_source"
+    graph["route_options"][0]["selected"] = False
+    graph["route_options"][1]["selected"] = True
+    assert (
+        _minimal_delta_route_option_selection_brief_errors(
+            formal_source_aware_payload,
             request,
         )
         == []
@@ -8387,6 +8553,30 @@ def test_llm_route_planner_stages_formal_source_retrieval_metadata() -> None:
     assert summary_row["semantic_rerank_enabled"] is True
     assert summary_row["semantic_provider_id"] == "local_char_ngram"
     assert summary_row["coverage_updates"] == {"rank_uniformity": "wrapper_needed"}
+    alignment = context["library_alignment_summary"]
+    primitive_alignment = {
+        row["primitive"]: row for row in alignment["primitive_alignment"]
+    }
+    assert primitive_alignment["rank_uniformity"][
+        "formal_source_retrieval_metadata_count"
+    ] == 1
+    assert primitive_alignment["rank_uniformity"][
+        "formal_source_semantic_rerank_count"
+    ] == 1
+    assert primitive_alignment["rank_uniformity"][
+        "formal_source_target_compatible_hit_count"
+    ] == 1
+    assert any(
+        "rank_uniformity" in option["selected_primitives"]
+        and option["n_formal_source_target_compatible_hits"] == 1
+        for option in alignment["route_option_alignment"]
+    )
+    route_option_brief = context["route_option_selection_brief"]
+    assert any(
+        "rank_uniformity" in option["selected_primitives"]
+        and option["n_formal_source_semantic_rerank_rows"] == 1
+        for option in route_option_brief["candidate_route_options"]
+    )
     target_context = context["target_theorem_context_packet"]
     assert target_context["formal_source_retrieval_metadata_count"] == 1
     assert target_context["formal_source_semantic_rerank_count"] == 1

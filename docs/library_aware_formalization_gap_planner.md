@@ -150,7 +150,11 @@ wrapper, bridge, source-port, new-definition, new-theory, and unknown
 primitive alignment classes without reverse-engineering the full prompt packet.
 The same rows include `route_option_alignment`, which exposes candidate
 route-option primitive sets, minimum route base cost, and the aggregate
-bridge-or-harder count used by the minimal-delta planner.
+bridge-or-harder count used by the minimal-delta planner. When formal-source
+retrieval metadata is available, the same route-option rows aggregate retrieval
+metadata rows, semantic-rerank rows, target-compatible formal-source hits,
+search backends, and semantic providers, so library search evidence can affect
+route choice without being treated as theorem proof evidence.
 Each staged request also writes
 `formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl`.
 Those rows are the reusable, source-grounded route-synthesis briefs supplied to
@@ -171,16 +175,20 @@ or frontier dispatch packets used for reviewed LLM follow-ups.
 Each request packet also carries
 `context_packet.route_option_selection_brief`, a compact route-option
 comparison table derived from that alignment summary. It ranks candidate route
-options by lower-bound formalization cost, preserves selected primitives and
-library-delta class counts, and names the lower-bound selected option as a
-planning hint. Request validation recomputes this brief from
+options by lower-bound formalization cost, residual-goal coverage,
+target-compatible formal-source retrieval hits, semantic-reranked retrieval
+metadata, selected primitives, and library-delta class counts, and names the
+lower-bound selected option as a planning hint. Request validation recomputes
+this brief from
 `library_alignment_summary`, so public consumers can detect stale or hand-edited
 route-option comparisons before invoking any LLM or prover.
 Response validation also binds the returned
 `minimal_delta_plan.and_or_cost_graph.route_options` back to this brief: each
 brief candidate must be represented by route-option id or the same selected
 primitive set, and matching response options may not underprice the candidate's
-lower-bound route cost.
+lower-bound route cost. When same-cost options differ only in residual coverage
+or formal-source retrieval support, the selected response option must follow
+the brief's lower-bound choice or the reviewed response is rejected.
 Publication bundles copy that JSONL and schema for both the primary and
 feedback LLM route-planner artifacts, and the bundle audit checks that the
 packaged rows match the request packets and manifest counts.

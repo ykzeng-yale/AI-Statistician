@@ -4590,6 +4590,11 @@ def llm_route_planner_library_alignment_summary_json_schema() -> dict[str, objec
                         "target_compatible_declarations",
                         "target_compatible_declaration_count",
                         "candidate_declaration_row_count",
+                        "formal_source_retrieval_metadata_count",
+                        "formal_source_semantic_rerank_count",
+                        "formal_source_target_compatible_hit_count",
+                        "formal_source_search_backends",
+                        "formal_source_semantic_providers",
                     ],
                     "properties": {
                         "primitive": {"type": "string", "minLength": 1},
@@ -4617,6 +4622,15 @@ def llm_route_planner_library_alignment_summary_json_schema() -> dict[str, objec
                         "target_compatible_declarations": string_array,
                         "target_compatible_declaration_count": nonnegative_integer,
                         "candidate_declaration_row_count": nonnegative_integer,
+                        "formal_source_retrieval_metadata_count": (
+                            nonnegative_integer
+                        ),
+                        "formal_source_semantic_rerank_count": nonnegative_integer,
+                        "formal_source_target_compatible_hit_count": (
+                            nonnegative_integer
+                        ),
+                        "formal_source_search_backends": string_array,
+                        "formal_source_semantic_providers": string_array,
                     },
                 },
             },
@@ -4635,6 +4649,11 @@ def llm_route_planner_library_alignment_summary_json_schema() -> dict[str, objec
                         "cost_rationale",
                         "n_bridge_or_harder_primitives",
                         "n_target_compatible_reuse_declarations",
+                        "n_formal_source_retrieval_metadata_rows",
+                        "n_formal_source_semantic_rerank_rows",
+                        "n_formal_source_target_compatible_hits",
+                        "formal_source_search_backends",
+                        "formal_source_semantic_providers",
                         "by_library_delta_class",
                         "by_minimum_coverage_bucket",
                     ],
@@ -4651,6 +4670,15 @@ def llm_route_planner_library_alignment_summary_json_schema() -> dict[str, objec
                         "cost_rationale": {"type": "string"},
                         "n_bridge_or_harder_primitives": nonnegative_integer,
                         "n_target_compatible_reuse_declarations": nonnegative_integer,
+                        "n_formal_source_retrieval_metadata_rows": (
+                            nonnegative_integer
+                        ),
+                        "n_formal_source_semantic_rerank_rows": nonnegative_integer,
+                        "n_formal_source_target_compatible_hits": (
+                            nonnegative_integer
+                        ),
+                        "formal_source_search_backends": string_array,
+                        "formal_source_semantic_providers": string_array,
                         "by_library_delta_class": {
                             "type": "object",
                             "additionalProperties": nonnegative_integer,
@@ -9069,6 +9097,9 @@ def _request_packet(
         )
         if str(row.get("declaration", "")).strip()
     ]
+    context_packet["formal_source_retrieval_summary"] = (
+        _formal_source_retrieval_summary(context_packet)
+    )
     context_packet["minimal_delta_cost_hints"] = _minimal_delta_cost_hints(
         route,
         context_packet,
@@ -9096,9 +9127,6 @@ def _request_packet(
     )
     context_packet["resource_feedback_readiness_summary"] = (
         _resource_feedback_readiness_summary(context_packet)
-    )
-    context_packet["formal_source_retrieval_summary"] = (
-        _formal_source_retrieval_summary(context_packet)
     )
     context_packet["route_brief_gap_response_contract_summary"] = (
         _route_brief_gap_response_contract_summary(context_packet)
@@ -9238,6 +9266,9 @@ def _library_alignment_summary(
     library_snapshot_ref: str,
 ) -> dict[str, object]:
     cost_hints = _dict_value(context_packet, "minimal_delta_cost_hints")
+    formal_source_by_primitive = _formal_source_retrieval_by_primitive(
+        context_packet
+    )
     primitive_rows: list[dict[str, object]] = []
     for hint in _dict_tuple(cost_hints.get("primitive_cost_hints", [])):
         primitive = _primitive_key(hint.get("primitive", ""))
@@ -9256,6 +9287,7 @@ def _library_alignment_summary(
             for row in declaration_rows
             if str(row.get("declaration", "")).strip()
         ]
+        formal_source = formal_source_by_primitive.get(primitive, {})
         primitive_rows.append(
             {
                 "primitive": primitive,
@@ -9270,6 +9302,31 @@ def _library_alignment_summary(
                 "target_compatible_declaration_count": len(declarations),
                 "candidate_declaration_row_count": len(
                     _dict_tuple(hint.get("candidate_declaration_rows", []))
+                ),
+                "formal_source_retrieval_metadata_count": int(
+                    formal_source.get("formal_source_retrieval_metadata_count", 0)
+                    or 0
+                ),
+                "formal_source_semantic_rerank_count": int(
+                    formal_source.get("formal_source_semantic_rerank_count", 0)
+                    or 0
+                ),
+                "formal_source_target_compatible_hit_count": int(
+                    formal_source.get(
+                        "formal_source_target_compatible_hit_count",
+                        0,
+                    )
+                    or 0
+                ),
+                "formal_source_search_backends": list(
+                    _str_tuple(
+                        formal_source.get("formal_source_search_backends", [])
+                    )
+                ),
+                "formal_source_semantic_providers": list(
+                    _str_tuple(
+                        formal_source.get("formal_source_semantic_providers", [])
+                    )
                 ),
             }
         )
@@ -9340,6 +9397,42 @@ def _library_alignment_summary(
                     int(row.get("target_compatible_declaration_count", 0) or 0)
                     for row in selected_rows
                 ),
+                "n_formal_source_retrieval_metadata_rows": sum(
+                    int(row.get("formal_source_retrieval_metadata_count", 0) or 0)
+                    for row in selected_rows
+                ),
+                "n_formal_source_semantic_rerank_rows": sum(
+                    int(row.get("formal_source_semantic_rerank_count", 0) or 0)
+                    for row in selected_rows
+                ),
+                "n_formal_source_target_compatible_hits": sum(
+                    int(
+                        row.get(
+                            "formal_source_target_compatible_hit_count",
+                            0,
+                        )
+                        or 0
+                    )
+                    for row in selected_rows
+                ),
+                "formal_source_search_backends": list(
+                    _unique_strings(
+                        backend
+                        for row in selected_rows
+                        for backend in _str_tuple(
+                            row.get("formal_source_search_backends", [])
+                        )
+                    )
+                ),
+                "formal_source_semantic_providers": list(
+                    _unique_strings(
+                        provider
+                        for row in selected_rows
+                        for provider in _str_tuple(
+                            row.get("formal_source_semantic_providers", [])
+                        )
+                    )
+                ),
                 "by_library_delta_class": dict(sorted(selected_class_counts.items())),
                 "by_minimum_coverage_bucket": dict(
                     sorted(selected_bucket_counts.items())
@@ -9385,6 +9478,79 @@ def _library_alignment_summary(
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
+
+
+def _formal_source_retrieval_by_primitive(
+    context_packet: Mapping[str, Any],
+) -> dict[str, dict[str, object]]:
+    summary = _dict_value(context_packet, "formal_source_retrieval_summary")
+    rows_by_primitive: dict[str, dict[str, object]] = {}
+    for row in _dict_tuple(summary.get("rows", [])):
+        target_primitives = [
+            primitive
+            for primitive in (
+                _primitive_key(value)
+                for value in _str_tuple(row.get("target_primitives", []))
+            )
+            if primitive
+        ]
+        if not target_primitives:
+            continue
+        search_backend = str(row.get("search_backend", "") or "").strip()
+        semantic_provider = str(row.get("semantic_provider_id", "") or "").strip()
+        semantic_rerank_enabled = bool(row.get("semantic_rerank_enabled", False))
+        compatible_hits = _nonnegative_int(
+            row.get("target_compatible_formal_declaration_hit_count", 0)
+        )
+        for primitive in target_primitives:
+            primitive_summary = rows_by_primitive.setdefault(
+                primitive,
+                {
+                    "formal_source_retrieval_metadata_count": 0,
+                    "formal_source_semantic_rerank_count": 0,
+                    "formal_source_target_compatible_hit_count": 0,
+                    "formal_source_search_backends": [],
+                    "formal_source_semantic_providers": [],
+                },
+            )
+            primitive_summary["formal_source_retrieval_metadata_count"] = int(
+                primitive_summary.get("formal_source_retrieval_metadata_count", 0)
+                or 0
+            ) + 1
+            if semantic_rerank_enabled:
+                primitive_summary["formal_source_semantic_rerank_count"] = int(
+                    primitive_summary.get("formal_source_semantic_rerank_count", 0)
+                    or 0
+                ) + 1
+            primitive_summary["formal_source_target_compatible_hit_count"] = int(
+                primitive_summary.get("formal_source_target_compatible_hit_count", 0)
+                or 0
+            ) + compatible_hits
+            if search_backend:
+                backends = list(
+                    _str_tuple(
+                        primitive_summary.get(
+                            "formal_source_search_backends",
+                            [],
+                        )
+                    )
+                )
+                if search_backend not in backends:
+                    backends.append(search_backend)
+                primitive_summary["formal_source_search_backends"] = backends
+            if semantic_provider:
+                providers = list(
+                    _str_tuple(
+                        primitive_summary.get(
+                            "formal_source_semantic_providers",
+                            [],
+                        )
+                    )
+                )
+                if semantic_provider not in providers:
+                    providers.append(semantic_provider)
+                primitive_summary["formal_source_semantic_providers"] = providers
+    return rows_by_primitive
 
 
 def _route_option_selection_brief(
@@ -9447,6 +9613,21 @@ def _route_option_selection_brief(
                 "n_target_compatible_reuse_declarations": int(
                     row.get("n_target_compatible_reuse_declarations", 0) or 0
                 ),
+                "n_formal_source_retrieval_metadata_rows": int(
+                    row.get("n_formal_source_retrieval_metadata_rows", 0) or 0
+                ),
+                "n_formal_source_semantic_rerank_rows": int(
+                    row.get("n_formal_source_semantic_rerank_rows", 0) or 0
+                ),
+                "n_formal_source_target_compatible_hits": int(
+                    row.get("n_formal_source_target_compatible_hits", 0) or 0
+                ),
+                "formal_source_search_backends": list(
+                    _str_tuple(row.get("formal_source_search_backends", []))
+                ),
+                "formal_source_semantic_providers": list(
+                    _str_tuple(row.get("formal_source_semantic_providers", []))
+                ),
                 "n_residual_goals": int(row.get("n_residual_goals", 0) or 0),
                 "n_residual_goal_contexts": int(
                     row.get("n_residual_goal_contexts", 0) or 0
@@ -9481,8 +9662,10 @@ def _route_option_selection_brief(
         "cost_policy_id": MINIMAL_DELTA_COST_POLICY_ID,
         "selection_rule": (
             "Rank route options by minimum_route_base_cost, then more covered "
-            "current prover residual goals, then fewer bridge-or-harder "
-            "primitives, then more target-compatible reuse declarations."
+            "current prover residual goals, then more target-compatible "
+            "formal-source retrieval hits, then semantic-reranked formal-source "
+            "metadata, then fewer bridge-or-harder primitives, then more "
+            "target-compatible reuse declarations."
         ),
         "n_candidate_route_options": len(candidate_options),
         "n_candidate_route_option_primitives": sum(
@@ -9574,10 +9757,13 @@ def _route_option_residual_coverage_summary(
 def _route_option_selection_sort_key(
     row: Mapping[str, object],
     source_index: int,
-) -> tuple[float, int, int, int, int, str]:
+) -> tuple[float, int, int, int, int, int, int, int, str]:
     return (
         _route_option_minimum_cost(row),
         -int(row.get("n_residual_goals", 0) or 0),
+        -int(row.get("n_formal_source_target_compatible_hits", 0) or 0),
+        -int(row.get("n_formal_source_semantic_rerank_rows", 0) or 0),
+        -int(row.get("n_formal_source_retrieval_metadata_rows", 0) or 0),
         int(row.get("n_bridge_or_harder_primitives", 0) or 0),
         -int(row.get("n_target_compatible_reuse_declarations", 0) or 0),
         source_index,
@@ -27130,16 +27316,71 @@ def _residual_aware_selected_route_option_errors(
         return []
     selected_residual_goals = int(selected_candidate.get("n_residual_goals", 0) or 0)
     lower_residual_goals = int(lower_bound_candidate.get("n_residual_goals", 0) or 0)
-    if selected_residual_goals >= lower_residual_goals:
+    if selected_residual_goals < lower_residual_goals:
+        return [
+            "minimal_delta_plan.and_or_cost_graph selected_route_option_id "
+            "ignores context_packet.route_option_selection_brief residual-aware "
+            f"lower-bound route option {lower_id or '<unnamed>'}: selected "
+            f"{selected_id or '<unnamed>'} covers {selected_residual_goals} "
+            f"residual goal(s), but lower-bound option covers {lower_residual_goals} "
+            "at the same minimum_route_base_cost"
+        ]
+    if selected_residual_goals > lower_residual_goals:
         return []
-    return [
-        "minimal_delta_plan.and_or_cost_graph selected_route_option_id "
-        "ignores context_packet.route_option_selection_brief residual-aware "
-        f"lower-bound route option {lower_id or '<unnamed>'}: selected "
-        f"{selected_id or '<unnamed>'} covers {selected_residual_goals} "
-        f"residual goal(s), but lower-bound option covers {lower_residual_goals} "
-        "at the same minimum_route_base_cost"
-    ]
+    selected_formal_source_hits = int(
+        selected_candidate.get("n_formal_source_target_compatible_hits", 0) or 0
+    )
+    lower_formal_source_hits = int(
+        lower_bound_candidate.get("n_formal_source_target_compatible_hits", 0) or 0
+    )
+    if selected_formal_source_hits < lower_formal_source_hits:
+        return [
+            "minimal_delta_plan.and_or_cost_graph selected_route_option_id "
+            "ignores context_packet.route_option_selection_brief formal-source "
+            f"lower-bound route option {lower_id or '<unnamed>'}: selected "
+            f"{selected_id or '<unnamed>'} has {selected_formal_source_hits} "
+            "target-compatible formal-source hit(s), but lower-bound option has "
+            f"{lower_formal_source_hits} at the same minimum_route_base_cost "
+            "and residual-goal coverage"
+        ]
+    if selected_formal_source_hits > lower_formal_source_hits:
+        return []
+    selected_semantic_rows = int(
+        selected_candidate.get("n_formal_source_semantic_rerank_rows", 0) or 0
+    )
+    lower_semantic_rows = int(
+        lower_bound_candidate.get("n_formal_source_semantic_rerank_rows", 0) or 0
+    )
+    if selected_semantic_rows < lower_semantic_rows:
+        return [
+            "minimal_delta_plan.and_or_cost_graph selected_route_option_id "
+            "ignores context_packet.route_option_selection_brief semantic "
+            f"formal-source lower-bound route option {lower_id or '<unnamed>'}: "
+            f"selected {selected_id or '<unnamed>'} has {selected_semantic_rows} "
+            "semantic-reranked formal-source row(s), but lower-bound option has "
+            f"{lower_semantic_rows} at the same minimum_route_base_cost, "
+            "residual-goal coverage, and target-compatible hit count"
+        ]
+    if selected_semantic_rows > lower_semantic_rows:
+        return []
+    selected_metadata_rows = int(
+        selected_candidate.get("n_formal_source_retrieval_metadata_rows", 0) or 0
+    )
+    lower_metadata_rows = int(
+        lower_bound_candidate.get("n_formal_source_retrieval_metadata_rows", 0) or 0
+    )
+    if selected_metadata_rows < lower_metadata_rows:
+        return [
+            "minimal_delta_plan.and_or_cost_graph selected_route_option_id "
+            "ignores context_packet.route_option_selection_brief formal-source "
+            f"metadata lower-bound route option {lower_id or '<unnamed>'}: "
+            f"selected {selected_id or '<unnamed>'} has {selected_metadata_rows} "
+            "formal-source metadata row(s), but lower-bound option has "
+            f"{lower_metadata_rows} at the same minimum_route_base_cost, "
+            "residual-goal coverage, target-compatible hit count, and semantic "
+            "rerank count"
+        ]
+    return []
 
 
 def _response_coverage_hint_floor_errors(
