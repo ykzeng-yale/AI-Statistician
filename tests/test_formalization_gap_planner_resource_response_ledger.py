@@ -795,6 +795,223 @@ def test_resource_response_ledger_accepts_hol4_route_brief_formal_gap_response()
     ) == []
 
 
+def test_route_brief_gap_resource_responses_round_trip_into_next_planner_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_resource_response_ledger_round_trip"
+    )
+    ledger_dir = root / "ledger"
+    replan_dir = root / "llm_route_planner_replan"
+    response_jsonl = root / "resource_responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = root / "standalone_input.json"
+    llm_payload, request_payload, request_queue_dir = (
+        _build_prompt_only_route_brief_request_queue(root)
+    )
+    source_request = next(
+        row
+        for row in request_payload["rows"]
+        if row["request_payload"].get("llm_route_planner_source_kind")
+        == "route_planning_brief_evidence_gap"
+        and row["resource_id"] == "paperclip_cli_mcp"
+    )
+    formal_request = next(
+        row
+        for row in request_payload["rows"]
+        if row["request_payload"].get("llm_route_planner_source_kind")
+        == "route_planning_brief_evidence_gap"
+        and row["request_playbook"]["llm_route_planner_source_item"][
+            "route_planning_brief_gap_kind"
+        ]
+        == "formal_library_grounding"
+        and row["resource_id"] == "loogle_leansearch"
+    )
+    source_ref = "source:rank_uniformity_round_trip"
+    formal_declaration = "Probability.rankUniformityRoundTripBridge"
+    responses = [
+        {
+            "resource_request_id": source_request["resource_request_id"],
+            "resource_id": source_request["resource_id"],
+            "tool_name": source_request["resource_id"],
+            "expected_response_artifact": source_request[
+                "expected_response_artifact"
+            ],
+            "llm_route_planner_row_id": source_request["request_payload"][
+                "llm_route_planner_row_id"
+            ],
+            "llm_route_planner_request_id": source_request["request_payload"][
+                "llm_route_planner_request_id"
+            ],
+            "llm_route_planner_source_kind": "route_planning_brief_evidence_gap",
+            "llm_route_planner_source_index": source_request["request_payload"][
+                "llm_route_planner_source_index"
+            ],
+            "llm_route_planner_hook_kind": "literature_discovery",
+            "response_payload": {
+                "source_refs": [source_ref],
+                "source_snippets": [
+                    {
+                        "source_ref": source_ref,
+                        "claim": (
+                            "Exchangeability gives the finite-sample rank "
+                            "uniformity fact needed by the route."
+                        ),
+                        "excerpt": (
+                            "The round-trip source response grounds "
+                            "rank_uniformity under exchangeability with a fixed "
+                            "tie convention."
+                        ),
+                        "target_primitives": ["rank_uniformity"],
+                        "supported_target_primitives": ["rank_uniformity"],
+                    }
+                ],
+                "route_evidence_nodes": [
+                    {
+                        "node_id": "rank_uniformity:round_trip:source",
+                        "claim": (
+                            "rank_uniformity is source-grounded by the "
+                            "round-trip response"
+                        ),
+                        "target_primitives": ["rank_uniformity"],
+                        "source_refs": [source_ref],
+                    }
+                ],
+                "route_revision_recommended": True,
+                "response_summary": (
+                    "Source evidence resolves the route-planning brief "
+                    "source-grounding gap."
+                ),
+            },
+            "proof_evidence_boundary": "not theorem proof evidence",
+        },
+        {
+            "resource_request_id": formal_request["resource_request_id"],
+            "resource_id": formal_request["resource_id"],
+            "tool_name": formal_request["resource_id"],
+            "expected_response_artifact": formal_request[
+                "expected_response_artifact"
+            ],
+            "llm_route_planner_row_id": formal_request["request_payload"][
+                "llm_route_planner_row_id"
+            ],
+            "llm_route_planner_request_id": formal_request["request_payload"][
+                "llm_route_planner_request_id"
+            ],
+            "llm_route_planner_source_kind": "route_planning_brief_evidence_gap",
+            "llm_route_planner_source_index": formal_request["request_payload"][
+                "llm_route_planner_source_index"
+            ],
+            "llm_route_planner_hook_kind": "formal_library_grounding",
+            "response_payload": {
+                "target_prover_family": "lean4",
+                "formal_declaration_hits": [
+                    {
+                        "declaration": formal_declaration,
+                        "target_prover_family": "lean4",
+                        "target_primitives": ["rank_uniformity"],
+                        "supported_target_primitives": ["rank_uniformity"],
+                        "source_field": "formal_declaration_hits",
+                    }
+                ],
+                "lean_declaration_hits": [
+                    {
+                        "declaration": formal_declaration,
+                        "target_prover_family": "lean4",
+                        "target_primitives": ["rank_uniformity"],
+                        "supported_target_primitives": ["rank_uniformity"],
+                        "source_field": "lean_declaration_hits",
+                    }
+                ],
+                "coverage_updates": {"rank_uniformity": "bridge_needed"},
+                "route_revision_recommended": True,
+                "response_summary": (
+                    "Lean search found a route-compatible rank-uniformity "
+                    "bridge candidate."
+                ),
+            },
+            "proof_evidence_boundary": "not theorem proof evidence",
+        },
+    ]
+    response_jsonl.write_text(
+        "".join(json.dumps(response, sort_keys=True) + "\n" for response in responses),
+        encoding="utf-8",
+    )
+
+    ledger_payload = export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        ledger_dir,
+        response_jsonl=response_jsonl,
+    )
+    replan_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        replan_dir,
+        provider_name="prompt_only",
+        formalization_gap_planner_resource_response_ledger_dir=ledger_dir,
+    )
+
+    assert llm_payload["n_request_route_planning_evidence_gaps"] == 2
+    assert ledger_payload["all_ok"]
+    assert ledger_payload[
+        "n_llm_route_planner_traced_route_planning_brief_evidence_gap_responses"
+    ] == 2
+    assert ledger_payload[
+        "n_llm_route_planner_traced_route_planning_brief_evidence_gap_grounded_responses"
+    ] == 2
+    assert replan_payload["all_ok"]
+    assert replan_payload["n_requests_with_resource_response_ledger_rows"] == 1
+    request = replan_payload["request_packets"][0]
+    context = request["context_packet"]
+    response_rows_by_id = {
+        row["resource_request_id"]: row
+        for row in context["resource_response_ledger_rows"]
+    }
+    assert response_rows_by_id[source_request["resource_request_id"]][
+        "response_contract_ok"
+    ]
+    assert response_rows_by_id[formal_request["resource_request_id"]][
+        "response_contract_ok"
+    ]
+    assert source_ref in set(context["available_source_refs"])
+    assert any(
+        snippet.get("source_ref") == source_ref
+        for snippet in context["available_source_snippets"]
+    )
+    assert formal_declaration in set(context["available_formal_declarations"])
+    assert any(
+        row["declaration"] == formal_declaration
+        and row["supported_target_primitives"] == ["rank_uniformity"]
+        for row in context["available_formal_declaration_rows"]
+    )
+
+    feedback_summary = context["feedback_loop_summary"]
+    assert feedback_summary["replan_required"] is True
+    assert (
+        feedback_summary["resource_response_admissibility"]["admissible_count"] == 2
+    )
+    assert source_ref in set(feedback_summary["admissible_source_refs"])
+    assert formal_declaration in set(
+        feedback_summary["admissible_formal_declarations"]
+    )
+
+    brief = context["route_planning_brief"]
+    focus_ids = {focus["focus_id"] for focus in brief["planner_focus"]}
+    assert "synthesize_source_grounded_informal_route" in focus_ids
+    assert "map_formal_library_coverage" in focus_ids
+    gap_ids = {gap["gap_id"] for gap in brief["evidence_gaps"]}
+    assert "missing_source_evidence" not in gap_ids
+    assert "missing_formal_library_grounding" not in gap_ids
+    rank_row = next(
+        row
+        for row in brief["primitive_evidence_matrix"]
+        if row["primitive"] == "rank_uniformity"
+    )
+    assert rank_row["source_support_status"] == "source_backed"
+    assert rank_row["formal_support_status"] == (
+        "target_compatible_candidate_available"
+    )
+    assert formal_declaration in set(rank_row["target_compatible_declarations"])
+
+
 def test_resource_response_ledger_rejects_route_brief_gap_response_without_gap_required_fields() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_resource_response_ledger_route_brief_gap_contract"
