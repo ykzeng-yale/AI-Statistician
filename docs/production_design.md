@@ -805,7 +805,12 @@ gate, required output fields, expected premises, bridge obligations, local
 declarations, and the proof-evidence boundary. It is the agent-action layer for
 turning `FORMAL_GAP` primitives into new proof-bank obligations; it is not proof
 evidence until the requested non-placeholder proof body passes AXLE/local Lean
-verification. `research-system-audit` writes this as
+verification. The manifest also publishes
+`proof_bank_action_source_aware_rerank_policy`, which breaks tied priority-score
+groups by preferring exact verified proof-bank obligations, ranked proof-bank
+bridge obligations, and local importable declaration candidates, while demoting
+WIP, sorry/admit, axiom, unsafe, or unverified candidate evidence.
+`research-system-audit` writes this as
 `proof_bank_actions/proof_bank_action_manifest.json` and includes it as a gate.
 
 RAG collaboration handoff:

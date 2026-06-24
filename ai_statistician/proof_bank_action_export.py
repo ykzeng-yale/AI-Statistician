@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -11,6 +12,46 @@ from .fingerprint import stable_hash
 
 
 PROOF_BANK_ACTION_SCHEMA_VERSION = 1
+PROOF_BANK_ACTION_SOURCE_AWARE_RERANK_POLICY = {
+    "policy_id": "proof_bank_action_source_aware_rerank_policy:1",
+    "ranking_position": "after priority_score, before action_class/primitive/id",
+    "preferred_signals": (
+        "exact verified proof-bank obligation reuse",
+        "ranked proof-bank bridge obligations",
+        "local Mathlib/StatInference/AIStatistician declaration candidates",
+    ),
+    "penalized_signals": (
+        "sorry/admit/admitted candidate evidence",
+        "axiom/unsafe/unverified candidate evidence",
+        "wip/draft/prototype/placeholder/todo candidate evidence",
+    ),
+    "proof_evidence_boundary": (
+        "Source-aware proof-bank action ranking is scheduling metadata only. "
+        "Promotion still requires AXLE/local Lean verification."
+    ),
+}
+_SOURCE_AWARE_LOCAL_DECLARATION_TOKENS = frozenset(
+    {
+        "aistatistician",
+        "ai_statistician",
+        "compiled",
+        "current",
+        "importable",
+        "kernel",
+        "lean",
+        "local",
+        "mathlib",
+        "replayable",
+        "statinference",
+        "verified",
+    }
+)
+_SOURCE_AWARE_HIGH_RISK_TOKENS = frozenset(
+    {"admit", "admitted", "axiom", "sorry", "unsafe", "unverified"}
+)
+_SOURCE_AWARE_LOW_RISK_TOKENS = frozenset(
+    {"draft", "placeholder", "prototype", "stub", "todo", "wip"}
+)
 
 
 @dataclass(frozen=True)
@@ -60,6 +101,10 @@ def export_proof_bank_actions(
     by_action_class = Counter(row.action_class for row in actions)
     by_priority = Counter(row.priority for row in actions)
     by_owner = Counter(row.owner_agent for row in actions)
+    source_aware_scores = [_source_aware_rerank_score(row) for row in actions]
+    by_source_aware_signal = Counter(
+        signal for row in actions for signal in _source_aware_rerank_signals(row)
+    )
     payload: dict[str, object] = {
         "schema_version": PROOF_BANK_ACTION_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -75,6 +120,21 @@ def export_proof_bank_actions(
         "by_action_class": dict(sorted(by_action_class.items())),
         "by_priority": dict(sorted(by_priority.items())),
         "by_owner": dict(sorted(by_owner.items())),
+        "source_aware_rerank_policy": PROOF_BANK_ACTION_SOURCE_AWARE_RERANK_POLICY,
+        "average_source_aware_rerank_score": _average_int(source_aware_scores),
+        "n_source_aware_rerank_preferred_actions": sum(
+            1 for score in source_aware_scores if score > 0
+        ),
+        "n_source_aware_rerank_penalized_actions": sum(
+            1 for score in source_aware_scores if score < 0
+        ),
+        "n_source_aware_rerank_neutral_actions": sum(
+            1 for score in source_aware_scores if score == 0
+        ),
+        "by_source_aware_rerank_signal": dict(sorted(by_source_aware_signal.items())),
+        "source_aware_rerank_score_by_action_id": {
+            row.action_id: _source_aware_rerank_score(row) for row in actions
+        },
         "n_reuse_exact_proof_bank_obligation": by_action_class.get(
             "reuse_exact_proof_bank_obligation", 0
         ),
@@ -90,6 +150,7 @@ def export_proof_bank_actions(
         "limitations": [
             "proof-bank action rows are task contracts, not Lean proof evidence",
             "retrieved bridge chains and local declarations are premise-selection evidence only",
+            "source-aware rerank scores order verifier work but never promote a proof-bank entry",
             "promotion requires a non-placeholder proof body accepted by AXLE/local Lean verify_proof",
         ],
     }
@@ -110,7 +171,16 @@ def export_proof_bank_actions(
 
 def _actions_from_proposals(proposals: list[dict[str, Any]]) -> list[ProofBankActionRow]:
     rows = [_action_from_proposal(row) for row in proposals if isinstance(row, dict)]
-    return sorted(rows, key=lambda row: (-row.priority_score, row.action_class, row.primitive, row.action_id))
+    return sorted(
+        rows,
+        key=lambda row: (
+            -row.priority_score,
+            -_source_aware_rerank_score(row),
+            row.action_class,
+            row.primitive,
+            row.action_id,
+        ),
+    )
 
 
 def _action_from_proposal(row: dict[str, Any]) -> ProofBankActionRow:
@@ -232,6 +302,98 @@ def _priority_rank(priority: str) -> int:
     return {"high": 0, "medium": 1, "low": 2}.get(priority, 3)
 
 
+def _source_aware_rerank_score(row: ProofBankActionRow) -> int:
+    score = 0
+    if row.action_class == "reuse_exact_proof_bank_obligation":
+        score += 60
+    if row.bridge_candidate_obligations:
+        score += 40
+    if row.candidate_declarations:
+        score += 10
+    if _source_aware_has_local_declaration_signal(row):
+        score += 25
+    if _source_aware_has_high_risk_signal(row):
+        score -= 70
+    if _source_aware_has_low_risk_signal(row):
+        score -= 30
+    if any(
+        "allowed-sorry" in reason.lower() or "placeholder" in reason.lower()
+        for reason in row.blocked_reasons
+    ):
+        score -= 15
+    return max(-100, min(100, score))
+
+
+def _source_aware_rerank_signals(row: ProofBankActionRow) -> tuple[str, ...]:
+    signals: list[str] = []
+    if row.action_class == "reuse_exact_proof_bank_obligation":
+        signals.append("preferred_exact_verified_proof_bank_obligation")
+    if row.bridge_candidate_obligations:
+        signals.append("preferred_ranked_proof_bank_bridge_obligations")
+    if row.candidate_declarations:
+        signals.append("candidate_declarations_available")
+    if _source_aware_has_local_declaration_signal(row):
+        signals.append("preferred_local_importable_declaration_candidate")
+    if _source_aware_has_high_risk_signal(row):
+        signals.append("penalized_sorry_admit_axiom_candidate")
+    if _source_aware_has_low_risk_signal(row):
+        signals.append("penalized_wip_or_placeholder_candidate")
+    if any(
+        "allowed-sorry" in reason.lower() or "placeholder" in reason.lower()
+        for reason in row.blocked_reasons
+    ):
+        signals.append("penalized_placeholder_or_allowed_sorry_source_task")
+    return tuple(signals)
+
+
+def _source_aware_has_local_declaration_signal(row: ProofBankActionRow) -> bool:
+    return bool(
+        _source_aware_quality_tokens(_source_aware_quality_text(row))
+        & _SOURCE_AWARE_LOCAL_DECLARATION_TOKENS
+    )
+
+
+def _source_aware_has_high_risk_signal(row: ProofBankActionRow) -> bool:
+    return bool(
+        _source_aware_quality_tokens(_source_aware_quality_text(row))
+        & _SOURCE_AWARE_HIGH_RISK_TOKENS
+    )
+
+
+def _source_aware_has_low_risk_signal(row: ProofBankActionRow) -> bool:
+    return bool(
+        _source_aware_quality_tokens(_source_aware_quality_text(row))
+        & _SOURCE_AWARE_LOW_RISK_TOKENS
+    )
+
+
+def _source_aware_quality_text(row: ProofBankActionRow) -> str:
+    pieces = (
+        row.primitive,
+        row.action_class,
+        row.bridge_readiness,
+        *row.expected_premises,
+        *row.bridge_candidate_obligations,
+        *row.candidate_declarations,
+        *row.blocked_reasons,
+        *row.source_gap_ids,
+        *row.source_task_ids,
+    )
+    return " ".join(str(piece) for piece in pieces if piece)
+
+
+def _source_aware_quality_tokens(text: str) -> set[str]:
+    expanded = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", text)
+    return {token for token in re.split(r"[^a-z0-9]+|_", expanded.lower()) if token}
+
+
+def _average_int(values: Any) -> int:
+    items = [int(value) for value in values]
+    if not items:
+        return 0
+    return round(sum(items) / len(items))
+
+
 def _read_json(path: Path, errors: list[str]) -> dict[str, Any]:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -259,6 +421,9 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Expansion directory: `{payload.get('proof_bank_expansion_dir')}`",
         f"- Actions: {payload.get('n_ok')}/{payload.get('n_actions')}",
         f"- All OK: {payload.get('all_ok')}",
+        f"- Source-aware preferred actions: {payload.get('n_source_aware_rerank_preferred_actions')}",
+        f"- Source-aware penalized actions: {payload.get('n_source_aware_rerank_penalized_actions')}",
+        f"- Average source-aware rerank score: {payload.get('average_source_aware_rerank_score')}",
         "",
         "## Action Classes",
         "",

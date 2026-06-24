@@ -231,7 +231,12 @@ Current release signal:
 - 53 have ranked proof-bank bridge candidates ready for direct reuse
 - proof-bank action export turns the candidate set into owner/priority/gate
   rows for the FormalVerifier, but those rows remain task contracts rather than
-  proof evidence until AXLE/local Lean accepts the proposed proof body
+  proof evidence until AXLE/local Lean accepts the proposed proof body. Within
+  tied priority-score groups, it now publishes a
+  `proof_bank_action_source_aware_rerank_policy` and prefers exact verified
+  proof-bank obligations, ranked proof-bank bridge obligations, and local
+  Mathlib/StatInference/AIStatistician declarations while demoting WIP,
+  sorry/admit, axiom, unsafe, or unverified candidate evidence.
 - assumption primitives such as `conditional_exchangeability` are routed as
   `formalize_assumption_interface`, not as proof-bank theorem tasks. Their gate
   is a compiling, non-vacuous Lean predicate/interface plus downstream theorem
