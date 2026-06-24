@@ -276,6 +276,72 @@ def _write_prompt_only_llm_route_planner_artifact(
     return out_dir
 
 
+def _patch_llm_route_planner_provider_usage_manifest(
+    out_dir: Path,
+    *,
+    model: str,
+    model_tier: str,
+    input_tokens: int,
+    output_tokens: int,
+    cache_creation_input_tokens: int = 0,
+    cache_read_input_tokens: int = 0,
+    ledger_rows: int = 1,
+    ledger_escalations: int = 0,
+    provider_failure_rows: int = 0,
+    generated_escalations: int = 0,
+    haiku_to_sonnet_escalations: int = 0,
+) -> None:
+    manifest_path = out_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    total_tokens = (
+        input_tokens
+        + output_tokens
+        + cache_creation_input_tokens
+        + cache_read_input_tokens
+    )
+    bucket = {
+        "n_rows": 1,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cache_creation_input_tokens": cache_creation_input_tokens,
+        "cache_read_input_tokens": cache_read_input_tokens,
+        "total_tokens": total_tokens,
+    }
+    manifest.update(
+        {
+            "provider_usage_summary": {
+                "summary_kind": (
+                    "formalization_gap_planner_llm_route_planner_provider_usage_summary"
+                ),
+                "row_count": 1,
+                **bucket,
+                "by_provider": {"anthropic": bucket},
+                "by_model_tier": {model_tier: bucket},
+                "by_model": {model: bucket},
+            },
+            "n_rows_with_provider_usage": 1,
+            "total_provider_input_tokens": input_tokens,
+            "total_provider_output_tokens": output_tokens,
+            "total_provider_cache_creation_input_tokens": (
+                cache_creation_input_tokens
+            ),
+            "total_provider_cache_read_input_tokens": cache_read_input_tokens,
+            "total_provider_total_tokens": total_tokens,
+            "n_model_tier_decision_ledger_rows": ledger_rows,
+            "n_model_tier_decision_ledger_rows_with_escalation": ledger_escalations,
+            "n_model_tier_decision_ledger_provider_failure_rows": (
+                provider_failure_rows
+            ),
+            "n_provider_failures": provider_failure_rows,
+            "n_generated_responses_model_tier_escalated": generated_escalations,
+            "n_generated_responses_haiku_to_sonnet_escalated": (
+                haiku_to_sonnet_escalations
+            ),
+        }
+    )
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+
 def _write_formal_source_retrieval_refinement_evidence(root: Path) -> Path:
     evidence_dir = root / "refinement_evidence_formal_source_retrieval"
     evidence_dir.mkdir(parents=True, exist_ok=True)
@@ -2155,6 +2221,14 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
         "Feedback LLM route planner model-tier ledger rows/escalations/provider-failures: 1/0/0"
         in report
     )
+    combined_usage = manifest["combined_llm_provider_usage_summary"]
+    assert combined_usage["requested"] is True
+    assert combined_usage["primary_requested"] is True
+    assert combined_usage["feedback_requested"] is True
+    assert combined_usage["n_route_planner_passes_requested"] == 2
+    assert combined_usage["row_count"] == 0
+    assert combined_usage["total_tokens"] == 0
+    assert combined_usage["by_model_tier"] == {}
     assert (
         "LLM formal-attempt queues primary/feedback: primary_items=0 "
         "primary_rows=0 feedback_items=0 feedback_rows=0"
@@ -3079,6 +3153,78 @@ def test_publication_bundle_lifts_route_brief_resource_response_counts() -> None
     assert loop_summary["interactive_feedback_loop_ready"] is True
     readme = Path(str(payload["readme_path"])).read_text(encoding="utf-8")
     assert "Interactive feedback loop ready: True" in readme
+
+
+def test_publication_bundle_combines_primary_feedback_provider_usage() -> None:
+    root = Path("runs/test_publication_bundle_combines_provider_usage")
+    shutil.rmtree(root, ignore_errors=True)
+    primary_dir = _write_prompt_only_llm_route_planner_artifact(root / "primary")
+    feedback_dir = _write_prompt_only_llm_route_planner_artifact(root / "feedback")
+    _patch_llm_route_planner_provider_usage_manifest(
+        primary_dir,
+        model="claude-haiku-4-5-20251001",
+        model_tier="haiku",
+        input_tokens=100,
+        output_tokens=25,
+        cache_creation_input_tokens=5,
+        cache_read_input_tokens=7,
+        ledger_rows=1,
+    )
+    _patch_llm_route_planner_provider_usage_manifest(
+        feedback_dir,
+        model="claude-sonnet-4-6",
+        model_tier="sonnet",
+        input_tokens=200,
+        output_tokens=50,
+        ledger_rows=2,
+        ledger_escalations=1,
+        provider_failure_rows=1,
+        generated_escalations=1,
+        haiku_to_sonnet_escalations=1,
+    )
+
+    payload = export_formalization_gap_planner_publication_bundle(
+        root / "bundle",
+        formalization_gap_planner_llm_route_planner_dir=primary_dir,
+        formalization_gap_planner_feedback_llm_route_planner_dir=feedback_dir,
+    )
+
+    assert payload["all_ok"]
+    combined_usage = payload["combined_llm_provider_usage_summary"]
+    assert combined_usage["requested"] is True
+    assert combined_usage["primary_requested"] is True
+    assert combined_usage["feedback_requested"] is True
+    assert combined_usage["n_route_planner_passes_requested"] == 2
+    assert combined_usage["primary_row_count"] == 1
+    assert combined_usage["feedback_row_count"] == 1
+    assert combined_usage["row_count"] == 2
+    assert combined_usage["n_rows"] == 2
+    assert combined_usage["input_tokens"] == 300
+    assert combined_usage["output_tokens"] == 75
+    assert combined_usage["cache_creation_input_tokens"] == 5
+    assert combined_usage["cache_read_input_tokens"] == 7
+    assert combined_usage["total_tokens"] == 387
+    assert combined_usage["by_provider"]["anthropic"]["n_rows"] == 2
+    assert combined_usage["by_provider"]["anthropic"]["total_tokens"] == 387
+    assert combined_usage["by_model_tier"]["haiku"]["total_tokens"] == 137
+    assert combined_usage["by_model_tier"]["sonnet"]["total_tokens"] == 250
+    assert (
+        combined_usage["by_model"]["claude-haiku-4-5-20251001"]["input_tokens"]
+        == 100
+    )
+    assert combined_usage["by_model"]["claude-sonnet-4-6"]["input_tokens"] == 200
+    assert combined_usage["n_model_tier_decision_ledger_rows"] == 3
+    assert combined_usage["n_model_tier_decision_ledger_rows_with_escalation"] == 1
+    assert combined_usage["n_model_tier_decision_ledger_provider_failure_rows"] == 1
+    assert combined_usage["n_provider_failures"] == 1
+    assert combined_usage["n_generated_responses_model_tier_escalated"] == 1
+    assert combined_usage["n_generated_responses_haiku_to_sonnet_escalated"] == 1
+    assert (
+        "not mathematical or theorem proof evidence"
+        in combined_usage["usage_boundary"]
+    )
+    readme = Path(str(payload["readme_path"])).read_text(encoding="utf-8")
+    assert "Combined LLM route planner provider usage" in readme
 
 
 def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts() -> None:

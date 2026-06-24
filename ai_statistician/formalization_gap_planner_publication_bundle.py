@@ -2266,6 +2266,12 @@ def export_formalization_gap_planner_publication_bundle(
             payload.get("resource_response_ledger_summary", {}),
         )
     )
+    payload["combined_llm_provider_usage_summary"] = (
+        _combined_llm_provider_usage_summary(
+            payload.get("llm_route_planner_summary", {}),
+            payload.get("feedback_llm_route_planner_summary", {}),
+        )
+    )
     readme_path.write_text(_markdown_report(payload), encoding="utf-8")
     manifest_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
     return payload
@@ -3476,6 +3482,73 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "interactive_feedback_loop_ready": {"type": "boolean"},
         },
     }
+    combined_llm_provider_usage_summary_schema = {
+        "type": "object",
+        "additionalProperties": True,
+        "required": [
+            "summary_kind",
+            "requested",
+            "primary_requested",
+            "feedback_requested",
+            "n_route_planner_passes_requested",
+            "primary_row_count",
+            "feedback_row_count",
+            "row_count",
+            "n_rows",
+            "input_tokens",
+            "output_tokens",
+            "cache_creation_input_tokens",
+            "cache_read_input_tokens",
+            "total_tokens",
+            "by_provider",
+            "by_model_tier",
+            "by_model",
+            "n_model_tier_decision_ledger_rows",
+            "n_model_tier_decision_ledger_rows_with_escalation",
+            "n_model_tier_decision_ledger_provider_failure_rows",
+            "n_provider_failures",
+            "usage_boundary",
+            "proof_evidence_status",
+            "proof_evidence_boundary",
+        ],
+        "properties": {
+            "summary_kind": {"type": "string", "minLength": 1},
+            "requested": {"type": "boolean"},
+            "primary_requested": {"type": "boolean"},
+            "feedback_requested": {"type": "boolean"},
+            "n_route_planner_passes_requested": nonnegative_integer,
+            "primary_row_count": nonnegative_integer,
+            "feedback_row_count": nonnegative_integer,
+            "row_count": nonnegative_integer,
+            "n_rows": nonnegative_integer,
+            "input_tokens": nonnegative_integer,
+            "output_tokens": nonnegative_integer,
+            "cache_creation_input_tokens": nonnegative_integer,
+            "cache_read_input_tokens": nonnegative_integer,
+            "total_tokens": nonnegative_integer,
+            "by_provider": {"type": "object"},
+            "by_model_tier": {"type": "object"},
+            "by_model": {"type": "object"},
+            "n_model_tier_decision_ledger_rows": nonnegative_integer,
+            "n_model_tier_decision_ledger_rows_with_escalation": (
+                nonnegative_integer
+            ),
+            "n_model_tier_decision_ledger_provider_failure_rows": (
+                nonnegative_integer
+            ),
+            "n_provider_failures": nonnegative_integer,
+            "n_generated_responses_model_tier_escalated": nonnegative_integer,
+            "n_generated_responses_haiku_to_sonnet_escalated": (
+                nonnegative_integer
+            ),
+            "n_repair_attempt_ledger_model_tier_escalations": (
+                nonnegative_integer
+            ),
+            "usage_boundary": {"type": "string", "minLength": 1},
+            "proof_evidence_status": {"const": PROOF_EVIDENCE_STATUS},
+            "proof_evidence_boundary": {"type": "string", "minLength": 1},
+        },
+    }
     cross_prover_formal_attempt_dependency_summary_schema = {
         "type": "object",
         "additionalProperties": True,
@@ -3545,6 +3618,7 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "llm_route_planner_response_payload_validation_summary",
             "library_coverage_map_summary",
             "interactive_feedback_loop_summary",
+            "combined_llm_provider_usage_summary",
             "cross_prover_formal_attempt_dependency_summary",
             "schema_catalog_summary",
             "all_ok",
@@ -3576,6 +3650,9 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "library_coverage_map_summary": {"type": "object"},
             "interactive_feedback_loop_summary": (
                 interactive_feedback_loop_summary_schema
+            ),
+            "combined_llm_provider_usage_summary": (
+                combined_llm_provider_usage_summary_schema
             ),
             "cross_prover_formal_attempt_dependency_summary": (
                 cross_prover_formal_attempt_dependency_summary_schema
@@ -5387,6 +5464,181 @@ def _interactive_feedback_loop_summary(
             and response_contract_ok > 0
         ),
     }
+
+
+def _combined_llm_provider_usage_summary(
+    primary_summary: Mapping[str, object],
+    feedback_summary: Mapping[str, object],
+) -> dict[str, object]:
+    primary_bucket = _provider_usage_bucket_from_summary(primary_summary)
+    feedback_bucket = _provider_usage_bucket_from_summary(feedback_summary)
+    combined_bucket = _empty_provider_usage_bucket()
+    _add_provider_usage_bucket(combined_bucket, primary_bucket)
+    _add_provider_usage_bucket(combined_bucket, feedback_bucket)
+    primary_requested = bool(primary_summary.get("requested"))
+    feedback_requested = bool(feedback_summary.get("requested"))
+    return {
+        "summary_kind": (
+            "formalization_gap_planner_publication_bundle_combined_"
+            "llm_provider_usage_summary"
+        ),
+        "requested": primary_requested or feedback_requested,
+        "primary_requested": primary_requested,
+        "feedback_requested": feedback_requested,
+        "n_route_planner_passes_requested": int(primary_requested)
+        + int(feedback_requested),
+        "primary_row_count": primary_bucket["n_rows"],
+        "feedback_row_count": feedback_bucket["n_rows"],
+        "row_count": combined_bucket["n_rows"],
+        **combined_bucket,
+        "by_provider": _combined_provider_usage_group_map(
+            primary_summary,
+            feedback_summary,
+            group_key="by_provider",
+        ),
+        "by_model_tier": _combined_provider_usage_group_map(
+            primary_summary,
+            feedback_summary,
+            group_key="by_model_tier",
+        ),
+        "by_model": _combined_provider_usage_group_map(
+            primary_summary,
+            feedback_summary,
+            group_key="by_model",
+        ),
+        "n_model_tier_decision_ledger_rows": _sum_summary_counts(
+            primary_summary,
+            feedback_summary,
+            "n_model_tier_decision_ledger_rows",
+        ),
+        "n_model_tier_decision_ledger_rows_with_escalation": (
+            _sum_summary_counts(
+                primary_summary,
+                feedback_summary,
+                "n_model_tier_decision_ledger_rows_with_escalation",
+            )
+        ),
+        "n_model_tier_decision_ledger_provider_failure_rows": (
+            _sum_summary_counts(
+                primary_summary,
+                feedback_summary,
+                "n_model_tier_decision_ledger_provider_failure_rows",
+            )
+        ),
+        "n_provider_failures": _sum_summary_counts(
+            primary_summary,
+            feedback_summary,
+            "n_provider_failures",
+        ),
+        "n_generated_responses_model_tier_escalated": _sum_summary_counts(
+            primary_summary,
+            feedback_summary,
+            "n_generated_responses_model_tier_escalated",
+        ),
+        "n_generated_responses_haiku_to_sonnet_escalated": _sum_summary_counts(
+            primary_summary,
+            feedback_summary,
+            "n_generated_responses_haiku_to_sonnet_escalated",
+        ),
+        "n_repair_attempt_ledger_model_tier_escalations": _sum_summary_counts(
+            primary_summary,
+            feedback_summary,
+            "n_repair_attempt_ledger_model_tier_escalations",
+        ),
+        "usage_boundary": (
+            "Combined primary and feedback LLM route-planner provider usage is "
+            "runtime/cost accounting metadata, not mathematical or theorem "
+            "proof evidence."
+        ),
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
+def _empty_provider_usage_bucket() -> dict[str, int]:
+    return {
+        "n_rows": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "total_tokens": 0,
+    }
+
+
+def _provider_usage_bucket_from_summary(
+    summary: Mapping[str, object],
+) -> dict[str, int]:
+    usage = _dict_value(summary, "provider_usage_summary")
+    row_count = _int_or_zero(
+        usage.get("row_count", summary.get("n_rows_with_provider_usage"))
+    )
+    return {
+        "n_rows": _int_or_zero(usage.get("n_rows", row_count)),
+        "input_tokens": _int_or_zero(
+            usage.get("input_tokens", summary.get("total_provider_input_tokens"))
+        ),
+        "output_tokens": _int_or_zero(
+            usage.get("output_tokens", summary.get("total_provider_output_tokens"))
+        ),
+        "cache_creation_input_tokens": _int_or_zero(
+            usage.get(
+                "cache_creation_input_tokens",
+                summary.get("total_provider_cache_creation_input_tokens"),
+            )
+        ),
+        "cache_read_input_tokens": _int_or_zero(
+            usage.get(
+                "cache_read_input_tokens",
+                summary.get("total_provider_cache_read_input_tokens"),
+            )
+        ),
+        "total_tokens": _int_or_zero(
+            usage.get("total_tokens", summary.get("total_provider_total_tokens"))
+        ),
+    }
+
+
+def _add_provider_usage_bucket(
+    target: dict[str, int],
+    source: Mapping[str, object],
+) -> None:
+    for key in (
+        "n_rows",
+        "input_tokens",
+        "output_tokens",
+        "cache_creation_input_tokens",
+        "cache_read_input_tokens",
+        "total_tokens",
+    ):
+        target[key] = _int_or_zero(target.get(key)) + _int_or_zero(source.get(key))
+
+
+def _combined_provider_usage_group_map(
+    primary_summary: Mapping[str, object],
+    feedback_summary: Mapping[str, object],
+    *,
+    group_key: str,
+) -> dict[str, dict[str, int]]:
+    combined: dict[str, dict[str, int]] = {}
+    for summary in (primary_summary, feedback_summary):
+        usage = _dict_value(summary, "provider_usage_summary")
+        for group_name, bucket_value in _dict_value(usage, group_key).items():
+            if not isinstance(bucket_value, Mapping):
+                continue
+            bucket = combined.setdefault(str(group_name), _empty_provider_usage_bucket())
+            _add_provider_usage_bucket(bucket, bucket_value)
+    return dict(sorted(combined.items()))
+
+
+def _sum_summary_counts(
+    primary_summary: Mapping[str, object],
+    feedback_summary: Mapping[str, object],
+    key: str,
+) -> int:
+    return _int_or_zero(primary_summary.get(key)) + _int_or_zero(
+        feedback_summary.get(key)
+    )
 
 
 def _count_map(value: object) -> dict[str, int]:
@@ -9845,6 +10097,14 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('total_provider_input_tokens')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('total_provider_output_tokens')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('total_provider_total_tokens')}"
+        ),
+        (
+            f"- Combined LLM route planner provider usage rows/input/output/total: "
+            f"{payload.get('combined_llm_provider_usage_summary', {}).get('row_count')}/"
+            f"{payload.get('combined_llm_provider_usage_summary', {}).get('input_tokens')}/"
+            f"{payload.get('combined_llm_provider_usage_summary', {}).get('output_tokens')}/"
+            f"{payload.get('combined_llm_provider_usage_summary', {}).get('total_tokens')} "
+            f"by_tier={payload.get('combined_llm_provider_usage_summary', {}).get('by_model_tier')}"
         ),
         (
             f"- Feedback LLM route planner prompt budget rows/input/max-output/total: "
