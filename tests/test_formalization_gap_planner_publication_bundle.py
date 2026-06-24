@@ -2672,9 +2672,33 @@ def test_publication_bundle_summarizes_llm_formal_source_retrieval() -> None:
     assert raw_manifest["n_requests_with_formal_source_retrieval_summary"] == 1
     assert raw_manifest["n_request_formal_source_retrieval_metadata_rows"] == 1
     assert raw_manifest["n_request_formal_source_semantic_rerank_rows"] == 1
+    assert (
+        raw_manifest[
+            "n_request_route_option_selection_candidate_formal_source_retrieval_metadata_rows"
+        ]
+        == 1
+    )
+    assert (
+        raw_manifest[
+            "n_request_route_option_selection_lower_bound_formal_source_target_compatible_hits"
+        ]
+        == 1
+    )
     assert summary["n_requests_with_formal_source_retrieval_summary"] == 1
     assert summary["n_request_formal_source_retrieval_metadata_rows"] == 1
     assert summary["n_request_formal_source_semantic_rerank_rows"] == 1
+    assert (
+        summary[
+            "n_request_route_option_selection_candidate_formal_source_retrieval_metadata_rows"
+        ]
+        == 1
+    )
+    assert (
+        summary[
+            "n_request_route_option_selection_lower_bound_formal_source_target_compatible_hits"
+        ]
+        == 1
+    )
     request_packet = raw_manifest["request_packets"][0]
     retrieval_summary = request_packet["context_packet"][
         "formal_source_retrieval_summary"

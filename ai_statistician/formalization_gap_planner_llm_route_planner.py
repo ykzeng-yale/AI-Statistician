@@ -1178,6 +1178,13 @@ def export_formalization_gap_planner_llm_route_planner(
     library_alignment_summaries = tuple(
         _request_library_alignment_summary(packet) for packet in request_packets
     )
+    route_option_selection_briefs = tuple(
+        _dict_value(
+            _dict_value(packet, "context_packet"),
+            "route_option_selection_brief",
+        )
+        for packet in request_packets
+    )
     route_planning_briefs = tuple(
         _dict_value(_dict_value(packet, "context_packet"), "route_planning_brief")
         for packet in request_packets
@@ -1609,6 +1616,51 @@ def export_formalization_gap_planner_llm_route_planner(
                 or 0
             )
             for packet in request_packets
+        ),
+        "n_request_route_option_selection_candidate_formal_source_retrieval_metadata_rows": sum(
+            int(option.get("n_formal_source_retrieval_metadata_rows", 0) or 0)
+            for brief in route_option_selection_briefs
+            for option in _dict_tuple(brief.get("candidate_route_options", []))
+        ),
+        "n_request_route_option_selection_candidate_formal_source_semantic_rerank_rows": sum(
+            int(option.get("n_formal_source_semantic_rerank_rows", 0) or 0)
+            for brief in route_option_selection_briefs
+            for option in _dict_tuple(brief.get("candidate_route_options", []))
+        ),
+        "n_request_route_option_selection_candidate_formal_source_target_compatible_hits": sum(
+            int(option.get("n_formal_source_target_compatible_hits", 0) or 0)
+            for brief in route_option_selection_briefs
+            for option in _dict_tuple(brief.get("candidate_route_options", []))
+        ),
+        "n_request_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": sum(
+            int(
+                brief.get(
+                    "lower_bound_selected_formal_source_retrieval_metadata_rows",
+                    0,
+                )
+                or 0
+            )
+            for brief in route_option_selection_briefs
+        ),
+        "n_request_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": sum(
+            int(
+                brief.get(
+                    "lower_bound_selected_formal_source_semantic_rerank_rows",
+                    0,
+                )
+                or 0
+            )
+            for brief in route_option_selection_briefs
+        ),
+        "n_request_route_option_selection_lower_bound_formal_source_target_compatible_hits": sum(
+            int(
+                brief.get(
+                    "lower_bound_selected_formal_source_target_compatible_hits",
+                    0,
+                )
+                or 0
+            )
+            for brief in route_option_selection_briefs
         ),
         "n_requests_with_legacy_context_field_aliases": sum(
             1
@@ -4932,6 +4984,12 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_route_option_selection_candidate_residual_goals",
             "n_request_route_option_selection_lower_bound_options",
             "n_request_route_option_selection_lower_bound_residual_goals",
+            "n_request_route_option_selection_candidate_formal_source_retrieval_metadata_rows",
+            "n_request_route_option_selection_candidate_formal_source_semantic_rerank_rows",
+            "n_request_route_option_selection_candidate_formal_source_target_compatible_hits",
+            "n_request_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows",
+            "n_request_route_option_selection_lower_bound_formal_source_semantic_rerank_rows",
+            "n_request_route_option_selection_lower_bound_formal_source_target_compatible_hits",
             "n_requests_with_legacy_context_field_aliases",
             "n_requests_with_target_intake_rows",
             "n_request_target_intake_rows",
@@ -5263,6 +5321,24 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_request_route_option_selection_lower_bound_residual_goals": (
+                nonnegative_integer
+            ),
+            "n_request_route_option_selection_candidate_formal_source_retrieval_metadata_rows": (
+                nonnegative_integer
+            ),
+            "n_request_route_option_selection_candidate_formal_source_semantic_rerank_rows": (
+                nonnegative_integer
+            ),
+            "n_request_route_option_selection_candidate_formal_source_target_compatible_hits": (
+                nonnegative_integer
+            ),
+            "n_request_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": (
+                nonnegative_integer
+            ),
+            "n_request_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": (
+                nonnegative_integer
+            ),
+            "n_request_route_option_selection_lower_bound_formal_source_target_compatible_hits": (
                 nonnegative_integer
             ),
             "n_requests_with_legacy_context_field_aliases": nonnegative_integer,
@@ -7317,6 +7393,73 @@ def validate_llm_route_planner_manifest(
         errors.append(
             "n_request_route_option_selection_lower_bound_residual_goals must match request_packets"
         )
+    for field_name, expected_value in (
+        (
+            "n_request_route_option_selection_candidate_formal_source_retrieval_metadata_rows",
+            sum(
+                int(option.get("n_formal_source_retrieval_metadata_rows", 0) or 0)
+                for brief in route_option_selection_briefs
+                for option in _dict_tuple(brief.get("candidate_route_options", []))
+            ),
+        ),
+        (
+            "n_request_route_option_selection_candidate_formal_source_semantic_rerank_rows",
+            sum(
+                int(option.get("n_formal_source_semantic_rerank_rows", 0) or 0)
+                for brief in route_option_selection_briefs
+                for option in _dict_tuple(brief.get("candidate_route_options", []))
+            ),
+        ),
+        (
+            "n_request_route_option_selection_candidate_formal_source_target_compatible_hits",
+            sum(
+                int(option.get("n_formal_source_target_compatible_hits", 0) or 0)
+                for brief in route_option_selection_briefs
+                for option in _dict_tuple(brief.get("candidate_route_options", []))
+            ),
+        ),
+        (
+            "n_request_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows",
+            sum(
+                int(
+                    brief.get(
+                        "lower_bound_selected_formal_source_retrieval_metadata_rows",
+                        0,
+                    )
+                    or 0
+                )
+                for brief in route_option_selection_briefs
+            ),
+        ),
+        (
+            "n_request_route_option_selection_lower_bound_formal_source_semantic_rerank_rows",
+            sum(
+                int(
+                    brief.get(
+                        "lower_bound_selected_formal_source_semantic_rerank_rows",
+                        0,
+                    )
+                    or 0
+                )
+                for brief in route_option_selection_briefs
+            ),
+        ),
+        (
+            "n_request_route_option_selection_lower_bound_formal_source_target_compatible_hits",
+            sum(
+                int(
+                    brief.get(
+                        "lower_bound_selected_formal_source_target_compatible_hits",
+                        0,
+                    )
+                    or 0
+                )
+                for brief in route_option_selection_briefs
+            ),
+        ),
+    ):
+        if int(manifest.get(field_name, 0) or 0) != expected_value:
+            errors.append(f"{field_name} must match request_packets")
     decision_evidence_rows = tuple(
         _dict_value(packet, "model_tier_decision_evidence")
         for packet in request_packets
@@ -9693,6 +9836,15 @@ def _route_option_selection_brief(
         ),
         "lower_bound_selected_residual_goal_count": int(
             selected.get("n_residual_goals", 0) or 0
+        ),
+        "lower_bound_selected_formal_source_retrieval_metadata_rows": int(
+            selected.get("n_formal_source_retrieval_metadata_rows", 0) or 0
+        ),
+        "lower_bound_selected_formal_source_semantic_rerank_rows": int(
+            selected.get("n_formal_source_semantic_rerank_rows", 0) or 0
+        ),
+        "lower_bound_selected_formal_source_target_compatible_hits": int(
+            selected.get("n_formal_source_target_compatible_hits", 0) or 0
         ),
         "candidate_route_options": candidate_options,
         "required_response_bindings": [
@@ -12271,6 +12423,9 @@ def _route_option_selection_brief_errors(
         "lower_bound_selected_route_option_id",
         "lower_bound_selected_route_cost",
         "lower_bound_selected_residual_goal_count",
+        "lower_bound_selected_formal_source_retrieval_metadata_rows",
+        "lower_bound_selected_formal_source_semantic_rerank_rows",
+        "lower_bound_selected_formal_source_target_compatible_hits",
         "candidate_route_options",
     ):
         if brief.get(field_name) != expected.get(field_name):
@@ -38288,6 +38443,8 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Rejected: {payload.get('n_rejected')}",
         f"- Request residual-goal contexts: {payload.get('n_request_residual_goal_contexts')} rows={payload.get('n_row_residual_goal_contexts')}",
         f"- Route-option residual coverage candidates/goals/selected-goals: {payload.get('n_request_route_option_selection_candidates_with_residual_goals')}/{payload.get('n_request_route_option_selection_candidate_residual_goals')}/{payload.get('n_request_route_option_selection_lower_bound_residual_goals')}",
+        f"- Route-option formal-source retrieval candidate metadata/semantic/hits: {payload.get('n_request_route_option_selection_candidate_formal_source_retrieval_metadata_rows')}/{payload.get('n_request_route_option_selection_candidate_formal_source_semantic_rerank_rows')}/{payload.get('n_request_route_option_selection_candidate_formal_source_target_compatible_hits')}",
+        f"- Route-option formal-source retrieval lower-bound metadata/semantic/hits: {payload.get('n_request_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows')}/{payload.get('n_request_route_option_selection_lower_bound_formal_source_semantic_rerank_rows')}/{payload.get('n_request_route_option_selection_lower_bound_formal_source_target_compatible_hits')}",
         f"- Formal-source retrieval metadata rows/semantic-rerank rows: {payload.get('n_request_formal_source_retrieval_metadata_rows')}/{payload.get('n_request_formal_source_semantic_rerank_rows')}",
         f"- Informal DAG nodes: {payload.get('n_informal_knowledge_dag_nodes')}",
         f"- Informal DAG edges: {payload.get('n_informal_knowledge_dag_edges')}",

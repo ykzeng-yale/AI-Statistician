@@ -202,6 +202,12 @@ ROUTE_OPTION_SELECTION_SUFFIXES = (
     "request_route_option_selection_candidate_residual_goals",
     "request_route_option_selection_lower_bound_options",
     "request_route_option_selection_lower_bound_residual_goals",
+    "request_route_option_selection_candidate_formal_source_retrieval_metadata_rows",
+    "request_route_option_selection_candidate_formal_source_semantic_rerank_rows",
+    "request_route_option_selection_candidate_formal_source_target_compatible_hits",
+    "request_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows",
+    "request_route_option_selection_lower_bound_formal_source_semantic_rerank_rows",
+    "request_route_option_selection_lower_bound_formal_source_target_compatible_hits",
 )
 
 

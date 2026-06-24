@@ -290,6 +290,11 @@ def test_route_option_selection_brief_uses_formal_source_retrieval_tie_breaker()
         "n_formal_source_target_compatible_hits"
     ] == 1
     assert brief["lower_bound_selected_route_option_id"] == "semantic_formal_source"
+    assert (
+        brief["lower_bound_selected_formal_source_retrieval_metadata_rows"] == 1
+    )
+    assert brief["lower_bound_selected_formal_source_semantic_rerank_rows"] == 1
+    assert brief["lower_bound_selected_formal_source_target_compatible_hits"] == 1
     selected = brief["candidate_route_options"][0]
     assert selected["route_option_id"] == "semantic_formal_source"
     assert selected["n_formal_source_retrieval_metadata_rows"] == 1
@@ -8538,6 +8543,42 @@ def test_llm_route_planner_stages_formal_source_retrieval_metadata() -> None:
     assert payload["n_requests_with_formal_source_retrieval_summary"] == 1
     assert payload["n_request_formal_source_retrieval_metadata_rows"] == 1
     assert payload["n_request_formal_source_semantic_rerank_rows"] == 1
+    assert (
+        payload[
+            "n_request_route_option_selection_candidate_formal_source_retrieval_metadata_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_request_route_option_selection_candidate_formal_source_semantic_rerank_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_request_route_option_selection_candidate_formal_source_target_compatible_hits"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_request_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_request_route_option_selection_lower_bound_formal_source_semantic_rerank_rows"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_request_route_option_selection_lower_bound_formal_source_target_compatible_hits"
+        ]
+        == 1
+    )
     request = payload["request_packets"][0]
     context = request["context_packet"]
     summary = context["formal_source_retrieval_summary"]
@@ -8577,6 +8618,12 @@ def test_llm_route_planner_stages_formal_source_retrieval_metadata() -> None:
         and option["n_formal_source_semantic_rerank_rows"] == 1
         for option in route_option_brief["candidate_route_options"]
     )
+    assert (
+        route_option_brief[
+            "lower_bound_selected_formal_source_target_compatible_hits"
+        ]
+        == 1
+    )
     target_context = context["target_theorem_context_packet"]
     assert target_context["formal_source_retrieval_metadata_count"] == 1
     assert target_context["formal_source_semantic_rerank_count"] == 1
@@ -8606,6 +8653,10 @@ def test_llm_route_planner_stages_formal_source_retrieval_metadata() -> None:
         out_dir / "formalization_gap_planner_llm_route_planner.md"
     ).read_text(encoding="utf-8")
     assert "Formal-source retrieval metadata rows/semantic-rerank rows: 1/1" in report
+    assert (
+        "Route-option formal-source retrieval lower-bound metadata/semantic/hits: 1/1/1"
+        in report
+    )
 
 
 def test_llm_route_planner_rejected_refinement_evidence_is_status_not_source() -> None:

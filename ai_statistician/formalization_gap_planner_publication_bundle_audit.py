@@ -4860,6 +4860,90 @@ def _expected_bundle_llm_route_planner_summary(
             )
             or 0
         ),
+        "n_request_route_option_selection_candidate_formal_source_retrieval_metadata_rows": int(
+            payload.get(
+                "n_request_route_option_selection_candidate_formal_source_retrieval_metadata_rows",
+                sum(
+                    _nonnegative_int(
+                        option.get("n_formal_source_retrieval_metadata_rows", 0)
+                    )
+                    for brief in route_option_selection_briefs
+                    for option in _dict_tuple(brief.get("candidate_route_options", []))
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_candidate_formal_source_semantic_rerank_rows": int(
+            payload.get(
+                "n_request_route_option_selection_candidate_formal_source_semantic_rerank_rows",
+                sum(
+                    _nonnegative_int(
+                        option.get("n_formal_source_semantic_rerank_rows", 0)
+                    )
+                    for brief in route_option_selection_briefs
+                    for option in _dict_tuple(brief.get("candidate_route_options", []))
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_candidate_formal_source_target_compatible_hits": int(
+            payload.get(
+                "n_request_route_option_selection_candidate_formal_source_target_compatible_hits",
+                sum(
+                    _nonnegative_int(
+                        option.get("n_formal_source_target_compatible_hits", 0)
+                    )
+                    for brief in route_option_selection_briefs
+                    for option in _dict_tuple(brief.get("candidate_route_options", []))
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": int(
+            payload.get(
+                "n_request_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows",
+                sum(
+                    _nonnegative_int(
+                        brief.get(
+                            "lower_bound_selected_formal_source_retrieval_metadata_rows",
+                            0,
+                        )
+                    )
+                    for brief in route_option_selection_briefs
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": int(
+            payload.get(
+                "n_request_route_option_selection_lower_bound_formal_source_semantic_rerank_rows",
+                sum(
+                    _nonnegative_int(
+                        brief.get(
+                            "lower_bound_selected_formal_source_semantic_rerank_rows",
+                            0,
+                        )
+                    )
+                    for brief in route_option_selection_briefs
+                ),
+            )
+            or 0
+        ),
+        "n_request_route_option_selection_lower_bound_formal_source_target_compatible_hits": int(
+            payload.get(
+                "n_request_route_option_selection_lower_bound_formal_source_target_compatible_hits",
+                sum(
+                    _nonnegative_int(
+                        brief.get(
+                            "lower_bound_selected_formal_source_target_compatible_hits",
+                            0,
+                        )
+                    )
+                    for brief in route_option_selection_briefs
+                ),
+            )
+            or 0
+        ),
         "n_informal_knowledge_dag_nodes": int(
             payload.get(
                 "n_informal_knowledge_dag_nodes",

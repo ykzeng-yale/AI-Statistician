@@ -137,6 +137,12 @@ ROUTE_OPTION_SELECTION_SUMMARY_KEYS = (
     "n_request_route_option_selection_candidate_residual_goals",
     "n_request_route_option_selection_lower_bound_options",
     "n_request_route_option_selection_lower_bound_residual_goals",
+    "n_request_route_option_selection_candidate_formal_source_retrieval_metadata_rows",
+    "n_request_route_option_selection_candidate_formal_source_semantic_rerank_rows",
+    "n_request_route_option_selection_candidate_formal_source_target_compatible_hits",
+    "n_request_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows",
+    "n_request_route_option_selection_lower_bound_formal_source_semantic_rerank_rows",
+    "n_request_route_option_selection_lower_bound_formal_source_target_compatible_hits",
 )
 TARGET_CONTEXT_SUMMARY_COUNTER_KEYS = (
     "n_rows_with_target_context_summary",
@@ -11322,7 +11328,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
         (
             "- LLM route planner route-option selection "
             "requests/options/primitives/residual-candidates/residual-goals/"
-            "lower-bound/lower-bound-residual-goals: "
+            "lower-bound/lower-bound-residual-goals/candidate-formal-source-metadata/"
+            "candidate-formal-source-semantic/candidate-formal-source-hits/"
+            "lower-bound-formal-source-metadata/lower-bound-formal-source-semantic/"
+            "lower-bound-formal-source-hits: "
             f"primary={_route_option_selection_report_counter(payload, 'llm_route_planner')} "
             f"feedback={_route_option_selection_report_counter(payload, 'feedback_llm_route_planner')} "
             f"combined={_route_option_selection_report_counter(payload, 'combined_llm_route_planner')} "
