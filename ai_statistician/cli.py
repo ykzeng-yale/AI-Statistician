@@ -2146,6 +2146,11 @@ def _formal_source_retrieval_benchmark(args: argparse.Namespace) -> int:
         cache_path=Path(args.formal_source_index_cache) if args.formal_source_index_cache else None,
         refresh_cache=args.refresh_formal_source_index_cache,
         lean_rag_db_path=Path(args.lean_rag_db) if args.lean_rag_db else None,
+        include_semantic=bool(getattr(args, "semantic_rerank", False)),
+        semantic_candidate_multiplier=int(
+            getattr(args, "semantic_candidate_multiplier", 8)
+        ),
+        semantic_weight=float(getattr(args, "semantic_weight", 6.0)),
     )
     payload = run_formal_source_retrieval_benchmark(
         Path(args.out),
@@ -2160,6 +2165,7 @@ def _formal_source_retrieval_benchmark(args: argparse.Namespace) -> int:
         f"recall@{payload['k']}={payload['recall_at_k']:.3f} "
         f"mrr={payload['mean_reciprocal_rank']:.3f} "
         f"lean_rag={payload['lean_rag_dependency_graph_enabled']} "
+        f"semantic={payload['semantic_rerank_enabled']} "
         f"cache={getattr(retriever, 'cache_status', 'unknown')}"
     )
     for row in payload["rows"]:
@@ -2196,7 +2202,8 @@ def _formal_source_retrieval_ablation(args: argparse.Namespace) -> int:
         f"new_hits={payload['n_new_hits']} lost_hits={payload['n_lost_hits']} "
         f"rank_improved={payload['n_rank_improved']} rank_regressed={payload['n_rank_regressed']} "
         f"dependency_sensitive={payload['n_dependency_sensitive_cases']} "
-        f"lean_rag={payload['enhanced']['lean_rag_dependency_graph_enabled']}"
+        f"lean_rag={payload['enhanced']['lean_rag_dependency_graph_enabled']} "
+        f"semantic={payload['enhanced']['semantic_rerank_enabled']}"
     )
     print(
         f"baseline_recall={payload['baseline']['recall_at_k']:.3f} "
@@ -2254,6 +2261,11 @@ def _formal_source_ablation_retrievers(args: argparse.Namespace) -> tuple[object
         cache_path=Path(args.formal_source_index_cache) if args.formal_source_index_cache else None,
         refresh_cache=args.refresh_formal_source_index_cache,
         lean_rag_db_path=Path(args.lean_rag_db) if args.lean_rag_db else None,
+        include_semantic=bool(getattr(args, "semantic_rerank", False)),
+        semantic_candidate_multiplier=int(
+            getattr(args, "semantic_candidate_multiplier", 8)
+        ),
+        semantic_weight=float(getattr(args, "semantic_weight", 6.0)),
     )
     declarations = (
         enhanced_retriever.load_declarations()
@@ -8036,6 +8048,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="optional EmpericalProcessLEAN lean_rag dependency graph SQLite DB",
     )
     formal_source_retrieval_benchmark.add_argument(
+        "--semantic-rerank",
+        action="store_true",
+        help=(
+            "enable the local char-ngram semantic rerank ablation layer for "
+            "typo/paraphrase-sensitive declaration search"
+        ),
+    )
+    formal_source_retrieval_benchmark.add_argument(
+        "--semantic-candidate-multiplier",
+        type=int,
+        default=8,
+        help="candidate multiplier used by --semantic-rerank",
+    )
+    formal_source_retrieval_benchmark.add_argument(
+        "--semantic-weight",
+        type=float,
+        default=6.0,
+        help="score weight used by --semantic-rerank",
+    )
+    formal_source_retrieval_benchmark.add_argument(
         "--out",
         default="runs/formal_source_retrieval_benchmark",
         help="formal-source retrieval benchmark output directory",
@@ -8072,6 +8104,26 @@ def build_parser() -> argparse.ArgumentParser:
         "--lean-rag-db",
         default=None,
         help="optional EmpericalProcessLEAN lean_rag dependency graph SQLite DB",
+    )
+    formal_source_retrieval_ablation.add_argument(
+        "--semantic-rerank",
+        action="store_true",
+        help=(
+            "enable the local char-ngram semantic rerank layer only in the "
+            "enhanced retriever arm"
+        ),
+    )
+    formal_source_retrieval_ablation.add_argument(
+        "--semantic-candidate-multiplier",
+        type=int,
+        default=8,
+        help="candidate multiplier used by --semantic-rerank",
+    )
+    formal_source_retrieval_ablation.add_argument(
+        "--semantic-weight",
+        type=float,
+        default=6.0,
+        help="score weight used by --semantic-rerank",
     )
     formal_source_retrieval_ablation.add_argument(
         "--out",
@@ -8115,6 +8167,26 @@ def build_parser() -> argparse.ArgumentParser:
         "--lean-rag-db",
         default=None,
         help="optional EmpericalProcessLEAN lean_rag dependency graph SQLite DB",
+    )
+    proof_search_retrieval_ablation.add_argument(
+        "--semantic-rerank",
+        action="store_true",
+        help=(
+            "enable the local char-ngram semantic rerank layer only in the "
+            "enhanced retriever arm"
+        ),
+    )
+    proof_search_retrieval_ablation.add_argument(
+        "--semantic-candidate-multiplier",
+        type=int,
+        default=8,
+        help="candidate multiplier used by --semantic-rerank",
+    )
+    proof_search_retrieval_ablation.add_argument(
+        "--semantic-weight",
+        type=float,
+        default=6.0,
+        help="score weight used by --semantic-rerank",
     )
     proof_search_retrieval_ablation.add_argument(
         "--out",

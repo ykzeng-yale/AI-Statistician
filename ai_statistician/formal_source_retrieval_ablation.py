@@ -226,6 +226,13 @@ def _summary_payload(payload: dict[str, object]) -> dict[str, object]:
             "lean_rag_dependency_graph_auto_discovered",
             False,
         ),
+        "semantic_rerank_enabled": payload.get("semantic_rerank_enabled", False),
+        "semantic_provider_id": payload.get("semantic_provider_id", ""),
+        "semantic_candidate_multiplier": payload.get(
+            "semantic_candidate_multiplier",
+            0,
+        ),
+        "semantic_weight": payload.get("semantic_weight", 0.0),
         "n_cases": payload.get("n_cases", 0),
         "n_ok": payload.get("n_ok", 0),
         "recall_at_k": payload.get("recall_at_k", 0.0),
@@ -240,6 +247,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "",
         f"- Baseline: `{payload.get('baseline_name')}`",
         f"- Enhanced: `{payload.get('enhanced_name')}`",
+        f"- Enhanced semantic rerank: `{dict(payload.get('enhanced', {})).get('semantic_rerank_enabled')}` "
+        f"({dict(payload.get('enhanced', {})).get('semantic_provider_id') or 'disabled'})",
         f"- Enhanced all OK: `{payload.get('enhanced_all_ok')}`",
         f"- New hits: {payload.get('n_new_hits')}",
         f"- Lost hits: {payload.get('n_lost_hits')}",

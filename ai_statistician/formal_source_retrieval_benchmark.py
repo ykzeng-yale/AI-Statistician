@@ -199,6 +199,18 @@ def run_formal_source_retrieval_benchmark(
         "lean_rag_dependency_graph_auto_discovered": bool(
             getattr(active_retriever, "lean_rag_dependency_graph_auto_discovered", False)
         ),
+        "semantic_rerank_enabled": bool(
+            getattr(active_retriever, "semantic_rerank_enabled", False)
+        ),
+        "semantic_provider_id": str(
+            getattr(active_retriever, "semantic_provider_id", "")
+        ),
+        "semantic_candidate_multiplier": int(
+            getattr(active_retriever, "semantic_candidate_multiplier", 0) or 0
+        ),
+        "semantic_weight": float(
+            getattr(active_retriever, "semantic_weight", 0.0) or 0.0
+        ),
         "k": int(k),
         "n_cases": len(rows),
         "n_ok": n_ok,
@@ -286,6 +298,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "# Formal Source Retrieval Benchmark",
         "",
         f"- Retriever: `{payload.get('retriever_source')}`",
+        f"- Semantic rerank: `{payload.get('semantic_rerank_enabled')}` "
+        f"({payload.get('semantic_provider_id') or 'disabled'})",
         f"- Recall@{payload.get('k')}: {payload.get('n_ok')}/{payload.get('n_cases')} "
         f"({float(payload.get('recall_at_k', 0.0)):.3f})",
         f"- MRR: {float(payload.get('mean_reciprocal_rank', 0.0)):.3f}",

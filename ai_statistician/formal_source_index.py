@@ -456,6 +456,9 @@ def build_formal_source_search_backend(
     db_path: Path | str | None = None,
     roots: tuple[FormalSourceRoot, ...] = DEFAULT_FORMAL_SOURCE_ROOTS,
     include_graph: bool = True,
+    include_semantic: bool = False,
+    semantic_candidate_multiplier: int = 8,
+    semantic_weight: float = 6.0,
     cache_path: Path | str | None = None,
     refresh_cache: bool = False,
     lean_rag_db_path: Path | str | None = None,
@@ -465,8 +468,10 @@ def build_formal_source_search_backend(
     Passing a database path gives the production path: scan local Lean/stat
     sources once, persist a SQLite FTS index, then let repeated formal-gap
     searches use FTS candidate generation, Lean-shape reranking, and by default
-    declaration-symbol graph expansion. Omitting the path keeps the old
-    in-memory backend for small fixtures and tests.
+    declaration-symbol graph expansion. ``include_semantic`` adds an explicit
+    local char-ngram rerank layer for semantic/paraphrase ablations; it is
+    disabled by default so benchmark deltas remain attributable. Omitting the
+    path keeps the old in-memory backend for small fixtures and tests.
     """
 
     cache_file = Path(cache_path) if cache_path is not None else None
@@ -499,7 +504,13 @@ def build_formal_source_search_backend(
                 setattr(retriever, "cache_status", "hit")
                 setattr(retriever, "cache_path", str(cache_file))
                 _attach_lean_rag_metadata(retriever, dependency_retriever)
-                return retriever
+                return _maybe_wrap_semantic_retriever(
+                    retriever,
+                    declarations,
+                    include_semantic=include_semantic,
+                    semantic_candidate_multiplier=semantic_candidate_multiplier,
+                    semantic_weight=semantic_weight,
+                )
             except Exception:
                 # Stale or incompatible cache. Rebuild below and overwrite it.
                 if target_db.exists():
@@ -526,7 +537,13 @@ def build_formal_source_search_backend(
         setattr(retriever, "cache_status", "miss" if cache_file is not None else "disabled")
         setattr(retriever, "cache_path", str(cache_file) if cache_file is not None else "")
         _attach_lean_rag_metadata(retriever, dependency_retriever)
-        return retriever
+        return _maybe_wrap_semantic_retriever(
+            retriever,
+            declarations,
+            include_semantic=include_semantic,
+            semantic_candidate_multiplier=semantic_candidate_multiplier,
+            semantic_weight=semantic_weight,
+        )
     dependency_retriever = _optional_lean_rag_dependency_retriever(lean_rag_db_path)
     retriever: object = FormalSourceRetriever(declarations)
     if dependency_retriever is not None:
@@ -540,7 +557,37 @@ def build_formal_source_search_backend(
     setattr(retriever, "cache_status", "disabled")
     setattr(retriever, "cache_path", "")
     _attach_lean_rag_metadata(retriever, dependency_retriever)
-    return retriever
+    return _maybe_wrap_semantic_retriever(
+        retriever,
+        declarations,
+        include_semantic=include_semantic,
+        semantic_candidate_multiplier=semantic_candidate_multiplier,
+        semantic_weight=semantic_weight,
+    )
+
+
+def _maybe_wrap_semantic_retriever(
+    retriever: object,
+    declarations: list[FormalDeclaration],
+    *,
+    include_semantic: bool,
+    semantic_candidate_multiplier: int,
+    semantic_weight: float,
+) -> object:
+    if not include_semantic:
+        setattr(retriever, "semantic_rerank_enabled", False)
+        setattr(retriever, "semantic_provider_id", "")
+        setattr(retriever, "semantic_candidate_multiplier", 0)
+        setattr(retriever, "semantic_weight", 0.0)
+        return retriever
+    from .formal_source_hybrid import FormalSourceSemanticHybridRetriever
+
+    return FormalSourceSemanticHybridRetriever(
+        declarations,
+        retriever,
+        candidate_multiplier=semantic_candidate_multiplier,
+        semantic_weight=semantic_weight,
+    )
 
 
 def _optional_lean_rag_dependency_retriever(lean_rag_db_path: Path | str | None) -> object | None:

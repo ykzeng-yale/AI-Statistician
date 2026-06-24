@@ -548,9 +548,14 @@ python3 -m ai_statistician.cli claim-ledger \
    and retrieval hits from failed attempts become hard negatives. The remaining
    work is to add tactic-state and earliest-error premise feedback once a Lean
    step environment is available.
-5. Only after the expanded benchmark exposes semantic misses, add a local
-   embedding provider or external LeanSearch/LeanExplore provider behind an
-   ablation gate.
+5. Add semantic/paraphrase recall behind an ablation gate:
+   `formal-source-retrieval-benchmark --semantic-rerank` and
+   `formal-source-retrieval-ablation --semantic-rerank` now enable a
+   dependency-free local char-ngram semantic reranker. This is a reproducible
+   local recall layer for typo/paraphrase-sensitive theorem-mining queries, not
+   a proof signal or an external embedding provider. External LeanSearch or
+   LeanExplore integrations should remain separate provider arms in the same
+   ablation framework.
 
 ## Library-Aware Delta Planning
 
