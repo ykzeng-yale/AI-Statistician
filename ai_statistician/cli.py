@@ -3444,6 +3444,11 @@ def _formalization_gap_planner_local_formal_source_adapter(args: argparse.Namesp
         else None,
         refresh_formal_source_index_cache=args.refresh_formal_source_index_cache,
         lean_rag_db_path=Path(args.lean_rag_db) if args.lean_rag_db else None,
+        semantic_rerank=bool(getattr(args, "semantic_rerank", False)),
+        semantic_candidate_multiplier=int(
+            getattr(args, "semantic_candidate_multiplier", 8)
+        ),
+        semantic_weight=float(getattr(args, "semantic_weight", 6.0)),
         base_response_jsonl=Path(args.base_response_jsonl)
         if args.base_response_jsonl
         else None,
@@ -3458,6 +3463,7 @@ def _formalization_gap_planner_local_formal_source_adapter(args: argparse.Namesp
         f"lean_legacy={payload['n_lean_library_grounding_rows']} "
         f"merged={payload['n_merged_responses']} "
         f"hits={payload['n_hits']} "
+        f"semantic={payload['semantic_rerank_enabled']} "
         f"exact={payload['n_exact_exists']} "
         f"wrapper={payload['n_wrapper_needed']} "
         f"source={payload['n_source_discovery_needed']} "
@@ -9480,6 +9486,26 @@ def build_parser() -> argparse.ArgumentParser:
     formalization_gap_planner_local_formal_source_adapter.add_argument(
         "--lean-rag-db",
         help="optional Lean RAG dependency graph SQLite DB",
+    )
+    formalization_gap_planner_local_formal_source_adapter.add_argument(
+        "--semantic-rerank",
+        action="store_true",
+        help=(
+            "enable the local char-ngram semantic rerank layer for typo/"
+            "paraphrase-sensitive formal-library grounding rows"
+        ),
+    )
+    formalization_gap_planner_local_formal_source_adapter.add_argument(
+        "--semantic-candidate-multiplier",
+        type=int,
+        default=8,
+        help="candidate multiplier used by --semantic-rerank",
+    )
+    formalization_gap_planner_local_formal_source_adapter.add_argument(
+        "--semantic-weight",
+        type=float,
+        default=6.0,
+        help="score weight used by --semantic-rerank",
     )
     formalization_gap_planner_local_formal_source_adapter.add_argument(
         "--base-response-jsonl",

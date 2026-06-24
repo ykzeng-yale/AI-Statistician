@@ -39,6 +39,9 @@ def export_formalization_gap_planner_local_formal_source_adapter_responses(
     formal_source_index_cache: Path | None = None,
     refresh_formal_source_index_cache: bool = False,
     lean_rag_db_path: Path | None = None,
+    semantic_rerank: bool = False,
+    semantic_candidate_multiplier: int = 8,
+    semantic_weight: float = 6.0,
     base_response_jsonl: Path | None = None,
     max_items: int = 0,
     k: int = 5,
@@ -84,9 +87,18 @@ def export_formalization_gap_planner_local_formal_source_adapter_responses(
         cache_path=formal_source_index_cache,
         refresh_cache=refresh_formal_source_index_cache,
         lean_rag_db_path=lean_rag_db_path,
+        include_semantic=semantic_rerank,
+        semantic_candidate_multiplier=semantic_candidate_multiplier,
+        semantic_weight=semantic_weight,
     )
+    retriever_metadata = _formal_source_retrieval_metadata(retriever)
     responses = [
-        _lean_grounding_response(row, retriever, k=max(1, k))
+        _lean_grounding_response(
+            row,
+            retriever,
+            k=max(1, k),
+            retriever_metadata=retriever_metadata,
+        )
         for row in formal_grounding_rows
     ]
     merged_by_item = dict(base_by_item)
@@ -152,6 +164,15 @@ def export_formalization_gap_planner_local_formal_source_adapter_responses(
         "lean_rag_dependency_graph_path": str(
             getattr(retriever, "lean_rag_dependency_graph_path", "")
         ),
+        "semantic_rerank_enabled": bool(
+            getattr(retriever, "semantic_rerank_enabled", False)
+        ),
+        "semantic_provider_id": str(getattr(retriever, "semantic_provider_id", "")),
+        "semantic_candidate_multiplier": int(
+            getattr(retriever, "semantic_candidate_multiplier", 0) or 0
+        ),
+        "semantic_weight": float(getattr(retriever, "semantic_weight", 0.0) or 0.0),
+        "formal_source_retrieval_metadata": retriever_metadata,
         "n_queue_rows": len(queue_rows),
         "n_formal_library_grounding_rows": len(formal_grounding_rows),
         "n_lean_library_grounding_rows": sum(
@@ -261,6 +282,7 @@ def _lean_grounding_response(
     retriever: object,
     *,
     k: int,
+    retriever_metadata: dict[str, object],
 ) -> dict[str, object]:
     primitives = _str_tuple(queue_row.get("target_primitives", []))
     target_prover_family = _target_prover_family(queue_row)
@@ -311,6 +333,7 @@ def _lean_grounding_response(
         "evidence_kind": "formal_library_grounding",
         "tool_name": ADAPTER_TOOL_NAME,
         "target_prover_family": target_prover_family,
+        "formal_source_retrieval_metadata": retriever_metadata,
         "formal_declaration_hits": declaration_hits,
         "lean_declaration_hits": lean_declaration_hits,
         "n_target_incompatible_declaration_hits": len(target_incompatible_hit_targets),
@@ -346,6 +369,31 @@ def _search(retriever: object, query: str, *, k: int) -> list[FormalSourceHit]:
     if not callable(search):
         return []
     return list(search(query, k=k))
+
+
+def _formal_source_retrieval_metadata(retriever: object) -> dict[str, object]:
+    return {
+        "search_backend": str(getattr(retriever, "source", type(retriever).__name__)),
+        "cache_status": str(getattr(retriever, "cache_status", "")),
+        "cache_path": str(getattr(retriever, "cache_path", "")),
+        "lean_rag_dependency_graph_enabled": bool(
+            getattr(retriever, "lean_rag_dependency_graph_enabled", False)
+        ),
+        "lean_rag_dependency_graph_path": str(
+            getattr(retriever, "lean_rag_dependency_graph_path", "")
+        ),
+        "lean_rag_dependency_graph_auto_discovered": bool(
+            getattr(retriever, "lean_rag_dependency_graph_auto_discovered", False)
+        ),
+        "semantic_rerank_enabled": bool(
+            getattr(retriever, "semantic_rerank_enabled", False)
+        ),
+        "semantic_provider_id": str(getattr(retriever, "semantic_provider_id", "")),
+        "semantic_candidate_multiplier": int(
+            getattr(retriever, "semantic_candidate_multiplier", 0) or 0
+        ),
+        "semantic_weight": float(getattr(retriever, "semantic_weight", 0.0) or 0.0),
+    }
 
 
 def _target_compatible_hits(
@@ -576,6 +624,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Local response schema valid: {payload.get('n_local_response_schema_valid')}/{payload.get('n_local_formal_source_responses')}",
         f"- Merged response schema valid: {payload.get('n_merged_response_schema_valid')}/{payload.get('n_merged_responses')}",
         f"- Hits: {payload.get('n_hits')}",
+        f"- Semantic rerank: {payload.get('semantic_rerank_enabled')} "
+        f"({payload.get('semantic_provider_id') or 'disabled'})",
         f"- Target-incompatible hits skipped: {payload.get('n_target_incompatible_declaration_hits')}",
         f"- Exact exists: {payload.get('n_exact_exists')}",
         f"- Wrapper needed: {payload.get('n_wrapper_needed')}",

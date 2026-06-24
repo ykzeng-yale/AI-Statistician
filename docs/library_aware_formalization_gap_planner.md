@@ -1795,6 +1795,7 @@ python3 -m ai_statistician.cli formalization-gap-planner-local-formal-source-ada
   --formalization-gap-planner-refinement-queue-dir runs/current/formalization_gap_planner_refinement_queue \
   --base-response-jsonl runs/current/formalization_gap_planner_local_literature_adapter/formalization_gap_planner_refinement_evidence_responses.jsonl \
   --lean-rag-db runs/current_status_lean_rag_dependency_graph/stat_inference.sqlite \
+  --semantic-rerank \
   --out runs/current/formalization_gap_planner_local_formal_source_adapter
 
 python3 -m ai_statistician.cli formalization-gap-planner-local-proof-state-adapter \

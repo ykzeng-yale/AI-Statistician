@@ -343,3 +343,67 @@ def test_local_formal_source_adapter_filters_mixed_roots_to_requested_target() -
     assert {
         hit["target_prover_family"] for hit in row["formal_declaration_hits"]
     } == {"rocq"}
+
+
+def test_local_formal_source_adapter_can_use_semantic_rerank_for_typo_query() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_local_formal_source_adapter_semantic"
+    )
+    queue_dir = root / "queue"
+    source_dir = root / "lean_src"
+    adapter_dir = root / "adapter"
+    shutil.rmtree(root, ignore_errors=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    source_dir.mkdir(parents=True, exist_ok=True)
+    (source_dir / "Permutation.lean").write_text(
+        "\n".join(
+            [
+                "namespace Demo",
+                "theorem PermutationRankUniformity : True := by trivial",
+                "end Demo",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    queue_rows = [
+        {
+            "refinement_item_id": "refinement:semantic-formal",
+            "goal_plan_id": "goal:semantic",
+            "route_id": "route:semantic",
+            "display_name": "semantic typo route",
+            "hook_kind": "formal_library_grounding",
+            "refinement_stage": "formal_library_coverage_mapping",
+            "owner_agent": "formal_retrieval",
+            "target_primitives": ["permutaton_uniformty"],
+            "queries": ["exchangabl permutaton uniformty"],
+        },
+    ]
+    (queue_dir / "formalization_gap_planner_refinement_queue_manifest.json").write_text(
+        json.dumps({"rows": queue_rows}, indent=2),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_local_formal_source_adapter_responses(
+        queue_dir,
+        adapter_dir,
+        formal_source_roots=(FormalSourceRoot("semantic_fixture", str(source_dir)),),
+        semantic_rerank=True,
+        semantic_weight=8.0,
+        k=3,
+    )
+
+    assert payload["all_ok"]
+    assert payload["semantic_rerank_enabled"] is True
+    assert payload["semantic_provider_id"] == "local_char_ngram"
+    assert payload["formal_source_retrieval_metadata"]["semantic_rerank_enabled"] is True
+    response = payload["responses"][0]
+    assert response["formal_source_retrieval_metadata"]["semantic_provider_id"] == "local_char_ngram"
+    assert response["coverage_updates"]["permutaton_uniformty"] == "wrapper_needed"
+    assert response["formal_declaration_hits"]
+    hit = response["formal_declaration_hits"][0]
+    assert hit["declaration"] == "Demo.PermutationRankUniformity"
+    assert "local_char_ngram_semantic" in hit["matched_terms"]
+    report_text = (
+        adapter_dir / "formalization_gap_planner_local_formal_source_adapter.md"
+    ).read_text(encoding="utf-8")
+    assert "Semantic rerank: True (local_char_ngram)" in report_text
