@@ -12,6 +12,7 @@ from typing import Any, Iterable, Mapping
 from .fingerprint import stable_hash
 from .formalization_gap_planner_contract import (
     LEGACY_FORMAL_REALIZATION_FIELD_ALIASES,
+    normalize_target_prover_family,
 )
 from .formalization_gap_planner_local_formal_source_adapter import (
     LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
@@ -9080,6 +9081,10 @@ def _request_packet(
     display_name = str(route.get("display_name") or route_id)
     route_match_ids = _route_match_ids(route, route_id)
     target_prover_family = _route_target_prover_family(input_payload, route)
+    current_route = _route_with_target_prover_family(
+        route,
+        target_prover_family=target_prover_family,
+    )
     library_snapshot_ref = str(
         route.get("library_snapshot_ref") or input_payload.get("library_snapshot_ref", "")
     )
@@ -9099,7 +9104,7 @@ def _request_packet(
         "display_name": display_name,
         "target_prover_family": target_prover_family,
         "library_snapshot_ref": library_snapshot_ref,
-        "current_route": dict(route),
+        "current_route": current_route,
         "route_match_ids": route_match_ids,
         "replan_metadata": _dict_value(route, "replan_metadata"),
         "target_intake_rows": _rows_for_route(
@@ -9219,13 +9224,13 @@ def _request_packet(
         dict(row) for row in _resource_request_playbooks_for_context(context_packet)
     ]
     context_packet["available_source_refs"] = list(
-        _available_source_refs_for_context(route, context_packet)
+        _available_source_refs_for_context(current_route, context_packet)
     )
     context_packet["available_source_snippets"] = list(
-        _available_source_snippets_for_context(route, context_packet)
+        _available_source_snippets_for_context(current_route, context_packet)
     )
     formal_declaration_rows = _available_formal_declaration_rows_for_context(
-        route,
+        current_route,
         context_packet,
         target_prover_family=target_prover_family,
     )
@@ -9244,7 +9249,7 @@ def _request_packet(
         _formal_source_retrieval_summary(context_packet)
     )
     context_packet["minimal_delta_cost_hints"] = _minimal_delta_cost_hints(
-        route,
+        current_route,
         context_packet,
         target_prover_family=target_prover_family,
     )
@@ -9293,7 +9298,7 @@ def _request_packet(
         _target_theorem_context_packet(
             route_id=route_id,
             display_name=display_name,
-            route=route,
+            route=current_route,
             context_packet=context_packet,
             residual_goals=residual_goals,
             residual_goal_contexts=residual_goal_contexts,
@@ -9314,7 +9319,7 @@ def _request_packet(
     context_packet["route_planning_brief"] = _route_planning_brief(
         route_id=route_id,
         display_name=display_name,
-        route=route,
+        route=current_route,
         context_packet=context_packet,
         residual_goals=residual_goals,
         target_prover_family=target_prover_family,
@@ -9342,7 +9347,7 @@ def _request_packet(
         model_tier_decision_evidence,
     ) = (
         _llm_route_planner_model_tier_decision(
-            route,
+            current_route,
             context_packet,
             requested_model_tier=model_tier,
         )
@@ -9361,7 +9366,7 @@ def _request_packet(
     prompt_messages = {
         "system": SYSTEM_PROMPT,
         "user": _user_prompt(
-            target_route=route,
+            target_route=current_route,
             context_packet=context_packet,
             required_output_contract=required_output_contract,
         ),
@@ -9385,7 +9390,7 @@ def _request_packet(
         ),
         "target_prover_family": target_prover_family,
         "library_snapshot_ref": library_snapshot_ref,
-        "target_route": dict(route),
+        "target_route": current_route,
         "context_packet": context_packet,
         "residual_goals": residual_goals,
         "residual_goal_contexts": [
@@ -22633,9 +22638,13 @@ def _response_target_prover_consistency_errors(
 
 
 def _target_prover_key(value: object) -> str:
+    normalized = normalize_target_prover_family(value)
+    if normalized:
+        return normalized
     key = _source_ref_key(value)
     aliases = {
         "coq": "rocq",
+        "coq8": "rocq",
         "rocq_coq": "rocq",
         "coq_rocq": "rocq",
         "lean": "lean4",
@@ -37299,7 +37308,10 @@ def _routes(payload: Mapping[str, Any]) -> tuple[dict[str, object], ...]:
 
 
 def _target_prover_family(payload: Mapping[str, Any]) -> str:
-    return str(payload.get("target_prover_family") or payload.get("target_prover") or "lean4")
+    raw_target = str(
+        payload.get("target_prover_family") or payload.get("target_prover") or "lean4"
+    )
+    return normalize_target_prover_family(raw_target) or raw_target
 
 
 def _route_target_prover_family(
@@ -37307,13 +37319,27 @@ def _route_target_prover_family(
     route: Mapping[str, Any],
 ) -> str:
     metadata = _dict_value(route, "replan_metadata")
-    return str(
+    raw_target = str(
         route.get("target_prover_family")
         or route.get("target_prover")
         or metadata.get("target_prover_family")
         or metadata.get("target_prover")
         or _target_prover_family(payload)
     )
+    return normalize_target_prover_family(raw_target) or raw_target
+
+
+def _route_with_target_prover_family(
+    route: Mapping[str, Any],
+    *,
+    target_prover_family: str,
+) -> dict[str, object]:
+    normalized = dict(route)
+    if target_prover_family:
+        normalized["target_prover_family"] = target_prover_family
+        if "target_prover" in normalized:
+            normalized["target_prover"] = target_prover_family
+    return normalized
 
 
 def _single_seed_target_prover_family(

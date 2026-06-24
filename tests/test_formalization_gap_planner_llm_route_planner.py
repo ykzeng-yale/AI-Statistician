@@ -8,6 +8,9 @@ from pathlib import Path
 import pytest
 
 from ai_statistician.cli import main
+from ai_statistician.formalization_gap_planner_contract import (
+    LEGACY_LEAN_TARGET_PROVER_FAMILY,
+)
 from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LEGACY_CONTEXT_FIELD_ALIASES,
     LLM_ROUTE_PLANNER_LEGACY_RESPONSE_FIELD_ALIASES,
@@ -2242,6 +2245,53 @@ def _write_resource_request_queue(root: Path) -> Path:
         encoding="utf-8",
     )
     return queue_dir
+
+
+def test_llm_route_planner_canonicalizes_legacy_lean_target_family() -> None:
+    root = Path("runs/test_formalization_gap_planner_llm_route_planner_legacy_lean")
+    out_dir = root / "llm_route_planner"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    standalone_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    standalone_payload["target_prover_family"] = LEGACY_LEAN_TARGET_PROVER_FAMILY
+    route = standalone_payload["routes"][0]
+    route["target_prover_family"] = LEGACY_LEAN_TARGET_PROVER_FAMILY
+    route["target_prover"] = LEGACY_LEAN_TARGET_PROVER_FAMILY
+    input_json.write_text(json.dumps(standalone_payload, indent=2), encoding="utf-8")
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_request_target_prover_families"] == 1
+    assert payload["by_request_target_prover_family"] == {"lean4": 1}
+    request = payload["request_packets"][0]
+    assert request["target_prover_family"] == "lean4"
+    assert request["target_route"]["target_prover_family"] == "lean4"
+    assert request["target_route"]["target_prover"] == "lean4"
+    assert request["context_packet"]["target_prover_family"] == "lean4"
+    assert request["context_packet"]["current_route"]["target_prover_family"] == "lean4"
+    assert request["context_packet"]["current_route"]["target_prover"] == "lean4"
+    assert (
+        request["context_packet"]["target_theorem_context_packet"][
+            "target_prover_family"
+        ]
+        == "lean4"
+    )
+    assert request["context_packet"]["route_planning_brief"]["target_prover_family"] == "lean4"
+    row = payload["rows"][0]
+    assert row["target_prover_family"] == "lean4"
+    assert row["target_theorem_context_packet"]["target_prover_family"] == "lean4"
+    seed_route = payload["standalone_seed"]["routes"][0]
+    assert seed_route["target_prover_family"] == "lean4"
+    assert seed_route["replan_metadata"]["target_prover_family"] == "lean4"
+    assert validate_llm_route_planner_manifest(
+        payload,
+        llm_route_planner_manifest_json_schema(),
+    ) == []
 
 
 def test_llm_route_planner_default_stages_claude_context_packet_without_api_call() -> None:
@@ -20866,8 +20916,9 @@ def test_llm_route_planner_accepts_target_specific_hol4_tools_for_hol4_target() 
 
     assert payload["all_ok"]
     assert payload["n_response_contract_ok"] == 1
-    assert payload["rows"][0]["target_prover_family"] == "hol_4"
+    assert payload["rows"][0]["target_prover_family"] == "hol4"
     seed_route = payload["standalone_seed"]["routes"][0]
+    assert seed_route["target_prover_family"] == "hol4"
     proof_hook = next(
         hook
         for hook in seed_route["interactive_refinement_hooks"]
@@ -20905,7 +20956,7 @@ def test_llm_route_planner_accepts_target_specific_hol4_tools_for_hol4_target() 
         row
         for row in queue_payload["rows"]
         if row["hook_kind"] == "proof_state_feedback"
-        and row["target_prover_family"] == "hol_4"
+        and row["target_prover_family"] == "hol4"
     )
     assert "hol4_tactic_kernel_tools" in queue_row["recommended_tools"]
     assert "HOL4 kernel replay" in queue_row["frontier_resource_adapters"]
@@ -20961,7 +21012,7 @@ def test_llm_route_planner_rejects_target_specific_hol4_tools_for_isabelle_targe
     assert "hol4_tactic_search targets hol4" in error_text
     assert "planner_next_actions[0] uses target-specific tool/resource" in error_text
     assert "hol4_kernel_replay targets hol4" in error_text
-    assert "target_prover_family isabelle_hol" in error_text
+    assert "target_prover_family isabelle" in error_text
 
 
 def test_llm_route_planner_adapter_target_filter_supports_extended_provers() -> None:

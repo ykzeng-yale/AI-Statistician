@@ -1165,6 +1165,11 @@ silently accepted and overwritten. The publication-bundle audit rechecks the
 same target-prover consistency on accepted LLM rows, including formal
 realization nodes and declaration-hit rows, so public artifacts cannot drift
 from the request target after generation.
+LLM route-planner request packets use the same canonical portable family keys
+as the standalone planner (`lean4`, `rocq`, `isabelle`, `agda`, `hol4`) and
+normalize legacy aliases such as `lean4_adapter_with_portable_gap_schema`,
+`coq`, `coq8`, and `isabelle_hol` before prompt staging, manifest target
+counts, response validation, and standalone-seed handoff.
 Formal-library reuse is likewise target-aware. The request context exposes a
 legacy flat `available_formal_declarations` list containing declarations
 compatible with the request target, plus structured
