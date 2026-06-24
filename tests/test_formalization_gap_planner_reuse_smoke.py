@@ -12,6 +12,9 @@ from ai_statistician.formalization_gap_planner_reuse_smoke import (
     _llm_provider_execution_mode,
     run_formalization_gap_planner_reuse_smoke,
 )
+from ai_statistician.formalization_gap_planner_component_resource_registry import (
+    PORTABLE_REUSE_TARGETS,
+)
 from ai_statistician.formalization_gap_planner_local_formal_source_adapter import (
     LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
 )
@@ -3781,8 +3784,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
             + payload["n_prover_adapter_feedback_merged_responses"]
         )
     )
-    assert payload["n_cross_prover_targets_ok"] == payload["n_cross_prover_targets"] == 4
-    assert payload["n_cross_prover_total_packets"] == 4 * payload["n_portable_work_packets"]
+    assert payload["n_cross_prover_targets_ok"] == payload[
+        "n_cross_prover_targets"
+    ] == len(PORTABLE_REUSE_TARGETS)
+    assert payload["n_cross_prover_total_packets"] == (
+        len(PORTABLE_REUSE_TARGETS) * payload["n_portable_work_packets"]
+    )
     assert payload["n_cross_prover_total_packet_schema_valid"] == payload["n_cross_prover_total_packets"]
     assert payload["n_cross_prover_packets_schema_invalid"] == 0
     assert (

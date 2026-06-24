@@ -6,6 +6,9 @@ from ai_statistician.formalization_gap_planner_adapter_registry import (
     adapter_registry_row_json_schema,
     export_formalization_gap_planner_adapter_registry,
 )
+from ai_statistician.formalization_gap_planner_component_resource_registry import (
+    PORTABLE_REUSE_TARGETS,
+)
 
 
 def test_formalization_gap_planner_adapter_registry_exports_contracts() -> None:
@@ -39,6 +42,10 @@ def test_formalization_gap_planner_adapter_registry_exports_contracts() -> None:
     assert "rocq_lsp_serapi" in adapter_ids
     assert "isabelle_sledgehammer_afp" in adapter_ids
     assert "agda_search_auto" in adapter_ids
+    assert "hol4_tactic_kernel_tools" in adapter_ids
+    assert "hol_light_tactic_search" in adapter_ids
+    assert "mizar_mml_search" in adapter_ids
+    assert "metamath_set_mm" in adapter_ids
     assert "route_revision_overlay" in adapter_ids
     by_id = {row["adapter_id"]: row for row in payload["rows"]}
     assert by_id["local_route_truth_benchmark_adapter"]["readiness_status"] == "READY_LOCAL"
@@ -55,12 +62,9 @@ def test_formalization_gap_planner_adapter_registry_exports_contracts() -> None:
     assert by_id["local_formal_source_index"]["portable_to_prover_families"] == (
         "lean4",
     )
-    assert set(by_id["local_target_formal_source_index"]["portable_to_prover_families"]) == {
-        "lean4",
-        "rocq",
-        "isabelle",
-        "agda",
-    }
+    assert set(
+        by_id["local_target_formal_source_index"]["portable_to_prover_families"]
+    ) == set(PORTABLE_REUSE_TARGETS)
     assert "formal_declaration_hits" in by_id["local_target_formal_source_index"][
         "output_contract_fields"
     ]
@@ -75,10 +79,24 @@ def test_formalization_gap_planner_adapter_registry_exports_contracts() -> None:
         "isabelle",
     )
     assert by_id["agda_search_auto"]["portable_to_prover_families"] == ("agda",)
+    assert by_id["hol4_tactic_kernel_tools"]["portable_to_prover_families"] == (
+        "hol4",
+    )
+    assert by_id["hol_light_tactic_search"]["portable_to_prover_families"] == (
+        "hol_light",
+    )
+    assert by_id["mizar_mml_search"]["portable_to_prover_families"] == ("mizar",)
+    assert by_id["metamath_set_mm"]["portable_to_prover_families"] == (
+        "metamath",
+    )
     for adapter_id in (
         "rocq_lsp_serapi",
         "isabelle_sledgehammer_afp",
         "agda_search_auto",
+        "hol4_tactic_kernel_tools",
+        "hol_light_tactic_search",
+        "mizar_mml_search",
+        "metamath_set_mm",
     ):
         assert "prover_diagnostics" in by_id[adapter_id]["output_contract_fields"]
         assert "formal_declaration_hits" in by_id[adapter_id]["output_contract_fields"]

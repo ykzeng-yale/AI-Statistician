@@ -20,6 +20,7 @@ from ai_statistician.formalization_gap_planner_ablation_study import (
     ablation_study_row_json_schema,
 )
 from ai_statistician.formalization_gap_planner_component_resource_registry import (
+    PORTABLE_REUSE_TARGETS,
     component_resource_contract_row_json_schema,
     component_resource_registry_component_row_json_schema,
     component_resource_registry_resource_row_json_schema,
@@ -4536,12 +4537,14 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert target_prover_payload_schema["$id"] == (
         LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_TARGET_PROVER_SCHEMA_ID
     )
-    assert lean_legacy_payload_schema["x-target-prover-families"] == ["lean4"]
-    assert target_prover_payload_schema["x-target-prover-families"] == [
-        "rocq",
-        "isabelle",
-        "agda",
+    target_prover_payload_families = [
+        target for target in PORTABLE_REUSE_TARGETS if target != "lean4"
     ]
+    assert lean_legacy_payload_schema["x-target-prover-families"] == ["lean4"]
+    assert (
+        target_prover_payload_schema["x-target-prover-families"]
+        == target_prover_payload_families
+    )
     assert "lean_realization_dag_nodes" in lean_legacy_payload_schema[
         "properties"
     ]
@@ -5059,7 +5062,9 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     ]["target_prover_families"] == ["lean4"]
     assert schema_catalog_entries_by_name[
         "llm_route_planner_response_payload_target_prover_schema"
-    ]["target_prover_families"] == ["rocq", "isabelle", "agda"]
+    ]["target_prover_families"] == [
+        target for target in PORTABLE_REUSE_TARGETS if target != "lean4"
+    ]
     assert (
         "llm_route_planner_response_payload_validation_manifest_schema"
         in schema_catalog_entry_names

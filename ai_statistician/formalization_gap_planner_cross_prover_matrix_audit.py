@@ -22,6 +22,9 @@ from .formalization_gap_planner_route_adoption_blockers import (
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
 )
+from .formalization_gap_planner_component_resource_registry import (
+    PORTABLE_REUSE_TARGETS,
+)
 
 
 FORMALIZATION_GAP_PLANNER_CROSS_PROVER_MATRIX_AUDIT_SCHEMA_VERSION = 1
@@ -41,7 +44,7 @@ PROOF_EVIDENCE_BOUNDARY = (
     "target-prover adapter packets for multiple proof-assistant ecosystems. "
     "They are not theorem proof evidence."
 )
-DEFAULT_REUSE_TARGETS = ("lean4", "rocq", "isabelle", "agda")
+DEFAULT_REUSE_TARGETS = PORTABLE_REUSE_TARGETS
 
 
 @dataclass(frozen=True)

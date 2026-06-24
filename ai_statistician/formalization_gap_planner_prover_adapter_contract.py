@@ -17,6 +17,9 @@ from .formalization_gap_planner_contract import (
     route_alignment_edge_json_schema,
     validate_route_alignment_edge,
 )
+from .formalization_gap_planner_component_resource_registry import (
+    PORTABLE_REUSE_TARGETS,
+)
 from .formalization_gap_planner_route_adoption_blockers import (
     ROUTE_ADOPTION_BLOCKER_QUALITY_CONTROLS,
     ROUTE_ADOPTION_BLOCKER_SOURCE_GROUNDING,
@@ -54,12 +57,16 @@ PROOF_EVIDENCE_BOUNDARY = (
     "bridge lemma is proved only when that target prover's kernel verifies the "
     "translated statement and proof with no placeholders."
 )
-PROVER_FAMILIES = ("lean4", "rocq", "isabelle", "agda", "other")
+PROVER_FAMILIES = (*PORTABLE_REUSE_TARGETS, "other")
 PROVER_VERIFIER_COMMAND_EXECUTABLES = {
     "lean4": ("lake", "lean", "elan"),
     "rocq": ("coqc", "coqtop", "rocq", "rocqtop", "dune"),
     "isabelle": ("isabelle",),
     "agda": ("agda",),
+    "hol4": ("hol", "hol4", "poly", "polyml", "mosml", "sml"),
+    "hol_light": ("ocaml", "utop"),
+    "mizar": ("mizar", "mizf"),
+    "metamath": ("metamath", "mmj2", "java"),
 }
 PROVER_FAMILY_RESPONSE_VALUES = (
     "lean4",
@@ -72,6 +79,14 @@ PROVER_FAMILY_RESPONSE_VALUES = (
     "isabelle/hol",
     "isabelle_hol",
     "agda",
+    "hol",
+    "hol4",
+    "hol_light",
+    "hollight",
+    "mizar",
+    "metamath",
+    "set_mm",
+    "setmm",
     "other",
 )
 MAPPING_STATUSES = (
@@ -886,7 +901,9 @@ def prover_adapter_response_json_schema() -> dict[str, object]:
                     "Target-prover replay command. The first executable must "
                     "match target_prover_family: lean4 uses lake/lean/elan, "
                     "rocq/coq uses coqc/coqtop/rocq/rocqtop/dune, isabelle "
-                    "uses isabelle, and agda uses agda."
+                    "uses isabelle, agda uses agda, HOL4 uses HOL/SML tooling, "
+                    "HOL Light uses OCaml tooling, Mizar uses mizar/mizf, and "
+                    "Metamath uses metamath/mmj2/java."
                 ),
             },
             "library_snapshot_ref": {"type": "string"},

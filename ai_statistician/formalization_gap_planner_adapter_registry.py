@@ -15,6 +15,9 @@ from .fingerprint import stable_hash
 from .formalization_gap_planner_benchmark import (
     default_formalization_gap_planner_ground_truth_path,
 )
+from .formalization_gap_planner_component_resource_registry import (
+    PORTABLE_REUSE_TARGETS,
+)
 
 
 FORMALIZATION_GAP_PLANNER_ADAPTER_REGISTRY_SCHEMA_VERSION = 1
@@ -27,6 +30,9 @@ PROOF_EVIDENCE_BOUNDARY = (
     "Formalization gap planner adapter registry rows describe tool readiness "
     "and response contracts. They are not theorem proof evidence. Only a "
     "target-prover kernel check can prove a theorem or bridge lemma."
+)
+PORTABLE_TARGET_PROVER_FAMILIES = tuple(
+    target for target in PORTABLE_REUSE_TARGETS if target != "lean4"
 )
 
 
@@ -391,7 +397,7 @@ def _registry_row(spec: dict[str, Any]) -> FormalizationGapPlannerAdapterRegistr
         resource_urls=_str_tuple(spec.get("resource_urls", [])),
         online_dependency=bool(spec.get("online_dependency", False)),
         portable_to_prover_families=_str_tuple(
-            spec.get("portable_to_prover_families", ["lean4", "rocq", "isabelle", "agda"])
+            spec.get("portable_to_prover_families", PORTABLE_REUSE_TARGETS)
         ),
         response_contract_boundary=str(
             spec.get(
@@ -603,7 +609,7 @@ def _adapter_specs(
                 "target_prover_family",
             ),
             "builtin_ready": True,
-            "portable_to_prover_families": ("lean4", "rocq", "isabelle", "agda"),
+            "portable_to_prover_families": PORTABLE_REUSE_TARGETS,
             "resource_urls": (),
             "install_hint": "included in ai_statistician.formalization_gap_planner_local_formal_source_adapter",
         },
@@ -736,6 +742,98 @@ def _adapter_specs(
                 "https://agda.readthedocs.io/en/v2.5.3/tools/auto.html",
             ),
             "install_hint": "configure Agda search/about/auto or interaction JSON output as prover_feedback rows",
+        },
+        {
+            "adapter_id": "hol4_tactic_kernel_tools",
+            "adapter_name": "HOL4 proof-state and theorem-search adapter",
+            "component_kind": "proof_state_feedback",
+            "hook_kind": "proof_state_feedback",
+            "evidence_kind": "prover_feedback",
+            "adapter_surface": "hol4_cli_or_sml_api",
+            "role": "HOL4 kernel/checker diagnostics, theorem search, and proof-attempt feedback for portable route refinement",
+            "output_contract_fields": (
+                "prover_diagnostics",
+                "residual_goals",
+                "formal_declaration_hits",
+                "coverage_updates",
+                "target_prover_family",
+            ),
+            "contract_only": True,
+            "portable_to_prover_families": ("hol4",),
+            "resource_urls": (
+                "https://hol-theorem-prover.org/",
+                "https://github.com/HOL-Theorem-Prover/HOL",
+            ),
+            "install_hint": "configure HOL4 theorem search/proof scripts and map checker diagnostics into prover_feedback rows",
+        },
+        {
+            "adapter_id": "hol_light_tactic_search",
+            "adapter_name": "HOL Light proof-state adapter",
+            "component_kind": "proof_state_feedback",
+            "hook_kind": "proof_state_feedback",
+            "evidence_kind": "prover_feedback",
+            "adapter_surface": "ocaml_toplevel_or_hammer",
+            "role": "HOL Light theorem search, tactic feedback, and kernel-check diagnostics for portable route refinement",
+            "output_contract_fields": (
+                "prover_diagnostics",
+                "residual_goals",
+                "formal_declaration_hits",
+                "coverage_updates",
+                "target_prover_family",
+            ),
+            "contract_only": True,
+            "portable_to_prover_families": ("hol_light",),
+            "resource_urls": (
+                "https://github.com/jrh13/hol-light",
+                "https://github.com/jrh13/hol-light/tree/master/Multivariate",
+            ),
+            "install_hint": "configure a HOL Light OCaml session or theorem-search export as prover_feedback rows",
+        },
+        {
+            "adapter_id": "mizar_mml_search",
+            "adapter_name": "Mizar verifier/MML adapter",
+            "component_kind": "proof_state_feedback",
+            "hook_kind": "proof_state_feedback",
+            "evidence_kind": "prover_feedback",
+            "adapter_surface": "mizar_verifier_cli",
+            "role": "Mizar verifier diagnostics and MML declaration lookup for portable route refinement",
+            "output_contract_fields": (
+                "prover_diagnostics",
+                "residual_goals",
+                "formal_declaration_hits",
+                "coverage_updates",
+                "target_prover_family",
+            ),
+            "contract_only": True,
+            "portable_to_prover_families": ("mizar",),
+            "resource_urls": (
+                "http://mizar.org/",
+                "http://mizar.org/version/current/html/",
+            ),
+            "install_hint": "configure Mizar verifier/MML exports and map diagnostics into prover_feedback rows",
+        },
+        {
+            "adapter_id": "metamath_set_mm",
+            "adapter_name": "Metamath set.mm/mmj2 adapter",
+            "component_kind": "proof_state_feedback",
+            "hook_kind": "proof_state_feedback",
+            "evidence_kind": "prover_feedback",
+            "adapter_surface": "metamath_cli_or_mmj2",
+            "role": "Metamath proof verification, set.mm theorem lookup, and mmj2 feedback for portable route refinement",
+            "output_contract_fields": (
+                "prover_diagnostics",
+                "residual_goals",
+                "formal_declaration_hits",
+                "coverage_updates",
+                "target_prover_family",
+            ),
+            "contract_only": True,
+            "portable_to_prover_families": ("metamath",),
+            "resource_urls": (
+                "https://us.metamath.org/",
+                "https://github.com/metamath/mmj2",
+            ),
+            "install_hint": "configure Metamath verifier/mmj2 and map verification feedback into prover_feedback rows",
         },
         {
             "adapter_id": "local_lake_lean",

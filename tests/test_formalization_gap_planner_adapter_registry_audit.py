@@ -8,6 +8,9 @@ from ai_statistician.formalization_gap_planner_adapter_registry import (
     adapter_registry_row_json_schema,
     export_formalization_gap_planner_adapter_registry,
 )
+from ai_statistician.formalization_gap_planner_component_resource_registry import (
+    PORTABLE_REUSE_TARGETS,
+)
 from ai_statistician.formalization_gap_planner_adapter_registry_audit import (
     audit_formalization_gap_planner_adapter_registry,
 )
@@ -50,15 +53,15 @@ def test_adapter_registry_audit_validates_frontier_tool_contracts() -> None:
     assert audit_payload["n_mcp_or_cli_surfaces"] > 0
     assert set(
         audit_payload["target_coverage_by_hook_kind"]["formal_library_grounding"]
-    ) == {"lean4", "rocq", "isabelle", "agda"}
+    ) == set(PORTABLE_REUSE_TARGETS)
     assert set(
         audit_payload["target_coverage_by_hook_kind"]["proof_state_feedback"]
-    ) == {"lean4", "rocq", "isabelle", "agda"}
+    ) == set(PORTABLE_REUSE_TARGETS)
     assert set(
         audit_payload["target_specific_coverage_by_hook_kind"][
             "proof_state_feedback"
         ]
-    ) == {"lean4", "rocq", "isabelle", "agda"}
+    ) == set(PORTABLE_REUSE_TARGETS)
     assert any(
         check["check_name"] == "required_adapter_ids" and check["ok"]
         for check in audit_payload["checks"]

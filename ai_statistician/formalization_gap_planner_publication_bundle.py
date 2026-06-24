@@ -25,6 +25,7 @@ from .formalization_gap_planner_ablation_study import (
     ablation_study_row_json_schema,
 )
 from .formalization_gap_planner_component_resource_registry import (
+    PORTABLE_REUSE_TARGETS,
     component_resource_contract_row_json_schema,
     component_resource_registry_component_row_json_schema,
     component_resource_registry_resource_row_json_schema,
@@ -197,6 +198,12 @@ LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_TARGET_PROVER_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-response-payload-target-prover:1"
 )
+PORTABLE_TARGET_PROVER_RESPONSE_PAYLOAD_FAMILIES = tuple(
+    target for target in PORTABLE_REUSE_TARGETS if target != "lean4"
+)
+PORTABLE_TARGET_PROVER_FAMILY_HINT = (
+    "<" + "|".join((*PORTABLE_REUSE_TARGETS, "other")) + ">"
+)
 OPTIONAL_ARTIFACT_FILES = {
     "formalization_gap_planner_target_intake": (
         "formalization_gap_planner_target_intake_manifest.json",
@@ -216,6 +223,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl",
         "formalization_gap_planner_llm_route_planner.jsonl",
         "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl",
+        "formalization_gap_planner_llm_route_planner_provider_usage.jsonl",
         "formalization_gap_planner_llm_route_planner_request.schema.json",
         "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json",
         "formalization_gap_planner_llm_route_planner_target_theorem_context_packet.schema.json",
@@ -226,6 +234,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json",
         "formalization_gap_planner_llm_route_planner_row.schema.json",
         "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json",
+        "formalization_gap_planner_llm_route_planner_provider_usage_row.schema.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.schema.json",
         "formalization_gap_planner_llm_route_planner_seed_route_selection.schema.json",
@@ -241,6 +250,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_route_planning_briefs.jsonl",
         "formalization_gap_planner_llm_route_planner.jsonl",
         "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.jsonl",
+        "formalization_gap_planner_llm_route_planner_provider_usage.jsonl",
         "formalization_gap_planner_llm_route_planner_request.schema.json",
         "formalization_gap_planner_llm_route_planner_library_alignment_summary.schema.json",
         "formalization_gap_planner_llm_route_planner_target_theorem_context_packet.schema.json",
@@ -251,6 +261,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_llm_route_planner_response_payload_validation_row.schema.json",
         "formalization_gap_planner_llm_route_planner_row.schema.json",
         "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger.schema.json",
+        "formalization_gap_planner_llm_route_planner_provider_usage_row.schema.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.json",
         "formalization_gap_planner_llm_route_planner_standalone_seed.schema.json",
         "formalization_gap_planner_llm_route_planner_seed_route_selection.schema.json",
@@ -577,7 +588,7 @@ def export_formalization_gap_planner_publication_bundle(
                 "Formalization Gap Planner LLM Route Planner Response Payload "
                 "(Target-Prover Portable)"
             ),
-            target_prover_families=("rocq", "isabelle", "agda"),
+            target_prover_families=PORTABLE_TARGET_PROVER_RESPONSE_PAYLOAD_FAMILIES,
         )
     )
     llm_route_planner_response_payload_validation_manifest_schema = (
@@ -2191,7 +2202,7 @@ def export_formalization_gap_planner_publication_bundle(
                 "all_ok",
             ),
         ),
-        "portable_reuse_targets": ("lean4", "rocq", "isabelle", "agda"),
+        "portable_reuse_targets": PORTABLE_REUSE_TARGETS,
         "all_ok": (
             not errors
             and all(bool(artifact["ok"]) for artifact in core_artifacts)
@@ -3982,7 +3993,7 @@ def _contract_payload(library_snapshot_ref: str) -> dict[str, object]:
                     "Formalization Gap Planner LLM Route Planner Response "
                     "Payload (Target-Prover Portable)"
                 ),
-                target_prover_families=("rocq", "isabelle", "agda"),
+                target_prover_families=PORTABLE_TARGET_PROVER_RESPONSE_PAYLOAD_FAMILIES,
             )
         ),
         "llm_route_planner_response_payload_validation_manifest_contract": (
@@ -4460,7 +4471,7 @@ def _reproduction_payload(
                 "--input "
                 "<ai_statistician_runtime_dir>/runtime_formalization_gap_planner_target_intake/"
                 "<runtime_target_intake_json> "
-                "--target-prover-family <lean4|rocq|isabelle|agda|other> "
+                f"--target-prover-family {PORTABLE_TARGET_PROVER_FAMILY_HINT} "
                 "--target-library-snapshot-ref <runtime-library-snapshot-ref> "
                 "--llm-route-planner-provider anthropic "
                 "--llm-route-planner-model-tier auto "
@@ -4550,7 +4561,7 @@ def _reproduction_payload(
                 "formalization-gap-planner-prover-adapter-contract "
                 "--goal-conditioned-minimal-formalization-plan-dir "
                 "<work_dir>/goal_conditioned_minimal_formalization_plan "
-                "--target-prover-family <lean4|rocq|isabelle|agda|other> "
+                f"--target-prover-family {PORTABLE_TARGET_PROVER_FAMILY_HINT} "
                 "--library-snapshot-ref <target-library-snapshot-ref> "
                 "--out <work_dir>/formalization_gap_planner_prover_adapter_contract"
             ),
@@ -4924,7 +4935,7 @@ def _reproduction_payload(
         "entrypoints": entrypoints,
         "commands": commands,
         "bundle_relative_artifacts": bundle_relative_artifacts,
-        "portable_reuse_targets": ("lean4", "rocq", "isabelle", "agda"),
+        "portable_reuse_targets": PORTABLE_REUSE_TARGETS,
         "all_ok": True,
         "errors": (),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,

@@ -17,6 +17,10 @@ PROOF_STATE_RESOURCE_CONTRACT_ID_BY_TARGET = {
     "rocq": "rocq_lsp_serapi:proof_state_feedback",
     "isabelle": "isabelle_sledgehammer_afp:proof_state_feedback",
     "agda": "agda_search_auto:proof_state_feedback",
+    "hol4": "hol4_tactic_kernel_tools:proof_state_feedback",
+    "hol_light": "hol_light_tactic_search:proof_state_feedback",
+    "mizar": "mizar_mml_search:proof_state_feedback",
+    "metamath": "metamath_set_mm:proof_state_feedback",
 }
 PROVER_RESOURCE_CONTRACT_TARGETS = {
     "lean_lsp": "lean4",
@@ -26,6 +30,10 @@ PROVER_RESOURCE_CONTRACT_TARGETS = {
     "rocq_lsp_serapi": "rocq",
     "isabelle_sledgehammer_afp": "isabelle",
     "agda_search_auto": "agda",
+    "hol4_tactic_kernel_tools": "hol4",
+    "hol_light_tactic_search": "hol_light",
+    "mizar_mml_search": "mizar",
+    "metamath_set_mm": "metamath",
 }
 
 
@@ -44,6 +52,15 @@ def normalize_target_prover_family(value: object) -> str:
         "isabelle": "isabelle",
         "isabelle_hol": "isabelle",
         "agda": "agda",
+        "hol": "hol4",
+        "hol4": "hol4",
+        "hol_4": "hol4",
+        "hol_light": "hol_light",
+        "hollight": "hol_light",
+        "mizar": "mizar",
+        "metamath": "metamath",
+        "set_mm": "metamath",
+        "setmm": "metamath",
         "other": "other",
     }
     return aliases.get(key, key)

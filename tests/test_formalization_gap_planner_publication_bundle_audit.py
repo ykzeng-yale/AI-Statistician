@@ -46,6 +46,7 @@ from ai_statistician.formalization_gap_planner_action_resource_plan import (
     export_formalization_gap_planner_action_resource_plan,
 )
 from ai_statistician.formalization_gap_planner_component_resource_registry import (
+    PORTABLE_REUSE_TARGETS,
     export_formalization_gap_planner_component_resource_registry,
 )
 from ai_statistician.formalization_gap_planner_resource_request_queue import (
@@ -4949,7 +4950,8 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert any(
         row["check_name"] == "schema_catalog_target_prover_payload_schema_targets"
-        and row["observed"] == "rocq,isabelle,agda"
+        and row["observed"]
+        == ",".join(target for target in PORTABLE_REUSE_TARGETS if target != "lean4")
         and row["ok"]
         for row in audit_payload["checks"]
     )

@@ -6,6 +6,9 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from .fingerprint import stable_hash
+from .formalization_gap_planner_component_resource_registry import (
+    PORTABLE_REUSE_TARGETS,
+)
 from .llm_json_repair import extract_json_object, generate_validated_json_packet
 from .model_backend import GeneratorBackend, GeneratorRequest, resolve_generator_model
 from .research_schema import OpenResearchQuestion
@@ -24,6 +27,7 @@ FORMALIZER_MAX_THEORY_ROWS = 3
 FORMALIZER_MAX_THEOREM_GOALS = 4
 FORMALIZER_MAX_PROOF_BANK_ROWS = 12
 FORMALIZER_MAX_TEXT_CHARS = 420
+TARGET_PROVER_FAMILY_PROMPT_HINT = "|".join((*PORTABLE_REUSE_TARGETS, "other"))
 
 
 @dataclass(frozen=True)
@@ -267,7 +271,7 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
         {
             "id": "string",
             "informal_source": "string",
-            "target_prover_family": "lean4|rocq|isabelle|agda|hol4|other",
+            "target_prover_family": TARGET_PROVER_FAMILY_PROMPT_HINT,
             "formal_statement_sketch": "target-prover statement sketch",
             "formal_imports": ["target prover imports/theories"],
             "lean_statement_sketch": "Lean-only legacy alias for formal_statement_sketch",

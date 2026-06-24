@@ -23,6 +23,7 @@ from .formalization_gap_planner_contract import (
     validate_portable_gap_plan_row,
 )
 from .formalization_gap_planner_component_resource_registry import (
+    PORTABLE_REUSE_TARGETS,
     validate_component_resource_contract_row,
     validate_component_resource_registry_component_row,
     validate_component_resource_registry_resource_row,
@@ -279,7 +280,13 @@ REQUIRED_DOCS = (
     "library_aware_formalization_gap_planner.md",
     "evaluation_benchmark_strategy.md",
 )
-REQUIRED_REUSE_TARGETS = ("lean4", "rocq", "isabelle", "agda")
+REQUIRED_REUSE_TARGETS = PORTABLE_REUSE_TARGETS
+REQUIRED_TARGET_PROVER_PAYLOAD_FAMILIES = tuple(
+    target for target in REQUIRED_REUSE_TARGETS if target != "lean4"
+)
+REQUIRED_TARGET_PROVER_PAYLOAD_FAMILIES_CSV = ",".join(
+    REQUIRED_TARGET_PROVER_PAYLOAD_FAMILIES
+)
 REQUIRED_REPRODUCTION_ENTRYPOINTS = (
     "formalization-gap-planner-standalone-plan",
     "formalization-gap-planner-llm-route-planner",
@@ -6887,7 +6894,7 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         _check(
             "schema_catalog_target_prover_payload_schema_targets",
             "contract",
-            "rocq,isabelle,agda",
+            REQUIRED_TARGET_PROVER_PAYLOAD_FAMILIES_CSV,
             ",".join(
                 _str_tuple(
                     schema_catalog_entries_by_name.get(
@@ -6902,7 +6909,7 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
                     {},
                 ).get("target_prover_families", [])
             )
-            == ("rocq", "isabelle", "agda"),
+            == REQUIRED_TARGET_PROVER_PAYLOAD_FAMILIES,
         ),
         _check(
             "schema_catalog_missing_schema_ids",
@@ -7614,7 +7621,10 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
         _check(
             "llm_route_planner_response_payload_target_prover_schema_shape",
             "contract",
-            "rocq,isabelle,agda target and no lean_realization_dag_nodes property",
+            (
+                f"{REQUIRED_TARGET_PROVER_PAYLOAD_FAMILIES_CSV} target and no "
+                "lean_realization_dag_nodes property"
+            ),
             json.dumps(
                 {
                     "targets": _str_tuple(
@@ -7651,7 +7661,7 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
                     [],
                 )
             )
-            == ("rocq", "isabelle", "agda")
+            == REQUIRED_TARGET_PROVER_PAYLOAD_FAMILIES
             and llm_route_planner_response_payload_target_prover_schema.get("anyOf")
             == [{"required": ["formal_realization_dag_nodes"]}]
             and "lean_realization_dag_nodes"

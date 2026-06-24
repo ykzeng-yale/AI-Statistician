@@ -8,11 +8,17 @@ from ai_statistician.formalization_gap_planner_contract import (
     LIBRARY_AWARE_FORMALIZATION_GAP_PLANNER_NAME,
     PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID,
 )
+from ai_statistician.formalization_gap_planner_component_resource_registry import (
+    PORTABLE_REUSE_TARGETS,
+)
 from ai_statistician.formalization_gap_planner_cross_prover_matrix_audit import (
     audit_formalization_gap_planner_cross_prover_matrix,
     cross_prover_matrix_audit_row_json_schema,
     cross_prover_target_summary_json_schema,
     validate_cross_prover_target_summary_payload,
+)
+from ai_statistician.formalization_gap_planner_quality_controls import (
+    PROOF_STATE_RESOURCE_CONTRACT_ID_BY_TARGET,
 )
 from ai_statistician.formalization_gap_planner_prover_adapter_contract import (
     prover_adapter_packet_json_schema,
@@ -104,18 +110,18 @@ def test_cross_prover_matrix_audit_exports_all_reuse_targets() -> None:
 
     payload = audit_formalization_gap_planner_cross_prover_matrix(plan_dir, out_dir)
     expected_contract_by_target = {
-        "lean4": "lean_lsp:proof_state_feedback",
-        "rocq": "rocq_lsp_serapi:proof_state_feedback",
-        "isabelle": "isabelle_sledgehammer_afp:proof_state_feedback",
-        "agda": "agda_search_auto:proof_state_feedback",
+        target: PROOF_STATE_RESOURCE_CONTRACT_ID_BY_TARGET[target]
+        for target in PORTABLE_REUSE_TARGETS
     }
     target_contract_ids = tuple(sorted(expected_contract_by_target.values()))
 
     assert payload["all_ok"]
-    assert payload["n_targets"] == 4
-    assert payload["n_targets_ok"] == 4
-    assert payload["target_prover_families"] == ("lean4", "rocq", "isabelle", "agda")
-    assert payload["n_total_packets"] == 4 * plan_payload["n_portable_work_packets"]
+    assert payload["n_targets"] == len(PORTABLE_REUSE_TARGETS)
+    assert payload["n_targets_ok"] == len(PORTABLE_REUSE_TARGETS)
+    assert payload["target_prover_families"] == PORTABLE_REUSE_TARGETS
+    assert payload["n_total_packets"] == (
+        len(PORTABLE_REUSE_TARGETS) * plan_payload["n_portable_work_packets"]
+    )
     assert payload["n_total_packet_ok"] == payload["n_total_packets"]
     assert payload["n_total_packet_schema_valid"] == payload["n_total_packets"]
     assert payload["n_total_packets_schema_invalid"] == 0

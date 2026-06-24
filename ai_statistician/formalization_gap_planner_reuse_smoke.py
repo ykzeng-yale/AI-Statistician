@@ -9278,7 +9278,7 @@ def run_formalization_gap_planner_reuse_smoke(
         "reuse_targets": tuple(
             publication_bundle_payload.get(
                 "portable_reuse_targets",
-                ("lean4", "rocq", "isabelle", "agda"),
+                DEFAULT_REUSE_TARGETS,
             )
         ),
         "reproduction_commands": _reproduction_commands(

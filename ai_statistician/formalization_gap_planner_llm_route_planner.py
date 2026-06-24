@@ -16,6 +16,9 @@ from .formalization_gap_planner_contract import (
 from .formalization_gap_planner_local_formal_source_adapter import (
     LEGACY_FORMAL_SOURCE_ADAPTER_FIELD_ALIASES,
 )
+from .formalization_gap_planner_component_resource_registry import (
+    PORTABLE_REUSE_TARGETS,
+)
 from .formalization_gap_planner_quality_controls import (
     QUALITY_CONTROL_FIELDS,
     project_quality_control_payload_to_target,
@@ -131,6 +134,7 @@ LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID = (
     "urn:ai-statistician:schemas:"
     "formalization-gap-planner-llm-route-planner-provider-usage-row:1"
 )
+TARGET_PROVER_FAMILY_PROMPT_HINT = "|".join((*PORTABLE_REUSE_TARGETS, "other"))
 MODEL_TIER_DECISION_LEDGER_KIND = (
     "formalization_gap_planner_llm_route_planner_model_tier_decision_ledger"
 )
@@ -699,7 +703,7 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
             "candidate_declaration_rows": [
                 {
                     "declaration": "target prover declaration",
-                    "target_prover_family": "lean4|rocq|isabelle|agda|...",
+                    "target_prover_family": TARGET_PROVER_FAMILY_PROMPT_HINT,
                     "source_field": "available_formal_declaration_rows|candidate_declarations|resource_request_candidate_declarations",
                 }
             ],
@@ -855,7 +859,7 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
             "attempt_id": "stable attempt id",
             "formal_node_id": "formal_realization_dag_nodes[].node_id to attempt",
             "primitive": "formal primitive for the attempted node",
-            "target_prover_family": "lean4|rocq|isabelle|agda|...",
+            "target_prover_family": TARGET_PROVER_FAMILY_PROMPT_HINT,
             "owner": "prover/LSP/library adapter that should attempt this node",
             "action": "bounded proof-state or reuse check to run",
             "attempt_kind": "reuse_check|wrapper_check|bridge_proof|source_port_probe|definition_probe|proof_state_feedback",
@@ -886,7 +890,7 @@ LLM_ROUTE_PLANNER_OUTPUT_CONTRACT: dict[str, object] = {
                 "candidate_declaration_rows": [
                     {
                         "declaration": "target prover declaration",
-                        "target_prover_family": "lean4|rocq|isabelle|agda|...",
+                        "target_prover_family": TARGET_PROVER_FAMILY_PROMPT_HINT,
                         "source_field": "available_formal_declaration_rows|candidate_declarations|resource_request_candidate_declarations",
                     }
                 ],

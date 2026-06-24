@@ -15,6 +15,9 @@ from .formalization_gap_planner_adapter_registry import (
     adapter_registry_row_json_schema,
     validate_adapter_registry_row,
 )
+from .formalization_gap_planner_component_resource_registry import (
+    PORTABLE_REUSE_TARGETS,
+)
 
 
 FORMALIZATION_GAP_PLANNER_ADAPTER_REGISTRY_AUDIT_SCHEMA_VERSION = 1
@@ -42,6 +45,10 @@ REQUIRED_ADAPTER_IDS = (
     "rocq_lsp_serapi",
     "isabelle_sledgehammer_afp",
     "agda_search_auto",
+    "hol4_tactic_kernel_tools",
+    "hol_light_tactic_search",
+    "mizar_mml_search",
+    "metamath_set_mm",
     "local_lake_lean",
     "lean_lsp_mcp",
     "leandojo_reprover",
@@ -63,7 +70,7 @@ REQUIRED_HOOK_KINDS = (
     "proof_state_feedback",
     "route_revision",
 )
-REQUIRED_REUSE_TARGETS = ("lean4", "rocq", "isabelle", "agda")
+REQUIRED_REUSE_TARGETS = PORTABLE_REUSE_TARGETS
 REQUIRED_FIELDS_BY_EVIDENCE_KIND = {
     "all_refinement_response_contracts": (
         "refinement_item_id",
