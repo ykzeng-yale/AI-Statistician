@@ -23125,7 +23125,10 @@ def _available_formal_declarations_for_context(
 ) -> tuple[str, ...]:
     declarations: list[str] = []
     _collect_formal_declarations(route, declarations)
-    _collect_formal_declarations(context_packet, declarations)
+    _collect_formal_declarations(
+        _formal_declaration_admissible_context(context_packet),
+        declarations,
+    )
     return tuple(dict.fromkeys(_str_tuple(declarations)))
 
 
@@ -23149,7 +23152,7 @@ def _available_formal_declaration_rows_for_context(
         inherited_target_prover_family=route_target,
     )
     _collect_formal_declaration_rows(
-        context_packet,
+        _formal_declaration_admissible_context(context_packet),
         rows,
         inherited_target_prover_family=target_prover_family,
     )
@@ -23160,7 +23163,7 @@ def _available_formal_declaration_rows_for_context(
         inherited_primitives=tuple(),
     )
     _collect_formal_declaration_primitive_support(
-        context_packet,
+        _formal_declaration_admissible_context(context_packet),
         primitive_support,
         inherited_target_prover_family=target_prover_family,
         inherited_primitives=tuple(),
@@ -23171,7 +23174,7 @@ def _available_formal_declaration_rows_for_context(
         inherited_target_prover_family=route_target,
     )
     _collect_formal_declaration_primitive_non_support(
-        context_packet,
+        _formal_declaration_admissible_context(context_packet),
         primitive_non_support,
         inherited_target_prover_family=target_prover_family,
     )
@@ -23228,6 +23231,62 @@ def _available_formal_declaration_rows_for_context(
         if unsupported_primitives:
             row["unsupported_target_primitives"] = unsupported_primitives
     return tuple(compact)
+
+
+def _formal_declaration_admissible_context(
+    context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    context = dict(context_packet)
+    context.pop("available_formal_declarations", None)
+    context.pop("available_formal_declaration_rows", None)
+    context.pop("component_resource_registry_context", None)
+    context["resource_response_ledger_rows"] = tuple(
+        row
+        for row in _dict_tuple(context_packet.get("resource_response_ledger_rows", []))
+        if _resource_response_row_is_admissible_formal_declaration_feedback(row)
+    )
+    context["refinement_evidence_rows"] = tuple(
+        row
+        for row in _dict_tuple(context_packet.get("refinement_evidence_rows", []))
+        if _refinement_evidence_row_is_admissible_formal_declaration_feedback(row)
+    )
+    return context
+
+
+def _resource_response_row_is_admissible_formal_declaration_feedback(
+    row: Mapping[str, Any],
+) -> bool:
+    status = str(row.get("acceptance_status", "")).strip()
+    if status == "AWAITING_RESOURCE_RESPONSE" or status.startswith("REJECTED_"):
+        return False
+    if "response_present" in row and not _truthy(row.get("response_present")):
+        return False
+    if "response_contract_ok" in row and not _truthy(
+        row.get("response_contract_ok")
+    ):
+        return False
+    if "response_contract_minimum_met" in row and not _truthy(
+        row.get("response_contract_minimum_met")
+    ):
+        return False
+    if "ok" in row and not _truthy(row.get("ok")):
+        return False
+    return True
+
+
+def _refinement_evidence_row_is_admissible_formal_declaration_feedback(
+    row: Mapping[str, Any],
+) -> bool:
+    status = str(row.get("acceptance_status", "")).strip()
+    if status.startswith("AWAITING_") or status.startswith("REJECTED_"):
+        return False
+    if "response_contract_ok" in row and not _truthy(
+        row.get("response_contract_ok")
+    ):
+        return False
+    if "ok" in row and not _truthy(row.get("ok")):
+        return False
+    return True
 
 
 def _target_compatible_formal_declaration_rows(

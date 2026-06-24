@@ -4181,6 +4181,265 @@ def test_llm_route_planner_promotes_accepted_route_brief_source_gap_response_to_
     )
 
 
+def test_llm_route_planner_promotes_accepted_route_brief_formal_gap_response_to_next_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_route_brief_formal_gap_feedback"
+    )
+    out_dir = root / "llm_route_planner"
+    resource_response_dir = root / "resource_response_ledger"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    resource_response_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    for primitive in input_payload["routes"][0]["primitives"]:
+        primitive.pop("candidate_declarations", None)
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+
+    declaration = "Probability.rankUniformityBridge"
+    ledger_manifest = (
+        resource_response_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    )
+    ledger_manifest.write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_resource_response_ledger",
+                "rows": [
+                    {
+                        "resource_response_ledger_id": "ledger:brief-formal-gap",
+                        "resource_request_id": "request:brief-formal-gap",
+                        "route_id": "rank_route_light",
+                        "target_prover_family": "lean4",
+                        "response_present": True,
+                        "response_contract_ok": True,
+                        "response_contract_minimum_met": True,
+                        "acceptance_status": "ACCEPTED_RESOURCE_RESPONSE",
+                        "llm_route_planner_source_kind": (
+                            "route_planning_brief_evidence_gap"
+                        ),
+                        "llm_route_planner_hook_kind": "formal_library_grounding",
+                        "llm_route_planner_source_item": {
+                            "route_planning_brief_gap_id": (
+                                "gap:formal:rank_uniformity"
+                            ),
+                            "route_planning_brief_gap_kind": (
+                                "formal_library_grounding"
+                            ),
+                            "route_planning_brief_gap_required_response_fields": [
+                                "formal_declaration_hits",
+                                "coverage_updates",
+                                "target_prover_family",
+                            ],
+                            "route_planning_brief_evidence_gap": {
+                                "gap_id": "gap:formal:rank_uniformity",
+                                "gap_kind": "formal_library_grounding",
+                                "target_primitives": ["rank_uniformity"],
+                            },
+                        },
+                        "formal_declaration_hits": [
+                            {
+                                "declaration": declaration,
+                                "target_prover_family": "lean4",
+                                "target_primitives": ["rank_uniformity"],
+                                "supported_target_primitives": [
+                                    "rank_uniformity"
+                                ],
+                                "source_field": "formal_declaration_hits",
+                            }
+                        ],
+                        "coverage_updates": {
+                            "rank_uniformity": "bridge_needed",
+                        },
+                        "matched_response_contract_fields": [
+                            "formal_declaration_hits",
+                            "coverage_updates",
+                            "target_prover_family",
+                        ],
+                        "missing_response_contract_fields": [],
+                        "response_payload": {
+                            "target_prover_family": "lean4",
+                            "formal_declaration_hits": [
+                                {
+                                    "declaration": declaration,
+                                    "target_prover_family": "lean4",
+                                    "target_primitives": ["rank_uniformity"],
+                                    "supported_target_primitives": [
+                                        "rank_uniformity"
+                                    ],
+                                    "source_field": "formal_declaration_hits",
+                                }
+                            ],
+                            "coverage_updates": {
+                                "rank_uniformity": "bridge_needed",
+                            },
+                            "route_revision_recommended": True,
+                        },
+                        "route_revision_recommended": True,
+                        "route_revision_reasons": [
+                            (
+                                "accepted formal-library evidence resolves "
+                                "route-planning brief formal gap"
+                            )
+                        ],
+                        "ok": True,
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_resource_response_ledger_dir=resource_response_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_requests_with_resource_response_ledger_rows"] == 1
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    assert declaration in set(context["available_formal_declarations"])
+    declaration_rows = [
+        row
+        for row in context["available_formal_declaration_rows"]
+        if row["declaration"] == declaration
+    ]
+    assert len(declaration_rows) == 1
+    assert declaration_rows[0]["target_prover_family"] == "lean4"
+    assert declaration_rows[0]["supported_target_primitives"] == [
+        "rank_uniformity"
+    ]
+
+    feedback_summary = context["feedback_loop_summary"]
+    assert feedback_summary["replan_required"] is True
+    assert declaration in set(feedback_summary["admissible_formal_declarations"])
+    assert (
+        feedback_summary["resource_response_admissibility"]["admissible_count"] == 1
+    )
+
+    brief = context["route_planning_brief"]
+    assert brief["evidence_summary"]["formal_declaration_row_count"] == len(
+        context["available_formal_declaration_rows"]
+    )
+    focus_ids = {focus["focus_id"] for focus in brief["planner_focus"]}
+    assert "map_formal_library_coverage" in focus_ids
+    rank_row = next(
+        row
+        for row in brief["primitive_evidence_matrix"]
+        if row["primitive"] == "rank_uniformity"
+    )
+    assert rank_row["formal_support_status"] == (
+        "target_compatible_candidate_available"
+    )
+    assert declaration in set(rank_row["target_compatible_declarations"])
+
+
+def test_llm_route_planner_rejects_inadmissible_route_brief_formal_gap_response_evidence() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_rejected_formal_gap_feedback"
+    )
+    out_dir = root / "llm_route_planner"
+    resource_response_dir = root / "resource_response_ledger"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    resource_response_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    for primitive in input_payload["routes"][0]["primitives"]:
+        primitive.pop("candidate_declarations", None)
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+
+    declaration = "Probability.rejectedRankUniformityBridge"
+    ledger_manifest = (
+        resource_response_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    )
+    ledger_manifest.write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_resource_response_ledger",
+                "rows": [
+                    {
+                        "resource_response_ledger_id": (
+                            "ledger:brief-formal-gap-rejected"
+                        ),
+                        "resource_request_id": (
+                            "request:brief-formal-gap-rejected"
+                        ),
+                        "route_id": "rank_route_light",
+                        "target_prover_family": "lean4",
+                        "response_present": True,
+                        "response_contract_ok": False,
+                        "response_contract_minimum_met": False,
+                        "acceptance_status": (
+                            "REJECTED_RESPONSE_CONTRACT_MISSING_FIELDS"
+                        ),
+                        "llm_route_planner_source_kind": (
+                            "route_planning_brief_evidence_gap"
+                        ),
+                        "llm_route_planner_hook_kind": "formal_library_grounding",
+                        "formal_declaration_hits": [
+                            {
+                                "declaration": declaration,
+                                "target_prover_family": "lean4",
+                                "target_primitives": ["rank_uniformity"],
+                                "supported_target_primitives": [
+                                    "rank_uniformity"
+                                ],
+                                "source_field": "formal_declaration_hits",
+                            }
+                        ],
+                        "matched_response_contract_fields": [
+                            "formal_declaration_hits"
+                        ],
+                        "missing_response_contract_fields": [
+                            "coverage_updates",
+                            "target_prover_family",
+                        ],
+                        "ok": False,
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_resource_response_ledger_dir=resource_response_dir,
+    )
+
+    assert payload["all_ok"]
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    assert declaration not in set(context["available_formal_declarations"])
+    assert all(
+        row["declaration"] != declaration
+        for row in context["available_formal_declaration_rows"]
+    )
+    feedback_summary = context["feedback_loop_summary"]
+    assert (
+        feedback_summary["resource_response_admissibility"]["admissible_count"] == 0
+    )
+    assert "request:brief-formal-gap-rejected" in feedback_summary[
+        "resource_response_admissibility"
+    ]["rejected_request_ids"]
+    brief = context["route_planning_brief"]
+    rank_row = next(
+        row
+        for row in brief["primitive_evidence_matrix"]
+        if row["primitive"] == "rank_uniformity"
+    )
+    assert rank_row["formal_support_status"] != (
+        "target_compatible_candidate_available"
+    )
+
+
 def test_llm_route_planner_prompt_only_remains_explicit_no_provider_mode() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_prompt_only")
     out_dir = root / "llm_route_planner"
