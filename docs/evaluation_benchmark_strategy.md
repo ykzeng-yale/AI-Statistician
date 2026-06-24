@@ -468,6 +468,13 @@ Required future upgrades:
 - tactic-state traces once a Lean step environment exists
 
 This suite is the bridge from proof-bank regression to trained prover work.
+`proof-training-export` now publishes source-aware training promotion sidecars
+beside the compatibility SFT files: kernel-verified clean positives are copied
+to `proof_sft_source_aware_*`, non-kernel or source-risk positives are copied to
+`proof_sft_quarantined_positive.jsonl`, and failed attempts are copied to
+`proof_sft_hard_negatives.jsonl`. This lets publication-grade training runs
+avoid mock/static or WIP/sorry-heavy positives while keeping those traces
+available for review, theorem-shape planning, and repair/value datasets.
 The release-safe proof-search path intentionally keeps registered proof-bank
 bodies as high-priority skill-memory candidates. That is good for regression
 checking, but it can saturate RAG/search ablations. `research-system-audit`

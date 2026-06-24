@@ -536,10 +536,11 @@ python3 -m ai_statistician.cli claim-ledger \
    importable/local verified candidate declarations and demotes WIP,
    sorry/admit, axiom, unsafe, or unverified declaration evidence within the
    same minimal-delta class. `proof-bank-action-export` now applies the same
-   idea to tied priority-score groups before FormalVerifier scheduling. The
-   remaining work is to carry the policy into proof-bank training/export
-   promotion while keeping retrieval-only corpora available for theorem-shape
-   planning.
+   idea to tied priority-score groups before FormalVerifier scheduling.
+   `proof-training-export` now carries the policy into training promotion by
+   publishing kernel-clean source-aware SFT sidecars, quarantined-positive
+   sidecars, and hard-negative sidecars while keeping compatibility SFT files
+   available for theorem-shape planning and audit replay.
 4. Add proof-state/premise feedback:
    successful proof candidates become positive premise examples; retrieved but
    unused or failed candidates become hard negatives.

@@ -1,14 +1,46 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+import re
+from collections import Counter
+from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from .fingerprint import stable_hash
 
 
 PROOF_TRAINING_EXPORT_SCHEMA_VERSION = 1
+PROOF_TRAINING_SOURCE_AWARE_EXPORT_POLICY = {
+    "policy_id": "proof_training_source_aware_export_policy:1",
+    "training_eligible_requirements": (
+        "attempt ok",
+        "non-empty supervision_target",
+        "kernel_verified=true",
+        "no sorry/admit/axiom/unsafe/unverified proof markers",
+        "no wip/draft/prototype/placeholder/todo proof markers",
+    ),
+    "quarantine_policy": (
+        "keep non-kernel or source-risk positives in compatibility SFT files",
+        "publish them separately as quarantined positives for audit/review",
+        "do not treat quarantined positives as publication-grade training promotion data",
+    ),
+    "negative_policy": (
+        "failed attempts are exported as hard negatives for repair/value datasets",
+        "failed attempts are not SFT completions",
+    ),
+    "proof_evidence_boundary": (
+        "Training export eligibility is dataset provenance metadata. "
+        "Only Lean-kernel-verified attempts are proof evidence."
+    ),
+}
+_SOURCE_AWARE_HIGH_RISK_TOKENS = frozenset(
+    {"admit", "admitted", "axiom", "sorry", "unsafe", "unverified"}
+)
+_SOURCE_AWARE_LOW_RISK_TOKENS = frozenset(
+    {"draft", "placeholder", "prototype", "stub", "todo", "wip"}
+)
 
 
 @dataclass(frozen=True)
@@ -28,6 +60,8 @@ class ProofSftExample:
     expected_lemmas: tuple[str, ...]
     retrieved_obligations: tuple[str, ...]
     tags: tuple[str, ...]
+    source_aware_training_status: str
+    source_aware_training_reasons: tuple[str, ...]
 
 
 def export_proof_training_dataset(
@@ -55,13 +89,49 @@ def export_proof_training_dataset(
         _sft_example(row, split=_split_for_attempt(str(row["attempt_id"]), validation_fraction))
         for row in positives
     ]
+    training_eligible = [
+        row for row in examples if row.source_aware_training_status == "training_eligible"
+    ]
+    quarantined_positives = [
+        row
+        for row in examples
+        if row.source_aware_training_status == "quarantined_positive"
+    ]
+    hard_negatives = [
+        _hard_negative_row(row, split=_split_for_attempt(str(row.get("attempt_id", "")), validation_fraction))
+        for row in attempts
+        if not row.get("ok")
+    ]
     out_dir.mkdir(parents=True, exist_ok=True)
     train_path = out_dir / "proof_sft_train.jsonl"
     validation_path = out_dir / "proof_sft_validation.jsonl"
     all_path = out_dir / "proof_sft_all.jsonl"
+    source_aware_train_path = out_dir / "proof_sft_source_aware_train.jsonl"
+    source_aware_validation_path = out_dir / "proof_sft_source_aware_validation.jsonl"
+    source_aware_all_path = out_dir / "proof_sft_source_aware_all.jsonl"
+    quarantine_path = out_dir / "proof_sft_quarantined_positive.jsonl"
+    hard_negative_path = out_dir / "proof_sft_hard_negatives.jsonl"
     _write_jsonl(train_path, [row for row in examples if row.split == "train"])
     _write_jsonl(validation_path, [row for row in examples if row.split == "validation"])
     _write_jsonl(all_path, examples)
+    _write_jsonl(
+        source_aware_train_path,
+        [row for row in training_eligible if row.split == "train"],
+    )
+    _write_jsonl(
+        source_aware_validation_path,
+        [row for row in training_eligible if row.split == "validation"],
+    )
+    _write_jsonl(source_aware_all_path, training_eligible)
+    _write_jsonl(quarantine_path, quarantined_positives)
+    _write_jsonl(hard_negative_path, hard_negatives)
+    by_source_aware_status = Counter(row.source_aware_training_status for row in examples)
+    by_source_aware_reason = Counter(
+        reason for row in examples for reason in row.source_aware_training_reasons
+    )
+    by_hard_negative_reason = Counter(
+        reason for row in hard_negatives for reason in row.get("hard_negative_reasons", [])
+    )
     manifest = {
         "schema_version": PROOF_TRAINING_EXPORT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -75,15 +145,48 @@ def export_proof_training_dataset(
         "n_sft_examples": len(examples),
         "n_train": sum(1 for row in examples if row.split == "train"),
         "n_validation": sum(1 for row in examples if row.split == "validation"),
+        "source_aware_training_export_policy": PROOF_TRAINING_SOURCE_AWARE_EXPORT_POLICY,
+        "n_source_aware_training_eligible": len(training_eligible),
+        "n_source_aware_training_quarantined_positive": len(quarantined_positives),
+        "n_source_aware_training_hard_negative": len(hard_negatives),
+        "n_source_aware_non_kernel_quarantined": by_source_aware_reason.get(
+            "non_kernel_positive",
+            0,
+        ),
+        "n_source_aware_forbidden_token_quarantined": by_source_aware_reason.get(
+            "forbidden_proof_marker",
+            0,
+        ),
+        "n_source_aware_wip_or_placeholder_quarantined": by_source_aware_reason.get(
+            "wip_or_placeholder_marker",
+            0,
+        ),
+        "by_source_aware_training_status": dict(sorted(by_source_aware_status.items())),
+        "by_source_aware_training_reason": dict(sorted(by_source_aware_reason.items())),
+        "by_hard_negative_reason": dict(sorted(by_hard_negative_reason.items())),
         "train_jsonl": str(train_path),
         "validation_jsonl": str(validation_path),
         "all_jsonl": str(all_path),
+        "source_aware_train_jsonl": str(source_aware_train_path),
+        "source_aware_validation_jsonl": str(source_aware_validation_path),
+        "source_aware_all_jsonl": str(source_aware_all_path),
+        "quarantined_positive_jsonl": str(quarantine_path),
+        "hard_negative_jsonl": str(hard_negative_path),
         "dataset_fingerprint": stable_hash([asdict(row) for row in examples]),
+        "source_aware_dataset_fingerprint": stable_hash(
+            [asdict(row) for row in training_eligible]
+        ),
+        "quarantined_positive_fingerprint": stable_hash(
+            [asdict(row) for row in quarantined_positives]
+        ),
+        "hard_negative_fingerprint": stable_hash(hard_negatives),
         "limitations": [
             "whole-proof prompt/completion examples only",
             "examples retain verification_strength and kernel_verified so mock-positive data can be filtered downstream",
+            "source-aware training files contain only kernel-verified non-placeholder positives",
+            "quarantined positives remain review/tracing data, not publication-grade training promotion data",
             "no tactic-state transitions, process rewards, or proof-search traces",
-            "negative proof attempts are not used for SFT targets; keep them for future repair/value datasets",
+            "negative proof attempts are exported as hard negatives for future repair/value datasets",
         ],
     }
     manifest_path = out_dir / "proof_training_manifest.json"
@@ -101,6 +204,7 @@ def _sft_example(row: dict[str, object], *, split: str) -> ProofSftExample:
     )
     attempt_id = str(row["attempt_id"])
     obligation_id = str(row["obligation_id"])
+    source_aware_status, source_aware_reasons = _source_aware_training_decision(row)
     return ProofSftExample(
         schema_version=PROOF_TRAINING_EXPORT_SCHEMA_VERSION,
         example_id=f"{obligation_id}:{stable_hash(attempt_id)[:16]}",
@@ -117,7 +221,93 @@ def _sft_example(row: dict[str, object], *, split: str) -> ProofSftExample:
         expected_lemmas=expected_lemmas,
         retrieved_obligations=retrieved_obligations,
         tags=tuple(str(item) for item in row.get("tags", []) or []),
+        source_aware_training_status=source_aware_status,
+        source_aware_training_reasons=source_aware_reasons,
     )
+
+
+def _source_aware_training_decision(row: dict[str, object]) -> tuple[str, tuple[str, ...]]:
+    reasons: list[str] = []
+    if not row.get("kernel_verified"):
+        reasons.append("non_kernel_positive")
+    if _has_high_risk_marker(row):
+        reasons.append("forbidden_proof_marker")
+    if _has_low_risk_marker(row):
+        reasons.append("wip_or_placeholder_marker")
+    if reasons:
+        return "quarantined_positive", tuple(dict.fromkeys(reasons))
+    return "training_eligible", ("kernel_verified_clean_positive",)
+
+
+def _hard_negative_row(row: dict[str, object], *, split: str) -> dict[str, object]:
+    retrieved_obligations = tuple(
+        str(hit.get("obligation_id", ""))
+        for hit in row.get("retrieval_hits", []) or []
+        if isinstance(hit, dict) and hit.get("obligation_id")
+    )
+    reasons = ["failed_or_rejected_attempt"]
+    if _has_high_risk_marker(row):
+        reasons.append("forbidden_proof_marker")
+    if _has_low_risk_marker(row):
+        reasons.append("wip_or_placeholder_marker")
+    attempt_id = str(row.get("attempt_id", ""))
+    obligation_id = str(row.get("obligation_id", ""))
+    return {
+        "schema_version": PROOF_TRAINING_EXPORT_SCHEMA_VERSION,
+        "negative_example_id": f"{obligation_id}:hard_negative:{stable_hash(attempt_id)[:16]}",
+        "split": split,
+        "task": "lean_whole_proof_hard_negative",
+        "obligation_id": obligation_id,
+        "attempt_id": attempt_id,
+        "candidate_hash": str(row.get("candidate_hash", "")),
+        "verifier": str(row.get("verifier", "")),
+        "verification_strength": str(row.get("verification_strength", "unknown")),
+        "kernel_verified": bool(row.get("kernel_verified", False)),
+        "reward": float(row.get("reward", 0.0) or 0.0),
+        "first_error": str(row.get("first_error", "")),
+        "errors": tuple(str(item) for item in row.get("errors", []) or []),
+        "expected_lemmas": tuple(str(item) for item in row.get("expected_lemmas", []) or []),
+        "retrieved_obligations": retrieved_obligations,
+        "tags": tuple(str(item) for item in row.get("tags", []) or []),
+        "hard_negative_reasons": tuple(dict.fromkeys(reasons)),
+        "proof_evidence_boundary": (
+            "Hard negatives are verifier-feedback data, not proof evidence and not SFT completions."
+        ),
+    }
+
+
+def _has_high_risk_marker(row: dict[str, object]) -> bool:
+    return bool(_quality_tokens(_quality_text(row)) & _SOURCE_AWARE_HIGH_RISK_TOKENS)
+
+
+def _has_low_risk_marker(row: dict[str, object]) -> bool:
+    return bool(_quality_tokens(_quality_text(row)) & _SOURCE_AWARE_LOW_RISK_TOKENS)
+
+
+def _quality_text(row: dict[str, object]) -> str:
+    pieces: list[str] = []
+    for key in (
+        "supervision_target",
+        "proof_body",
+        "formal_statement",
+        "candidate",
+        "candidate_hash",
+        "first_error",
+        "verification_strength",
+    ):
+        pieces.append(str(row.get(key, "")))
+    pieces.extend(str(item) for item in row.get("errors", []) or [])
+    pieces.extend(str(item) for item in row.get("tags", []) or [])
+    pieces.extend(str(item) for item in row.get("expected_lemmas", []) or [])
+    for hit in row.get("retrieval_hits", []) or []:
+        if isinstance(hit, dict):
+            pieces.extend(str(value) for value in hit.values())
+    return " ".join(piece for piece in pieces if piece)
+
+
+def _quality_tokens(text: str) -> set[str]:
+    expanded = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", text)
+    return {token for token in re.split(r"[^a-z0-9]+|_", expanded.lower()) if token}
 
 
 def _prompt_for_attempt(
@@ -168,7 +358,15 @@ def _read_jsonl(path: Path) -> list[dict[str, object]]:
     return rows
 
 
-def _write_jsonl(path: Path, rows: list[ProofSftExample]) -> None:
+def _write_jsonl(path: Path, rows: list[Any]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
-            handle.write(json.dumps(asdict(row), default=str) + "\n")
+            handle.write(json.dumps(_jsonable_row(row), default=str) + "\n")
+
+
+def _jsonable_row(row: Any) -> dict[str, object]:
+    if is_dataclass(row):
+        return asdict(row)
+    if isinstance(row, dict):
+        return row
+    return {"value": row}
