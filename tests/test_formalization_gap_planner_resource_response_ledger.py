@@ -759,7 +759,7 @@ def test_resource_response_ledger_accepts_hol4_route_brief_formal_gap_response()
 
     assert llm_payload["n_request_route_planning_evidence_gaps"] == 2
     assert payload["all_ok"]
-    assert payload["target_prover_family"] == "hol_4"
+    assert payload["target_prover_family"] == "hol4"
     assert payload["n_response_contract_ok"] == 1
     assert payload["n_rows_with_formal_declaration_hits"] == 1
     assert payload["n_rows_with_legacy_lean_declaration_hits"] == 0
@@ -769,7 +769,7 @@ def test_resource_response_ledger_accepts_hol4_route_brief_formal_gap_response()
         if row["resource_request_id"] == brief_request["resource_request_id"]
     )
     assert ledger_row["acceptance_status"] == "ACCEPTED_RESOURCE_RESPONSE"
-    assert ledger_row["target_prover_family"] == "hol_4"
+    assert ledger_row["target_prover_family"] == "hol4"
     assert ledger_row["llm_route_planner_source_kind"] == (
         "route_planning_brief_evidence_gap"
     )

@@ -1438,7 +1438,7 @@ def test_resource_request_queue_dispatches_hol4_formal_gap_without_lean_contract
         row for row in formal_rows if row["resource_id"] == "hol4_tactic_kernel_tools"
     )
     source_item = hol4_row["request_playbook"]["llm_route_planner_source_item"]
-    assert source_item["target_prover_family"] == "hol_4"
+    assert source_item["target_prover_family"] == "hol4"
     assert source_item["route_planning_brief_gap_kind"] == "formal_library_grounding"
     required_fields = source_item[
         "route_planning_brief_gap_required_response_fields"
@@ -1450,13 +1450,13 @@ def test_resource_request_queue_dispatches_hol4_formal_gap_without_lean_contract
     assert "formal_declaration_hits" in hol4_row["response_contract_fields"]
     assert "target_prover_family" in hol4_row["response_contract_fields"]
     assert "lean_declaration_hits" not in hol4_row["response_contract_fields"]
-    assert hol4_row["target_prover_family"] == "hol_4"
-    assert hol4_row["request_payload"]["target_prover_family"] == "hol_4"
+    assert hol4_row["target_prover_family"] == "hol4"
+    assert hol4_row["request_payload"]["target_prover_family"] == "hol4"
     assert (
         hol4_row["request_payload"]["llm_route_planner_route_planning_brief"][
             "target_prover_family"
         ]
-        == "hol_4"
+        == "hol4"
     )
     assert (
         validate_resource_request_queue_row(

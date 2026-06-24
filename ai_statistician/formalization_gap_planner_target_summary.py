@@ -4,6 +4,11 @@ from collections import Counter
 from collections.abc import Iterable
 from typing import Any
 
+from .formalization_gap_planner_contract import (
+    normalize_manifest_target_prover_family,
+    normalize_target_prover_family,
+)
+
 
 def target_prover_family_summary(
     rows: Iterable[Any],
@@ -19,7 +24,9 @@ def target_prover_family_summary(
     elif len(concrete_targets) > 1:
         target_prover_family = "mixed:" + ",".join(concrete_targets)
     else:
-        target_prover_family = str(fallback_target_prover_family or "").strip()
+        target_prover_family = normalize_manifest_target_prover_family(
+            fallback_target_prover_family
+        )
     return {
         "target_prover_family": target_prover_family,
         "n_target_prover_families": len(concrete_targets),
@@ -37,5 +44,7 @@ def target_prover_family_counts(rows: Iterable[Any]) -> Counter[str]:
 
 def _row_target_prover_family(row: Any) -> str:
     if isinstance(row, dict):
-        return str(row.get("target_prover_family", "") or "").strip()
-    return str(getattr(row, "target_prover_family", "") or "").strip()
+        raw_target = row.get("target_prover_family", "")
+    else:
+        raw_target = getattr(row, "target_prover_family", "")
+    return normalize_target_prover_family(raw_target)
