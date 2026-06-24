@@ -332,6 +332,106 @@ def test_refinement_evidence_accepts_explicit_formal_search_miss() -> None:
     assert row["route_revision_recommended"]
 
 
+def test_refinement_evidence_preserves_formal_source_retrieval_metadata() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_refinement_evidence_semantic_metadata"
+    )
+    queue_dir = root / "queue"
+    evidence_dir = root / "evidence"
+    response_jsonl = root / "responses.jsonl"
+    shutil.rmtree(root, ignore_errors=True)
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    queue_row = {
+        "refinement_item_id": "refinement:formal-semantic",
+        "goal_plan_id": "goal:test",
+        "route_id": "route:test",
+        "display_name": "lean:rank_uniformity",
+        "hook_kind": "formal_library_grounding",
+        "refinement_stage": "formal_library_coverage_mapping",
+        "owner_agent": "formal_retrieval",
+        "target_prover_family": "lean4",
+        "target_primitives": ["rank_uniformity"],
+        "resource_request_bindings": [],
+    }
+    (
+        queue_dir / "formalization_gap_planner_refinement_queue_manifest.json"
+    ).write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_refinement_queue",
+                "rows": [queue_row],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    metadata = {
+        "search_backend": "sqlite_fts_shape+local_char_ngram_semantic",
+        "semantic_rerank_enabled": True,
+        "semantic_provider_id": "local_char_ngram",
+        "semantic_candidate_multiplier": 8,
+        "semantic_weight": 8.0,
+    }
+    response_jsonl.write_text(
+        json.dumps(
+            {
+                "refinement_item_id": "refinement:formal-semantic",
+                "route_id": "route:test",
+                "display_name": "lean:rank_uniformity",
+                "evidence_kind": "formal_library_grounding",
+                "tool_name": "local_formal_source_index_adapter",
+                "target_prover_family": "lean4",
+                "formal_source_retrieval_metadata": metadata,
+                "formal_declaration_hits": [
+                    {
+                        "primitive": "rank_uniformity",
+                        "declaration": "Demo.PermutationRankUniformity",
+                        "source_type": "lean_library",
+                        "target_prover_family": "lean4",
+                        "matched_terms": ["local_char_ngram_semantic"],
+                    }
+                ],
+                "coverage_updates": {"rank_uniformity": "wrapper_needed"},
+                "route_revision_recommended": True,
+                "route_revision_reasons": [
+                    "rank_uniformity classified as wrapper_needed",
+                ],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_refinement_evidence(
+        queue_dir,
+        evidence_dir,
+        response_jsonl=response_jsonl,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_rows_with_formal_source_retrieval_metadata"] == 1
+    assert payload["n_formal_grounding_rows_with_semantic_rerank"] == 1
+    assert payload["by_formal_source_retrieval_backend"] == {
+        "sqlite_fts_shape+local_char_ngram_semantic": 1,
+    }
+    row = payload["rows"][0]
+    assert row["formal_source_retrieval_metadata"]["semantic_rerank_enabled"] is True
+    assert (
+        row["formal_source_retrieval_metadata"]["semantic_provider_id"]
+        == "local_char_ngram"
+    )
+    proposal = payload["route_revision_proposals"][0]
+    assert (
+        proposal["formal_source_retrieval_metadata"]
+        == row["formal_source_retrieval_metadata"]
+    )
+    report = (
+        evidence_dir / "formalization_gap_planner_refinement_evidence.md"
+    ).read_text(encoding="utf-8")
+    assert "Formal-grounding semantic rerank rows: 1" in report
+
+
 def test_refinement_evidence_rejects_source_type_implied_target_mismatch() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_refinement_evidence_source_type_mismatch"

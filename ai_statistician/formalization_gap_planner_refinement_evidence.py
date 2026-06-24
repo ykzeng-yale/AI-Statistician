@@ -62,6 +62,7 @@ class FormalizationGapPlannerRefinementEvidenceRow:
     source_snippets: tuple[dict[str, object], ...]
     formal_declaration_hits: tuple[dict[str, object], ...]
     lean_declaration_hits: tuple[dict[str, object], ...]
+    formal_source_retrieval_metadata: dict[str, object]
     coverage_updates: dict[str, str]
     prover_diagnostics: tuple[str, ...]
     residual_goals: tuple[str, ...]
@@ -225,6 +226,30 @@ def export_formalization_gap_planner_refinement_evidence(
         "n_declaration_hit_target_mismatches": sum(
             declaration_hit_target_error_counts
         ),
+        "n_rows_with_formal_source_retrieval_metadata": sum(
+            1 for row in rows if row.formal_source_retrieval_metadata
+        ),
+        "n_formal_grounding_rows_with_semantic_rerank": sum(
+            1
+            for row in rows
+            if row.hook_kind
+            in {"formal_library_grounding", "lean_library_grounding"}
+            and bool(
+                row.formal_source_retrieval_metadata.get(
+                    "semantic_rerank_enabled",
+                    False,
+                )
+            )
+        ),
+        "by_formal_source_retrieval_backend": dict(
+            sorted(
+                Counter(
+                    str(row.formal_source_retrieval_metadata.get("search_backend", ""))
+                    for row in rows
+                    if row.formal_source_retrieval_metadata.get("search_backend")
+                ).items()
+            )
+        ),
         "n_prover_feedback_evidence": by_hook_kind.get("proof_state_feedback", 0),
         "n_rows_with_residual_goal_context": sum(
             1 for row in rows if row.residual_goal_context
@@ -367,6 +392,7 @@ def refinement_tool_response_json_schema() -> dict[str, object]:
             "route_evidence_nodes": object_array,
             "formal_declaration_hits": object_array,
             "lean_declaration_hits": object_array,
+            "formal_source_retrieval_metadata": {"type": "object"},
             "coverage_updates": {"type": "object"},
             "prover_diagnostics": string_array,
             "residual_goals": string_array,
@@ -499,6 +525,7 @@ def refinement_evidence_row_json_schema() -> dict[str, object]:
             "route_evidence_nodes": object_array,
             "formal_declaration_hits": object_array,
             "lean_declaration_hits": object_array,
+            "formal_source_retrieval_metadata": {"type": "object"},
             "coverage_updates": string_map,
             "prover_diagnostics": string_array,
             "residual_goals": string_array,
@@ -629,6 +656,7 @@ def _evidence_row(
             source_snippets=(),
             formal_declaration_hits=(),
             lean_declaration_hits=(),
+            formal_source_retrieval_metadata={},
             coverage_updates={},
             prover_diagnostics=(),
             residual_goals=(),
@@ -757,6 +785,10 @@ def _evidence_row(
         target_prover_family,
         _dict_tuple(response.get("lean_declaration_hits", [])),
         fallback_rows=formal_declaration_hits,
+    )
+    formal_source_retrieval_metadata = _dict_value(
+        response,
+        "formal_source_retrieval_metadata",
     )
     declaration_hit_errors = (
         _declaration_hit_target_errors(
@@ -921,6 +953,7 @@ def _evidence_row(
         source_snippets=source_snippets,
         formal_declaration_hits=formal_declaration_hits,
         lean_declaration_hits=lean_declaration_hits,
+        formal_source_retrieval_metadata=formal_source_retrieval_metadata,
         coverage_updates=coverage_updates,
         prover_diagnostics=prover_diagnostics,
         residual_goals=residual_goals,
@@ -978,6 +1011,7 @@ def _route_revision_proposal(
         "source_refs": row.source_refs,
         "formal_declaration_hits": row.formal_declaration_hits,
         "lean_declaration_hits": row.lean_declaration_hits,
+        "formal_source_retrieval_metadata": row.formal_source_retrieval_metadata,
         "residual_goals": row.residual_goals,
         "residual_goal_context": row.residual_goal_context,
         "prover_attempt_status": row.prover_attempt_status,
@@ -1612,6 +1646,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Cross-prover feedback retargeted rows: {payload.get('n_cross_prover_feedback_retargeted_rows')}",
         f"- Target prover family mismatch rows: {payload.get('n_target_prover_family_mismatch_rows')}",
         f"- Declaration-hit target mismatches: {payload.get('n_declaration_hit_target_mismatches')}",
+        f"- Formal-source retrieval metadata rows: {payload.get('n_rows_with_formal_source_retrieval_metadata')}",
+        f"- Formal-grounding semantic rerank rows: {payload.get('n_formal_grounding_rows_with_semantic_rerank')}",
         f"- Route revision recommended: {payload.get('n_route_revision_recommended')}",
         f"- Route revision proposals: {payload.get('n_route_revision_proposals')}",
         f"- Prover attempt statuses: {payload.get('by_prover_attempt_status')}",
