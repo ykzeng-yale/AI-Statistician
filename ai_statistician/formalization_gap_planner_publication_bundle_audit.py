@@ -65,6 +65,7 @@ from .formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATOR_COMPONENT,
     LLM_ROUTE_PLANNER_PLANNER_NEXT_ACTION_HOOK_ALIASES,
     LLM_ROUTE_PLANNER_SEARCH_REQUEST_KIND_ALIASES,
+    LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID,
     LLM_ROUTE_PLANNER_REQUEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MODEL_TIER_POLICY_ID,
     LLM_ROUTE_PLANNER_RESPONSE_PAYLOAD_VALIDATION_MANIFEST_SCHEMA_ID,
@@ -83,6 +84,7 @@ from .formalization_gap_planner_llm_route_planner import (
     validate_llm_route_planner_response_payload_validation_manifest,
     validate_llm_route_planner_response_payload_validation_row,
     validate_llm_route_planner_row,
+    llm_route_planner_provider_usage_row_json_schema,
     _response_resource_request_alignment_errors as _llm_route_planner_resource_request_alignment_errors,
 )
 from .formalization_gap_planner_route_adoption_blockers import (
@@ -10583,6 +10585,13 @@ def _llm_route_planner_optional_checks(
     row_schema_path = (
         artifact_dir / "formalization_gap_planner_llm_route_planner_row.schema.json"
     )
+    provider_usage_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_llm_route_planner_provider_usage.jsonl"
+    )
+    provider_usage_row_schema_path = (
+        artifact_dir
+        / "formalization_gap_planner_llm_route_planner_provider_usage_row.schema.json"
+    )
     seed_route_selection_schema_path = (
         artifact_dir
         / "formalization_gap_planner_llm_route_planner_seed_route_selection.schema.json"
@@ -10612,6 +10621,7 @@ def _llm_route_planner_optional_checks(
         response_payload_validation_row_schema_path
     )
     row_schema = _read_json_no_error(row_schema_path)
+    provider_usage_row_schema = _read_json_no_error(provider_usage_row_schema_path)
     seed_route_selection_schema = _read_json_no_error(
         seed_route_selection_schema_path
     )
@@ -10627,6 +10637,12 @@ def _llm_route_planner_optional_checks(
         _read_jsonl_dict_rows_no_error(route_planning_briefs_jsonl_path)
     )
     rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    provider_usage_rows, provider_usage_errors = _read_jsonl_dict_rows_no_error(
+        provider_usage_jsonl_path
+    )
+    manifest_provider_usage_rows = list(
+        _dict_tuple(manifest.get("provider_usage_rows", []))
+    )
     request_library_alignment_summaries = [
         _dict_value(_dict_value(request, "context_packet"), "library_alignment_summary")
         for request in requests
@@ -10874,6 +10890,29 @@ def _llm_route_planner_optional_checks(
             row_schema.get("$id") == LLM_ROUTE_PLANNER_ROW_SCHEMA_ID,
         ),
         _check(
+            f"{check_prefix}_provider_usage_row_schema_file",
+            "optional_artifacts",
+            "LLM route-planner provider-usage row schema exists",
+            str(provider_usage_row_schema_path.exists()),
+            provider_usage_row_schema_path.exists(),
+        ),
+        _check(
+            f"{check_prefix}_provider_usage_row_schema_id",
+            "optional_artifacts",
+            LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID,
+            str(provider_usage_row_schema.get("$id", "")),
+            provider_usage_row_schema.get("$id")
+            == LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID,
+        ),
+        _check(
+            f"{check_prefix}_provider_usage_row_schema_shape",
+            "optional_artifacts",
+            "provider-usage row schema matches canonical builder",
+            str(provider_usage_row_schema.get("$id", "")),
+            provider_usage_row_schema
+            == llm_route_planner_provider_usage_row_json_schema(),
+        ),
+        _check(
             f"{check_prefix}_realization_coverage_witness_schema",
             "optional_artifacts",
             "LLM row schema publishes structured realization_coverage_witness",
@@ -10947,6 +10986,18 @@ def _llm_route_planner_optional_checks(
             "; ".join(row_errors) if row_errors else f"rows={len(rows)}",
             not row_errors,
             errors=row_errors,
+        ),
+        _check(
+            f"{check_prefix}_provider_usage_rows_parse",
+            "optional_artifacts",
+            "LLM route-planner provider-usage JSONL parses into object rows",
+            (
+                "; ".join(provider_usage_errors)
+                if provider_usage_errors
+                else f"rows={len(provider_usage_rows)}"
+            ),
+            not provider_usage_errors,
+            errors=provider_usage_errors,
         ),
         _check(
             f"{check_prefix}_request_count",
@@ -11060,6 +11111,29 @@ def _llm_route_planner_optional_checks(
             "LLM route-planner rows match manifest count",
             f"jsonl={len(rows)} manifest={manifest.get('n_rows', 0)}",
             len(rows) == int(manifest.get("n_rows", 0) or 0),
+        ),
+        _check(
+            f"{check_prefix}_provider_usage_row_count",
+            "optional_artifacts",
+            "LLM route-planner provider-usage rows match manifest count",
+            (
+                f"jsonl={len(provider_usage_rows)} "
+                f"manifest={manifest.get('n_rows_with_provider_usage', 0)} "
+                f"manifest_rows={len(manifest_provider_usage_rows)}"
+            ),
+            len(provider_usage_rows)
+            == int(manifest.get("n_rows_with_provider_usage", 0) or 0)
+            == len(manifest_provider_usage_rows),
+        ),
+        _check(
+            f"{check_prefix}_provider_usage_rows_manifest_match",
+            "optional_artifacts",
+            "LLM route-planner provider-usage JSONL rows match manifest provider_usage_rows",
+            (
+                f"jsonl={len(provider_usage_rows)} "
+                f"manifest_rows={len(manifest_provider_usage_rows)}"
+            ),
+            provider_usage_rows == manifest_provider_usage_rows,
         ),
         _check(
             f"{check_prefix}_route_adoption_blocker_summary",

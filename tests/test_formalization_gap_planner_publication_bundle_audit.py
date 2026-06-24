@@ -29,6 +29,7 @@ from ai_statistician.formalization_gap_planner_llm_route_planner import (
     LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID,
     LLM_ROUTE_PLANNER_MODEL_TIER_DECISION_LEDGER_SCHEMA_ID,
+    LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID,
     LLM_ROUTE_PLANNER_ROUTE_PLANNING_BRIEF_SCHEMA_ID,
     LLM_ROUTE_PLANNER_TARGET_THEOREM_CONTEXT_PACKET_SCHEMA_ID,
     PROOF_EVIDENCE_BOUNDARY as LLM_ROUTE_PLANNER_PROOF_EVIDENCE_BOUNDARY,
@@ -1094,7 +1095,17 @@ def _write_accepted_llm_route_planner_artifact(
                 text=response_json.read_text(encoding="utf-8"),
                 provider="anthropic",
                 model=request.model,
-                metadata={"generator_only": True, "tools_available": False},
+                metadata={
+                    "generator_only": True,
+                    "tools_available": False,
+                    "provider_usage": {
+                        "input_tokens": 23,
+                        "output_tokens": 11,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 3,
+                        "total_tokens": 37,
+                    },
+                },
             )
 
     payload = export_formalization_gap_planner_llm_route_planner(
@@ -1114,6 +1125,8 @@ def _write_accepted_llm_route_planner_artifact(
     assert payload["all_ok"]
     assert payload["n_accepted_route_plans"] == 1
     assert payload["n_rows_with_generator_metadata"] == 1
+    assert payload["n_rows_with_provider_usage"] == 1
+    assert payload["total_provider_total_tokens"] == 37
     assert payload["n_generated_responses_haiku_to_sonnet_escalated"] == 1
     assert payload["n_repair_attempt_ledger_model_tier_escalations"] == 1
     assert len(generated_requests) == 2
@@ -9721,6 +9734,38 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"] == "optional_llm_route_planner_provider_usage_row_schema_id"
+        and row["observed"] == LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_provider_usage_row_schema_shape"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "optional_llm_route_planner_provider_usage_rows_parse"
+        and row["observed"] == "rows=1"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"] == "optional_llm_route_planner_provider_usage_row_count"
+        and "jsonl=1" in row["observed"]
+        and "manifest=1" in row["observed"]
+        and "manifest_rows=1" in row["observed"]
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_llm_route_planner_provider_usage_rows_manifest_match"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "optional_llm_route_planner_legacy_response_alias_contract"
         and "lean_realization_dag_nodes" in row["observed"]
         and "formal_realization_dag_nodes" in row["observed"]
@@ -10578,6 +10623,10 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         bundle_dir / "artifacts" / "formalization_gap_planner_llm_route_planner"
     )
     rows_path = llm_artifact_dir / "formalization_gap_planner_llm_route_planner.jsonl"
+    provider_usage_path = (
+        llm_artifact_dir
+        / "formalization_gap_planner_llm_route_planner_provider_usage.jsonl"
+    )
     alignment_summaries_path = (
         llm_artifact_dir
         / "formalization_gap_planner_llm_route_planner_library_alignment_summaries.jsonl"
@@ -10604,6 +10653,27 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
     assert json.loads(alignment_summary_schema_path.read_text(encoding="utf-8"))[
         "$id"
     ] == LLM_ROUTE_PLANNER_LIBRARY_ALIGNMENT_SUMMARY_SCHEMA_ID
+    original_provider_usage_text = provider_usage_path.read_text(encoding="utf-8")
+    provider_usage_path.write_text("", encoding="utf-8")
+    rejected_provider_usage_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        root / "audit_rejects_llm_route_planner_provider_usage_loss",
+    )
+    provider_usage_failed_names = {
+        row["check_name"]
+        for row in rejected_provider_usage_payload["checks"]
+        if not row["ok"]
+    }
+    assert not rejected_provider_usage_payload["all_ok"]
+    assert (
+        "optional_llm_route_planner_provider_usage_row_count"
+        in provider_usage_failed_names
+    )
+    assert (
+        "optional_llm_route_planner_provider_usage_rows_manifest_match"
+        in provider_usage_failed_names
+    )
+    provider_usage_path.write_text(original_provider_usage_text, encoding="utf-8")
     assert any(
         row["check_name"]
         == "optional_llm_route_planner_library_alignment_summary_count"

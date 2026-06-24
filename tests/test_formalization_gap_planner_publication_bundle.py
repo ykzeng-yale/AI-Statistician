@@ -1210,10 +1210,64 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert json.loads(optional_manifest_schema.read_text(encoding="utf-8"))[
         "$id"
     ] == LLM_ROUTE_PLANNER_MANIFEST_SCHEMA_ID
+    primary_copied_names = {
+        Path(path).name
+        for path in optional_by_name["formalization_gap_planner_llm_route_planner"][
+            "copied_files"
+        ]
+    }
+    assert (
+        "formalization_gap_planner_llm_route_planner_provider_usage.jsonl"
+        in primary_copied_names
+    )
+    assert (
+        "formalization_gap_planner_llm_route_planner_provider_usage_row.schema.json"
+        in primary_copied_names
+    )
+    primary_provider_usage_jsonl = (
+        out_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner"
+        / "formalization_gap_planner_llm_route_planner_provider_usage.jsonl"
+    )
+    assert primary_provider_usage_jsonl.exists()
+    assert primary_provider_usage_jsonl.read_text(encoding="utf-8") == ""
+    primary_provider_usage_schema = (
+        out_dir
+        / "artifacts"
+        / "formalization_gap_planner_llm_route_planner"
+        / "formalization_gap_planner_llm_route_planner_provider_usage_row.schema.json"
+    )
+    assert json.loads(primary_provider_usage_schema.read_text(encoding="utf-8"))[
+        "$id"
+    ] == LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID
     assert optional_by_name["formalization_gap_planner_feedback_llm_route_planner"][
         "requested"
     ]
     assert optional_by_name["formalization_gap_planner_feedback_llm_route_planner"]["ok"]
+    feedback_copied_names = {
+        Path(path).name
+        for path in optional_by_name[
+            "formalization_gap_planner_feedback_llm_route_planner"
+        ]["copied_files"]
+    }
+    assert (
+        "formalization_gap_planner_llm_route_planner_provider_usage.jsonl"
+        in feedback_copied_names
+    )
+    assert (
+        "formalization_gap_planner_llm_route_planner_provider_usage_row.schema.json"
+        in feedback_copied_names
+    )
+    feedback_provider_usage_schema = (
+        out_dir
+        / "artifacts"
+        / "formalization_gap_planner_feedback_llm_route_planner"
+        / "formalization_gap_planner_llm_route_planner_provider_usage_row.schema.json"
+    )
+    assert json.loads(feedback_provider_usage_schema.read_text(encoding="utf-8"))[
+        "$id"
+    ] == LLM_ROUTE_PLANNER_PROVIDER_USAGE_ROW_SCHEMA_ID
     assert manifest["llm_route_planner_summary"]["requested"] is True
     _assert_prompt_only_staged_route_planner_summary(
         manifest["llm_route_planner_summary"]
