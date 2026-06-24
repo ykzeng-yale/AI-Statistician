@@ -8089,12 +8089,28 @@ def run_formalization_gap_planner_reuse_smoke(
             "n_optional_route_replan_handoff_seed_target_context_valid",
             0,
         ),
+        "n_publication_bundle_optional_route_replan_handoff_route_option_formal_source_counters_checked": publication_bundle_audit_payload.get(
+            "n_optional_route_replan_handoff_route_option_formal_source_counters_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_route_replan_handoff_route_option_formal_source_counters_valid": publication_bundle_audit_payload.get(
+            "n_optional_route_replan_handoff_route_option_formal_source_counters_valid",
+            0,
+        ),
         "n_publication_bundle_optional_route_replan_handoff_audit_row_schema_checked": publication_bundle_audit_payload.get(
             "n_optional_route_replan_handoff_audit_row_schema_checked",
             0,
         ),
         "n_publication_bundle_optional_route_replan_handoff_audit_row_schema_valid": publication_bundle_audit_payload.get(
             "n_optional_route_replan_handoff_audit_row_schema_valid",
+            0,
+        ),
+        "n_publication_bundle_optional_route_replan_handoff_audit_route_option_formal_source_counter_checks_checked": publication_bundle_audit_payload.get(
+            "n_optional_route_replan_handoff_audit_route_option_formal_source_counter_checks_checked",
+            0,
+        ),
+        "n_publication_bundle_optional_route_replan_handoff_audit_route_option_formal_source_counter_checks_valid": publication_bundle_audit_payload.get(
+            "n_optional_route_replan_handoff_audit_route_option_formal_source_counter_checks_valid",
             0,
         ),
         "n_publication_bundle_optional_ablation_study_row_schema_checked": publication_bundle_audit_payload.get(
@@ -9069,6 +9085,54 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_route_replan_handoff_route_option_selection_candidate_formal_source_retrieval_metadata_rows": route_replan_handoff_payload.get(
+            "n_route_option_selection_candidate_formal_source_retrieval_metadata_rows",
+            0,
+        ),
+        "n_route_replan_handoff_route_option_selection_candidate_formal_source_semantic_rerank_rows": route_replan_handoff_payload.get(
+            "n_route_option_selection_candidate_formal_source_semantic_rerank_rows",
+            0,
+        ),
+        "n_route_replan_handoff_route_option_selection_candidate_formal_source_target_compatible_hits": route_replan_handoff_payload.get(
+            "n_route_option_selection_candidate_formal_source_target_compatible_hits",
+            0,
+        ),
+        "n_route_replan_handoff_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": route_replan_handoff_payload.get(
+            "n_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows",
+            0,
+        ),
+        "n_route_replan_handoff_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": route_replan_handoff_payload.get(
+            "n_route_option_selection_lower_bound_formal_source_semantic_rerank_rows",
+            0,
+        ),
+        "n_route_replan_handoff_route_option_selection_lower_bound_formal_source_target_compatible_hits": route_replan_handoff_payload.get(
+            "n_route_option_selection_lower_bound_formal_source_target_compatible_hits",
+            0,
+        ),
+        "n_route_replan_handoff_seed_route_option_selection_candidate_formal_source_retrieval_metadata_rows": route_replan_handoff_payload.get(
+            "n_standalone_seed_route_option_selection_candidate_formal_source_retrieval_metadata_rows",
+            0,
+        ),
+        "n_route_replan_handoff_seed_route_option_selection_candidate_formal_source_semantic_rerank_rows": route_replan_handoff_payload.get(
+            "n_standalone_seed_route_option_selection_candidate_formal_source_semantic_rerank_rows",
+            0,
+        ),
+        "n_route_replan_handoff_seed_route_option_selection_candidate_formal_source_target_compatible_hits": route_replan_handoff_payload.get(
+            "n_standalone_seed_route_option_selection_candidate_formal_source_target_compatible_hits",
+            0,
+        ),
+        "n_route_replan_handoff_seed_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": route_replan_handoff_payload.get(
+            "n_standalone_seed_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows",
+            0,
+        ),
+        "n_route_replan_handoff_seed_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": route_replan_handoff_payload.get(
+            "n_standalone_seed_route_option_selection_lower_bound_formal_source_semantic_rerank_rows",
+            0,
+        ),
+        "n_route_replan_handoff_seed_route_option_selection_lower_bound_formal_source_target_compatible_hits": route_replan_handoff_payload.get(
+            "n_standalone_seed_route_option_selection_lower_bound_formal_source_target_compatible_hits",
+            0,
+        ),
         "n_route_replan_handoff_audit_failed": route_replan_handoff_audit_payload.get(
             "n_failed",
             0,
@@ -9083,6 +9147,54 @@ def run_formalization_gap_planner_reuse_smoke(
         ),
         "n_route_replan_handoff_audit_row_schema_invalid": route_replan_handoff_audit_payload.get(
             "n_row_schema_invalid",
+            0,
+        ),
+        "n_route_replan_handoff_audit_handoff_route_option_selection_candidate_formal_source_retrieval_metadata_rows": route_replan_handoff_audit_payload.get(
+            "n_handoff_route_option_selection_candidate_formal_source_retrieval_metadata_rows",
+            0,
+        ),
+        "n_route_replan_handoff_audit_handoff_route_option_selection_candidate_formal_source_semantic_rerank_rows": route_replan_handoff_audit_payload.get(
+            "n_handoff_route_option_selection_candidate_formal_source_semantic_rerank_rows",
+            0,
+        ),
+        "n_route_replan_handoff_audit_handoff_route_option_selection_candidate_formal_source_target_compatible_hits": route_replan_handoff_audit_payload.get(
+            "n_handoff_route_option_selection_candidate_formal_source_target_compatible_hits",
+            0,
+        ),
+        "n_route_replan_handoff_audit_handoff_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": route_replan_handoff_audit_payload.get(
+            "n_handoff_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows",
+            0,
+        ),
+        "n_route_replan_handoff_audit_handoff_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": route_replan_handoff_audit_payload.get(
+            "n_handoff_route_option_selection_lower_bound_formal_source_semantic_rerank_rows",
+            0,
+        ),
+        "n_route_replan_handoff_audit_handoff_route_option_selection_lower_bound_formal_source_target_compatible_hits": route_replan_handoff_audit_payload.get(
+            "n_handoff_route_option_selection_lower_bound_formal_source_target_compatible_hits",
+            0,
+        ),
+        "n_route_replan_handoff_audit_seed_route_option_selection_candidate_formal_source_retrieval_metadata_rows": route_replan_handoff_audit_payload.get(
+            "n_seed_route_option_selection_candidate_formal_source_retrieval_metadata_rows",
+            0,
+        ),
+        "n_route_replan_handoff_audit_seed_route_option_selection_candidate_formal_source_semantic_rerank_rows": route_replan_handoff_audit_payload.get(
+            "n_seed_route_option_selection_candidate_formal_source_semantic_rerank_rows",
+            0,
+        ),
+        "n_route_replan_handoff_audit_seed_route_option_selection_candidate_formal_source_target_compatible_hits": route_replan_handoff_audit_payload.get(
+            "n_seed_route_option_selection_candidate_formal_source_target_compatible_hits",
+            0,
+        ),
+        "n_route_replan_handoff_audit_seed_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": route_replan_handoff_audit_payload.get(
+            "n_seed_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows",
+            0,
+        ),
+        "n_route_replan_handoff_audit_seed_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": route_replan_handoff_audit_payload.get(
+            "n_seed_route_option_selection_lower_bound_formal_source_semantic_rerank_rows",
+            0,
+        ),
+        "n_route_replan_handoff_audit_seed_route_option_selection_lower_bound_formal_source_target_compatible_hits": route_replan_handoff_audit_payload.get(
+            "n_seed_route_option_selection_lower_bound_formal_source_target_compatible_hits",
             0,
         ),
         "route_replan_roundtrip_all_ok": route_replan_handoff_audit_payload.get(
@@ -12145,12 +12257,40 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_optional_route_replan_handoff_seed_target_context_checked')} target context"
         ),
         (
+            "- Replan publication-bundle route-option formal-source counter "
+            "checks: "
+            f"{payload.get('n_publication_bundle_optional_route_replan_handoff_route_option_formal_source_counters_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_route_replan_handoff_route_option_formal_source_counters_checked')} handoff, "
+            f"{payload.get('n_publication_bundle_optional_route_replan_handoff_audit_route_option_formal_source_counter_checks_valid')}/"
+            f"{payload.get('n_publication_bundle_optional_route_replan_handoff_audit_route_option_formal_source_counter_checks_checked')} audit"
+        ),
+        (
             f"- Replan roundtrip seed traces: "
             f"{payload.get('n_route_replan_roundtrip_standalone_input_traces')}/"
             f"{payload.get('n_replan_seed_routes')} routes, "
             f"{payload.get('n_route_replan_roundtrip_standalone_input_traces_with_replan_metadata')} with metadata, "
             f"{payload.get('n_route_replan_roundtrip_standalone_input_traces_with_target_theorem_context_packet')} with target context, "
             f"{payload.get('n_route_replan_roundtrip_standalone_input_trace_residual_goal_contexts')} residual contexts"
+        ),
+        (
+            "- Replan handoff route-option formal-source retrieval "
+            "candidate metadata/semantic/hits: "
+            f"{payload.get('n_route_replan_handoff_route_option_selection_candidate_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('n_route_replan_handoff_route_option_selection_candidate_formal_source_semantic_rerank_rows')}/"
+            f"{payload.get('n_route_replan_handoff_route_option_selection_candidate_formal_source_target_compatible_hits')}"
+        ),
+        (
+            "- Replan handoff route-option formal-source retrieval "
+            "lower-bound metadata/semantic/hits: "
+            f"{payload.get('n_route_replan_handoff_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows')}/"
+            f"{payload.get('n_route_replan_handoff_route_option_selection_lower_bound_formal_source_semantic_rerank_rows')}/"
+            f"{payload.get('n_route_replan_handoff_route_option_selection_lower_bound_formal_source_target_compatible_hits')}"
+        ),
+        (
+            "- Replan handoff seed route-option formal-source retrieval "
+            "candidate/lower-bound hits: "
+            f"{payload.get('n_route_replan_handoff_seed_route_option_selection_candidate_formal_source_target_compatible_hits')}/"
+            f"{payload.get('n_route_replan_handoff_seed_route_option_selection_lower_bound_formal_source_target_compatible_hits')}"
         ),
         f"- Replan handoff audit failures: {payload.get('n_route_replan_handoff_audit_failed')}",
         f"- Replan handoff-audit row schema valid: {payload.get('n_route_replan_handoff_audit_row_schema_valid')}/{payload.get('n_route_replan_handoff_audit_checks')}",

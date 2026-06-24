@@ -206,6 +206,14 @@ PROOF_EVIDENCE_BOUNDARY = (
     "Publication bundle audit rows verify packaging, portability contracts, "
     "and proof-boundary discipline. They are not theorem proof evidence."
 )
+_ROUTE_OPTION_FORMAL_SOURCE_COUNTERS = (
+    "candidate_formal_source_retrieval_metadata_rows",
+    "candidate_formal_source_semantic_rerank_rows",
+    "candidate_formal_source_target_compatible_hits",
+    "lower_bound_formal_source_retrieval_metadata_rows",
+    "lower_bound_formal_source_semantic_rerank_rows",
+    "lower_bound_formal_source_target_compatible_hits",
+)
 REQUIRED_CORE_ARTIFACTS = (
     "portable_contract",
     "portable_schema",
@@ -2400,6 +2408,25 @@ def audit_formalization_gap_planner_publication_bundle(
             if check.check_name == "optional_route_replan_handoff_generic_formal_dag_fields"
             and check.ok
         ),
+        "n_optional_route_replan_handoff_route_option_formal_source_counters_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            in {
+                "optional_route_replan_handoff_route_option_formal_source_counters",
+                "optional_route_replan_handoff_seed_route_option_formal_source_counters",
+            }
+        ),
+        "n_optional_route_replan_handoff_route_option_formal_source_counters_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            in {
+                "optional_route_replan_handoff_route_option_formal_source_counters",
+                "optional_route_replan_handoff_seed_route_option_formal_source_counters",
+            }
+            and check.ok
+        ),
         "n_optional_route_replan_handoff_audit_row_schema_checked": sum(
             1
             for check in checks
@@ -2450,6 +2477,19 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name
             == "optional_route_replan_handoff_audit_roundtrip_route_option_selection_brief_trace"
+            and check.ok
+        ),
+        "n_optional_route_replan_handoff_audit_route_option_formal_source_counter_checks_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_route_replan_handoff_audit_route_option_formal_source_counter_checks"
+        ),
+        "n_optional_route_replan_handoff_audit_route_option_formal_source_counter_checks_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "optional_route_replan_handoff_audit_route_option_formal_source_counter_checks"
             and check.ok
         ),
         "n_optional_route_replan_handoff_audit_roundtrip_primitive_evidence_matrix_witness_checked": sum(
@@ -21753,6 +21793,22 @@ def _route_replan_handoff_optional_checks(
     )
     seed_resource_feedback_rows = _seed_resource_feedback_route_count(seed)
     row_signatures = _distinct_row_signatures(rows)
+    seed_routes = _seed_route_index(seed)
+    manifest_route_option_counts = _manifest_route_option_counter_summary(
+        manifest,
+        "n_route_option_selection_",
+    )
+    row_route_option_counts = _route_option_counter_summary(
+        row.get("route_option_selection_brief", {}) for row in rows
+    )
+    manifest_seed_route_option_counts = _manifest_route_option_counter_summary(
+        manifest,
+        "n_standalone_seed_route_option_selection_",
+    )
+    seed_route_option_counts = _route_option_counter_summary(
+        _seed_route_option_selection_brief(route)
+        for route in seed_routes.values()
+    )
     checks = [
         _check(
             "optional_route_replan_handoff_alignment_edges",
@@ -21855,8 +21911,27 @@ def _route_replan_handoff_optional_checks(
             len(row_signatures)
             == int(manifest.get("n_distinct_prover_diagnostic_signatures", 0) or 0),
         ),
+        _check(
+            "optional_route_replan_handoff_route_option_formal_source_counters",
+            "optional_artifacts",
+            "route-option formal-source counters match packaged handoff rows",
+            (
+                f"rows={_route_option_counter_summary_text(row_route_option_counts)}; "
+                f"manifest={_route_option_counter_summary_text(manifest_route_option_counts)}"
+            ),
+            manifest_route_option_counts == row_route_option_counts,
+        ),
+        _check(
+            "optional_route_replan_handoff_seed_route_option_formal_source_counters",
+            "optional_artifacts",
+            "route-option formal-source counters match packaged standalone seed routes",
+            (
+                f"seed={_route_option_counter_summary_text(seed_route_option_counts)}; "
+                f"manifest={_route_option_counter_summary_text(manifest_seed_route_option_counts)}"
+            ),
+            manifest_seed_route_option_counts == seed_route_option_counts,
+        ),
     ]
-    seed_routes = _seed_route_index(seed)
     for idx, row in enumerate(rows):
         seed_route = seed_routes.get(str(row.get("standalone_route_id", "")), {})
         alignment_errors = _handoff_seed_alignment_errors(row, seed_route)
@@ -22020,6 +22095,10 @@ def _route_replan_handoff_audit_optional_checks(
         "roundtrip_llm_route_adoption_preconditions_trace",
         "roundtrip_llm_route_planner_hook_trace",
     }
+    required_route_option_counter_checks = {
+        "handoff_route_option_formal_source_counters",
+        "standalone_seed_route_option_formal_source_counters",
+    }
     provenance_check_names = {
         check_name
         for check_name in ok_check_names
@@ -22096,6 +22175,15 @@ def _route_replan_handoff_audit_optional_checks(
             "handoff audit includes passing roundtrip standalone-input trace check",
             ",".join(sorted(required_trace_checks.intersection(ok_check_names))),
             required_trace_checks.issubset(ok_check_names),
+        ),
+        _check(
+            "optional_route_replan_handoff_audit_route_option_formal_source_counter_checks",
+            "optional_artifacts",
+            "handoff audit includes passing route-option formal-source counter checks",
+            ",".join(
+                sorted(required_route_option_counter_checks.intersection(ok_check_names))
+            ),
+            required_route_option_counter_checks.issubset(ok_check_names),
         ),
         _check(
             "optional_route_replan_handoff_audit_roundtrip_target_context_summary_trace",
@@ -23394,6 +23482,104 @@ def _handoff_seed_route_option_selection_brief_observed(
     )
 
 
+def _seed_route_option_selection_brief(seed_route: dict[str, Any]) -> dict[str, Any]:
+    metadata = _seed_route_metadata(seed_route)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    return _as_dict(
+        seed_route.get("llm_route_planner_route_option_selection_brief", {})
+    ) or _as_dict(
+        metadata.get("llm_route_planner_route_option_selection_brief", {})
+    )
+
+
+def _manifest_route_option_counter_summary(
+    manifest: dict[str, Any],
+    prefix: str,
+) -> dict[str, int]:
+    return {
+        counter_name: _nonnegative_int(manifest.get(prefix + counter_name, 0))
+        for counter_name in _ROUTE_OPTION_FORMAL_SOURCE_COUNTERS
+    }
+
+
+def _route_option_counter_summary(briefs: Any) -> dict[str, int]:
+    summary = {counter_name: 0 for counter_name in _ROUTE_OPTION_FORMAL_SOURCE_COUNTERS}
+    for brief in briefs:
+        brief_dict = _as_dict(brief)
+        for counter_name in _ROUTE_OPTION_FORMAL_SOURCE_COUNTERS:
+            summary[counter_name] += _route_option_selection_counter(
+                brief_dict,
+                counter_name,
+            )
+    return summary
+
+
+def _route_option_selection_counter(
+    brief: dict[str, Any],
+    counter_name: str,
+) -> int:
+    key_map = {
+        "candidate_formal_source_retrieval_metadata_rows": (
+            "n_candidate_route_option_formal_source_retrieval_metadata_rows",
+            "n_formal_source_retrieval_metadata_rows",
+        ),
+        "candidate_formal_source_semantic_rerank_rows": (
+            "n_candidate_route_option_formal_source_semantic_rerank_rows",
+            "n_formal_source_semantic_rerank_rows",
+        ),
+        "candidate_formal_source_target_compatible_hits": (
+            "n_candidate_route_option_formal_source_target_compatible_hits",
+            "n_formal_source_target_compatible_hits",
+        ),
+        "lower_bound_formal_source_retrieval_metadata_rows": (
+            "lower_bound_selected_formal_source_retrieval_metadata_rows",
+            "n_formal_source_retrieval_metadata_rows",
+        ),
+        "lower_bound_formal_source_semantic_rerank_rows": (
+            "lower_bound_selected_formal_source_semantic_rerank_rows",
+            "n_formal_source_semantic_rerank_rows",
+        ),
+        "lower_bound_formal_source_target_compatible_hits": (
+            "lower_bound_selected_formal_source_target_compatible_hits",
+            "n_formal_source_target_compatible_hits",
+        ),
+    }
+    explicit_key, candidate_key = key_map.get(counter_name, ("", ""))
+    if not explicit_key:
+        return 0
+    explicit = _nonnegative_int_or_none(brief.get(explicit_key, None))
+    if explicit is not None:
+        return explicit
+    candidates = _dict_tuple(brief.get("candidate_route_options", []))
+    if counter_name.startswith("candidate_"):
+        return sum(
+            _nonnegative_int(option.get(candidate_key, 0))
+            for option in candidates
+        )
+    selected_id = str(brief.get("lower_bound_selected_route_option_id", "")).strip()
+    for option in candidates:
+        if str(option.get("route_option_id", "")).strip() == selected_id:
+            return _nonnegative_int(option.get(candidate_key, 0))
+    return 0
+
+
+def _route_option_counter_summary_text(summary: dict[str, int]) -> str:
+    return "/".join(
+        str(summary.get(counter_name, 0))
+        for counter_name in _ROUTE_OPTION_FORMAL_SOURCE_COUNTERS
+    )
+
+
+def _nonnegative_int(value: Any) -> int:
+    parsed = _nonnegative_int_or_none(value)
+    return int(parsed or 0)
+
+
+def _nonnegative_int_or_none(value: Any) -> int | None:
+    parsed = _int_or_none(value)
+    return parsed if parsed is not None and parsed >= 0 else None
+
+
 def _handoff_seed_primitive_evidence_matrix_witness_errors(
     row: dict[str, Any],
     seed_route: dict[str, Any],
@@ -24388,12 +24574,14 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional route-replan handoff target context summary preserved: {payload.get('n_optional_route_replan_handoff_seed_target_context_summary_valid')}/{payload.get('n_optional_route_replan_handoff_seed_target_context_summary_checked')}",
         f"- Optional route-replan handoff route-planning brief preserved: {payload.get('n_optional_route_replan_handoff_seed_route_planning_brief_valid')}/{payload.get('n_optional_route_replan_handoff_seed_route_planning_brief_checked')}",
         f"- Optional route-replan handoff route-option selection brief preserved: {payload.get('n_optional_route_replan_handoff_seed_route_option_selection_brief_valid')}/{payload.get('n_optional_route_replan_handoff_seed_route_option_selection_brief_checked')}",
+        f"- Optional route-replan handoff route-option formal-source counters valid: {payload.get('n_optional_route_replan_handoff_route_option_formal_source_counters_valid')}/{payload.get('n_optional_route_replan_handoff_route_option_formal_source_counters_checked')}",
         f"- Optional route-replan handoff primitive-evidence matrix witness preserved: {payload.get('n_optional_route_replan_handoff_seed_primitive_evidence_matrix_witness_valid')}/{payload.get('n_optional_route_replan_handoff_seed_primitive_evidence_matrix_witness_checked')}",
         f"- Optional route-replan handoff route-adoption preconditions preserved: {payload.get('n_optional_route_replan_handoff_seed_route_adoption_preconditions_valid')}/{payload.get('n_optional_route_replan_handoff_seed_route_adoption_preconditions_checked')}",
         f"- Optional route-replan handoff generic formal DAG valid: {payload.get('n_optional_route_replan_handoff_generic_formal_dag_valid')}/{payload.get('n_optional_route_replan_handoff_generic_formal_dag_checked')}",
         f"- Optional route-replan handoff-audit schema valid: {payload.get('n_optional_route_replan_handoff_audit_row_schema_valid')}/{payload.get('n_optional_route_replan_handoff_audit_row_schema_checked')}",
         f"- Optional route-replan handoff-audit route-planning brief trace valid: {payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_valid')}/{payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_checked')}",
         f"- Optional route-replan handoff-audit route-option selection brief trace valid: {payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_option_selection_brief_valid')}/{payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_option_selection_brief_checked')}",
+        f"- Optional route-replan handoff-audit route-option formal-source counter checks valid: {payload.get('n_optional_route_replan_handoff_audit_route_option_formal_source_counter_checks_valid')}/{payload.get('n_optional_route_replan_handoff_audit_route_option_formal_source_counter_checks_checked')}",
         f"- Optional route-replan handoff-audit primitive-evidence matrix witness trace valid: {payload.get('n_optional_route_replan_handoff_audit_roundtrip_primitive_evidence_matrix_witness_valid')}/{payload.get('n_optional_route_replan_handoff_audit_roundtrip_primitive_evidence_matrix_witness_checked')}",
         f"- Optional route-replan handoff-audit route-adoption precondition trace valid: {payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_valid')}/{payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_checked')}",
         f"- Optional route-replan handoff-audit target-context-summary trace valid: {payload.get('n_optional_route_replan_handoff_audit_roundtrip_target_context_summary_valid')}/{payload.get('n_optional_route_replan_handoff_audit_roundtrip_target_context_summary_checked')}",

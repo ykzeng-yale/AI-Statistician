@@ -3589,6 +3589,9 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "route_cost": 4.0,
                 "selected_primitives": ["rank_uniformity"],
                 "n_selected_primitives": 1,
+                "n_formal_source_retrieval_metadata_rows": 2,
+                "n_formal_source_semantic_rerank_rows": 1,
+                "n_formal_source_target_compatible_hits": 1,
                 "selected_by_lower_bound_policy": True,
                 "lower_bound_tied_for_best": True,
                 "primitive_costs": [
@@ -3789,6 +3792,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
                 "n_standalone_seed_routes_with_llm_route_planning_brief": 1,
                 "n_routes_with_llm_route_option_selection_brief": 1,
                 "n_standalone_seed_routes_with_llm_route_option_selection_brief": 1,
+                "n_route_option_selection_candidate_formal_source_retrieval_metadata_rows": 2,
+                "n_route_option_selection_candidate_formal_source_semantic_rerank_rows": 1,
+                "n_route_option_selection_candidate_formal_source_target_compatible_hits": 1,
+                "n_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": 2,
+                "n_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": 1,
+                "n_route_option_selection_lower_bound_formal_source_target_compatible_hits": 1,
+                "n_standalone_seed_route_option_selection_candidate_formal_source_retrieval_metadata_rows": 2,
+                "n_standalone_seed_route_option_selection_candidate_formal_source_semantic_rerank_rows": 1,
+                "n_standalone_seed_route_option_selection_candidate_formal_source_target_compatible_hits": 1,
+                "n_standalone_seed_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": 2,
+                "n_standalone_seed_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": 1,
+                "n_standalone_seed_route_option_selection_lower_bound_formal_source_target_compatible_hits": 1,
                 "n_routes_with_llm_route_option_selected_route_option": 1,
                 "n_standalone_seed_routes_with_llm_route_option_selected_route_option": 1,
                 "n_routes_with_llm_primitive_evidence_matrix_witness": 1,
@@ -4167,6 +4182,28 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         },
         {
             "schema_version": 1,
+            "check_id": "check:handoff_route_option_formal_source_counters",
+            "check_name": "handoff_route_option_formal_source_counters",
+            "category": "manifest",
+            "expected": "2/1/1/2/1/1",
+            "observed": "2/1/1/2/1/1",
+            "ok": True,
+            "severity": "error",
+            "errors": [],
+        },
+        {
+            "schema_version": 1,
+            "check_id": "check:standalone_seed_route_option_formal_source_counters",
+            "check_name": "standalone_seed_route_option_formal_source_counters",
+            "category": "standalone_seed",
+            "expected": "2/1/1/2/1/1",
+            "observed": "2/1/1/2/1/1",
+            "ok": True,
+            "severity": "error",
+            "errors": [],
+        },
+        {
+            "schema_version": 1,
             "check_id": "check:row_0_seed_route_llm_target_context_summary",
             "check_name": "row_0_seed_route_llm_target_context_summary",
             "category": "provenance",
@@ -4186,11 +4223,23 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         json.dumps(
             {
                 "component_name": "formalization_gap_planner_route_replan_handoff_audit",
-                "n_checks": 17,
+                "n_checks": 19,
                 "n_failed": 0,
-                "n_row_schema_valid": 17,
+                "n_row_schema_valid": 19,
                 "n_row_schema_invalid": 0,
                 "n_seed_routes": 1,
+                "n_handoff_route_option_selection_candidate_formal_source_retrieval_metadata_rows": 2,
+                "n_handoff_route_option_selection_candidate_formal_source_semantic_rerank_rows": 1,
+                "n_handoff_route_option_selection_candidate_formal_source_target_compatible_hits": 1,
+                "n_handoff_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": 2,
+                "n_handoff_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": 1,
+                "n_handoff_route_option_selection_lower_bound_formal_source_target_compatible_hits": 1,
+                "n_seed_route_option_selection_candidate_formal_source_retrieval_metadata_rows": 2,
+                "n_seed_route_option_selection_candidate_formal_source_semantic_rerank_rows": 1,
+                "n_seed_route_option_selection_candidate_formal_source_target_compatible_hits": 1,
+                "n_seed_route_option_selection_lower_bound_formal_source_retrieval_metadata_rows": 2,
+                "n_seed_route_option_selection_lower_bound_formal_source_semantic_rerank_rows": 1,
+                "n_seed_route_option_selection_lower_bound_formal_source_target_compatible_hits": 1,
                 "n_roundtrip_goal_plans": 1,
                 "n_roundtrip_route_alignment_edges": 1,
                 "n_roundtrip_standalone_input_traces_with_llm_route_planning_brief": 1,
@@ -5837,6 +5886,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         for row in audit_payload["checks"]
     )
     assert any(
+        row["check_name"]
+        == "optional_route_replan_handoff_route_option_formal_source_counters"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_route_replan_handoff_seed_route_option_formal_source_counters"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
         row["check_name"] == "optional_route_replan_handoff_jsonl_parse"
         and row["ok"]
         for row in audit_payload["checks"]
@@ -5859,6 +5920,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert any(
         row["check_name"]
         == "optional_route_replan_handoff_audit_roundtrip_trace_checks"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
+        == "optional_route_replan_handoff_audit_route_option_formal_source_counter_checks"
         and row["ok"]
         for row in audit_payload["checks"]
     )
@@ -5964,8 +6031,20 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert audit_payload["n_optional_route_revision_generic_formal_dag_valid"] == 1
     assert audit_payload["n_optional_route_replan_handoff_generic_formal_dag_checked"] == 1
     assert audit_payload["n_optional_route_replan_handoff_generic_formal_dag_valid"] == 1
-    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_checked"] == 17
-    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_valid"] == 17
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_route_option_formal_source_counters_checked"
+        ]
+        == 2
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_route_option_formal_source_counters_valid"
+        ]
+        == 2
+    )
+    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_checked"] == 19
+    assert audit_payload["n_optional_route_replan_handoff_audit_row_schema_valid"] == 19
     assert (
         audit_payload[
             "n_optional_route_replan_handoff_audit_roundtrip_route_planning_brief_checked"
@@ -5987,6 +6066,18 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     assert (
         audit_payload[
             "n_optional_route_replan_handoff_audit_roundtrip_route_option_selection_brief_valid"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_audit_route_option_formal_source_counter_checks_checked"
+        ]
+        == 1
+    )
+    assert (
+        audit_payload[
+            "n_optional_route_replan_handoff_audit_route_option_formal_source_counter_checks_valid"
         ]
         == 1
     )

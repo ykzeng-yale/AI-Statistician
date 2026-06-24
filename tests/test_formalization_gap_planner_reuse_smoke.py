@@ -4023,6 +4023,48 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         == payload["n_route_replan_handoff_audit_checks"]
     )
     assert payload["n_route_replan_handoff_audit_row_schema_invalid"] == 0
+    assert (
+        payload[
+            "n_route_replan_handoff_route_option_selection_candidate_formal_source_retrieval_metadata_rows"
+        ]
+        == payload[
+            "n_route_replan_handoff_audit_handoff_route_option_selection_candidate_formal_source_retrieval_metadata_rows"
+        ]
+    )
+    assert (
+        payload[
+            "n_route_replan_handoff_route_option_selection_lower_bound_formal_source_target_compatible_hits"
+        ]
+        == payload[
+            "n_route_replan_handoff_audit_handoff_route_option_selection_lower_bound_formal_source_target_compatible_hits"
+        ]
+    )
+    assert (
+        payload[
+            "n_route_replan_handoff_seed_route_option_selection_candidate_formal_source_retrieval_metadata_rows"
+        ]
+        == payload[
+            "n_route_replan_handoff_audit_seed_route_option_selection_candidate_formal_source_retrieval_metadata_rows"
+        ]
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_route_replan_handoff_route_option_formal_source_counters_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_route_replan_handoff_route_option_formal_source_counters_checked"
+        ]
+        == 2
+    )
+    assert (
+        payload[
+            "n_publication_bundle_optional_route_replan_handoff_audit_route_option_formal_source_counter_checks_valid"
+        ]
+        == payload[
+            "n_publication_bundle_optional_route_replan_handoff_audit_route_option_formal_source_counter_checks_checked"
+        ]
+        == 1
+    )
     assert payload["route_replan_roundtrip_all_ok"]
     assert payload["n_route_replan_handoff_row_schema_valid"] == payload["n_route_replan_handoff_rows"]
     assert payload["n_route_replan_handoff_row_schema_invalid"] == 0

@@ -610,6 +610,9 @@ roundtrip standalone traces preserve the same metadata controls.
 It also recomputes route-option formal-source retrieval counters from handoff
 rows and standalone seed routes, checking candidate metadata/semantic/hit totals
 and the lower-bound-selected route-option totals against the manifest.
+Publication-bundle audits repeat the same counter checks on packaged handoff
+artifacts, and reuse-smoke manifests surface the handoff, seed, and audit
+counter totals for end-to-end reproducibility.
 The
 cost witness uses
 `formalization_gap_planner_minimal_delta_cost_policy:1` and must include a
