@@ -3996,6 +3996,191 @@ def test_llm_route_planner_matches_context_rows_by_route_aliases() -> None:
     )
 
 
+def test_llm_route_planner_promotes_accepted_route_brief_source_gap_response_to_next_request() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_route_brief_source_gap_feedback"
+    )
+    out_dir = root / "llm_route_planner"
+    resource_response_dir = root / "resource_response_ledger"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    resource_response_dir.mkdir(parents=True, exist_ok=True)
+    input_json = _write_light_input(root)
+    input_payload = json.loads(input_json.read_text(encoding="utf-8"))
+    route = input_payload["routes"][0]
+    route.pop("source_refs", None)
+    route.pop("source_snippets", None)
+    input_json.write_text(json.dumps(input_payload, indent=2), encoding="utf-8")
+
+    source_ref = "source:rank_uniformity_brief_gap_response"
+    source_snippet = {
+        "source_ref": source_ref,
+        "claim": "A route-brief source response supports rank uniformity.",
+        "excerpt": (
+            "The accepted route-planning brief response states that "
+            "exchangeability implies rank uniformity after deterministic tie "
+            "handling."
+        ),
+        "target_primitives": ["rank_uniformity"],
+        "supported_target_primitives": ["rank_uniformity"],
+        "unsupported_target_primitives": [],
+        "source_support_status": "source_backed_all_target_primitives",
+        "evidence_role": "source-backed route-planning brief evidence-gap response",
+    }
+    ledger_manifest = (
+        resource_response_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    )
+    ledger_manifest.write_text(
+        json.dumps(
+            {
+                "component_name": "formalization_gap_planner_resource_response_ledger",
+                "rows": [
+                    {
+                        "resource_response_ledger_id": "ledger:brief-source-gap",
+                        "resource_request_id": "request:brief-source-gap",
+                        "route_id": "rank_route_light",
+                        "target_prover_family": "lean4",
+                        "response_present": True,
+                        "response_contract_ok": True,
+                        "response_contract_minimum_met": True,
+                        "acceptance_status": "ACCEPTED_RESOURCE_RESPONSE",
+                        "llm_route_planner_source_kind": (
+                            "route_planning_brief_evidence_gap"
+                        ),
+                        "llm_route_planner_hook_kind": "source_grounding",
+                        "llm_route_planner_source_item": {
+                            "route_planning_brief_gap_id": (
+                                "gap:source:rank_uniformity"
+                            ),
+                            "route_planning_brief_gap_kind": "source_grounding",
+                            "route_planning_brief_gap_required_response_fields": [
+                                "source_refs",
+                                "source_snippets",
+                                "route_evidence_nodes",
+                            ],
+                            "route_planning_brief_evidence_gap": {
+                                "gap_id": "gap:source:rank_uniformity",
+                                "gap_kind": "source_grounding",
+                                "target_primitives": ["rank_uniformity"],
+                            },
+                        },
+                        "source_refs": [source_ref],
+                        "source_snippets": [source_snippet],
+                        "route_evidence_nodes": [
+                            {
+                                "node_id": "node:rank_uniformity:source_response",
+                                "claim": (
+                                    "rank_uniformity is now grounded by the "
+                                    "accepted route-brief source response"
+                                ),
+                                "target_primitives": ["rank_uniformity"],
+                                "source_refs": [source_ref],
+                            }
+                        ],
+                        "matched_response_contract_fields": [
+                            "source_refs",
+                            "source_snippets",
+                            "route_evidence_nodes",
+                        ],
+                        "missing_response_contract_fields": [],
+                        "response_payload": {
+                            "source_refs": [source_ref],
+                            "source_snippets": [source_snippet],
+                            "route_evidence_nodes": [
+                                {
+                                    "node_id": (
+                                        "node:rank_uniformity:source_response"
+                                    ),
+                                    "claim": (
+                                        "accepted source evidence resolves the "
+                                        "route-planning brief source gap"
+                                    ),
+                                    "target_primitives": ["rank_uniformity"],
+                                    "source_refs": [source_ref],
+                                }
+                            ],
+                            "route_revision_recommended": True,
+                            "coverage_updates": {
+                                "rank_uniformity": "source_backed",
+                            },
+                        },
+                        "route_revision_recommended": True,
+                        "route_revision_reasons": [
+                            (
+                                "accepted source-grounding evidence resolves "
+                                "route-planning brief source gap"
+                            )
+                        ],
+                        "ok": True,
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        formalization_gap_planner_resource_response_ledger_dir=resource_response_dir,
+    )
+
+    assert payload["all_ok"]
+    assert payload["n_requests_with_resource_response_ledger_rows"] == 1
+    request = payload["request_packets"][0]
+    context = request["context_packet"]
+    assert context["resource_response_ledger_rows"][0]["resource_request_id"] == (
+        "request:brief-source-gap"
+    )
+    assert source_ref in set(context["available_source_refs"])
+    assert any(
+        snippet.get("source_ref") == source_ref
+        for snippet in context["available_source_snippets"]
+    )
+
+    feedback_summary = context["feedback_loop_summary"]
+    assert feedback_summary["replan_required"] is True
+    assert (
+        feedback_summary["resource_response_admissibility"]["admissible_count"] == 1
+    )
+    assert "request:brief-source-gap" in feedback_summary[
+        "resource_response_admissibility"
+    ]["admissible_request_ids"]
+    assert source_ref in set(feedback_summary["admissible_source_refs"])
+    assert any(
+        snippet.get("source_ref") == source_ref
+        for snippet in feedback_summary["admissible_source_snippets"]
+    )
+
+    brief = context["route_planning_brief"]
+    assert brief["evidence_summary"]["source_ref_count"] == len(
+        context["available_source_refs"]
+    )
+    assert brief["evidence_summary"]["source_snippet_count"] == len(
+        context["available_source_snippets"]
+    )
+    focus_ids = {focus["focus_id"] for focus in brief["planner_focus"]}
+    assert "synthesize_source_grounded_informal_route" in focus_ids
+    gap_ids = {gap["gap_id"] for gap in brief["evidence_gaps"]}
+    assert "missing_source_evidence" not in gap_ids
+    rank_row = next(
+        row
+        for row in brief["primitive_evidence_matrix"]
+        if row["primitive"] == "rank_uniformity"
+    )
+    assert rank_row["source_support_status"] == "source_backed"
+    assert source_ref in set(rank_row["source_refs"])
+
+    preconditions = context["route_adoption_preconditions"]
+    assert preconditions["blocked_before_response"] is True
+    assert (
+        "feedback_loop_replan_required"
+        in preconditions["known_pre_response_blockers"]
+    )
+
+
 def test_llm_route_planner_prompt_only_remains_explicit_no_provider_mode() -> None:
     root = Path("runs/test_formalization_gap_planner_llm_route_planner_prompt_only")
     out_dir = root / "llm_route_planner"
