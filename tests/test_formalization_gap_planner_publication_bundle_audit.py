@@ -7313,6 +7313,127 @@ def test_publication_bundle_audit_rejects_stale_resource_response_contract_accou
     assert "response_contract_minimum_met" in "; ".join(accounting_check["errors"])
 
 
+def test_publication_bundle_audit_rejects_stale_resource_feedback_summaries() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_publication_bundle_audit_feedback_summaries"
+    )
+    input_json = root / "standalone_input.json"
+    plan_dir = root / "plan"
+    coverage_dir = root / "coverage"
+    action_queue_dir = root / "action_queue"
+    component_resource_registry_dir = root / "component_resource_registry"
+    action_resource_plan_dir = root / "action_resource_plan"
+    request_queue_dir = root / "request_queue"
+    response_ledger_dir = root / "response_ledger"
+    bundle_dir = root / "bundle"
+    audit_dir = root / "audit"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json.write_text(
+        json.dumps(
+            {
+                "target_prover_family": "lean4",
+                "library_snapshot_ref": "mathlib4:fixture",
+                "routes": [
+                    {
+                        "display_name": "rank route",
+                        "primitives": [
+                            {
+                                "primitive": "rank_uniformity",
+                                "coverage_status": "bridge_needed",
+                                "expected_premises": ["exchangeability"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    export_formalization_gap_planner_standalone_plan(input_json, plan_dir)
+    export_formalization_gap_planner_library_coverage_map(plan_dir, coverage_dir)
+    export_formalization_gap_planner_primitive_action_queue(
+        coverage_dir,
+        action_queue_dir,
+    )
+    export_formalization_gap_planner_component_resource_registry(
+        component_resource_registry_dir,
+    )
+    export_formalization_gap_planner_action_resource_plan(
+        action_queue_dir,
+        component_resource_registry_dir,
+        action_resource_plan_dir,
+    )
+    export_formalization_gap_planner_resource_request_queue(
+        action_resource_plan_dir,
+        request_queue_dir,
+    )
+    export_formalization_gap_planner_resource_response_ledger(
+        request_queue_dir,
+        response_ledger_dir,
+    )
+    export_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        formalization_gap_planner_resource_request_queue_dir=request_queue_dir,
+        formalization_gap_planner_resource_response_ledger_dir=response_ledger_dir,
+    )
+
+    clean_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        audit_dir,
+    )
+
+    assert clean_payload["n_bundle_resource_request_queue_summary_checked"] == 1
+    assert clean_payload["n_bundle_resource_request_queue_summary_valid"] == 1
+    assert clean_payload["n_bundle_resource_response_ledger_summary_checked"] == 1
+    assert clean_payload["n_bundle_resource_response_ledger_summary_valid"] == 1
+
+    manifest_path = (
+        bundle_dir / "formalization_gap_planner_publication_bundle_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["resource_request_queue_summary"]["n_resource_request_rows"] += 1
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    request_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        audit_dir,
+    )
+
+    request_failed_names = {
+        row["check_name"] for row in request_payload["checks"] if not row["ok"]
+    }
+    assert not request_payload["all_ok"]
+    assert (
+        request_payload["n_bundle_resource_request_queue_summary_valid"]
+        < request_payload["n_bundle_resource_request_queue_summary_checked"]
+    )
+    assert "bundle_resource_request_queue_summary_consistent" in request_failed_names
+
+    manifest["resource_request_queue_summary"]["n_resource_request_rows"] -= 1
+    manifest["resource_response_ledger_summary"]["n_ledger_rows"] += 1
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    response_payload = audit_formalization_gap_planner_publication_bundle(
+        bundle_dir,
+        audit_dir,
+    )
+
+    response_failed_names = {
+        row["check_name"] for row in response_payload["checks"] if not row["ok"]
+    }
+    assert not response_payload["all_ok"]
+    assert (
+        response_payload["n_bundle_resource_response_ledger_summary_valid"]
+        < response_payload["n_bundle_resource_response_ledger_summary_checked"]
+    )
+    assert (
+        "bundle_resource_response_ledger_summary_consistent"
+        in response_failed_names
+    )
+
+
 def test_publication_bundle_audit_rejects_resource_response_actionable_work_expansion() -> None:
     root = Path(
         "runs/test_formalization_gap_planner_publication_bundle_audit_response_actionables"

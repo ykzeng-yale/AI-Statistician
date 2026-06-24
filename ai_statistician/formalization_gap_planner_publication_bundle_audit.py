@@ -216,6 +216,61 @@ _ROUTE_OPTION_FORMAL_SOURCE_COUNTERS = (
     "lower_bound_formal_source_semantic_rerank_rows",
     "lower_bound_formal_source_target_compatible_hits",
 )
+RESOURCE_REQUEST_QUEUE_SUMMARY_FIELDS = (
+    "n_resource_request_rows",
+    "n_ok",
+    "n_failed",
+    "n_local_first_requests",
+    "n_frontier_escalation_requests",
+    "n_distinct_resources",
+    "n_llm_route_planner_rows",
+    "n_llm_route_planner_request_packets",
+    "n_llm_route_planner_request_route_planning_briefs",
+    "n_llm_route_planner_route_planning_brief_evidence_gaps",
+    "n_llm_route_planner_rows_with_route_adoption_preconditions",
+    "n_llm_route_planner_route_adoption_precondition_known_blockers",
+    "n_llm_route_planner_route_adoption_precondition_required_response_fields",
+    "n_llm_route_planner_route_adoption_precondition_target_primitives",
+    "n_llm_route_planner_resource_request_rows",
+    "n_llm_route_planner_route_planning_brief_resource_request_rows",
+    "n_llm_route_planner_total_resource_request_rows",
+    "n_llm_route_planner_resource_request_rows_with_explicit_resource_binding",
+    "n_llm_route_planner_resource_request_rows_matching_explicit_resource_binding",
+    "n_llm_route_planner_resource_request_rows_from_hook_default_fanout",
+    "n_llm_route_planner_route_planning_brief_evidence_gap_rows",
+    "n_llm_route_planner_resource_request_rows_with_query_intents",
+    "n_llm_route_planner_resource_request_query_intents",
+    "n_llm_route_planning_brief_evidence_gap_query_intents",
+    "n_llm_route_planner_resource_request_rows_with_route_adoption_preconditions",
+    "n_llm_route_planner_resource_request_route_adoption_precondition_target_primitives",
+    "n_row_schema_valid",
+    "n_row_schema_invalid",
+    "all_ok",
+)
+RESOURCE_RESPONSE_LEDGER_SUMMARY_FIELDS = (
+    "n_ledger_rows",
+    "n_ok",
+    "n_response_present",
+    "n_awaiting_response",
+    "n_response_contract_ok",
+    "n_llm_route_planner_traced_requests",
+    "n_llm_route_planner_traced_responses",
+    "n_llm_route_planner_traced_route_planning_brief_evidence_gap_rows",
+    "n_llm_route_planner_traced_route_planning_brief_evidence_gap_responses",
+    "n_llm_route_planner_traced_route_planning_brief_evidence_gap_grounded_responses",
+    "n_response_playbook_grounded",
+    "n_llm_route_planner_residual_context_rows",
+    "n_rows_with_formal_declaration_hits",
+    "n_formal_declaration_hits",
+    "n_rows_with_legacy_lean_declaration_hits",
+    "n_rows_with_residual_goals",
+    "n_residual_goals",
+    "n_route_revision_recommended",
+    "n_rejected",
+    "n_ledger_row_schema_valid",
+    "n_ledger_row_schema_invalid",
+    "all_ok",
+)
 REQUIRED_CORE_ARTIFACTS = (
     "portable_contract",
     "portable_schema",
@@ -584,6 +639,32 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name
             == "bundle_interactive_feedback_loop_summary_consistent"
+            and check.ok
+        ),
+        "n_bundle_resource_request_queue_summary_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_resource_request_queue_summary_consistent"
+        ),
+        "n_bundle_resource_request_queue_summary_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_resource_request_queue_summary_consistent"
+            and check.ok
+        ),
+        "n_bundle_resource_response_ledger_summary_checked": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_resource_response_ledger_summary_consistent"
+        ),
+        "n_bundle_resource_response_ledger_summary_valid": sum(
+            1
+            for check in checks
+            if check.check_name
+            == "bundle_resource_response_ledger_summary_consistent"
             and check.ok
         ),
         "n_bundle_cross_prover_formal_attempt_dependency_summary_checked": sum(
@@ -2988,6 +3069,26 @@ def _manifest_checks(
     interactive_feedback_loop_summary_errors = (
         _bundle_interactive_feedback_loop_summary_errors(manifest)
     )
+    resource_request_queue_summary_errors = _bundle_manifest_artifact_summary_errors(
+        bundle_dir,
+        manifest,
+        summary_field="resource_request_queue_summary",
+        artifact_name="formalization_gap_planner_resource_request_queue",
+        artifact_manifest_filename=(
+            "formalization_gap_planner_resource_request_queue_manifest.json"
+        ),
+        fields=RESOURCE_REQUEST_QUEUE_SUMMARY_FIELDS,
+    )
+    resource_response_ledger_summary_errors = _bundle_manifest_artifact_summary_errors(
+        bundle_dir,
+        manifest,
+        summary_field="resource_response_ledger_summary",
+        artifact_name="formalization_gap_planner_resource_response_ledger",
+        artifact_manifest_filename=(
+            "formalization_gap_planner_resource_response_ledger_manifest.json"
+        ),
+        fields=RESOURCE_RESPONSE_LEDGER_SUMMARY_FIELDS,
+    )
     cross_prover_formal_attempt_dependency_summary_errors = (
         _bundle_cross_prover_formal_attempt_dependency_summary_errors(
             bundle_dir,
@@ -3108,6 +3209,30 @@ def _manifest_checks(
             ),
             not interactive_feedback_loop_summary_errors,
             errors=interactive_feedback_loop_summary_errors,
+        ),
+        _check(
+            "bundle_resource_request_queue_summary_consistent",
+            "manifest",
+            "resource_request_queue_summary matches packaged request-queue artifacts",
+            (
+                "ok"
+                if not resource_request_queue_summary_errors
+                else "; ".join(resource_request_queue_summary_errors[:3])
+            ),
+            not resource_request_queue_summary_errors,
+            errors=resource_request_queue_summary_errors,
+        ),
+        _check(
+            "bundle_resource_response_ledger_summary_consistent",
+            "manifest",
+            "resource_response_ledger_summary matches packaged response-ledger artifacts",
+            (
+                "ok"
+                if not resource_response_ledger_summary_errors
+                else "; ".join(resource_response_ledger_summary_errors[:3])
+            ),
+            not resource_response_ledger_summary_errors,
+            errors=resource_response_ledger_summary_errors,
         ),
         _check(
             "bundle_cross_prover_formal_attempt_dependency_summary_consistent",
@@ -3287,6 +3412,100 @@ def _bundle_llm_route_planner_summary_errors(
                 f"observed={observed_value} expected={expected_value}"
             )
     return tuple(errors)
+
+
+def _bundle_manifest_artifact_summary_errors(
+    bundle_dir: Path,
+    manifest: dict[str, Any],
+    *,
+    summary_field: str,
+    artifact_name: str,
+    artifact_manifest_filename: str,
+    fields: tuple[str, ...],
+) -> tuple[str, ...]:
+    observed = manifest.get(summary_field, {})
+    if not isinstance(observed, dict):
+        return (f"{summary_field} missing or not an object",)
+    expected = _expected_bundle_manifest_artifact_summary(
+        bundle_dir,
+        artifact_name=artifact_name,
+        artifact_manifest_filename=artifact_manifest_filename,
+        fields=fields,
+    )
+    errors: list[str] = []
+    if "requested" not in observed:
+        errors.append(f"{summary_field}.requested missing")
+    elif bool(observed.get("requested")) != bool(expected.get("requested")):
+        errors.append(
+            f"{summary_field}.requested mismatch: "
+            f"observed={observed.get('requested')} expected={expected.get('requested')}"
+        )
+    if "manifest_path" not in observed:
+        errors.append(f"{summary_field}.manifest_path missing")
+    else:
+        observed_manifest_path = str(observed.get("manifest_path", "")).strip()
+        expected_requested = bool(expected.get("requested"))
+        if expected_requested and not observed_manifest_path:
+            errors.append(
+                f"{summary_field}.manifest_path missing for requested artifact"
+            )
+        if not expected_requested and observed_manifest_path:
+            errors.append(
+                f"{summary_field}.manifest_path mismatch: "
+                f"observed={observed_manifest_path} expected empty"
+            )
+    for field_name in fields:
+        if field_name not in observed:
+            errors.append(f"{summary_field}.{field_name} missing")
+            continue
+        observed_value = observed.get(field_name)
+        expected_value = expected.get(field_name, 0)
+        if isinstance(expected_value, bool):
+            if bool(observed_value) != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif isinstance(expected_value, int):
+            try:
+                observed_int = int(observed_value or 0)
+            except (TypeError, ValueError):
+                observed_int = None
+            if observed_int != expected_value:
+                errors.append(
+                    f"{summary_field}.{field_name} mismatch: "
+                    f"observed={observed_value} expected={expected_value}"
+                )
+        elif str(observed_value) != str(expected_value):
+            errors.append(
+                f"{summary_field}.{field_name} mismatch: "
+                f"observed={observed_value} expected={expected_value}"
+            )
+    return tuple(errors)
+
+
+def _expected_bundle_manifest_artifact_summary(
+    bundle_dir: Path,
+    *,
+    artifact_name: str,
+    artifact_manifest_filename: str,
+    fields: tuple[str, ...],
+) -> dict[str, object]:
+    manifest_path = (
+        bundle_dir / "artifacts" / artifact_name / artifact_manifest_filename
+    )
+    if not manifest_path.exists():
+        return {
+            "requested": False,
+            "manifest_path": "",
+            **{field: 0 for field in fields},
+        }
+    payload = _read_json_no_error(manifest_path)
+    return {
+        "requested": True,
+        "manifest_path": str(manifest_path),
+        **{field: payload.get(field, 0) for field in fields},
+    }
 
 
 def _bundle_combined_llm_provider_usage_summary_errors(
@@ -25142,6 +25361,8 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Bundle feedback LLM route-planner summary valid: {payload.get('n_bundle_feedback_llm_route_planner_summary_valid')}/{payload.get('n_bundle_feedback_llm_route_planner_summary_checked')}",
         f"- Bundle combined LLM provider usage summary valid: {payload.get('n_bundle_combined_llm_provider_usage_summary_valid')}/{payload.get('n_bundle_combined_llm_provider_usage_summary_checked')}",
         f"- Bundle interactive feedback-loop summary valid: {payload.get('n_bundle_interactive_feedback_loop_summary_valid')}/{payload.get('n_bundle_interactive_feedback_loop_summary_checked')}",
+        f"- Bundle resource request-queue summary valid: {payload.get('n_bundle_resource_request_queue_summary_valid')}/{payload.get('n_bundle_resource_request_queue_summary_checked')}",
+        f"- Bundle resource response-ledger summary valid: {payload.get('n_bundle_resource_response_ledger_summary_valid')}/{payload.get('n_bundle_resource_response_ledger_summary_checked')}",
         f"- Bundle cross-prover formal-attempt dependency summary valid: {payload.get('n_bundle_cross_prover_formal_attempt_dependency_summary_valid')}/{payload.get('n_bundle_cross_prover_formal_attempt_dependency_summary_checked')}",
         f"- Bundle library-coverage map summary valid: {payload.get('n_bundle_library_coverage_map_summary_valid')}/{payload.get('n_bundle_library_coverage_map_summary_checked')}",
         (
