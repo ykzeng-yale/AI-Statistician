@@ -1939,6 +1939,15 @@ def export_formalization_gap_planner_publication_bundle(
         },
         "benchmark_summary": {
             "n_routes": benchmark_payload.get("n_routes", 0),
+            "target_prover_family": benchmark_payload.get("target_prover_family", ""),
+            "n_target_prover_families": benchmark_payload.get(
+                "n_target_prover_families",
+                0,
+            ),
+            "by_target_prover_family": benchmark_payload.get(
+                "by_target_prover_family",
+                {},
+            ),
             "n_route_row_schema_valid": benchmark_payload.get(
                 "n_route_row_schema_valid", 0
             ),
@@ -1965,6 +1974,14 @@ def export_formalization_gap_planner_publication_bundle(
             "n_checks": benchmark_audit_payload.get("n_checks", 0),
             "n_failed": benchmark_audit_payload.get("n_failed", 0),
             "n_evaluation_splits": benchmark_audit_payload.get("n_evaluation_splits", 0),
+            "n_target_prover_families": benchmark_audit_payload.get(
+                "n_target_prover_families",
+                0,
+            ),
+            "by_target_prover_family": benchmark_audit_payload.get(
+                "by_target_prover_family",
+                {},
+            ),
             "n_routes_with_source_refs": benchmark_audit_payload.get(
                 "n_routes_with_source_refs", 0
             ),
@@ -9442,6 +9459,10 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"- Benchmark route schema valid: "
             f"{payload.get('benchmark_summary', {}).get('n_route_row_schema_valid')}/"
             f"{payload.get('benchmark_summary', {}).get('n_routes')}"
+        ),
+        (
+            f"- Benchmark target prover families: "
+            f"{payload.get('benchmark_summary', {}).get('by_target_prover_family')}"
         ),
         (
             f"- Evaluation rows/schema valid: "

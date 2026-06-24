@@ -652,6 +652,16 @@ def audit_formalization_gap_planner_publication_bundle(
             for check in checks
             if check.check_name.startswith("benchmark_route_row_") and check.ok
         ),
+        "n_benchmark_target_prover_summary_checked": sum(
+            1
+            for check in checks
+            if check.check_name == "benchmark_target_prover_summary"
+        ),
+        "n_benchmark_target_prover_summary_valid": sum(
+            1
+            for check in checks
+            if check.check_name == "benchmark_target_prover_summary" and check.ok
+        ),
         "n_adapter_registry_row_schema_checked": sum(
             1
             for check in checks
@@ -8620,6 +8630,10 @@ def _benchmark_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicati
     route_schema_path = bundle_dir / "benchmark" / "formalization_gap_planner_benchmark_route.schema.json"
     manifest = _read_json_no_error(manifest_path)
     route_rows, route_errors = _read_jsonl_dict_rows_no_error(routes_jsonl_path)
+    row_target_counts = _benchmark_target_prover_family_counts(route_rows)
+    manifest_target_counts = _int_count_mapping(
+        manifest.get("by_target_prover_family", {})
+    )
     checks = [
         _check(
             "benchmark_manifest",
@@ -8686,6 +8700,15 @@ def _benchmark_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicati
             and int(manifest.get("n_route_row_schema_invalid", 0) or 0) == 0,
         ),
         _check(
+            "benchmark_target_prover_summary",
+            "benchmark",
+            "benchmark target-prover family summary matches route JSONL",
+            f"manifest={manifest_target_counts}; rows={row_target_counts}",
+            manifest_target_counts == row_target_counts
+            and int(manifest.get("n_target_prover_families", 0) or 0)
+            == len(row_target_counts),
+        ),
+        _check(
             "benchmark_boundary",
             "benchmark",
             "not theorem proof evidence",
@@ -8707,6 +8730,30 @@ def _benchmark_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicati
             )
         )
     return checks
+
+
+def _benchmark_target_prover_family_counts(
+    rows: list[dict[str, Any]],
+) -> dict[str, int]:
+    return dict(
+        sorted(
+            Counter(
+                _target_prover_key(row.get("target_prover_family", "")) or "unknown"
+                for row in rows
+            ).items()
+        )
+    )
+
+
+def _int_count_mapping(value: Any) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, int] = {}
+    for key, item in value.items():
+        parsed = _int_or_none(item)
+        if parsed is not None:
+            result[str(key)] = parsed
+    return dict(sorted(result.items()))
 
 
 def _benchmark_audit_checks(
@@ -24431,7 +24478,18 @@ def _target_prover_key(value: object) -> str:
         "lean_4": "lean4",
         "isabelle_hol": "isabelle",
     }
-    return aliases.get(key, key)
+    key = aliases.get(key, key)
+    if key.startswith("lean4"):
+        return "lean4"
+    if key.startswith("rocq"):
+        return "rocq"
+    if key.startswith("isabelle"):
+        return "isabelle"
+    if key.startswith("agda"):
+        return "agda"
+    if key.startswith("hol4"):
+        return "hol4"
+    return key
 
 
 def _dict_value(row: dict[str, Any], key: str) -> dict[str, Any]:
@@ -24451,6 +24509,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Component-resource contract schema valid: {payload.get('n_component_resource_contract_row_schema_valid')}/{payload.get('n_component_resource_contract_row_schema_checked')}",
         f"- Component execution-plan schema valid: {payload.get('n_component_execution_plan_schema_valid')}/{payload.get('n_component_execution_plan_schema_checked')}",
         f"- Benchmark route-row schema valid: {payload.get('n_benchmark_route_row_schema_valid')}/{payload.get('n_benchmark_route_row_schema_checked')}",
+        f"- Benchmark target-prover summary valid: {payload.get('n_benchmark_target_prover_summary_valid')}/{payload.get('n_benchmark_target_prover_summary_checked')}",
         f"- Optional evaluation-row schema valid: {payload.get('n_optional_evaluation_row_schema_valid')}/{payload.get('n_optional_evaluation_row_schema_checked')}",
         f"- Optional evaluation realization-missing rows valid: {payload.get('n_optional_evaluation_realization_missing_row_valid')}/{payload.get('n_optional_evaluation_realization_missing_row_checked')}",
         f"- Optional evaluation realization-missing manifest valid: {payload.get('n_optional_evaluation_realization_missing_manifest_valid')}/{payload.get('n_optional_evaluation_realization_missing_manifest_checked')}",

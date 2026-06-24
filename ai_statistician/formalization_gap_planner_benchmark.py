@@ -79,6 +79,16 @@ def load_formalization_gap_planner_ground_truth(
     n_route_row_schema_valid = sum(
         1 for row_errors in route_row_schema_errors if not row_errors
     )
+    by_target_prover_family = _target_prover_family_counts(rows)
+    target_prover_family = (
+        next(iter(by_target_prover_family))
+        if len(by_target_prover_family) == 1
+        else (
+            "mixed:" + ",".join(by_target_prover_family)
+            if by_target_prover_family
+            else ""
+        )
+    )
     return {
         "schema_version": FORMALIZATION_GAP_PLANNER_BENCHMARK_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -91,6 +101,12 @@ def load_formalization_gap_planner_ground_truth(
         "description": payload.get("description", ""),
         "n_routes": len(rows),
         "n_ok": sum(1 for row in rows if row.ok),
+        "target_prover_family": target_prover_family,
+        "n_target_prover_families": len(by_target_prover_family),
+        "n_routes_with_target_prover_family": sum(
+            1 for row in rows if _target_prover_key(row.target_prover_family)
+        ),
+        "by_target_prover_family": by_target_prover_family,
         "n_route_row_schema_valid": n_route_row_schema_valid,
         "n_route_row_schema_invalid": len(route_row_schema_errors)
         - n_route_row_schema_valid,
@@ -398,6 +414,19 @@ def _coverage_status_counts(
     return dict(sorted(counter.items()))
 
 
+def _target_prover_family_counts(
+    rows: tuple[FormalizationGapPlannerBenchmarkRoute, ...],
+) -> dict[str, int]:
+    return dict(
+        sorted(
+            Counter(
+                _target_prover_key(row.target_prover_family) or "unknown"
+                for row in rows
+            ).items()
+        )
+    )
+
+
 def _kernel_verification_witnesses(
     row: dict[str, Any],
 ) -> tuple[dict[str, object], ...]:
@@ -469,8 +498,20 @@ def _target_prover_key(value: object) -> str:
         "lean": "lean4",
         "lean_4": "lean4",
         "coq": "rocq",
+        "coq8": "rocq",
     }
-    return aliases.get(key, key)
+    key = aliases.get(key, key)
+    if key.startswith("lean4"):
+        return "lean4"
+    if key.startswith("rocq"):
+        return "rocq"
+    if key.startswith("isabelle"):
+        return "isabelle"
+    if key.startswith("agda"):
+        return "agda"
+    if key.startswith("hol4"):
+        return "hol4"
+    return key
 
 
 def _witness_artifact_refs(witness: dict[str, object]) -> tuple[str, ...]:
@@ -576,6 +617,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         "",
         f"- Benchmark: `{payload.get('benchmark_id')}`",
         f"- Routes: {payload.get('n_routes')}",
+        f"- Target prover families: {payload.get('by_target_prover_family')}",
         f"- Route row schema valid: {payload.get('n_route_row_schema_valid')}/{payload.get('n_routes')}",
         f"- Required primitives: {payload.get('n_required_primitives')}",
         f"- Delta primitives: {payload.get('n_actual_delta_primitives')}",

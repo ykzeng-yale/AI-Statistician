@@ -1672,10 +1672,14 @@ writes a versioned manifest, JSONL route summary, markdown report, and a copy of
 that ground-truth file for publication artifacts. It also writes
 `formalization_gap_planner_benchmark_route.schema.json` and schema-valid counts
 for every route-truth row, so external benchmark users can validate the label
-contract without importing this repository. The benchmark-audit command
+contract without importing this repository. It also summarizes
+`target_prover_family`, `n_target_prover_families`, and
+`by_target_prover_family`, making prover-ecosystem coverage an explicit
+benchmark axis rather than a hidden row field. The benchmark-audit command
 checks that route-truth examples have source references, distinct theorem
 families, required/existing/delta primitive consistency, coverage-label
-discipline, held-out/public split metadata, and explicit proof-boundary text.
+discipline, target-prover family coverage, held-out/public split metadata, and
+explicit proof-boundary text.
 The evaluation writes row-level route recall/precision, formalization-delta
 precision/recall, existing-library reuse precision/recall, coverage-label
 accuracy, two-DAG readiness, selected-primitive alignment coverage,
@@ -2860,13 +2864,14 @@ The current implementation composes four existing AI Statistician artifacts:
    Exports reusable route-truth labels for evaluation: required primitives,
    actual existing reuse, actual formalization delta, coverage classification, source
    references, proof-evidence boundaries, and the benchmark route-row JSON
-   Schema with schema-valid counts.
+   Schema with schema-valid counts. Its manifest also reports normalized
+   target-prover family counts for cross-prover benchmark consumers.
 
 28. `formalization_gap_planner_benchmark_audit`
    Validates the route-truth benchmark itself: theorem-family diversity,
    source-reference coverage, required/existing/delta primitive consistency,
-   coverage-label completeness, public/held-out split metadata, and explicit
-   non-proof-evidence boundaries.
+   coverage-label completeness, target-prover family coverage, public/held-out
+   split metadata, and explicit non-proof-evidence boundaries.
 
 29. `formalization_gap_planner_ablation_study`
    Compares the observed planner with no-literature, no-formal-grounding,
@@ -2985,7 +2990,8 @@ resolution, and route/delta/existing-reuse primitive consistency.
    interactive decision-policy component/resource/contract links resolve to
    bundled component-resource registry rows, optional
    evaluation ground-truth copy, match, and primitive-consistency counters can
-   be used as aggregate publication gates, optional
+   be used as aggregate publication gates, benchmark target-prover family
+   summaries match the packaged route-truth rows, optional
    artifacts are copied inside the bundle, the schema catalog resolves to
    bundle-local contract/schema paths, and proof-boundary text remains intact.
 

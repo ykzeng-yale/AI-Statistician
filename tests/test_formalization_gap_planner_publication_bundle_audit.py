@@ -4459,6 +4459,16 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
         audit_payload["n_benchmark_route_row_schema_valid"]
         == audit_payload["n_benchmark_route_row_schema_checked"]
     )
+    assert bundle_payload["benchmark_summary"]["n_target_prover_families"] == 1
+    assert bundle_payload["benchmark_summary"]["by_target_prover_family"] == {
+        "lean4": bundle_payload["benchmark_summary"]["n_routes"]
+    }
+    assert audit_payload["n_benchmark_target_prover_summary_checked"] == 1
+    assert audit_payload["n_benchmark_target_prover_summary_valid"] == 1
+    assert any(
+        row["check_name"] == "benchmark_target_prover_summary" and row["ok"]
+        for row in audit_payload["checks"]
+    )
     assert (
         audit_payload["n_adapter_registry_row_schema_checked"]
         == bundle_payload["adapter_registry_summary"]["n_adapters"]

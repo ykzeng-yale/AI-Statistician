@@ -7338,12 +7338,28 @@ def run_formalization_gap_planner_reuse_smoke(
             "benchmark_summary",
             {},
         ).get("n_routes", 0),
+        "n_publication_bundle_benchmark_target_prover_families": publication_bundle_payload.get(
+            "benchmark_summary",
+            {},
+        ).get("n_target_prover_families", 0),
+        "publication_bundle_benchmark_by_target_prover_family": publication_bundle_payload.get(
+            "benchmark_summary",
+            {},
+        ).get("by_target_prover_family", {}),
         "n_publication_bundle_benchmark_route_schema_checked": publication_bundle_audit_payload.get(
             "n_benchmark_route_row_schema_checked",
             0,
         ),
         "n_publication_bundle_benchmark_route_schema_valid": publication_bundle_audit_payload.get(
             "n_benchmark_route_row_schema_valid",
+            0,
+        ),
+        "n_publication_bundle_benchmark_target_prover_summary_checked": publication_bundle_audit_payload.get(
+            "n_benchmark_target_prover_summary_checked",
+            0,
+        ),
+        "n_publication_bundle_benchmark_target_prover_summary_valid": publication_bundle_audit_payload.get(
+            "n_benchmark_target_prover_summary_valid",
             0,
         ),
         "n_publication_bundle_optional_evaluation_row_schema_checked": publication_bundle_audit_payload.get(
@@ -11379,6 +11395,12 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Work packets: {payload.get('n_portable_work_packets')}",
         f"- Publication bundle schema catalog entries: {payload.get('n_publication_bundle_schema_catalog_entries')}",
         f"- Publication bundle schema catalog contract errors: {payload.get('n_publication_bundle_schema_catalog_contract_errors')}",
+        (
+            f"- Publication bundle benchmark target provers: "
+            f"{payload.get('publication_bundle_benchmark_by_target_prover_family')} "
+            f"summary={payload.get('n_publication_bundle_benchmark_target_prover_summary_valid')}/"
+            f"{payload.get('n_publication_bundle_benchmark_target_prover_summary_checked')}"
+        ),
         (
             f"- Goal-plan LLM trace metadata/brief/route-option/matrix/model-tier/generator-metadata: "
             f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata')}/"

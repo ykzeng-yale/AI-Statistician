@@ -33,6 +33,12 @@ def test_benchmark_audit_validates_route_truth_quality_and_splits() -> None:
         == benchmark_payload["n_routes"]
     )
     assert benchmark_payload["n_route_row_schema_invalid"] == 0
+    assert benchmark_payload["target_prover_family"] == "lean4"
+    assert benchmark_payload["n_target_prover_families"] == 1
+    assert benchmark_payload["n_routes_with_target_prover_family"] == benchmark_payload["n_routes"]
+    assert benchmark_payload["by_target_prover_family"] == {
+        "lean4": benchmark_payload["n_routes"]
+    }
     assert benchmark_payload["n_routes_with_expected_residuals"] == benchmark_payload["n_routes"]
     assert benchmark_payload["n_expected_residual_primitives"] >= benchmark_payload["n_routes"]
     assert (
@@ -51,6 +57,11 @@ def test_benchmark_audit_validates_route_truth_quality_and_splits() -> None:
     assert audit_payload["n_route_row_schema_valid"] == audit_payload["n_routes"]
     assert audit_payload["n_route_row_schema_invalid"] == 0
     assert audit_payload["n_theorem_families"] >= 3
+    assert audit_payload["n_target_prover_families"] == 1
+    assert audit_payload["n_routes_with_target_prover_family"] == audit_payload["n_routes"]
+    assert audit_payload["by_target_prover_family"] == {
+        "lean4": audit_payload["n_routes"]
+    }
     assert audit_payload["n_evaluation_splits"] >= 2
     assert audit_payload["n_routes_with_source_refs"] == audit_payload["n_routes"]
     assert audit_payload["n_routes_with_expected_residuals"] == audit_payload["n_routes"]
@@ -58,6 +69,14 @@ def test_benchmark_audit_validates_route_truth_quality_and_splits() -> None:
     assert "heldout_eval" in audit_payload["by_evaluation_split"]
     assert any(
         check["check_name"] == "benchmark_core_coverage_statuses" and check["ok"]
+        for check in audit_payload["checks"]
+    )
+    assert any(
+        check["check_name"] == "benchmark_target_prover_summary" and check["ok"]
+        for check in audit_payload["checks"]
+    )
+    assert any(
+        check["check_name"] == "benchmark_target_prover_family_present" and check["ok"]
         for check in audit_payload["checks"]
     )
     assert "not theorem proof evidence" in audit_payload["proof_evidence_boundary"]
@@ -163,6 +182,8 @@ def test_benchmark_requires_witness_for_kernel_verified_route_truth() -> None:
     )
 
     assert benchmark_payload["all_ok"]
+    assert benchmark_payload["target_prover_family"] == "lean4"
+    assert benchmark_payload["by_target_prover_family"] == {"lean4": 3}
     assert benchmark_payload["n_kernel_verified_routes"] == 1
     assert benchmark_payload["n_kernel_verification_witnesses"] == 1
     assert benchmark_payload["n_kernel_verified_routes_with_witnesses"] == 1
@@ -177,6 +198,8 @@ def test_benchmark_requires_witness_for_kernel_verified_route_truth() -> None:
     )
     assert not validate_benchmark_route_row(verified_route)
     assert audit_payload["all_ok"]
+    assert audit_payload["by_target_prover_family"] == {"lean4": 3}
+    assert audit_payload["n_target_prover_families"] == 1
     assert audit_payload["n_kernel_verified_routes"] == 1
     assert audit_payload["n_kernel_verification_witnesses"] == 1
     assert audit_payload["n_kernel_verified_routes_missing_witnesses"] == 0

@@ -1194,6 +1194,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert payload["source_target_prover_family"] == "lean4"
     assert payload["n_source_target_prover_families"] == 1
     assert payload["source_by_target_prover_family"] == {"lean4": 1}
+    assert payload["n_publication_bundle_benchmark_target_prover_families"] == 1
+    assert payload["publication_bundle_benchmark_by_target_prover_family"] == {
+        "lean4": payload["n_publication_bundle_benchmark_routes"]
+    }
+    assert payload["n_publication_bundle_benchmark_target_prover_summary_checked"] == 1
+    assert payload["n_publication_bundle_benchmark_target_prover_summary_valid"] == 1
     assert (
         payload[
             "n_goal_plan_standalone_input_traces_with_llm_route_planner_metadata"

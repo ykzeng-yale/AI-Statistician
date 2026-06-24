@@ -4126,6 +4126,11 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert payload["portable_schema_id"] == PORTABLE_FORMALIZATION_GAP_PLAN_SCHEMA_ID
     assert payload["n_core_artifacts_ok"] == payload["n_core_artifacts"]
     assert payload["benchmark_summary"]["n_routes"] >= 1
+    assert payload["benchmark_summary"]["target_prover_family"] == "lean4"
+    assert payload["benchmark_summary"]["n_target_prover_families"] == 1
+    assert payload["benchmark_summary"]["by_target_prover_family"] == {
+        "lean4": payload["benchmark_summary"]["n_routes"]
+    }
     assert (
         payload["benchmark_summary"]["n_route_row_schema_valid"]
         == payload["benchmark_summary"]["n_routes"]
@@ -4138,6 +4143,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     )
     assert payload["benchmark_audit_summary"]["n_failed"] == 0
     assert payload["benchmark_audit_summary"]["n_evaluation_splits"] >= 2
+    assert payload["benchmark_audit_summary"]["n_target_prover_families"] == 1
+    assert payload["benchmark_audit_summary"]["by_target_prover_family"] == {
+        "lean4": payload["benchmark_summary"]["n_routes"]
+    }
     assert payload["evaluation_summary"]["requested"] is True
     assert payload["evaluation_summary"]["n_evaluation_rows"] == 1
     assert payload["evaluation_summary"]["n_evaluation_row_schema_valid"] == 1

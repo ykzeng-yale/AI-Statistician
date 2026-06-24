@@ -86,6 +86,7 @@ def audit_formalization_gap_planner_benchmark(
     checks.extend(_split_checks(split_rows, routes))
     by_category = Counter(check.category for check in checks)
     by_family = Counter(str(row.get("theorem_family", "")) for row in routes)
+    by_target_prover = _target_prover_family_counts(routes)
     by_truth_status = Counter(str(row.get("route_truth_status", "")) for row in routes)
     by_coverage_status = _coverage_status_counts(routes)
     by_split = Counter(row.evaluation_split for row in split_rows)
@@ -114,6 +115,10 @@ def audit_formalization_gap_planner_benchmark(
             and not check.ok
         ),
         "n_theorem_families": len({key for key in by_family if key}),
+        "n_target_prover_families": len({key for key in by_target_prover if key}),
+        "n_routes_with_target_prover_family": sum(
+            1 for row in routes if _target_prover_key(row.get("target_prover_family", ""))
+        ),
         "n_coverage_statuses": len({key for key in by_coverage_status if key}),
         "n_routes_with_source_refs": sum(
             1 for row in routes if _str_tuple(row.get("source_refs", []))
@@ -146,6 +151,7 @@ def audit_formalization_gap_planner_benchmark(
         "n_evaluation_splits": len({row.evaluation_split for row in split_rows}),
         "by_check_category": dict(sorted(by_category.items())),
         "by_theorem_family": dict(sorted(by_family.items())),
+        "by_target_prover_family": by_target_prover,
         "by_route_truth_status": dict(sorted(by_truth_status.items())),
         "by_coverage_status": dict(sorted(by_coverage_status.items())),
         "by_evaluation_split": dict(sorted(by_split.items())),
@@ -191,6 +197,8 @@ def _manifest_checks(
     routes: list[dict[str, Any]],
 ) -> list[FormalizationGapPlannerBenchmarkAuditCheck]:
     boundary = str(manifest.get("proof_evidence_boundary", ""))
+    row_target_counts = _target_prover_family_counts(routes)
+    manifest_target_counts = _count_map(manifest.get("by_target_prover_family", {}))
     return [
         _check(
             "benchmark_manifest_exists",
@@ -226,6 +234,15 @@ def _manifest_checks(
             "at least three route-truth rows",
             str(len(routes)),
             len(routes) >= 3,
+        ),
+        _check(
+            "benchmark_target_prover_summary",
+            "manifest",
+            "manifest target-prover family counts match route rows",
+            f"manifest={manifest_target_counts}; rows={row_target_counts}",
+            manifest_target_counts == row_target_counts
+            and int(manifest.get("n_target_prover_families", 0) or 0)
+            == len(row_target_counts),
         ),
         _check(
             "benchmark_boundary",
@@ -277,6 +294,7 @@ def _artifact_checks(
 
 def _coverage_checks(routes: list[dict[str, Any]]) -> list[FormalizationGapPlannerBenchmarkAuditCheck]:
     families = {str(row.get("theorem_family", "")) for row in routes if row.get("theorem_family")}
+    target_families = _target_prover_family_counts(routes)
     statuses = set(_coverage_status_counts(routes))
     truth_statuses = {
         str(row.get("route_truth_status", "")) for row in routes if row.get("route_truth_status")
@@ -288,6 +306,15 @@ def _coverage_checks(routes: list[dict[str, Any]]) -> list[FormalizationGapPlann
             "at least three theorem families",
             ",".join(sorted(families)),
             len(families) >= 3,
+        ),
+        _check(
+            "benchmark_target_prover_family_present",
+            "coverage",
+            "every route declares a target prover family",
+            str(target_families),
+            bool(target_families)
+            and sum(target_families.values()) == len(routes)
+            and "unknown" not in target_families,
         ),
         _check(
             "benchmark_core_coverage_statuses",
@@ -498,6 +525,60 @@ def _coverage_status_counts(routes: list[dict[str, Any]]) -> dict[str, int]:
     return dict(sorted(counter.items()))
 
 
+def _target_prover_family_counts(routes: list[dict[str, Any]]) -> dict[str, int]:
+    return dict(
+        sorted(
+            Counter(
+                _target_prover_key(row.get("target_prover_family", "")) or "unknown"
+                for row in routes
+            ).items()
+        )
+    )
+
+
+def _target_prover_key(value: object) -> str:
+    key = str(value).strip().lower().replace("-", "_")
+    aliases = {
+        "lean": "lean4",
+        "lean_4": "lean4",
+        "coq": "rocq",
+        "coq8": "rocq",
+    }
+    key = aliases.get(key, key)
+    if key.startswith("lean4"):
+        return "lean4"
+    if key.startswith("rocq"):
+        return "rocq"
+    if key.startswith("isabelle"):
+        return "isabelle"
+    if key.startswith("agda"):
+        return "agda"
+    if key.startswith("hol4"):
+        return "hol4"
+    return key
+
+
+def _count_map(value: Any) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, int] = {}
+    for key, item in value.items():
+        parsed = _int_or_none(item)
+        if parsed is None:
+            continue
+        result[str(key)] = parsed
+    return dict(sorted(result.items()))
+
+
+def _int_or_none(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _check(
     check_name: str,
     category: str,
@@ -557,6 +638,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Routes: {payload.get('n_routes')}",
         f"- Route row schema valid: {payload.get('n_route_row_schema_valid')}/{payload.get('n_routes')}",
         f"- Theorem families: {payload.get('n_theorem_families')}",
+        f"- Target prover families: {payload.get('by_target_prover_family')}",
         f"- Coverage statuses: {payload.get('n_coverage_statuses')}",
         f"- Evaluation splits: {payload.get('n_evaluation_splits')}",
         f"- Kernel-verified routes: {payload.get('n_kernel_verified_routes')}",
