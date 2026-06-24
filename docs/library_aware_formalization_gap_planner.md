@@ -255,7 +255,14 @@ Sonnet/Haiku/Opus requests use the current source-checked pinned API ID rather
 than an older same-family snapshot. The planner manifest also exposes
 `by_request_target_prover_family`, computed from normalized request target
 prover names, so Lean/Rocq/Isabelle/Agda coverage is visible without unpacking
-request packets. The reuse-smoke manifest/report lifts the validator
+request packets. Accepted formal-library refinement evidence now contributes a
+`formal_source_retrieval_summary` to each LLM route-planner request packet,
+target-theorem context packet, and route-planning brief; the manifest also
+publishes `n_request_formal_source_retrieval_metadata_rows` and
+`n_request_formal_source_semantic_rerank_rows`. This preserves whether a
+formal-library hit came from lexical search, semantic rerank, or a hybrid
+backend while keeping the metadata as planning provenance rather than theorem
+proof evidence. The reuse-smoke manifest/report lifts the validator
 target-prover counts, mismatch counter, and request-bound route-precondition
 counters into top-level fields for release gating. When a live generator response
 fails local validation and the planner
@@ -296,7 +303,7 @@ so Haiku uses `claude-haiku-4-5-20251001` rather than relying on the shorter
 `claude-haiku-4-5` alias. The current pinned Claude cost-tier API IDs are
 `claude-haiku-4-5-20251001`, `claude-sonnet-4-6`, and
 `claude-opus-4-8`, checked against the Anthropic models overview on
-2026-06-23. Claude Fable/Mythos family models are tracked outside this
+2026-06-24. Claude Fable/Mythos family models are tracked outside this
 Haiku/Sonnet/Opus cost-aware tier contract, and complete coding agents such as
 `codex`, `codex_exec`, `claude_code`, `cursor`, and `gemini_cli` are prohibited
 as normal pure-LLM providers. Runtime topology manifests publish this prohibited

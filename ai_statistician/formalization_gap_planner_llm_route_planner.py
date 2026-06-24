@@ -1976,6 +1976,37 @@ def export_formalization_gap_planner_llm_route_planner(
             )
             for packet in request_packets
         ),
+        "n_requests_with_formal_source_retrieval_summary": sum(
+            1
+            for packet in request_packets
+            if int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "formal_source_retrieval_summary",
+                ).get("total_count", 0)
+                or 0
+            )
+        ),
+        "n_request_formal_source_retrieval_metadata_rows": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "formal_source_retrieval_summary",
+                ).get("total_count", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
+        "n_request_formal_source_semantic_rerank_rows": sum(
+            int(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "formal_source_retrieval_summary",
+                ).get("semantic_rerank_count", 0)
+                or 0
+            )
+            for packet in request_packets
+        ),
         "n_requests_with_formal_attempt_feedback_summary": sum(
             1
             for packet in request_packets
@@ -4360,6 +4391,9 @@ def llm_route_planner_target_theorem_context_packet_json_schema() -> dict[str, o
             "residual_goal_contexts": object_array,
             "source_snippet_count": nonnegative_integer,
             "formal_declaration_row_count": nonnegative_integer,
+            "formal_source_retrieval_metadata_count": nonnegative_integer,
+            "formal_source_semantic_rerank_count": nonnegative_integer,
+            "formal_source_retrieval_summary": {"type": "object"},
             "proof_evidence_status": {
                 "type": "string",
                 "const": PROOF_EVIDENCE_STATUS,
@@ -4433,11 +4467,18 @@ def llm_route_planner_route_planning_brief_json_schema() -> dict[str, object]:
                     "primitive_formal_supported_count": nonnegative_integer,
                     "primitive_needing_source_search_count": nonnegative_integer,
                     "primitive_needing_formal_delta_count": nonnegative_integer,
+                    "formal_source_retrieval_metadata_count": nonnegative_integer,
+                    "formal_source_semantic_rerank_count": nonnegative_integer,
+                    "formal_source_target_compatible_hit_count": (
+                        nonnegative_integer
+                    ),
+                    "formal_source_retrieval_backend_count": nonnegative_integer,
                 },
             },
             "primitive_evidence_matrix": object_array,
             "planner_focus": object_array,
             "evidence_gaps": object_array,
+            "formal_source_retrieval_summary": {"type": "object"},
             "minimal_delta_cost_hints": {"type": "object"},
             "route_option_selection_brief": {"type": "object"},
             "lower_bound_selected_route_cost": nonnegative_number,
@@ -4945,6 +4986,9 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_requests_with_resource_feedback_readiness_summary",
             "n_request_resource_feedback_readiness_rows",
             "n_request_resource_feedback_reuse_ready_rows",
+            "n_requests_with_formal_source_retrieval_summary",
+            "n_request_formal_source_retrieval_metadata_rows",
+            "n_request_formal_source_semantic_rerank_rows",
             "n_requests_with_formal_attempt_feedback_summary",
             "n_request_formal_attempt_feedback_contexts",
             "n_request_formal_attempt_feedback_residual_goals",
@@ -5394,6 +5438,15 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             ),
             "n_request_resource_feedback_readiness_rows": nonnegative_integer,
             "n_request_resource_feedback_reuse_ready_rows": nonnegative_integer,
+            "n_requests_with_formal_source_retrieval_summary": (
+                nonnegative_integer
+            ),
+            "n_request_formal_source_retrieval_metadata_rows": (
+                nonnegative_integer
+            ),
+            "n_request_formal_source_semantic_rerank_rows": (
+                nonnegative_integer
+            ),
             "n_requests_with_formal_attempt_feedback_summary": nonnegative_integer,
             "n_request_formal_attempt_feedback_contexts": nonnegative_integer,
             "n_request_formal_attempt_feedback_residual_goals": nonnegative_integer,
@@ -6624,6 +6677,55 @@ def validate_llm_route_planner_manifest(
     ) != n_route_planning_formal_supported_primitives:
         errors.append(
             "n_request_route_planning_formal_supported_primitives must match request_packets"
+        )
+    n_requests_with_formal_source_retrieval_summary = sum(
+        1
+        for packet in request_packets
+        if int(
+            _dict_value(
+                _dict_value(packet, "context_packet"),
+                "formal_source_retrieval_summary",
+            ).get("total_count", 0)
+            or 0
+        )
+    )
+    if int(
+        manifest.get("n_requests_with_formal_source_retrieval_summary", 0) or 0
+    ) != n_requests_with_formal_source_retrieval_summary:
+        errors.append(
+            "n_requests_with_formal_source_retrieval_summary must match request_packets"
+        )
+    n_request_formal_source_retrieval_metadata_rows = sum(
+        int(
+            _dict_value(
+                _dict_value(packet, "context_packet"),
+                "formal_source_retrieval_summary",
+            ).get("total_count", 0)
+            or 0
+        )
+        for packet in request_packets
+    )
+    if int(
+        manifest.get("n_request_formal_source_retrieval_metadata_rows", 0) or 0
+    ) != n_request_formal_source_retrieval_metadata_rows:
+        errors.append(
+            "n_request_formal_source_retrieval_metadata_rows must match request_packets"
+        )
+    n_request_formal_source_semantic_rerank_rows = sum(
+        int(
+            _dict_value(
+                _dict_value(packet, "context_packet"),
+                "formal_source_retrieval_summary",
+            ).get("semantic_rerank_count", 0)
+            or 0
+        )
+        for packet in request_packets
+    )
+    if int(
+        manifest.get("n_request_formal_source_semantic_rerank_rows", 0) or 0
+    ) != n_request_formal_source_semantic_rerank_rows:
+        errors.append(
+            "n_request_formal_source_semantic_rerank_rows must match request_packets"
         )
     n_requests_with_route_adoption_preconditions = sum(
         1
@@ -8995,6 +9097,9 @@ def _request_packet(
     context_packet["resource_feedback_readiness_summary"] = (
         _resource_feedback_readiness_summary(context_packet)
     )
+    context_packet["formal_source_retrieval_summary"] = (
+        _formal_source_retrieval_summary(context_packet)
+    )
     context_packet["route_brief_gap_response_contract_summary"] = (
         _route_brief_gap_response_contract_summary(context_packet)
     )
@@ -9783,6 +9888,10 @@ def _target_theorem_context_packet(
             ],
         ]
     )
+    formal_source_retrieval_summary = _dict_value(
+        context_packet,
+        "formal_source_retrieval_summary",
+    )
     return {
         "context_packet_kind": TARGET_THEOREM_CONTEXT_PACKET_KIND,
         "route_id": route_id,
@@ -9830,6 +9939,13 @@ def _target_theorem_context_packet(
         "formal_declaration_row_count": len(
             _dict_tuple(context_packet.get("available_formal_declaration_rows", []))
         ),
+        "formal_source_retrieval_metadata_count": int(
+            formal_source_retrieval_summary.get("total_count", 0) or 0
+        ),
+        "formal_source_semantic_rerank_count": int(
+            formal_source_retrieval_summary.get("semantic_rerank_count", 0) or 0
+        ),
+        "formal_source_retrieval_summary": dict(formal_source_retrieval_summary),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }
@@ -9889,6 +10005,10 @@ def _route_planning_brief(
     resource_feedback_readiness = _dict_value(
         context_packet,
         "resource_feedback_readiness_summary",
+    )
+    formal_source_retrieval = _dict_value(
+        context_packet,
+        "formal_source_retrieval_summary",
     )
     route_brief_gap_response_contract_summary = _dict_value(
         context_packet,
@@ -10124,6 +10244,33 @@ def _route_planning_brief(
             ),
             target_primitives=_str_tuple(
                 [row.get("primitive", "") for row in high_priority_rows]
+            ),
+        )
+    if int(formal_source_retrieval.get("total_count", 0) or 0):
+        add_focus(
+            "preserve_formal_source_retrieval_provenance",
+            priority=3,
+            action=(
+                "preserve formal-source retrieval backend, semantic rerank, "
+                "and target-compatible hit provenance while mapping library "
+                "coverage"
+            ),
+            reason=(
+                "accepted refinement evidence includes formal-source retrieval "
+                "metadata that distinguishes lexical, semantic-reranked, and "
+                "hybrid formal-library grounding evidence"
+            ),
+            evidence_fields=(
+                "context_packet.formal_source_retrieval_summary",
+                "context_packet.refinement_evidence_rows.formal_source_retrieval_metadata",
+            ),
+            required_output_fields=(
+                "formal_realization_dag_nodes",
+                "minimal_delta_plan.primitive_costs",
+                "route_alignment_edges",
+            ),
+            target_primitives=_str_tuple(
+                formal_source_retrieval.get("target_primitives", [])
             ),
         )
     if int(route_brief_gap_response_contract_summary.get("total_count", 0) or 0):
@@ -10606,6 +10753,22 @@ def _route_planning_brief(
             resource_feedback_readiness.get("average_evidence_readiness_score", 0)
             or 0
         ),
+        "formal_source_retrieval_metadata_count": int(
+            formal_source_retrieval.get("total_count", 0) or 0
+        ),
+        "formal_source_semantic_rerank_count": int(
+            formal_source_retrieval.get("semantic_rerank_count", 0) or 0
+        ),
+        "formal_source_target_compatible_hit_count": int(
+            formal_source_retrieval.get(
+                "target_compatible_formal_declaration_hit_count",
+                0,
+            )
+            or 0
+        ),
+        "formal_source_retrieval_backend_count": len(
+            _dict_value(formal_source_retrieval, "by_search_backend")
+        ),
         "route_brief_gap_response_contract_rejection_count": int(
             route_brief_gap_response_contract_summary.get("total_count", 0) or 0
         ),
@@ -10718,6 +10881,7 @@ def _route_planning_brief(
         "library_snapshot_ref": library_snapshot_ref,
         "target_context": target_context,
         "evidence_summary": evidence_summary,
+        "formal_source_retrieval_summary": dict(formal_source_retrieval),
         "proof_execution_feedback_summary": dict(proof_execution_feedback),
         "patch_rerun_residual_obligation_summary": dict(
             patch_rerun_residual_obligations
@@ -11413,6 +11577,10 @@ def _context_packet_inventory(
         context_packet,
         "resource_feedback_readiness_summary",
     )
+    formal_source_retrieval = _dict_value(
+        context_packet,
+        "formal_source_retrieval_summary",
+    )
     formal_attempt_feedback = _dict_value(
         context_packet,
         "formal_attempt_feedback_summary",
@@ -11652,6 +11820,23 @@ def _context_packet_inventory(
         ),
         "resource_feedback_readiness_reuse_ready_count": int(
             resource_feedback_readiness.get("reuse_ready_count", 0) or 0
+        ),
+        "formal_source_retrieval_summary_present": bool(formal_source_retrieval),
+        "formal_source_retrieval_metadata_count": int(
+            formal_source_retrieval.get("total_count", 0) or 0
+        ),
+        "formal_source_semantic_rerank_count": int(
+            formal_source_retrieval.get("semantic_rerank_count", 0) or 0
+        ),
+        "formal_source_target_compatible_hit_count": int(
+            formal_source_retrieval.get(
+                "target_compatible_formal_declaration_hit_count",
+                0,
+            )
+            or 0
+        ),
+        "formal_source_retrieval_backend_count": len(
+            _dict_value(formal_source_retrieval, "by_search_backend")
         ),
         "formal_attempt_feedback_summary_present": bool(
             formal_attempt_feedback
@@ -11926,6 +12111,10 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
         context_packet,
         "resource_feedback_readiness_summary",
     )
+    formal_source_retrieval = _dict_value(
+        context_packet,
+        "formal_source_retrieval_summary",
+    )
     formal_attempt_feedback = _dict_value(
         context_packet,
         "formal_attempt_feedback_summary",
@@ -12006,6 +12195,28 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
         (
             "resource_feedback_readiness_reuse_ready_count",
             int(resource_feedback_readiness.get("reuse_ready_count", 0) or 0),
+        ),
+        (
+            "formal_source_retrieval_metadata_count",
+            int(formal_source_retrieval.get("total_count", 0) or 0),
+        ),
+        (
+            "formal_source_semantic_rerank_count",
+            int(formal_source_retrieval.get("semantic_rerank_count", 0) or 0),
+        ),
+        (
+            "formal_source_target_compatible_hit_count",
+            int(
+                formal_source_retrieval.get(
+                    "target_compatible_formal_declaration_hit_count",
+                    0,
+                )
+                or 0
+            ),
+        ),
+        (
+            "formal_source_retrieval_backend_count",
+            len(_dict_value(formal_source_retrieval, "by_search_backend")),
         ),
         (
             "formal_attempt_feedback_context_count",
@@ -12155,6 +12366,13 @@ def _context_packet_inventory_errors(row: Mapping[str, object]) -> list[str]:
         errors.append(
             "context_packet.context_packet_inventory."
             "resource_feedback_readiness_summary_present must match context_packet"
+        )
+    if bool(
+        inventory.get("formal_source_retrieval_summary_present", False)
+    ) != bool(formal_source_retrieval):
+        errors.append(
+            "context_packet.context_packet_inventory."
+            "formal_source_retrieval_summary_present must match context_packet"
         )
     if bool(
         inventory.get("formal_attempt_feedback_summary_present", False)
@@ -13239,6 +13457,7 @@ def _user_prompt(
             "Existing-library or reuse claims may cite only candidate_declarations or candidate_declaration_rows listed in context_packet.available_formal_declarations/available_formal_declaration_rows.",
             declaration_seed_requirement,
             declaration_scope_requirement,
+            "Use context_packet.formal_source_retrieval_summary and any refinement_evidence_rows.formal_source_retrieval_metadata to preserve whether formal-library coverage came from lexical search, semantic rerank, or a hybrid backend; this retrieval provenance can prioritize route repair but is not theorem proof evidence.",
             "Prefer candidate_declaration_rows over bare candidate_declarations so target_prover_family provenance is preserved.",
             "If a needed declaration is not listed, emit a formal_library search_request instead of inventing a candidate_declaration.",
             "Any formal-realization node or standalone primitive with unknown/formal-library-search-pending coverage must have a matching formal_library/library search_request unless it declares a formal gap boundary or concrete delta action.",
@@ -29790,6 +30009,109 @@ def _resource_feedback_readiness_summary(
     }
 
 
+def _formal_source_retrieval_summary(
+    context_packet: Mapping[str, Any],
+) -> dict[str, object]:
+    rows: list[dict[str, object]] = []
+    backends: list[str] = []
+    semantic_providers: list[str] = []
+    target_primitives: list[str] = []
+    target_compatible_hit_count = 0
+
+    for evidence_row in _dict_tuple(context_packet.get("refinement_evidence_rows", [])):
+        if not _refinement_evidence_row_is_admissible_feedback(evidence_row):
+            continue
+        if str(evidence_row.get("hook_kind", "")).strip() not in {
+            "formal_library_grounding",
+            "lean_library_grounding",
+        }:
+            continue
+        metadata = _dict_value(evidence_row, "formal_source_retrieval_metadata")
+        if not metadata:
+            continue
+        backend = str(metadata.get("search_backend", "") or "").strip()
+        semantic_provider = str(
+            metadata.get("semantic_provider_id", "")
+            or metadata.get("semantic_provider", "")
+            or ""
+        ).strip()
+        row_target = str(
+            evidence_row.get("target_prover_family", "")
+            or context_packet.get("target_prover_family", "")
+        ).strip()
+        formal_hits = _dict_tuple(evidence_row.get("formal_declaration_hits", []))
+        compatible_hits = _target_compatible_formal_declaration_rows(
+            formal_hits,
+            target_prover_family=row_target,
+        )
+        target_compatible_hit_count += len(compatible_hits)
+        row_target_primitives = _feedback_row_target_primitives(evidence_row)
+        target_primitives.extend(row_target_primitives)
+        if backend:
+            backends.append(backend)
+        if semantic_provider:
+            semantic_providers.append(semantic_provider)
+        rows.append(
+            {
+                "source_field": "refinement_evidence_rows",
+                "refinement_evidence_id": str(
+                    evidence_row.get("refinement_evidence_id", "")
+                ).strip(),
+                "refinement_item_id": str(
+                    evidence_row.get("refinement_item_id", "")
+                ).strip(),
+                "hook_kind": str(evidence_row.get("hook_kind", "")).strip(),
+                "tool_name": str(evidence_row.get("tool_name", "")).strip(),
+                "target_prover_family": row_target,
+                "target_primitives": list(row_target_primitives[:12]),
+                "search_backend": backend,
+                "semantic_rerank_enabled": bool(
+                    metadata.get("semantic_rerank_enabled", False)
+                ),
+                "semantic_provider_id": semantic_provider,
+                "semantic_candidate_multiplier": metadata.get(
+                    "semantic_candidate_multiplier",
+                    "",
+                ),
+                "semantic_weight": metadata.get("semantic_weight", ""),
+                "formal_declaration_hit_count": len(formal_hits),
+                "target_compatible_formal_declaration_hit_count": len(
+                    compatible_hits
+                ),
+                "coverage_update_count": len(
+                    _dict_value(evidence_row, "coverage_updates")
+                ),
+                "coverage_updates": dict(
+                    _dict_value(evidence_row, "coverage_updates")
+                ),
+            }
+        )
+    if not rows:
+        return {}
+    return {
+        "summary_kind": (
+            "formalization_gap_planner_llm_route_planner_"
+            "formal_source_retrieval_summary"
+        ),
+        "total_count": len(rows),
+        "semantic_rerank_count": sum(
+            1 for row in rows if bool(row.get("semantic_rerank_enabled", False))
+        ),
+        "target_compatible_formal_declaration_hit_count": (
+            target_compatible_hit_count
+        ),
+        "coverage_update_count": sum(
+            int(row.get("coverage_update_count", 0) or 0) for row in rows
+        ),
+        "by_search_backend": dict(sorted(_value_counts(backends).items())),
+        "by_semantic_provider": dict(sorted(_value_counts(semantic_providers).items())),
+        "target_primitives": list(_unique_strings(target_primitives)[:25]),
+        "rows": rows[:12],
+        "proof_evidence_status": PROOF_EVIDENCE_STATUS,
+        "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
+    }
+
+
 def _resource_feedback_readiness_rows(
     context_packet: Mapping[str, Any],
 ) -> tuple[dict[str, object], ...]:
@@ -32531,6 +32853,7 @@ def _compact_row(row: Mapping[str, Any]) -> dict[str, object]:
         "route_evidence_nodes",
         "formal_declaration_hits",
         "lean_declaration_hits",
+        "formal_source_retrieval_metadata",
         "coverage_updates",
         "route_revision_summary",
         "source_grounding_id",
@@ -37724,6 +38047,7 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Rejected: {payload.get('n_rejected')}",
         f"- Request residual-goal contexts: {payload.get('n_request_residual_goal_contexts')} rows={payload.get('n_row_residual_goal_contexts')}",
         f"- Route-option residual coverage candidates/goals/selected-goals: {payload.get('n_request_route_option_selection_candidates_with_residual_goals')}/{payload.get('n_request_route_option_selection_candidate_residual_goals')}/{payload.get('n_request_route_option_selection_lower_bound_residual_goals')}",
+        f"- Formal-source retrieval metadata rows/semantic-rerank rows: {payload.get('n_request_formal_source_retrieval_metadata_rows')}/{payload.get('n_request_formal_source_semantic_rerank_rows')}",
         f"- Informal DAG nodes: {payload.get('n_informal_knowledge_dag_nodes')}",
         f"- Informal DAG edges: {payload.get('n_informal_knowledge_dag_edges')}",
         f"- Formal realization nodes: {payload.get('n_formal_realization_dag_nodes')}",
