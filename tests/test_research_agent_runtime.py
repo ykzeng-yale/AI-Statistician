@@ -6009,6 +6009,234 @@ def test_simulation_evaluator_executes_safe_generated_simulation_code(tmp_path: 
     assert summary["simulation"]["n_generated_simulation_sandbox_passed"] == 1
 
 
+def test_agent_runtime_repairs_generated_simulation_metric_gate_failure(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    theory_packet_id = "theory:simulation-integrated-repair"
+    blackboard = BlackboardState(
+        project_id=f"runtime:{question.id}",
+        artifacts={
+            theory_packet_id: {
+                "packet_id": theory_packet_id,
+                "theorem_cards": [],
+                "estimator_specs": [],
+                "simulation_ademp_spec": {
+                    "aim": "force generated simulation fail-then-pass repair"
+                },
+            }
+        },
+    )
+
+    class RepairingSimulationEngineer:
+        def __init__(self) -> None:
+            self.calls = 0
+            self.feedbacks: list[dict[str, object]] = []
+
+        def propose(self, **kwargs: object) -> dict[str, object]:
+            self.calls += 1
+            feedback = kwargs.get("environment_feedback", {})
+            assert isinstance(feedback, dict)
+            self.feedbacks.append(feedback)
+
+            if self.calls == 1:
+                code = (
+                    "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                    "    n = max(5, int(replicates))\n"
+                    "    total = 0\n"
+                    "    for i in range(n):\n"
+                    "        total = total + ((int(seed) + i) % 2)\n"
+                    "    return {\n"
+                    "        'sandbox_failed': False,\n"
+                    "        'empirical_coverage': 0.0,\n"
+                    "        'mean_width': 1.0 + total / (1000 * n),\n"
+                    "        'replicates': n,\n"
+                    "    }\n"
+                )
+                packet_id = "simulation_engineer_proposal:metric_gate_failure"
+            else:
+                assert (
+                    feedback["feedback_type"]
+                    == "generated_simulation_sandbox_execution_feedback"
+                )
+                assert (
+                    feedback["failure_classification"]
+                    == "generated_simulation_sandbox_metric_gate_failed"
+                )
+                prototypes = feedback["generated_simulation_prototypes"]
+                assert isinstance(prototypes, list)
+                assert prototypes[0]["prototype_status"] == "FAILED_METRIC_GATE"
+                assert any(
+                    "degenerate zero coverage" in error
+                    for error in prototypes[0]["metric_gate_errors"]
+                )
+                code = (
+                    "def run_sandbox(seed: int, replicates: int) -> dict:\n"
+                    "    n = max(5, int(replicates))\n"
+                    "    state = int(seed) % (2**31)\n"
+                    "    covered = 0\n"
+                    "    width_total = 0.0\n"
+                    "    for i in range(n):\n"
+                    "        state = (state * 1103515245 + 12345 + i) % (2**31)\n"
+                    "        covered = covered + (0 if state % 10 == 0 else 1)\n"
+                    "        width_total = width_total + 1.0 + ((state % 7) / 100.0)\n"
+                    "    return {\n"
+                    "        'sandbox_failed': False,\n"
+                    "        'empirical_coverage': covered / n,\n"
+                    "        'mean_width': width_total / n,\n"
+                    "        'replicates': n,\n"
+                    "    }\n"
+                )
+                packet_id = "simulation_engineer_proposal:metric_gate_repair"
+
+            return {
+                "packet_id": packet_id,
+                "simulation_targets": [
+                    {
+                        "procedure_id": "split_conformal_interval",
+                        "estimand": "coverage",
+                    }
+                ],
+                "runtime_execution_plan": {
+                    "registered_simulator": "ResearchSimulator.run",
+                    "n_runs": 12,
+                    "seed": 20260623,
+                },
+                "critic_findings": [
+                    {
+                        "critic": "sandbox",
+                        "finding": "generated simulation repair must pass local metric gates",
+                        "reroute_if_confirmed": "SimulationEvaluator",
+                    }
+                ],
+                "next_actions": [
+                    {
+                        "owner_agent": "SimulationEvaluator",
+                        "action": "repair generated simulation draft",
+                        "acceptance_gate": "generated simulation executes safely",
+                    }
+                ],
+                "simulation_code_drafts": [
+                    {
+                        "simulation_id": "coverage_stress_repair",
+                        "language": "python",
+                        "entrypoint": "run_sandbox",
+                        "code": code,
+                    }
+                ],
+                "simulation_evidence_status": (
+                    "LLM_SIMULATION_ENGINEER_PROPOSAL_NOT_EXECUTION_EVIDENCE"
+                ),
+                "simulations_executed": False,
+                "proof_evidence_status": "NOT_PROOF_EVIDENCE",
+            }
+
+    proposal_agent = RepairingSimulationEngineer()
+    runtime = AgentRuntime(
+        blackboard=blackboard,
+        subsystems={
+            "SimulationEvaluator": SimulationEvaluatorRuntimeSubsystem(
+                proposal_agent=proposal_agent,
+                sandbox_root=tmp_path / "generated_simulation_sandbox",
+            )
+        },
+    )
+    initial_task = AgentTask(
+        task_id="simulation:integrated-generated-repair",
+        owner_subsystem="SimulationEvaluator",
+        objective="Repair generated simulation code inside the AgentRuntime loop.",
+        inputs={
+            "question": {
+                "id": question.id,
+                "title": question.title,
+                "description": question.description,
+                "tags": list(question.tags),
+            },
+            "theory_packet_id": theory_packet_id,
+            "n_runs": 12,
+            "seed": 20260623,
+            "architect_context": {
+                "runtime_evaluation_mode": "capability_eval",
+                "runtime_requested_evidence_contract": {
+                    "capability_eval_requires_generated_simulation_code": True,
+                },
+            },
+        },
+        expected_artifacts=("simulation_manifest",),
+    )
+
+    result = runtime.run(initial_task, max_iterations=2)
+
+    assert result.status == "MAX_ITERATIONS_REACHED"
+    assert proposal_agent.calls == 2
+    assert result.traces[0].status == "REVISE"
+    assert (
+        result.traces[0].failure_classification
+        == "generated_simulation_sandbox_metric_gate_failed"
+    )
+    assert result.traces[0].next_task is not None
+    assert result.traces[0].next_task.owner_subsystem == "SimulationEvaluator"
+    assert result.traces[1].status == "REROUTE"
+    assert result.traces[1].next_task is not None
+    assert result.traces[1].next_task.owner_subsystem == "FormalizationEvaluator"
+
+    simulation_manifests = [
+        artifact
+        for artifact in result.blackboard.artifacts.values()
+        if isinstance(artifact, dict)
+        and artifact.get("artifact_kind") == "RuntimeSimulationManifest"
+    ]
+    assert len(simulation_manifests) == 2
+    failed_manifest = next(
+        manifest
+        for manifest in simulation_manifests
+        if manifest["n_generated_simulation_sandbox_metric_gate_failed"] == 1
+    )
+    passed_manifest = next(
+        manifest
+        for manifest in simulation_manifests
+        if manifest["n_generated_simulation_sandbox_passed"] == 1
+    )
+    assert failed_manifest["generated_simulation_sandbox_prototypes"][0][
+        "prototype_status"
+    ] == "FAILED_METRIC_GATE"
+    assert passed_manifest["generated_simulation_sandbox_prototypes"][0][
+        "prototype_status"
+    ] == "EXECUTED"
+    assert passed_manifest["proof_evidence_status"] == "SIMULATION_NOT_PROOF_EVIDENCE"
+
+    sequence_counts = _generated_sandbox_repair_sequence_counts(
+        result.blackboard.artifacts
+    )
+    evidence_summary = _runtime_evidence_summary(
+        [{"blackboard": {"artifacts": result.blackboard.artifacts}}]
+    )
+    learning_rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": result.blackboard.artifacts}}]
+    )
+
+    assert (
+        sequence_counts[
+            "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+        ]
+        == 1
+    )
+    assert (
+        evidence_summary["simulation"][
+            "n_generated_simulation_sandbox_failed_then_passed_repair_sequences"
+        ]
+        == 1
+    )
+    assert evidence_summary["proof"]["has_kernel_evidence"] is False
+    assert any(
+        row["learning_task"] == "generated_simulation_sandbox_execution_feedback"
+        and row["question_id"] == question.id
+        and row["failure_classification"]
+        == "generated_simulation_sandbox_metric_gate_failed"
+        for row in learning_rows
+    )
+
+
 def test_generated_simulation_sandbox_accepts_nested_coverage_metrics() -> None:
     errors = _generated_sandbox_metric_gate_errors(
         {
