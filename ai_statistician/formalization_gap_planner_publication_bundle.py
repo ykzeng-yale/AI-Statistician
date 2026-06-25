@@ -2699,6 +2699,10 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_feedback_loop_summary_needs_more_literature",
             "n_feedback_loop_summary_needs_more_library_grounding",
             "n_feedback_loop_summary_needs_more_proof_state_feedback",
+            "n_feedback_loop_summary_need_actions",
+            "n_feedback_loop_summary_need_actions_literature",
+            "n_feedback_loop_summary_need_actions_library_grounding",
+            "n_feedback_loop_summary_need_actions_proof_state_feedback",
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_feedback_loop_summary_interactive_resource_requests",
@@ -2956,6 +2960,16 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_feedback_loop_summary_needs_more_proof_state_feedback": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_need_actions": nonnegative_integer,
+            "n_feedback_loop_summary_need_actions_literature": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_need_actions_library_grounding": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_need_actions_proof_state_feedback": (
                 nonnegative_integer
             ),
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": (
@@ -6829,6 +6843,10 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_feedback_loop_summary_needs_more_literature": 0,
         "n_feedback_loop_summary_needs_more_library_grounding": 0,
         "n_feedback_loop_summary_needs_more_proof_state_feedback": 0,
+        "n_feedback_loop_summary_need_actions": 0,
+        "n_feedback_loop_summary_need_actions_literature": 0,
+        "n_feedback_loop_summary_need_actions_library_grounding": 0,
+        "n_feedback_loop_summary_need_actions_proof_state_feedback": 0,
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_feedback_loop_summary_interactive_resource_requests": 0,
@@ -7653,6 +7671,20 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         ),
         "n_feedback_loop_summary_needs_more_proof_state_feedback": int(
             payload.get("n_feedback_loop_summary_needs_more_proof_state_feedback", 0)
+            or 0
+        ),
+        "n_feedback_loop_summary_need_actions": int(
+            payload.get("n_feedback_loop_summary_need_actions", 0) or 0
+        ),
+        "n_feedback_loop_summary_need_actions_literature": int(
+            payload.get("n_feedback_loop_summary_need_actions_literature", 0) or 0
+        ),
+        "n_feedback_loop_summary_need_actions_library_grounding": int(
+            payload.get("n_feedback_loop_summary_need_actions_library_grounding", 0)
+            or 0
+        ),
+        "n_feedback_loop_summary_need_actions_proof_state_feedback": int(
+            payload.get("n_feedback_loop_summary_need_actions_proof_state_feedback", 0)
             or 0
         ),
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": int(

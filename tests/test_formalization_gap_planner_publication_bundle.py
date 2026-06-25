@@ -2745,6 +2745,10 @@ def test_publication_bundle_summarizes_llm_resource_feedback_readiness() -> None
             "n_feedback_loop_summary_needs_more_literature": 1,
             "n_feedback_loop_summary_needs_more_library_grounding": 1,
             "n_feedback_loop_summary_needs_more_proof_state_feedback": 1,
+            "n_feedback_loop_summary_need_actions": 3,
+            "n_feedback_loop_summary_need_actions_literature": 1,
+            "n_feedback_loop_summary_need_actions_library_grounding": 1,
+            "n_feedback_loop_summary_need_actions_proof_state_feedback": 1,
         }
     )
     manifest_path.write_text(json.dumps(manifest_payload, indent=2), encoding="utf-8")
@@ -2797,6 +2801,10 @@ def test_publication_bundle_summarizes_llm_resource_feedback_readiness() -> None
     assert summary["n_feedback_loop_summary_needs_more_literature"] == 1
     assert summary["n_feedback_loop_summary_needs_more_library_grounding"] == 1
     assert summary["n_feedback_loop_summary_needs_more_proof_state_feedback"] == 1
+    assert summary["n_feedback_loop_summary_need_actions"] == 3
+    assert summary["n_feedback_loop_summary_need_actions_literature"] == 1
+    assert summary["n_feedback_loop_summary_need_actions_library_grounding"] == 1
+    assert summary["n_feedback_loop_summary_need_actions_proof_state_feedback"] == 1
     assert (
         summary[
             "n_request_model_tier_decision_resource_feedback_readiness_rows"

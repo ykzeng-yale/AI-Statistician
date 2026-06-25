@@ -2625,6 +2625,42 @@ def export_formalization_gap_planner_llm_route_planner(
                 ).get("needs_more_proof_state_feedback", False)
             )
         ),
+        "n_feedback_loop_summary_need_actions": sum(
+            _feedback_loop_summary_need_action_counts(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "feedback_loop_summary",
+                )
+            )["total"]
+            for packet in request_packets
+        ),
+        "n_feedback_loop_summary_need_actions_literature": sum(
+            _feedback_loop_summary_need_action_counts(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "feedback_loop_summary",
+                )
+            )["needs_more_literature"]
+            for packet in request_packets
+        ),
+        "n_feedback_loop_summary_need_actions_library_grounding": sum(
+            _feedback_loop_summary_need_action_counts(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "feedback_loop_summary",
+                )
+            )["needs_more_library_grounding"]
+            for packet in request_packets
+        ),
+        "n_feedback_loop_summary_need_actions_proof_state_feedback": sum(
+            _feedback_loop_summary_need_action_counts(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "feedback_loop_summary",
+                )
+            )["needs_more_proof_state_feedback"]
+            for packet in request_packets
+        ),
         "n_feedback_loop_summary_resource_request_playbooks": sum(
             int(
                 _dict_value(
@@ -5572,6 +5608,16 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
                 nonnegative_integer
             ),
             "n_feedback_loop_summary_needs_more_proof_state_feedback": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_need_actions": nonnegative_integer,
+            "n_feedback_loop_summary_need_actions_literature": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_need_actions_library_grounding": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_need_actions_proof_state_feedback": (
                 nonnegative_integer
             ),
             "n_feedback_loop_summary_interactive_resource_requests": (
@@ -32845,6 +32891,36 @@ def _feedback_need_already_has_action(
     return False
 
 
+def _feedback_loop_summary_need_action_counts(
+    feedback_summary: Mapping[str, object],
+) -> dict[str, int]:
+    counts = {
+        "total": 0,
+        "needs_more_literature": 0,
+        "needs_more_library_grounding": 0,
+        "needs_more_proof_state_feedback": 0,
+    }
+    for action in _dict_tuple(feedback_summary.get("recommended_next_actions", [])):
+        if str(action.get("source", "")).strip() != "feedback_loop_summary_need":
+            continue
+        counts["total"] += 1
+        feedback_need = str(action.get("feedback_need", "")).strip()
+        if feedback_need in counts:
+            counts[feedback_need] += 1
+    return counts
+
+
+def _feedback_loop_summary_need_artifact_count(
+    rows: Iterable[Mapping[str, object]],
+) -> int:
+    count = 0
+    for row in _dict_tuple(rows):
+        action = _dict_value(row, "llm_route_planner_feedback_next_action")
+        if str(action.get("source", "")).strip() == "feedback_loop_summary_need":
+            count += 1
+    return count
+
+
 def _feedback_next_actions(
     rows_by_field: Mapping[str, tuple[dict[str, object], ...]],
     *,
@@ -35377,6 +35453,15 @@ def _accepted_route_for_seed(
         llm_route_revision_triggers,
         key_fields=("trigger_kind", "condition", "next_action"),
     )
+    feedback_need_action_counts = _feedback_loop_summary_need_action_counts(
+        row.feedback_loop_summary
+    )
+    feedback_need_refinement_hook_count = (
+        _feedback_loop_summary_need_artifact_count(llm_refinement_hooks)
+    )
+    feedback_need_route_revision_trigger_count = (
+        _feedback_loop_summary_need_artifact_count(llm_route_revision_triggers)
+    )
     metadata = {
         **metadata,
         "source_route_id": str(metadata.get("source_route_id", row.route_id)),
@@ -35433,6 +35518,15 @@ def _accepted_route_for_seed(
             row.quality_control_obligations
         ),
         "llm_route_planner_feedback_loop_summary": dict(row.feedback_loop_summary),
+        "llm_route_planner_feedback_need_action_counts": dict(
+            feedback_need_action_counts
+        ),
+        "llm_route_planner_feedback_need_refinement_hook_count": (
+            feedback_need_refinement_hook_count
+        ),
+        "llm_route_planner_feedback_need_route_revision_trigger_count": (
+            feedback_need_route_revision_trigger_count
+        ),
         "target_theorem_context_packet": target_context_packet,
         "llm_route_planner_target_theorem_context_packet": target_context_packet,
         "llm_route_planner_target_context_summary": deepcopy(

@@ -10171,6 +10171,10 @@ def test_llm_route_planner_feedback_need_flags_get_default_next_actions() -> Non
     )
 
     assert payload["all_ok"]
+    assert payload["n_feedback_loop_summary_need_actions"] == 1
+    assert payload["n_feedback_loop_summary_need_actions_literature"] == 1
+    assert payload["n_feedback_loop_summary_need_actions_library_grounding"] == 0
+    assert payload["n_feedback_loop_summary_need_actions_proof_state_feedback"] == 0
     summary = payload["request_packets"][0]["context_packet"][
         "feedback_loop_summary"
     ]
@@ -10191,6 +10195,77 @@ def test_llm_route_planner_feedback_need_flags_get_default_next_actions() -> Non
         "acceptance_gate"
     ]
     assert need_actions[0]["proof_evidence_status"] == PROOF_EVIDENCE_STATUS
+
+
+def test_llm_route_planner_feedback_need_actions_materialize_route_metadata() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_llm_route_planner_feedback_need_route_metadata"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "response.json"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    interactive_session_dir = _write_interactive_session(root)
+    manifest_path = (
+        interactive_session_dir
+        / "formalization_gap_planner_interactive_session_manifest.json"
+    )
+    session_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for row in session_manifest["rows"]:
+        row["session_state"] = "EXPAND_LITERATURE_EVIDENCE"
+        row["next_interaction_kind"] = ""
+        row["next_owner_agent"] = ""
+        row["next_tools"] = []
+        row["next_queries"] = []
+        row["next_commands"] = []
+        row["resource_request_ids"] = []
+        row["resource_request_resource_ids"] = []
+        row["resource_request_queue_action_kinds"] = []
+        row["resource_request_dispatch_summaries"] = []
+        row["resource_request_execution_commands"] = []
+        row["needs_more_literature"] = True
+        row["needs_more_proof_state_feedback"] = False
+        row["residual_goals"] = []
+        row["triage_class"] = ""
+        row["triage_required_gate"] = ""
+        row["replan_required"] = False
+    session_manifest["decision_policy_rows"] = []
+    manifest_path.write_text(json.dumps(session_manifest, indent=2), encoding="utf-8")
+    response_json.write_text(
+        json.dumps(_llm_response_payload(), indent=2),
+        encoding="utf-8",
+    )
+
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_interactive_session_dir=interactive_session_dir,
+    )
+
+    assert payload["all_ok"]
+    seed_route = payload["standalone_seed"]["routes"][0]
+    metadata = seed_route["replan_metadata"]
+    assert metadata["llm_route_planner_feedback_need_action_counts"] == {
+        "total": 1,
+        "needs_more_literature": 1,
+        "needs_more_library_grounding": 0,
+        "needs_more_proof_state_feedback": 0,
+    }
+    assert metadata["llm_route_planner_feedback_need_refinement_hook_count"] == 1
+    assert metadata["llm_route_planner_feedback_need_route_revision_trigger_count"] == 1
+    assert any(
+        hook.get("llm_route_planner_feedback_next_action", {}).get("source")
+        == "feedback_loop_summary_need"
+        for hook in metadata["llm_route_planner_interactive_refinement_hooks"]
+    )
+    assert any(
+        trigger.get("llm_route_planner_feedback_next_action", {}).get("source")
+        == "feedback_loop_summary_need"
+        for trigger in metadata["llm_route_planner_route_revision_triggers"]
+    )
 
 
 def test_llm_route_planner_interactive_feedback_uses_structured_target_primitives() -> None:
