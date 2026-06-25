@@ -145,7 +145,8 @@ def build_simulation_engineer_prompt(
         "generated_simulation_code_contract": {
             "status": "optional custom stress-test fallback",
             "language": "python",
-            "entrypoint": "run_sandbox(seed: int, replicates: int) -> dict",
+            "entrypoint": "run_sandbox",
+            "function_signature": "def run_sandbox(seed: int, replicates: int) -> dict",
             "safe_subset": {
                 "allowed_globals": [
                     "abs",
@@ -190,13 +191,14 @@ def build_simulation_engineer_prompt(
             "required for capability-eval simulation coding-agent evidence"
         )
         payload["generated_simulation_code_contract"]["capability_eval_default"] = (
-            "include one safe simulation_code_drafts entry defining run_sandbox so "
-            "AgentRuntime can test Claude-generated simulation code execution"
+            "include one safe simulation_code_drafts entry with entrypoint exactly "
+            "run_sandbox and code defining def run_sandbox(seed: int, replicates: int) -> dict"
         )
     generated_simulation_instruction = (
         "Capability-eval mode is active: include exactly one safe "
-        "simulation_code_drafts entry defining run_sandbox(seed:int, replicates:int)->dict "
-        "so AgentRuntime can execute and evaluate your custom stress-test code. "
+        "simulation_code_drafts entry with entrypoint exactly \"run_sandbox\" and code "
+        "defining def run_sandbox(seed: int, replicates: int) -> dict so AgentRuntime "
+        "can execute and evaluate your custom stress-test code. "
         if requires_generated_code
         else ""
     )
@@ -574,6 +576,7 @@ def _normalize_simulation_packet(
     seed: int,
 ) -> dict[str, Any]:
     body = dict(payload)
+    _normalize_simulation_code_draft_metadata(body)
     runtime_plan = body.get("runtime_execution_plan", {})
     if not isinstance(runtime_plan, Mapping):
         runtime_plan = {}
@@ -624,6 +627,40 @@ def _normalize_simulation_packet(
         "runtime_budget": {"n_runs": n_runs, "seed": seed},
         **body,
     }
+
+
+def _normalize_simulation_code_draft_metadata(body: dict[str, Any]) -> None:
+    raw_drafts = body.get("simulation_code_drafts", [])
+    if not isinstance(raw_drafts, list):
+        return
+    normalized_drafts: list[Any] = []
+    for row in raw_drafts:
+        if not isinstance(row, Mapping):
+            normalized_drafts.append(row)
+            continue
+        normalized = dict(row)
+        language = str(normalized.get("language", "") or "").strip().lower()
+        if language in {"", "py", "py3", "python3", "python 3"} and str(
+            normalized.get("code", "") or ""
+        ).strip():
+            normalized["language"] = "python"
+        entrypoint = str(normalized.get("entrypoint", "") or "").strip()
+        if _is_run_sandbox_signature_entrypoint(entrypoint):
+            normalized["entrypoint"] = "run_sandbox"
+        normalized_drafts.append(normalized)
+    body["simulation_code_drafts"] = normalized_drafts
+
+
+def _is_run_sandbox_signature_entrypoint(entrypoint: str) -> bool:
+    compact = entrypoint.strip().replace(" ", "")
+    return bool(
+        compact
+        and (
+            compact == "run_sandbox"
+            or compact.startswith("run_sandbox(")
+            or compact.startswith("defrun_sandbox(")
+        )
+    )
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:

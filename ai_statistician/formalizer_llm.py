@@ -181,6 +181,12 @@ def build_formalizer_prompt(
     has_source_theorem_target_drift = _feedback_has_source_theorem_target_drift(
         environment_feedback or {}
     )
+    initial_target_shape_contract = _initial_probability_coverage_target_shape_contract(
+        question=question,
+        theory_packet=theory_packet,
+        theorem_goals=theorem_goals,
+        registered_problem=registered_problem,
+    )
     proof_memory_summary = _compact_proof_bank_runtime_memory_summary(
         proof_bank_runtime_memory_summary or {}
     )
@@ -239,6 +245,7 @@ def build_formalizer_prompt(
         "runtime_environment_feedback": runtime_environment_feedback,
         "formalizer_lean_candidate_contract": {
             "capability_eval_requires_formalizer_lean_candidate": requires_lean_candidate,
+            "initial_target_shape_contract": initial_target_shape_contract,
             "required_when_true": (
                 "include at least one concrete safe Lean theorem sketch with "
                 "expected_status=NEEDS_KERNEL_CHECK in either formal_targets or "
@@ -294,6 +301,17 @@ def build_formalizer_prompt(
             "remain a FORMAL_GAP. Do not satisfy the packet using only "
             "proof_bank_obligation_requests, gap taxonomy, or queue work orders. "
         )
+        if initial_target_shape_contract:
+            lean_candidate_instruction += (
+                "Initial coverage target-shape guard is active: if a formal_targets "
+                "entry represents the source theorem, its Lean sketch must preserve "
+                "an explicit probability/measure coverage lower-bound conclusion. "
+                "Do not put standalone rank, ceiling, monotonicity, or arithmetic "
+                "helper lemmas in the source-theorem formal_targets slot; route those "
+                "through support/source-to-bridge channels or mark the source theorem "
+                "as FORMAL_GAP with an empty Lean sketch when faithful formalization is "
+                "not feasible. "
+            )
     else:
         lean_candidate_instruction = ""
     return (
@@ -748,6 +766,137 @@ def _lean_source_has_probability_or_measure_shape(source: str) -> bool:
     )
 
 
+def _initial_probability_coverage_target_shape_contract(
+    *,
+    question: OpenResearchQuestion,
+    theory_packet: Mapping[str, Any],
+    theorem_goals: Sequence[Mapping[str, Any]],
+    registered_problem: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    text = " ".join(
+        [
+            question.id,
+            question.title,
+            question.description,
+            " ".join(question.tags),
+            json.dumps(
+                _compact_value(
+                    theory_packet.get("theorem_cards", [])
+                    if isinstance(theory_packet, Mapping)
+                    else []
+                ),
+                default=str,
+            ),
+            json.dumps(
+                _compact_value(
+                    theory_packet.get("formalization_requests", [])
+                    if isinstance(theory_packet, Mapping)
+                    else []
+                ),
+                default=str,
+            ),
+            json.dumps(_compact_value(theorem_goals), default=str),
+            json.dumps(_compact_value(registered_problem), default=str),
+        ]
+    ).lower()
+    if "coverage" not in text:
+        return {}
+    if not any(
+        marker in text
+        for marker in (
+            "conformal",
+            "prediction interval",
+            "probability",
+            "measure",
+            "marginal coverage",
+        )
+    ):
+        return {}
+    return {
+        "contract_kind": "initial_source_theorem_target_shape_guard",
+        "required_conclusion_family": "probability_or_measure_coverage_claim",
+        "required_behavior": (
+            "Coverage source-theorem formal_targets with expected_status="
+            "NEEDS_KERNEL_CHECK must conclude an explicit probability/measure "
+            "coverage lower bound, not only an arithmetic or rank helper lemma."
+        ),
+        "if_not_feasible": (
+            "Emit the source theorem as expected_status=FORMAL_GAP with an empty "
+            "Lean sketch and route helper work through support channels."
+        ),
+    }
+
+
+def _feedback_requires_probability_measure_coverage_shape(
+    feedback: Mapping[str, Any] | None,
+) -> bool:
+    if not isinstance(feedback, Mapping):
+        return False
+    input_summary = feedback.get("input_summary", {})
+    contracts = [
+        feedback.get("target_shape_contract", {}),
+        input_summary.get("target_shape_contract", {})
+        if isinstance(input_summary, Mapping)
+        else {},
+    ]
+    for contract in contracts:
+        if (
+            isinstance(contract, Mapping)
+            and str(contract.get("required_conclusion_family", "") or "")
+            == "probability_or_measure_coverage_claim"
+        ):
+            return True
+    return False
+
+
+def _formal_target_is_source_theorem_candidate(row: Mapping[str, Any]) -> bool:
+    provenance = row.get("source_theorem_target_provenance", {})
+    if (
+        isinstance(provenance, Mapping)
+        and provenance.get("source_theorem_target_known") is True
+    ):
+        return True
+    row_text = " ".join(
+        str(row.get(field, "") or "")
+        for field in ("id", "informal_source", "claim", "statement", "reason")
+    ).lower()
+    return "source theorem" in row_text
+
+
+def _packet_requires_probability_measure_coverage_shape(
+    packet: Mapping[str, Any],
+    formal_targets: Sequence[Mapping[str, Any]],
+) -> bool:
+    question = packet.get("question", {})
+    question_text = json.dumps(question, default=str).lower()
+    target_text = json.dumps(
+        [
+            {
+                "id": row.get("id", ""),
+                "informal_source": row.get("informal_source", ""),
+                "claim": row.get("claim", ""),
+            }
+            for row in formal_targets
+        ],
+        default=str,
+    ).lower()
+    combined = question_text + " " + target_text
+    if "coverage" not in combined:
+        return False
+    if not any(
+        marker in combined
+        for marker in (
+            "conformal",
+            "prediction interval",
+            "probability",
+            "measure",
+            "marginal coverage",
+        )
+    ):
+        return False
+    return any(_formal_target_is_source_theorem_candidate(row) for row in formal_targets)
+
+
 def _validate_capability_eval_formalizer_lean_candidate_packet(
     packet: Mapping[str, Any],
     *,
@@ -789,6 +938,10 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
             "source_to_bridge_premise_derivation_candidates"
         ]
     errors: list[str] = []
+    requires_probability_measure_coverage_shape = (
+        _feedback_requires_probability_measure_coverage_shape(environment_feedback)
+        or _packet_requires_probability_measure_coverage_shape(packet, formal_targets)
+    )
     for row in candidate_targets:
         target_id = str(row.get("id", "") or "<unnamed>")
         source = str(row.get("lean_statement_sketch", "") or "")
@@ -799,14 +952,15 @@ def _validate_capability_eval_formalizer_lean_candidate_packet(
                 f"{target_id} must set expected_status=NEEDS_KERNEL_CHECK"
             )
         if (
-            _feedback_has_source_theorem_target_drift(environment_feedback)
+            requires_probability_measure_coverage_shape
+            and _formal_target_is_source_theorem_candidate(row)
             and expected_status == "NEEDS_KERNEL_CHECK"
             and not _lean_source_has_probability_or_measure_shape(source)
         ):
             errors.append(
                 "capability_eval formal target "
                 f"{target_id} violates target_shape_contract: source theorem "
-                "target drift feedback requires a probability/measure coverage "
+                "target shape requires a probability/measure coverage "
                 "conclusion; route arithmetic/helper lemmas through "
                 "source_to_bridge_premise_derivation_candidates or support-lemma "
                 "channels and emit the source theorem as FORMAL_GAP when faithful "

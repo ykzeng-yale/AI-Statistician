@@ -35,6 +35,17 @@ SUPPORTED_GENERATOR_PROVIDERS = set(SUPPORTED_LIVE_GENERATOR_PROVIDERS)
 REAL_KERNEL_VERIFIERS = {"axle.verify_proof", "local.lake_env_lean"}
 
 
+def _manifest_or_proof_summary_count(
+    manifest: Mapping[str, Any],
+    proof_summary: Mapping[str, Any],
+    key: str,
+) -> int:
+    return max(
+        int(manifest.get(key, 0) or 0),
+        int(proof_summary.get(key, 0) or 0),
+    )
+
+
 @dataclass(frozen=True)
 class RuntimeAuditRow:
     question_id: str
@@ -441,13 +452,61 @@ def audit_research_agent_runtime(
         "internal_formalizer_lean_candidate_repair_eval_local_lean_compiled": int(
             attached_formalizer_repair_eval.get("local_lean_compiled", 0) or 0
         ),
-        "n_formalizer_lean_candidate_local_lean_checked": int(
-            runtime_proof_summary.get("n_formalizer_lean_candidate_local_lean_checked", 0)
+        "n_llm_formalizer_proof_engineer_proposals": int(
+            manifest.get("n_llm_formalizer_proof_engineer_proposals", 0) or 0
+        ),
+        "n_deterministic_formalizer_work_order_seed_proposals": int(
+            manifest.get("n_deterministic_formalizer_work_order_seed_proposals", 0)
             or 0
         ),
+        "n_formalizer_lean_candidate_local_lean_checked": int(
+            _manifest_or_proof_summary_count(
+                manifest,
+                runtime_proof_summary,
+                "n_formalizer_lean_candidate_local_lean_checked",
+            )
+        ),
         "n_formalizer_lean_candidate_local_lean_compiled": int(
-            runtime_proof_summary.get("n_formalizer_lean_candidate_local_lean_compiled", 0)
-            or 0
+            _manifest_or_proof_summary_count(
+                manifest,
+                runtime_proof_summary,
+                "n_formalizer_lean_candidate_local_lean_compiled",
+            )
+        ),
+        "n_formalizer_lean_candidate_live_proof_state_requests": int(
+            _manifest_or_proof_summary_count(
+                manifest,
+                runtime_proof_summary,
+                "n_formalizer_lean_candidate_live_proof_state_requests",
+            )
+        ),
+        "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": int(
+            _manifest_or_proof_summary_count(
+                manifest,
+                runtime_proof_summary,
+                "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests",
+            )
+        ),
+        "n_formalizer_lean_candidate_proof_state_feedback_rows": int(
+            _manifest_or_proof_summary_count(
+                manifest,
+                runtime_proof_summary,
+                "n_formalizer_lean_candidate_proof_state_feedback_rows",
+            )
+        ),
+        "n_formalizer_lean_candidate_local_lean_tool_calls": int(
+            _manifest_or_proof_summary_count(
+                manifest,
+                runtime_proof_summary,
+                "n_formalizer_lean_candidate_local_lean_tool_calls",
+            )
+        ),
+        "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls": int(
+            _manifest_or_proof_summary_count(
+                manifest,
+                runtime_proof_summary,
+                "n_formalizer_lean_candidate_lean_lsp_mcp_live_calls",
+            )
         ),
         "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": (
             formalizer_repair_sequences

@@ -102,6 +102,20 @@ conservative finite-width coverage intervals and half-width widening/recompute
 when a pilot interval under-covers. This keeps the repair gate honest while
 making the intended repair behavior legible to the LLM.
 
+Fourth concrete change in this lane: AlgorithmEngineer and SimulationEngineer
+generated-code contracts now distinguish the literal packet entrypoint
+`run_sandbox` from the function signature
+`def run_sandbox(seed: int, replicates: int) -> dict`, and normalize
+signature-shaped metadata before validation. This removed the live
+AlgorithmEngineer packet-validation stop caused by a prompt/schema mismatch.
+
+Fifth concrete change in this lane: Formalizer capability-eval prompts and
+validators now apply an initial coverage target-shape guard. Conformal source
+theorem `formal_targets` must preserve a probability/measure coverage
+conclusion instead of replacing the theorem with a rank-arithmetic helper.
+The runtime audit also now carries Formalizer local-Lean/proof-state counters
+from the manifest into the capability scorecard.
+
 Live evidence collected on 2026-06-25:
 
 - `runs/main_worker_doctor_live_env/doctor_manifest.json`: live environment
@@ -117,6 +131,15 @@ Live evidence collected on 2026-06-25:
 - `runs/main_worker_live_runtime_with_coding_gate_both_guided/research_agent_runtime_manifest.json`:
   attached live coding-agent repair component gate passed inside the runtime
   audit with live, non-fixture evidence; scorecard 31/49.
+- `runs/main_worker_live_runtime_resume_entrypoint_hardened/research_agent_runtime_manifest.json`:
+  resumed from the prior AlgorithmEngineer validation failure and reached
+  integrated generated AlgorithmEngineer code execution; scorecard 31/49.
+- `runs/main_worker_live_runtime_resume_formalizer_shape_guard/research_agent_runtime_manifest.json`:
+  resumed after generated simulation repair, reached two integrated generated
+  AlgorithmEngineer executions, produced probability/measure-shaped Formalizer
+  candidates, and ran local Lean/proof-state feedback; after the audit counter
+  fix, `runtime_capability_audit_after_counter_fix/research_agent_runtime_audit_manifest.json`
+  reports scorecard 36/49.
 
 The 12-iteration run is evidence for live generated-code execution, one
 AlgorithmEngineer repair sequence, Formalizer candidate materialization, local
@@ -132,15 +155,25 @@ not theorem proof and not an integrated runtime success by itself. In the
 ended at `AlgorithmEngineer algorithm_engineer_packet_validation_failed` before
 showing same-run integrated repair loops or any kernel-verified subclaim.
 
+The resumed entrypoint/shape-guard runs are stronger integrated evidence:
+`n_generated_code_sandbox_executed=2`,
+`n_generated_simulation_sandbox_failed_then_passed_repair_sequences=1`,
+`n_formalizer_lean_candidate_local_lean_checked=2`, and
+`n_formalizer_lean_candidate_proof_state_feedback_rows=3`. They are still not
+source theorem proof: `n_real_kernel_verified_subclaims=0`, no full frontier
+theorem is kernel-proved, and the latest terminal state is
+`ProofEngineer formalizer_packet_validation_failed`.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their
 outputs into the runtime path:
 
 - Formalizer/ProofEngineer worker: fix conformal target-shape drift and ensure
-  repaired candidates preserve the probability/coverage theorem shape.
-- Algorithm/Simulation worker: turn the now-passing attached generated-code
-  repair component gate into same-run integrated AgentRuntime repair evidence.
+  repaired candidates preserve the probability/coverage theorem shape without
+  sorry/hole placeholders or phantom source-to-bridge actions.
+- Algorithm/Simulation worker: turn integrated generated AlgorithmEngineer
+  one-shot execution into a same-run fail-then-pass repair sequence.
 - Proof-library worker: add reusable statistics kernels with local Lean/AXLE
   manifests.
 - RAG/OpenProver worker: feed source hits and prover diagnostics into

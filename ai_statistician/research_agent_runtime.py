@@ -2972,7 +2972,8 @@ def _algorithm_engineer_packet_validation_failure_result(
         "target_behavior": (
             "rerun AlgorithmEngineer with a locally valid packet: for capability "
             "evaluation, produce Claude/OpenAI-generated sandbox_code_drafts and set "
-            "registered_template_hint to none for every implementation target"
+            "registered_template_hint to none for every implementation target; each "
+            "sandbox_code_drafts entrypoint field must be exactly run_sandbox"
         ),
         "acceptance_gate": (
             "AlgorithmEngineer packet passes local validation; AgentRuntime then "
@@ -3016,7 +3017,8 @@ def _algorithm_engineer_packet_validation_failure_result(
         "required_repair": (
             "Return a locally valid AlgorithmEngineer packet. In capability-eval "
             "mode, include at least one safe sandbox_code_drafts entry whose "
-            "estimator_id matches an implementation target or gap, and set every "
+            "estimator_id matches an implementation target or gap, set its "
+            "entrypoint field exactly to run_sandbox, and set every "
             "registered_template_hint to none; registered templates may only be "
             "mentioned as baselines."
         ),

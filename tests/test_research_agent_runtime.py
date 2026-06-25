@@ -178,6 +178,7 @@ from ai_statistician.formal_verifier_agentic_proof_source_theorem_integrator imp
 from ai_statistician.research_agent_runtime_audit import (
     _audit_topology,
     _formalizer_lean_candidate_repair_sequences_from_result_paths,
+    _manifest_or_proof_summary_count,
     _runtime_capability_ladder,
     _runtime_capability_scorecard,
     _runtime_evidence_truth_table,
@@ -209,8 +210,10 @@ from ai_statistician.schema import ProofCheck
 from ai_statistician.simulation_engineer_llm import (
     LLMSimulationEngineerAgent,
     SimulationEngineerConfig,
+    _normalize_simulation_packet,
     _validate_capability_eval_generated_simulation_packet,
     build_simulation_engineer_prompt,
+    validate_simulation_engineer_packet,
 )
 from ai_statistician.verifier import MockProofVerifier
 
@@ -962,7 +965,7 @@ def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
             "sandbox_code_drafts": [
                 {
                     "language": "python3",
-                    "entrypoint": "run_sandbox",
+                    "entrypoint": "run_sandbox(seed: int, replicates: int) -> dict",
                     "code": "def run_sandbox(seed, replicates):\n    return {'empirical_coverage': 1.0, 'target_coverage': 0.95}\n",
                 }
             ],
@@ -983,6 +986,7 @@ def test_algorithm_engineer_normalizes_sandbox_draft_metadata() -> None:
 
     draft = packet["sandbox_code_drafts"][0]
     assert draft["language"] == "python"
+    assert draft["entrypoint"] == "run_sandbox"
     assert draft["estimator_id"] == "E1"
     assert validate_algorithm_engineer_packet(packet) == []
     assert (
@@ -1007,6 +1011,39 @@ def test_simulation_engineer_capability_eval_validator_requires_generated_draft(
     assert errors == [
         "capability_eval requires at least one Claude/OpenAI-generated simulation_code_drafts entry"
     ]
+
+
+def test_simulation_engineer_normalizes_generated_code_draft_metadata() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    packet = _normalize_simulation_packet(
+        {
+            "simulation_targets": [{"procedure_id": "custom_stress"}],
+            "runtime_execution_plan": {"registered_simulator": "custom"},
+            "critic_findings": [{"critic": "metric", "finding": "stress coverage"}],
+            "next_actions": [{"owner_agent": "SimulationEvaluator", "action": "execute"}],
+            "simulation_code_drafts": [
+                {
+                    "simulation_id": "custom_stress",
+                    "language": "python3",
+                    "entrypoint": "run_sandbox(seed: int, replicates: int) -> dict",
+                    "code": "def run_sandbox(seed, replicates):\n    return {'mean_coverage': 1.0, 'target_coverage': 0.95}\n",
+                }
+            ],
+        },
+        question=question,
+        model="claude-haiku-4-5-20251001",
+        model_tier="haiku",
+        provider_name="anthropic",
+        raw_response="{}",
+        n_runs=12,
+        seed=20260625,
+    )
+
+    draft = packet["simulation_code_drafts"][0]
+    assert draft["language"] == "python"
+    assert draft["entrypoint"] == "run_sandbox"
+    assert validate_simulation_engineer_packet(packet) == []
+    assert _validate_capability_eval_generated_simulation_packet(packet) == []
 
 
 def test_formalizer_capability_eval_prompt_requires_lean_candidate() -> None:
@@ -1066,6 +1103,10 @@ def test_formalizer_capability_eval_prompt_requires_lean_candidate() -> None:
     ] is True
     assert "Capability-eval mode is active for Formalizer/ProofEngineer" in prompt
     assert "formalizer_lean_candidate_contract" in prompt
+    assert "initial_source_theorem_target_shape_guard" in prompt
+    assert "Initial coverage target-shape guard is active" in prompt
+    assert "probability/measure coverage lower-bound conclusion" in prompt
+    assert "standalone rank, ceiling" in prompt
     assert "proof_bank_obligation_requests alone do not satisfy this gate" in prompt
 
 
@@ -1223,6 +1264,48 @@ def test_formalizer_capability_eval_validator_rejects_target_drift_arithmetic_ca
 
     assert any("violates target_shape_contract" in error for error in errors)
     assert any("source_to_bridge_premise_derivation_candidates" in error for error in errors)
+
+
+def test_formalizer_capability_eval_validator_rejects_initial_coverage_source_target_drift() -> None:
+    errors = _validate_capability_eval_formalizer_lean_candidate_packet(
+        {
+            "question": {
+                "id": "conformal_prediction_coverage",
+                "title": "Split conformal prediction interval coverage",
+                "description": "distribution-free marginal coverage",
+                "tags": ["conformal", "coverage"],
+            },
+            "formal_targets": [
+                {
+                    "id": "split_conformal_finite_sample_coverage",
+                    "informal_source": "source theorem for marginal coverage",
+                    "lean_statement_sketch": (
+                        "theorem split_conformal_finite_sample_coverage "
+                        "(n : Nat) : (n : Int) = n := by\n"
+                        "  rfl\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                        "source_theorem_goal_id": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                    },
+                }
+            ],
+        },
+        environment_feedback={
+            "runtime_requested_evidence_contract": {
+                "capability_eval_requires_formalizer_lean_candidate": True,
+            }
+        },
+    )
+
+    assert any("violates target_shape_contract" in error for error in errors)
+    assert any("target shape requires a probability/measure coverage" in error for error in errors)
 
 
 def test_critic_evaluator_prompt_compacts_trace_context() -> None:
@@ -4534,6 +4617,10 @@ def test_algorithm_engineer_prompt_includes_metric_gate_repair_feedback() -> Non
     assert "Runtime metric-gate repair is active" in prompt
     assert "Capability-eval mode is active" in prompt
     assert "include exactly one safe sandbox_code_drafts entry" in prompt
+    assert 'entrypoint exactly "run_sandbox"' in prompt
+    assert '"entrypoint":"run_sandbox"' in prompt
+    assert '"function_signature":"def run_sandbox(seed: int, replicates: int) -> dict"' in prompt
+    assert '"entrypoint":"run_sandbox(seed' not in prompt
     assert "leave sandbox_code_drafts empty whenever a template matches" not in prompt
     assert "generated_algorithm_sandbox_metric_gate_failed" in prompt
     assert "FAILED_METRIC_GATE" in prompt
@@ -4845,6 +4932,10 @@ def test_simulation_engineer_prompt_includes_metric_gate_repair_feedback() -> No
     assert "Runtime metric-gate repair is active" in prompt
     assert "Capability-eval mode is active" in prompt
     assert "include exactly one safe simulation_code_drafts entry" in prompt
+    assert 'entrypoint exactly "run_sandbox"' in prompt
+    assert '"entrypoint":"run_sandbox"' in prompt
+    assert '"function_signature":"def run_sandbox(seed: int, replicates: int) -> dict"' in prompt
+    assert '"entrypoint":"run_sandbox(seed' not in prompt
     assert "generated_simulation_sandbox_metric_gate_failed" in prompt
     assert "FAILED_METRIC_GATE" in prompt
     assert "mean_coverage is degenerate zero coverage" in prompt
@@ -5254,6 +5345,8 @@ def test_algorithm_engineer_capability_eval_revises_template_only_output(
     feedback = result.next_task.inputs["environment_feedback"]
     assert feedback["failure_classification"] == "algorithm_engineer_packet_validation_failed"
     assert "sandbox_code_drafts" in feedback["required_repair"]
+    assert "entrypoint field exactly to run_sandbox" in feedback["required_repair"]
+    assert "entrypoint field must be exactly run_sandbox" in feedback["target_behavior"]
 
 
 def test_algorithm_engineer_revises_after_nonexecutable_llm_code(tmp_path: Path) -> None:
@@ -27319,6 +27412,25 @@ def test_runtime_capability_ladder_accepts_typechecked_review_source_kernel_evid
     assert truth_rows["full_source_theorem_kernel_evidence"]["proof_evidence"] is True
 
 
+def test_runtime_audit_count_prefers_manifest_or_proof_summary_max() -> None:
+    assert (
+        _manifest_or_proof_summary_count(
+            {"n_formalizer_lean_candidate_local_lean_checked": 2},
+            {"n_formalizer_lean_candidate_local_lean_checked": 1},
+            "n_formalizer_lean_candidate_local_lean_checked",
+        )
+        == 2
+    )
+    assert (
+        _manifest_or_proof_summary_count(
+            {},
+            {"n_formalizer_lean_candidate_proof_state_feedback_rows": 3},
+            "n_formalizer_lean_candidate_proof_state_feedback_rows",
+        )
+        == 3
+    )
+
+
 def test_runtime_coding_agent_capability_table_requires_repair_loops() -> None:
     payload = {
         "question_ids": ["conformal_prediction_coverage"],
@@ -27564,6 +27676,8 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
         "n_formalizer_lean_candidate_local_lean_compiled": 0,
         "n_formalizer_lean_candidate_live_proof_state_requests": 1,
         "n_formalizer_lean_candidate_lean_lsp_mcp_ready_requests": 1,
+        "n_formalizer_lean_candidate_proof_state_feedback_rows": 1,
+        "n_formalizer_lean_candidate_local_lean_tool_calls": 1,
         "n_llm_formalizer_proof_engineer_proposals": 1,
         "n_deterministic_formalizer_work_order_seed_proposals": 0,
         "internal_formalizer_lean_candidate_repair_eval_capability_evidence_ok": True,
@@ -27608,6 +27722,10 @@ def test_runtime_capability_scorecard_requires_architect_path_propagation() -> N
     assert rows[
         "formalizer_lean_candidate_proof_state_request_routed"
     ]["passed"] is True
+    assert rows[
+        "formalizer_lean_candidate_proof_state_feedback_recorded"
+    ]["passed"] is True
+    assert rows["formalizer_local_lean_tool_call_observed"]["passed"] is True
 
     payload["runtime_research_path_control_propagated"] = False
     payload["runtime_research_path_execution_summary"] = {

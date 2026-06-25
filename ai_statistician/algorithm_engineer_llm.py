@@ -157,7 +157,8 @@ def build_algorithm_engineer_prompt(
         "generated_code_sandbox_contract": {
             "status": "optional fallback when no registered template matches",
             "language": "python",
-            "entrypoint": "run_sandbox(seed: int, replicates: int) -> dict",
+            "entrypoint": "run_sandbox",
+            "function_signature": "def run_sandbox(seed: int, replicates: int) -> dict",
             "default": "leave sandbox_code_drafts empty when a registered template matches",
             "safe_subset": {
                 "allowed_globals": [
@@ -228,10 +229,12 @@ def build_algorithm_engineer_prompt(
         )
     generated_code_instruction = (
         "Capability-eval mode is active: include exactly one safe "
-        "sandbox_code_drafts entry and set every implementation_targets row "
-        "registered_template_hint to none so AgentRuntime can test Claude-generated "
-        "algorithm code execution. Registered templates may be named only in prose "
-        "as baselines; they will not be executed for this capability gate. "
+        "sandbox_code_drafts entry with entrypoint exactly \"run_sandbox\" and code "
+        "defining def run_sandbox(seed: int, replicates: int) -> dict. Set every "
+        "implementation_targets row registered_template_hint to none so AgentRuntime "
+        "can test Claude-generated algorithm code execution. Registered templates may "
+        "be named only in prose as baselines; they will not be executed for this "
+        "capability gate. "
         if requires_generated_code
         else (
             "Prefer registered runtime templates over sandbox_code_drafts; leave "
@@ -751,8 +754,23 @@ def _normalize_algorithm_sandbox_code_drafts(
             and not str(normalized.get("estimator_id", "") or "").strip()
         ):
             normalized["estimator_id"] = default_estimator_id
+        entrypoint = str(normalized.get("entrypoint", "") or "").strip()
+        if _is_run_sandbox_signature_entrypoint(entrypoint):
+            normalized["entrypoint"] = "run_sandbox"
         normalized_drafts.append(normalized)
     body["sandbox_code_drafts"] = normalized_drafts
+
+
+def _is_run_sandbox_signature_entrypoint(entrypoint: str) -> bool:
+    compact = entrypoint.strip().replace(" ", "")
+    return bool(
+        compact
+        and (
+            compact == "run_sandbox"
+            or compact.startswith("run_sandbox(")
+            or compact.startswith("defrun_sandbox(")
+        )
+    )
 
 
 def _single_algorithm_estimator_id(
