@@ -7784,9 +7784,41 @@ def test_llm_route_planner_materializes_bare_feedback_replan_required() -> None:
     response["residual_interpretations"] = []
     response_json.write_text(json.dumps(response), encoding="utf-8")
 
-    payload = export_formalization_gap_planner_llm_route_planner(
+    rejected_payload = export_formalization_gap_planner_llm_route_planner(
         input_json,
         out_dir,
+        provider_name="static",
+        static_response_json=response_json,
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+
+    assert not rejected_payload["all_ok"]
+    assert rejected_payload["n_rejected"] == 1
+    rejected_row = rejected_payload["rows"][0]
+    assert rejected_row["acceptance_status"] == "REJECTED_LLM_ROUTE_PLANNER_RESPONSE"
+    assert any(
+        "context_packet.feedback_loop_summary.replan_required requires explicit "
+        "route-revision coverage" in error
+        for error in rejected_row["errors"]
+    )
+
+    accepted_response = deepcopy(response)
+    accepted_response["planner_next_actions"] = [
+        {
+            "owner": "formalization_gap_planner",
+            "action": "revise route from feedback_loop_replan_required before adoption",
+            "reason": "The feedback summary explicitly requested a route replan.",
+            "target_primitives": ["rank_uniformity"],
+        }
+    ]
+    response_json.write_text(json.dumps(accepted_response), encoding="utf-8")
+
+    accepted_out_dir = root / "llm_route_planner_with_route_revision"
+    payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        accepted_out_dir,
         provider_name="static",
         static_response_json=response_json,
         formalization_gap_planner_resource_response_ledger_dir=(
@@ -7800,10 +7832,11 @@ def test_llm_route_planner_materializes_bare_feedback_replan_required() -> None:
     assert payload["n_route_adoption_pending_feedback_action_blockers"] == 0
     assert payload["n_route_adoption_pending_feedback_replan_blockers"] == 1
     row_payload = payload["rows"][0]
-    assert row_payload["route_adoption_blockers"] == (
+    assert set(row_payload["route_adoption_blockers"]) >= {
+        "planner_next_actions_pending_evidence",
         "feedback_loop_replan_required",
         ROUTE_ADOPTION_BLOCKER_PRIMITIVE_EVIDENCE_MATRIX,
-    )
+    }
     assert row_payload["primitive_evidence_matrix_witness"][
         "formal_supported_matrix_primitives_missing_reuse"
     ] == ["rank_uniformity"]
@@ -7829,7 +7862,8 @@ def test_llm_route_planner_materializes_bare_feedback_replan_required() -> None:
     plan_dir = root / "standalone_plan_from_bare_feedback_replan_seed"
     refinement_queue_dir = root / "refinement_queue_from_bare_feedback_replan_seed"
     plan_payload = export_formalization_gap_planner_standalone_plan(
-        out_dir / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
+        accepted_out_dir
+        / "formalization_gap_planner_llm_route_planner_standalone_seed.json",
         plan_dir,
     )
     assert plan_payload["all_ok"]

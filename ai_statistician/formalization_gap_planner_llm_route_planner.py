@@ -18731,6 +18731,7 @@ def _response_contract_errors(
     errors.extend(_response_feedback_provenance_preservation_errors(payload, request))
     errors.extend(_response_agentic_proof_strategy_plan_obligation_errors(payload, request))
     errors.extend(_response_route_adoption_precondition_errors(payload, request))
+    errors.extend(_response_feedback_replan_required_coverage_errors(payload, request))
     errors.extend(_response_route_planning_evidence_gap_coverage_errors(payload, request))
     for index, node in enumerate(formal_nodes):
         if not str(node.get("node_id", "")).strip():
@@ -19275,6 +19276,111 @@ def _response_route_planning_evidence_gap_coverage_errors(
             f"{expected}{target_suffix}"
         )
     return errors
+
+
+def _response_feedback_replan_required_coverage_errors(
+    payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> list[str]:
+    context_packet = _dict_value(request, "context_packet")
+    feedback_summary = _dict_value(context_packet, "feedback_loop_summary")
+    if not _truthy(feedback_summary.get("replan_required", False)):
+        return []
+    if _dict_tuple(feedback_summary.get("recommended_next_actions", [])):
+        return []
+    target_primitives = {
+        primitive
+        for primitive in (
+            _primitive_key(value)
+            for value in _feedback_summary_target_primitives(feedback_summary)
+        )
+        if primitive
+    }
+    if _feedback_replan_required_response_is_covered(
+        payload,
+        context_packet,
+        target_primitives=target_primitives,
+    ):
+        return []
+    target_suffix = (
+        " scoped to target_primitives: "
+        + ", ".join(sorted(target_primitives)[:8])
+        if target_primitives
+        else ""
+    )
+    return [
+        "context_packet.feedback_loop_summary.replan_required requires explicit "
+        "route-revision coverage in residual_interpretations, search_requests, "
+        "or planner_next_actions when feedback_summary.recommended_next_actions "
+        f"is empty{target_suffix}"
+    ]
+
+
+def _feedback_replan_required_response_is_covered(
+    payload: Mapping[str, Any],
+    context_packet: Mapping[str, Any],
+    *,
+    target_primitives: set[str],
+) -> bool:
+    action_rows = [
+        *_dict_tuple(payload.get("search_requests", [])),
+        *_dict_tuple(payload.get("planner_next_actions", [])),
+    ]
+    for row in action_rows:
+        if not _feedback_replan_required_row_has_route_revision_signal(row):
+            continue
+        row_targets = _route_adoption_followup_target_primitives(
+            (dict(row),),
+            context_packet,
+        )
+        if target_primitives and row_targets and target_primitives.isdisjoint(
+            row_targets
+        ):
+            continue
+        return True
+    for residual in _dict_tuple(payload.get("residual_interpretations", [])):
+        if not _feedback_replan_required_row_has_route_revision_signal(residual):
+            continue
+        residual_targets = {
+            _primitive_key(value)
+            for value in _target_primitives_for_llm_residual_interpretation(
+                residual,
+                selected_primitives=tuple(target_primitives),
+            )
+            if _primitive_key(value)
+        }
+        if target_primitives and residual_targets and target_primitives.isdisjoint(
+            residual_targets
+        ):
+            continue
+        return True
+    return False
+
+
+def _feedback_replan_required_row_has_route_revision_signal(
+    row: Mapping[str, Any],
+) -> bool:
+    text = _primitive_key(
+        " ".join(
+            [
+                *_planner_action_queries(row),
+                *_residual_interpretation_queries(row),
+                str(row.get("request_kind", "")),
+                str(row.get("source", "")),
+                str(row.get("owner", "")),
+            ]
+        )
+    )
+    return (
+        "route_replan_handoff" in text
+        or "feedback_loop_replan_required" in text
+        or "continue_from_route_replan_handoff" in text
+        or "apply_route_revision_overlay" in text
+        or ("route" in text and "revision" in text)
+        or ("route" in text and "replan" in text)
+        or ("route" in text and "revise" in text)
+        or ("route" in text and "repair" in text)
+    )
 
 
 def _route_planning_gap_row_targets_match(
