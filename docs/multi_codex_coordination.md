@@ -6,6 +6,11 @@ This document is the handoff contract for multiple Codex sessions working on
 AI Statistician at the same time. It is intentionally operational: future
 workers should read it before making architectural changes.
 
+The main-worker ownership contract is
+[`docs/main_worker_ownership.md`](main_worker_ownership.md). The compact
+machine-readable status handoff is
+[`docs/main_worker_status.json`](main_worker_status.json).
+
 ## Shared Branch Policy
 
 Use a shared coordination branch for the current consolidated worktree:

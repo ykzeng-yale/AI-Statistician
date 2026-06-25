@@ -6764,6 +6764,8 @@ class SystemTests(unittest.TestCase):
         self.assertGreaterEqual(report["summary"]["n_algorithms"], 1)
         self.assertIn("real_lean_ready", report["summary"])
         self.assertIn("real_lean_blockers", report["summary"])
+        self.assertIn("local_lean_available", report["summary"])
+        self.assertIn("elan_available", report["summary"])
         self.assertIn("llm_theory_blockers", report["summary"])
         self.assertEqual(report["summary"]["llm_provider"], "anthropic")
         self.assertEqual(report["summary"]["llm_models"]["haiku"], "claude-haiku-4-5-20251001")
@@ -6773,6 +6775,8 @@ class SystemTests(unittest.TestCase):
         self.assertEqual(report["summary"]["llm_model_tier_policy_violations"], [])
         self.assertEqual(report["summary"]["llm_model_freshness_warnings"], [])
         serialized = json.dumps(report)
+        checks = {row["name"]: row for row in report["checks"]}
+        self.assertIn("local Lean binary", checks)
         self.assertNotIn("do-not-print-axle", serialized)
         self.assertNotIn("do-not-print-anthropic", serialized)
 

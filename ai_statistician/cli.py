@@ -7011,6 +7011,7 @@ def _doctor(args: argparse.Namespace) -> int:
         print(f"root={report['root']}")
         print(f"required_ok={summary['required_ok']}")
         print(f"real_lean_ready={summary['real_lean_ready']}")
+        print(f"local_lean_available={summary['local_lean_available']}")
         print(f"llm_theory_ready={summary['llm_theory_ready']}")
         print(f"llm_provider={summary['llm_provider']}")
         print(f"llm_models={summary['llm_models']}")

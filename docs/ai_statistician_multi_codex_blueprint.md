@@ -4,6 +4,9 @@ This repository is building a live AI Statistical Theory Lab, not a static
 benchmark harness. Multiple Codex workers should use this document as the
 shared operating contract.
 
+Main-worker ownership and the current compact handoff live in
+`docs/main_worker_ownership.md` and `docs/main_worker_status.json`.
+
 ## Core Goal
 
 Build a Claude/OpenAI-generator-backed agent runtime that can:

@@ -92,6 +92,7 @@ def build_doctor_report(
         _path_check(project_root / "examples" / "questions.json", required=True, label="example questions"),
         _registry_check("proof bank obligations", len(all_obligations())),
         _registry_check("vetted algorithms", len(all_algorithms())),
+        _local_lean_check(),
         _path_check(env_path, required=False, label=".env file"),
         _key_check("AXLE_API_KEY", env, dotenv_values, label="AXLE key"),
         _import_check("axle", required=False, label="optional package: axle"),
@@ -169,6 +170,8 @@ def build_doctor_report(
                 llm_model_tier_policy_violations
             ),
             "llm_model_freshness_warnings": llm_model_freshness_warnings,
+            "local_lean_available": _binary_available("lean"),
+            "elan_available": _binary_available("elan"),
             "openprover_available": _openprover_path(env).exists(),
             "n_obligations": len(all_obligations()),
             "n_algorithms": len(all_algorithms()),
@@ -334,6 +337,35 @@ def _binary_check(command: str, *, label: str) -> DoctorCheck:
     if _binary_available(command):
         return DoctorCheck(label, "OK", False, f"{command!r} is available")
     return DoctorCheck(label, "WARN", False, f"{command!r} not found on PATH")
+
+
+def _local_lean_check() -> DoctorCheck:
+    lean_path = shutil.which("lean")
+    elan_path = shutil.which("elan")
+    if lean_path:
+        detail = f"lean available at {lean_path}"
+        if elan_path:
+            detail += (
+                f"; elan available at {elan_path}. First local Lean use may "
+                "install the active toolchain before timed checks start."
+            )
+        return DoctorCheck("local Lean binary", "OK", False, detail)
+    if elan_path:
+        return DoctorCheck(
+            "local Lean binary",
+            "WARN",
+            False,
+            (
+                f"elan available at {elan_path}, but 'lean' is not on PATH; "
+                "local Lean candidate checks may fail before AXLE is involved"
+            ),
+        )
+    return DoctorCheck(
+        "local Lean binary",
+        "WARN",
+        False,
+        "'lean' not found on PATH; local Lean candidate checks will be unavailable",
+    )
 
 
 def _binary_available(command: str) -> bool:
