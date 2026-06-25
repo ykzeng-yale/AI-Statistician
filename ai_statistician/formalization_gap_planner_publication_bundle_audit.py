@@ -3842,6 +3842,11 @@ def _empty_provider_usage_bucket() -> dict[str, int]:
         "cache_creation_input_tokens": 0,
         "cache_read_input_tokens": 0,
         "total_tokens": 0,
+        "estimated_input_cost_micro_usd": 0,
+        "estimated_output_cost_micro_usd": 0,
+        "estimated_base_input_output_cost_micro_usd": 0,
+        "estimated_cache_tokens_excluded_from_base_cost": 0,
+        "n_rows_with_estimated_base_cost": 0,
     }
 
 
@@ -3875,6 +3880,40 @@ def _provider_usage_bucket_from_summary(
         "total_tokens": _nonnegative_int(
             usage.get("total_tokens", summary.get("total_provider_total_tokens"))
         ),
+        "estimated_input_cost_micro_usd": _nonnegative_int(
+            usage.get(
+                "estimated_input_cost_micro_usd",
+                summary.get("total_provider_estimated_input_cost_micro_usd"),
+            )
+        ),
+        "estimated_output_cost_micro_usd": _nonnegative_int(
+            usage.get(
+                "estimated_output_cost_micro_usd",
+                summary.get("total_provider_estimated_output_cost_micro_usd"),
+            )
+        ),
+        "estimated_base_input_output_cost_micro_usd": _nonnegative_int(
+            usage.get(
+                "estimated_base_input_output_cost_micro_usd",
+                summary.get(
+                    "total_provider_estimated_base_input_output_cost_micro_usd"
+                ),
+            )
+        ),
+        "estimated_cache_tokens_excluded_from_base_cost": _nonnegative_int(
+            usage.get(
+                "estimated_cache_tokens_excluded_from_base_cost",
+                summary.get(
+                    "total_provider_estimated_cache_tokens_excluded_from_base_cost"
+                ),
+            )
+        ),
+        "n_rows_with_estimated_base_cost": _nonnegative_int(
+            usage.get(
+                "n_rows_with_estimated_base_cost",
+                summary.get("n_provider_usage_rows_with_estimated_base_cost"),
+            )
+        ),
     }
 
 
@@ -3889,6 +3928,11 @@ def _add_provider_usage_bucket(
         "cache_creation_input_tokens",
         "cache_read_input_tokens",
         "total_tokens",
+        "estimated_input_cost_micro_usd",
+        "estimated_output_cost_micro_usd",
+        "estimated_base_input_output_cost_micro_usd",
+        "estimated_cache_tokens_excluded_from_base_cost",
+        "n_rows_with_estimated_base_cost",
     ):
         target[key] = _nonnegative_int(target.get(key)) + _nonnegative_int(
             source.get(key)
@@ -8526,6 +8570,13 @@ def _contract_checks(bundle_dir: Path) -> list[FormalizationGapPlannerPublicatio
             "route_replan_handoff_audit_row_contract",
             str("route_replan_handoff_audit_row_contract" in contract),
             "route_replan_handoff_audit_row_contract" in contract,
+        ),
+        _check(
+            "portable_contract_has_runtime_handoff_execution_plan_contract",
+            "contract",
+            "runtime_handoff_execution_plan_contract",
+            str("runtime_handoff_execution_plan_contract" in contract),
+            "runtime_handoff_execution_plan_contract" in contract,
         ),
         _check(
             "portable_contract_has_proof_state_triage_row_contract",

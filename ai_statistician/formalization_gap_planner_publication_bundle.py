@@ -145,7 +145,9 @@ from .formalization_gap_planner_route_replan_handoff_audit import (
     route_replan_handoff_audit_row_json_schema,
 )
 from .formalization_gap_planner_runtime_handoff_audit import (
+    RUNTIME_HANDOFF_EXECUTION_PLAN_SCHEMA_ID,
     runtime_handoff_audit_row_json_schema,
+    runtime_handoff_execution_plan_json_schema,
 )
 from .formalization_gap_planner_route_stability_audit import (
     route_stability_audit_row_json_schema,
@@ -420,6 +422,7 @@ OPTIONAL_ARTIFACT_FILES = {
         "formalization_gap_planner_runtime_handoff_audit_manifest.json",
         "formalization_gap_planner_runtime_handoff_audit.jsonl",
         "formalization_gap_planner_runtime_handoff_audit_row.schema.json",
+        "formalization_gap_planner_runtime_handoff_execution_plan.schema.json",
         "formalization_gap_planner_runtime_handoff_audit.md",
     ),
     "formalization_gap_planner_proof_state_triage": (
@@ -611,6 +614,9 @@ def export_formalization_gap_planner_publication_bundle(
         route_replan_handoff_audit_row_json_schema()
     )
     runtime_handoff_audit_row_schema = runtime_handoff_audit_row_json_schema()
+    runtime_handoff_execution_plan_schema = (
+        runtime_handoff_execution_plan_json_schema()
+    )
     proof_state_triage_row_schema = proof_state_triage_row_json_schema()
     ablation_study_row_schema = ablation_study_row_json_schema()
     route_alignment_edge_schema = route_alignment_edge_json_schema()
@@ -789,6 +795,10 @@ def export_formalization_gap_planner_publication_bundle(
     runtime_handoff_audit_row_schema_path = (
         contract_dir
         / "formalization_gap_planner_runtime_handoff_audit_row.schema.json"
+    )
+    runtime_handoff_execution_plan_schema_path = (
+        contract_dir
+        / "formalization_gap_planner_runtime_handoff_execution_plan.schema.json"
     )
     proof_state_triage_row_schema_path = (
         contract_dir
@@ -1029,6 +1039,10 @@ def export_formalization_gap_planner_publication_bundle(
     )
     runtime_handoff_audit_row_schema_path.write_text(
         json.dumps(runtime_handoff_audit_row_schema, indent=2),
+        encoding="utf-8",
+    )
+    runtime_handoff_execution_plan_schema_path.write_text(
+        json.dumps(runtime_handoff_execution_plan_schema, indent=2),
         encoding="utf-8",
     )
     proof_state_triage_row_schema_path.write_text(
@@ -1680,6 +1694,13 @@ def export_formalization_gap_planner_publication_bundle(
             "required": True,
             "ok": runtime_handoff_audit_row_schema.get("$id")
             == "urn:ai-statistician:schemas:formalization-gap-planner-runtime-handoff-audit-row:1",
+        },
+        {
+            "artifact_name": "runtime_handoff_execution_plan_schema",
+            "path": str(runtime_handoff_execution_plan_schema_path),
+            "required": True,
+            "ok": runtime_handoff_execution_plan_schema.get("$id")
+            == RUNTIME_HANDOFF_EXECUTION_PLAN_SCHEMA_ID,
         },
         {
             "artifact_name": "ablation_study_row_schema",
@@ -4339,6 +4360,9 @@ def _contract_payload(library_snapshot_ref: str) -> dict[str, object]:
             route_replan_handoff_audit_row_json_schema()
         ),
         "runtime_handoff_audit_row_contract": runtime_handoff_audit_row_json_schema(),
+        "runtime_handoff_execution_plan_contract": (
+            runtime_handoff_execution_plan_json_schema()
+        ),
         "proof_state_triage_row_contract": proof_state_triage_row_json_schema(),
         "ablation_study_row_contract": ablation_study_row_json_schema(),
         "route_alignment_edge_contract": route_alignment_edge_json_schema(),
@@ -5175,6 +5199,7 @@ def _reproduction_payload(
         "contract/formalization_gap_planner_route_replan_handoff_row.schema.json",
         "contract/formalization_gap_planner_route_replan_handoff_audit_row.schema.json",
         "contract/formalization_gap_planner_runtime_handoff_audit_row.schema.json",
+        "contract/formalization_gap_planner_runtime_handoff_execution_plan.schema.json",
         "contract/formalization_gap_planner_proof_state_triage_row.schema.json",
         "contract/formalization_gap_planner_ablation_study_row.schema.json",
         "contract/formalization_gap_planner_route_alignment_edge.schema.json",

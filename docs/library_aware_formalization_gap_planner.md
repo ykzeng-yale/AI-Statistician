@@ -1307,6 +1307,15 @@ every staged prompt packet, reported Claude tier mismatches remain zero,
 formal-attempt feedback counters are present, prompt feedback counts match the
 model-tier decision evidence, and any formal-attempt feedback context has a
 corresponding Sonnet trigger.
+Runtime handoff rows also carry a schema-backed `execution_plan` with ordered
+`argv` stages for standalone replay, target intake, component-resource registry
+export, prompt-only LLM route planning, optional live Claude invocation, and
+reuse smoke. The audit validates that the prompt stage is offline, the live
+stage is explicit and operator-reviewed, and the reuse-smoke stage does not
+invoke route-planner providers. Publication bundles publish
+`contract/formalization_gap_planner_runtime_handoff_execution_plan.schema.json`
+and copy the same schema from packaged runtime handoff audits, so external
+prover systems can replay the handoff without parsing shell strings.
 
 The reuse-smoke manifest names both the route-replan standalone seed and its
 `formalization_gap_planner_route_replan_standalone_seed.schema.json`, so an

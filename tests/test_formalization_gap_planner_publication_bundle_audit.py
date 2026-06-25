@@ -5643,6 +5643,12 @@ def test_publication_bundle_audit_accepts_self_contained_bundle() -> None:
     )
     assert any(
         row["check_name"]
+        == "portable_contract_has_runtime_handoff_execution_plan_contract"
+        and row["ok"]
+        for row in audit_payload["checks"]
+    )
+    assert any(
+        row["check_name"]
         == "portable_contract_has_component_resource_resource_row_contract"
         and row["ok"]
         for row in audit_payload["checks"]

@@ -301,6 +301,9 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     assert payload["n_mixed_seed_target_prover_families"] == 1
     assert payload["n_seed_target_prover_family_compatible_with_handoff"] == 1
     assert payload["n_llm_prompt_packets"] == 2
+    assert payload["n_execution_plans"] == 1
+    assert payload["n_execution_plan_stage_rows"] == 6
+    assert payload["n_execution_plan_schema_valid"] == 1
     assert payload["n_llm_prompt_report_only_prompt_budget_caps"] == 1
     assert payload["n_llm_prompt_prompt_budget_preflight_blocked"] == 0
     assert payload["n_llm_prompt_model_tier_mismatches"] == 0
@@ -318,6 +321,10 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     assert payload["n_llm_prompt_formal_attempt_feedback_contexts"] == 1
     assert payload["n_llm_prompt_formal_attempt_feedback_residual_goals"] == 1
     assert payload["n_llm_prompt_formal_attempt_feedback_failed_statuses"] == 1
+    assert (
+        out_dir
+        / "formalization_gap_planner_runtime_handoff_execution_plan.schema.json"
+    ).exists()
     assert (
         payload[
             "n_llm_prompt_model_tier_decision_formal_attempt_feedback_contexts"

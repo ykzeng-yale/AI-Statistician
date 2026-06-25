@@ -119,7 +119,9 @@ from ai_statistician.formalization_gap_planner_route_replan_handoff_audit import
     route_replan_handoff_audit_row_json_schema,
 )
 from ai_statistician.formalization_gap_planner_runtime_handoff_audit import (
+    RUNTIME_HANDOFF_EXECUTION_PLAN_SCHEMA_ID,
     runtime_handoff_audit_row_json_schema,
+    runtime_handoff_execution_plan_json_schema,
 )
 from ai_statistician.formalization_gap_planner_standalone import (
     FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_SCHEMA_ID,
@@ -4170,6 +4172,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
                 "n_row_schema_invalid": 0,
                 "n_cost_control_ok": 1,
                 "n_live_explicit_ok": 1,
+                "n_execution_plans": 1,
+                "n_execution_plan_stage_rows": 6,
+                "n_execution_plan_schema_valid": 1,
+                "n_execution_plan_prompt_stage_cost_control_ok": 1,
+                "n_execution_plan_live_stage_explicit_ok": 1,
+                "n_execution_plan_reuse_smoke_stage_cost_control_ok": 1,
                 "n_standalone_smoke_ok": 1,
                 "n_llm_prompt_smoke_ok": 1,
                 "n_llm_prompt_packets": 1,
@@ -4222,6 +4230,13 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         / "formalization_gap_planner_runtime_handoff_audit_row.schema.json"
     ).write_text(
         json.dumps(runtime_handoff_audit_row_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (
+        runtime_handoff_audit_dir
+        / "formalization_gap_planner_runtime_handoff_execution_plan.schema.json"
+    ).write_text(
+        json.dumps(runtime_handoff_execution_plan_json_schema(), indent=2),
         encoding="utf-8",
     )
     (
@@ -5081,7 +5096,7 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         ]
         == 0
     )
-    assert payload["n_optional_artifact_files_copied"] == 126
+    assert payload["n_optional_artifact_files_copied"] == 127
     assert payload["runtime_handoff_audit_summary"][
         "n_llm_prompt_model_tier_mismatches"
     ] == 0
@@ -5392,6 +5407,21 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         / "contract"
         / "formalization_gap_planner_runtime_handoff_audit_row.schema.json"
     ).exists()
+    runtime_handoff_execution_plan_schema = json.loads(
+        (
+            out_dir
+            / "contract"
+            / "formalization_gap_planner_runtime_handoff_execution_plan.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert (
+        runtime_handoff_execution_plan_schema["$id"]
+        == RUNTIME_HANDOFF_EXECUTION_PLAN_SCHEMA_ID
+    )
+    assert (
+        runtime_handoff_execution_plan_schema
+        == runtime_handoff_execution_plan_json_schema()
+    )
     assert (
         out_dir / "contract" / "formalization_gap_planner_ablation_study_row.schema.json"
     ).exists()
@@ -5881,6 +5911,10 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     ]["schema_id"] == ROUTE_ADOPTION_BLOCKER_TAXONOMY_MANIFEST_SCHEMA_ID
     assert "route_adoption_blocker_taxonomy_contract" in schema_catalog_entry_names
     assert "runtime_handoff_audit_row_schema" in schema_catalog_entry_names
+    assert "runtime_handoff_execution_plan_schema" in schema_catalog_entry_names
+    assert schema_catalog_entries_by_name[
+        "runtime_handoff_execution_plan_schema"
+    ]["schema_id"] == RUNTIME_HANDOFF_EXECUTION_PLAN_SCHEMA_ID
     assert all(
         (out_dir / row["relative_path"]).exists()
         for row in schema_catalog_payload["schema_entries"]
@@ -6162,6 +6196,7 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert "route_stability_audit_row_contract" in contract_payload
     assert "route_replan_handoff_row_contract" in contract_payload
     assert "runtime_handoff_audit_row_contract" in contract_payload
+    assert "runtime_handoff_execution_plan_contract" in contract_payload
     assert "route_alignment_edge_contract" in contract_payload
     assert "portable_gap_plan_row_contract" in contract_payload
     assert "benchmark_route_contract" in contract_payload
@@ -7041,6 +7076,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         / "artifacts"
         / "formalization_gap_planner_runtime_handoff_audit"
         / "formalization_gap_planner_runtime_handoff_audit_row.schema.json"
+    ).exists()
+    assert (
+        out_dir
+        / "artifacts"
+        / "formalization_gap_planner_runtime_handoff_audit"
+        / "formalization_gap_planner_runtime_handoff_execution_plan.schema.json"
     ).exists()
     assert (
         out_dir
