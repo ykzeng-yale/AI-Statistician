@@ -420,6 +420,18 @@ Formalizer Lean-candidate learning rows, bounded runtime memory, and proof-bank
 summary repair memory so later ProofEngineer/Critic turns can distinguish
 "exact target artifact failed local Lean" from "candidate artifact missing."
 
+The patched repeated-syntax probe at
+`runs/main_worker_live_runtime_resume_repeated_syntax_failure_escalation_patched_probe/research_agent_runtime_manifest.json`
+confirms the design-level fix for that loop. The LLM again emitted a broad
+Lean theorem statement that local Lean rejected at line 2 column 14, so no proof
+was promoted and the scorecard remained `42/49`. The pending ProofEngineer task
+`formalize-lean-repair:conformal_prediction_coverage:639d096a` now carries a
+`repeated_syntax_failure=true` local-Lean repair contract and a typed
+`lean_repeated_parser_or_syntax_failure` formal blocker request. That blocker is
+non-proof evidence: it tells ProofEngineer to fail closed to `FORMAL_GAP` or
+emit one minimal ASCII/core Lean support lemma through a support channel, with
+local Lean rerun before any executable claim can be promoted.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

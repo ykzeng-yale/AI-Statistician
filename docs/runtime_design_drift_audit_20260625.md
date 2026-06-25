@@ -256,3 +256,17 @@ projection. The goal is architectural: future Critic/ProofEngineer turns should
 know that a concrete exact target artifact exists and failed local Lean at a
 specific declaration/location, instead of falling back to older
 candidate-materialization-required memory.
+
+The patched live replay of that failure exposed the next generic control
+boundary: after a retry, the LLM can still emit another broad parser-failing
+Lean theorem. AgentRuntime should not learn a theorem-specific workaround for
+that. It now escalates repeated `lean_parser_or_syntax_error` feedback into a
+typed `lean_repeated_parser_or_syntax_failure` blocker request, enriches the
+local-Lean repair contract with a fail-closed/minimal ASCII-core-Lean rule, and
+keeps the request marked
+`FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE`. This makes the mature
+prover/RAG pattern explicit: inspect the exact artifact and diagnostics, use
+formal-source/prover tools for a smaller syntax-valid support lemma or
+dependency, rerun local Lean/AXLE, or record the source theorem as
+`FORMAL_GAP`. It is loop control and proof-boundary enforcement, not a
+hardcoded conformal proof strategy.

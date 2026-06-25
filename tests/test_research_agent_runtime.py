@@ -164,6 +164,7 @@ from ai_statistician.research_agent_runtime import (
     _generated_sandbox_metric_gate_errors,
     _generated_simulation_revision_feedback,
     _formalizer_lean_candidate_repair_feedback,
+    _enrich_repeated_formalizer_lean_candidate_feedback,
     _llm_agent_topology_row,
     _algorithm_sandbox_revision_feedback,
     _run_generated_python_sandbox,
@@ -3638,6 +3639,95 @@ def test_formalizer_prompt_escalates_repeated_invalid_lean_candidates() -> None:
     assert "Do not emit another NEEDS_KERNEL_CHECK candidate" in prompt
     assert "emit expected_status=FORMAL_GAP" in prompt
     assert "retrying invalid Lean" in prompt
+
+
+def test_repeated_lean_parser_failure_feedback_adds_fail_closed_blocker() -> None:
+    manifest = {
+        "manifest_id": "formalizer_lean_candidate_materialization_manifest:syntax",
+        "n_candidate_sources": 1,
+        "n_candidate_artifacts_written": 1,
+        "n_precheck_rejected": 0,
+        "n_local_lean_checked": 1,
+        "n_local_lean_compiled": 0,
+        "candidate_rows": [
+            {
+                "candidate_id": "hGoodRankImpliesCovered_support_lemma",
+                "candidate_kind": "formal_target_lean_statement_sketch",
+                "source_field": "formal_targets",
+                "artifact_path": "/tmp/bad_candidate.lean",
+                "target_lean_file": "/tmp/bad_candidate.lean",
+                "target_lean_line": 1,
+                "target_lean_column": 9,
+                "target_lean_declaration": (
+                    "split_conformal_hGoodRankImpliesCovered"
+                ),
+                "lean_source_excerpt": (
+                    "theorem split_conformal_hGoodRankImpliesCovered\n"
+                    "    {Omega : Type*}\n"
+                    "    (threshold : Nat) : threshold = threshold := by\n"
+                    "  rfl"
+                ),
+                "precheck_status": "",
+                "precheck_errors": [],
+                "local_lean_attempted": True,
+                "local_lean_compiled": False,
+                "local_lean_exit_status": "1",
+                "local_lean_stdout": (
+                    "/tmp/bad_candidate.lean:2:14: error: unexpected token "
+                    "'}'; expected term"
+                ),
+                "local_lean_stderr": "",
+                "local_lean_command": ["lake", "env", "lean", "bad_candidate.lean"],
+                "local_lean_project": "legacy_sources/emperical_process_lean",
+                "local_lean_timeout": 30,
+            }
+        ],
+    }
+
+    feedback = _formalizer_lean_candidate_repair_feedback(manifest)
+    assert feedback is not None
+    feedback["formalizer_lean_repair_retry_depth"] = 1
+    feedback["repeated_formalizer_lean_candidate_failure"] = True
+    _enrich_repeated_formalizer_lean_candidate_feedback(feedback)
+
+    contract = feedback["local_lean_repair_contract"]
+    assert contract["repeated_syntax_failure"] is True
+    assert "minimal ASCII/core Lean support lemma" in contract[
+        "repeated_syntax_failure_rule"
+    ]
+    assert "Greek" in contract["ascii_identifier_rule"]
+    assert "Repeated parser/syntax failure escalation" in feedback[
+        "required_repair"
+    ]
+    assert any(
+        "source_to_bridge_premise_derivation_candidates" in option
+        for option in feedback["candidate_reroute_options"]
+    )
+    blocker_requests = feedback["formal_blocker_resource_requests"]
+    assert any(
+        row["blocker_kind"] == "lean_repeated_parser_or_syntax_failure"
+        for row in blocker_requests
+    )
+    assert blocker_requests[0]["proof_evidence_status"] == (
+        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+    )
+
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+
+    assert "Mandatory repeated parser/syntax repair" in prompt
+    assert "minimal ASCII/core Lean support lemma" in prompt
+    assert "lean_repeated_parser_or_syntax_failure" in prompt
 
 
 def test_formalizer_prompt_escalates_repeated_packet_validation_failure() -> None:

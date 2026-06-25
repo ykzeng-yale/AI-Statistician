@@ -3044,6 +3044,17 @@ def _formalizer_mode_specific_instructions(
                         "The source theorem itself must remain expected_status=FORMAL_GAP "
                         "unless the real probability/measure statement can be checked."
                     )
+                if local_lean_repair_contract.get("repeated_syntax_failure"):
+                    instructions.append(
+                        "Mandatory repeated parser/syntax repair: the previous repair "
+                        "retry still failed the Lean parser. Do not emit another broad "
+                        "formal_targets NEEDS_KERNEL_CHECK theorem with Greek or other "
+                        "Unicode binders, pipeline syntax, unsupported notation, or a "
+                        "large dependent statement. Emit expected_status=FORMAL_GAP for "
+                        "the source theorem, or emit at most one minimal ASCII/core Lean "
+                        "support lemma through a support channel with exact source-binding "
+                        "metadata and rerun local Lean before treating it as executable."
+                    )
         if has_target_drift:
             instructions.append(
                 "Mandatory source-theorem target-preservation repair: the previous "

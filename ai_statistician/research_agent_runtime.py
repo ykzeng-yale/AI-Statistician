@@ -3316,6 +3316,9 @@ class FormalizationEvaluatorRuntimeSubsystem:
                     lean_candidate_repair_feedback[
                         "repeated_formalizer_lean_candidate_failure"
                     ] = repair_retry_depth > 0
+                    _enrich_repeated_formalizer_lean_candidate_feedback(
+                        lean_candidate_repair_feedback
+                    )
                     if self.proof_state_provider is not None:
                         candidate_proof_state_subclaims = (
                             _formalizer_lean_candidate_proof_state_subclaims(
@@ -5777,6 +5780,115 @@ def _formalizer_lean_candidate_repair_feedback(
         feedback["local_lean_repair_contract"] = local_lean_repair_contract
     if formal_blocker_resource_requests:
         feedback["formal_blocker_resource_requests"] = formal_blocker_resource_requests
+    return feedback
+
+
+def _enrich_repeated_formalizer_lean_candidate_feedback(
+    feedback: dict[str, Any],
+) -> dict[str, Any]:
+    """Escalate repeated Lean parser failures into an explicit fail-closed contract."""
+
+    if not isinstance(feedback, dict):
+        return feedback
+    if not bool(feedback.get("repeated_formalizer_lean_candidate_failure", False)):
+        return feedback
+    local_lean_repair_contract = feedback.get("local_lean_repair_contract", {})
+    if not isinstance(local_lean_repair_contract, Mapping):
+        return feedback
+    diagnostic_classes = {
+        str(value).strip()
+        for value in local_lean_repair_contract.get("diagnostic_classes", []) or []
+        if str(value).strip()
+    }
+    if "lean_parser_or_syntax_error" not in diagnostic_classes:
+        return feedback
+
+    contract = dict(local_lean_repair_contract)
+    contract["repeated_syntax_failure"] = True
+    contract["repeated_syntax_failure_rule"] = (
+        "A prior repair retry still failed the Lean parser. Do not emit another "
+        "broad formal_targets NEEDS_KERNEL_CHECK theorem with Unicode binders, "
+        "pipeline syntax, large dependent statements, or guessed notation. Either "
+        "emit the source theorem as expected_status=FORMAL_GAP with the exact "
+        "parser blocker, or emit one minimal ASCII/core Lean support lemma through "
+        "a support channel with source-binding metadata and rerun local Lean."
+    )
+    contract["ascii_identifier_rule"] = (
+        "Use ASCII declaration and binder names such as `omega`; do not use Greek "
+        "identifier binders, unicode symbolic binders, `|>` pipeline syntax, or "
+        "unsupported collection/indexing notation in theorem statements."
+    )
+    contract["minimal_executable_candidate_rule"] = (
+        "If an executable candidate is emitted after this repeated syntax failure, "
+        "it must be syntactically valid in the configured project before any proof "
+        "claim is promoted. Prefer a small Prop-level or local primitive helper over "
+        "a full probability/order-statistic source theorem."
+    )
+    feedback["local_lean_repair_contract"] = contract
+
+    reroute_options = [
+        str(value).strip()
+        for value in feedback.get("candidate_reroute_options", []) or []
+        if str(value).strip()
+    ]
+    repeated_options = [
+        (
+            "For repeated parser/syntax failure, do not emit another broad "
+            "formal_targets NEEDS_KERNEL_CHECK candidate. Emit the source theorem "
+            "as expected_status=FORMAL_GAP, or route one minimal ASCII/core Lean "
+            "support lemma through source_to_bridge_premise_derivation_candidates, "
+            "lemma_dependency_plan, or a proof-bank request with exact "
+            "source-binding metadata."
+        ),
+        (
+            "Any executable retry after repeated parser/syntax failure must remove "
+            "the reported parser diagnostic first; otherwise keep the Lean source "
+            "empty and record the blocker outside Lean."
+        ),
+    ]
+    for option in repeated_options:
+        if option not in reroute_options:
+            reroute_options.append(option)
+    if reroute_options:
+        feedback["candidate_reroute_options"] = reroute_options
+
+    required_repair = str(feedback.get("required_repair", "") or "").strip()
+    repeated_required = (
+        "Repeated parser/syntax failure escalation: fail closed to FORMAL_GAP or "
+        "produce one minimal ASCII/core Lean support lemma that local Lean can "
+        "parse; do not retry the same Unicode/complex theorem statement."
+    )
+    if repeated_required not in required_repair:
+        feedback["required_repair"] = (
+            f"{required_repair} {repeated_required}".strip()
+        )
+
+    feedback["repeated_syntax_failure_escalation"] = {
+        "escalation_kind": "lean_repeated_parser_or_syntax_failure",
+        "required_behavior": (
+            "fail_closed_or_minimal_ascii_core_lean_support_lemma"
+        ),
+        "proof_evidence_status": (
+            "FORMALIZER_LEAN_REPEATED_SYNTAX_ESCALATION_NOT_PROOF_EVIDENCE"
+        ),
+        "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+    }
+
+    repeated_requests = _formal_blocker_resource_requests_from_repeated_syntax_failures(
+        feedback
+    )
+    if repeated_requests:
+        feedback["formal_blocker_resource_requests"] = (
+            _merge_formal_blocker_resource_requests(
+                [
+                    row
+                    for row in feedback.get("formal_blocker_resource_requests", [])
+                    or []
+                    if isinstance(row, Mapping)
+                ],
+                repeated_requests,
+            )
+        )
     return feedback
 
 
@@ -19220,6 +19332,105 @@ def _formal_blocker_resource_requests_from_unavailable_imports(
             }
         )
     return rows
+
+
+def _formal_blocker_resource_requests_from_repeated_syntax_failures(
+    feedback: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Convert repeated parser failures into typed non-proof prover work."""
+
+    if not isinstance(feedback, Mapping):
+        return []
+    contract = (
+        feedback.get("local_lean_repair_contract", {})
+        if isinstance(feedback.get("local_lean_repair_contract", {}), Mapping)
+        else {}
+    )
+    if not contract.get("repeated_syntax_failure", False):
+        return []
+    diagnostics = [
+        row
+        for row in feedback.get("candidate_diagnostics", []) or []
+        if isinstance(row, Mapping)
+    ]
+    target_ids: list[str] = []
+    for row in diagnostics[:5]:
+        for key in ("target_lean_declaration", "candidate_id"):
+            value = str(row.get(key, "") or "").strip()
+            if value and value not in target_ids:
+                target_ids.append(value)
+    diagnostic_excerpts = [
+        str(
+            row.get("local_lean_stdout_excerpt", "")
+            or row.get("local_lean_stderr_excerpt", "")
+            or ""
+        ).strip()
+        for row in diagnostics[:3]
+        if str(
+            row.get("local_lean_stdout_excerpt", "")
+            or row.get("local_lean_stderr_excerpt", "")
+            or ""
+        ).strip()
+    ]
+    target_text = ", ".join(target_ids[:4]) or "materialized Lean candidate"
+    blocker = (
+        "Repeated Lean parser/syntax failure after a Formalizer repair retry for "
+        f"{target_text}. Do not retry the same Unicode/complex theorem statement; "
+        "fail closed to FORMAL_GAP or produce one minimal ASCII/core Lean support "
+        "lemma in a support channel and rerun local Lean."
+    )
+    if diagnostic_excerpts:
+        blocker += " Latest diagnostic excerpt: " + diagnostic_excerpts[0][:320]
+    request_id = (
+        "formal_blocker_resource_request:"
+        + stable_hash(
+            [
+                "formalizer_lean_candidate_local_lean_feedback",
+                "lean_repeated_parser_or_syntax_failure",
+                target_ids,
+                feedback.get("source_manifest_id", ""),
+            ]
+        )[:20]
+    )
+    formal_source_queries = _formal_blocker_resource_request_queries(
+        blocker,
+        blocker_kind="lean_repeated_parser_or_syntax_failure",
+        target_ids=target_ids,
+    )
+    for query in (
+        "Lean theorem syntax ASCII binder local declaration",
+        "Lean parser unexpected token expected term theorem statement",
+        "minimal core Lean Prop support lemma",
+    ):
+        if query not in formal_source_queries:
+            formal_source_queries.append(query)
+    return [
+        {
+            "request_id": request_id,
+            "source": "formalizer_lean_candidate_local_lean_feedback",
+            "blocker_kind": "lean_repeated_parser_or_syntax_failure",
+            "blocker": blocker,
+            "next_owner": "ProofEngineer",
+            "target_ids": target_ids,
+            "formal_source_queries": formal_source_queries[:5],
+            "recommended_tools": [
+                "local_lean_or_axle",
+                "lean_lsp_mcp_when_configured",
+                "formal_source_retriever",
+                "proof_search",
+            ],
+            "required_resolution": (
+                "Produce a syntactically valid minimal ASCII/core Lean helper and "
+                "rerun local Lean, or keep the source theorem as FORMAL_GAP with "
+                "the exact parser blocker named. Do not emit another executable "
+                "candidate that repeats the same parser-failing theorem shape."
+            ),
+            "proof_evidence_status": (
+                "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+            ),
+            "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+        }
+    ]
 
 
 def _merge_formal_blocker_resource_requests(
