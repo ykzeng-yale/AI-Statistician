@@ -6613,6 +6613,26 @@ def test_llm_route_planner_stages_resource_response_content() -> None:
     assert "context_packet.resource_response_ledger_rows" in residual_focus[
         "evidence_fields"
     ]
+    drifted_request = deepcopy(request)
+    drifted_focus = next(
+        focus
+        for focus in drifted_request["context_packet"]["route_planning_brief"][
+            "planner_focus"
+        ]
+        if focus["focus_id"] == "repair_from_residual_goal_contexts"
+    )
+    drifted_focus["evidence_fields"] = [
+        field
+        for field in drifted_focus["evidence_fields"]
+        if field != "context_packet.resource_response_ledger_rows"
+    ]
+    drifted_errors = validate_llm_route_planner_request(drifted_request)
+    assert any(
+        "repair_from_residual_goal_contexts evidence_fields missing "
+        "residual-context provenance fields" in error
+        and "context_packet.resource_response_ledger_rows" in error
+        for error in drifted_errors
+    )
     assert inventory["resource_feedback_readiness_summary_present"] is True
     assert inventory["resource_feedback_readiness_row_count"] == 1
     assert inventory["resource_feedback_readiness_reuse_ready_count"] == 0
@@ -9011,6 +9031,15 @@ def test_llm_route_planner_accepts_source_from_admissible_refinement_evidence() 
     assert residual_context["evidence_ids"] == (
         "refinement-evidence:rank_route:accepted",
     )
+    route_brief = context["route_planning_brief"]
+    residual_focus = next(
+        focus
+        for focus in route_brief["planner_focus"]
+        if focus["focus_id"] == "repair_from_residual_goal_contexts"
+    )
+    assert "context_packet.refinement_evidence_rows" in residual_focus[
+        "evidence_fields"
+    ]
     summary = context["feedback_loop_summary"]
     assert summary["refinement_evidence_admissibility"]["admissible_count"] == 1
     assert summary["admissible_source_snippets"][0]["source_ref"] == source_ref

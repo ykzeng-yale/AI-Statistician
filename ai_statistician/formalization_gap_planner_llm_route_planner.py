@@ -6156,8 +6156,74 @@ def validate_llm_route_planner_request(
         )
     errors.extend(_llm_generation_policy_errors(row))
     errors.extend(_route_brief_gap_response_contract_summary_errors(context_packet))
+    errors.extend(
+        _route_planning_brief_residual_focus_provenance_errors(context_packet)
+    )
     errors.extend(_context_packet_inventory_errors(row))
     return sorted(set(errors))
+
+
+def _route_planning_brief_residual_focus_provenance_errors(
+    context_packet: Mapping[str, object],
+) -> list[str]:
+    contexts = _dict_tuple(context_packet.get("residual_goal_contexts", []))
+    if not contexts:
+        return []
+    route_brief = _dict_value(context_packet, "route_planning_brief")
+    focus = _planner_focus_by_id(
+        route_brief,
+        "repair_from_residual_goal_contexts",
+    )
+    if not focus:
+        return [
+            "route_planning_brief.planner_focus missing "
+            "repair_from_residual_goal_contexts focus for "
+            "context_packet.residual_goal_contexts"
+        ]
+    evidence_fields = set(_str_tuple(focus.get("evidence_fields", [])))
+    required_fields = _residual_context_required_focus_evidence_fields(contexts)
+    missing_fields = sorted(required_fields - evidence_fields)
+    if not missing_fields:
+        return []
+    return [
+        "repair_from_residual_goal_contexts evidence_fields missing "
+        "residual-context provenance fields: " + ", ".join(missing_fields)
+    ]
+
+
+def _planner_focus_by_id(
+    route_brief: Mapping[str, object],
+    focus_id: str,
+) -> dict[str, object]:
+    for focus in _dict_tuple(route_brief.get("planner_focus", [])):
+        if str(focus.get("focus_id", "")).strip() == focus_id:
+            return dict(focus)
+    return {}
+
+
+def _residual_context_required_focus_evidence_fields(
+    contexts: tuple[dict[str, object], ...],
+) -> set[str]:
+    fields = {"context_packet.residual_goal_contexts"}
+    for context in contexts:
+        source_kind = str(context.get("source_kind", "") or "").strip()
+        if source_kind == "resource_response_ledger" or str(
+            context.get("resource_response_ledger_id", "") or ""
+        ).strip():
+            fields.add("context_packet.resource_response_ledger_rows")
+        if source_kind == "refinement_evidence" or str(
+            context.get("refinement_evidence_id", "") or ""
+        ).strip():
+            fields.add("context_packet.refinement_evidence_rows")
+        if source_kind == "source_grounding_audit":
+            fields.add("context_packet.source_grounding_rows")
+        if source_kind == "route_revision_overlay":
+            fields.add("context_packet.route_revision_overlay_rows")
+        if source_kind in {"route_replan_handoff", "proof_state_feedback"}:
+            fields.add("context_packet.route_replan_handoff_rows")
+        if source_kind == "interactive_session":
+            fields.add("context_packet.interactive_session_rows")
+    return fields
 
 
 def validate_llm_route_planner_manifest(
@@ -10470,13 +10536,19 @@ def _route_planning_brief(
             ),
             reason=(
                 "context_packet.residual_goal_contexts carries residual repair "
-                "metadata from route-replan handoff, resource-response ledger, "
-                "or LLM route-planner hook traces"
+                "metadata from source grounding, refinement evidence, "
+                "resource-response ledger, route-revision overlay, "
+                "route-replan handoff, interactive-session rows, or LLM "
+                "route-planner hook traces"
             ),
             evidence_fields=(
                 "context_packet.residual_goal_contexts",
-                "context_packet.route_replan_handoff_rows",
                 "context_packet.resource_response_ledger_rows",
+                "context_packet.refinement_evidence_rows",
+                "context_packet.source_grounding_rows",
+                "context_packet.route_revision_overlay_rows",
+                "context_packet.route_replan_handoff_rows",
+                "context_packet.interactive_session_rows",
                 "context_packet.feedback_loop_summary",
             ),
             required_output_fields=(
