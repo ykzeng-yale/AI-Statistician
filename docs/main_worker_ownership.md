@@ -209,9 +209,14 @@ The latest live blocker is no longer the `sorry` packet-validation loop. It is
 the absence of executable source-to-bridge premise candidates: recent proposals
 either retry root `import Mathlib`, use no-import Real/`linarith` helpers that
 fail local Lean, or compile only Prop-level diagnostic helpers. The next worker
-should resume `formalize-critic-repair:conformal_prediction_coverage:460b3dc4`
-and force either a concrete source-to-bridge candidate with copied runtime
-source-binding metadata or an explicit non-executable blocker.
+should resume `critic:conformal_prediction_coverage:b609575e`. Resume now
+auto-loads the prior `runtime_learning_rows.jsonl` and keeps the latest rows, so
+the Formalizer memory summary enters
+`source_theorem_diagnostic_helper_bridge_or_blocker` instead of silently reading
+stale early rows. The latest live auto-memory probe dropped the helper-only Lean
+next action and replaced it with a source-to-bridge metadata/semantic-anchor
+request. The next step is to route that standardized blocker into source-binding
+metadata authoring before asking Formalizer for another executable candidate.
 
 ## Delegation To Other Codex Workers
 

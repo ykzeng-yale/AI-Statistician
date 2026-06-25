@@ -460,8 +460,21 @@ def _load_dotenv(path: Path) -> None:
         os.environ.setdefault(key.strip(), value.strip().strip("'\""))
 
 
-def _attach_runtime_learning_memory(args: argparse.Namespace, context: dict[str, object]) -> None:
-    paths = [str(item) for item in getattr(args, "learning_memory_jsonl", []) or [] if str(item).strip()]
+def _attach_runtime_learning_memory(
+    args: argparse.Namespace,
+    context: dict[str, object],
+    *,
+    extra_paths: list[Path] | None = None,
+) -> None:
+    raw_paths = [
+        *(str(item) for item in extra_paths or [] if str(item).strip()),
+        *(
+            str(item)
+            for item in getattr(args, "learning_memory_jsonl", []) or []
+            if str(item).strip()
+        ),
+    ]
+    paths = list(dict.fromkeys(raw_paths))
     if not paths:
         return
     context["runtime_learning_memory"] = _load_runtime_learning_memory(
@@ -506,6 +519,32 @@ def _load_runtime_resume_task_from_manifest(
         _agent_task_from_payload(_normalize_runtime_resume_task_payload(task_payload)),
         artifacts,
     )
+
+
+def _runtime_resume_learning_memory_paths(path: Path) -> list[Path]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if not isinstance(payload, Mapping):
+        return []
+    source_manifest = _resolve_runtime_resume_source_manifest(
+        resume_path=path,
+        resume_payload=payload,
+    )
+    if source_manifest is None:
+        return []
+    artifacts = source_manifest.get("artifacts", {})
+    if not isinstance(artifacts, Mapping):
+        return []
+    raw_path = str(artifacts.get("runtime_learning_rows_jsonl", "") or "")
+    if not raw_path:
+        return []
+    resolved = _resolve_runtime_resume_path(
+        raw_path,
+        base_dir=Path(source_manifest.get("_manifest_path", "") or ".").parent,
+    )
+    return [resolved] if resolved is not None else []
 
 
 def _normalize_runtime_resume_task_payload(
@@ -702,7 +741,7 @@ def _select_questions_by_id(
 
 
 def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> dict[str, object]:
-    rows: list[dict[str, object]] = []
+    all_rows: list[dict[str, object]] = []
     errors: list[str] = []
     for path in paths:
         try:
@@ -711,8 +750,6 @@ def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> d
             errors.append(f"{path}: {exc}")
             continue
         for line_no, line in enumerate(lines, start=1):
-            if len(rows) >= max_rows:
-                break
             stripped = line.strip()
             if not stripped:
                 continue
@@ -722,11 +759,11 @@ def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> d
                 errors.append(f"{path}:{line_no}: {exc}")
                 continue
             if isinstance(payload, dict):
-                rows.append(_compact_runtime_learning_memory_row(payload))
+                all_rows.append(_compact_runtime_learning_memory_row(payload))
             else:
                 errors.append(f"{path}:{line_no}: expected JSON object")
-        if len(rows) >= max_rows:
-            break
+    row_limit = max(int(max_rows or 0), 0)
+    rows = all_rows[-row_limit:] if row_limit else []
     return {
         "schema_version": 1,
         "artifact_kind": "RuntimeLearningMemoryContext",
@@ -734,9 +771,11 @@ def _load_runtime_learning_memory(paths: list[Path], *, max_rows: int = 20) -> d
         "rows": rows,
         "counts": {
             "rows_loaded": len(rows),
+            "rows_seen": len(all_rows),
             "source_paths": len(paths),
             "errors": len(errors),
             "max_rows": max_rows,
+            "retention_policy": "latest_rows",
         },
         "errors": errors[:10],
         "boundary": (
@@ -7839,13 +7878,18 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     resume_initial_tasks: dict[str, AgentTask] = {}
     resume_blackboard_artifacts: dict[str, dict[str, Any]] = {}
     resume_question_id = ""
+    resume_learning_memory_paths: list[Path] = []
     if getattr(args, "resume_runtime_manifest", ""):
+        resume_manifest_path = Path(args.resume_runtime_manifest)
         try:
             (
                 resume_question_id,
                 resume_task,
                 resume_artifacts,
-            ) = _load_runtime_resume_task_from_manifest(Path(args.resume_runtime_manifest))
+            ) = _load_runtime_resume_task_from_manifest(resume_manifest_path)
+            resume_learning_memory_paths = _runtime_resume_learning_memory_paths(
+                resume_manifest_path
+            )
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             print("\nAI Statistician Agent Runtime rejected resume manifest")
             print("=" * 72)
@@ -7887,7 +7931,11 @@ def _research_agent_runtime(args: argparse.Namespace) -> int:
     context: dict[str, object] = {}
     if args.context_json:
         context = json.loads(Path(args.context_json).read_text(encoding="utf-8"))
-    _attach_runtime_learning_memory(args, context)
+    _attach_runtime_learning_memory(
+        args,
+        context,
+        extra_paths=resume_learning_memory_paths,
+    )
     model = _default_model_for_provider(args.provider, args.llm_model, model_tier="sonnet")
     theory_developer = LLMTheoryDeveloperAgent(
         provider=provider,

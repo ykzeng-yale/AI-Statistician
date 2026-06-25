@@ -63,6 +63,7 @@ from ai_statistician.critic_evaluator_llm import (
 from ai_statistician.formalizer_llm import (
     FormalizerConfig,
     LLMFormalizerProofEngineerAgent,
+    _normalize_formalizer_packet,
     _validate_capability_eval_formalizer_lean_candidate_packet,
     build_formalizer_prompt,
     validate_formalizer_packet,
@@ -4447,6 +4448,297 @@ def test_runtime_learning_memory_routes_compiled_diagnostic_helper_to_bridge_or_
     assert "source_theorem_target_known=false" in prompt
     assert "source_to_bridge_premise_derivation_candidates" in prompt
     assert "explicit gap_taxonomy blocker" in prompt
+    assert "diagnostic_helper_bridge_blocker_contract" in prompt
+    assert "source_to_bridge_metadata_blocker" in prompt
+
+
+def test_diagnostic_helper_bridge_mode_normalizer_records_metadata_blocker() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    summary = {
+        "recommended_formalizer_target_mode": (
+            "source_theorem_diagnostic_helper_bridge_or_blocker"
+        ),
+        "formalizer_diagnostic_helper_integration_required": True,
+        "formalizer_diagnostic_helper_memory": [
+            {
+                "candidate_id": "split_conformal_core_prop_coverage_bridge_helper",
+                "local_lean_compiled": True,
+                "source_theorem_target_known": False,
+                "diagnostic_helper_not_source_theorem": True,
+                "proof_evidence_status": (
+                    "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_NOT_SOURCE_THEOREM_PROOF"
+                ),
+            }
+        ],
+    }
+    payload = {
+        "formal_targets": [
+            {
+                "id": "split_conformal_source_theorem_coverage",
+                "informal_source": "split conformal source theorem coverage",
+                "lean_statement_sketch": "",
+                "expected_status": "FORMAL_GAP",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": "split_conformal_finite_sample_coverage",
+                    "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
+                },
+            },
+            {
+                "id": "split_conformal_core_prop_coverage_bridge_helper",
+                "informal_source": "diagnostic Prop helper only",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_core_prop_coverage_bridge "
+                    "(coverage_event no_bad_rank : Prop) "
+                    "(h_impl : no_bad_rank -> coverage_event) "
+                    "(h_no_bad_rank : no_bad_rank) : coverage_event :=\n"
+                    "  h_impl h_no_bad_rank"
+                ),
+                "expected_status": "NEEDS_KERNEL_CHECK",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": False,
+                    "target_lean_declaration": (
+                        "split_conformal_core_prop_coverage_bridge"
+                    ),
+                    "source_theorem_goal_id": "split_conformal_finite_sample_coverage",
+                },
+            },
+        ],
+        "lemma_dependency_plan": [
+            {
+                "lemma": "source_binding_request_needed",
+                "depends_on": [],
+                "purpose": "obtain source-to-bridge metadata",
+            }
+        ],
+        "retrieval_queries": [
+            {
+                "query": "split conformal source theorem binder metadata",
+                "target_library": "local",
+                "reason": "find semantic anchors",
+            }
+        ],
+        "proof_search_plan": {"strategy": "wait for source-binding metadata"},
+        "proof_bank_obligation_requests": [],
+        "source_to_bridge_premise_derivation_candidates": [],
+        "gap_taxonomy": [
+            {
+                "gap": "Mathlib import unavailable",
+                "kind": "formal_primitives",
+                "next_owner": "AgentRuntime",
+            }
+        ],
+        "critic_findings": [
+            {
+                "critic": "test",
+                "finding": "helper is diagnostic only",
+                "reroute_if_confirmed": "record blocker",
+            }
+        ],
+        "next_actions": [
+            {
+                "owner_agent": "AgentRuntime/AXLE",
+                "action": (
+                    "Run local Lean kernel check on formal_targets entry "
+                    "split_conformal_core_prop_coverage_bridge_helper."
+                ),
+                "acceptance_gate": "local Lean exits 0 for the helper",
+            },
+            {
+                "owner_agent": "AgentRuntime",
+                "action": "Confirm available imports in the local Lean project.",
+                "acceptance_gate": "import list returned",
+            },
+        ],
+    }
+
+    packet = _normalize_formalizer_packet(
+        json.loads(json.dumps(payload)),
+        question=question,
+        model="test-model",
+        model_tier="test",
+        provider_name="test",
+        raw_response=json.dumps(payload),
+        proof_bank_runtime_memory_summary=summary,
+        environment_feedback={},
+    )
+
+    assert packet["diagnostic_helper_bridge_blocker_status"] == (
+        "SOURCE_TO_BRIDGE_METADATA_BLOCKER_RECORDED_NOT_PROOF_EVIDENCE"
+    )
+    assert any(
+        row.get("kind") == "source_to_bridge_metadata_blocker"
+        for row in packet["gap_taxonomy"]
+        if isinstance(row, dict)
+    )
+    assert packet["dropped_diagnostic_helper_only_next_actions"][0]["index"] == 1
+    next_action_text = json.dumps(packet["next_actions"])
+    assert "source-to-bridge premise-derivation request metadata" in next_action_text
+    assert "split_conformal_core_prop_coverage_bridge_helper" not in next_action_text
+    assert validate_formalizer_packet(packet) == []
+
+    textual_blocker_payload = json.loads(json.dumps(payload))
+    textual_blocker_payload["gap_taxonomy"].append(
+        {
+            "gap": (
+                "No source-binding contract metadata is available for "
+                "source_to_bridge_premise_derivation_candidates."
+            ),
+            "kind": "source_theorem",
+            "next_owner": "AgentRuntime",
+        }
+    )
+    textual_blocker_packet = _normalize_formalizer_packet(
+        textual_blocker_payload,
+        question=question,
+        model="test-model",
+        model_tier="test",
+        provider_name="test",
+        raw_response=json.dumps(textual_blocker_payload),
+        proof_bank_runtime_memory_summary=summary,
+        environment_feedback={},
+    )
+    assert textual_blocker_packet["diagnostic_helper_bridge_blocker_status"] == (
+        "SOURCE_TO_BRIDGE_METADATA_BLOCKER_RECORDED_NOT_PROOF_EVIDENCE"
+    )
+    assert any(
+        row.get("kind") == "source_to_bridge_metadata_blocker"
+        for row in textual_blocker_packet["gap_taxonomy"]
+        if isinstance(row, dict)
+    )
+
+    bound_payload = json.loads(json.dumps(payload))
+    bound_payload["next_actions"] = [
+        {
+            "owner_agent": "AgentRuntime/AXLE",
+            "action": (
+                "Run local Lean on source_to_bridge_premise_derivation_candidates "
+                "entry hGoodCovered."
+            ),
+            "acceptance_gate": "candidate compiles",
+        }
+    ]
+    bound_payload["source_to_bridge_premise_derivation_candidates"] = [
+        {
+            "premise_name": "hGoodCovered",
+            "target_theorem_name": "split_conformal_coverage",
+            "target_lean_declaration": "split_conformal_coverage",
+            "premise_derivation_candidate_lean_source": (
+                "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation "
+                "(hC hGoodCovered : Prop) (h_anchor : hC) : hGoodCovered := by\n"
+                "  exact hGoodCovered"
+            ),
+            "source_to_bridge_premise_derivation_candidate_request_id": (
+                "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
+            ),
+            "source_to_bridge_premise_derivation_candidate_request": {
+                "candidate_request_id": (
+                    "source_to_bridge_premise_derivation_candidate_request:hGoodCovered"
+                ),
+                "premise_name": "hGoodCovered",
+                "target_theorem_name": "split_conformal_coverage",
+                "target_lean_declaration": "split_conformal_coverage",
+                "required_semantic_anchor_reference_names": ["hC"],
+            },
+            "required_semantic_anchor_reference_names": ["hC"],
+            "expected_status": "NEEDS_KERNEL_CHECK",
+        }
+    ]
+
+    bound_packet = _normalize_formalizer_packet(
+        bound_payload,
+        question=question,
+        model="test-model",
+        model_tier="test",
+        provider_name="test",
+        raw_response=json.dumps(bound_payload),
+        proof_bank_runtime_memory_summary=summary,
+        environment_feedback={},
+    )
+
+    assert "diagnostic_helper_bridge_blocker_status" not in bound_packet
+    assert not any(
+        row.get("kind") == "source_to_bridge_metadata_blocker"
+        for row in bound_packet["gap_taxonomy"]
+        if isinstance(row, dict)
+    )
+    assert bound_packet["source_to_bridge_premise_derivation_candidates"]
+    assert validate_formalizer_packet(bound_packet) == []
+
+
+def test_runtime_learning_memory_loader_retains_latest_diagnostic_helper(
+    tmp_path: Path,
+) -> None:
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    rows = [
+        {
+            "schema_version": 1,
+            "question_id": "conformal_prediction_coverage",
+            "artifact_kind": "RuntimeLearningRow",
+            "learning_task": "retrieval_to_theory_context",
+            "target_behavior": f"stale row {index}",
+        }
+        for index in range(25)
+    ]
+    rows.append(
+        {
+            "schema_version": 1,
+            "question_id": "conformal_prediction_coverage",
+            "artifact_kind": "RuntimeLearningRow",
+            "learning_task": "formalizer_lean_candidate_kernel_feedback",
+            "candidate_id": "split_conformal_core_prop_coverage_bridge_helper",
+            "candidate_kind": "formal_target_lean_statement_sketch",
+            "source_field": "formal_targets",
+            "artifact_path": str(tmp_path / "helper.lean"),
+            "local_lean_attempted": True,
+            "local_lean_compiled": True,
+            "source_theorem_target_known": False,
+            "diagnostic_helper_not_source_theorem": True,
+            "lean_source_excerpt": (
+                "theorem split_conformal_core_prop_coverage_bridge "
+                "(coverage_event no_bad_rank : Prop) "
+                "(h_impl : no_bad_rank -> coverage_event) "
+                "(h_no_bad_rank : no_bad_rank) : coverage_event := "
+                "h_impl h_no_bad_rank"
+            ),
+            "memory_status": (
+                "DIAGNOSTIC_HELPER_KERNEL_VERIFIED_NOT_SOURCE_THEOREM_PROOF"
+            ),
+            "proof_evidence_status": (
+                "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_NOT_SOURCE_THEOREM_PROOF"
+            ),
+        }
+    )
+    learning_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    memory = _load_runtime_learning_memory([learning_path], max_rows=20)
+
+    assert memory["counts"]["rows_seen"] == 26
+    assert memory["counts"]["rows_loaded"] == 20
+    assert memory["counts"]["retention_policy"] == "latest_rows"
+    assert not any(
+        row.get("target_behavior") == "stale row 0" for row in memory["rows"]
+    )
+    assert any(
+        row.get("candidate_id") == "split_conformal_core_prop_coverage_bridge_helper"
+        for row in memory["rows"]
+    )
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["formalizer_diagnostic_helper_integration_required"] is True
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_theorem_diagnostic_helper_bridge_or_blocker"
+    )
 
 
 def test_diagnostic_helper_bridge_mode_accepts_bound_source_to_bridge_candidate() -> None:
@@ -31763,6 +32055,8 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
     resume_memory = second_result["traces"][0]["task"]["inputs"][
         "architect_context"
     ]["runtime_learning_memory"]
+    previous_learning_path = out_dir / "runtime_learning_rows.jsonl"
+    assert str(previous_learning_path) in resume_memory["source_paths"]
     assert str(learning_file) in resume_memory["source_paths"]
     assert resume_memory["rows"][0]["learning_task"] == (
         "source_to_bridge_premise_derivation_feedback"
@@ -31772,6 +32066,46 @@ def test_research_agent_runtime_cli_resumes_from_pending_task_manifest() -> None
         key.startswith("theory_derivation:")
         for key in second_blackboard_artifacts
     )
+
+    third_out_dir = root / "out_from_pending_artifact_auto_memory"
+    code = main(
+        [
+            "research-agent-runtime",
+            "--provider",
+            "static",
+            "--static-response-file",
+            str(response_file),
+            "--question-file",
+            "examples/research_questions.json",
+            "--resume-runtime-manifest",
+            str(pending_task_path),
+            "--max-iterations",
+            "1",
+            "--out",
+            str(third_out_dir),
+        ]
+    )
+
+    assert code == 0
+    third_manifest = json.loads(
+        (third_out_dir / "research_agent_runtime_manifest.json").read_text()
+    )
+    assert (
+        third_manifest["runtime_input_context"]["runtime_learning_memory_supplied"]
+        is True
+    )
+    assert (
+        third_manifest["runtime_input_context"]["runtime_learning_memory_rows_loaded"]
+        > 0
+    )
+    third_result = json.loads(
+        (third_out_dir / "causal_ate_aipw_runtime_result.json").read_text()
+    )
+    auto_resume_memory = third_result["traces"][0]["task"]["inputs"][
+        "architect_context"
+    ]["runtime_learning_memory"]
+    assert str(previous_learning_path) in auto_resume_memory["source_paths"]
+    assert auto_resume_memory["rows"]
 
 
 def test_research_agent_runtime_cli_imports_truth_table_memory_into_semantic_queue() -> None:

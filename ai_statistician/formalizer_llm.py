@@ -194,6 +194,9 @@ def build_formalizer_prompt(
     source_to_bridge_request_shortcuts = (
         _source_to_bridge_candidate_request_shortcuts(proof_memory_summary)
     )
+    diagnostic_helper_bridge_blocker_contract = (
+        _diagnostic_helper_bridge_blocker_contract(proof_memory_summary)
+    )
     payload = {
         "question": {
             "id": question.id,
@@ -242,6 +245,9 @@ def build_formalizer_prompt(
         "proof_bank_runtime_memory_summary": proof_memory_summary,
         "source_to_bridge_candidate_request_shortcuts": (
             source_to_bridge_request_shortcuts
+        ),
+        "diagnostic_helper_bridge_blocker_contract": (
+            diagnostic_helper_bridge_blocker_contract
         ),
         "runtime_environment_feedback": runtime_environment_feedback,
         "formalizer_lean_candidate_contract": {
@@ -1054,6 +1060,10 @@ def _normalize_formalizer_packet(
         proof_bank_runtime_memory_summary or {},
     )
     _drop_phantom_source_to_bridge_next_actions(body)
+    _ensure_diagnostic_helper_bridge_or_blocker_packet(
+        body,
+        proof_bank_runtime_memory_summary or {},
+    )
     _fail_closed_placeholder_lean_candidates(
         body,
         environment_feedback or {},
@@ -1515,6 +1525,292 @@ def _quarantine_unbound_source_to_bridge_candidates(
                 "ProofEngineer request before emitting premise candidates."
             ),
             "proof_evidence_status": "DROPPED_UNBOUND_SOURCE_TO_BRIDGE_CANDIDATE_NOT_PROOF_EVIDENCE",
+        }
+    )
+    packet["critic_findings"] = findings
+
+
+def _diagnostic_helper_bridge_mode_active(
+    proof_memory_summary: Mapping[str, Any],
+) -> bool:
+    mode = str(
+        proof_memory_summary.get("recommended_formalizer_target_mode", "") or ""
+    )
+    return bool(
+        mode == "source_theorem_diagnostic_helper_bridge_or_blocker"
+        or proof_memory_summary.get("formalizer_diagnostic_helper_integration_required")
+        or proof_memory_summary.get("formalizer_diagnostic_helper_memory")
+    )
+
+
+def _diagnostic_helper_bridge_blocker_contract(
+    proof_memory_summary: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not _diagnostic_helper_bridge_mode_active(proof_memory_summary):
+        return {}
+    if _source_to_bridge_candidate_request_shortcuts(proof_memory_summary):
+        return {}
+    helper_ids = [
+        str(row.get("candidate_id", "") or "").strip()
+        for row in proof_memory_summary.get("formalizer_diagnostic_helper_memory", [])
+        or []
+        if isinstance(row, Mapping) and str(row.get("candidate_id", "") or "").strip()
+    ][:6]
+    return {
+        "contract_kind": "diagnostic_helper_bridge_or_blocker",
+        "trigger": "compiled_diagnostic_helper_without_source_binding_request",
+        "prior_helper_candidate_ids": helper_ids,
+        "required_behavior": (
+            "Do not repeat helper-only formal_targets as source-theorem progress. "
+            "Emit a concrete source_to_bridge_premise_derivation_candidates object "
+            "only when source-binding request metadata and semantic anchors are "
+            "available to copy; otherwise record a gap_taxonomy row with "
+            "kind=source_to_bridge_metadata_blocker and route source-binding "
+            "metadata retrieval/authoring to AgentRuntime/ProofEngineer."
+        ),
+        "forbidden_resolution": (
+            "Do not invent source_to_bridge_premise_derivation_candidates without "
+            "a copied candidate request/source-binding contract, and do not ask "
+            "AgentRuntime/AXLE/local Lean to execute helper-only candidates as if "
+            "they advanced the source theorem proof."
+        ),
+        "proof_evidence_status": (
+            "DIAGNOSTIC_HELPER_BRIDGE_BLOCKER_CONTRACT_NOT_PROOF_EVIDENCE"
+        ),
+    }
+
+
+def _packet_has_source_to_bridge_metadata_blocker(
+    packet: Mapping[str, Any],
+) -> bool:
+    blocker_markers = (
+        "source_to_bridge_metadata_blocker",
+        "source-binding metadata",
+        "source binding metadata",
+        "source-binding request",
+        "source binding request",
+        "semantic anchor",
+        "semantic-anchor",
+    )
+    for row in packet.get("gap_taxonomy", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        text = " ".join(
+            str(row.get(key, "") or "")
+            for key in ("gap", "kind", "next_owner")
+        ).lower()
+        if "source" in text and "bridge" in text and any(
+            marker in text for marker in blocker_markers
+        ):
+            return True
+    return False
+
+
+def _packet_has_standard_source_to_bridge_metadata_blocker(
+    packet: Mapping[str, Any],
+) -> bool:
+    return any(
+        isinstance(row, Mapping)
+        and str(row.get("kind", "") or "") == "source_to_bridge_metadata_blocker"
+        for row in packet.get("gap_taxonomy", []) or []
+    )
+
+
+def _formal_target_is_diagnostic_helper(row: Mapping[str, Any]) -> bool:
+    provenance = (
+        row.get("source_theorem_target_provenance", {})
+        if isinstance(row.get("source_theorem_target_provenance", {}), Mapping)
+        else {}
+    )
+    known = provenance.get("source_theorem_target_known", None)
+    known_text = str(known).strip().lower()
+    return bool(
+        known is False
+        or known_text == "false"
+        or row.get("diagnostic_helper_not_source_theorem") is True
+        or str(row.get("proof_evidence_status", "") or "").startswith(
+            "FORMALIZER_DIAGNOSTIC_HELPER"
+        )
+    )
+
+
+def _diagnostic_helper_action_should_be_dropped(
+    action: Mapping[str, Any],
+    *,
+    helper_names: set[str],
+) -> bool:
+    action_text = " ".join(
+        str(action.get(key, "") or "")
+        for key in ("owner_agent", "action", "acceptance_gate")
+    ).lower()
+    if not any(
+        marker in action_text
+        for marker in (
+            "run ",
+            "check",
+            "compile",
+            "verify",
+            "kernel",
+            "local lean",
+            "axle",
+        )
+    ):
+        return False
+    if helper_names and any(name in action_text for name in helper_names):
+        return True
+    return bool("helper" in action_text and "formal_targets" in action_text)
+
+
+def _ensure_diagnostic_helper_bridge_or_blocker_packet(
+    packet: dict[str, Any],
+    proof_memory_summary: Mapping[str, Any],
+) -> None:
+    compact_memory = _compact_proof_bank_runtime_memory_summary(
+        proof_memory_summary or {}
+    )
+    contract = _diagnostic_helper_bridge_blocker_contract(compact_memory)
+    if not contract:
+        return
+    candidates = [
+        row
+        for row in packet.get("source_to_bridge_premise_derivation_candidates", [])
+        or []
+        if isinstance(row, Mapping)
+    ]
+    if candidates:
+        return
+    gap_rows = packet.get("gap_taxonomy", [])
+    if not isinstance(gap_rows, list):
+        gap_rows = []
+    added_blocker = False
+    if (
+        not _packet_has_source_to_bridge_metadata_blocker(packet)
+        or not _packet_has_standard_source_to_bridge_metadata_blocker(packet)
+    ):
+        gap_rows.append(
+            {
+                "gap": (
+                    "Compiled diagnostic helper evidence is not source-theorem proof "
+                    "and cannot be promoted until runtime exposes exact "
+                    "source-to-bridge source-binding request metadata plus semantic "
+                    "anchor references to copy."
+                ),
+                "kind": "source_to_bridge_metadata_blocker",
+                "next_owner": "AgentRuntime/ProofEngineer",
+                "proof_evidence_status": (
+                    "DIAGNOSTIC_HELPER_BRIDGE_BLOCKER_NOT_PROOF_EVIDENCE"
+                ),
+            }
+        )
+        packet["gap_taxonomy"] = gap_rows
+        added_blocker = True
+
+    helper_names: set[str] = set()
+    for target in packet.get("formal_targets", []) or []:
+        if not isinstance(target, Mapping) or not _formal_target_is_diagnostic_helper(
+            target
+        ):
+            continue
+        for key in ("id", "target_lean_declaration"):
+            value = str(target.get(key, "") or "").strip().lower()
+            if value:
+                helper_names.add(value)
+        provenance = (
+            target.get("source_theorem_target_provenance", {})
+            if isinstance(target.get("source_theorem_target_provenance", {}), Mapping)
+            else {}
+        )
+        declaration = str(
+            provenance.get("target_lean_declaration", "") or ""
+        ).strip().lower()
+        if declaration:
+            helper_names.add(declaration)
+
+    actions = packet.get("next_actions", [])
+    dropped_actions: list[dict[str, Any]] = []
+    if isinstance(actions, list) and actions:
+        kept_actions: list[Any] = []
+        for index, action in enumerate(actions, start=1):
+            if not isinstance(action, Mapping):
+                kept_actions.append(action)
+                continue
+            if _diagnostic_helper_action_should_be_dropped(
+                action,
+                helper_names=helper_names,
+            ):
+                dropped_actions.append(
+                    {
+                        "index": index,
+                        "owner_agent": str(action.get("owner_agent", "") or ""),
+                        "action": str(action.get("action", "") or "")[:500],
+                        "reason": (
+                            "helper-only local Lean/AXLE work is diagnostic and "
+                            "must not be routed as source-theorem bridge progress"
+                        ),
+                    }
+                )
+                continue
+            kept_actions.append(action)
+        if dropped_actions:
+            actions = kept_actions
+
+    blocker_action = {
+        "owner_agent": "AgentRuntime/ProofEngineer",
+        "action": (
+            "Produce exact source-to-bridge premise-derivation request metadata "
+            "or source semantic anchor definitions before asking Formalizer for "
+            "an executable source_to_bridge_premise_derivation_candidates object."
+        ),
+        "acceptance_gate": (
+            "proof_bank_runtime_memory_summary exposes a "
+            "source_to_bridge_premise_derivation_candidate_request or grouped "
+            "candidate request with source-binding metadata and semantic anchors"
+        ),
+    }
+    existing_action_text = " ".join(
+        " ".join(
+            str(action.get(key, "") or "")
+            for key in ("owner_agent", "action", "acceptance_gate")
+        ).lower()
+        for action in actions
+        if isinstance(action, Mapping)
+    )
+    if "source-to-bridge" not in existing_action_text and "source_to_bridge" not in existing_action_text:
+        actions = [blocker_action, *list(actions if isinstance(actions, list) else [])]
+    if not actions:
+        actions = [blocker_action]
+    packet["next_actions"] = list(actions)
+
+    packet["diagnostic_helper_bridge_blocker_status"] = (
+        "SOURCE_TO_BRIDGE_METADATA_BLOCKER_RECORDED_NOT_PROOF_EVIDENCE"
+        if added_blocker
+        else "SOURCE_TO_BRIDGE_METADATA_BLOCKER_PRESERVED_NOT_PROOF_EVIDENCE"
+    )
+    if dropped_actions:
+        existing_dropped = packet.get(
+            "dropped_diagnostic_helper_only_next_actions",
+            [],
+        )
+        if not isinstance(existing_dropped, list):
+            existing_dropped = []
+        packet["dropped_diagnostic_helper_only_next_actions"] = [
+            *existing_dropped,
+            *dropped_actions,
+        ]
+    findings = packet.get("critic_findings", [])
+    if not isinstance(findings, list):
+        findings = []
+    findings.append(
+        {
+            "critic": "local_formalizer_packet_normalizer",
+            "finding": (
+                "Diagnostic-helper bridge mode has no source-to-bridge request "
+                "shortcut; recorded an explicit non-proof metadata blocker and "
+                "removed helper-only executable next_actions when present."
+            ),
+            "proof_evidence_status": (
+                "DIAGNOSTIC_HELPER_BRIDGE_BLOCKER_NOT_PROOF_EVIDENCE"
+            ),
         }
     )
     packet["critic_findings"] = findings
