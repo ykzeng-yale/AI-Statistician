@@ -85,6 +85,10 @@ from ai_statistician.formalization_gap_planner_publication_bundle_audit import (
 )
 from ai_statistician.formalization_gap_planner_runtime_handoff_audit import (
     runtime_handoff_audit_row_json_schema,
+    runtime_handoff_execution_plan_json_schema,
+)
+from ai_statistician.research_agent_runtime import (
+    _runtime_formalization_gap_planner_handoff_execution_plan,
 )
 from ai_statistician.model_backend import GeneratorResponse
 from ai_statistician.formalization_gap_planner_portable_plan_audit import (
@@ -252,6 +256,79 @@ def test_publication_bundle_audit_checks_runtime_handoff_registry_context() -> N
         "severity": "error",
         "errors": [],
     }
+    execution_plan = _runtime_formalization_gap_planner_handoff_execution_plan(
+        standalone_plan_cli=(
+            "python3 -m ai_statistician.cli "
+            "formalization-gap-planner-standalone-plan "
+            "--input seed.json --out standalone_plan"
+        ),
+        target_intake_cli=(
+            "python3 -m ai_statistician.cli "
+            "formalization-gap-planner-target-intake "
+            "--input target_intake.json --out target_intake_dir"
+        ),
+        component_resource_registry_cli=(
+            "python3 -m ai_statistician.cli "
+            "formalization-gap-planner-component-resource-registry "
+            "--out component_resource_registry"
+        ),
+        llm_route_planner_prompt_cli=(
+            "python3 -m ai_statistician.cli "
+            "formalization-gap-planner-llm-route-planner "
+            "--input seed.json --provider anthropic --model-tier auto "
+            "--max-repair-attempts 1 "
+            "--max-estimated-prompt-input-tokens 0 "
+            "--goal-conditioned-minimal-formalization-plan-dir standalone_plan "
+            "--formalization-gap-planner-target-intake-dir target_intake_dir "
+            "--formalization-gap-planner-component-resource-registry-dir "
+            "component_resource_registry "
+            "--out llm_prompt"
+        ),
+        llm_route_planner_live_cli=(
+            "python3 -m ai_statistician.cli "
+            "formalization-gap-planner-llm-route-planner "
+            "--input seed.json --provider anthropic --model-tier auto "
+            "--max-repair-attempts 1 "
+            "--max-estimated-prompt-input-tokens 0 "
+            "--goal-conditioned-minimal-formalization-plan-dir standalone_plan "
+            "--formalization-gap-planner-target-intake-dir target_intake_dir "
+            "--formalization-gap-planner-component-resource-registry-dir "
+            "component_resource_registry "
+            "--invoke-provider --out llm_live"
+        ),
+        reuse_smoke_cli=(
+            "python3 -m ai_statistician.cli "
+            "formalization-gap-planner-reuse-smoke "
+            "--input target_intake.json "
+            "--target-prover-family lean4 "
+            "--target-library-snapshot-ref fixture "
+            "--llm-route-planner-provider anthropic "
+            "--llm-route-planner-model-tier auto "
+            "--llm-route-planner-max-repair-attempts 1 "
+            "--llm-route-planner-max-estimated-prompt-input-tokens 0 "
+            "--feedback-llm-route-planner-provider anthropic "
+            "--feedback-llm-route-planner-model-tier auto "
+            "--feedback-llm-route-planner-max-repair-attempts 1 "
+            "--feedback-llm-route-planner-max-estimated-prompt-input-tokens 0 "
+            "--out reuse_smoke"
+        ),
+        standalone_seed_path="seed.json",
+        target_intake_path="target_intake.json",
+        standalone_plan_dir="standalone_plan",
+        target_intake_dir="target_intake_dir",
+        component_resource_registry_dir="component_resource_registry",
+        llm_prompt_out="llm_prompt",
+        llm_live_out="llm_live",
+        reuse_smoke_out="reuse_smoke",
+        target_prover_family="lean4",
+        library_snapshot_ref="fixture",
+    )
+    execution_plan["artifact_kind"] = (
+        "RuntimeFormalizationGapPlannerHandoffExecutionPlan"
+    )
+    execution_plan["handoff_id"] = row["handoff_id"]
+    execution_plan["bridge_id"] = row["bridge_id"]
+    execution_plan["source_row_index"] = 0
     (artifact_dir / "formalization_gap_planner_runtime_handoff_audit_manifest.json").write_text(
         json.dumps(
             {
@@ -265,6 +342,15 @@ def test_publication_bundle_audit_checks_runtime_handoff_registry_context() -> N
                 "n_row_schema_invalid": 0,
                 "n_cost_control_ok": 1,
                 "n_live_explicit_ok": 1,
+                "n_execution_plans": 1,
+                "n_execution_plan_stage_rows": 6,
+                "n_execution_plan_schema_valid": 1,
+                "n_execution_plan_rows": 1,
+                "n_execution_plan_row_schema_valid": 1,
+                "n_execution_plan_row_schema_invalid": 0,
+                "n_execution_plan_prompt_stage_cost_control_ok": 1,
+                "n_execution_plan_live_stage_explicit_ok": 1,
+                "n_execution_plan_reuse_smoke_stage_cost_control_ok": 1,
                 "n_standalone_smoke_ok": 1,
                 "n_llm_prompt_smoke_ok": 1,
                 "n_llm_prompt_packets": 1,
@@ -314,15 +400,35 @@ def test_publication_bundle_audit_checks_runtime_handoff_registry_context() -> N
     )
     (
         artifact_dir
+        / "formalization_gap_planner_runtime_handoff_execution_plans.jsonl"
+    ).write_text(
+        json.dumps(execution_plan, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (
+        artifact_dir
         / "formalization_gap_planner_runtime_handoff_audit_row.schema.json"
     ).write_text(
         json.dumps(runtime_handoff_audit_row_json_schema(), indent=2),
+        encoding="utf-8",
+    )
+    (
+        artifact_dir
+        / "formalization_gap_planner_runtime_handoff_execution_plan.schema.json"
+    ).write_text(
+        json.dumps(runtime_handoff_execution_plan_json_schema(), indent=2),
         encoding="utf-8",
     )
 
     checks = _runtime_handoff_audit_optional_checks(root / "bundle")
     by_name = {check.check_name: check for check in checks}
 
+    assert by_name["optional_runtime_handoff_execution_plan_schema_file"].ok
+    assert by_name["optional_runtime_handoff_execution_plan_jsonl_parse"].ok
+    assert by_name["optional_runtime_handoff_execution_plan_jsonl_row_count"].ok
+    assert by_name[
+        "optional_runtime_handoff_execution_plan_schema_valid_count"
+    ].ok
     assert by_name["optional_runtime_handoff_audit_cost_control"].ok
     assert by_name["optional_runtime_handoff_audit_prompt_smoke"].ok
     assert by_name["optional_runtime_handoff_audit_prompt_tier_accounting"].ok
@@ -339,6 +445,7 @@ def test_publication_bundle_audit_checks_runtime_handoff_registry_context() -> N
         "optional_runtime_handoff_audit_formal_attempt_feedback_sonnet_trigger"
     ].ok
     assert by_name["optional_runtime_handoff_audit_row_0_schema_valid"].ok
+    assert by_name["optional_runtime_handoff_execution_plan_row_0_schema_valid"].ok
 
     manifest_path = (
         artifact_dir / "formalization_gap_planner_runtime_handoff_audit_manifest.json"

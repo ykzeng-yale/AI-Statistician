@@ -150,6 +150,7 @@ from .formalization_gap_planner_route_replan_handoff_audit import (
 )
 from .formalization_gap_planner_runtime_handoff_audit import (
     validate_runtime_handoff_audit_row,
+    validate_runtime_handoff_execution_plan,
 )
 from .formalization_gap_planner_publication_bundle import (
     FORMALIZATION_GAP_PLANNER_PUBLICATION_BUNDLE_MANIFEST_SCHEMA_ID,
@@ -2852,6 +2853,23 @@ def audit_formalization_gap_planner_publication_bundle(
             1
             for check in checks
             if check.check_name.startswith("optional_runtime_handoff_audit_row_")
+            and check.check_name.endswith("_schema_valid")
+            and check.ok
+        ),
+        "n_optional_runtime_handoff_execution_plan_row_schema_checked": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_runtime_handoff_execution_plan_row_"
+            )
+            and check.check_name.endswith("_schema_valid")
+        ),
+        "n_optional_runtime_handoff_execution_plan_row_schema_valid": sum(
+            1
+            for check in checks
+            if check.check_name.startswith(
+                "optional_runtime_handoff_execution_plan_row_"
+            )
             and check.check_name.endswith("_schema_valid")
             and check.ok
         ),
@@ -23648,11 +23666,20 @@ def _runtime_handoff_audit_optional_checks(
         artifact_dir / "formalization_gap_planner_runtime_handoff_audit_manifest.json"
     )
     rows_jsonl_path = artifact_dir / "formalization_gap_planner_runtime_handoff_audit.jsonl"
+    execution_plan_jsonl_path = (
+        artifact_dir / "formalization_gap_planner_runtime_handoff_execution_plans.jsonl"
+    )
     row_schema_path = (
         artifact_dir / "formalization_gap_planner_runtime_handoff_audit_row.schema.json"
     )
+    execution_plan_schema_path = (
+        artifact_dir / "formalization_gap_planner_runtime_handoff_execution_plan.schema.json"
+    )
     manifest = _read_json_no_error(manifest_path)
     rows, row_errors = _read_jsonl_dict_rows_no_error(rows_jsonl_path)
+    execution_plan_rows, execution_plan_row_errors = _read_jsonl_dict_rows_no_error(
+        execution_plan_jsonl_path
+    )
     n_handoffs = int(manifest.get("n_handoffs", 0) or 0)
     n_checks = int(manifest.get("n_checks", 0) or 0)
     n_prompt_packets = int(manifest.get("n_llm_prompt_packets", 0) or 0)
@@ -23748,6 +23775,13 @@ def _runtime_handoff_audit_optional_checks(
             row_schema_path.exists(),
         ),
         _check(
+            "optional_runtime_handoff_execution_plan_schema_file",
+            "optional_artifacts",
+            "optional runtime handoff execution-plan schema exists",
+            str(execution_plan_schema_path.exists()),
+            execution_plan_schema_path.exists(),
+        ),
+        _check(
             "optional_runtime_handoff_audit_manifest_schema_valid_count",
             "optional_artifacts",
             "runtime handoff audit manifest schema-valid count matches row count",
@@ -23769,11 +23803,49 @@ def _runtime_handoff_audit_optional_checks(
             errors=row_errors,
         ),
         _check(
+            "optional_runtime_handoff_execution_plan_jsonl_parse",
+            "optional_artifacts",
+            "runtime handoff execution-plan JSONL parses into object rows",
+            (
+                "; ".join(execution_plan_row_errors)
+                if execution_plan_row_errors
+                else f"rows={len(execution_plan_rows)}"
+            ),
+            not execution_plan_row_errors,
+            errors=execution_plan_row_errors,
+        ),
+        _check(
             "optional_runtime_handoff_audit_jsonl_row_count",
             "optional_artifacts",
             "runtime handoff audit JSONL rows match manifest check count",
             f"jsonl={len(rows)} manifest={n_checks}",
             len(rows) == n_checks,
+        ),
+        _check(
+            "optional_runtime_handoff_execution_plan_jsonl_row_count",
+            "optional_artifacts",
+            "runtime handoff execution-plan JSONL rows match manifest count",
+            (
+                f"jsonl={len(execution_plan_rows)} "
+                f"manifest={manifest.get('n_execution_plan_rows', 0)}"
+            ),
+            len(execution_plan_rows)
+            == int(manifest.get("n_execution_plan_rows", 0) or 0),
+        ),
+        _check(
+            "optional_runtime_handoff_execution_plan_schema_valid_count",
+            "optional_artifacts",
+            "runtime handoff execution-plan schema-valid count matches JSONL rows",
+            (
+                f"valid={manifest.get('n_execution_plan_row_schema_valid', 0)}/"
+                f"{len(execution_plan_rows)}; "
+                f"invalid={manifest.get('n_execution_plan_row_schema_invalid', 0)}"
+            ),
+            len(execution_plan_rows) > 0
+            and int(manifest.get("n_execution_plan_row_schema_valid", 0) or 0)
+            == len(execution_plan_rows)
+            and int(manifest.get("n_execution_plan_row_schema_invalid", 0) or 0)
+            == 0,
         ),
         _check(
             "optional_runtime_handoff_audit_cost_control",
@@ -23948,6 +24020,18 @@ def _runtime_handoff_audit_optional_checks(
                 f"optional_runtime_handoff_audit_row_{idx}_schema_valid",
                 "optional_artifacts",
                 "runtime handoff audit row satisfies published schema",
+                "; ".join(schema_errors) if schema_errors else "ok",
+                not schema_errors,
+                errors=tuple(schema_errors),
+            )
+        )
+    for idx, row in enumerate(execution_plan_rows):
+        schema_errors = validate_runtime_handoff_execution_plan(row)
+        checks.append(
+            _check(
+                f"optional_runtime_handoff_execution_plan_row_{idx}_schema_valid",
+                "optional_artifacts",
+                "runtime handoff execution-plan row satisfies published schema",
                 "; ".join(schema_errors) if schema_errors else "ok",
                 not schema_errors,
                 errors=tuple(schema_errors),
@@ -25946,6 +26030,7 @@ def _markdown_report(payload: dict[str, object]) -> str:
         f"- Optional route-replan handoff-audit route-adoption precondition trace valid: {payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_valid')}/{payload.get('n_optional_route_replan_handoff_audit_roundtrip_route_adoption_preconditions_checked')}",
         f"- Optional route-replan handoff-audit target-context-summary trace valid: {payload.get('n_optional_route_replan_handoff_audit_roundtrip_target_context_summary_valid')}/{payload.get('n_optional_route_replan_handoff_audit_roundtrip_target_context_summary_checked')}",
         f"- Optional runtime handoff-audit schema valid: {payload.get('n_optional_runtime_handoff_audit_row_schema_valid')}/{payload.get('n_optional_runtime_handoff_audit_row_schema_checked')}",
+        f"- Optional runtime handoff execution-plan schema valid: {payload.get('n_optional_runtime_handoff_execution_plan_row_schema_valid')}/{payload.get('n_optional_runtime_handoff_execution_plan_row_schema_checked')}",
         f"- Optional runtime handoff-audit cost controls valid: {payload.get('n_optional_runtime_handoff_audit_cost_control_valid')}/{payload.get('n_optional_runtime_handoff_audit_cost_control_checked')}",
         f"- Optional runtime handoff-audit formal-attempt feedback valid: {payload.get('n_optional_runtime_handoff_audit_formal_attempt_feedback_valid')}/{payload.get('n_optional_runtime_handoff_audit_formal_attempt_feedback_checked')}",
         f"- Optional ablation-study schema valid: {payload.get('n_optional_ablation_study_row_schema_valid')}/{payload.get('n_optional_ablation_study_row_schema_checked')}",

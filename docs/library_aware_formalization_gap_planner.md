@@ -1314,8 +1314,11 @@ reuse smoke. The audit validates that the prompt stage is offline, the live
 stage is explicit and operator-reviewed, and the reuse-smoke stage does not
 invoke route-planner providers. Publication bundles publish
 `contract/formalization_gap_planner_runtime_handoff_execution_plan.schema.json`
-and copy the same schema from packaged runtime handoff audits, so external
-prover systems can replay the handoff without parsing shell strings.
+and copy the same schema plus
+`formalization_gap_planner_runtime_handoff_execution_plans.jsonl` from packaged
+runtime handoff audits. The JSONL artifact contains one annotated execution
+plan row per runtime handoff, so external prover systems can replay the handoff
+without parsing the original handoff rows or shell strings.
 
 The reuse-smoke manifest names both the route-replan standalone seed and its
 `formalization_gap_planner_route_replan_standalone_seed.schema.json`, so an

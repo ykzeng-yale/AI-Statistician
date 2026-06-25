@@ -6573,6 +6573,9 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert runtime_handoff_audit["n_execution_plans"] == 2
     assert runtime_handoff_audit["n_execution_plan_stage_rows"] == 12
     assert runtime_handoff_audit["n_execution_plan_schema_valid"] == 2
+    assert runtime_handoff_audit["n_execution_plan_rows"] == 2
+    assert runtime_handoff_audit["n_execution_plan_row_schema_valid"] == 2
+    assert runtime_handoff_audit["n_execution_plan_row_schema_invalid"] == 0
     assert runtime_handoff_audit["n_execution_plan_prompt_stage_cost_control_ok"] == 2
     assert runtime_handoff_audit["n_execution_plan_live_stage_explicit_ok"] == 2
     assert (
@@ -6668,6 +6671,22 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         / "runtime_formalization_gap_planner_handoff_audit"
         / "formalization_gap_planner_runtime_handoff_execution_plan.schema.json"
     ).exists()
+    execution_plan_rows_path = Path(
+        out_dir
+        / "runtime_formalization_gap_planner_handoff_audit"
+        / "formalization_gap_planner_runtime_handoff_execution_plans.jsonl"
+    )
+    assert execution_plan_rows_path.exists()
+    execution_plan_rows = [
+        json.loads(line)
+        for line in execution_plan_rows_path.read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line.strip()
+    ]
+    assert len(execution_plan_rows) == 2
+    assert execution_plan_rows[0]["handoff_id"] == handoff_rows[0]["handoff_id"]
+    assert execution_plan_rows[0]["stage_count"] == 6
     runtime_handoff_report = (
         out_dir
         / "runtime_formalization_gap_planner_handoff_audit"
@@ -6677,6 +6696,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert "Execution plans:" in runtime_handoff_report
     assert "Execution plan stages:" in runtime_handoff_report
     assert "Execution plan schema valid:" in runtime_handoff_report
+    assert "Execution plan JSONL schema valid:" in runtime_handoff_report
     assert "Target-intake smoke OK:" in runtime_handoff_report
     assert "Target-intake context in prompts:" in runtime_handoff_report
     assert "Component-resource registry smoke OK:" in runtime_handoff_report

@@ -304,6 +304,9 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     assert payload["n_execution_plans"] == 1
     assert payload["n_execution_plan_stage_rows"] == 6
     assert payload["n_execution_plan_schema_valid"] == 1
+    assert payload["n_execution_plan_rows"] == 1
+    assert payload["n_execution_plan_row_schema_valid"] == 1
+    assert payload["n_execution_plan_row_schema_invalid"] == 0
     assert payload["n_llm_prompt_report_only_prompt_budget_caps"] == 1
     assert payload["n_llm_prompt_prompt_budget_preflight_blocked"] == 0
     assert payload["n_llm_prompt_model_tier_mismatches"] == 0
@@ -325,6 +328,22 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
         out_dir
         / "formalization_gap_planner_runtime_handoff_execution_plan.schema.json"
     ).exists()
+    execution_plan_rows_path = (
+        out_dir
+        / "formalization_gap_planner_runtime_handoff_execution_plans.jsonl"
+    )
+    assert execution_plan_rows_path.exists()
+    execution_plan_rows = [
+        json.loads(line)
+        for line in execution_plan_rows_path.read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line.strip()
+    ]
+    assert len(execution_plan_rows) == 1
+    assert execution_plan_rows[0]["handoff_id"] == handoff_row["handoff_id"]
+    assert execution_plan_rows[0]["bridge_id"] == handoff_row["bridge_id"]
+    assert execution_plan_rows[0]["stage_count"] == 6
     assert (
         payload[
             "n_llm_prompt_model_tier_decision_formal_attempt_feedback_contexts"
@@ -408,6 +427,7 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
     ).read_text(encoding="utf-8")
     assert "- LLM prompt model tiers: haiku=0 sonnet=2 opus=0" in report
     assert "- LLM prompt budget caps report-only/blocks: 1/0" in report
+    assert "- Execution plan JSONL schema valid: 1/1" in report
     assert "- Standalone goal-plan context in prompts: requests=2 rows=2" in report
     assert (
         "- LLM prompt model-tier decision basis: {'auto_sonnet_triggers': 2} "

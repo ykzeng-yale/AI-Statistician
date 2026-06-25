@@ -121,6 +121,14 @@ def audit_formalization_gap_planner_runtime_handoffs(
         validate_runtime_handoff_audit_row(row, row_schema) for row in check_dicts
     ]
     n_row_schema_valid = sum(1 for row_errors in row_schema_errors if not row_errors)
+    execution_plan_rows = _runtime_handoff_execution_plan_rows(handoff_rows)
+    execution_plan_row_schema_errors = [
+        validate_runtime_handoff_execution_plan(row)
+        for row in execution_plan_rows
+    ]
+    n_execution_plan_row_schema_valid = sum(
+        1 for row_errors in execution_plan_row_schema_errors if not row_errors
+    )
     by_category: dict[str, int] = {}
     for check in checks:
         by_category[check.category] = by_category.get(check.category, 0) + 1
@@ -162,6 +170,12 @@ def audit_formalization_gap_planner_runtime_handoffs(
             1
             for summary in smoke_summaries
             if summary.get("execution_plan_schema_valid")
+        ),
+        "n_execution_plan_rows": len(execution_plan_rows),
+        "n_execution_plan_row_schema_valid": n_execution_plan_row_schema_valid,
+        "n_execution_plan_row_schema_invalid": (
+            len(execution_plan_row_schema_errors)
+            - n_execution_plan_row_schema_valid
         ),
         "n_execution_plan_prompt_stage_cost_control_ok": sum(
             1
@@ -501,12 +515,19 @@ def audit_formalization_gap_planner_runtime_handoffs(
         "checks": check_dicts,
         "row_schema_errors": row_schema_errors,
         "runtime_handoff_audit_row_schema": row_schema,
+        "execution_plan_rows": execution_plan_rows,
+        "execution_plan_row_schema_errors": execution_plan_row_schema_errors,
+        "runtime_handoff_execution_plan_schema": (
+            runtime_handoff_execution_plan_json_schema()
+        ),
         "smoke_summaries": smoke_summaries,
         "all_ok": (
             not errors
             and bool(handoff_rows)
             and all(check.ok for check in checks)
             and n_row_schema_valid == len(row_schema_errors)
+            and n_execution_plan_row_schema_valid
+            == len(execution_plan_row_schema_errors)
         ),
         "errors": errors,
         "runtime_handoff_audit_fingerprint": stable_hash(check_dicts),
@@ -579,6 +600,30 @@ def runtime_handoff_audit_row_json_schema() -> dict[str, object]:
             "errors": string_array,
         },
     }
+
+
+def _runtime_handoff_execution_plan_rows(
+    handoff_rows: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for row_index, handoff in enumerate(handoff_rows):
+        if not isinstance(handoff, Mapping):
+            continue
+        execution_plan = handoff.get("execution_plan", {})
+        if not isinstance(execution_plan, Mapping):
+            continue
+        plan_row = dict(execution_plan)
+        plan_row.setdefault(
+            "artifact_kind",
+            "RuntimeFormalizationGapPlannerHandoffExecutionPlan",
+        )
+        plan_row["handoff_id"] = str(
+            handoff.get("handoff_id", f"row:{row_index}")
+        )
+        plan_row["bridge_id"] = str(handoff.get("bridge_id", ""))
+        plan_row["source_row_index"] = row_index
+        rows.append(plan_row)
+    return rows
 
 
 def runtime_handoff_execution_plan_json_schema() -> dict[str, object]:
@@ -2714,6 +2759,18 @@ def _write_outputs(out_dir: Path, payload: Mapping[str, object]) -> None:
         + ("\n" if payload.get("checks") else ""),
         encoding="utf-8",
     )
+    execution_plan_rows = [
+        row
+        for row in payload.get("execution_plan_rows", [])
+        if isinstance(row, dict)
+    ]
+    (
+        out_dir / "formalization_gap_planner_runtime_handoff_execution_plans.jsonl"
+    ).write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in execution_plan_rows)
+        + ("\n" if execution_plan_rows else ""),
+        encoding="utf-8",
+    )
     (
         out_dir / "formalization_gap_planner_runtime_handoff_audit_row.schema.json"
     ).write_text(
@@ -2743,6 +2800,11 @@ def _markdown_report(payload: Mapping[str, object]) -> str:
         f"- Execution plans: {payload.get('n_execution_plans')}",
         f"- Execution plan stages: {payload.get('n_execution_plan_stage_rows')}",
         f"- Execution plan schema valid: {payload.get('n_execution_plan_schema_valid')}",
+        (
+            f"- Execution plan JSONL schema valid: "
+            f"{payload.get('n_execution_plan_row_schema_valid')}/"
+            f"{payload.get('n_execution_plan_rows')}"
+        ),
         (
             f"- Execution plan cost controls: "
             f"prompt={payload.get('n_execution_plan_prompt_stage_cost_control_ok')} "

@@ -421,6 +421,7 @@ OPTIONAL_ARTIFACT_FILES = {
     "formalization_gap_planner_runtime_handoff_audit": (
         "formalization_gap_planner_runtime_handoff_audit_manifest.json",
         "formalization_gap_planner_runtime_handoff_audit.jsonl",
+        "formalization_gap_planner_runtime_handoff_execution_plans.jsonl",
         "formalization_gap_planner_runtime_handoff_audit_row.schema.json",
         "formalization_gap_planner_runtime_handoff_execution_plan.schema.json",
         "formalization_gap_planner_runtime_handoff_audit.md",
