@@ -243,7 +243,12 @@ def build_algorithm_engineer_prompt(
         "locally but returned statistically invalid metrics. Repair the algorithm or "
         "metric computation so coverage/probability metrics are nondegenerate, inside "
         "[0,1], and satisfy the stated target when target_coverage is present. Do not "
-        "only rename metrics or hide the coverage field. "
+        "only rename metrics or hide the coverage field. For coverage repair, prefer "
+        "a conservative finite-width interval over a narrow under-covering interval; "
+        "larger mean_width is acceptable for this coding-agent repair gate when it is "
+        "finite and the returned coverage clears target_coverage. If a pilot interval "
+        "under-covers, widen the half-width by a finite multiplier and recompute "
+        "coverage before returning metrics. "
         if _feedback_reports_metric_gate_failure(payload["runtime_environment_feedback"])
         else ""
     )

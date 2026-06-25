@@ -491,9 +491,12 @@ def _prior_metric_gate_feedback(
         ),
         "required_repair": (
             "Repair the generated simulation sandbox. The previous draft executed "
-            f"but reported zero coverage; return empirical_coverage >= {target_coverage}, "
-            "target_coverage, mean_width, and sandbox_failed=False. Do not rely "
-            "only on registered simulator rows."
+            f"but reported zero coverage; return empirical_coverage >= {target_coverage}. "
+            "For this component probe, use a conservative finite-width coverage "
+            "interval if needed rather than a narrow under-covering toy simulator. "
+            "If a pilot interval under-covers, widen the half-width by a finite "
+            "multiplier and recompute coverage before returning target_coverage, "
+            "mean_width, sandbox_failed=False."
         ),
         "runtime_requested_evidence_contract": {
             "capability_eval_requires_generated_simulation_code": True

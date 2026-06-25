@@ -26,10 +26,14 @@ from ai_statistician.algorithm_engineer_llm import (
     validate_algorithm_engineer_packet,
 )
 from ai_statistician.algorithm_engineer_generated_code_repair_eval import (
+    _prior_metric_gate_failure_manifest as _algorithm_prior_metric_gate_failure_manifest,
+    _prior_metric_gate_feedback as _algorithm_prior_metric_gate_feedback,
     run_algorithm_engineer_generated_code_repair_eval,
     write_algorithm_engineer_generated_code_repair_eval_failure_manifest,
 )
 from ai_statistician.simulation_engineer_generated_code_repair_eval import (
+    _prior_metric_gate_failure_manifest as _simulation_prior_metric_gate_failure_manifest,
+    _prior_metric_gate_feedback as _simulation_prior_metric_gate_feedback,
     run_simulation_engineer_generated_code_repair_eval,
     write_simulation_engineer_generated_code_repair_eval_failure_manifest,
 )
@@ -4535,6 +4539,10 @@ def test_algorithm_engineer_prompt_includes_metric_gate_repair_feedback() -> Non
     assert "FAILED_METRIC_GATE" in prompt
     assert "empirical_coverage is degenerate zero coverage" in prompt
     assert "Do not only rename metrics or hide the coverage field" in prompt
+    assert "conservative finite-width interval" in prompt
+    assert "coverage clears target_coverage" in prompt
+    assert "widen the half-width" in prompt
+    assert "recompute coverage" in prompt
 
 
 def test_algorithm_sandbox_failure_memory_replays_to_algorithm_prompt(
@@ -4841,6 +4849,9 @@ def test_simulation_engineer_prompt_includes_metric_gate_repair_feedback() -> No
     assert "FAILED_METRIC_GATE" in prompt
     assert "mean_coverage is degenerate zero coverage" in prompt
     assert "Do not only rename metrics or hide the coverage field" in prompt
+    assert "conservative finite-width interval" in prompt
+    assert "widen the half-width" in prompt
+    assert "recompute coverage" in prompt
 
 
 def test_generated_simulation_failure_memory_replays_to_simulator_prompt(
@@ -6598,6 +6609,24 @@ def test_algorithm_engineer_generated_code_repair_eval_static_fixture(
     assert Path(manifest["artifacts"]["manifest_json"]).exists()
 
 
+def test_algorithm_engineer_repair_eval_feedback_prefers_conservative_coverage() -> None:
+    prior_failure = _algorithm_prior_metric_gate_failure_manifest(
+        estimator_id="generated_split_conformal_repair_probe",
+        target_coverage=0.9,
+    )
+    feedback = _algorithm_prior_metric_gate_feedback(
+        manifest=prior_failure,
+        target_coverage=0.9,
+    )
+
+    required_repair = feedback["required_repair"]
+    assert "conservative finite-width coverage interval" in required_repair
+    assert "narrow under-covering toy predictor" in required_repair
+    assert "widen the half-width" in required_repair
+    assert "recompute coverage" in required_repair
+    assert "implementation evidence only, not theorem proof" in feedback["boundary"]
+
+
 def test_algorithm_engineer_generated_code_repair_eval_cli_static_is_not_capability(
     tmp_path: Path,
 ) -> None:
@@ -6681,6 +6710,24 @@ def test_simulation_engineer_generated_code_repair_eval_static_fixture(
     )
     assert manifest["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
     assert Path(manifest["artifacts"]["manifest_json"]).exists()
+
+
+def test_simulation_engineer_repair_eval_feedback_prefers_conservative_coverage() -> None:
+    prior_failure = _simulation_prior_metric_gate_failure_manifest(
+        simulation_id="generated_split_conformal_stress_repair_probe",
+        target_coverage=0.9,
+    )
+    feedback = _simulation_prior_metric_gate_feedback(
+        manifest=prior_failure,
+        target_coverage=0.9,
+    )
+
+    required_repair = feedback["required_repair"]
+    assert "conservative finite-width coverage interval" in required_repair
+    assert "narrow under-covering toy simulator" in required_repair
+    assert "widen the half-width" in required_repair
+    assert "recompute coverage" in required_repair
+    assert "not proof evidence" in feedback["boundary"]
 
 
 def test_simulation_engineer_generated_code_repair_eval_cli_static_is_not_capability(

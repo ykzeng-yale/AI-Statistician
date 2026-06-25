@@ -96,6 +96,12 @@ Second concrete change in this lane: `research-agent-runtime
 machine-specific LeanPractice paths. Future workers should be able to run the
 strict live preset from this repo without manually passing `--lean-project`.
 
+Third concrete change in this lane: AlgorithmEngineer and SimulationEngineer
+metric-gate repair prompts now explicitly steer live coding-agent repair toward
+conservative finite-width coverage intervals and half-width widening/recompute
+when a pilot interval under-covers. This keeps the repair gate honest while
+making the intended repair behavior legible to the LLM.
+
 Live evidence collected on 2026-06-25:
 
 - `runs/main_worker_doctor_live_env/doctor_manifest.json`: live environment
@@ -105,12 +111,26 @@ Live evidence collected on 2026-06-25:
 - `runs/main_worker_live_runtime_minimal12/research_agent_runtime_manifest.json`:
   12-iteration budget reached generated algorithm fail-then-pass repair and
   Formalizer/ProofEngineer local Lean diagnostics; scorecard 32/49.
+- `runs/main_worker_live_coding_agent_repair_eval_both_guided/coding_agent_generated_code_repair_eval_manifest.json`:
+  standalone live combined coding-agent repair eval passed with one
+  AlgorithmEngineer and one SimulationEngineer fail-then-pass repair sequence.
+- `runs/main_worker_live_runtime_with_coding_gate_both_guided/research_agent_runtime_manifest.json`:
+  attached live coding-agent repair component gate passed inside the runtime
+  audit with live, non-fixture evidence; scorecard 31/49.
 
 The 12-iteration run is evidence for live generated-code execution, one
 AlgorithmEngineer repair sequence, Formalizer candidate materialization, local
 Lean tool calls, and proof-state feedback rows. It is not source theorem proof:
 `real_kernel_verified_subclaims=0`, `formal_gaps=3`, and the terminal state was
 `MAX_ITERATIONS_REACHED` with a pending ProofEngineer repair task.
+
+The attached coding-agent repair gate is implementation capability evidence,
+not theorem proof and not an integrated runtime success by itself. In the
+5-iteration attached run, the component gate passed with
+`attached_algorithm_repair_sequences=1` and
+`attached_simulation_repair_sequences=1`, but the short integrated runtime still
+ended at `AlgorithmEngineer algorithm_engineer_packet_validation_failed` before
+showing same-run integrated repair loops or any kernel-verified subclaim.
 
 ## Delegation To Other Codex Workers
 
@@ -119,8 +139,8 @@ outputs into the runtime path:
 
 - Formalizer/ProofEngineer worker: fix conformal target-shape drift and ensure
   repaired candidates preserve the probability/coverage theorem shape.
-- Algorithm/Simulation worker: attach generated code repair sequences to the
-  current task, not only aggregate history.
+- Algorithm/Simulation worker: turn the now-passing attached generated-code
+  repair component gate into same-run integrated AgentRuntime repair evidence.
 - Proof-library worker: add reusable statistics kernels with local Lean/AXLE
   manifests.
 - RAG/OpenProver worker: feed source hits and prover diagnostics into

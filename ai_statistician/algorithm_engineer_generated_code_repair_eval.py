@@ -505,9 +505,12 @@ def _prior_metric_gate_feedback(
         "prototypes": list(manifest.get("prototypes", []) or []),
         "required_repair": (
             "Repair the generated Python sandbox. The previous draft executed "
-            f"but reported zero coverage; return empirical_coverage >= {target_coverage}, "
-            "target_coverage, mean_width, and sandbox_failed=False. Do not use "
-            "registered_template_hint other than none."
+            f"but reported zero coverage; return empirical_coverage >= {target_coverage}. "
+            "For this component probe, use a conservative finite-width coverage "
+            "interval if needed rather than a narrow under-covering toy predictor. "
+            "If a pilot interval under-covers, widen the half-width by a finite "
+            "multiplier and recompute coverage before returning target_coverage, "
+            "mean_width, sandbox_failed=False, and registered_template_hint=none."
         ),
         "boundary": (
             "Injected feedback is a component eval signal. Passing the repair "
