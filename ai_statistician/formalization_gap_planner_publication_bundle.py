@@ -2863,6 +2863,12 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_standalone_replay_adoptable_route_candidates",
             "n_standalone_replay_blocked_route_candidates",
             "standalone_replay_gate_blockers",
+            "n_standalone_seed_routes_llm_fallback_routes",
+            "n_standalone_seed_routes_llm_fallback_routes_marked_adoptable",
+            "n_standalone_seed_routes_llm_fallback_selected_not_adoptable",
+            "n_standalone_seed_routes_with_llm_seed_route_source",
+            "standalone_seed_route_by_llm_seed_route_source",
+            "n_standalone_seed_routes_with_llm_fallback_boundary",
             "n_row_schema_valid",
             "n_row_schema_invalid",
             "all_ok",
@@ -3299,6 +3305,23 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_standalone_replay_adoptable_route_candidates": nonnegative_integer,
             "n_standalone_replay_blocked_route_candidates": nonnegative_integer,
             "standalone_replay_gate_blockers": string_array,
+            "n_standalone_seed_routes_llm_fallback_routes": nonnegative_integer,
+            "n_standalone_seed_routes_llm_fallback_routes_marked_adoptable": (
+                nonnegative_integer
+            ),
+            "n_standalone_seed_routes_llm_fallback_selected_not_adoptable": (
+                nonnegative_integer
+            ),
+            "n_standalone_seed_routes_with_llm_seed_route_source": (
+                nonnegative_integer
+            ),
+            "standalone_seed_route_by_llm_seed_route_source": {
+                "type": "object",
+                "additionalProperties": nonnegative_integer,
+            },
+            "n_standalone_seed_routes_with_llm_fallback_boundary": (
+                nonnegative_integer
+            ),
             "n_row_schema_valid": nonnegative_integer,
             "n_row_schema_invalid": nonnegative_integer,
             "all_ok": {"type": "boolean"},
@@ -6953,6 +6976,12 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_standalone_replay_adoptable_route_candidates": 0,
         "n_standalone_replay_blocked_route_candidates": 0,
         "standalone_replay_gate_blockers": (),
+        "n_standalone_seed_routes_llm_fallback_routes": 0,
+        "n_standalone_seed_routes_llm_fallback_routes_marked_adoptable": 0,
+        "n_standalone_seed_routes_llm_fallback_selected_not_adoptable": 0,
+        "n_standalone_seed_routes_with_llm_seed_route_source": 0,
+        "standalone_seed_route_by_llm_seed_route_source": {},
+        "n_standalone_seed_routes_with_llm_fallback_boundary": 0,
         "n_row_schema_valid": 0,
         "n_row_schema_invalid": 0,
         "all_ok": False,
@@ -7031,6 +7060,9 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
     route_adoption_status_counts = _llm_route_planner_status_counts(payload, rows)
     route_adoption_blocker_counts = _llm_route_planner_blocker_counts(payload, rows)
     standalone_replay_gate = _dict_value(payload, "standalone_replay_gate")
+    standalone_seed_route_provenance = _llm_standalone_seed_route_provenance_summary(
+        payload
+    )
     model_tier_decision_ledger = _dict_tuple(
         payload.get("model_tier_decision_ledger", [])
     )
@@ -9085,9 +9117,65 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                 standalone_replay_gate.get("gate_blockers", []),
             )
         ),
+        **standalone_seed_route_provenance,
         "n_row_schema_valid": int(payload.get("n_row_schema_valid", 0) or 0),
         "n_row_schema_invalid": int(payload.get("n_row_schema_invalid", 0) or 0),
         "all_ok": bool(payload.get("all_ok", False)),
+    }
+
+
+def _llm_standalone_seed_route_provenance_summary(
+    payload: Mapping[str, Any],
+) -> dict[str, object]:
+    """Summarize fallback provenance on packaged standalone replay seed routes."""
+
+    seed_routes = _dict_tuple(
+        _dict_value(payload, "standalone_seed").get("routes", [])
+    )
+    by_seed_route_source = Counter(
+        str(route.get("llm_route_planner_seed_route_source", "") or "")
+        for route in seed_routes
+        if route.get("llm_route_planner_seed_route_source")
+        or route.get("llm_route_planner_fallback_route") is True
+    )
+    return {
+        "n_standalone_seed_routes_llm_fallback_routes": sum(
+            1
+            for route in seed_routes
+            if route.get("llm_route_planner_fallback_route") is True
+        ),
+        "n_standalone_seed_routes_llm_fallback_routes_marked_adoptable": sum(
+            1
+            for route in seed_routes
+            if route.get("llm_route_planner_fallback_route") is True
+            and (
+                route.get("llm_route_planner_seed_adoptable_for_standalone_replay")
+                is True
+            )
+        ),
+        "n_standalone_seed_routes_llm_fallback_selected_not_adoptable": sum(
+            1
+            for route in seed_routes
+            if route.get("llm_route_planner_fallback_route") is True
+            and route.get("llm_route_planner_seed_selected") is True
+            and (
+                route.get("llm_route_planner_seed_adoptable_for_standalone_replay")
+                is not True
+            )
+        ),
+        "n_standalone_seed_routes_with_llm_seed_route_source": sum(
+            1
+            for route in seed_routes
+            if route.get("llm_route_planner_seed_route_source")
+        ),
+        "standalone_seed_route_by_llm_seed_route_source": dict(
+            sorted(by_seed_route_source.items())
+        ),
+        "n_standalone_seed_routes_with_llm_fallback_boundary": sum(
+            1
+            for route in seed_routes
+            if route.get("llm_route_planner_fallback_boundary")
+        ),
     }
 
 
@@ -10003,6 +10091,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"blockers={payload.get('llm_route_planner_summary', {}).get('standalone_replay_gate_blockers')}"
         ),
         (
+            f"- LLM standalone-seed fallback routes total/marked-adoptable/selected-not-adoptable: "
+            f"{payload.get('llm_route_planner_summary', {}).get('n_standalone_seed_routes_llm_fallback_routes')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_standalone_seed_routes_llm_fallback_routes_marked_adoptable')}/"
+            f"{payload.get('llm_route_planner_summary', {}).get('n_standalone_seed_routes_llm_fallback_selected_not_adoptable')} "
+            f"sources={payload.get('llm_route_planner_summary', {}).get('standalone_seed_route_by_llm_seed_route_source')}"
+        ),
+        (
             f"- LLM route planner source-grounding rows/pending/residual-unresolved: "
             f"{payload.get('llm_route_planner_summary', {}).get('n_request_source_grounding_rows')}/"
             f"{payload.get('llm_route_planner_summary', {}).get('n_requests_with_pending_source_grounding_obligation_inventory')}/"
@@ -10090,6 +10185,13 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"adoptable={payload.get('feedback_llm_route_planner_summary', {}).get('n_standalone_replay_adoptable_route_candidates')}/"
             f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_standalone_replay_route_candidates')} "
             f"blockers={payload.get('feedback_llm_route_planner_summary', {}).get('standalone_replay_gate_blockers')}"
+        ),
+        (
+            f"- Feedback LLM standalone-seed fallback routes total/marked-adoptable/selected-not-adoptable: "
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_standalone_seed_routes_llm_fallback_routes')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_standalone_seed_routes_llm_fallback_routes_marked_adoptable')}/"
+            f"{payload.get('feedback_llm_route_planner_summary', {}).get('n_standalone_seed_routes_llm_fallback_selected_not_adoptable')} "
+            f"sources={payload.get('feedback_llm_route_planner_summary', {}).get('standalone_seed_route_by_llm_seed_route_source')}"
         ),
         (
             f"- Feedback LLM route planner provider usage rows/input/output/total: "

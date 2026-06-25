@@ -10126,6 +10126,42 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
         == 1
     )
     assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_standalone_seed_routes_llm_fallback_routes"
+        ]
+        == 0
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_standalone_seed_routes_llm_fallback_routes_marked_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_standalone_seed_routes_llm_fallback_selected_not_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_standalone_seed_routes_with_llm_seed_route_source"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "standalone_seed_route_by_llm_seed_route_source"
+        ]
+        == {"accepted_llm_standalone_route": 1}
+    )
+    assert (
+        bundle_manifest["llm_route_planner_summary"][
+            "n_standalone_seed_routes_with_llm_fallback_boundary"
+        ]
+        == 0
+    )
+    assert (
         "search_requests_pending_evidence"
         in bundle_manifest["llm_route_planner_summary"][
             "standalone_replay_gate_blockers"
@@ -10324,6 +10360,24 @@ def test_publication_bundle_audit_checks_accepted_llm_seed_provenance() -> None:
             "n_standalone_replay_blocked_route_candidates"
         ]
         == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_standalone_seed_routes_llm_fallback_routes"
+        ]
+        == 0
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "n_standalone_seed_routes_with_llm_seed_route_source"
+        ]
+        == 1
+    )
+    assert (
+        bundle_manifest["feedback_llm_route_planner_summary"][
+            "standalone_seed_route_by_llm_seed_route_source"
+        ]
+        == {"accepted_llm_standalone_route": 1}
     )
     assert (
         "search_requests_pending_evidence"
@@ -13895,6 +13949,9 @@ def test_publication_bundle_audit_rejects_bundle_llm_summary_drift() -> None:
     corrupted_primary["llm_route_planner_summary"]["standalone_replay_gate_ok"] = True
     corrupted_primary["llm_route_planner_summary"][
         "n_standalone_replay_adoptable_route_candidates"
+    ] = 1
+    corrupted_primary["llm_route_planner_summary"][
+        "n_standalone_seed_routes_llm_fallback_routes"
     ] = 1
     corrupted_primary["llm_route_planner_summary"]["standalone_replay_gate"][
         "gate_ok"

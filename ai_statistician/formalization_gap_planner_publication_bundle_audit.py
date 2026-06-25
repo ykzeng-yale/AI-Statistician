@@ -4739,6 +4739,9 @@ def _expected_bundle_llm_route_planner_summary(
         rows,
     )
     standalone_replay_gate = _dict_value(payload, "standalone_replay_gate")
+    standalone_seed_route_provenance = (
+        _llm_standalone_seed_route_provenance_summary_for_summary(payload)
+    )
     return {
         "requested": manifest_path.exists(),
         "provider_execution_mode": str(
@@ -6368,9 +6371,63 @@ def _expected_bundle_llm_route_planner_summary(
                 standalone_replay_gate.get("gate_blockers", []),
             )
         ),
+        **standalone_seed_route_provenance,
         "n_row_schema_valid": int(payload.get("n_row_schema_valid", 0) or 0),
         "n_row_schema_invalid": int(payload.get("n_row_schema_invalid", 0) or 0),
         "all_ok": bool(payload.get("all_ok", False)),
+    }
+
+
+def _llm_standalone_seed_route_provenance_summary_for_summary(
+    payload: Mapping[str, Any],
+) -> dict[str, object]:
+    seed_routes = _dict_tuple(
+        _dict_value(payload, "standalone_seed").get("routes", [])
+    )
+    by_seed_route_source = Counter(
+        str(route.get("llm_route_planner_seed_route_source", "") or "")
+        for route in seed_routes
+        if route.get("llm_route_planner_seed_route_source")
+        or route.get("llm_route_planner_fallback_route") is True
+    )
+    return {
+        "n_standalone_seed_routes_llm_fallback_routes": sum(
+            1
+            for route in seed_routes
+            if route.get("llm_route_planner_fallback_route") is True
+        ),
+        "n_standalone_seed_routes_llm_fallback_routes_marked_adoptable": sum(
+            1
+            for route in seed_routes
+            if route.get("llm_route_planner_fallback_route") is True
+            and (
+                route.get("llm_route_planner_seed_adoptable_for_standalone_replay")
+                is True
+            )
+        ),
+        "n_standalone_seed_routes_llm_fallback_selected_not_adoptable": sum(
+            1
+            for route in seed_routes
+            if route.get("llm_route_planner_fallback_route") is True
+            and route.get("llm_route_planner_seed_selected") is True
+            and (
+                route.get("llm_route_planner_seed_adoptable_for_standalone_replay")
+                is not True
+            )
+        ),
+        "n_standalone_seed_routes_with_llm_seed_route_source": sum(
+            1
+            for route in seed_routes
+            if route.get("llm_route_planner_seed_route_source")
+        ),
+        "standalone_seed_route_by_llm_seed_route_source": dict(
+            sorted(by_seed_route_source.items())
+        ),
+        "n_standalone_seed_routes_with_llm_fallback_boundary": sum(
+            1
+            for route in seed_routes
+            if route.get("llm_route_planner_fallback_boundary")
+        ),
     }
 
 

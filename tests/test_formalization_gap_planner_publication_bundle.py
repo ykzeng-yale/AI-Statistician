@@ -197,6 +197,18 @@ def _assert_no_route_planner_execution_summary(summary: dict[str, object]) -> No
     assert summary["live_provider_backend_requested"] is False
     assert summary["static_generator_backend_requested"] is False
     assert summary["provider_generation_requested"] is False
+    assert summary["n_standalone_seed_routes_llm_fallback_routes"] == 0
+    assert (
+        summary["n_standalone_seed_routes_llm_fallback_routes_marked_adoptable"]
+        == 0
+    )
+    assert (
+        summary["n_standalone_seed_routes_llm_fallback_selected_not_adoptable"]
+        == 0
+    )
+    assert summary["n_standalone_seed_routes_with_llm_seed_route_source"] == 0
+    assert summary["standalone_seed_route_by_llm_seed_route_source"] == {}
+    assert summary["n_standalone_seed_routes_with_llm_fallback_boundary"] == 0
 
 
 def _write_llm_route_planner_fixture_input(root: Path) -> Path:
@@ -1946,6 +1958,42 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     ]
     assert (
         manifest["llm_route_planner_summary"][
+            "n_standalone_seed_routes_llm_fallback_routes"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_standalone_seed_routes_llm_fallback_routes_marked_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_standalone_seed_routes_llm_fallback_selected_not_adoptable"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_standalone_seed_routes_with_llm_seed_route_source"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "standalone_seed_route_by_llm_seed_route_source"
+        ]
+        == {"fallback_input_route": 1}
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
+            "n_standalone_seed_routes_with_llm_fallback_boundary"
+        ]
+        == 1
+    )
+    assert (
+        manifest["llm_route_planner_summary"][
             "n_route_adoption_pending_formal_gap_boundary_blockers"
         ]
         == 0
@@ -2429,6 +2477,42 @@ def test_formalization_gap_planner_publication_bundle_cli_copies_llm_planner_art
     assert manifest["feedback_llm_route_planner_summary"][
         "standalone_replay_gate_blockers"
     ] == ["llm_route_planner_response_missing"]
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_standalone_seed_routes_llm_fallback_routes"
+        ]
+        == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_standalone_seed_routes_llm_fallback_routes_marked_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_standalone_seed_routes_llm_fallback_selected_not_adoptable"
+        ]
+        == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_standalone_seed_routes_with_llm_seed_route_source"
+        ]
+        == 1
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "standalone_seed_route_by_llm_seed_route_source"
+        ]
+        == {"fallback_input_route": 1}
+    )
+    assert (
+        manifest["feedback_llm_route_planner_summary"][
+            "n_standalone_seed_routes_with_llm_fallback_boundary"
+        ]
+        == 1
+    )
     assert (
         manifest["feedback_llm_route_planner_summary"][
             "n_route_adoption_pending_formal_gap_boundary_blockers"
