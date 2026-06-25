@@ -253,7 +253,11 @@ def build_formalizer_prompt(
                 "proof_bank_obligation_requests alone do not satisfy this gate. "
                 "When runtime target-shape feedback says a source theorem would "
                 "drift if repaired, emit that source theorem as FORMAL_GAP and "
-                "route helper/premise Lean candidates separately."
+                "route helper/premise Lean candidates separately. A separate helper "
+                "formal_targets entry must set "
+                "source_theorem_target_provenance.source_theorem_target_known=false "
+                "so local Lean/LSP can inspect a real artifact without promoting it "
+                "to source-theorem proof evidence."
             ),
             "not_proof_evidence": (
                 "the Lean candidate remains a proposal until AgentRuntime runs "
@@ -360,11 +364,11 @@ FORMALIZER_OUTPUT_CONTRACT: dict[str, Any] = {
             "lean_imports": ["Mathlib"],
             "semantic_alignment_constraints": ["string"],
             "source_theorem_target_provenance": {
-                "source_theorem_target_known": True,
+                "source_theorem_target_known": "true only for the source theorem target; false for helper/support Lean candidates",
                 "target_lean_declaration": "source theorem Lean declaration, not adapter declaration",
                 "source_theorem_goal_id": "registered theorem goal id",
             },
-            "expected_status": "OPEN",
+            "expected_status": "NEEDS_KERNEL_CHECK|FORMAL_GAP",
         }
     ],
     "lemma_dependency_plan": [
@@ -851,16 +855,33 @@ def _feedback_requires_probability_measure_coverage_shape(
 
 def _formal_target_is_source_theorem_candidate(row: Mapping[str, Any]) -> bool:
     provenance = row.get("source_theorem_target_provenance", {})
-    if (
-        isinstance(provenance, Mapping)
-        and provenance.get("source_theorem_target_known") is True
-    ):
+    source_theorem_target_known = _source_theorem_target_known(provenance)
+    if source_theorem_target_known is False:
+        return False
+    if source_theorem_target_known is True:
         return True
     row_text = " ".join(
         str(row.get(field, "") or "")
         for field in ("id", "informal_source", "claim", "statement", "reason")
     ).lower()
     return "source theorem" in row_text
+
+
+def _source_theorem_target_known(provenance: object) -> bool | None:
+    if not isinstance(provenance, Mapping):
+        return None
+    value = provenance.get("source_theorem_target_known")
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "yes", "1"}:
+            return True
+        if normalized in {"false", "no", "0"}:
+            return False
+    if isinstance(value, int) and value in {0, 1}:
+        return bool(value)
+    return None
 
 
 def _packet_requires_probability_measure_coverage_shape(
@@ -1691,6 +1712,16 @@ def _formalizer_mode_specific_instructions(
             )
             else {}
         )
+        next_action_reference_contract = (
+            runtime_environment_feedback.get("next_action_reference_contract", {})
+            if isinstance(
+                runtime_environment_feedback.get(
+                    "next_action_reference_contract", {}
+                ),
+                Mapping,
+            )
+            else {}
+        )
         target_shape_contract_text = (
             json.dumps(target_shape_contract, default=str).lower()
             if isinstance(target_shape_contract, Mapping)
@@ -1762,6 +1793,26 @@ def _formalizer_mode_specific_instructions(
                 "Mandatory validation repair directives: "
                 + " ".join(validation_repair_directives[:4])
             )
+        if next_action_reference_contract:
+            instructions.append(
+                "Mandatory next_action_reference_contract repair: every next_actions "
+                "entry must reference only artifacts, formal_targets, "
+                "proof_bank_obligation_requests, lemma_dependency_plan entries, or "
+                "source_to_bridge_premise_derivation_candidates objects that this same "
+                "packet actually emits. If no concrete source_to_bridge candidate is "
+                "emitted, no next_actions field may name "
+                "source_to_bridge_premise_derivation_candidates or ask AgentRuntime/"
+                "AXLE/local Lean to execute one."
+            )
+            if repeated_packet_failure:
+                instructions.append(
+                    "Repeated next_action_reference_contract failure: prefer deleting "
+                    "the phantom executable next_actions entry entirely and record the "
+                    "missing work in gap_taxonomy, lemma_dependency_plan, or "
+                    "proof_bank_obligation_requests. Do not create a placeholder "
+                    "source_to_bridge_premise_derivation_candidates object just to "
+                    "satisfy next_actions."
+                )
         if has_forbidden_shortcut_validation:
             instructions.append(
                 "Mandatory forbidden-shortcut repair: do not use `absurd`, "
@@ -1796,6 +1847,19 @@ def _formalizer_mode_specific_instructions(
                     "or proof_bank_obligation_requests. Do not replace the source theorem "
                     "with arithmetic/rank helper lemmas in formal_targets."
                 )
+                if repeated_packet_failure:
+                    instructions.append(
+                        "Repeated coverage proof-hole escape hatch: emit the source "
+                        "theorem formal_targets entry as expected_status=FORMAL_GAP "
+                        "with an empty lean_statement_sketch. To keep capability-eval "
+                        "Lean tooling live, you may additionally emit exactly one "
+                        "narrow support/helper formal_targets entry with "
+                        "expected_status=NEEDS_KERNEL_CHECK and "
+                        "source_theorem_target_provenance.source_theorem_target_known=false. "
+                        "That helper must not be described as the source theorem, must "
+                        "avoid `sorry`/`admit`/`by?`/`exact?`, and remains diagnostic "
+                        "Lean evidence only until AgentRuntime checks it."
+                    )
         if has_target_shape_validation:
             instructions.append(
                 "Mandatory target-shape packet repair: if a source theorem is a "
@@ -2296,6 +2360,10 @@ def _compact_formalizer_environment_feedback(
         "target_shape_contract": _compact_value(target_shape_contract),
         "target_drift_repair_contract": _compact_value(
             target_drift_repair_contract
+        ),
+        "next_action_reference_contract": _compact_value(
+            feedback.get("next_action_reference_contract", {})
+            or input_summary.get("next_action_reference_contract", {})
         ),
         "candidate_reroute_options": _compact_value(candidate_reroute_options),
         "local_lean_repair_contract": _compact_value(local_lean_repair_contract),

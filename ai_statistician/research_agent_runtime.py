@@ -4284,6 +4284,11 @@ def _formalizer_packet_validation_failure_result(
     missing_source_binding_contract_metadata = (
         _formalizer_missing_source_binding_contract_metadata(validation_errors)
     )
+    next_action_reference_contract = (
+        _formalizer_next_action_reference_contract_from_validation_errors(
+            validation_errors
+        )
+    )
     prior_environment_feedback = (
         task.inputs.get("environment_feedback", {})
         if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
@@ -4324,6 +4329,14 @@ def _formalizer_packet_validation_failure_result(
                 "anchors are present."
             ),
             (
+                "When repeated proof-hole feedback makes source-to-bridge metadata "
+                "unavailable but live Lean/LSP capability still needs a materialized "
+                "artifact, emit at most one helper formal_targets entry with "
+                "source_theorem_target_provenance.source_theorem_target_known=false; "
+                "keep the original source theorem as FORMAL_GAP and never count the "
+                "helper as source-theorem proof evidence."
+            ),
+            (
                 "Do not name source_to_bridge_premise_derivation_candidates in "
                 "next_actions unless this same packet emits the concrete candidate "
                 "object; otherwise describe the blocker in gap_taxonomy, "
@@ -4356,6 +4369,7 @@ def _formalizer_packet_validation_failure_result(
             "validation_repair_directives": validation_repair_directives,
             "target_shape_contract": active_target_shape_contract,
             "target_drift_repair_contract": active_target_drift_repair_contract,
+            "next_action_reference_contract": next_action_reference_contract,
             "candidate_reroute_options": active_candidate_reroute_options,
             "missing_semantic_anchor_references": missing_anchors,
             "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
@@ -4417,6 +4431,7 @@ def _formalizer_packet_validation_failure_result(
         "validation_repair_directives": validation_repair_directives,
         "target_shape_contract": active_target_shape_contract,
         "target_drift_repair_contract": active_target_drift_repair_contract,
+        "next_action_reference_contract": next_action_reference_contract,
         "candidate_reroute_options": active_candidate_reroute_options,
         "missing_semantic_anchor_references": missing_anchors,
         "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
@@ -4442,6 +4457,7 @@ def _formalizer_packet_validation_failure_result(
         "validation_repair_directives": validation_repair_directives,
         "target_shape_contract": active_target_shape_contract,
         "target_drift_repair_contract": active_target_drift_repair_contract,
+        "next_action_reference_contract": next_action_reference_contract,
         "candidate_reroute_options": active_candidate_reroute_options,
         "missing_semantic_anchor_references": missing_anchors,
         "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
@@ -4468,7 +4484,14 @@ def _formalizer_packet_validation_failure_result(
             "with an empty Lean sketch and route support work outside the source "
             "theorem formal_targets slot. Do not mention "
             "source_to_bridge_premise_derivation_candidates in next_actions unless "
-            "the packet also emits the concrete candidate object. "
+            "the packet also emits the concrete candidate object with Lean source, "
+            "expected_status=NEEDS_KERNEL_CHECK, and source-binding metadata. If this "
+            "is a repeated proof-hole/phantom-action repair and no source-to-bridge "
+            "metadata can be copied, emit at most one separate helper formal_targets "
+            "entry with source_theorem_target_provenance.source_theorem_target_known=false "
+            "so Lean/LSP can inspect a real artifact without promoting it to source "
+            "theorem proof evidence; remove any next_actions entry that asks the "
+            "runtime to execute absent source_to_bridge_premise_derivation_candidates. "
             + " ".join(validation_repair_directives)
         ),
         "proof_evidence_status": "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
@@ -4604,6 +4627,48 @@ def _formalizer_packet_validation_repair_directives(
             "action as an explicit FORMAL_GAP/proof-bank dependency task."
         )
     return directives
+
+
+def _formalizer_next_action_reference_contract_from_validation_errors(
+    validation_errors: Sequence[str],
+) -> dict[str, Any]:
+    error_text = " ".join(str(error) for error in validation_errors).lower()
+    if (
+        "next_actions reference source_to_bridge_premise_derivation_candidates"
+        not in error_text
+    ):
+        return {}
+    return {
+        "contract_kind": "next_action_references_must_be_materialized",
+        "inferred_from": "formalizer_packet_validation_errors",
+        "failed_reference": "source_to_bridge_premise_derivation_candidates",
+        "hard_rule": (
+            "A next_actions entry may ask AgentRuntime, AXLE, or local Lean to "
+            "execute source_to_bridge_premise_derivation_candidates only when this "
+            "same packet emits a concrete candidate object with Lean source, "
+            "expected_status=NEEDS_KERNEL_CHECK, and source-binding metadata."
+        ),
+        "allowed_resolutions": [
+            (
+                "emit the concrete source_to_bridge_premise_derivation_candidates "
+                "object and make next_actions reference its exact id or premise name"
+            ),
+            (
+                "remove the executable next_actions reference and describe the "
+                "missing work in gap_taxonomy, lemma_dependency_plan, or "
+                "proof_bank_obligation_requests"
+            ),
+            (
+                "keep the source theorem as FORMAL_GAP when the missing candidate "
+                "cannot be bound to source metadata"
+            ),
+        ],
+        "forbidden_resolution": (
+            "Do not create placeholder source_to_bridge_premise_derivation_candidates "
+            "objects, and do not leave next_actions pointing at absent executable "
+            "work items."
+        ),
+    }
 
 
 def _formalizer_missing_semantic_anchor_references(errors: list[str]) -> list[str]:
@@ -5630,8 +5695,28 @@ def _formalizer_target_shape_contract_from_validation_errors(
             "source-theorem formal_targets slot. Put executable support work only in "
             "source_to_bridge_premise_derivation_candidates when exact source-binding "
             "metadata and semantic anchors are available; otherwise use non-executable "
-            "gap/dependency planning."
+            "gap/dependency planning. If live capability-eval must keep local Lean/LSP "
+            "tooling exercised after a repeated proof-hole failure, a separate helper "
+            "formal_targets entry may be emitted only with "
+            "source_theorem_target_provenance.source_theorem_target_known=false; it is "
+            "diagnostic Lean evidence, not source-theorem proof evidence."
         ),
+        "helper_formal_target_escape_hatch": {
+            "when_allowed": (
+                "repeated source-theorem proof-hole or target-shape repair where the "
+                "source theorem itself is emitted as FORMAL_GAP with an empty Lean sketch"
+            ),
+            "required_status": "NEEDS_KERNEL_CHECK",
+            "required_provenance": {
+                "source_theorem_target_known": False,
+                "target_lean_declaration": "",
+                "source_theorem_goal_id": "",
+            },
+            "not_proof_evidence": (
+                "This helper can trigger local Lean/LSP diagnostics but must not be "
+                "counted as source theorem or frontier theorem proof evidence."
+            ),
+        },
         "forbidden_output_action": (
             "Do not satisfy a source-theorem repair by emitting a proof-hole theorem "
             "or helper lemma as formal_targets with expected_status=NEEDS_KERNEL_CHECK."

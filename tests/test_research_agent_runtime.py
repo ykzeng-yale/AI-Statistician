@@ -1190,6 +1190,61 @@ def test_formalizer_capability_eval_validator_allows_target_drift_formal_gap() -
     assert errors == []
 
 
+def test_formalizer_capability_eval_validator_allows_non_source_helper_with_gap() -> None:
+    errors = _validate_capability_eval_formalizer_lean_candidate_packet(
+        {
+            "formal_targets": [
+                {
+                    "id": "split_conformal_finite_sample_coverage",
+                    "informal_source": (
+                        "source theorem remains a probability coverage source theorem"
+                    ),
+                    "lean_statement_sketch": "",
+                    "expected_status": "FORMAL_GAP",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": "true",
+                        "target_lean_declaration": (
+                            "split_conformal_finite_sample_coverage"
+                        ),
+                    },
+                },
+                {
+                    "id": "ai_statistician_formalizer_helper_smoke",
+                    "informal_source": (
+                        "diagnostic helper candidate only; not the source theorem"
+                    ),
+                    "lean_statement_sketch": (
+                        "theorem ai_statistician_formalizer_helper_smoke "
+                        "(p : Prop) (hp : p) : p := by\n"
+                        "  exact hp\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": "false",
+                        "target_lean_declaration": "",
+                        "source_theorem_goal_id": "",
+                    },
+                },
+            ],
+        },
+        environment_feedback={
+            "target_shape_contract": {
+                "contract_kind": "source_theorem_target_preservation",
+                "required_conclusion_family": "probability_or_measure_coverage_claim",
+            },
+            "candidate_diagnostics": [
+                {
+                    "precheck_errors": [
+                        "source-theorem target drift: candidate lost probability conclusion"
+                    ]
+                }
+            ],
+        },
+    )
+
+    assert errors == []
+
+
 def test_formalizer_capability_eval_validator_accepts_source_to_bridge_candidate() -> None:
     errors = _validate_capability_eval_formalizer_lean_candidate_packet(
         {
@@ -1758,7 +1813,7 @@ def test_formalization_validator_failure_infers_coverage_shape_contract_from_sor
         },
     )
     task = AgentTask(
-        task_id="task:formalizer_validation_failure_coverage_sorry",
+        task_id="formalize-repair:formalizer_validation_failure_coverage_sorry",
         owner_subsystem="FormalizationEvaluator",
         objective="record coverage-sorry formalizer validator failure",
         inputs={
@@ -1783,8 +1838,17 @@ def test_formalization_validator_failure_infers_coverage_shape_contract_from_sor
     assert feedback["target_shape_contract"]["fail_closed_source_theorem_formal_target"][
         "expected_status"
     ] == "FORMAL_GAP"
+    assert feedback["target_shape_contract"]["helper_formal_target_escape_hatch"][
+        "required_provenance"
+    ]["source_theorem_target_known"] is False
     assert feedback["target_drift_repair_contract"]["contract_kind"] == (
         "source_theorem_target_two_lane_repair"
+    )
+    assert feedback["next_action_reference_contract"]["contract_kind"] == (
+        "next_action_references_must_be_materialized"
+    )
+    assert feedback["next_action_reference_contract"]["failed_reference"] == (
+        "source_to_bridge_premise_derivation_candidates"
     )
     assert any(
         "Do not name source_to_bridge_premise_derivation_candidates in next_actions"
@@ -1792,6 +1856,7 @@ def test_formalization_validator_failure_infers_coverage_shape_contract_from_sor
         for option in feedback["candidate_reroute_options"]
     )
     assert "no-sorry Lean proof" in feedback["required_repair"]
+    assert "source_theorem_target_known=false" in feedback["required_repair"]
     assert "Do not mention source_to_bridge_premise_derivation_candidates" in feedback[
         "required_repair"
     ]
@@ -1818,8 +1883,12 @@ def test_formalization_validator_failure_infers_coverage_shape_contract_from_sor
         environment_feedback=feedback,
     )
     assert "Mandatory coverage-theorem proof-hole reroute" in prompt
+    assert "Repeated coverage proof-hole escape hatch" in prompt
+    assert "source_theorem_target_known=false" in prompt
     assert "Mandatory executable-work-item repair" in prompt
     assert "remove every next_actions instruction" in prompt
+    assert "Mandatory next_action_reference_contract repair" in prompt
+    assert "Repeated next_action_reference_contract failure" in prompt
     assert "target_shape_contract" in prompt
 
 
