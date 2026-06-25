@@ -59,6 +59,8 @@ FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_ROUTE_OPTION_SELECTION_BRIEF_KIND = 
     "formalization_gap_planner_llm_route_planner_route_option_selection_brief"
 )
 LLM_ROUTE_PLANNER_READY_FOR_STANDALONE_REPLAY = "READY_FOR_STANDALONE_REPLAY"
+LLM_ROUTE_PLANNER_ACCEPTED_SELECTION_STATUS = "accepted_llm_routes_ranked"
+LLM_ROUTE_PLANNER_FALLBACK_SELECTION_STATUS = "fallback_routes_ranked"
 FORMALIZATION_GAP_PLANNER_STANDALONE_INPUT_COMPONENT = (
     "formalization_gap_planner_standalone_input"
 )
@@ -1090,9 +1092,10 @@ def validate_llm_route_planner_seed_route_selection_payload(
         != FORMALIZATION_GAP_PLANNER_LLM_ROUTE_PLANNER_SEED_ROUTE_SELECTION_KIND
     ):
         errors.append("selection_kind mismatch")
-    if str(payload.get("selection_status", "")) not in {
-        "accepted_llm_routes_ranked",
-        "fallback_routes_ranked",
+    selection_status = str(payload.get("selection_status", ""))
+    if selection_status not in {
+        LLM_ROUTE_PLANNER_ACCEPTED_SELECTION_STATUS,
+        LLM_ROUTE_PLANNER_FALLBACK_SELECTION_STATUS,
     }:
         errors.append("selection_status unsupported")
     if not str(payload.get("selection_policy", "")).strip():
@@ -1242,6 +1245,33 @@ def validate_llm_route_planner_seed_route_selection_payload(
         if summary_option_id != selected_option_id:
             errors.append(
                 "selected_minimal_delta_selected_route_option_id must match selected selection_row"
+            )
+    if selection_status == LLM_ROUTE_PLANNER_FALLBACK_SELECTION_STATUS:
+        if payload.get("selected_route_adoptable_for_standalone_replay") is True:
+            errors.append(
+                "fallback_routes_ranked selected_route_adoptable_for_standalone_replay must be false"
+            )
+        if any(
+            row.get("adoptable_for_standalone_replay") is True
+            for row in selection_rows
+        ):
+            errors.append(
+                "fallback_routes_ranked selection_rows must not be adoptable_for_standalone_replay"
+            )
+        if any(
+            row.get("llm_route_planner_fallback_route") is not True
+            for row in selection_rows
+        ):
+            errors.append(
+                "fallback_routes_ranked selection_rows must carry llm_route_planner_fallback_route true"
+            )
+    elif selection_status == LLM_ROUTE_PLANNER_ACCEPTED_SELECTION_STATUS:
+        if any(
+            row.get("llm_route_planner_fallback_route") is True
+            for row in selection_rows
+        ):
+            errors.append(
+                "accepted_llm_routes_ranked selection_rows must not carry llm_route_planner_fallback_route true"
             )
     return errors
 

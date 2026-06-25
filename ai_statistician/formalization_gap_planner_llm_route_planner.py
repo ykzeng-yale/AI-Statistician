@@ -34416,13 +34416,7 @@ def _fallback_seed_route_selection_rows(
             {
                 "selection_rank": index + 1,
                 "selected": index == 0,
-                "adoptable_for_standalone_replay": (
-                    _seed_selection_row_adoptable_for_standalone_replay(
-                        response_contract_ok=response_contract_ok,
-                        route_adoption_status=route_adoption_status,
-                        route_adoption_blockers=route_adoption_blockers,
-                    )
-                ),
+                "adoptable_for_standalone_replay": False,
                 "selection_reason": (
                     "no accepted LLM route was available; fallback routes keep "
                     "standalone input order"
@@ -34534,9 +34528,13 @@ def _standalone_replay_gate(
         "llm_route_planner_seed_route_selection",
     )
     selection_rows = _dict_tuple(selection.get("selection_rows", []))
+    selection_status = str(selection.get("selection_status", ""))
     selected = next(
         (row for row in selection_rows if bool(row.get("selected", False))),
         {},
+    )
+    fallback_selection = selection_status == "fallback_routes_ranked" or bool(
+        selected.get("llm_route_planner_fallback_route", False)
     )
     selected_blockers = list(_str_tuple(selected.get("route_adoption_blockers", [])))
     gate_blockers = sorted(
@@ -34550,10 +34548,14 @@ def _standalone_replay_gate(
         1
         for row in selection_rows
         if bool(row.get("adoptable_for_standalone_replay", False))
+        and not fallback_selection
+        and not bool(row.get("llm_route_planner_fallback_route", False))
     )
     n_candidates = len(selection_rows)
-    selected_adoptable = bool(
-        selection.get("selected_route_adoptable_for_standalone_replay", False)
+    selected_adoptable = (
+        bool(selection.get("selected_route_adoptable_for_standalone_replay", False))
+        and not fallback_selection
+        and not bool(selected.get("llm_route_planner_fallback_route", False))
     )
     selected_status = str(selected.get("route_adoption_status", "") or "")
     if selected_adoptable:
@@ -34564,6 +34566,8 @@ def _standalone_replay_gate(
         gate_status = ROUTE_ADOPTION_AWAITING_STATUS
     elif selected_status == ROUTE_ADOPTION_REJECTED_STATUS:
         gate_status = ROUTE_ADOPTION_REJECTED_STATUS
+    elif fallback_selection:
+        gate_status = ROUTE_ADOPTION_PENDING_STATUS
     else:
         gate_status = ROUTE_ADOPTION_PENDING_STATUS
     row_maps = tuple(rows)
@@ -34600,6 +34604,10 @@ def _standalone_replay_gate(
         "gate_blockers": gate_blockers,
         "selection_status": str(selection.get("selection_status", "")),
         "selection_policy": str(selection.get("selection_policy", "")),
+        "fallback_replay_blocked": fallback_selection,
+        "fallback_replay_block_reason": (
+            FALLBACK_ROUTE_BOUNDARY if fallback_selection else ""
+        ),
         "proof_evidence_status": PROOF_EVIDENCE_STATUS,
         "proof_evidence_boundary": PROOF_EVIDENCE_BOUNDARY,
     }

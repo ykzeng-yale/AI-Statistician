@@ -2605,9 +2605,15 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
         "llm_route_planner_seed_route_selection"
     ]
     assert seed_selection["selection_status"] == "fallback_routes_ranked"
+    assert seed_selection["selected_route_adoptable_for_standalone_replay"] is False
+    assert seed_selection["n_adoptable_route_candidates"] == 0
+    assert seed_selection["n_selected_route_candidates_not_adoptable"] == 1
     assert seed_selection["selection_rows"][0][
         "llm_route_planner_fallback_route"
     ] is True
+    assert seed_selection["selection_rows"][0][
+        "adoptable_for_standalone_replay"
+    ] is False
     assert seed_selection["selection_rows"][0][
         "llm_route_planner_seed_route_source"
     ] == "fallback_input_route"
@@ -2617,6 +2623,45 @@ def test_llm_route_planner_default_stages_claude_context_packet_without_api_call
     assert seed_selection["selection_rows"][0][
         "llm_route_planner_fallback_boundary"
     ] == FALLBACK_ROUTE_BOUNDARY
+    replay_gate = payload["standalone_replay_gate"]
+    assert replay_gate["gate_ok"] is False
+    assert replay_gate["selected_route_adoptable_for_standalone_replay"] is False
+    assert replay_gate["n_adoptable_route_candidates"] == 0
+    assert replay_gate["fallback_replay_blocked"] is True
+    assert replay_gate["fallback_replay_block_reason"] == FALLBACK_ROUTE_BOUNDARY
+    unsafe_fallback_selection = deepcopy(seed_selection)
+    unsafe_fallback_selection[
+        "selected_route_adoptable_for_standalone_replay"
+    ] = True
+    unsafe_fallback_selection["n_adoptable_route_candidates"] = 1
+    unsafe_fallback_selection["n_selected_route_candidates_not_adoptable"] = 0
+    unsafe_fallback_selection["selection_rows"][0][
+        "adoptable_for_standalone_replay"
+    ] = True
+    unsafe_fallback_errors = validate_llm_route_planner_seed_route_selection_payload(
+        unsafe_fallback_selection
+    )
+    assert (
+        "fallback_routes_ranked selected_route_adoptable_for_standalone_replay must be false"
+        in unsafe_fallback_errors
+    )
+    assert (
+        "fallback_routes_ranked selection_rows must not be adoptable_for_standalone_replay"
+        in unsafe_fallback_errors
+    )
+    missing_fallback_marker_selection = deepcopy(seed_selection)
+    missing_fallback_marker_selection["selection_rows"][0][
+        "llm_route_planner_fallback_route"
+    ] = False
+    missing_fallback_marker_errors = (
+        validate_llm_route_planner_seed_route_selection_payload(
+            missing_fallback_marker_selection
+        )
+    )
+    assert (
+        "fallback_routes_ranked selection_rows must carry llm_route_planner_fallback_route true"
+        in missing_fallback_marker_errors
+    )
     fallback_seed_route = payload["standalone_seed"]["routes"][0]
     assert fallback_seed_route["llm_route_planner_fallback_route"] is True
     assert (
@@ -16195,6 +16240,19 @@ def test_llm_route_planner_seed_ranks_accepted_routes_by_minimal_delta_cost() ->
         row["llm_route_planner_fallback_route"]
         for row in selection["selection_rows"]
     ] == [False, False]
+    mislabeled_accepted_selection = deepcopy(selection)
+    mislabeled_accepted_selection["selection_rows"][0][
+        "llm_route_planner_fallback_route"
+    ] = True
+    mislabeled_accepted_errors = (
+        validate_llm_route_planner_seed_route_selection_payload(
+            mislabeled_accepted_selection
+        )
+    )
+    assert (
+        "accepted_llm_routes_ranked selection_rows must not carry llm_route_planner_fallback_route true"
+        in mislabeled_accepted_errors
+    )
     seed_routes = payload["standalone_seed"]["routes"]
     assert [route["route_id"] for route in seed_routes] == [
         "rank_route_low_cost_seed",
