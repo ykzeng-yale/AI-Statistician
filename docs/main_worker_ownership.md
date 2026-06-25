@@ -432,6 +432,31 @@ non-proof evidence: it tells ProofEngineer to fail closed to `FORMAL_GAP` or
 emit one minimal ASCII/core Lean support lemma through a support channel, with
 local Lean rerun before any executable claim can be promoted.
 
+The follow-up probes tightened that contract without adding a conformal-theorem
+rewrite to AgentRuntime. In
+`runs/main_worker_live_runtime_resume_repeated_syntax_contract_followup_probe/research_agent_runtime_manifest.json`,
+the repair contract was carried forward but the next candidate retried the
+source theorem with Lean syntax that this project rejects (`Type*` caused the
+same parser failure). The runtime now prechecks that Lean parser compatibility
+issue, rejects executable source-theorem retries while a repeated-syntax
+fail-closed contract is active, and normalizes `FORMAL_GAP` entries by stripping
+`sorry`/placeholder Lean sketches. The next live probe,
+`runs/main_worker_live_runtime_resume_repeated_syntax_failclosed_normalized_probe/research_agent_runtime_manifest.json`,
+confirmed the architectural move: the source theorem stayed fail-closed and the
+model tried a `source_theorem_target_known=false` support lemma instead. That
+support lemma then failed no-import local Lean on `Real`/order arithmetic, so
+the runtime refreshed stale repair contracts from carried diagnostics and
+classified the failure as `lean_no_import_noncore_arithmetic`. The latest live
+probe,
+`runs/main_worker_live_runtime_resume_core_helper_contract_refresh_probe/research_agent_runtime_manifest.json`,
+ended with scorecard `42/49`, pending task
+`formalize-lean-repair:conformal_prediction_coverage:18707790`, 26
+kernel-verified helper/subclaim rows, 31 formal gaps, 24 local Lean-checked
+candidate artifacts, and 10 compiled candidate artifacts. The pending contract
+now requires either a pure core-Lean `Prop` support helper or a verified import
+route through FormalSourceRetriever/Lean LSP/local Lean before any executable
+claim can be promoted.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

@@ -2999,6 +2999,179 @@ def test_formalizer_candidate_materialization_captures_malformed_formal_target(
     assert "exact?" in errors
 
 
+def test_formalizer_candidate_materialization_rejects_type_star_syntax(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    task = AgentTask(
+        task_id="task:formalizer_candidate_type_star",
+        owner_subsystem="FormalizationEvaluator",
+        objective="reject Lean parser-incompatible Type* syntax",
+    )
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:type_star_candidate",
+            "formal_targets": [
+                {
+                    "id": "type_star_candidate",
+                    "lean_statement_sketch": (
+                        "theorem type_star_candidate "
+                        "{Omega : Type*} : True := by\n"
+                        "  trivial\n"
+                    ),
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                }
+            ],
+        },
+        local_lean=True,
+        lean_project=None,
+        lean_timeout=10,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert manifest["n_candidate_sources"] == 1
+    assert manifest["n_candidate_artifacts_written"] == 0
+    assert manifest["n_precheck_rejected"] == 1
+    assert manifest["n_local_lean_checked"] == 0
+    assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
+    assert row["artifact_path"] == ""
+    assert row["local_lean_attempted"] is False
+    assert "Type*" in " ".join(row["precheck_errors"])
+    assert "parser/syntax" in " ".join(row["precheck_errors"])
+
+
+def test_repeated_syntax_contract_precheck_rejects_source_theorem_retry(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    task = AgentTask(
+        task_id="formalize-lean-repair:test:syntax_retry",
+        owner_subsystem="ProofEngineer",
+        objective="reject another source theorem sketch after repeated parser failure",
+        inputs={
+            "environment_feedback": {
+                "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+                "failure_classification": (
+                    "formalizer_lean_candidate_local_lean_failed"
+                ),
+                "formalizer_lean_repair_retry_depth": 1,
+                "repeated_formalizer_lean_candidate_failure": True,
+                "local_lean_repair_contract": {
+                    "contract_kind": "formalizer_local_lean_repair",
+                    "diagnostic_classes": ["lean_parser_or_syntax_error"],
+                    "repeated_syntax_failure": True,
+                },
+            }
+        },
+    )
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:repeated_syntax_retry",
+            "formal_targets": [
+                {
+                    "id": "source_theorem_retry",
+                    "informal_source": "source theorem candidate retry",
+                    "lean_statement_sketch": (
+                        "theorem source_theorem_retry "
+                        "(p : Prop) (hp : p) : p := by\n"
+                        "  exact hp\n"
+                    ),
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": True,
+                        "target_lean_declaration": "source_theorem_retry",
+                        "source_theorem_goal_id": "source_theorem_retry",
+                    },
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                }
+            ],
+        },
+        local_lean=True,
+        lean_project=None,
+        lean_timeout=10,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert manifest["n_candidate_sources"] == 1
+    assert manifest["n_candidate_artifacts_written"] == 0
+    assert manifest["n_precheck_rejected"] == 1
+    assert manifest["n_local_lean_checked"] == 0
+    assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
+    errors = " ".join(row["precheck_errors"])
+    assert "repeated Lean parser/syntax contract violation" in errors
+    assert "expected_status=FORMAL_GAP" in errors
+    assert "source_to_bridge_premise_derivation_candidates" in errors
+
+
+def test_core_lean_only_contract_precheck_rejects_no_import_real_helper(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    task = AgentTask(
+        task_id="formalize-lean-repair:test:core_helper",
+        owner_subsystem="ProofEngineer",
+        objective="reject no-import non-core arithmetic helper",
+        inputs={
+            "environment_feedback": {
+                "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+                "failure_classification": (
+                    "formalizer_lean_candidate_local_lean_failed"
+                ),
+                "local_lean_repair_contract": {
+                    "contract_kind": "formalizer_local_lean_repair",
+                    "diagnostic_classes": ["lean_no_import_noncore_arithmetic"],
+                    "core_lean_only_helper_rule": (
+                        "Use only core Lean Prop/Not/arrows/lambda/fun/exact."
+                    ),
+                },
+            }
+        },
+    )
+    manifest = _materialize_formalizer_lean_candidate_artifacts(
+        root=tmp_path / "formalizer_lean_candidates",
+        question=question,
+        task=task,
+        proposal_packet={
+            "packet_id": "formalizer_proposal:core_helper_contract",
+            "formal_targets": [
+                {
+                    "id": "real_support_helper",
+                    "informal_source": "bad no-import Real helper",
+                    "lean_statement_sketch": (
+                        "theorem real_support_helper "
+                        "(p q : Real) (h : p <= q) : p <= q := h\n"
+                    ),
+                    "source_theorem_target_provenance": {
+                        "source_theorem_target_known": False,
+                        "target_lean_declaration": "real_support_helper",
+                        "source_theorem_goal_id": "source_theorem",
+                    },
+                    "expected_status": "NEEDS_KERNEL_CHECK",
+                }
+            ],
+        },
+        local_lean=True,
+        lean_project=None,
+        lean_timeout=10,
+    )
+
+    row = manifest["candidate_rows"][0]
+    assert manifest["n_candidate_sources"] == 1
+    assert manifest["n_candidate_artifacts_written"] == 0
+    assert manifest["n_precheck_rejected"] == 1
+    assert manifest["n_local_lean_checked"] == 0
+    assert row["precheck_status"] == "REJECTED_BY_RUNTIME_PRECHECK"
+    errors = " ".join(row["precheck_errors"])
+    assert "core-Lean-only helper contract violation" in errors
+    assert "Real" in errors
+    assert "<=" in errors
+
+
 def test_formalizer_candidate_materialization_rejects_source_theorem_target_drift(
     tmp_path: Path,
 ) -> None:
@@ -3728,6 +3901,7 @@ def test_repeated_lean_parser_failure_feedback_adds_fail_closed_blocker() -> Non
     assert "Mandatory repeated parser/syntax repair" in prompt
     assert "minimal ASCII/core Lean support lemma" in prompt
     assert "lean_repeated_parser_or_syntax_failure" in prompt
+    assert "Type*" in prompt
 
 
 def test_formalizer_prompt_escalates_repeated_packet_validation_failure() -> None:
@@ -4422,6 +4596,34 @@ def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> N
     assert "split_conformal_core_prop_bridge" in live_no_import_arithmetic_contract[
         "core_lean_only_helper_example"
     ]
+    live_lt_real_contract = (
+        runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
+            [
+                {
+                    "precheck_errors": [],
+                    "precheck_status": (
+                        "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE"
+                    ),
+                    "lean_source_excerpt": (
+                        "theorem hGoodRankImpliesCovered_support "
+                        "(alpha : Real) (h : 0 < alpha) : True := by\n"
+                        "  trivial\n"
+                    ),
+                    "local_lean_exit_status": "1",
+                    "local_lean_stdout_excerpt": (
+                        "error(lean.synthInstanceFailed): failed to synthesize "
+                        "instance of type class\n  LT Real"
+                    ),
+                }
+            ]
+        )
+    )
+    assert "lean_no_import_noncore_arithmetic" in live_lt_real_contract[
+        "diagnostic_classes"
+    ]
+    assert "Do not use Real" in live_lt_real_contract[
+        "core_lean_only_helper_rule"
+    ]
     live_unknown_constant_contract = (
         runtime_module._formalizer_local_lean_repair_contract_from_diagnostics(
             [
@@ -4665,6 +4867,49 @@ def test_carried_proofengineer_feedback_is_enriched_with_formal_source_grounding
     assert "rank_threshold_bridge" in summary["top_hit_names"]
     assert summary["proof_evidence_status"] == (
         "FORMAL_SOURCE_RETRIEVAL_GROUNDING_NOT_PROOF_EVIDENCE"
+    )
+
+
+def test_carried_proofengineer_feedback_refreshes_stale_repair_contract() -> None:
+    feedback = {
+        "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+        "failure_classification": "formalizer_lean_candidate_local_lean_failed",
+        "local_lean_repair_contract": {
+            "contract_kind": "formalizer_local_lean_repair",
+            "diagnostic_classes": ["lean_local_check_failed"],
+        },
+        "candidate_diagnostics": [
+            {
+                "candidate_id": "hGoodRankImpliesCovered_support_lemma",
+                "source_field": "formal_targets",
+                "lean_source_excerpt": (
+                    "theorem hGoodRankImpliesCovered_support "
+                    "(alpha : Real) (h : 0 < alpha) : True := by\n"
+                    "  trivial\n"
+                ),
+                "local_lean_exit_status": "1",
+                "local_lean_stdout_excerpt": (
+                    "error(lean.synthInstanceFailed): failed to synthesize "
+                    "instance of type class\n  LT Real"
+                ),
+            }
+        ],
+        "proofengineer_repair_context": {
+            "repair_loop": "fixture",
+            "retrieval_query_seeds": ["hGoodRankImpliesCovered_support_lemma"],
+        },
+    }
+
+    enriched = runtime_module._formalizer_environment_feedback_with_formal_source_grounding(
+        feedback
+    )
+
+    contract = enriched["local_lean_repair_contract"]
+    assert "lean_local_check_failed" not in contract["diagnostic_classes"]
+    assert "lean_no_import_noncore_arithmetic" in contract["diagnostic_classes"]
+    assert "Do not use Real" in contract["core_lean_only_helper_rule"]
+    assert enriched["proofengineer_repair_context"]["diagnostic_classes"] == (
+        contract["diagnostic_classes"]
     )
 
 
@@ -21156,6 +21401,110 @@ def test_formalizer_normalizer_fail_closes_repeated_placeholder_lean_sketch() ->
     assert any(
         row.get("kind") == "proof_hole_placeholder_removed"
         for row in packet["gap_taxonomy"]
+    )
+    assert validate_formalizer_packet(packet) == []
+
+
+def test_formalizer_normalizer_fail_closes_repeated_syntax_formal_gap_sorry() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    response = {
+        "formal_targets": [
+            {
+                "id": "split_conformal_finite_sample_coverage_source_theorem",
+                "informal_source": "source theorem remains a formal gap",
+                "lean_statement_sketch": (
+                    "theorem split_conformal_finite_sample_coverage "
+                    "(coverage_event : Prop) : coverage_event := by\n"
+                    "  sorry\n"
+                ),
+                "expected_status": "FORMAL_GAP",
+                "source_theorem_target_provenance": {
+                    "source_theorem_target_known": True,
+                    "target_lean_declaration": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                    "source_theorem_goal_id": (
+                        "split_conformal_finite_sample_coverage"
+                    ),
+                },
+            }
+        ],
+        "lemma_dependency_plan": [
+            {
+                "from": "exchangeability bridge",
+                "to": "source theorem",
+                "role": "support gap planning after repeated syntax failure",
+                "risk": "source theorem proof still unavailable",
+            }
+        ],
+        "retrieval_queries": [
+            {
+                "query": "Lean exchangeability rank coverage bridge",
+                "target_library": "StatInference",
+                "purpose": "find source-to-bridge support lemmas",
+            }
+        ],
+        "proof_search_plan": {
+            "preferred_tools": ["local Lean"],
+            "kernel_check_plan": ["do not check FORMAL_GAP source theorem sketch"],
+            "known_blockers": ["repeated parser failure on source theorem sketch"],
+        },
+        "proof_bank_obligation_requests": [],
+        "source_to_bridge_premise_derivation_candidates": [],
+        "gap_taxonomy": [
+            {
+                "gap": "source theorem remains blocked by repeated parser failure",
+                "kind": "lean_repeated_parser_or_syntax_failure",
+                "next_owner": "ProofEngineer",
+            }
+        ],
+        "critic_findings": [],
+        "next_actions": [
+            {
+                "owner_agent": "ProofEngineer",
+                "action": "retrieve a smaller support lemma or keep FORMAL_GAP",
+            }
+        ],
+        "proof_evidence_status": "LLM_FORMALIZER_PROPOSAL_NOT_PROOF_EVIDENCE",
+        "kernel_verified": False,
+        "full_frontier_theorem_proved": False,
+    }
+    feedback = {
+        "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
+        "failure_classification": "formalizer_lean_candidate_local_lean_failed",
+        "formalizer_lean_repair_retry_depth": 1,
+        "repeated_formalizer_lean_candidate_failure": True,
+        "local_lean_repair_contract": {
+            "contract_kind": "formalizer_local_lean_repair",
+            "diagnostic_classes": ["lean_parser_or_syntax_error"],
+            "repeated_syntax_failure": True,
+        },
+    }
+    formalizer = LLMFormalizerProofEngineerAgent(
+        provider=StaticArchitectLLMProvider(response),
+        config=FormalizerConfig(provider_name="static", model="static-formalizer"),
+    )
+
+    packet = formalizer.propose(
+        question=question,
+        theory_packet={"packet_id": "theory:syntax-formal-gap"},
+        simulation_manifest={"manifest_id": "simulation:test", "simulation_passed": True},
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 1},
+        registered_problem={"problem_class": "conformal_prediction"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+
+    target = packet["formal_targets"][0]
+    assert target["expected_status"] == "FORMAL_GAP"
+    assert target["lean_statement_sketch"] == ""
+    assert target["normalizer_status"] == (
+        "FAIL_CLOSED_PLACEHOLDER_LEAN_SKETCH_TO_FORMAL_GAP"
+    )
+    assert packet["fail_closed_placeholder_formal_targets"][0]["id"] == (
+        "split_conformal_finite_sample_coverage_source_theorem"
     )
     assert validate_formalizer_packet(packet) == []
 

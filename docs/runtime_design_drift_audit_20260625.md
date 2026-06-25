@@ -270,3 +270,18 @@ formal-source/prover tools for a smaller syntax-valid support lemma or
 dependency, rerun local Lean/AXLE, or record the source theorem as
 `FORMAL_GAP`. It is loop control and proof-boundary enforcement, not a
 hardcoded conformal proof strategy.
+
+The subsequent repairs keep the same design boundary. `Type*` is now treated as
+a local Lean parser-compatibility error because this project's Lean invocation
+rejects it; active repeated-syntax contracts also reject another executable
+source-theorem candidate in the `formal_targets` channel until the model has
+either fail-closed the source theorem or moved to a support-helper channel.
+When the model does fail-close a source theorem, the normalizer removes
+`sorry`/placeholder Lean sketches so a `FORMAL_GAP` cannot masquerade as kernel
+work. Finally, stale carried diagnostics are refreshed into current repair
+contracts: no-import helpers that fail on `Real`, order notation, arithmetic
+tactics, `Finset`, `MeasureTheory`, or `ENNReal` are routed to a core-Lean-only
+`Prop` helper contract unless the prover stack supplies a verified import. This
+is still generic runtime loop control for Claude plus Lean/RAG/OpenProver
+adapters; it does not add a special proof of
+`split_conformal_finite_sample_coverage` to Python.

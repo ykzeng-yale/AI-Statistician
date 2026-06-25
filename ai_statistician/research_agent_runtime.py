@@ -4932,6 +4932,16 @@ def _materialize_formalizer_lean_candidate_artifacts(
     lean_timeout: int = 30,
 ) -> dict[str, Any]:
     candidate_sources = _formalizer_lean_candidate_sources(proposal_packet)
+    environment_feedback = (
+        task.inputs.get("environment_feedback", {})
+        if isinstance(task.inputs.get("environment_feedback", {}), Mapping)
+        else {}
+    )
+    active_local_lean_repair_contract = (
+        environment_feedback.get("local_lean_repair_contract", {})
+        if isinstance(environment_feedback.get("local_lean_repair_contract", {}), Mapping)
+        else {}
+    )
     manifest_id = (
         "formalizer_lean_candidate_materialization:"
         + stable_hash([task.task_id, proposal_packet.get("packet_id", ""), candidate_sources])[:20]
@@ -4948,6 +4958,8 @@ def _materialize_formalizer_lean_candidate_artifacts(
         precheck_errors = _formalizer_lean_candidate_precheck_errors(
             source,
             candidate_metadata=candidate.get("candidate_metadata", {}),
+            source_field=str(candidate.get("source_field", "") or ""),
+            local_lean_repair_contract=active_local_lean_repair_contract,
             lean_project=lean_project,
         )
         artifact_path = ""
@@ -5808,15 +5820,16 @@ def _enrich_repeated_formalizer_lean_candidate_feedback(
     contract["repeated_syntax_failure_rule"] = (
         "A prior repair retry still failed the Lean parser. Do not emit another "
         "broad formal_targets NEEDS_KERNEL_CHECK theorem with Unicode binders, "
-        "pipeline syntax, large dependent statements, or guessed notation. Either "
-        "emit the source theorem as expected_status=FORMAL_GAP with the exact "
-        "parser blocker, or emit one minimal ASCII/core Lean support lemma through "
-        "a support channel with source-binding metadata and rerun local Lean."
+        "`Type*` universe shorthand, pipeline syntax, large dependent statements, "
+        "or guessed notation. Either emit the source theorem as "
+        "expected_status=FORMAL_GAP with the exact parser blocker, or emit one "
+        "minimal ASCII/core Lean support lemma through a support channel with "
+        "source-binding metadata and rerun local Lean."
     )
     contract["ascii_identifier_rule"] = (
         "Use ASCII declaration and binder names such as `omega`; do not use Greek "
-        "identifier binders, unicode symbolic binders, `|>` pipeline syntax, or "
-        "unsupported collection/indexing notation in theorem statements."
+        "identifier binders, unicode symbolic binders, `Type*`, `|>` pipeline "
+        "syntax, or unsupported collection/indexing notation in theorem statements."
     )
     contract["minimal_executable_candidate_rule"] = (
         "If an executable candidate is emitted after this repeated syntax failure, "
@@ -6057,6 +6070,9 @@ def _formalizer_environment_feedback_with_formal_source_grounding(
     """Attach bounded formal-source grounding to carried repair feedback."""
 
     payload = dict(feedback) if isinstance(feedback, Mapping) else {}
+    payload = _formalizer_environment_feedback_with_refreshed_repair_contract(
+        payload
+    )
     repair_context = (
         payload.get("proofengineer_repair_context", {})
         if isinstance(payload.get("proofengineer_repair_context", {}), Mapping)
@@ -6079,6 +6095,51 @@ def _formalizer_environment_feedback_with_formal_source_grounding(
             ),
         )
     )
+    return payload
+
+
+def _formalizer_environment_feedback_with_refreshed_repair_contract(
+    feedback: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Refresh stale carried repair contracts from exact candidate diagnostics."""
+
+    payload = dict(feedback) if isinstance(feedback, Mapping) else {}
+    diagnostics = [
+        dict(row)
+        for row in payload.get("candidate_diagnostics", []) or []
+        if isinstance(row, Mapping)
+    ]
+    if not diagnostics:
+        return payload
+    derived_contract = _formalizer_local_lean_repair_contract_from_diagnostics(
+        diagnostics
+    )
+    if not derived_contract:
+        return payload
+    existing_contract = (
+        payload.get("local_lean_repair_contract", {})
+        if isinstance(payload.get("local_lean_repair_contract", {}), Mapping)
+        else {}
+    )
+    merged_contract = _formalizer_merge_local_lean_repair_contracts(
+        existing_contract,
+        derived_contract,
+    )
+    if merged_contract:
+        payload["local_lean_repair_contract"] = merged_contract
+    if isinstance(payload.get("proofengineer_repair_context", {}), Mapping):
+        context = dict(payload.get("proofengineer_repair_context", {}) or {})
+        if merged_contract.get("diagnostic_classes"):
+            context["diagnostic_classes"] = list(
+                merged_contract.get("diagnostic_classes", []) or []
+            )
+        if merged_contract.get("unknown_identifiers"):
+            context["unknown_identifiers"] = list(
+                merged_contract.get("unknown_identifiers", []) or []
+            )
+        payload["proofengineer_repair_context"] = context
+    if bool(payload.get("repeated_formalizer_lean_candidate_failure", False)):
+        _enrich_repeated_formalizer_lean_candidate_feedback(payload)
     return payload
 
 
@@ -6650,7 +6711,13 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
     if not local_lean_text.strip():
         return {}
     classes: list[str] = []
-    if "unexpected token" in local_lean_text or "expected term" in local_lean_text:
+    if (
+        "unexpected token" in local_lean_text
+        or "expected term" in local_lean_text
+        or "parser/syntax" in local_lean_text
+        or "parser error" in local_lean_text
+        or "syntax error" in local_lean_text
+    ):
         classes.append("lean_parser_or_syntax_error")
     if (
         "unknown module prefix" in local_lean_text
@@ -6672,6 +6739,7 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
         classes.append("lean_type_mismatch")
     if (
         "le real" in local_lean_text
+        or "lt real" in local_lean_text
         or "ofnat real" in local_lean_text
         or (
             "unknown tactic" in local_lean_text
@@ -6703,8 +6771,9 @@ def _formalizer_local_lean_repair_contract_from_diagnostics(
     if "lean_parser_or_syntax_error" in classes:
         contract["syntax_repair_rule"] = (
             "First produce a syntactically valid Lean declaration. Use lowercase binder "
-            "names such as `omega`, avoid unsupported pipeline/list syntax in theorem "
-            "statements, and keep the statement minimal enough for the parser."
+            "names such as `omega`, use `Type` or explicit universe levels instead of "
+            "`Type*`, avoid unsupported pipeline/list syntax in theorem statements, "
+            "and keep the statement minimal enough for the parser."
         )
     if "lean_import_environment_missing" in classes:
         contract["import_repair_rule"] = (
@@ -7160,6 +7229,8 @@ def _formalizer_lean_candidate_precheck_errors(
     source: str,
     *,
     candidate_metadata: Mapping[str, Any] | None = None,
+    source_field: str = "",
+    local_lean_repair_contract: Mapping[str, Any] | None = None,
     lean_project: Path | None = None,
 ) -> list[str]:
     text = str(source or "")
@@ -7208,8 +7279,136 @@ def _formalizer_lean_candidate_precheck_errors(
             candidate_metadata or {},
         )
     )
+    errors.extend(_formalizer_lean_syntax_precheck_errors(text))
+    errors.extend(
+        _formalizer_repeated_syntax_contract_precheck_errors(
+            text,
+            candidate_metadata=candidate_metadata or {},
+            source_field=source_field,
+            local_lean_repair_contract=local_lean_repair_contract or {},
+        )
+    )
+    errors.extend(
+        _formalizer_core_lean_only_contract_precheck_errors(
+            text,
+            local_lean_repair_contract=local_lean_repair_contract or {},
+        )
+    )
     errors.extend(_formalizer_import_precheck_errors(text, lean_project=lean_project))
     return sorted(set(errors))
+
+
+def _formalizer_lean_syntax_precheck_errors(source: str) -> list[str]:
+    """Catch Lean syntax known to fail before writing/verifying artifacts."""
+
+    text = str(source or "")
+    errors: list[str] = []
+    if re.search(r"\bType\s*\*", text):
+        errors.append(
+            "Lean parser/syntax error: `Type*` universe shorthand is rejected by "
+            "the configured Lean parser; use `Type` or an explicit universe such "
+            "as `Type u`."
+        )
+    return errors
+
+
+def _formalizer_repeated_syntax_contract_precheck_errors(
+    source: str,
+    *,
+    candidate_metadata: Mapping[str, Any],
+    source_field: str,
+    local_lean_repair_contract: Mapping[str, Any],
+) -> list[str]:
+    """Enforce fail-closed behavior after repeated parser failures."""
+
+    if not isinstance(local_lean_repair_contract, Mapping):
+        return []
+    if not bool(local_lean_repair_contract.get("repeated_syntax_failure", False)):
+        return []
+    diagnostic_classes = {
+        str(value).strip()
+        for value in local_lean_repair_contract.get("diagnostic_classes", []) or []
+        if str(value).strip()
+    }
+    if "lean_parser_or_syntax_error" not in diagnostic_classes:
+        return []
+    text = str(source or "")
+    errors: list[str] = []
+    if "|>" in text:
+        errors.append(
+            "repeated Lean parser/syntax contract violation: pipeline syntax `|>` "
+            "is forbidden after a repeated parser failure; use a parser-simple "
+            "declaration or emit expected_status=FORMAL_GAP."
+        )
+    if str(source_field or "") == "formal_targets":
+        provenance = (
+            candidate_metadata.get("source_theorem_target_provenance", {})
+            if isinstance(
+                candidate_metadata.get("source_theorem_target_provenance", {}),
+                Mapping,
+            )
+            else {}
+        )
+        source_theorem_target_known = _source_theorem_target_known_value(provenance)
+        expected_status = str(candidate_metadata.get("expected_status", "") or "")
+        if (
+            source_theorem_target_known is True
+            and expected_status in {"NEEDS_KERNEL_CHECK", "OPEN"}
+        ):
+            errors.append(
+                "repeated Lean parser/syntax contract violation: executable "
+                "source-theorem formal_targets are gated after a repeated parser "
+                "failure. Emit the source theorem as expected_status=FORMAL_GAP, "
+                "or route one minimal ASCII/core Lean support lemma through "
+                "source_to_bridge_premise_derivation_candidates, lemma_dependency_plan, "
+                "or a proof-bank request with exact source-binding metadata."
+            )
+    return errors
+
+
+def _formalizer_core_lean_only_contract_precheck_errors(
+    source: str,
+    *,
+    local_lean_repair_contract: Mapping[str, Any],
+) -> list[str]:
+    """Enforce core-Prop helper shape after no-import arithmetic failures."""
+
+    if not isinstance(local_lean_repair_contract, Mapping):
+        return []
+    if not local_lean_repair_contract.get("core_lean_only_helper_rule"):
+        return []
+    text = str(source or "")
+    has_import = any(
+        line.strip().startswith("import ") for line in text.splitlines()
+    )
+    if has_import:
+        return []
+    forbidden_markers = [
+        marker
+        for marker, pattern in (
+            ("Real", r"\bReal\b"),
+            ("<=", r"<="),
+            (">=", r">="),
+            ("Nat.ceil", r"\bNat\.ceil\b"),
+            ("Finset", r"\bFinset\b"),
+            ("MeasureTheory", r"\bMeasureTheory\b"),
+            ("ENNReal", r"\bENNReal\b"),
+            ("linarith", r"\blinarith\b"),
+            ("ring", r"\bring\b"),
+            ("norm_num", r"\bnorm_num\b"),
+        )
+        if re.search(pattern, text)
+    ]
+    if not forbidden_markers:
+        return []
+    return [
+        (
+            "core-Lean-only helper contract violation: no-import helper uses "
+            f"non-core arithmetic/API marker(s): {', '.join(forbidden_markers[:8])}. "
+            "Use only Prop, Not, arrows, lambda/fun, and `exact`, or add a verified "
+            "import and route the dependency explicitly."
+        )
+    ]
 
 
 def _formalizer_import_precheck_errors(

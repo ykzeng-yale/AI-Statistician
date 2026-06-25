@@ -1140,6 +1140,13 @@ def _feedback_requests_placeholder_fail_closed(
 ) -> bool:
     if not isinstance(environment_feedback, Mapping):
         return False
+    local_lean_repair_contract = (
+        environment_feedback.get("local_lean_repair_contract", {})
+        if isinstance(environment_feedback.get("local_lean_repair_contract", {}), Mapping)
+        else {}
+    )
+    if bool(local_lean_repair_contract.get("repeated_syntax_failure", False)):
+        return True
     input_summary = (
         environment_feedback.get("input_summary", {})
         if isinstance(environment_feedback.get("input_summary", {}), Mapping)
@@ -3049,11 +3056,12 @@ def _formalizer_mode_specific_instructions(
                         "Mandatory repeated parser/syntax repair: the previous repair "
                         "retry still failed the Lean parser. Do not emit another broad "
                         "formal_targets NEEDS_KERNEL_CHECK theorem with Greek or other "
-                        "Unicode binders, pipeline syntax, unsupported notation, or a "
-                        "large dependent statement. Emit expected_status=FORMAL_GAP for "
-                        "the source theorem, or emit at most one minimal ASCII/core Lean "
-                        "support lemma through a support channel with exact source-binding "
-                        "metadata and rerun local Lean before treating it as executable."
+                        "Unicode binders, `Type*` universe shorthand, pipeline syntax, "
+                        "unsupported notation, or a large dependent statement. Emit "
+                        "expected_status=FORMAL_GAP for the source theorem, or emit at "
+                        "most one minimal ASCII/core Lean support lemma through a support "
+                        "channel with exact source-binding metadata and rerun local Lean "
+                        "before treating it as executable."
                     )
         if has_target_drift:
             instructions.append(
@@ -3646,6 +3654,7 @@ def _feedback_local_lean_repair_contract(
     ).lower()
     if (
         "le real" in local_lean_text
+        or "lt real" in local_lean_text
         or "ofnat real" in local_lean_text
         or (
             "unknown tactic" in local_lean_text
