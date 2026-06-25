@@ -5101,6 +5101,44 @@ def _formalizer_lean_candidate_repair_feedback(
     }
     if target_shape_contract:
         feedback["target_shape_contract"] = target_shape_contract
+        feedback["target_drift_repair_contract"] = {
+            "contract_kind": "source_theorem_target_two_lane_repair",
+            "source_theorem_lane": {
+                "output_key": "formal_targets",
+                "allowed_needs_kernel_check_shape": (
+                    "known source theorem with the probability/measure coverage "
+                    "conclusion preserved"
+                ),
+                "fail_closed_shape": (
+                    "known source theorem entry with expected_status=FORMAL_GAP "
+                    "and empty lean_statement_sketch"
+                ),
+            },
+            "support_lemma_lane": {
+                "allowed_output_keys": [
+                    "source_to_bridge_premise_derivation_candidates",
+                    "lemma_dependency_plan",
+                    "proof_bank_obligation_requests",
+                    "gap_taxonomy",
+                    "next_actions",
+                ],
+                "forbidden_output_key": (
+                    "formal_targets with source_theorem_target_known=true and "
+                    "expected_status=NEEDS_KERNEL_CHECK"
+                ),
+                "evidence_eligibility_rule": (
+                    "Executable source_to_bridge_premise_derivation_candidates must "
+                    "carry exact source-binding metadata and semantic anchor references; "
+                    "otherwise report the support work as non-executable gap/dependency "
+                    "planning."
+                ),
+            },
+            "acceptance_gate": (
+                "The next packet passes target-drift repair only if it either preserves "
+                "the source theorem target shape or explicitly marks the source theorem "
+                "as FORMAL_GAP and routes helpers outside the source theorem slot."
+            ),
+        }
         feedback["candidate_reroute_options"] = [
             (
                 "If the generated Lean theorem is only an arithmetic/order-statistic "
@@ -5317,6 +5355,29 @@ def _formalizer_target_shape_contract_from_diagnostics(
             "must preserve that source theorem's conclusion shape. It may not replace "
             "the theorem with a narrower helper lemma."
         ),
+        "source_theorem_target_action": (
+            "Emit a formal_targets entry for the known source theorem only if the Lean "
+            "statement preserves the required conclusion family; otherwise emit that "
+            "source theorem as expected_status=FORMAL_GAP with an empty Lean sketch."
+        ),
+        "helper_lemma_action": (
+            "Move arithmetic/order-statistic/typing/monotonicity helpers out of the "
+            "source-theorem formal_targets slot. Put executable helper work only in "
+            "source_to_bridge_premise_derivation_candidates when exact source-binding "
+            "metadata and semantic anchors are available, or describe non-executable "
+            "support work in lemma_dependency_plan/proof_bank_obligation_requests."
+        ),
+        "forbidden_output_action": (
+            "Do not satisfy a source-theorem repair by emitting a helper lemma as "
+            "formal_targets with expected_status=NEEDS_KERNEL_CHECK."
+        ),
+        "allowed_support_channels": [
+            "source_to_bridge_premise_derivation_candidates",
+            "lemma_dependency_plan",
+            "proof_bank_obligation_requests",
+            "gap_taxonomy",
+            "next_actions",
+        ],
         "forbidden_replacement_shapes": [
             "standalone arithmetic inequality",
             "standalone ceiling/order-statistic bound",
@@ -5329,6 +5390,15 @@ def _formalizer_target_shape_contract_from_diagnostics(
             "missing semantic premise/import/bridge. Put any compilable helper lemma in a "
             "support-lemma channel, not as the source theorem formal target."
         ),
+        "fail_closed_source_theorem_formal_target": {
+            "expected_status": "FORMAL_GAP",
+            "lean_statement_sketch": "",
+            "required_metadata": (
+                "Preserve source_theorem_target_provenance for the original source "
+                "theorem and explain the exact missing premise/API/import/bridge in "
+                "gap_taxonomy or next_actions."
+            ),
+        },
     }
     if "probability/coverage" in precheck_text:
         contract["required_conclusion_family"] = "probability_or_measure_coverage_claim"

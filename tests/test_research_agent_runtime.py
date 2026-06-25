@@ -2206,6 +2206,25 @@ def test_formalizer_candidate_materialization_rejects_source_theorem_target_drif
     assert target_shape_contract["required_conclusion_family"] == (
         "probability_or_measure_coverage_claim"
     )
+    assert target_shape_contract["source_theorem_target_action"].startswith(
+        "Emit a formal_targets entry"
+    )
+    assert "source_to_bridge_premise_derivation_candidates" in target_shape_contract[
+        "allowed_support_channels"
+    ]
+    assert target_shape_contract["fail_closed_source_theorem_formal_target"][
+        "expected_status"
+    ] == "FORMAL_GAP"
+    target_drift_contract = feedback["target_drift_repair_contract"]
+    assert target_drift_contract["contract_kind"] == (
+        "source_theorem_target_two_lane_repair"
+    )
+    assert target_drift_contract["source_theorem_lane"]["output_key"] == (
+        "formal_targets"
+    )
+    assert target_drift_contract["support_lemma_lane"]["forbidden_output_key"].startswith(
+        "formal_targets"
+    )
     assert "probability coverage statement" in target_shape_contract[
         "required_conclusion_shape"
     ]
@@ -2407,6 +2426,9 @@ def test_formalizer_prompt_repair_instructions_preserve_source_theorem_after_tar
     )
 
     assert "Mandatory source-theorem target-preservation repair" in prompt
+    assert "Mandatory target-drift two-lane repair" in prompt
+    assert "source_theorem_lane" in prompt
+    assert "support_lemma_lane" in prompt
     assert "Target-shape contract is mandatory" in prompt
     assert "probability_or_measure_coverage_claim" in prompt
     assert "Do not replace a coverage or marginal probability theorem" in prompt
@@ -2451,6 +2473,8 @@ def test_formalizer_prompt_infers_target_shape_contract_for_legacy_target_drift_
 
     assert "Target-shape contract is mandatory" in prompt
     assert "probability_or_measure_coverage_claim" in prompt
+    assert "target_drift_repair_contract" in prompt
+    assert "source_theorem_lane" in prompt
     assert "route the helper separately" in prompt
 
 
@@ -2777,6 +2801,8 @@ def test_formalizer_prompt_escalates_repeated_coverage_target_shape_failure_to_g
     )
 
     assert "Repeated coverage target-shape failure escalation" in prompt
+    assert "Mandatory target-drift two-lane packet repair" in prompt
+    assert "support_lemma_lane is the only place" in prompt
     assert "do not emit any formal_targets entry with expected_status=NEEDS_KERNEL_CHECK" in prompt
     assert "must be expected_status=FORMAL_GAP with an empty Lean sketch" in prompt
     assert "source_to_bridge_premise_derivation_candidates" in prompt
@@ -3141,6 +3167,9 @@ def test_formalizer_lean_candidate_target_drift_feedback_preserves_source_shape(
     assert "standalone arithmetic inequality" in feedback[
         "target_shape_contract"
     ]["forbidden_replacement_shapes"]
+    assert feedback["target_drift_repair_contract"]["source_theorem_lane"][
+        "fail_closed_shape"
+    ].startswith("known source theorem entry")
     repair_contract = feedback["local_lean_repair_contract"]
     assert repair_contract["diagnostic_classes"] == [
         "formalizer_source_theorem_target_drift"

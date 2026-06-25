@@ -1529,6 +1529,14 @@ def _formalizer_mode_specific_instructions(
             )
             else {}
         )
+        target_drift_repair_contract = (
+            runtime_environment_feedback.get("target_drift_repair_contract", {})
+            if isinstance(
+                runtime_environment_feedback.get("target_drift_repair_contract", {}),
+                Mapping,
+            )
+            else {}
+        )
         target_shape_requires_coverage = (
             "probability_or_measure_coverage_claim"
             == str(
@@ -1628,6 +1636,15 @@ def _formalizer_mode_specific_instructions(
                 "preserve that probability/measure conclusion. Put arithmetic or rank "
                 "helpers in support/source-to-bridge channels instead."
             )
+            if target_drift_repair_contract:
+                instructions.append(
+                    "Mandatory target-drift two-lane packet repair: follow "
+                    "runtime_environment_feedback.target_drift_repair_contract. "
+                    "The source_theorem_lane must be either a faithful probability/"
+                    "measure source theorem target or an expected_status=FORMAL_GAP "
+                    "source theorem with empty Lean sketch. The support_lemma_lane is "
+                    "the only place for arithmetic/order-statistic helper work."
+                )
             if repeated_packet_failure and target_shape_requires_coverage:
                 instructions.append(
                     "Repeated coverage target-shape failure escalation: do not emit any "
@@ -1737,6 +1754,10 @@ def _formalizer_mode_specific_instructions(
             "target_shape_contract",
             {},
         )
+        target_drift_repair_contract = runtime_environment_feedback.get(
+            "target_drift_repair_contract",
+            {},
+        )
         has_target_drift = "source-theorem target drift" in precheck_text or (
             isinstance(target_shape_contract, Mapping)
             and str(target_shape_contract.get("contract_kind", "") or "")
@@ -1828,6 +1849,17 @@ def _formalizer_mode_specific_instructions(
                     "have a helper lemma matching candidate_reroute_options, do not claim "
                     "it as the source theorem; emit the source theorem target as "
                     "expected_status=FORMAL_GAP and route the helper separately."
+                )
+            if isinstance(target_drift_repair_contract, Mapping) and target_drift_repair_contract:
+                instructions.append(
+                    "Mandatory target-drift two-lane repair: follow "
+                    "runtime_environment_feedback.target_drift_repair_contract exactly. "
+                    "Use source_theorem_lane only for a faithful source theorem target "
+                    "that preserves target_shape_contract, or fail closed there with "
+                    "expected_status=FORMAL_GAP and an empty Lean sketch. Use "
+                    "support_lemma_lane for arithmetic/order-statistic helper work; never "
+                    "put support_lemma_lane work in formal_targets as a source theorem "
+                    "NEEDS_KERNEL_CHECK candidate."
                 )
         if has_timeout:
             instructions.append(
@@ -2016,6 +2048,11 @@ def _compact_formalizer_environment_feedback(
         input_summary=input_summary,
         target_shape_contract=target_shape_contract,
     )
+    target_drift_repair_contract = _feedback_target_drift_repair_contract(
+        feedback,
+        input_summary=input_summary,
+        target_shape_contract=target_shape_contract,
+    )
     return {
         "architect_evidence_contract": _compact_value(
             feedback.get("architect_evidence_contract", {})
@@ -2090,6 +2127,9 @@ def _compact_formalizer_environment_feedback(
             or input_summary.get("candidate_diagnostics", [])
         ),
         "target_shape_contract": _compact_value(target_shape_contract),
+        "target_drift_repair_contract": _compact_value(
+            target_drift_repair_contract
+        ),
         "candidate_reroute_options": _compact_value(candidate_reroute_options),
         "local_lean_repair_contract": _compact_value(local_lean_repair_contract),
         "n_local_lean_checked": _compact_value(
@@ -2180,6 +2220,27 @@ def _feedback_target_shape_contract(
             "must preserve the source theorem conclusion shape. Do not replace it with "
             "a narrower helper lemma."
         ),
+        "source_theorem_target_action": (
+            "Use formal_targets for the known source theorem only when the Lean sketch "
+            "preserves the required conclusion family; otherwise emit the source theorem "
+            "as expected_status=FORMAL_GAP with an empty Lean sketch."
+        ),
+        "helper_lemma_action": (
+            "Move arithmetic/order-statistic helper work to support channels such as "
+            "source_to_bridge_premise_derivation_candidates, lemma_dependency_plan, "
+            "proof_bank_obligation_requests, gap_taxonomy, or next_actions."
+        ),
+        "forbidden_output_action": (
+            "Do not emit helper lemma work as a source-theorem formal_targets "
+            "NEEDS_KERNEL_CHECK candidate."
+        ),
+        "allowed_support_channels": [
+            "source_to_bridge_premise_derivation_candidates",
+            "lemma_dependency_plan",
+            "proof_bank_obligation_requests",
+            "gap_taxonomy",
+            "next_actions",
+        ],
         "forbidden_replacement_shapes": [
             "standalone arithmetic inequality",
             "standalone order-statistic or ceiling bound",
@@ -2191,6 +2252,10 @@ def _feedback_target_shape_contract(
             "Emit expected_status=FORMAL_GAP for the source theorem target and route "
             "helper lemmas separately through support-lemma/proof-bank channels."
         ),
+        "fail_closed_source_theorem_formal_target": {
+            "expected_status": "FORMAL_GAP",
+            "lean_statement_sketch": "",
+        },
     }
     if "probability/coverage" in precheck_text or coverage_validation_detected:
         contract["required_conclusion_family"] = (
@@ -2224,6 +2289,52 @@ def _feedback_candidate_reroute_options(
             "FORMAL_GAP and route the helper separately."
         )
     ]
+
+
+def _feedback_target_drift_repair_contract(
+    feedback: Mapping[str, Any],
+    *,
+    input_summary: Mapping[str, Any],
+    target_shape_contract: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    explicit = feedback.get("target_drift_repair_contract", {}) or input_summary.get(
+        "target_drift_repair_contract",
+        {},
+    )
+    if isinstance(explicit, Mapping) and explicit:
+        return explicit
+    if not target_shape_contract:
+        return {}
+    return {
+        "contract_kind": "source_theorem_target_two_lane_repair",
+        "source_theorem_lane": {
+            "output_key": "formal_targets",
+            "allowed_needs_kernel_check_shape": (
+                "known source theorem preserving the required conclusion family"
+            ),
+            "fail_closed_shape": (
+                "known source theorem expected_status=FORMAL_GAP with empty "
+                "lean_statement_sketch"
+            ),
+        },
+        "support_lemma_lane": {
+            "allowed_output_keys": [
+                "source_to_bridge_premise_derivation_candidates",
+                "lemma_dependency_plan",
+                "proof_bank_obligation_requests",
+                "gap_taxonomy",
+                "next_actions",
+            ],
+            "forbidden_output_key": (
+                "formal_targets with source_theorem_target_known=true and "
+                "expected_status=NEEDS_KERNEL_CHECK"
+            ),
+        },
+        "acceptance_gate": (
+            "Either preserve the source theorem target shape, or mark the source "
+            "theorem as FORMAL_GAP and route helper work outside the source theorem slot."
+        ),
+    }
 
 
 def _feedback_local_lean_repair_contract(
