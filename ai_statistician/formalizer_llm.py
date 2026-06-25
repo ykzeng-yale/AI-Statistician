@@ -324,7 +324,7 @@ def build_formalizer_prompt(
         "their triggering memory fields are present. For proof_bank_obligation_requests, choose "
         "obligation_id values from registered_proof_bank_obligation_catalog when possible; these "
         "requests only prioritize AgentRuntime kernel-smoke work and may be filtered or rejected. "
-        "Never use C-style comments, placeholder binder types, `/* ... */`, `placeholder`, `TODO`, "
+        "Do not use C-style comments, placeholder binder types, `/* ... */`, `placeholder`, `TODO`, "
         "`sorry`, `admit`, `axiom`, `unsafe`, or `by?` in Lean statement sketches. Mark "
         "expected_status=NEEDS_KERNEL_CHECK on every generated Lean candidate; use "
         "expected_status=FORMAL_GAP only for an unrepaired source theorem target "

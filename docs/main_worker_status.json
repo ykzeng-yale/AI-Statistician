@@ -77,7 +77,22 @@
     "formal_gaps": 5,
     "proof_boundary": "Live runtime evidence reached generated-code repair and local Lean diagnostics, but it did not prove the conformal source theorem or any full frontier theorem."
   },
+  "latest_runtime_eval_alignment": {
+    "date": "2026-06-25",
+    "branch": "codex/runtime-eval-alignment-20260625",
+    "focus": "AgentRuntime source-to-bridge adapter instantiation, verified adapter retry, exact proof-body retry routing, and stricter audit expectations.",
+    "source_to_bridge_adapter_instantiation_queue_source": "Runtime now consumes source-to-bridge adapter-instantiation queues from the post-executor semantic bridge when present, otherwise from the initial source-semantic ProofEngineer bridge.",
+    "verified_adapter_unblocks_exact_proof_body_retry": true,
+    "proof_boundary": "Kernel-verified source-to-bridge adapter rows can route an exact source theorem proof-body retry, but they do not prove the source theorem or clear unrelated semantic-definition gaps.",
+    "static_debug_runtime_audit_boundary": "The static debug runtime test now records a CriticEvaluator formalizer/proofengineer repair request as REVISE at max_iterations; audit all_ok is false with one result contract error because the runtime result is not ACCEPTED.",
+    "focused_runtime_tests": "8 passed",
+    "full_runtime_test_module": "278 passed in 146.24s"
+  },
   "latest_local_verification": [
+    ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py --tb=short",
+    ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py::test_runtime_audit_derives_formalizer_repair_sequences_from_results tests/test_research_agent_runtime.py::test_runtime_learning_memory_routes_closure_instantiation_failure_to_adapter tests/test_research_agent_runtime.py::test_runtime_optional_theorem_closure_bridge_exports_next_run_memory_without_kernel_claim tests/test_research_agent_runtime.py::test_runtime_optional_source_theorem_proof_body_adapter_bridge_exports_memory tests/test_research_agent_runtime.py::test_runtime_consumes_source_to_bridge_adapter_instantiation_queue tests/test_research_agent_runtime.py::test_runtime_runs_formalizer_premise_derivation_candidate_bridge tests/test_research_agent_runtime.py::test_runtime_keeps_unverified_formalizer_premise_derivation_as_feedback tests/test_research_agent_runtime.py::test_research_agent_runtime_records_theory_to_simulation_loop --tb=short",
+    ".venv/bin/python -m py_compile ai_statistician/research_agent_runtime.py ai_statistician/formalizer_llm.py",
+    "git diff --check",
     ".venv/bin/python -m py_compile ai_statistician/algorithm_engineer_llm.py ai_statistician/simulation_engineer_llm.py ai_statistician/formalizer_llm.py ai_statistician/research_agent_runtime.py ai_statistician/research_agent_runtime_audit.py tests/test_research_agent_runtime.py",
     ".venv/bin/python -m json.tool docs/main_worker_status.json",
     ".venv/bin/python -m pytest -q tests/test_research_agent_runtime.py -k 'normalizes_sandbox_draft_metadata or normalizes_generated_code_draft_metadata or formalizer_capability_eval_prompt_requires_lean_candidate or formalizer_capability_eval_validator_rejects_initial_coverage_source_target_drift or formalizer_capability_eval_validator_rejects_target_drift_arithmetic_candidate or formalizer_capability_eval_validator_allows_target_drift_formal_gap or formalizer_capability_eval_validator_accepts_source_to_bridge_candidate or runtime_audit_count_prefers_manifest_or_proof_summary_max or runtime_capability_scorecard_requires_architect_path_propagation or engineer_prompt_includes_metric_gate_repair_feedback or capability_eval_revises_template_only_output'",

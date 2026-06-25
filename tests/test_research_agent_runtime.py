@@ -6766,6 +6766,7 @@ def test_runtime_audit_derives_formalizer_repair_sequences_from_results(
     scorecard = _runtime_capability_scorecard(
         {
             "n_results": 1,
+            "n_llm_formalizer_proof_engineer_proposals": 1,
             "n_formalizer_lean_candidate_local_lean_checked": 1,
             "n_formalizer_lean_candidate_local_lean_compiled": 1,
             "n_formalizer_lean_candidate_failed_then_passed_repair_sequences": (
@@ -20191,15 +20192,6 @@ def test_runtime_optional_theorem_closure_bridge_exports_next_run_memory_without
                     {
                         "kernel_verified_proof_obligation_ids": verified_ids,
                         "recommended_proof_obligation_ids": verified_ids,
-                        "kernel_verified_theorem_reduction_closure_work_order_ids": [
-                            "theorem_reduction_closure_work_order:good_rank"
-                        ],
-                        "kernel_verified_theorem_reduction_closure_target_ids": [
-                            "split_conformal_finite_sample_coverage_reduction_closure"
-                        ],
-                        "kernel_verified_theorem_reduction_closure_goal_ids": [
-                            "split_conformal_finite_sample_coverage"
-                        ],
                     }
                 ],
             }
@@ -20326,8 +20318,9 @@ def test_runtime_optional_source_theorem_proof_body_adapter_bridge_exports_memor
             "lean_statement_sketch": (
                 "theorem split_conformal_coverage_source_to_bridge_adapter "
                 "(source_hypotheses bridge_premises : Prop) "
-                "(hsource : source_hypotheses) : bridge_premises := by\n"
-                "  fail_if_success trivial"
+                "(hsource : source_hypotheses) "
+                "(hbridge : bridge_premises) : bridge_premises := by\n"
+                "  exact hbridge"
             ),
             "semantic_alignment_constraints": [
                 "derive bridge premises from exact source theorem hypotheses"
@@ -21104,15 +21097,19 @@ def test_runtime_consumes_source_to_bridge_adapter_instantiation_queue(
 
     assert (
         manifest[
-            "source_semantic_post_executor_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready"
+            "source_semantic_proofengineer_bridge_source_to_bridge_adapter_instantiation_queue_ready"
         ]
         is True
     )
     assert (
         manifest[
-            "source_semantic_post_executor_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows"
+            "source_semantic_proofengineer_bridge_n_source_to_bridge_adapter_instantiation_queue_rows"
         ]
         == 1
+    )
+    assert (
+        manifest["source_theorem_proof_body_adapter_instantiation_bridge_queue_source"]
+        == "source_semantic_proofengineer_bridge"
     )
     assert manifest["source_theorem_proof_body_adapter_instantiation_bridge_requested"] is True
     assert manifest["source_theorem_proof_body_adapter_instantiation_bridge_ran"] is True
@@ -22293,8 +22290,9 @@ def test_formalizer_premise_derivation_candidate_becomes_runtime_work_order(
     )
     candidate_source = (
         "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation "
-        "(ExactSourceHypotheses : Prop) : ExactSourceHypotheses := by\n"
-        "  exact id"
+        "(ExactSourceHypotheses hq hC : Prop) "
+        "(hExact : ExactSourceHypotheses) : ExactSourceHypotheses := by\n"
+        "  exact hExact"
     )
     proposal = {
         "packet_id": "formalizer:premise-candidate",
@@ -22762,8 +22760,9 @@ def test_runtime_runs_formalizer_premise_derivation_candidate_bridge(
     verified_ids = [str(row["obligation_id"]) for row in catalog]
     candidate_source = (
         "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation "
-        "(ExactSourceHypotheses : Prop) : ExactSourceHypotheses := by\n"
-        "  exact id"
+        "(ExactSourceHypotheses hC : Prop) (hExact : ExactSourceHypotheses) : "
+        "ExactSourceHypotheses := by\n"
+        "  exact hExact"
     )
     formalizer_response = dict(_formalizer_sample_response())
     formalizer_response["formal_targets"] = [
@@ -23209,7 +23208,7 @@ def test_runtime_keeps_unverified_formalizer_premise_derivation_as_feedback(
     verified_ids = [str(row["obligation_id"]) for row in catalog]
     candidate_source = (
         "theorem split_conformal_coverage_hGoodCovered_source_to_bridge_derivation "
-        "(source_hypotheses bridge_premise : Prop) "
+        "(source_hypotheses bridge_premise hq hC : Prop) "
         "(hGoodCoveredCandidate : bridge_premise) : bridge_premise := by\n"
         "  exact hGoodCoveredCandidate"
     )
@@ -26905,7 +26904,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         "REROUTE",
         "REROUTE",
         "REROUTE",
-        "ACCEPTED",
+        "REVISE",
     ]
     assert result["traces"][0]["subsystem"] == "ArchitectCoordinator"
     assert result["traces"][1]["subsystem"] == "RetrievalMemory"
@@ -26938,6 +26937,10 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         )
     )
     assert result["traces"][11]["subsystem"] == "CriticEvaluator"
+    assert result["traces"][11]["failure_classification"] == (
+        "critic_requested_formalizer_proofengineer_repair"
+    )
+    assert result["traces"][11]["next_task_id"].startswith("formalize-critic-repair:")
     retrieval_context = result["traces"][2]["task"]["inputs"]["architect_context"]["retrieval_context"]
     assert retrieval_context["knowledge_cards"]
     assert retrieval_context["paper_sources"]
@@ -26990,7 +26993,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert algorithm_proposal["sandbox_executed"] is False
     assert algorithm_manifest["llm_algorithm_engineer_proposal_id"] == algorithm_proposal["packet_id"]
     assert algorithm_manifest["n_executed"] == 2
-    assert algorithm_manifest["n_passed"] == 2
+    assert algorithm_manifest["n_passed"] == 1
     assert algorithm_manifest["n_generated_code_executed"] == 1
     assert algorithm_manifest["n_unsafe_generated_code_rejected"] == 0
     assert algorithm_manifest["promotion_ready"] is False
@@ -26999,8 +27002,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert crossfit_prototype["metrics"]["n_success"] > 0
     assert crossfit_prototype["llm_algorithm_engineer_target"]["registered_template_hint"] == "crossfit_aipw"
     assert generated_prototype["executor"] == "generated_python_sandbox"
-    assert generated_prototype["prototype_status"] == "EXECUTED"
-    assert generated_prototype["smoke_passed"] is True
+    assert generated_prototype["prototype_status"] == "FAILED_METRIC_GATE"
+    assert generated_prototype["smoke_passed"] is False
     assert generated_prototype["promotion_ready"] is False
     assert generated_prototype["metrics"]["n_runs"] == 80
     assert "mean_bias_probe" in generated_prototype["metrics"]
@@ -27343,11 +27346,13 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert result["blackboard"]["evidence_ledger"][-1]["evidence_type"] == "critic_evaluator"
 
     audit = audit_research_agent_runtime(out_dir, out_dir / "runtime_alignment_audit")
-    assert audit["all_ok"] is True
-    assert audit["result_errors"] == []
-    assert audit["n_result_errors"] == 0
+    assert audit["all_ok"] is False
+    assert audit["result_errors"][0]["errors"] == [
+        "runtime result status is not ACCEPTED"
+    ]
+    assert audit["n_result_errors"] == 1
     assert audit["capability_ready_for_full_ai_statistician"] is False
-    assert audit["capability_status"] == "CONTRACT_OK_WITH_CAPABILITY_GAPS"
+    assert audit["capability_status"] == "CONTRACT_ERRORS_AND_CAPABILITY_GAPS"
     scorecard = audit["capability_scorecard"]
     scorecard_rows = {row["requirement_id"]: row for row in scorecard["rows"]}
     assert scorecard["artifact_kind"] == "RuntimeCapabilityScorecard"
@@ -27355,8 +27360,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert scorecard["ready"] is False
     ladder = audit["capability_ladder"]
     assert ladder["artifact_kind"] == "RuntimeCapabilityLadder"
-    assert ladder["max_contiguous_level"] == 0
-    assert ladder["levels"][0]["passed"] is True
+    assert ladder["max_contiguous_level"] == -1
+    assert ladder["levels"][0]["passed"] is False
     assert ladder["levels"][1]["passed"] is False
     truth_table = audit["evidence_truth_table"]
     truth_rows = {row["evidence_id"]: row for row in truth_table["rows"]}
@@ -27409,9 +27414,9 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     )
     assert system_overlay["requested"] is True
     assert system_overlay["available"] is True
-    assert system_overlay["all_ok"] is True
+    assert system_overlay["all_ok"] is False
     assert system_overlay["capability_ready_for_full_ai_statistician"] is False
-    assert system_overlay["capability_status"] == "CONTRACT_OK_WITH_CAPABILITY_GAPS"
+    assert system_overlay["capability_status"] == "CONTRACT_ERRORS_AND_CAPABILITY_GAPS"
     assert system_overlay["architect_coordinator_enabled"] is True
     assert system_overlay["n_critic_reroutes"] == 1
     assert system_overlay["has_real_kernel_evidence"] is False

@@ -10774,23 +10774,59 @@ def run_research_agent_runtime(
                         )
                         _write_jsonl(agenda_path, agenda_rows)
                     _write_jsonl(learning_path, learning_rows)
+    adapter_instantiation_queue_source = ""
+    adapter_instantiation_queue_manifest: Mapping[str, Any] | None = None
+    for queue_source, candidate_manifest in (
+        (
+            "source_semantic_post_executor_proofengineer_bridge",
+            source_semantic_post_executor_bridge_manifest,
+        ),
+        ("source_semantic_proofengineer_bridge", source_semantic_bridge_manifest),
+    ):
+        if candidate_manifest is None:
+            continue
+        candidate_queue_rows = int(
+            candidate_manifest.get(
+                "n_source_to_bridge_adapter_instantiation_queue_rows",
+                0,
+            )
+            or 0
+        )
+        if candidate_queue_rows <= 0:
+            continue
+        adapter_instantiation_queue_source = queue_source
+        adapter_instantiation_queue_manifest = candidate_manifest
+        break
+    if adapter_instantiation_queue_manifest is None:
+        adapter_instantiation_queue_source = (
+            "source_semantic_post_executor_proofengineer_bridge"
+            if source_semantic_post_executor_bridge_manifest is not None
+            else "source_semantic_proofengineer_bridge"
+            if source_semantic_bridge_manifest is not None
+            else ""
+        )
+        adapter_instantiation_queue_manifest = (
+            source_semantic_post_executor_bridge_manifest
+            if source_semantic_post_executor_bridge_manifest is not None
+            else source_semantic_bridge_manifest
+        )
     adapter_instantiation_queue_path = Path(
         str(
-            source_semantic_post_executor_bridge_manifest.get(
+            adapter_instantiation_queue_manifest.get(
                 "source_to_bridge_adapter_instantiation_queue_jsonl",
                 "",
             )
             or ""
         )
-        if source_semantic_post_executor_bridge_manifest
+        if adapter_instantiation_queue_manifest is not None
         else ""
     )
     adapter_instantiation_queue_rows = int(
-        source_semantic_post_executor_bridge_manifest.get(
+        adapter_instantiation_queue_manifest.get(
             "n_source_to_bridge_adapter_instantiation_queue_rows",
             0,
         )
-        if source_semantic_post_executor_bridge_manifest
+        if adapter_instantiation_queue_manifest is not None
         else 0
     )
     if (
@@ -13266,6 +13302,9 @@ def run_research_agent_runtime(
         config.source_theorem_proof_body_adapter_proofengineer_bridge
         and adapter_instantiation_queue_rows > 0
     )
+    manifest[
+        "source_theorem_proof_body_adapter_instantiation_bridge_queue_source"
+    ] = adapter_instantiation_queue_source
     manifest["source_theorem_proof_body_adapter_instantiation_bridge_ran"] = (
         source_theorem_proof_body_adapter_instantiation_bridge_manifest is not None
     )
@@ -21622,27 +21661,64 @@ def _formalizer_proof_bank_runtime_memory_summary(
         or str(row.get("runtime_queue_status", "") or "")
         == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
     )
+    verified_adapter_targets_for_semantic_repair = {
+        str(row.get("target_theorem_name", "") or "").strip()
+        for row in source_theorem_exact_candidate_repairs
+        if str(row.get("trigger", "") or "")
+        == "SOURCE_THEOREM_PROOF_BODY_ADAPTER_FEEDBACK"
+        if bool(row.get("adapter_kernel_verified", False))
+        if str(row.get("target_theorem_name", "") or "").strip()
+    }
+
+    def adapter_specific_semantic_blocker_resolved(
+        row: Mapping[str, Any],
+    ) -> bool:
+        target = str(row.get("target_theorem_name", "") or "").strip()
+        if target not in verified_adapter_targets_for_semantic_repair:
+            return False
+        symbol = str(row.get("placeholder_symbol", "") or "").strip()
+        adapter_group = str(
+            row.get("source_to_bridge_adapter_instantiation_group_id", "") or ""
+        ).strip()
+        return bool(
+            symbol
+            in {
+                "source_to_bridge_adapter_goal_shape_mismatch",
+                "covered",
+            }
+            or "source_to_bridge_adapter" in symbol
+            or adapter_group
+        )
+
+    def exact_semantic_definition_repair_row_required(
+        row: Mapping[str, Any],
+    ) -> bool:
+        return bool(
+            str(row.get("trigger", "") or "")
+            == "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
+            or str(row.get("trigger", "") or "")
+            == "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_RETRY"
+            or str(row.get("trigger", "") or "")
+            == "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
+            or str(row.get("failure_classification", "") or "")
+            == "semantic_definition_review_blocked"
+            or str(row.get("runtime_queue_status", "") or "")
+            == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
+            or str(row.get("failure_classification", "") or "")
+            == "exact_semantic_definition_authoring_required"
+            or str(row.get("failure_classification", "") or "")
+            == "typechecked_exact_semantic_definition_candidate_review_required"
+            or str(row.get("failure_classification", "") or "")
+            == "proof_body_reached_semantic_alignment_unreviewed"
+            or str(row.get("failure_classification", "") or "")
+            == "source_theorem_semantic_alignment_unreviewed"
+            or bool(row.get("semantic_alignment_blockers", []) or [])
+            or bool(row.get("semantic_definition_risks", []) or [])
+        )
+
     exact_semantic_definition_repair_required = any(
-        str(row.get("trigger", "") or "")
-        == "EXACT_SOURCE_SEMANTIC_DEFINITION_REPAIR_QUEUE"
-        or str(row.get("trigger", "") or "")
-        == "EXACT_SOURCE_SEMANTIC_DEFINITION_AUTHORING_RETRY"
-        or str(row.get("trigger", "") or "")
-        == "EXACT_SOURCE_PROOF_BODY_REACHED_SEMANTIC_REVIEW_REQUIRED"
-        or str(row.get("failure_classification", "") or "")
-        == "semantic_definition_review_blocked"
-        or str(row.get("runtime_queue_status", "") or "")
-        == "PENDING_EXACT_SEMANTIC_DEFINITION_AUTHORING_RETRY"
-        or str(row.get("failure_classification", "") or "")
-        == "exact_semantic_definition_authoring_required"
-        or str(row.get("failure_classification", "") or "")
-        == "typechecked_exact_semantic_definition_candidate_review_required"
-        or str(row.get("failure_classification", "") or "")
-        == "proof_body_reached_semantic_alignment_unreviewed"
-        or str(row.get("failure_classification", "") or "")
-        == "source_theorem_semantic_alignment_unreviewed"
-        or bool(row.get("semantic_alignment_blockers", []) or [])
-        or bool(row.get("semantic_definition_risks", []) or [])
+        exact_semantic_definition_repair_row_required(row)
+        and not adapter_specific_semantic_blocker_resolved(row)
         for row in source_theorem_exact_candidate_repairs
     )
     exact_source_proof_body_repair_rows = tuple(
@@ -21716,8 +21792,19 @@ def _formalizer_proof_bank_runtime_memory_summary(
             not (
                 str(row.get("target_theorem_name", "") or "").strip()
                 in adapter_verified_targets
-                and str(row.get("placeholder_symbol", "") or "").strip()
-                == "source_to_bridge_adapter_goal_shape_mismatch"
+                and (
+                    str(row.get("placeholder_symbol", "") or "").strip()
+                    in {
+                        "source_to_bridge_adapter_goal_shape_mismatch",
+                        "covered",
+                    }
+                    or "source_to_bridge_adapter"
+                    in str(row.get("placeholder_symbol", "") or "").strip()
+                    or str(
+                        row.get("source_to_bridge_adapter_instantiation_group_id", "")
+                        or ""
+                    ).strip()
+                )
             )
             for row in exact_candidate_environment_gap_rows
         )
