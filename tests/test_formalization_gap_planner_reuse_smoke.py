@@ -38,6 +38,105 @@ def _sum_count_maps(*maps: object) -> dict[str, int]:
     }
 
 
+def _assert_publication_bundle_standalone_seed_fallback_summary(
+    payload: dict[str, object],
+    *,
+    primary_fallback_routes: int,
+    feedback_fallback_routes: int,
+    expected_source_counts: dict[str, int],
+) -> None:
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_standalone_seed_fallback_routes"
+        ]
+        == primary_fallback_routes
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_standalone_seed_fallback_routes"
+        ]
+        == feedback_fallback_routes
+    )
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_standalone_seed_fallback_routes"
+        ]
+        == primary_fallback_routes + feedback_fallback_routes
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_standalone_seed_fallback_routes_marked_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_standalone_seed_fallback_routes_marked_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_standalone_seed_fallback_selected_not_adoptable"
+        ]
+        == primary_fallback_routes
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_standalone_seed_fallback_selected_not_adoptable"
+        ]
+        == feedback_fallback_routes
+    )
+    assert (
+        payload[
+            "n_publication_bundle_combined_llm_route_planner_summary_standalone_seed_fallback_selected_not_adoptable"
+        ]
+        == primary_fallback_routes + feedback_fallback_routes
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_standalone_seed_routes_with_seed_route_source"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_standalone_seed_routes_with_seed_route_source"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "publication_bundle_llm_route_planner_summary_standalone_seed_route_by_seed_route_source"
+        ]
+        == expected_source_counts
+    )
+    assert (
+        payload[
+            "publication_bundle_feedback_llm_route_planner_summary_standalone_seed_route_by_seed_route_source"
+        ]
+        == expected_source_counts
+    )
+    assert (
+        payload[
+            "publication_bundle_combined_llm_route_planner_summary_standalone_seed_route_by_seed_route_source"
+        ]
+        == {key: value * 2 for key, value in expected_source_counts.items()}
+    )
+    assert (
+        payload[
+            "n_publication_bundle_llm_route_planner_summary_standalone_seed_routes_with_fallback_boundary"
+        ]
+        == primary_fallback_routes
+    )
+    assert (
+        payload[
+            "n_publication_bundle_feedback_llm_route_planner_summary_standalone_seed_routes_with_fallback_boundary"
+        ]
+        == feedback_fallback_routes
+    )
+
+
 def _assert_llm_resource_feedback_readiness_summary(payload: dict[str, object]) -> None:
     for bundle_key, raw_key in (
         (
@@ -1295,6 +1394,12 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         payload["n_goal_plan_standalone_input_traces_with_llm_fallback_boundary"]
         == 1
     )
+    _assert_publication_bundle_standalone_seed_fallback_summary(
+        payload,
+        primary_fallback_routes=1,
+        feedback_fallback_routes=1,
+        expected_source_counts={"fallback_input_route": 1},
+    )
     assert payload[
         "goal_plan_standalone_input_trace_by_llm_seed_selection_rank"
     ] == {"1": 1}
@@ -1719,6 +1824,10 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert "cost-hint-incomplete" in report_text
     assert "LLM route planner request target families" in report_text
     assert "Goal-plan LLM fallback routes total/marked-adoptable" in report_text
+    assert (
+        "Bundle LLM standalone-seed fallback routes primary/feedback/combined"
+        in report_text
+    )
     assert "LLM route planner provider usage rows/input/output/total" in report_text
     assert "LLM route planner prompt budget rows/input/max-output/total" in report_text
     assert "Library-coverage map target families" in report_text
@@ -6790,6 +6899,12 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         "search_requests_pending_evidence"
         in payload["publication_bundle_llm_route_planner_summary_standalone_replay_gate_blockers"]
     )
+    _assert_publication_bundle_standalone_seed_fallback_summary(
+        payload,
+        primary_fallback_routes=0,
+        feedback_fallback_routes=0,
+        expected_source_counts={"accepted_llm_standalone_route": 1},
+    )
     assert payload["publication_bundle_feedback_llm_route_planner_summary_requested"]
     assert (
         payload[
@@ -7913,6 +8028,12 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
     assert (
         payload["n_goal_plan_standalone_input_traces_with_llm_fallback_boundary"]
         == 1
+    )
+    _assert_publication_bundle_standalone_seed_fallback_summary(
+        payload,
+        primary_fallback_routes=1,
+        feedback_fallback_routes=1,
+        expected_source_counts={"fallback_input_route": 1},
     )
     assert payload[
         "goal_plan_standalone_input_trace_by_llm_seed_selection_rank"

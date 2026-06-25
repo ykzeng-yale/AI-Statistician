@@ -4190,6 +4190,42 @@ def run_formalization_gap_planner_reuse_smoke(
                 )
             )
         ),
+        "n_publication_bundle_llm_route_planner_summary_standalone_seed_fallback_routes": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_standalone_seed_routes_llm_fallback_routes",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_standalone_seed_fallback_routes_marked_adoptable": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_standalone_seed_routes_llm_fallback_routes_marked_adoptable",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_standalone_seed_fallback_selected_not_adoptable": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_standalone_seed_routes_llm_fallback_selected_not_adoptable",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_standalone_seed_routes_with_seed_route_source": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_standalone_seed_routes_with_llm_seed_route_source",
+                0,
+            )
+        ),
+        "publication_bundle_llm_route_planner_summary_standalone_seed_route_by_seed_route_source": (
+            publication_bundle_llm_route_planner_summary.get(
+                "standalone_seed_route_by_llm_seed_route_source",
+                {},
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_standalone_seed_routes_with_fallback_boundary": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_standalone_seed_routes_with_llm_fallback_boundary",
+                0,
+            )
+        ),
         "publication_bundle_feedback_llm_route_planner_summary_requested": bool(
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "requested",
@@ -4875,6 +4911,86 @@ def run_formalization_gap_planner_reuse_smoke(
                     "standalone_replay_gate_blockers",
                     (),
                 )
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_standalone_seed_fallback_routes": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_standalone_seed_routes_llm_fallback_routes",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_standalone_seed_fallback_routes_marked_adoptable": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_standalone_seed_routes_llm_fallback_routes_marked_adoptable",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_standalone_seed_fallback_selected_not_adoptable": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_standalone_seed_routes_llm_fallback_selected_not_adoptable",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_standalone_seed_routes_with_seed_route_source": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_standalone_seed_routes_with_llm_seed_route_source",
+                0,
+            )
+        ),
+        "publication_bundle_feedback_llm_route_planner_summary_standalone_seed_route_by_seed_route_source": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "standalone_seed_route_by_llm_seed_route_source",
+                {},
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_standalone_seed_routes_with_fallback_boundary": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_standalone_seed_routes_with_llm_fallback_boundary",
+                0,
+            )
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_standalone_seed_fallback_routes": (
+            int(
+                publication_bundle_llm_route_planner_summary.get(
+                    "n_standalone_seed_routes_llm_fallback_routes",
+                    0,
+                )
+                or 0
+            )
+            + int(
+                publication_bundle_feedback_llm_route_planner_summary.get(
+                    "n_standalone_seed_routes_llm_fallback_routes",
+                    0,
+                )
+                or 0
+            )
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_standalone_seed_fallback_selected_not_adoptable": (
+            int(
+                publication_bundle_llm_route_planner_summary.get(
+                    "n_standalone_seed_routes_llm_fallback_selected_not_adoptable",
+                    0,
+                )
+                or 0
+            )
+            + int(
+                publication_bundle_feedback_llm_route_planner_summary.get(
+                    "n_standalone_seed_routes_llm_fallback_selected_not_adoptable",
+                    0,
+                )
+                or 0
+            )
+        ),
+        "publication_bundle_combined_llm_route_planner_summary_standalone_seed_route_by_seed_route_source": (
+            _sum_count_maps(
+                publication_bundle_llm_route_planner_summary.get(
+                    "standalone_seed_route_by_llm_seed_route_source",
+                    {},
+                ),
+                publication_bundle_feedback_llm_route_planner_summary.get(
+                    "standalone_seed_route_by_llm_seed_route_source",
+                    {},
+                ),
             )
         ),
         "n_publication_bundle_llm_route_planner_summary_checked": publication_bundle_audit_payload.get(
@@ -11666,6 +11782,17 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_rows_with_route_adoption_preconditions')}/"
             f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_row_route_adoption_precondition_known_blockers')}/"
             f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_row_route_adoption_precondition_target_primitives')}"
+        ),
+        (
+            f"- Bundle LLM standalone-seed fallback routes primary/feedback/combined: "
+            f"{payload.get('n_publication_bundle_llm_route_planner_summary_standalone_seed_fallback_routes')}/"
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_standalone_seed_fallback_routes')}/"
+            f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_standalone_seed_fallback_routes')} "
+            f"selected_not_adoptable="
+            f"{payload.get('n_publication_bundle_llm_route_planner_summary_standalone_seed_fallback_selected_not_adoptable')}/"
+            f"{payload.get('n_publication_bundle_feedback_llm_route_planner_summary_standalone_seed_fallback_selected_not_adoptable')}/"
+            f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_standalone_seed_fallback_selected_not_adoptable')} "
+            f"sources={payload.get('publication_bundle_combined_llm_route_planner_summary_standalone_seed_route_by_seed_route_source')}"
         ),
         (
             f"- Bundle LLM route planner prompt budget rows/input/max-output/total: "
