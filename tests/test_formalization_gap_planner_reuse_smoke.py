@@ -1269,6 +1269,32 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         ]
         == 1
     )
+    assert payload["n_goal_plan_standalone_input_traces_llm_fallback_routes"] == 1
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_llm_fallback_routes_marked_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_llm_fallback_selected_not_adoptable"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_seed_route_source"
+        ]
+        == 1
+    )
+    assert payload[
+        "goal_plan_standalone_input_trace_by_llm_seed_route_source"
+    ] == {"fallback_input_route": 1}
+    assert (
+        payload["n_goal_plan_standalone_input_traces_with_llm_fallback_boundary"]
+        == 1
+    )
     assert payload[
         "goal_plan_standalone_input_trace_by_llm_seed_selection_rank"
     ] == {"1": 1}
@@ -1692,6 +1718,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert "Source prover targets: `lean4` families=1 by={'lean4': 1}" in report_text
     assert "cost-hint-incomplete" in report_text
     assert "LLM route planner request target families" in report_text
+    assert "Goal-plan LLM fallback routes total/marked-adoptable" in report_text
     assert "LLM route planner provider usage rows/input/output/total" in report_text
     assert "LLM route planner prompt budget rows/input/max-output/total" in report_text
     assert "Library-coverage map target families" in report_text
@@ -5745,6 +5772,32 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         ]
         == 1
     )
+    assert payload["n_goal_plan_standalone_input_traces_llm_fallback_routes"] == 0
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_llm_fallback_routes_marked_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_llm_fallback_selected_not_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_seed_route_source"
+        ]
+        == 1
+    )
+    assert payload[
+        "goal_plan_standalone_input_trace_by_llm_seed_route_source"
+    ] == {"accepted_llm_standalone_route": 1}
+    assert (
+        payload["n_goal_plan_standalone_input_traces_with_llm_fallback_boundary"]
+        == 0
+    )
     assert payload[
         "goal_plan_standalone_input_trace_by_llm_seed_selection_rank"
     ] == {"1": 1}
@@ -7833,6 +7886,32 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
         payload[
             "n_goal_plan_standalone_input_traces_llm_seed_selected_not_adoptable"
         ]
+        == 1
+    )
+    assert payload["n_goal_plan_standalone_input_traces_llm_fallback_routes"] == 1
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_llm_fallback_routes_marked_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_llm_fallback_selected_not_adoptable"
+        ]
+        == 1
+    )
+    assert (
+        payload[
+            "n_goal_plan_standalone_input_traces_with_llm_seed_route_source"
+        ]
+        == 1
+    )
+    assert payload[
+        "goal_plan_standalone_input_trace_by_llm_seed_route_source"
+    ] == {"fallback_input_route": 1}
+    assert (
+        payload["n_goal_plan_standalone_input_traces_with_llm_fallback_boundary"]
         == 1
     )
     assert payload[

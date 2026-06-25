@@ -2185,6 +2185,42 @@ def run_formalization_gap_planner_reuse_smoke(
                 0,
             )
         ),
+        "n_goal_plan_standalone_input_traces_llm_fallback_routes": (
+            plan_payload.get(
+                "n_standalone_input_traces_llm_fallback_routes",
+                0,
+            )
+        ),
+        "n_goal_plan_standalone_input_traces_llm_fallback_routes_marked_adoptable": (
+            plan_payload.get(
+                "n_standalone_input_traces_llm_fallback_routes_marked_adoptable",
+                0,
+            )
+        ),
+        "n_goal_plan_standalone_input_traces_llm_fallback_selected_not_adoptable": (
+            plan_payload.get(
+                "n_standalone_input_traces_llm_fallback_selected_not_adoptable",
+                0,
+            )
+        ),
+        "n_goal_plan_standalone_input_traces_with_llm_seed_route_source": (
+            plan_payload.get(
+                "n_standalone_input_traces_with_llm_seed_route_source",
+                0,
+            )
+        ),
+        "goal_plan_standalone_input_trace_by_llm_seed_route_source": (
+            plan_payload.get(
+                "standalone_input_trace_by_llm_seed_route_source",
+                {},
+            )
+        ),
+        "n_goal_plan_standalone_input_traces_with_llm_fallback_boundary": (
+            plan_payload.get(
+                "n_standalone_input_traces_with_llm_fallback_boundary",
+                0,
+            )
+        ),
         "goal_plan_standalone_input_trace_by_llm_seed_selection_rank": (
             plan_payload.get(
                 "standalone_input_trace_by_llm_seed_selection_rank",
@@ -11434,6 +11470,15 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"{payload.get('n_goal_plan_standalone_input_traces_llm_seed_adoptable_for_standalone_replay')}/"
             f"{payload.get('n_goal_plan_standalone_input_traces_llm_seed_selected_not_adoptable')} "
             f"ranks={payload.get('goal_plan_standalone_input_trace_by_llm_seed_selection_rank')}"
+        ),
+        (
+            f"- Goal-plan LLM fallback routes total/marked-adoptable/selected-not-adoptable/source/boundary: "
+            f"{payload.get('n_goal_plan_standalone_input_traces_llm_fallback_routes')}/"
+            f"{payload.get('n_goal_plan_standalone_input_traces_llm_fallback_routes_marked_adoptable')}/"
+            f"{payload.get('n_goal_plan_standalone_input_traces_llm_fallback_selected_not_adoptable')}/"
+            f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_seed_route_source')}/"
+            f"{payload.get('n_goal_plan_standalone_input_traces_with_llm_fallback_boundary')} "
+            f"sources={payload.get('goal_plan_standalone_input_trace_by_llm_seed_route_source')}"
         ),
         (
             f"- LLM route planner requests valid: "
