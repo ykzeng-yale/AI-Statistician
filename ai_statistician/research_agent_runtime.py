@@ -18557,6 +18557,10 @@ def _critic_repair_feedback(
             formalization_manifest
         )
     )
+    formal_blocker_resource_requests = _critic_formal_blocker_resource_requests(
+        formalization_manifest=formalization_manifest,
+        agenda=agenda,
+    )
     required_repair = (
         "Revise theorem statements, assumptions, estimator specification, or proof plan "
         "to address formal gaps and non-kernel proof feedback. Do not claim proof evidence "
@@ -18592,11 +18596,146 @@ def _critic_repair_feedback(
         "required_repair": required_repair,
         "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
     }
+    if formal_blocker_resource_requests:
+        feedback["formal_blocker_resource_requests"] = formal_blocker_resource_requests
     if formalizer_local_lean_contract:
         feedback["local_lean_repair_contract"] = formalizer_local_lean_contract
     if formalizer_candidate_diagnostics:
         feedback["candidate_diagnostics"] = formalizer_candidate_diagnostics
     return feedback
+
+
+def _critic_formal_blocker_resource_requests(
+    *,
+    formalization_manifest: Mapping[str, Any],
+    agenda: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Turn formal blocker rows into typed retriever/prover resource requests."""
+
+    if not isinstance(formalization_manifest, Mapping):
+        return []
+    target_ids = [
+        str(row.get("id", "") or "").strip()
+        for row in formalization_manifest.get("deterministic_theorem_goals", []) or []
+        if isinstance(row, Mapping) and str(row.get("id", "") or "").strip()
+    ]
+    request_rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def add_request(
+        *,
+        source: str,
+        blocker_kind: str,
+        blocker: str,
+        next_owner: str,
+        target_ids_override: Sequence[Any] = (),
+    ) -> None:
+        blocker = blocker.strip()
+        blocker_kind = blocker_kind.strip() or "formal_blocker"
+        if not blocker:
+            return
+        fingerprint = stable_hash([source, blocker_kind, blocker, next_owner])[:20]
+        if fingerprint in seen:
+            return
+        seen.add(fingerprint)
+        request_rows.append(
+            {
+                "request_id": f"formal_blocker_resource_request:{fingerprint}",
+                "source": source,
+                "blocker_kind": blocker_kind,
+                "blocker": blocker,
+                "next_owner": next_owner.strip() or "Formalizer/ProofEngineer",
+                "target_ids": [
+                    str(value).strip()
+                    for value in (target_ids_override or target_ids)
+                    if str(value).strip()
+                ],
+                "formal_source_queries": _formal_blocker_resource_request_queries(
+                    blocker,
+                    blocker_kind=blocker_kind,
+                    target_ids=target_ids_override or target_ids,
+                ),
+                "recommended_tools": [
+                    "formal_source_retriever",
+                    "proof_search",
+                    "lean_lsp_mcp_when_configured",
+                    "local_lean_or_axle",
+                ],
+                "required_resolution": (
+                    "Retrieve or identify a verified local declaration/import, "
+                    "formalize a smaller semantic primitive, or keep the theorem as "
+                    "FORMAL_GAP with the exact missing API/definition named. Do not "
+                    "emit an executable candidate that reuses an unresolved blocker."
+                ),
+                "proof_evidence_status": (
+                    "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+        )
+
+    for row in formalization_manifest.get("llm_formalizer_gap_taxonomy", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        add_request(
+            source="llm_formalizer_gap_taxonomy",
+            blocker_kind=str(row.get("kind", "") or ""),
+            blocker=str(row.get("gap", "") or ""),
+            next_owner=str(row.get("next_owner", "") or ""),
+        )
+
+    for row in agenda:
+        if not isinstance(row, Mapping):
+            continue
+        trigger = str(row.get("trigger", "") or "")
+        agenda_id = str(row.get("id", "") or "")
+        owner = str(row.get("owner_subsystem", "") or "")
+        if not (
+            agenda_id.startswith("formal_gap:")
+            or trigger.startswith(("SOURCE_", "FORMAL_GAP", "POST_RUNTIME_PROOF"))
+            or "ProofEngineer" in owner
+            or "LeanProver" in owner
+        ):
+            continue
+        add_request(
+            source="critic_next_action_agenda",
+            blocker_kind=trigger or agenda_id,
+            blocker=str(row.get("action", "") or ""),
+            next_owner=owner,
+            target_ids_override=[
+                str(value).strip()
+                for value in row.get("target_ids", []) or []
+                if str(value).strip()
+            ],
+        )
+
+    return request_rows[:8]
+
+
+def _formal_blocker_resource_request_queries(
+    blocker: str,
+    *,
+    blocker_kind: str,
+    target_ids: Sequence[Any],
+) -> list[str]:
+    target_text = " ".join(str(value).strip() for value in target_ids if str(value).strip())
+    base = " ".join(part for part in (blocker_kind, blocker, target_text) if part).strip()
+    queries: list[str] = []
+    if base:
+        queries.append(base)
+    identifier_pattern = re.compile(
+        r"`([^`]+)`|\b([A-Za-z_][A-Za-z0-9_'.]*\.[A-Za-z0-9_'.]+)\b"
+    )
+    for match in identifier_pattern.finditer(blocker):
+        identifier = str(match.group(1) or match.group(2) or "").strip()
+        query = f"{identifier} Lean declaration" if identifier else ""
+        if query and query not in queries:
+            queries.append(query)
+    for phrase in re.findall(r"\b[A-Z][A-Za-z0-9_]*(?:[A-Z][A-Za-z0-9_]*)+\b", blocker):
+        query = f"{phrase} Lean definition"
+        if query not in queries:
+            queries.append(query)
+    return queries[:5]
 
 
 def _critic_candidate_diagnostics_from_formalization_manifest(

@@ -319,6 +319,21 @@ retry the bad `Nat.ceil` Lean helper; it kept the source theorem as a
 routed to Critic/next-action planning. Scorecard remained `41/49`; no source
 theorem or frontier theorem proof was produced.
 
+The follow-up Critic resume
+`runs/main_worker_live_runtime_resume_critic_formal_blocker_requests_probe/research_agent_runtime_manifest.json`
+keeps that design generic. Instead of adding a `Nat.ceil` or
+exchangeability-specific runtime rewrite, Critic now passes
+`formal_blocker_resource_requests` into the pending Formalizer/ProofEngineer
+task. The live pending task contains 5 typed requests covering Lean primitive
+lookup, semantic alignment, proof search, and source-to-bridge blockers. Each
+request recommends `formal_source_retriever`, proof search, Lean LSP/MCP when
+configured, and local Lean/AXLE, and each is tagged
+`FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE`. The next owner should
+resolve those requests through verified declarations/imports or keep an honest
+`FORMAL_GAP`; the request channel is routing context only. The focused
+blocker-routing test and guarded suite pass, with the final guarded run at
+`304 passed in 149.49s`.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their

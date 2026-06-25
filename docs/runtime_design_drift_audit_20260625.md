@@ -178,3 +178,16 @@ source theorem as `FORMAL_GAP`, named `Nat.ceil` and exchangeability-definition
 blockers, and routed to Critic/next-action planning. That is still not a source
 theorem proof, but it is the desired architectural behavior for an unresolved
 Lean API dependency.
+
+The next correction keeps Critic in the same architecture. When a formalizer
+manifest names unresolved proof blockers, Critic now converts them into typed
+`formal_blocker_resource_requests` for Formalizer/ProofEngineer instead of
+embedding a theorem-specific repair in runtime Python. The live probe
+`runs/main_worker_live_runtime_resume_critic_formal_blocker_requests_probe/research_agent_runtime_manifest.json`
+created a pending Formalizer task with 5 requests, including Lean primitive
+lookup for `Nat.ceil`, semantic-definition lookup for exchangeability, proof
+search for source-to-bridge premise derivation, and Critic agenda follow-ups.
+Every request is marked
+`FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE`; retrieval hits, LSP
+diagnostics, and proof-search suggestions still become proof evidence only if
+the exact repaired artifact is checked by local Lean/AXLE.

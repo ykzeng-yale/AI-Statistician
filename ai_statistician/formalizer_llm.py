@@ -2346,6 +2346,15 @@ def _formalizer_mode_specific_instructions(
         "proofengineer_repair_context",
         {},
     )
+    formal_blocker_resource_requests = [
+        row
+        for row in runtime_environment_feedback.get(
+            "formal_blocker_resource_requests",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
     if repair_owner_agent == "ProofEngineer" or proofengineer_repair_context:
         instructions.append(
             "ProofEngineer repair loop is active: consume "
@@ -2372,6 +2381,17 @@ def _formalizer_mode_specific_instructions(
                 "or otherwise verified local declaration, derive the fact from known "
                 "primitives, or emit a FORMAL_GAP naming the missing API/dependency."
             )
+    if formal_blocker_resource_requests:
+        instructions.append(
+            "Formal blocker resource requests are active: consume "
+            "runtime_environment_feedback.formal_blocker_resource_requests as typed "
+            "retrieval/prover work items. For each blocker, use formal-source retrieval, "
+            "proof search, Lean/LSP diagnostics, or local Lean/AXLE to identify a verified "
+            "declaration/import or a smaller semantic primitive. Do not emit an executable "
+            "Lean candidate that reuses an unresolved API, import, semantic definition, or "
+            "proof-search blocker; if the request cannot be resolved, keep the affected "
+            "source theorem as FORMAL_GAP and name the exact missing resource."
+        )
     carried_local_lean_repair_contract = (
         runtime_environment_feedback.get("local_lean_repair_contract", {})
         if isinstance(
@@ -3261,7 +3281,7 @@ def _compact_formalizer_environment_feedback(
         input_summary=input_summary,
         target_shape_contract=target_shape_contract,
     )
-    return {
+    payload = {
         "architect_evidence_contract": _compact_value(
             feedback.get("architect_evidence_contract", {})
         ),
@@ -3380,6 +3400,15 @@ def _compact_formalizer_environment_feedback(
             or feedback.get("proof_evidence_boundary", "")
         ),
     }
+    formal_blocker_resource_requests = (
+        feedback.get("formal_blocker_resource_requests", [])
+        or input_summary.get("formal_blocker_resource_requests", [])
+    )
+    if formal_blocker_resource_requests:
+        payload["formal_blocker_resource_requests"] = _compact_value(
+            formal_blocker_resource_requests
+        )
+    return payload
 
 
 def _feedback_target_shape_contract(

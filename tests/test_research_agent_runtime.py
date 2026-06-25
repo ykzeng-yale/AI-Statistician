@@ -261,6 +261,24 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
                 "deterministic_theorem_goals": [
                     {"id": "split_conformal_finite_sample_coverage"}
                 ],
+                "llm_formalizer_gap_taxonomy": [
+                    {
+                        "gap": (
+                            "Nat.ceil unknown identifier in configured Lean project; "
+                            "blocks executable premise candidates"
+                        ),
+                        "kind": "formal_primitives",
+                        "next_owner": "ProofEngineer",
+                    },
+                    {
+                        "gap": (
+                            "Exchangeable type for hExch binder not located in "
+                            "configured project scope"
+                        ),
+                        "kind": "semantic_alignment",
+                        "next_owner": "ProofEngineer/Architect",
+                    },
+                ],
                 "proof_bank_runtime_memory_summary": {
                     "recommended_formalizer_target_mode": (
                         "source_to_bridge_premise_derivation_required"
@@ -307,6 +325,30 @@ def test_critic_routes_unresolved_premise_derivation_to_formalizer_after_repair_
     assert result.next_task.inputs["environment_feedback"]["high_priority_agenda"][
         0
     ]["id"] == "formal_gap:source_to_bridge_premise_derivation"
+    feedback = result.next_task.inputs["environment_feedback"]
+    blocker_requests = feedback["formal_blocker_resource_requests"]
+    assert blocker_requests[0]["source"] == "llm_formalizer_gap_taxonomy"
+    assert blocker_requests[0]["blocker_kind"] == "formal_primitives"
+    assert "Nat.ceil Lean declaration" in blocker_requests[0]["formal_source_queries"]
+    assert blocker_requests[0]["proof_evidence_status"] == (
+        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+    )
+    assert blocker_requests[1]["blocker_kind"] == "semantic_alignment"
+    assert "formal_source_retriever" in blocker_requests[0]["recommended_tools"]
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+    assert "Formal blocker resource requests are active" in prompt
+    assert "formal_blocker_resource_requests" in prompt
+    assert "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE" in prompt
     critic_manifest = next(
         artifact
         for artifact in result.produced_artifacts.values()
