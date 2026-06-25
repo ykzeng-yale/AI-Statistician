@@ -5714,6 +5714,11 @@ def _formalizer_lean_candidate_repair_feedback(
             manifest=manifest,
             diagnostics=diagnostics,
         ),
+        _formal_blocker_resource_requests_from_unavailable_imports(
+            local_lean_repair_contract=local_lean_repair_contract,
+            manifest=manifest,
+            diagnostics=diagnostics,
+        ),
     )
     feedback = {
         "feedback_type": "formalizer_lean_candidate_local_lean_feedback",
@@ -19062,6 +19067,144 @@ def _formal_blocker_resource_requests_from_unknown_identifiers(
                     "affected theorem as FORMAL_GAP with the exact unknown identifier "
                     "named. Do not emit an executable candidate that reuses the "
                     "unknown identifier."
+                ),
+                "proof_evidence_status": (
+                    "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+                ),
+                "proof_evidence_boundary": KERNEL_PROOF_BOUNDARY,
+            }
+        )
+    return rows
+
+
+def _formal_blocker_resource_requests_from_unavailable_imports(
+    *,
+    local_lean_repair_contract: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    diagnostics: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Convert unavailable Lean imports into typed prover/RAG requests."""
+
+    if not isinstance(local_lean_repair_contract, Mapping):
+        return []
+    diagnostic_classes = {
+        str(value)
+        for value in local_lean_repair_contract.get("diagnostic_classes", []) or []
+        if str(value).strip()
+    }
+    if "lean_import_environment_missing" not in diagnostic_classes:
+        return []
+    question = (
+        manifest.get("question", {})
+        if isinstance(manifest.get("question", {}), Mapping)
+        else {}
+    )
+    target_ids = [
+        str(value).strip()
+        for value in (
+            question.get("id", ""),
+            *[
+                row.get("target_lean_declaration", "")
+                for row in diagnostics
+                if isinstance(row, Mapping)
+            ],
+        )
+        if str(value).strip()
+    ]
+    replacements = [
+        row
+        for row in local_lean_repair_contract.get(
+            "suggested_import_replacements", []
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    blocked_modules = [
+        str(value).strip()
+        for value in local_lean_repair_contract.get("blocked_import_prefixes", []) or []
+        if str(value).strip()
+    ]
+    for row in replacements:
+        module = str(row.get("unavailable_module", "") or "").strip()
+        if module:
+            blocked_modules.append(module)
+    blocked_modules = list(dict.fromkeys(blocked_modules))
+    if not blocked_modules and local_lean_repair_contract.get(
+        "mathlib_root_import_unavailable", False
+    ):
+        blocked_modules = ["Mathlib"]
+    rows: list[dict[str, Any]] = []
+    source_manifest_id = str(manifest.get("manifest_id", "") or "")
+    for module in blocked_modules:
+        replacement = next(
+            (
+                row
+                for row in replacements
+                if str(row.get("unavailable_module", "") or "").strip() == module
+            ),
+            {},
+        )
+        suggested_modules = [
+            str(value).strip()
+            for value in (
+                replacement.get("suggested_modules", [])
+                if isinstance(replacement, Mapping)
+                else []
+            )
+            or []
+            if str(value).strip()
+        ]
+        blocker = (
+            f"{module} unavailable import in configured Lean project during "
+            "candidate precheck/local Lean repair."
+        )
+        if suggested_modules:
+            blocker += " Suggested replacement module(s): " + ", ".join(
+                suggested_modules[:4]
+            )
+            blocker += ". Use a suggested module only if it provides the intended dependency."
+        else:
+            blocker += " Use a verified local import or fail closed with a dependency FORMAL_GAP."
+        fingerprint = stable_hash(
+            [
+                "formalizer_lean_candidate_local_lean_feedback",
+                "lean_unavailable_import",
+                module,
+                suggested_modules,
+                source_manifest_id,
+            ]
+        )[:20]
+        formal_source_queries = _formal_blocker_resource_request_queries(
+            blocker,
+            blocker_kind="lean_unavailable_import",
+            target_ids=target_ids,
+        )
+        for value in [module, *suggested_modules]:
+            query = f"{value} Lean import"
+            if query not in formal_source_queries:
+                formal_source_queries.append(query)
+        rows.append(
+            {
+                "request_id": f"formal_blocker_resource_request:{fingerprint}",
+                "source": "formalizer_lean_candidate_local_lean_feedback",
+                "blocker_kind": "lean_unavailable_import",
+                "blocker": blocker,
+                "next_owner": "ProofEngineer",
+                "target_ids": target_ids,
+                "unavailable_import": module,
+                "suggested_import_replacements": suggested_modules,
+                "formal_source_queries": formal_source_queries[:5],
+                "recommended_tools": [
+                    "formal_source_retriever",
+                    "lean_lsp_mcp_when_configured",
+                    "local_lean_or_axle",
+                ],
+                "required_resolution": (
+                    "Replace the unavailable import with a verified import in the "
+                    "configured Lake project, remove the guessed import if unused, "
+                    "or keep the affected theorem as FORMAL_GAP with the exact "
+                    "missing dependency named. Do not emit an executable candidate "
+                    "that repeats the unavailable import."
                 ),
                 "proof_evidence_status": (
                     "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"

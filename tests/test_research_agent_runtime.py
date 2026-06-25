@@ -4184,6 +4184,27 @@ def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> N
             ),
         }
     ]
+    blocker_requests = feedback["formal_blocker_resource_requests"]
+    assert len(blocker_requests) == 1
+    assert blocker_requests[0]["source"] == (
+        "formalizer_lean_candidate_local_lean_feedback"
+    )
+    assert blocker_requests[0]["blocker_kind"] == "lean_unavailable_import"
+    assert blocker_requests[0]["unavailable_import"] == (
+        "Mathlib.Order.LocallyFiniteOrder"
+    )
+    assert blocker_requests[0]["suggested_import_replacements"] == [
+        "Mathlib.Algebra.Order.Monoid.LocallyFiniteOrder"
+    ]
+    assert "Mathlib.Order.LocallyFiniteOrder Lean import" in blocker_requests[0][
+        "formal_source_queries"
+    ]
+    assert "Do not emit an executable candidate" in blocker_requests[0][
+        "required_resolution"
+    ]
+    assert blocker_requests[0]["proof_evidence_status"] == (
+        "FORMAL_BLOCKER_RESOURCE_REQUEST_NOT_PROOF_EVIDENCE"
+    )
 
     learning_rows = _formalizer_lean_candidate_materialization_learning_rows(
         manifest

@@ -233,3 +233,15 @@ pending FormalizationEvaluator task carrying
 non-evidence orchestration; it tells Claude/ProofEngineer/prover adapters to
 materialize an exact Lean candidate artifact before signature probes or
 proof-body work, rather than letting AgentRuntime invent another local repair.
+
+The next live turn consumed that handoff far enough to materialize a concrete
+source-theorem-shaped Lean artifact and project-local proof-state mirror, then
+local Lean rejected it with `lean_parser_or_syntax_error`. That is the desired
+architectural direction: the blocker has moved from absent artifact to exact
+artifact repair, while proof evidence remains false. A related generic repair
+contract was added for unavailable imports: when candidate precheck or local
+Lean reports an unavailable Lean module, the runtime now emits a typed
+`lean_unavailable_import` resource request with suggested replacement modules
+when the validator has them. This routes import/API lookup to formal-source
+retrieval, Lean LSP/MCP, and local Lean/AXLE rather than teaching AgentRuntime a
+task-family-specific workaround.

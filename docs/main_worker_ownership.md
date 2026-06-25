@@ -389,6 +389,22 @@ confirmed the handoff: pending task
 blocker requests, including the materialization request, and
 `runtime_learning_memory.rows_loaded=20` with 4 pinned materialization rows.
 
+The next live consumption probe moved the system into a concrete candidate-repair
+loop rather than another missing-artifact loop. The patched rerun at
+`runs/main_worker_live_runtime_resume_candidate_materialization_import_request_probe/research_agent_runtime_manifest.json`
+materialized an exact source-theorem-shaped candidate artifact for
+`split_conformal_finite_sample_coverage`, wrote the project-local proof-state
+mirror, and ran local Lean. It failed as non-proof evidence with
+`lean_parser_or_syntax_error` (`unexpected token '}'`) and produced pending
+ProofEngineer task `formalize-lean-repair:conformal_prediction_coverage:452c609f`;
+scorecard stayed `42/49`, kernel-verified helper/subclaim rows rose to 16, and
+formal gaps rose to 26. The generic follow-up patch also converts unavailable
+Lean imports from precheck/local-Lean repair contracts into typed
+`lean_unavailable_import` formal blocker requests with validator-suggested
+replacement modules when present. This keeps API/import repair in the
+FormalSourceRetriever/Lean LSP/local Lean loop instead of hardcoding a theorem
+rewrite in AgentRuntime.
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their
