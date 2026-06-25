@@ -1703,6 +1703,126 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
     assert "local Lean/AXLE kernel verification" in learning_rows[0]["acceptance_gate"]
 
 
+def test_formalization_validator_failure_infers_coverage_shape_contract_from_sorry_feedback() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    question_payload = {
+        "id": question.id,
+        "title": question.title,
+        "description": question.description,
+        "tags": list(question.tags),
+    }
+
+    class RejectingFormalizer:
+        def propose(self, **_kwargs: object) -> dict[str, object]:
+            raise PacketValidationError(
+                validation_label="LLM Formalizer/ProofEngineer packet",
+                attempts=2,
+                errors=[
+                    (
+                        "capability_eval formal target "
+                        "split_conformal_finite_sample_coverage Lean sketch "
+                        "contains Lean sorry placeholder"
+                    ),
+                    "formal target Lean sketch contains Lean sorry placeholder",
+                    (
+                        "next_actions reference "
+                        "source_to_bridge_premise_derivation_candidates but packet "
+                        "contains no source_to_bridge_premise_derivation_candidates "
+                        "entries; emit a real candidate object or rewrite the action "
+                        "as a FORMAL_GAP/proof-bank dependency task"
+                    ),
+                ],
+                history=[
+                    {
+                        "attempt_index": 1,
+                        "provider": "anthropic",
+                        "model": "claude-sonnet-4-6",
+                        "raw_response_fingerprint": "coverage-sorry",
+                    }
+                ],
+            )
+
+    subsystem = FormalizationEvaluatorRuntimeSubsystem(
+        proposal_agent=RejectingFormalizer(),
+        proof_verifier=MockProofVerifier(),
+        max_proof_obligations=1,
+    )
+    blackboard = BlackboardState(
+        project_id="test",
+        artifacts={
+            "theory_packet:test": _runtime_sample_response(),
+            "simulation_manifest:test": {"manifest_id": "simulation_manifest:test"},
+            "algorithm_sandbox_manifest:test": {
+                "manifest_id": "algorithm_sandbox_manifest:test"
+            },
+        },
+    )
+    task = AgentTask(
+        task_id="task:formalizer_validation_failure_coverage_sorry",
+        owner_subsystem="FormalizationEvaluator",
+        objective="record coverage-sorry formalizer validator failure",
+        inputs={
+            "question": question_payload,
+            "theory_packet_id": "theory_packet:test",
+            "simulation_manifest_id": "simulation_manifest:test",
+            "algorithm_sandbox_manifest_id": "algorithm_sandbox_manifest:test",
+        },
+    )
+
+    result = subsystem.run(task, blackboard)
+
+    assert result.status == "REVISE"
+    assert result.next_task is not None
+    feedback = result.next_task.inputs["environment_feedback"]
+    assert feedback["target_shape_contract"]["inferred_from"] == (
+        "formalizer_packet_validation_errors"
+    )
+    assert feedback["target_shape_contract"]["required_conclusion_family"] == (
+        "probability_or_measure_coverage_claim"
+    )
+    assert feedback["target_shape_contract"]["fail_closed_source_theorem_formal_target"][
+        "expected_status"
+    ] == "FORMAL_GAP"
+    assert feedback["target_drift_repair_contract"]["contract_kind"] == (
+        "source_theorem_target_two_lane_repair"
+    )
+    assert any(
+        "Do not name source_to_bridge_premise_derivation_candidates in next_actions"
+        in option
+        for option in feedback["candidate_reroute_options"]
+    )
+    assert "no-sorry Lean proof" in feedback["required_repair"]
+    assert "Do not mention source_to_bridge_premise_derivation_candidates" in feedback[
+        "required_repair"
+    ]
+    artifact = next(iter(result.produced_artifacts.values()))
+    assert artifact["target_shape_contract"]["inferred_from"] == (
+        "formalizer_packet_validation_errors"
+    )
+    learning_rows = _runtime_learning_rows(
+        [{"blackboard": {"artifacts": result.produced_artifacts}}]
+    )
+    assert learning_rows[0]["input_summary"]["target_shape_contract"][
+        "required_conclusion_family"
+    ] == "probability_or_measure_coverage_claim"
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary={},
+        environment_feedback=feedback,
+    )
+    assert "Mandatory coverage-theorem proof-hole reroute" in prompt
+    assert "Mandatory executable-work-item repair" in prompt
+    assert "remove every next_actions instruction" in prompt
+    assert "target_shape_contract" in prompt
+
+
 def test_agent_runtime_retries_formalizer_after_validation_feedback(tmp_path: Path) -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     question_payload = {

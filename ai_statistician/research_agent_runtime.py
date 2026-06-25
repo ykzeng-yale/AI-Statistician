@@ -4297,6 +4297,13 @@ def _formalizer_packet_validation_failure_result(
         )
         else {}
     )
+    if not active_target_shape_contract:
+        active_target_shape_contract = (
+            _formalizer_target_shape_contract_from_validation_errors(
+                validation_errors,
+                question=question,
+            )
+        )
     prior_candidate_reroute_options = prior_environment_feedback.get(
         "candidate_reroute_options",
         [],
@@ -4306,6 +4313,23 @@ def _formalizer_packet_validation_failure_result(
         if isinstance(prior_candidate_reroute_options, (list, tuple))
         else []
     )
+    if active_target_shape_contract and not active_candidate_reroute_options:
+        active_candidate_reroute_options = [
+            (
+                "If the generated Lean theorem is only an arithmetic/order-statistic "
+                "support lemma, do not place it in formal_targets as the source theorem. "
+                "Emit the source theorem target as FORMAL_GAP and route executable "
+                "helper work only through source_to_bridge_premise_derivation_candidates "
+                "when the exact candidate object, source-binding metadata, and semantic "
+                "anchors are present."
+            ),
+            (
+                "Do not name source_to_bridge_premise_derivation_candidates in "
+                "next_actions unless this same packet emits the concrete candidate "
+                "object; otherwise describe the blocker in gap_taxonomy, "
+                "lemma_dependency_plan, or proof_bank_obligation_requests."
+            ),
+        ]
     active_target_drift_repair_contract = (
         _formalizer_target_drift_repair_contract_from_target_shape_contract(
             active_target_shape_contract
@@ -4438,7 +4462,13 @@ def _formalizer_packet_validation_failure_result(
             "candidate, reference every missing semantic anchor outside comments, "
             "derive adapter objects from exact source binders instead of putting "
             "them in the theorem binder list, or report the exact semantic blocker "
-            "instead of emitting a candidate. "
+            "instead of emitting a candidate. If validation feedback identifies a "
+            "coverage/probability source theorem and no complete no-sorry Lean proof "
+            "is available, emit that source theorem as expected_status=FORMAL_GAP "
+            "with an empty Lean sketch and route support work outside the source "
+            "theorem formal_targets slot. Do not mention "
+            "source_to_bridge_premise_derivation_candidates in next_actions unless "
+            "the packet also emits the concrete candidate object. "
             + " ".join(validation_repair_directives)
         ),
         "proof_evidence_status": "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE",
@@ -5522,6 +5552,119 @@ def _formalizer_target_shape_contract_from_diagnostics(
             "rank threshold arithmetic without a coverage/probability event",
         ]
     return contract
+
+
+def _formalizer_target_shape_contract_from_validation_errors(
+    validation_errors: Sequence[str],
+    *,
+    question: OpenResearchQuestion,
+) -> dict[str, Any]:
+    """Infer a fail-closed source-target contract from packet validation errors."""
+
+    validation_text = " ".join(str(error) for error in validation_errors).lower()
+    if "formal target" not in validation_text:
+        return {}
+    source_theoremish_error = any(
+        marker in validation_text
+        for marker in (
+            "source theorem",
+            "source-theorem",
+            "formal target",
+            "lean sketch",
+        )
+    )
+    coverage_error = any(
+        marker in validation_text
+        for marker in (
+            "coverage",
+            "conformal",
+            "probability",
+            "measure",
+            "marginal",
+        )
+    )
+    question_text = " ".join(
+        [
+            question.id,
+            question.title,
+            question.description,
+            " ".join(question.tags),
+        ]
+    ).lower()
+    coverage_question = any(
+        marker in question_text
+        for marker in (
+            "coverage",
+            "conformal",
+            "probability",
+            "measure",
+            "marginal",
+        )
+    )
+    if not source_theoremish_error or not (coverage_error or coverage_question):
+        return {}
+    return {
+        "contract_kind": "source_theorem_target_preservation",
+        "inferred_from": "formalizer_packet_validation_errors",
+        "required_conclusion_family": "probability_or_measure_coverage_claim",
+        "required_conclusion_shape": (
+            "The Lean target should conclude a measure/probability coverage statement, "
+            "for example a proposition of the form `P {omega | coverage_event omega} >= ...`, "
+            "`Measure.real ... >= ...`, or another explicit probability/measure lower "
+            "bound tied to the prediction set coverage event."
+        ),
+        "for_formal_targets_expected_status_needs_kernel_check": (
+            "A formal target that claims NEEDS_KERNEL_CHECK for a known coverage "
+            "source theorem must preserve that theorem's probability/measure "
+            "conclusion shape. It may not replace the theorem with a narrower "
+            "helper lemma or a proof-hole sketch."
+        ),
+        "source_theorem_target_action": (
+            "Emit a formal_targets entry for the known source theorem only if the Lean "
+            "statement preserves the required conclusion family and contains no "
+            "`sorry`, `admit`, `by?`, or `exact?` holes; otherwise emit that source "
+            "theorem as expected_status=FORMAL_GAP with an empty Lean sketch."
+        ),
+        "helper_lemma_action": (
+            "Move arithmetic/order-statistic/typing/monotonicity helpers out of the "
+            "source-theorem formal_targets slot. Put executable support work only in "
+            "source_to_bridge_premise_derivation_candidates when exact source-binding "
+            "metadata and semantic anchors are available; otherwise use non-executable "
+            "gap/dependency planning."
+        ),
+        "forbidden_output_action": (
+            "Do not satisfy a source-theorem repair by emitting a proof-hole theorem "
+            "or helper lemma as formal_targets with expected_status=NEEDS_KERNEL_CHECK."
+        ),
+        "allowed_support_channels": [
+            "source_to_bridge_premise_derivation_candidates",
+            "lemma_dependency_plan",
+            "proof_bank_obligation_requests",
+            "gap_taxonomy",
+        ],
+        "forbidden_replacement_shapes": [
+            "Lean sketch containing sorry/admit/by?/exact?",
+            "standalone arithmetic inequality",
+            "standalone ceiling/order-statistic bound",
+            "typing lemma",
+            "monotonicity lemma",
+            "helper lemma without a probability/measure conclusion",
+        ],
+        "if_not_feasible": (
+            "Return expected_status=FORMAL_GAP for the source theorem target and list "
+            "the missing semantic premise/import/bridge. Do not create next_actions "
+            "for absent source_to_bridge_premise_derivation_candidates."
+        ),
+        "fail_closed_source_theorem_formal_target": {
+            "expected_status": "FORMAL_GAP",
+            "lean_statement_sketch": "",
+            "required_metadata": (
+                "Preserve source_theorem_target_provenance for the original source "
+                "theorem and explain the exact missing premise/API/import/bridge in "
+                "gap_taxonomy or dependency planning."
+            ),
+        },
+    }
 
 
 def _formalizer_target_drift_repair_contract_from_target_shape_contract(

@@ -1691,12 +1691,25 @@ def _formalizer_mode_specific_instructions(
             )
             else {}
         )
+        target_shape_contract_text = (
+            json.dumps(target_shape_contract, default=str).lower()
+            if isinstance(target_shape_contract, Mapping)
+            else ""
+        )
         target_shape_requires_coverage = (
             "probability_or_measure_coverage_claim"
             == str(
                 target_shape_contract.get("required_conclusion_family", "")
                 if isinstance(target_shape_contract, Mapping)
                 else ""
+            )
+            or (
+                isinstance(target_shape_contract, Mapping)
+                and "coverage" in target_shape_contract_text
+                and any(
+                    marker in target_shape_contract_text
+                    for marker in ("probability", "measure")
+                )
             )
         )
         has_forbidden_shortcut_validation = any(
