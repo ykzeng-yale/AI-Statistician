@@ -5458,6 +5458,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
     assert trace_schema_props["target_prover_family"]["type"] == "string"
     assert trace_schema_props["target_library_snapshot_ref"]["type"] == "string"
     assert trace_schema_props["trace_target_projection"]["type"] == "string"
+    assert trace_schema_props["llm_route_planner_fallback_route"]["type"] == (
+        "boolean"
+    )
+    assert trace_schema_props["llm_route_planner_seed_route_source"]["type"] == (
+        "string"
+    )
     standalone_schema_payload = json.loads(
         (
             out_dir
@@ -5475,6 +5481,12 @@ def test_formalization_gap_planner_publication_bundle_exports_reusable_artifacts
         == "#/$defs/llm_route_planner_seed_route_selection"
     )
     assert standalone_route_props["llm_route_planner_seed_selected"]["type"] == "boolean"
+    assert standalone_route_props["llm_route_planner_fallback_route"]["type"] == (
+        "boolean"
+    )
+    assert standalone_replan_props["llm_route_planner_fallback_route"]["type"] == (
+        "boolean"
+    )
     assert (
         standalone_route_props["llm_route_planner_seed_selection_rank"]["minimum"]
         == 1

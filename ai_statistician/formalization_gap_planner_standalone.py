@@ -198,6 +198,13 @@ def export_formalization_gap_planner_standalone_plan(
         for row in rows
         if row.standalone_input_trace.get("llm_route_planner_seed_selection_rank")
     )
+    by_llm_seed_route_source = Counter(
+        str(row.standalone_input_trace.get("llm_route_planner_seed_route_source", ""))
+        or "missing"
+        for row in rows
+        if row.standalone_input_trace.get("llm_route_planner_seed_route_source")
+        or row.standalone_input_trace.get("llm_route_planner_fallback_route")
+    )
     manifest_target_prover_family = _manifest_target_prover_family(
         rows,
         fallback_target_prover_family=target_prover_family,
@@ -556,6 +563,41 @@ def export_formalization_gap_planner_standalone_plan(
             and not row.standalone_input_trace.get(
                 "llm_route_planner_seed_adoptable_for_standalone_replay"
             )
+        ),
+        "n_standalone_input_traces_llm_fallback_routes": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get("llm_route_planner_fallback_route")
+        ),
+        "n_standalone_input_traces_llm_fallback_routes_marked_adoptable": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get("llm_route_planner_fallback_route")
+            and row.standalone_input_trace.get(
+                "llm_route_planner_seed_adoptable_for_standalone_replay"
+            )
+        ),
+        "n_standalone_input_traces_llm_fallback_selected_not_adoptable": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get("llm_route_planner_fallback_route")
+            and row.standalone_input_trace.get("llm_route_planner_seed_selected")
+            and not row.standalone_input_trace.get(
+                "llm_route_planner_seed_adoptable_for_standalone_replay"
+            )
+        ),
+        "n_standalone_input_traces_with_llm_seed_route_source": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get("llm_route_planner_seed_route_source")
+        ),
+        "standalone_input_trace_by_llm_seed_route_source": dict(
+            sorted(by_llm_seed_route_source.items())
+        ),
+        "n_standalone_input_traces_with_llm_fallback_boundary": sum(
+            1
+            for row in rows
+            if row.standalone_input_trace.get("llm_route_planner_fallback_boundary")
         ),
         "standalone_input_trace_by_llm_seed_selection_rank": dict(
             sorted(by_llm_seed_selection_rank.items())
@@ -1412,6 +1454,25 @@ def _llm_seed_route_selection_trace_errors(
         bool,
     ):
         errors.append(f"{location}.llm_route_planner_fallback_route must be boolean")
+    for field_name in (
+        "llm_route_planner_seed_route_source",
+        "llm_route_planner_fallback_reason",
+        "llm_route_planner_fallback_boundary",
+        "llm_route_planner_fallback_source_acceptance_status",
+        "llm_route_planner_fallback_source_route_adoption_status",
+    ):
+        if field_name in payload and not isinstance(payload.get(field_name), str):
+            errors.append(f"{location}.{field_name} must be string")
+    if (
+        "llm_route_planner_fallback_source_response_contract_ok" in payload
+        and not isinstance(
+            payload.get("llm_route_planner_fallback_source_response_contract_ok"),
+            bool,
+        )
+    ):
+        errors.append(
+            f"{location}.llm_route_planner_fallback_source_response_contract_ok must be boolean"
+        )
     if payload.get("llm_route_planner_fallback_route") is True and payload.get(
         "llm_route_planner_seed_adoptable_for_standalone_replay"
     ) is True:
@@ -2284,6 +2345,19 @@ def _llm_seed_route_selection_trace_properties() -> dict[str, object]:
         "llm_route_planner_seed_adoptable_for_standalone_replay": {
             "type": "boolean"
         },
+        "llm_route_planner_fallback_route": {"type": "boolean"},
+        "llm_route_planner_seed_route_source": {"type": "string"},
+        "llm_route_planner_fallback_reason": {"type": "string"},
+        "llm_route_planner_fallback_boundary": {"type": "string"},
+        "llm_route_planner_fallback_source_acceptance_status": {
+            "type": "string"
+        },
+        "llm_route_planner_fallback_source_route_adoption_status": {
+            "type": "string"
+        },
+        "llm_route_planner_fallback_source_response_contract_ok": {
+            "type": "boolean"
+        },
         "llm_route_planner_seed_selection_rank": {
             "type": "integer",
             "minimum": 1,
@@ -2783,6 +2857,57 @@ def _standalone_input_trace(
             ),
         )
     )
+    llm_fallback_route = _bool_value(
+        metadata.get(
+            "llm_route_planner_fallback_route",
+            raw_route.get("llm_route_planner_fallback_route", False),
+        )
+    )
+    llm_seed_route_source = str(
+        metadata.get(
+            "llm_route_planner_seed_route_source",
+            raw_route.get("llm_route_planner_seed_route_source", ""),
+        )
+    )
+    llm_fallback_reason = str(
+        metadata.get(
+            "llm_route_planner_fallback_reason",
+            raw_route.get("llm_route_planner_fallback_reason", ""),
+        )
+    )
+    llm_fallback_boundary = str(
+        metadata.get(
+            "llm_route_planner_fallback_boundary",
+            raw_route.get("llm_route_planner_fallback_boundary", ""),
+        )
+    )
+    llm_fallback_source_acceptance_status = str(
+        metadata.get(
+            "llm_route_planner_fallback_source_acceptance_status",
+            raw_route.get(
+                "llm_route_planner_fallback_source_acceptance_status",
+                "",
+            ),
+        )
+    )
+    llm_fallback_source_route_adoption_status = str(
+        metadata.get(
+            "llm_route_planner_fallback_source_route_adoption_status",
+            raw_route.get(
+                "llm_route_planner_fallback_source_route_adoption_status",
+                "",
+            ),
+        )
+    )
+    llm_fallback_source_response_contract_ok = _bool_value(
+        metadata.get(
+            "llm_route_planner_fallback_source_response_contract_ok",
+            raw_route.get(
+                "llm_route_planner_fallback_source_response_contract_ok",
+                False,
+            ),
+        )
+    )
     target_context_packet = _target_theorem_context_packet_for_trace(
         raw_route,
         metadata,
@@ -3150,6 +3275,19 @@ def _standalone_input_trace(
                     False,
                 ),
             )
+        ),
+        "llm_route_planner_fallback_route": llm_fallback_route,
+        "llm_route_planner_seed_route_source": llm_seed_route_source,
+        "llm_route_planner_fallback_reason": llm_fallback_reason,
+        "llm_route_planner_fallback_boundary": llm_fallback_boundary,
+        "llm_route_planner_fallback_source_acceptance_status": (
+            llm_fallback_source_acceptance_status
+        ),
+        "llm_route_planner_fallback_source_route_adoption_status": (
+            llm_fallback_source_route_adoption_status
+        ),
+        "llm_route_planner_fallback_source_response_contract_ok": (
+            llm_fallback_source_response_contract_ok
         ),
         "llm_route_planner_seed_selection_rank": llm_seed_selection_rank,
         "llm_route_planner_seed_selection_reason": str(

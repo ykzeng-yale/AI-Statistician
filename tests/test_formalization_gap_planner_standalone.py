@@ -341,6 +341,15 @@ def test_standalone_input_rejects_nested_kernel_proof_claims() -> None:
 
 
 def test_standalone_input_rejects_adoptable_fallback_route_trace() -> None:
+    root = Path("runs/test_formalization_gap_planner_standalone_fallback_trace")
+    input_json = root / "standalone_input.json"
+    out_dir = root / "plan"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    fallback_reason = "fallback route preserved for review only"
+    fallback_boundary = (
+        "fallback seed routes are not accepted LLM route-plan synthesis"
+    )
     payload = {
         "schema_version": 1,
         "component_name": "formalization_gap_planner_standalone_input",
@@ -353,22 +362,36 @@ def test_standalone_input_rejects_adoptable_fallback_route_trace() -> None:
                 "theorem_statement": "Rank uniformity follows from exchangeability.",
                 "llm_route_planner_fallback_route": True,
                 "llm_route_planner_seed_route_source": "fallback_input_route",
+                "llm_route_planner_fallback_reason": fallback_reason,
+                "llm_route_planner_fallback_boundary": fallback_boundary,
+                "llm_route_planner_fallback_source_acceptance_status": (
+                    "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
+                ),
+                "llm_route_planner_fallback_source_route_adoption_status": (
+                    "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
+                ),
+                "llm_route_planner_fallback_source_response_contract_ok": False,
                 "llm_route_planner_seed_selected": True,
                 "llm_route_planner_seed_adoptable_for_standalone_replay": False,
                 "llm_route_planner_seed_selection_rank": 1,
-                "llm_route_planner_seed_selection_reason": (
-                    "fallback route preserved for review only"
-                ),
+                "llm_route_planner_seed_selection_reason": fallback_reason,
                 "replan_metadata": {
                     "target_prover_family": "lean4",
                     "llm_route_planner_fallback_route": True,
                     "llm_route_planner_seed_route_source": "fallback_input_route",
+                    "llm_route_planner_fallback_reason": fallback_reason,
+                    "llm_route_planner_fallback_boundary": fallback_boundary,
+                    "llm_route_planner_fallback_source_acceptance_status": (
+                        "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
+                    ),
+                    "llm_route_planner_fallback_source_route_adoption_status": (
+                        "AWAITING_LLM_ROUTE_PLANNER_RESPONSE"
+                    ),
+                    "llm_route_planner_fallback_source_response_contract_ok": False,
                     "llm_route_planner_seed_selected": True,
                     "llm_route_planner_seed_adoptable_for_standalone_replay": False,
                     "llm_route_planner_seed_selection_rank": 1,
-                    "llm_route_planner_seed_selection_reason": (
-                        "fallback route preserved for review only"
-                    ),
+                    "llm_route_planner_seed_selection_reason": fallback_reason,
                 },
                 "primitives": [
                     {
@@ -381,6 +404,52 @@ def test_standalone_input_rejects_adoptable_fallback_route_trace() -> None:
     }
 
     assert validate_standalone_input_payload(payload) == []
+    input_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    plan_payload = export_formalization_gap_planner_standalone_plan(
+        input_json,
+        out_dir,
+    )
+
+    assert plan_payload["all_ok"]
+    assert plan_payload["n_standalone_input_traces_llm_fallback_routes"] == 1
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_llm_fallback_routes_marked_adoptable"
+        ]
+        == 0
+    )
+    assert (
+        plan_payload[
+            "n_standalone_input_traces_llm_fallback_selected_not_adoptable"
+        ]
+        == 1
+    )
+    assert plan_payload["n_standalone_input_traces_with_llm_seed_route_source"] == 1
+    assert plan_payload["standalone_input_trace_by_llm_seed_route_source"] == {
+        "fallback_input_route": 1
+    }
+    assert plan_payload["n_standalone_input_traces_with_llm_fallback_boundary"] == 1
+    trace = plan_payload["rows"][0]["standalone_input_trace"]
+    assert trace["llm_route_planner_fallback_route"] is True
+    assert trace["llm_route_planner_seed_route_source"] == "fallback_input_route"
+    assert trace["llm_route_planner_fallback_reason"] == fallback_reason
+    assert trace["llm_route_planner_fallback_boundary"] == fallback_boundary
+    assert trace["llm_route_planner_fallback_source_response_contract_ok"] is False
+    standalone_route_props = standalone_input_json_schema()["$defs"]["route"][
+        "properties"
+    ]
+    assert standalone_route_props["llm_route_planner_fallback_route"]["type"] == (
+        "boolean"
+    )
+    portable_trace_props = portable_gap_plan_row_json_schema()["properties"][
+        "standalone_input_trace"
+    ]["properties"]
+    assert portable_trace_props["llm_route_planner_fallback_route"]["type"] == (
+        "boolean"
+    )
+    assert portable_trace_props["llm_route_planner_seed_route_source"]["type"] == (
+        "string"
+    )
 
     adoptable_route_payload = deepcopy(payload)
     adoptable_route_payload["routes"][0][

@@ -609,6 +609,27 @@ def portable_gap_plan_json_schema() -> dict[str, object]:
                                 "type": "array",
                                 "items": {"type": "string"},
                             },
+                            "llm_route_planner_fallback_route": {
+                                "type": "boolean"
+                            },
+                            "llm_route_planner_seed_route_source": {
+                                "type": "string"
+                            },
+                            "llm_route_planner_fallback_reason": {
+                                "type": "string"
+                            },
+                            "llm_route_planner_fallback_boundary": {
+                                "type": "string"
+                            },
+                            "llm_route_planner_fallback_source_acceptance_status": {
+                                "type": "string"
+                            },
+                            "llm_route_planner_fallback_source_route_adoption_status": {
+                                "type": "string"
+                            },
+                            "llm_route_planner_fallback_source_response_contract_ok": {
+                                "type": "boolean"
+                            },
                         },
                     },
                     "route_revision_triggers": {
