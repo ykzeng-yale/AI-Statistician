@@ -5388,6 +5388,13 @@ def _formalizer_lean_candidate_materialization_learning_rows(
                     candidate.get("proof_state_artifact_path", "") or ""
                 ),
                 "target_lean_file": str(candidate.get("target_lean_file", "") or ""),
+                "target_lean_line": int(candidate.get("target_lean_line", 0) or 0),
+                "target_lean_column": int(
+                    candidate.get("target_lean_column", 0) or 0
+                ),
+                "target_lean_declaration": str(
+                    candidate.get("target_lean_declaration", "") or ""
+                ),
                 "precheck_status": str(candidate.get("precheck_status", "") or ""),
                 "precheck_errors": list(candidate.get("precheck_errors", []) or []),
                 "local_lean_attempted": local_lean_attempted,
@@ -23598,6 +23605,18 @@ def _runtime_learning_memory_formalizer_lean_candidate_feedback(
             "source_manifest_id": str(row.get("source_manifest_id", "") or ""),
             "source_manifest_path": source_manifest_path,
             "artifact_path": artifact_path,
+            "kernel_check_artifact_path": str(
+                row.get("kernel_check_artifact_path", "") or ""
+            ),
+            "proof_state_artifact_path": str(
+                row.get("proof_state_artifact_path", "") or ""
+            ),
+            "target_lean_file": str(row.get("target_lean_file", "") or ""),
+            "target_lean_line": int(row.get("target_lean_line", 0) or 0),
+            "target_lean_column": int(row.get("target_lean_column", 0) or 0),
+            "target_lean_declaration": str(
+                row.get("target_lean_declaration", "") or ""
+            ),
             "precheck_status": str(row.get("precheck_status", "") or ""),
             "precheck_errors": list(row.get("precheck_errors", []) or []),
             "local_lean_attempted": local_lean_attempted,
@@ -25875,6 +25894,18 @@ def _formalizer_proof_bank_runtime_memory_summary(
                     row.get("source_manifest_path", "") or ""
                 ),
                 "artifact_path": str(row.get("artifact_path", "") or ""),
+                "kernel_check_artifact_path": str(
+                    row.get("kernel_check_artifact_path", "") or ""
+                ),
+                "proof_state_artifact_path": str(
+                    row.get("proof_state_artifact_path", "") or ""
+                ),
+                "target_lean_file": str(row.get("target_lean_file", "") or ""),
+                "target_lean_line": int(row.get("target_lean_line", 0) or 0),
+                "target_lean_column": int(row.get("target_lean_column", 0) or 0),
+                "target_lean_declaration": str(
+                    row.get("target_lean_declaration", "") or ""
+                ),
                 "precheck_status": str(row.get("precheck_status", "") or ""),
                 "precheck_errors": list(row.get("precheck_errors", []) or [])[:4],
                 "local_lean_attempted": bool(

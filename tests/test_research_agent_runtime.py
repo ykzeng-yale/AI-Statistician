@@ -4131,6 +4131,10 @@ def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> N
                 "candidate_kind": "formal_target_lean_statement_sketch",
                 "source_field": "formal_targets",
                 "source_hash": "bad-import-source",
+                "target_lean_file": "runs/bad_import/001_candidate.lean",
+                "target_lean_line": 2,
+                "target_lean_column": 9,
+                "target_lean_declaration": "conformal_rank_coverage_counting",
                 "lean_source_excerpt": (
                     "import Mathlib.Order.LocallyFiniteOrder\n"
                     "theorem conformal_rank_coverage_counting : True := by\n"
@@ -4208,6 +4212,14 @@ def test_formalizer_lean_candidate_precheck_import_feedback_is_actionable() -> N
 
     learning_rows = _formalizer_lean_candidate_materialization_learning_rows(
         manifest
+    )
+    assert learning_rows[0]["target_lean_file"] == (
+        "runs/bad_import/001_candidate.lean"
+    )
+    assert learning_rows[0]["target_lean_line"] == 2
+    assert learning_rows[0]["target_lean_column"] == 9
+    assert learning_rows[0]["target_lean_declaration"] == (
+        "conformal_rank_coverage_counting"
     )
     assert learning_rows[0]["local_lean_diagnostic_classes"] == [
         "lean_import_environment_missing"
@@ -4746,6 +4758,20 @@ def test_runtime_learning_memory_replays_formalizer_lean_candidate_diagnostics_t
                 "source_field": "formal_targets",
                 "source_hash": "abc123",
                 "artifact_path": artifact_path,
+                "kernel_check_artifact_path": artifact_path,
+                "proof_state_artifact_path": (
+                    "legacy_sources/emperical_process_lean/.lake/"
+                    "ai_statistician_formalizer_candidates/001_bad.lean"
+                ),
+                "target_lean_file": (
+                    "legacy_sources/emperical_process_lean/.lake/"
+                    "ai_statistician_formalizer_candidates/001_bad.lean"
+                ),
+                "target_lean_line": 1,
+                "target_lean_column": 9,
+                "target_lean_declaration": (
+                    "split_conformal_finite_sample_coverage"
+                ),
                 "precheck_status": "MATERIALIZED_REQUIRES_LOCAL_LEAN_OR_AXLE",
                 "precheck_errors": [],
                 "local_lean_attempted": True,
@@ -4781,6 +4807,9 @@ def test_runtime_learning_memory_replays_formalizer_lean_candidate_diagnostics_t
 
     assert row["source_manifest_path"] == materialization_manifest_path
     assert row["artifact_path"] == artifact_path
+    assert row["target_lean_declaration"] == (
+        "split_conformal_finite_sample_coverage"
+    )
     assert row["local_lean_attempted"] is True
     assert row["local_lean_compiled"] is False
     assert "MeasureTheory.MeasurableSet" in row["local_lean_stdout_excerpt"]
@@ -4799,6 +4828,11 @@ def test_runtime_learning_memory_replays_formalizer_lean_candidate_diagnostics_t
     ]
     repair_memory = summary["formalizer_lean_candidate_repair_memory"]
     assert repair_memory[0]["artifact_path"] == artifact_path
+    assert repair_memory[0]["target_lean_declaration"] == (
+        "split_conformal_finite_sample_coverage"
+    )
+    assert repair_memory[0]["target_lean_line"] == 1
+    assert repair_memory[0]["target_lean_column"] == 9
     assert repair_memory[0]["local_lean_diagnostic_classes"] == [
         "lean_unknown_identifier",
         "lean_type_mismatch",

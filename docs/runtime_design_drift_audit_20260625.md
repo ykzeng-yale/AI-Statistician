@@ -245,3 +245,14 @@ Lean reports an unavailable Lean module, the runtime now emits a typed
 when the validator has them. This routes import/API lookup to formal-source
 retrieval, Lean LSP/MCP, and local Lean/AXLE rather than teaching AgentRuntime a
 task-family-specific workaround.
+
+The following ProofEngineer turn repeated the same exact-candidate parser
+failure, which exposed a memory-fidelity issue rather than a statistical theorem
+rule. Runtime learning rows and proof-bank repair summaries did not consistently
+carry `target_lean_declaration` plus target file/line/column for failed
+Formalizer Lean candidates. That metadata is now preserved through learning-row
+export, CLI memory compaction, runtime memory replay, and proof-bank summary
+projection. The goal is architectural: future Critic/ProofEngineer turns should
+know that a concrete exact target artifact exists and failed local Lean at a
+specific declaration/location, instead of falling back to older
+candidate-materialization-required memory.

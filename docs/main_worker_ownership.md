@@ -405,6 +405,21 @@ replacement modules when present. This keeps API/import repair in the
 FormalSourceRetriever/Lean LSP/local Lean loop instead of hardcoding a theorem
 rewrite in AgentRuntime.
 
+The immediate ProofEngineer continuation at
+`runs/main_worker_live_runtime_resume_exact_candidate_syntax_repair_probe/research_agent_runtime_manifest.json`
+retried the exact source-theorem-shaped candidate and again hit local Lean
+`lean_parser_or_syntax_error` (`unexpected token '}'`). This is still progress
+relative to the earlier missing-artifact state because the runtime now has a
+concrete artifact, kernel-check path, and project-local proof-state mirror; it
+is not proof evidence. The pending task is now
+`formalize-lean-repair:conformal_prediction_coverage:b4a5f536`, with scorecard
+`42/49`, 18 kernel-verified helper/subclaim rows, and 27 formal gaps. The
+generic runtime patch from this observation preserves `target_lean_file`,
+`target_lean_line`, `target_lean_column`, and `target_lean_declaration` in
+Formalizer Lean-candidate learning rows, bounded runtime memory, and proof-bank
+summary repair memory so later ProofEngineer/Critic turns can distinguish
+"exact target artifact failed local Lean" from "candidate artifact missing."
+
 ## Delegation To Other Codex Workers
 
 These are useful parallel lanes, but the main worker should integrate their
