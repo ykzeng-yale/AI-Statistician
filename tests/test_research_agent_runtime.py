@@ -6444,6 +6444,7 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         in persisted_bridge_rows[0]["reuse_smoke_cli"]
     )
     assert "--llm-route-planner-invoke-provider" not in persisted_bridge_rows[0]["reuse_smoke_cli"]
+    assert persisted_bridge_rows[0]["execution_plan_stage_count"] == 6
     assert len(handoff_rows) == 2
     handoff = handoff_rows[0]
     assert handoff["artifact_kind"] == "RuntimeFormalizationGapPlannerHandoff"
@@ -6512,6 +6513,53 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert handoff["proof_evidence_status"] == (
         "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
     )
+    execution_plan = handoff["execution_plan"]
+    assert persisted_bridge_rows[0]["execution_plan"] == execution_plan
+    assert handoff["execution_plan_stage_count"] == 6
+    assert execution_plan["plan_kind"] == (
+        "runtime_formalization_gap_planner_handoff_execution_plan"
+    )
+    assert execution_plan["recommended_llm_provider"] == "anthropic"
+    assert execution_plan["recommended_model_tier"] == "auto"
+    assert execution_plan["target_prover_family"] == "lean4"
+    assert execution_plan["stage_count"] == 6
+    stage_ids = [stage["stage_id"] for stage in execution_plan["stages"]]
+    assert stage_ids == [
+        "standalone_plan",
+        "target_intake",
+        "component_resource_registry",
+        "llm_route_planner_prompt",
+        "llm_route_planner_live_optional",
+        "reuse_smoke",
+    ]
+    stages_by_id = {
+        stage["stage_id"]: stage
+        for stage in execution_plan["stages"]
+    }
+    assert stages_by_id["standalone_plan"]["argv"][:4] == [
+        "python3",
+        "-m",
+        "ai_statistician.cli",
+        "formalization-gap-planner-standalone-plan",
+    ]
+    prompt_stage = stages_by_id["llm_route_planner_prompt"]
+    assert prompt_stage["requires_live_llm"] is False
+    assert "--invoke-provider" not in prompt_stage["argv"]
+    assert "--model-tier" in prompt_stage["argv"]
+    assert "auto" in prompt_stage["argv"]
+    live_stage = stages_by_id["llm_route_planner_live_optional"]
+    assert live_stage["requires_live_llm"] is True
+    assert live_stage["requires_operator_review_before_live"] is True
+    assert "--invoke-provider" in live_stage["argv"]
+    reuse_stage = stages_by_id["reuse_smoke"]
+    assert reuse_stage["requires_live_llm"] is False
+    assert "--llm-route-planner-invoke-provider" not in reuse_stage["argv"]
+    assert "--feedback-llm-route-planner-invoke-provider" not in reuse_stage["argv"]
+    assert all(
+        stage["proof_evidence_status"]
+        == "RUNTIME_FORMALIZATION_GAP_PLANNER_BRIDGE_NOT_PROOF_EVIDENCE"
+        for stage in execution_plan["stages"]
+    )
     runtime_handoff_audit = audit_formalization_gap_planner_runtime_handoffs(
         handoffs_path,
         out_dir / "runtime_formalization_gap_planner_handoff_audit",
@@ -6522,6 +6570,16 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
     assert runtime_handoff_audit["n_cost_control_ok"] == 2
     assert runtime_handoff_audit["n_live_explicit_ok"] == 2
     assert runtime_handoff_audit["n_reuse_smoke_cost_control_ok"] == 2
+    assert runtime_handoff_audit["n_execution_plans"] == 2
+    assert runtime_handoff_audit["n_execution_plan_stage_rows"] == 12
+    assert runtime_handoff_audit["n_execution_plan_prompt_stage_cost_control_ok"] == 2
+    assert runtime_handoff_audit["n_execution_plan_live_stage_explicit_ok"] == 2
+    assert (
+        runtime_handoff_audit[
+            "n_execution_plan_reuse_smoke_stage_cost_control_ok"
+        ]
+        == 2
+    )
     assert runtime_handoff_audit["n_component_resource_registry_smoke_ok"] == 2
     assert (
         runtime_handoff_audit[
@@ -6610,6 +6668,8 @@ def test_research_agent_runtime_records_theory_to_simulation_loop() -> None:
         / "formalization_gap_planner_runtime_handoff_audit.md"
     ).read_text(encoding="utf-8")
     assert "Seed candidate declaration rows:" in runtime_handoff_report
+    assert "Execution plans:" in runtime_handoff_report
+    assert "Execution plan stages:" in runtime_handoff_report
     assert "Target-intake smoke OK:" in runtime_handoff_report
     assert "Target-intake context in prompts:" in runtime_handoff_report
     assert "Component-resource registry smoke OK:" in runtime_handoff_report

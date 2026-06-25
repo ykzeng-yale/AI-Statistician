@@ -8,6 +8,9 @@ from ai_statistician.formalization_gap_planner_runtime_handoff_audit import (
     RUNTIME_BRIDGE_PROOF_EVIDENCE_STATUS,
     audit_formalization_gap_planner_runtime_handoffs,
 )
+from ai_statistician.research_agent_runtime import (
+    _runtime_formalization_gap_planner_handoff_execution_plan,
+)
 
 
 def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed() -> None:
@@ -262,6 +265,30 @@ def test_runtime_handoff_audit_accepts_mixed_seed_when_handoff_target_is_in_seed
             "Runtime handoff rows are not theorem proof evidence."
         ),
     }
+    execution_plan = _runtime_formalization_gap_planner_handoff_execution_plan(
+        standalone_plan_cli=handoff_row["standalone_plan_cli"],
+        target_intake_cli=handoff_row["target_intake_cli"],
+        component_resource_registry_cli=handoff_row[
+            "component_resource_registry_cli"
+        ],
+        llm_route_planner_prompt_cli=handoff_row[
+            "llm_route_planner_prompt_cli"
+        ],
+        llm_route_planner_live_cli=handoff_row["llm_route_planner_live_cli"],
+        reuse_smoke_cli=handoff_row["reuse_smoke_cli"],
+        standalone_seed_path=str(seed_path),
+        target_intake_path=str(target_intake_path),
+        standalone_plan_dir=str(standalone_plan_dir),
+        target_intake_dir=str(target_intake_dir),
+        component_resource_registry_dir=str(registry_dir),
+        llm_prompt_out=str(root / "llm_prompt"),
+        llm_live_out=str(root / "llm_live"),
+        reuse_smoke_out=str(root / "reuse_smoke"),
+        target_prover_family=handoff_target,
+        library_snapshot_ref="portable:runtime-mixed-targets",
+    )
+    handoff_row["execution_plan"] = execution_plan
+    handoff_row["execution_plan_stage_count"] = execution_plan["stage_count"]
     handoffs_path.write_text(json.dumps(handoff_row) + "\n", encoding="utf-8")
 
     payload = audit_formalization_gap_planner_runtime_handoffs(
