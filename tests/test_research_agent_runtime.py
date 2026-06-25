@@ -4452,6 +4452,120 @@ def test_runtime_learning_memory_routes_compiled_diagnostic_helper_to_bridge_or_
     assert "source_to_bridge_metadata_blocker" in prompt
 
 
+def test_runtime_learning_memory_routes_metadata_blocker_to_authoring_contract(
+    tmp_path: Path,
+) -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    learning_path = tmp_path / "runtime_learning_rows.jsonl"
+    learning_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "question_id": question.id,
+                "learning_task": "next_action_routing",
+                "input_summary": {
+                    "trigger": "SOURCE_TO_BRIDGE_METADATA_BLOCKER",
+                    "owner_subsystem": (
+                        "TheoryDeveloper/SourceBindingMetadata/Formalizer"
+                    ),
+                    "agenda_id": "formal_gap:source_to_bridge_metadata_authoring",
+                    "target_ids": ["split_conformal_finite_sample_coverage"],
+                    "runtime_queue_status": (
+                        "PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING"
+                    ),
+                    "source_to_bridge_metadata_blocker_status": (
+                        "SOURCE_TO_BRIDGE_METADATA_BLOCKER_INFERRED_FROM_DIAGNOSTIC_HELPER_MEMORY"
+                    ),
+                    "source_to_bridge_metadata_blocker_kind": (
+                        "source_to_bridge_metadata_blocker"
+                    ),
+                    "diagnostic_helper_candidate_ids": [
+                        "split_conformal_core_prop_coverage_bridge_helper"
+                    ],
+                    "source_formalizer_packet_id": (
+                        "formalizer_proposal:helper_packet"
+                    ),
+                    "recommended_formalizer_target_mode": (
+                        "source_theorem_diagnostic_helper_bridge_or_blocker"
+                    ),
+                },
+                "target_behavior": (
+                    "author exact source-to-bridge premise-derivation candidate "
+                    "request metadata"
+                ),
+                "acceptance_gate": (
+                    "proof_bank_runtime_memory_summary exposes a "
+                    "source_to_bridge_premise_derivation_candidate_request with "
+                    "exact_source_theorem_binders and "
+                    "required_semantic_anchor_reference_names"
+                ),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    memory = _load_runtime_learning_memory([learning_path])
+
+    summary = _formalizer_proof_bank_runtime_memory_summary(
+        context={"runtime_learning_memory": memory},
+        proof_bank_obligation_catalog=[],
+        theorem_goals=[],
+        memory_kernel_verified_proof_obligation_ids=(),
+        memory_prioritized_proof_obligation_ids=(),
+    )
+
+    assert summary["source_to_bridge_metadata_authoring_required"] is True
+    assert summary["recommended_source_theorem_integration_action"] == (
+        "author_source_to_bridge_metadata"
+    )
+    assert summary["recommended_formalizer_target_mode"] == (
+        "source_to_bridge_metadata_authoring_required"
+    )
+    assert summary["source_to_bridge_metadata_authoring_target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert summary["source_to_bridge_metadata_authoring_helper_candidate_ids"] == [
+        "split_conformal_core_prop_coverage_bridge_helper"
+    ]
+    assert summary[
+        "source_to_bridge_metadata_authoring_source_formalizer_packet_ids"
+    ] == ["formalizer_proposal:helper_packet"]
+    contract = summary["source_to_bridge_metadata_authoring_contract"]
+    assert contract["runtime_queue_status"] == (
+        "PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING"
+    )
+    assert "source_to_bridge_premise_derivation_candidate_request" in contract[
+        "required_metadata_fields"
+    ]
+    assert "exact_source_theorem_binders" in contract["required_metadata_fields"]
+    assert "required_semantic_anchor_reference_names" in contract[
+        "required_metadata_fields"
+    ]
+    assert contract["proof_evidence_status"].endswith("NOT_PROOF_EVIDENCE")
+
+    prompt = build_formalizer_prompt(
+        question=question,
+        theory_packet=_runtime_sample_response(),
+        simulation_manifest={"manifest_id": "simulation_manifest:test"},
+        algorithm_manifest={"manifest_id": "algorithm_sandbox_manifest:test"},
+        registered_problem={"question_id": question.id, "problem_class": "conformal"},
+        theorem_goals=[],
+        proof_bank_obligation_catalog=[],
+        proof_bank_runtime_memory_summary=summary,
+    )
+
+    assert "source_to_bridge_metadata_authoring_required" in prompt
+    assert "Source-to-bridge metadata authoring is active" in prompt
+    assert "PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING" in prompt
+    assert "split_conformal_core_prop_coverage_bridge_helper" in prompt
+    assert "formalizer_proposal:helper_packet" in prompt
+    assert "source_to_bridge_premise_derivation_candidate_request" in prompt
+    assert "exact_source_theorem_binders" in prompt
+    assert "required_semantic_anchor_reference_names" in prompt
+    assert "kind=source_to_bridge_metadata_blocker" in prompt
+    assert "For source_theorem_exact_proof_body_repair" not in prompt
+
+
 def test_diagnostic_helper_bridge_mode_normalizer_records_metadata_blocker() -> None:
     question = load_open_research_questions(Path("examples/research_questions.json"))[1]
     summary = {

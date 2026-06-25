@@ -2378,6 +2378,28 @@ def _formalizer_mode_specific_instructions(
             "request/source-binding contract; otherwise it is a phantom action and "
             "must not be listed in next_actions."
         )
+    if (
+        mode == "source_to_bridge_metadata_authoring_required"
+        or proof_memory_summary.get("source_to_bridge_metadata_authoring_required")
+    ):
+        instructions.append(
+            "Source-to-bridge metadata authoring is active: consume "
+            "proof_bank_runtime_memory_summary.source_to_bridge_metadata_authoring_contract "
+            "and diagnostics before emitting any executable premise candidate. "
+            "The immediate task is to author or retrieve the exact "
+            "source_to_bridge_premise_derivation_candidate_request metadata: "
+            "premise_name, target theorem/declaration, exact_source_theorem_binders, "
+            "premise_semantic_anchor_binders, premise_semantic_anchor_binder_names, "
+            "required_semantic_anchor_reference_names, semantic_anchor_reference_gate, "
+            "and adapter_object_names_requiring_source_instantiation. Emit a "
+            "source_to_bridge_premise_derivation_candidates object only if that "
+            "candidate includes a copied request object/id and non-vacuous Lean source "
+            "using those binders and anchors. Otherwise keep the source theorem as "
+            "expected_status=FORMAL_GAP and record a gap_taxonomy row with "
+            "kind=source_to_bridge_metadata_blocker plus next_actions for "
+            "AgentRuntime/ProofEngineer to materialize the request metadata. This "
+            "metadata-authoring queue is not proof evidence."
+        )
     prior_lean_candidate_proof_state_feedback = [
         row
         for row in proof_memory_summary.get(
@@ -2991,7 +3013,12 @@ def _formalizer_mode_specific_instructions(
         )
     if (
         mode == "source_theorem_exact_proof_body_repair"
-        or proof_memory_summary.get("source_theorem_exact_candidate_requires_repair")
+        or (
+            proof_memory_summary.get("source_theorem_exact_candidate_requires_repair")
+            and not proof_memory_summary.get(
+                "source_to_bridge_metadata_authoring_required"
+            )
+        )
         or "repair_exact_source_theorem_candidate_proof_body" in integration_action
     ):
         instructions.append(
@@ -3723,6 +3750,13 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
         "source_to_bridge_premise_derivation_pending_premise_names",
         "source_to_bridge_premise_derivation_verified_premise_names",
         "source_to_bridge_premise_derivation_diagnostics",
+        "source_to_bridge_metadata_authoring_required",
+        "source_to_bridge_metadata_authoring_target_ids",
+        "source_to_bridge_metadata_authoring_helper_candidate_ids",
+        "source_to_bridge_metadata_authoring_source_formalizer_packet_ids",
+        "source_to_bridge_metadata_authoring_statuses",
+        "source_to_bridge_metadata_authoring_contract",
+        "source_to_bridge_metadata_authoring_diagnostics",
         "source_theorem_proof_body_adapter_diagnostics",
         "source_theorem_exact_proof_body_repair_target_names",
         "source_theorem_exact_proof_body_repair_diagnostics",
@@ -3843,6 +3877,25 @@ def _compact_proof_bank_runtime_memory_summary(row: Mapping[str, Any]) -> dict[s
                 "recommended_repair_tasks",
             ),
             limit=3,
+        )
+    if isinstance(row.get("source_to_bridge_metadata_authoring_diagnostics"), list):
+        compact["source_to_bridge_metadata_authoring_diagnostics"] = _compact_rows(
+            row.get("source_to_bridge_metadata_authoring_diagnostics", []),
+            keys=(
+                "trigger",
+                "agenda_id",
+                "runtime_queue_status",
+                "source_to_bridge_metadata_blocker_status",
+                "source_to_bridge_metadata_blocker_kind",
+                "target_ids",
+                "diagnostic_helper_candidate_ids",
+                "source_formalizer_packet_ids",
+                "owner_subsystem",
+                "target_behavior",
+                "acceptance_gate",
+                "proof_evidence_status",
+            ),
+            limit=4,
         )
     if isinstance(row.get("source_to_bridge_premise_derivation_diagnostics"), list):
         compact["source_to_bridge_premise_derivation_diagnostics"] = _compact_rows(

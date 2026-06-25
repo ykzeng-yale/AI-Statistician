@@ -178,6 +178,14 @@ Live evidence collected on 2026-06-25:
   `split_conformal_core_prop_coverage_bridge_helper`, records
   `PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING`, and routes to pending task
   `formalize-critic-repair:conformal_prediction_coverage:d59f0093`.
+- Resume-time Formalizer memory now preserves that metadata blocker through CLI
+  compaction and converts it into
+  `recommended_formalizer_target_mode=source_to_bridge_metadata_authoring_required`
+  with an explicit `source_to_bridge_metadata_authoring_contract`. The next
+  Formalizer/ProofEngineer step is to author exact
+  `source_to_bridge_premise_derivation_candidate_request` metadata before
+  executable premise candidates are queued; this remains orchestration context,
+  not source-theorem proof evidence.
 
 The 12-iteration run is evidence for live generated-code execution, one
 AlgorithmEngineer repair sequence, Formalizer candidate materialization, local

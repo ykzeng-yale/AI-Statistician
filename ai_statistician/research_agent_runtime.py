@@ -22496,6 +22496,121 @@ def _runtime_learning_memory_formalizer_lean_candidate_proof_state_feedback(
     return tuple(feedback_rows)
 
 
+def _runtime_learning_memory_source_to_bridge_metadata_authoring_blockers(
+    architect_context: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Return Critic-routed source-to-bridge metadata authoring blockers."""
+
+    memory = (
+        architect_context.get("runtime_learning_memory", {})
+        if isinstance(architect_context, Mapping)
+        else {}
+    )
+    if (
+        not isinstance(memory, Mapping)
+        or memory.get("artifact_kind") != "RuntimeLearningMemoryContext"
+    ):
+        return ()
+    rows = memory.get("rows", []) if isinstance(memory.get("rows"), list) else []
+    blockers: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        input_summary = (
+            row.get("input_summary", {})
+            if isinstance(row.get("input_summary", {}), Mapping)
+            else {}
+        )
+        trigger = _runtime_learning_row_trigger(row, input_summary)
+        runtime_queue_status = str(
+            row.get("runtime_queue_status", "")
+            or input_summary.get("runtime_queue_status", "")
+            or ""
+        ).strip()
+        kind = str(
+            row.get("source_to_bridge_metadata_blocker_kind", "")
+            or input_summary.get("source_to_bridge_metadata_blocker_kind", "")
+            or ""
+        ).strip()
+        agenda_id = str(
+            row.get("agenda_id", "") or input_summary.get("agenda_id", "") or ""
+        ).strip()
+        if not (
+            trigger == "SOURCE_TO_BRIDGE_METADATA_BLOCKER"
+            or runtime_queue_status
+            == "PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING"
+            or kind == "source_to_bridge_metadata_blocker"
+            or agenda_id == "formal_gap:source_to_bridge_metadata_authoring"
+        ):
+            continue
+        target_ids = _runtime_row_string_values(
+            row,
+            "target_ids",
+            "source_to_bridge_metadata_blocker_target_ids",
+            "remaining_theorem_goal_ids",
+        )
+        target_name = str(
+            row.get("target_theorem_name", "")
+            or input_summary.get("target_theorem_name", "")
+            or ""
+        ).strip()
+        if not target_ids and target_name:
+            target_ids = (target_name,)
+        helper_candidate_ids = _runtime_row_string_values(
+            row,
+            "diagnostic_helper_candidate_ids",
+            "source_to_bridge_metadata_blocker_helper_candidate_ids",
+        )
+        source_formalizer_packet_ids = _runtime_row_string_values(
+            row,
+            "source_formalizer_packet_id",
+            "source_formalizer_packet_ids",
+        )
+        blocker_status = str(
+            row.get("source_to_bridge_metadata_blocker_status", "")
+            or input_summary.get("source_to_bridge_metadata_blocker_status", "")
+            or ""
+        ).strip()
+        key = (
+            trigger,
+            runtime_queue_status,
+            ",".join(target_ids),
+            ",".join(helper_candidate_ids),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        blockers.append(
+            {
+                "trigger": trigger or "SOURCE_TO_BRIDGE_METADATA_BLOCKER",
+                "agenda_id": agenda_id,
+                "runtime_queue_status": runtime_queue_status,
+                "source_to_bridge_metadata_blocker_status": blocker_status,
+                "source_to_bridge_metadata_blocker_kind": (
+                    kind or "source_to_bridge_metadata_blocker"
+                ),
+                "target_ids": list(target_ids),
+                "diagnostic_helper_candidate_ids": list(helper_candidate_ids),
+                "source_formalizer_packet_ids": list(source_formalizer_packet_ids),
+                "recommended_formalizer_target_mode": str(
+                    row.get("recommended_formalizer_target_mode", "")
+                    or input_summary.get("recommended_formalizer_target_mode", "")
+                    or ""
+                ),
+                "owner_subsystem": str(
+                    row.get("owner_subsystem", "")
+                    or input_summary.get("owner_subsystem", "")
+                    or ""
+                ),
+                "target_behavior": str(row.get("target_behavior", "") or ""),
+                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+                "boundary": str(row.get("boundary", "") or ""),
+            }
+        )
+    return tuple(blockers)
+
+
 def _formalizer_proof_bank_runtime_memory_summary(
     *,
     context: Mapping[str, Any],
@@ -22556,6 +22671,11 @@ def _formalizer_proof_bank_runtime_memory_summary(
     )
     source_theorem_exact_candidate_repairs = (
         _runtime_learning_memory_source_theorem_exact_candidate_repairs(context)
+    )
+    source_to_bridge_metadata_authoring_rows = (
+        _runtime_learning_memory_source_to_bridge_metadata_authoring_blockers(
+            context
+        )
     )
     formalizer_lean_candidate_feedback_rows = (
         _runtime_learning_memory_formalizer_lean_candidate_feedback(context)
@@ -22852,6 +22972,33 @@ def _formalizer_proof_bank_runtime_memory_summary(
             "SOURCE_TO_BRIDGE_PREMISE_DERIVATION_GAP",
         }
     )
+    source_to_bridge_premise_derivation_request_available = any(
+        bool(
+            _runtime_row_string_values(
+                row,
+                "source_to_bridge_premise_derivation_candidate_request_id",
+                "source_to_bridge_premise_derivation_source_candidate_request_id",
+                "source_to_bridge_grouped_premise_derivation_candidate_request_id",
+                "source_to_bridge_grouped_premise_derivation_source_candidate_request_id",
+            )
+        )
+        or isinstance(
+            row.get("source_to_bridge_premise_derivation_candidate_request", {}),
+            Mapping,
+        )
+        and bool(row.get("source_to_bridge_premise_derivation_candidate_request"))
+        or isinstance(
+            row.get(
+                "source_to_bridge_grouped_premise_derivation_candidate_request",
+                {},
+            ),
+            Mapping,
+        )
+        and bool(
+            row.get("source_to_bridge_grouped_premise_derivation_candidate_request")
+        )
+        for row in source_to_bridge_premise_derivation_rows
+    )
     verified_source_to_bridge_premise_derivation_rows = tuple(
         row
         for row in source_to_bridge_premise_derivation_rows
@@ -22927,6 +23074,85 @@ def _formalizer_proof_bank_runtime_memory_summary(
     )
     source_to_bridge_premise_derivation_required = bool(
         pending_source_to_bridge_premise_derivation_rows
+    )
+    source_to_bridge_metadata_authoring_required = bool(
+        source_to_bridge_metadata_authoring_rows
+        and not source_to_bridge_premise_derivation_request_available
+    )
+    source_to_bridge_metadata_authoring_target_ids = tuple(
+        dict.fromkeys(
+            value
+            for row in source_to_bridge_metadata_authoring_rows
+            for value in row.get("target_ids", []) or []
+            if str(value).strip()
+        )
+    )
+    source_to_bridge_metadata_authoring_helper_candidate_ids = tuple(
+        dict.fromkeys(
+            value
+            for row in source_to_bridge_metadata_authoring_rows
+            for value in row.get("diagnostic_helper_candidate_ids", []) or []
+            if str(value).strip()
+        )
+    )
+    source_to_bridge_metadata_authoring_source_formalizer_packet_ids = tuple(
+        dict.fromkeys(
+            value
+            for row in source_to_bridge_metadata_authoring_rows
+            for value in row.get("source_formalizer_packet_ids", []) or []
+            if str(value).strip()
+        )
+    )
+    source_to_bridge_metadata_authoring_statuses = tuple(
+        dict.fromkeys(
+            str(row.get("source_to_bridge_metadata_blocker_status", "") or "").strip()
+            for row in source_to_bridge_metadata_authoring_rows
+            if str(row.get("source_to_bridge_metadata_blocker_status", "") or "").strip()
+        )
+    )
+    source_to_bridge_metadata_authoring_contract = (
+        {
+            "contract_kind": "source_to_bridge_metadata_authoring",
+            "trigger": "SOURCE_TO_BRIDGE_METADATA_BLOCKER",
+            "runtime_queue_status": "PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING",
+            "target_ids": list(source_to_bridge_metadata_authoring_target_ids),
+            "diagnostic_helper_candidate_ids": list(
+                source_to_bridge_metadata_authoring_helper_candidate_ids
+            ),
+            "source_formalizer_packet_ids": list(
+                source_to_bridge_metadata_authoring_source_formalizer_packet_ids
+            ),
+            "required_metadata_fields": [
+                "source_to_bridge_premise_derivation_candidate_request_id",
+                "source_to_bridge_premise_derivation_candidate_request",
+                "premise_name",
+                "target_theorem_name",
+                "target_lean_declaration",
+                "exact_source_theorem_binders",
+                "premise_semantic_anchor_binders",
+                "premise_semantic_anchor_binder_names",
+                "required_semantic_anchor_reference_names",
+                "semantic_anchor_reference_gate",
+                "adapter_object_names_requiring_source_instantiation",
+            ],
+            "acceptance_gate": (
+                "Author or retrieve a source_to_bridge_premise_derivation_candidate_request "
+                "or source_to_bridge_grouped_premise_derivation_candidate_request with "
+                "exact source binders, semantic-anchor binders, required anchor "
+                "references, and adapter object names before executable premise "
+                "derivation candidates are queued."
+            ),
+            "forbidden_resolution": (
+                "Do not emit helper-only Lean as source-theorem progress, and do not "
+                "queue executable source_to_bridge_premise_derivation_candidates "
+                "without copied source-binding request metadata."
+            ),
+            "proof_evidence_status": (
+                "SOURCE_TO_BRIDGE_METADATA_AUTHORING_CONTRACT_NOT_PROOF_EVIDENCE"
+            ),
+        }
+        if source_to_bridge_metadata_authoring_rows
+        else {}
     )
     source_to_bridge_premise_derivation_all_required_verified = bool(
         known_source_to_bridge_premise_names
@@ -23319,6 +23545,53 @@ def _formalizer_proof_bank_runtime_memory_summary(
         "source_to_bridge_premise_derivation_verified_premise_names": list(
             verified_source_to_bridge_premise_names
         ),
+        "source_to_bridge_metadata_authoring_required": (
+            source_to_bridge_metadata_authoring_required
+        ),
+        "source_to_bridge_metadata_authoring_target_ids": list(
+            source_to_bridge_metadata_authoring_target_ids
+        ),
+        "source_to_bridge_metadata_authoring_helper_candidate_ids": list(
+            source_to_bridge_metadata_authoring_helper_candidate_ids
+        ),
+        "source_to_bridge_metadata_authoring_source_formalizer_packet_ids": list(
+            source_to_bridge_metadata_authoring_source_formalizer_packet_ids
+        ),
+        "source_to_bridge_metadata_authoring_statuses": list(
+            source_to_bridge_metadata_authoring_statuses
+        ),
+        "source_to_bridge_metadata_authoring_contract": (
+            source_to_bridge_metadata_authoring_contract
+        ),
+        "source_to_bridge_metadata_authoring_diagnostics": [
+            {
+                "trigger": str(row.get("trigger", "") or ""),
+                "agenda_id": str(row.get("agenda_id", "") or ""),
+                "runtime_queue_status": str(
+                    row.get("runtime_queue_status", "") or ""
+                ),
+                "source_to_bridge_metadata_blocker_status": str(
+                    row.get("source_to_bridge_metadata_blocker_status", "") or ""
+                ),
+                "source_to_bridge_metadata_blocker_kind": str(
+                    row.get("source_to_bridge_metadata_blocker_kind", "") or ""
+                ),
+                "target_ids": list(row.get("target_ids", []) or [])[:8],
+                "diagnostic_helper_candidate_ids": list(
+                    row.get("diagnostic_helper_candidate_ids", []) or []
+                )[:8],
+                "source_formalizer_packet_ids": list(
+                    row.get("source_formalizer_packet_ids", []) or []
+                )[:4],
+                "owner_subsystem": str(row.get("owner_subsystem", "") or ""),
+                "target_behavior": str(row.get("target_behavior", "") or ""),
+                "acceptance_gate": str(row.get("acceptance_gate", "") or ""),
+                "proof_evidence_status": (
+                    "SOURCE_TO_BRIDGE_METADATA_AUTHORING_DIAGNOSTIC_NOT_PROOF_EVIDENCE"
+                ),
+            }
+            for row in source_to_bridge_metadata_authoring_rows[:4]
+        ],
         "kernel_verified_source_to_bridge_premise_derivation_ids": list(
             verified_source_to_bridge_premise_derivation_ids
         ),
@@ -24100,6 +24373,8 @@ def _formalizer_proof_bank_runtime_memory_summary(
             if exact_semantic_definition_repair_required
             else "derive_source_to_bridge_premises"
             if source_to_bridge_premise_derivation_required
+            else "author_source_to_bridge_metadata"
+            if source_to_bridge_metadata_authoring_required
             else "derive_source_theorem_proof_body_adapter"
             if exact_source_proof_body_adapter_required
             else "repair_exact_source_theorem_candidate_proof_body"
@@ -24127,6 +24402,8 @@ def _formalizer_proof_bank_runtime_memory_summary(
             if exact_semantic_definition_repair_required
             else "source_to_bridge_premise_derivation_required"
             if source_to_bridge_premise_derivation_required
+            else "source_to_bridge_metadata_authoring_required"
+            if source_to_bridge_metadata_authoring_required
             else "source_theorem_proof_body_adapter_required"
             if exact_source_proof_body_adapter_required
             else "source_theorem_exact_proof_body_repair"
@@ -24166,6 +24443,9 @@ def _formalizer_proof_bank_runtime_memory_summary(
             "two-sided coverage components, then rerun local Lean/AXLE. If memory records "
             "source-to-bridge premise derivation feedback, derive those pending premises from the exact "
             "source theorem hypotheses; do not add the pending premise names as new adapter assumptions. "
+            "If memory records a source-to-bridge metadata-authoring blocker, first author or retrieve "
+            "the candidate-request metadata with exact source binders and semantic anchors; helper-only "
+            "compiled Lean remains diagnostic and is not source-theorem proof evidence. "
             "Placeholder formal primitives must be closed before "
             "a compiled artifact can be treated as source-theorem proof. If memory records an exact source-theorem "
             "semantic-definition repair queue, repair/import the reviewed definition semantics before "
