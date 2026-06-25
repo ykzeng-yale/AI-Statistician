@@ -14239,6 +14239,8 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert payload["n_formal_attempt_queue_errors"] == 0
     assert payload["n_payloads_with_target_prover_tool_scope_errors"] == 0
     assert payload["n_target_prover_tool_scope_errors"] == 0
+    assert payload["n_payloads_with_feedback_replan_required_coverage_errors"] == 0
+    assert payload["n_feedback_replan_required_coverage_errors"] == 0
     assert payload["n_payloads_with_declared_target_prover_family"] == 0
     assert (
         payload["n_request_bound_payloads_with_target_prover_family_mismatch"]
@@ -14284,6 +14286,7 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     assert row["payload_formal_attempt_queue_item_count"] == 2
     assert row["n_formal_attempt_queue_errors"] == 0
     assert row["n_target_prover_tool_scope_errors"] == 0
+    assert row["n_feedback_replan_required_coverage_errors"] == 0
     assert row["n_agentic_proof_strategy_plan_obligation_errors"] == 0
     assert row["n_schema_errors"] == 0
     assert row["n_request_context_errors"] == 0
@@ -14295,6 +14298,12 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
     ] == "boolean"
     assert (
         row_schema["properties"]["n_target_prover_tool_scope_errors"]["minimum"]
+        == 0
+    )
+    assert (
+        row_schema["properties"][
+            "n_feedback_replan_required_coverage_errors"
+        ]["minimum"]
         == 0
     )
     assert row_schema["properties"][
@@ -14390,6 +14399,18 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
         "target-specific tool/resource"
         in validate_llm_route_planner_response_payload_validation_row(
             drifted_tool_scope_count_row,
+            row_schema,
+        )
+    )
+    drifted_replan_required_count_row = deepcopy(row)
+    drifted_replan_required_count_row[
+        "n_feedback_replan_required_coverage_errors"
+    ] = 1
+    assert (
+        "n_feedback_replan_required_coverage_errors must match errors "
+        "requiring explicit route-revision coverage"
+        in validate_llm_route_planner_response_payload_validation_row(
+            drifted_replan_required_count_row,
             row_schema,
         )
     )
@@ -14506,6 +14527,28 @@ def test_llm_route_planner_response_payload_validator_accepts_raw_payload() -> N
             manifest_schema,
         )
     )
+    drifted_replan_payload_manifest = deepcopy(payload)
+    drifted_replan_payload_manifest[
+        "n_payloads_with_feedback_replan_required_coverage_errors"
+    ] = 1
+    assert (
+        "n_payloads_with_feedback_replan_required_coverage_errors must "
+        "match rows with feedback replan-required coverage errors"
+        in validate_llm_route_planner_response_payload_validation_manifest(
+            drifted_replan_payload_manifest,
+            manifest_schema,
+        )
+    )
+    drifted_replan_manifest = deepcopy(payload)
+    drifted_replan_manifest["n_feedback_replan_required_coverage_errors"] = 1
+    assert (
+        "n_feedback_replan_required_coverage_errors must match row "
+        "n_feedback_replan_required_coverage_errors sum"
+        in validate_llm_route_planner_response_payload_validation_manifest(
+            drifted_replan_manifest,
+            manifest_schema,
+        )
+    )
     drifted_schema_manifest = deepcopy(payload)
     drifted_schema_manifest["response_payload_validation_row_schema"][
         "$id"
@@ -14617,6 +14660,104 @@ def test_response_payload_validator_blocks_request_bound_formal_attempt_queue_ad
         ROUTE_ADOPTION_BLOCKER_FORMAL_ATTEMPT_QUEUE
     ]
     assert row["request_bound_adoptable_for_standalone_replay"] is False
+    assert (
+        validate_llm_route_planner_response_payload_validation_manifest(
+            validation_payload,
+            validation_payload["response_payload_validation_manifest_schema"],
+        )
+        == []
+    )
+
+
+def test_response_payload_validation_counts_feedback_replan_required_coverage_errors() -> None:
+    root = Path(
+        "runs/test_formalization_gap_planner_response_validation_feedback_replan_required"
+    )
+    out_dir = root / "llm_route_planner"
+    response_json = root / "responses.json"
+    request_context_json = root / "request_context.json"
+    validation_out_dir = root / "response_payload_validation"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    input_json = _write_input(root)
+    resource_response_ledger_dir = _write_resource_response_ledger(root)
+    manifest_path = (
+        resource_response_ledger_dir
+        / "formalization_gap_planner_resource_response_ledger_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    row = manifest["rows"][0]
+    row["acceptance_status"] = "ACCEPTED_RESOURCE_RESPONSE"
+    row["route_revision_recommended"] = False
+    row["route_revision_reasons"] = []
+    row["residual_goals"] = []
+    row["replan_required"] = True
+    row["response_payload"]["route_revision_recommended"] = False
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    prompt_payload = export_formalization_gap_planner_llm_route_planner(
+        input_json,
+        out_dir,
+        provider_name="prompt_only",
+        formalization_gap_planner_resource_response_ledger_dir=(
+            resource_response_ledger_dir
+        ),
+    )
+    request = prompt_payload["request_packets"][0]
+    feedback_summary = request["context_packet"]["feedback_loop_summary"]
+    assert feedback_summary["replan_required"] is True
+    assert feedback_summary["recommended_next_actions"] == []
+    request_context_json.write_text(
+        json.dumps({"request_packets": [request]}, indent=2),
+        encoding="utf-8",
+    )
+
+    response_payload = _llm_response_payload()
+    response_payload["search_requests"] = []
+    response_payload["planner_next_actions"] = []
+    response_payload["residual_interpretations"] = []
+    response_payload["uncertainty_flags"] = []
+    response_payload["semantic_alignment_risks"] = []
+    response_json.write_text(
+        json.dumps(
+            {
+                "responses": [
+                    {
+                        "request_id": request["request_id"],
+                        "route_id": request["route_id"],
+                        "response_payload": response_payload,
+                    }
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    validation_payload = validate_formalization_gap_planner_llm_route_planner_response_payloads(
+        response_json,
+        validation_out_dir,
+        request_context_json=request_context_json,
+    )
+
+    assert validation_payload["all_ok"] is False
+    assert validation_payload["n_payloads"] == 1
+    assert validation_payload["n_invalid_payloads"] == 1
+    assert validation_payload["n_request_bound_payloads"] == 1
+    assert (
+        validation_payload[
+            "n_payloads_with_feedback_replan_required_coverage_errors"
+        ]
+        == 1
+    )
+    assert validation_payload["n_feedback_replan_required_coverage_errors"] == 1
+    row = validation_payload["rows"][0]
+    assert row["n_feedback_replan_required_coverage_errors"] == 1
+    error_text = "\n".join(row["errors"])
+    assert (
+        "context_packet.feedback_loop_summary.replan_required requires explicit "
+        "route-revision coverage"
+    ) in error_text
     assert (
         validate_llm_route_planner_response_payload_validation_manifest(
             validation_payload,
