@@ -1545,6 +1545,12 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
     assert feedback["target_shape_contract"]["required_conclusion_family"] == (
         "probability_or_measure_coverage_claim"
     )
+    assert feedback["target_drift_repair_contract"]["contract_kind"] == (
+        "source_theorem_target_two_lane_repair"
+    )
+    assert feedback["target_drift_repair_contract"]["source_theorem_lane"][
+        "fail_closed_shape"
+    ].startswith("known source theorem entry")
     assert feedback["candidate_reroute_options"] == [
         "emit FORMAL_GAP for the source theorem if proof hole remains"
     ]
@@ -1569,6 +1575,9 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
     assert artifact["target_shape_contract"]["required_conclusion_family"] == (
         "probability_or_measure_coverage_claim"
     )
+    assert artifact["target_drift_repair_contract"]["support_lemma_lane"][
+        "forbidden_output_key"
+    ].startswith("formal_targets")
     assert artifact["proof_evidence_status"] == (
         "FORMALIZER_PACKET_VALIDATION_FAILURE_NOT_PROOF_EVIDENCE"
     )
@@ -1601,6 +1610,9 @@ def test_formalization_validator_failure_exports_learning_row() -> None:
     assert learning_rows[0]["input_summary"]["target_shape_contract"][
         "required_conclusion_family"
     ] == "probability_or_measure_coverage_claim"
+    assert learning_rows[0]["input_summary"]["target_drift_repair_contract"][
+        "source_theorem_lane"
+    ]["output_key"] == "formal_targets"
     assert "local Lean/AXLE kernel verification" in learning_rows[0]["acceptance_gate"]
 
 

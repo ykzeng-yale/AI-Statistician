@@ -4214,6 +4214,11 @@ def _formalizer_packet_validation_failure_result(
         if isinstance(prior_candidate_reroute_options, (list, tuple))
         else []
     )
+    active_target_drift_repair_contract = (
+        _formalizer_target_drift_repair_contract_from_target_shape_contract(
+            active_target_shape_contract
+        )
+    )
     failure_id = (
         "formalizer_validation_failure:"
         + stable_hash([task.task_id, exc.validation_label, validation_errors, exc.history])[:20]
@@ -4234,6 +4239,7 @@ def _formalizer_packet_validation_failure_result(
             "validation_errors": validation_errors,
             "validation_repair_directives": validation_repair_directives,
             "target_shape_contract": active_target_shape_contract,
+            "target_drift_repair_contract": active_target_drift_repair_contract,
             "candidate_reroute_options": active_candidate_reroute_options,
             "missing_semantic_anchor_references": missing_anchors,
             "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
@@ -4294,6 +4300,7 @@ def _formalizer_packet_validation_failure_result(
         "validation_errors": validation_errors,
         "validation_repair_directives": validation_repair_directives,
         "target_shape_contract": active_target_shape_contract,
+        "target_drift_repair_contract": active_target_drift_repair_contract,
         "candidate_reroute_options": active_candidate_reroute_options,
         "missing_semantic_anchor_references": missing_anchors,
         "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
@@ -4318,6 +4325,7 @@ def _formalizer_packet_validation_failure_result(
         "validation_errors": validation_errors,
         "validation_repair_directives": validation_repair_directives,
         "target_shape_contract": active_target_shape_contract,
+        "target_drift_repair_contract": active_target_drift_repair_contract,
         "candidate_reroute_options": active_candidate_reroute_options,
         "missing_semantic_anchor_references": missing_anchors,
         "uninstantiated_adapter_object_binders": uninstantiated_adapter_binders,
@@ -5101,44 +5109,11 @@ def _formalizer_lean_candidate_repair_feedback(
     }
     if target_shape_contract:
         feedback["target_shape_contract"] = target_shape_contract
-        feedback["target_drift_repair_contract"] = {
-            "contract_kind": "source_theorem_target_two_lane_repair",
-            "source_theorem_lane": {
-                "output_key": "formal_targets",
-                "allowed_needs_kernel_check_shape": (
-                    "known source theorem with the probability/measure coverage "
-                    "conclusion preserved"
-                ),
-                "fail_closed_shape": (
-                    "known source theorem entry with expected_status=FORMAL_GAP "
-                    "and empty lean_statement_sketch"
-                ),
-            },
-            "support_lemma_lane": {
-                "allowed_output_keys": [
-                    "source_to_bridge_premise_derivation_candidates",
-                    "lemma_dependency_plan",
-                    "proof_bank_obligation_requests",
-                    "gap_taxonomy",
-                    "next_actions",
-                ],
-                "forbidden_output_key": (
-                    "formal_targets with source_theorem_target_known=true and "
-                    "expected_status=NEEDS_KERNEL_CHECK"
-                ),
-                "evidence_eligibility_rule": (
-                    "Executable source_to_bridge_premise_derivation_candidates must "
-                    "carry exact source-binding metadata and semantic anchor references; "
-                    "otherwise report the support work as non-executable gap/dependency "
-                    "planning."
-                ),
-            },
-            "acceptance_gate": (
-                "The next packet passes target-drift repair only if it either preserves "
-                "the source theorem target shape or explicitly marks the source theorem "
-                "as FORMAL_GAP and routes helpers outside the source theorem slot."
-            ),
-        }
+        feedback["target_drift_repair_contract"] = (
+            _formalizer_target_drift_repair_contract_from_target_shape_contract(
+                target_shape_contract
+            )
+        )
         feedback["candidate_reroute_options"] = [
             (
                 "If the generated Lean theorem is only an arithmetic/order-statistic "
@@ -5414,6 +5389,50 @@ def _formalizer_target_shape_contract_from_diagnostics(
             "rank threshold arithmetic without a coverage/probability event",
         ]
     return contract
+
+
+def _formalizer_target_drift_repair_contract_from_target_shape_contract(
+    target_shape_contract: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not target_shape_contract:
+        return {}
+    return {
+        "contract_kind": "source_theorem_target_two_lane_repair",
+        "source_theorem_lane": {
+            "output_key": "formal_targets",
+            "allowed_needs_kernel_check_shape": (
+                "known source theorem with the required conclusion family preserved"
+            ),
+            "fail_closed_shape": (
+                "known source theorem entry with expected_status=FORMAL_GAP "
+                "and empty lean_statement_sketch"
+            ),
+        },
+        "support_lemma_lane": {
+            "allowed_output_keys": [
+                "source_to_bridge_premise_derivation_candidates",
+                "lemma_dependency_plan",
+                "proof_bank_obligation_requests",
+                "gap_taxonomy",
+                "next_actions",
+            ],
+            "forbidden_output_key": (
+                "formal_targets with source_theorem_target_known=true and "
+                "expected_status=NEEDS_KERNEL_CHECK"
+            ),
+            "evidence_eligibility_rule": (
+                "Executable source_to_bridge_premise_derivation_candidates must "
+                "carry exact source-binding metadata and semantic anchor references; "
+                "otherwise report support work as non-executable gap/dependency "
+                "planning."
+            ),
+        },
+        "acceptance_gate": (
+            "The next packet passes target-drift repair only if it either preserves "
+            "the source theorem target shape or explicitly marks the source theorem "
+            "as FORMAL_GAP and routes helpers outside the source theorem slot."
+        ),
+    }
 
 
 def _formalizer_local_lean_repair_contract_from_diagnostics(
