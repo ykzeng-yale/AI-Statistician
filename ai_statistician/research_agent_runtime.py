@@ -3841,6 +3841,44 @@ class FormalizationEvaluatorRuntimeSubsystem:
                 if isinstance(proposal_packet, Mapping)
                 else []
             ),
+            "llm_formalizer_gap_taxonomy": (
+                list(proposal_packet.get("gap_taxonomy", []) or [])
+                if isinstance(proposal_packet, Mapping)
+                else []
+            ),
+            "llm_formalizer_diagnostic_helper_bridge_blocker_status": (
+                str(
+                    proposal_packet.get(
+                        "diagnostic_helper_bridge_blocker_status",
+                        "",
+                    )
+                    or ""
+                )
+                if isinstance(proposal_packet, Mapping)
+                else ""
+            ),
+            "llm_formalizer_source_to_bridge_premise_derivation_candidates": (
+                list(
+                    proposal_packet.get(
+                        "source_to_bridge_premise_derivation_candidates",
+                        [],
+                    )
+                    or []
+                )
+                if isinstance(proposal_packet, Mapping)
+                else []
+            ),
+            "llm_formalizer_dropped_diagnostic_helper_only_next_actions": (
+                list(
+                    proposal_packet.get(
+                        "dropped_diagnostic_helper_only_next_actions",
+                        [],
+                    )
+                    or []
+                )
+                if isinstance(proposal_packet, Mapping)
+                else []
+            ),
             "deterministic_theorem_goals": [_theorem_goal_to_json(row) for row in theorem_goals],
             "registered_proof_bank_obligation_catalog": proof_bank_obligation_catalog,
             "registered_proof_bank_obligation_catalog_boundary": (
@@ -18014,6 +18052,7 @@ def _critic_should_route_to_formalizer_proofengineer(
         else {}
     )
     formalizer_modes = {
+        "source_theorem_diagnostic_helper_bridge_or_blocker",
         "source_to_bridge_premise_derivation_required",
         "source_theorem_exact_semantic_definition_repair",
         "source_theorem_exact_proof_body_repair",
@@ -18168,7 +18207,7 @@ def _critic_local_lean_repair_contract_from_formalization_manifest(
 
 
 def _compact_agenda_item(row: Mapping[str, Any]) -> dict[str, Any]:
-    return {
+    compact = {
         "id": str(row.get("id", "")),
         "owner_subsystem": str(row.get("owner_subsystem", "")),
         "trigger": str(row.get("trigger", "")),
@@ -18176,6 +18215,18 @@ def _compact_agenda_item(row: Mapping[str, Any]) -> dict[str, Any]:
         "acceptance_gate": str(row.get("acceptance_gate", "")),
         "priority": str(row.get("priority", "")),
     }
+    for key in (
+        "target_ids",
+        "runtime_queue_status",
+        "source_to_bridge_metadata_blocker_status",
+        "source_to_bridge_metadata_blocker_kind",
+        "diagnostic_helper_candidate_ids",
+        "source_formalizer_packet_id",
+        "recommended_formalizer_target_mode",
+    ):
+        if key in row:
+            compact[key] = row.get(key)
+    return compact
 
 
 def _compact_formal_subclaim_feedback(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -18515,6 +18566,253 @@ def _registered_algorithm_template_hint(
     return ""
 
 
+def _formalization_manifest_source_to_bridge_metadata_blocker(
+    formalization_manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(formalization_manifest, Mapping):
+        return {}
+    proof_bank_memory_summary = (
+        formalization_manifest.get("proof_bank_runtime_memory_summary", {})
+        if isinstance(
+            formalization_manifest.get("proof_bank_runtime_memory_summary", {}),
+            Mapping,
+        )
+        else {}
+    )
+    target_mode = str(
+        proof_bank_memory_summary.get("recommended_formalizer_target_mode", "")
+        or ""
+    ).strip()
+    diagnostic_helper_bridge_mode = (
+        target_mode == "source_theorem_diagnostic_helper_bridge_or_blocker"
+        or bool(
+            proof_bank_memory_summary.get(
+                "formalizer_diagnostic_helper_integration_required",
+                False,
+            )
+        )
+    )
+    helper_rows = [
+        dict(row)
+        for row in proof_bank_memory_summary.get(
+            "formalizer_diagnostic_helper_memory",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    helper_candidate_ids = [
+        str(row.get("candidate_id", "") or "").strip()
+        for row in helper_rows
+        if str(row.get("candidate_id", "") or "").strip()
+    ]
+    gap_rows: list[dict[str, Any]] = []
+    for key in ("llm_formalizer_gap_taxonomy", "gap_taxonomy"):
+        raw_rows = formalization_manifest.get(key, [])
+        if isinstance(raw_rows, list | tuple):
+            gap_rows.extend(dict(row) for row in raw_rows if isinstance(row, Mapping))
+    blocker_gap_rows: list[dict[str, str]] = []
+    for row in gap_rows:
+        gap = str(row.get("gap", "") or "").strip()
+        kind = str(row.get("kind", "") or "").strip()
+        next_owner = str(row.get("next_owner", "") or "").strip()
+        text = f"{kind} {gap} {next_owner}".lower()
+        if (
+            kind == "source_to_bridge_metadata_blocker"
+            or (
+                "source-binding" in text
+                and "source_to_bridge_premise_derivation" in text
+            )
+            or (
+                "source-to-bridge" in text
+                and "metadata" in text
+                and "semantic anchor" in text
+            )
+        ):
+            blocker_gap_rows.append(
+                {
+                    "gap": gap,
+                    "kind": kind or "source_to_bridge_metadata_blocker",
+                    "next_owner": next_owner,
+                }
+            )
+    blocker_status = str(
+        formalization_manifest.get(
+            "llm_formalizer_diagnostic_helper_bridge_blocker_status",
+            "",
+        )
+        or formalization_manifest.get("diagnostic_helper_bridge_blocker_status", "")
+        or ""
+    ).strip()
+    candidate_rows = [
+        dict(row)
+        for row in formalization_manifest.get(
+            "llm_formalizer_source_to_bridge_premise_derivation_candidates",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    work_order_rows = [
+        dict(row)
+        for row in formalization_manifest.get(
+            "source_to_bridge_premise_derivation_work_orders",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    diagnostics = [
+        dict(row)
+        for row in proof_bank_memory_summary.get(
+            "source_to_bridge_premise_derivation_diagnostics",
+            [],
+        )
+        or []
+        if isinstance(row, Mapping)
+    ]
+    has_source_to_bridge_candidate_request = bool(candidate_rows or work_order_rows)
+    if not has_source_to_bridge_candidate_request:
+        for row in diagnostics:
+            if (
+                str(
+                    row.get(
+                        "source_to_bridge_premise_derivation_candidate_request_id",
+                        "",
+                    )
+                    or ""
+                ).strip()
+                or isinstance(
+                    row.get("source_to_bridge_premise_derivation_candidate_request"),
+                    Mapping,
+                )
+                or str(
+                    row.get(
+                        "source_to_bridge_grouped_premise_derivation_candidate_request_id",
+                        "",
+                    )
+                    or ""
+                ).strip()
+                or isinstance(
+                    row.get(
+                        "source_to_bridge_grouped_premise_derivation_candidate_request"
+                    ),
+                    Mapping,
+                )
+            ):
+                has_source_to_bridge_candidate_request = True
+                break
+    inferred_from_helper_memory = (
+        diagnostic_helper_bridge_mode
+        and bool(helper_rows)
+        and not has_source_to_bridge_candidate_request
+    )
+    if not (blocker_status or blocker_gap_rows or inferred_from_helper_memory):
+        return {}
+    target_ids = [
+        str(value).strip()
+        for value in proof_bank_memory_summary.get("remaining_theorem_goal_ids", [])
+        or []
+        if str(value).strip()
+    ]
+    if not target_ids:
+        target_ids = [
+            str(row.get("id", "") or "").strip()
+            for row in formalization_manifest.get("deterministic_theorem_goals", [])
+            or []
+            if isinstance(row, Mapping) and str(row.get("id", "") or "").strip()
+        ]
+    return {
+        "status": (
+            blocker_status
+            or "SOURCE_TO_BRIDGE_METADATA_BLOCKER_INFERRED_FROM_DIAGNOSTIC_HELPER_MEMORY"
+        ),
+        "recommended_formalizer_target_mode": target_mode,
+        "target_ids": target_ids,
+        "diagnostic_helper_candidate_ids": list(dict.fromkeys(helper_candidate_ids)),
+        "blocker_gaps": blocker_gap_rows[:5],
+        "source_formalizer_packet_id": str(
+            formalization_manifest.get(
+                "llm_formalizer_proof_engineer_proposal_id",
+                "",
+            )
+            or ""
+        ),
+        "formalization_manifest_id": str(
+            formalization_manifest.get("manifest_id", "") or ""
+        ),
+    }
+
+
+def _source_to_bridge_metadata_blocker_agenda_item(
+    *,
+    blocker: Mapping[str, Any],
+    fallback_target_ids: list[str],
+) -> dict[str, Any]:
+    target_ids = [
+        str(value).strip()
+        for value in blocker.get("target_ids", []) or []
+        if str(value).strip()
+    ] or [value for value in fallback_target_ids if value]
+    helper_ids = [
+        str(value).strip()
+        for value in blocker.get("diagnostic_helper_candidate_ids", []) or []
+        if str(value).strip()
+    ]
+    return {
+        "id": "formal_gap:source_to_bridge_metadata_authoring",
+        "owner_subsystem": "TheoryDeveloper/SourceBindingMetadata/Formalizer",
+        "trigger": "SOURCE_TO_BRIDGE_METADATA_BLOCKER",
+        "action": (
+            "author or retrieve exact source-to-bridge premise-derivation "
+            "candidate request metadata: premise names, exact source theorem "
+            "binders, adapter object names requiring source instantiation, "
+            "semantic anchor binders, and required anchor references before "
+            "asking Formalizer for executable "
+            "source_to_bridge_premise_derivation_candidates"
+        ),
+        "acceptance_gate": (
+            "proof_bank_runtime_memory_summary exposes a "
+            "source_to_bridge_premise_derivation_candidate_request or "
+            "source_to_bridge_grouped_premise_derivation_candidate_request "
+            "with source-binding metadata, exact_source_theorem_binders, "
+            "premise_semantic_anchor_binders, and "
+            "required_semantic_anchor_reference_names"
+        ),
+        "target_ids": target_ids,
+        "diagnostic_helper_candidate_ids": helper_ids,
+        "source_to_bridge_metadata_blocker_status": str(
+            blocker.get("status", "") or ""
+        ),
+        "source_to_bridge_metadata_blocker_kind": (
+            "source_to_bridge_metadata_blocker"
+        ),
+        "source_formalizer_packet_id": str(
+            blocker.get("source_formalizer_packet_id", "") or ""
+        ),
+        "formalization_manifest_id": str(
+            blocker.get("formalization_manifest_id", "") or ""
+        ),
+        "recommended_formalizer_target_mode": str(
+            blocker.get("recommended_formalizer_target_mode", "") or ""
+        ),
+        "blocker_gaps": [
+            dict(row)
+            for row in blocker.get("blocker_gaps", []) or []
+            if isinstance(row, Mapping)
+        ],
+        "runtime_queue_status": "PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING",
+        "priority": "high",
+        "proof_boundary": KERNEL_PROOF_BOUNDARY,
+        "boundary": (
+            "Source-to-bridge metadata authoring is orchestration context only. "
+            "It can unblock a later premise-derivation candidate request, but it "
+            "is not theorem proof evidence and does not certify any helper as "
+            "source-theorem proof."
+        ),
+    }
+
+
 def _critic_next_action_agenda(
     *,
     question: OpenResearchQuestion,
@@ -18533,6 +18831,11 @@ def _critic_next_action_agenda(
             Mapping,
         )
         else {}
+    )
+    source_to_bridge_metadata_blocker = (
+        _formalization_manifest_source_to_bridge_metadata_blocker(
+            formalization_manifest
+        )
     )
     if int(formal_counts.get("formal_gap", 0) or 0) > 0:
         gap_goals = [
@@ -18577,6 +18880,13 @@ def _critic_next_action_agenda(
                     "priority": "high",
                     "proof_boundary": KERNEL_PROOF_BOUNDARY,
                 }
+            )
+        elif source_to_bridge_metadata_blocker:
+            agenda.append(
+                _source_to_bridge_metadata_blocker_agenda_item(
+                    blocker=source_to_bridge_metadata_blocker,
+                    fallback_target_ids=[row for row in gap_goals if row],
+                )
             )
         elif proof_bank_memory_summary.get(
             "source_to_bridge_premise_derivation_required", False
@@ -19186,6 +19496,7 @@ _SOURCE_THEOREM_EXACT_CANDIDATE_REPAIR_TRIGGERS = frozenset(
         "EXACT_SOURCE_PROOF_BODY_CANDIDATE_MATERIALIZED",
         "EXACT_SOURCE_PROOF_BODY_ARTIFACT_KERNEL_ENVIRONMENT_OPEN",
         "POST_RUNTIME_PROOFENGINEER_QUEUE_READY",
+        "SOURCE_TO_BRIDGE_METADATA_BLOCKER",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_CLOSURE_WORK_ORDER",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_CLOSURE_REVIEW_PACKET",
         "EXACT_SOURCE_SEMANTIC_DEFINITION_CLOSURE_REVIEW_RESULT",
@@ -26463,6 +26774,11 @@ def _critic_learning_rows(
         if isinstance(formalization_manifest.get("proof_bank_runtime_memory_summary"), Mapping)
         else {}
     )
+    source_to_bridge_metadata_blocker = (
+        _formalization_manifest_source_to_bridge_metadata_blocker(
+            formalization_manifest
+        )
+    )
     selected_proof_obligation_ids = [
         str(row) for row in proof_control.get("selected_proof_obligation_ids", []) or []
     ]
@@ -26571,6 +26887,19 @@ def _critic_learning_rows(
                 "theorem_reduction_closure_work_order_ids": (
                     theorem_reduction_closure_work_order_ids
                 ),
+                "source_to_bridge_metadata_blocker_status": str(
+                    source_to_bridge_metadata_blocker.get("status", "") or ""
+                ),
+                "source_to_bridge_metadata_blocker_target_ids": list(
+                    source_to_bridge_metadata_blocker.get("target_ids", []) or []
+                ),
+                "source_to_bridge_metadata_blocker_helper_candidate_ids": list(
+                    source_to_bridge_metadata_blocker.get(
+                        "diagnostic_helper_candidate_ids",
+                        [],
+                    )
+                    or []
+                ),
             },
             "selected_proof_obligation_ids": selected_proof_obligation_ids,
             "selected_unverified_proof_obligation_ids": selected_unverified_proof_obligation_ids,
@@ -26591,19 +26920,45 @@ def _critic_learning_rows(
                     else ""
                 )
             ),
+            "source_to_bridge_metadata_blocker_status": str(
+                source_to_bridge_metadata_blocker.get("status", "") or ""
+            ),
+            "source_to_bridge_metadata_blocker_target_ids": list(
+                source_to_bridge_metadata_blocker.get("target_ids", []) or []
+            ),
+            "source_to_bridge_metadata_blocker_helper_candidate_ids": list(
+                source_to_bridge_metadata_blocker.get(
+                    "diagnostic_helper_candidate_ids",
+                    [],
+                )
+                or []
+            ),
             "theorem_reduction_closure_work_order_ids": theorem_reduction_closure_work_order_ids,
             "target_behavior": "route implementation gaps, formal gaps, and kernel rerun needs to the correct subsystem",
         }
     )
     for item in agenda:
+        input_summary = {
+            "trigger": item.get("trigger", ""),
+            "owner_subsystem": item.get("owner_subsystem", ""),
+            "agenda_id": item.get("id", ""),
+        }
+        for key in (
+            "target_ids",
+            "runtime_queue_status",
+            "source_to_bridge_metadata_blocker_status",
+            "source_to_bridge_metadata_blocker_kind",
+            "diagnostic_helper_candidate_ids",
+            "source_formalizer_packet_id",
+            "recommended_formalizer_target_mode",
+        ):
+            if key in item:
+                input_summary[key] = item.get(key)
         rows.append(
             {
                 **base,
                 "learning_task": "next_action_routing",
-                "input_summary": {
-                    "trigger": item.get("trigger", ""),
-                    "owner_subsystem": item.get("owner_subsystem", ""),
-                },
+                "input_summary": input_summary,
                 "target_behavior": item.get("action", ""),
                 "acceptance_gate": item.get("acceptance_gate", ""),
             }

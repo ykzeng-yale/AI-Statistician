@@ -168,6 +168,16 @@ Live evidence collected on 2026-06-25:
   reroute, with `kernel_verified_subclaims=14`,
   `n_formalizer_lean_candidate_local_lean_compiled=6`, and pending task
   `formalize-critic-repair:conformal_prediction_coverage:460b3dc4`.
+- `runs/main_worker_live_runtime_resume_critic_metadata_agenda_probe/research_agent_runtime_manifest.json`:
+  after teaching Critic to treat compiled diagnostic-helper bridge blockers as
+  source-binding metadata work, the live one-iteration resume emitted
+  `formal_gap:source_to_bridge_metadata_authoring` and a
+  `SOURCE_TO_BRIDGE_METADATA_BLOCKER` learning row before generic proof-bank
+  expansion. The row carries helper ids
+  `split_conformal_coverage_prop_helper_v3` and
+  `split_conformal_core_prop_coverage_bridge_helper`, records
+  `PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING`, and routes to pending task
+  `formalize-critic-repair:conformal_prediction_coverage:d59f0093`.
 
 The 12-iteration run is evidence for live generated-code execution, one
 AlgorithmEngineer repair sequence, Formalizer candidate materialization, local

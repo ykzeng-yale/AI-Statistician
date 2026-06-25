@@ -27709,6 +27709,133 @@ def test_critic_routes_to_source_to_bridge_premise_derivation_before_generic_clo
     assert "formal_gap:proof_bank_expansion" not in agenda_by_id
 
 
+def test_critic_routes_diagnostic_helper_metadata_blocker_before_proof_bank_expansion() -> None:
+    question = load_open_research_questions(Path("examples/research_questions.json"))[1]
+    formalization_manifest = {
+        "artifact_kind": "RuntimeFormalizationManifest",
+        "manifest_id": "formalization_manifest:diagnostic_helper_metadata_blocker",
+        "counts": {"formal_gap": 1, "kernel_verified": 2, "proved": 2, "failed": 3},
+        "deterministic_theorem_goals": [
+            {"id": "split_conformal_finite_sample_coverage", "status": "FORMAL_GAP"}
+        ],
+        "formal_subclaims": [
+            {
+                "id": "conformal:split_conformal_finite_sample_coverage",
+                "claim_type": "theorem_goal",
+                "status": "FORMAL_GAP",
+            }
+        ],
+        "proof_obligation_control": {
+            "candidate_proof_obligation_ids": [
+                "coverage_lower_bound_of_complement_error"
+            ],
+            "selected_proof_obligation_ids": [],
+            "proof_bank_bridge_catalog_exhausted_by_memory": False,
+            "theorem_reduction_closure_required": False,
+        },
+        "proof_bank_runtime_memory_summary": {
+            "recommended_formalizer_target_mode": (
+                "source_theorem_diagnostic_helper_bridge_or_blocker"
+            ),
+            "recommended_source_theorem_integration_action": (
+                "bridge_or_block_compiled_diagnostic_helpers"
+            ),
+            "formalizer_diagnostic_helper_integration_required": True,
+            "remaining_theorem_goal_ids": [
+                "split_conformal_finite_sample_coverage"
+            ],
+            "source_to_bridge_premise_derivation_required": False,
+            "source_to_bridge_premise_derivation_diagnostics": [],
+            "formalizer_diagnostic_helper_memory": [
+                {
+                    "candidate_id": (
+                        "split_conformal_core_prop_coverage_bridge_helper"
+                    ),
+                    "local_lean_compiled": True,
+                    "source_theorem_target_known": False,
+                    "diagnostic_helper_not_source_theorem": True,
+                    "proof_evidence_status": (
+                        "FORMALIZER_DIAGNOSTIC_HELPER_LOCAL_LEAN_KERNEL_VERIFIED_NOT_SOURCE_THEOREM_PROOF"
+                    ),
+                }
+            ],
+        },
+        "source_to_bridge_premise_derivation_work_orders": [],
+    }
+
+    agenda = _critic_next_action_agenda(
+        question=question,
+        retrieval_manifest={"counts": {"formal_source_hits": 1}},
+        theory_packet={"packet_id": "theory:conformal"},
+        simulation_manifest={"simulation_passed": True},
+        algorithm_manifest={"n_executed": 0},
+        formalization_manifest=formalization_manifest,
+    )
+    agenda_by_id = {row["id"]: row for row in agenda}
+
+    assert agenda[0]["id"] == "formal_gap:source_to_bridge_metadata_authoring"
+    metadata_row = agenda_by_id["formal_gap:source_to_bridge_metadata_authoring"]
+    assert metadata_row["trigger"] == "SOURCE_TO_BRIDGE_METADATA_BLOCKER"
+    assert metadata_row["runtime_queue_status"] == (
+        "PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING"
+    )
+    assert metadata_row["source_to_bridge_metadata_blocker_status"] == (
+        "SOURCE_TO_BRIDGE_METADATA_BLOCKER_INFERRED_FROM_DIAGNOSTIC_HELPER_MEMORY"
+    )
+    assert metadata_row["diagnostic_helper_candidate_ids"] == [
+        "split_conformal_core_prop_coverage_bridge_helper"
+    ]
+    assert metadata_row["target_ids"] == [
+        "split_conformal_finite_sample_coverage"
+    ]
+    assert "source_to_bridge_premise_derivation_candidate_request" in metadata_row[
+        "acceptance_gate"
+    ]
+    assert "not theorem proof evidence" in metadata_row["boundary"]
+    assert "formal_gap:proof_bank_expansion" not in agenda_by_id
+
+    learning_rows = _critic_learning_rows(
+        question=question,
+        agenda=agenda,
+        retrieval_manifest={
+            "manifest_id": "retrieval:test",
+            "counts": {"formal_source_hits": 1},
+        },
+        theory_packet={"packet_id": "theory:conformal", "estimator_specs": []},
+        simulation_manifest={
+            "manifest_id": "simulation:test",
+            "simulation_passed": True,
+        },
+        algorithm_manifest={"manifest_id": "algorithm:test", "n_executed": 0},
+        formalization_manifest=formalization_manifest,
+    )
+    feedback_row = next(
+        row
+        for row in learning_rows
+        if row["learning_task"] == "simulation_algorithm_formalization_feedback"
+    )
+    routing_row = next(
+        row
+        for row in learning_rows
+        if row["learning_task"] == "next_action_routing"
+        and row["input_summary"]["agenda_id"]
+        == "formal_gap:source_to_bridge_metadata_authoring"
+    )
+
+    assert feedback_row["source_to_bridge_metadata_blocker_status"] == (
+        "SOURCE_TO_BRIDGE_METADATA_BLOCKER_INFERRED_FROM_DIAGNOSTIC_HELPER_MEMORY"
+    )
+    assert routing_row["input_summary"]["trigger"] == (
+        "SOURCE_TO_BRIDGE_METADATA_BLOCKER"
+    )
+    assert routing_row["input_summary"]["runtime_queue_status"] == (
+        "PENDING_SOURCE_TO_BRIDGE_METADATA_AUTHORING"
+    )
+    assert routing_row["input_summary"]["diagnostic_helper_candidate_ids"] == [
+        "split_conformal_core_prop_coverage_bridge_helper"
+    ]
+
+
 def test_proof_audit_learning_export_marks_kernel_verified_obligations_as_memory(tmp_path: Path) -> None:
     proof_manifest = tmp_path / "proof_audit_manifest.json"
     proof_manifest.write_text(
