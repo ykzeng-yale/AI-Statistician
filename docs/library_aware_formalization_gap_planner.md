@@ -925,6 +925,11 @@ adds explicit repair actions for missing formal realization nodes or missing
 route-alignment edges. It does not replace raw rows and is not proof evidence;
 it gives the LLM planner a compact view of what changed and what still needs
 search, library grounding, proof-state feedback, or route revision.
+Planner manifests, publication bundles, and reuse-smoke reports lift those
+feedback-loop need counts as `replan_required`, `needs_more_literature`,
+`needs_more_library_grounding`, and `needs_more_proof_state_feedback` summary
+fields, so a reusable artifact can drive the next interactive loop without
+reopening full request packets.
 Each request packet also carries
 `context_packet.target_theorem_context_packet`, a compact theorem-context
 packet for the route planner. It preserves the target theorem statement,

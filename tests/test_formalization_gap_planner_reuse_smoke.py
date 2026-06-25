@@ -137,6 +137,38 @@ def _assert_publication_bundle_standalone_seed_fallback_summary(
     )
 
 
+def _assert_feedback_loop_need_summary(payload: dict[str, object]) -> None:
+    for suffix in (
+        "replan_required",
+        "needs_more_literature",
+        "needs_more_library_grounding",
+        "needs_more_proof_state_feedback",
+    ):
+        primary_key = f"n_llm_route_planner_feedback_loop_{suffix}"
+        feedback_key = f"n_feedback_llm_route_planner_feedback_loop_{suffix}"
+        combined_key = f"n_combined_llm_route_planner_feedback_loop_{suffix}"
+        bundle_primary_key = (
+            "n_publication_bundle_llm_route_planner_summary_feedback_loop_"
+            f"{suffix}"
+        )
+        bundle_feedback_key = (
+            "n_publication_bundle_feedback_llm_route_planner_summary_feedback_loop_"
+            f"{suffix}"
+        )
+        bundle_combined_key = (
+            "n_publication_bundle_combined_llm_route_planner_summary_feedback_loop_"
+            f"{suffix}"
+        )
+        assert payload[bundle_primary_key] == payload[primary_key]
+        assert payload[bundle_feedback_key] == payload[feedback_key]
+        assert payload[combined_key] == payload[primary_key] + payload[feedback_key]
+        assert (
+            payload[bundle_combined_key]
+            == payload[bundle_primary_key] + payload[bundle_feedback_key]
+            == payload[combined_key]
+        )
+
+
 def _assert_llm_resource_feedback_readiness_summary(payload: dict[str, object]) -> None:
     for bundle_key, raw_key in (
         (
@@ -1400,6 +1432,7 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
         feedback_fallback_routes=1,
         expected_source_counts={"fallback_input_route": 1},
     )
+    _assert_feedback_loop_need_summary(payload)
     assert payload[
         "goal_plan_standalone_input_trace_by_llm_seed_selection_rank"
     ] == {"1": 1}
@@ -1826,6 +1859,10 @@ def test_reuse_smoke_runs_public_publication_path() -> None:
     assert "Goal-plan LLM fallback routes total/marked-adoptable" in report_text
     assert (
         "Bundle LLM standalone-seed fallback routes primary/feedback/combined"
+        in report_text
+    )
+    assert (
+        "LLM route planner feedback-loop needs replan/literature/library/proof-state"
         in report_text
     )
     assert "LLM route planner provider usage rows/input/output/total" in report_text
@@ -6905,6 +6942,7 @@ def test_reuse_smoke_consumes_reviewed_llm_route_response_end_to_end() -> None:
         feedback_fallback_routes=0,
         expected_source_counts={"accepted_llm_standalone_route": 1},
     )
+    _assert_feedback_loop_need_summary(payload)
     assert payload["publication_bundle_feedback_llm_route_planner_summary_requested"]
     assert (
         payload[
@@ -8035,6 +8073,7 @@ def test_reuse_smoke_surfaces_llm_route_planner_provider_failure() -> None:
         feedback_fallback_routes=1,
         expected_source_counts={"fallback_input_route": 1},
     )
+    _assert_feedback_loop_need_summary(payload)
     assert payload[
         "goal_plan_standalone_input_trace_by_llm_seed_selection_rank"
     ] == {"1": 1}

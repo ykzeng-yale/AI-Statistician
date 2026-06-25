@@ -2733,6 +2733,21 @@ def test_publication_bundle_summarizes_llm_resource_feedback_readiness() -> None
         root / "primary",
         resource_response_ledger_dir=resource_response_ledger_dir,
     )
+    manifest_path = (
+        primary_dir / "formalization_gap_planner_llm_route_planner_manifest.json"
+    )
+    manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_payload.update(
+        {
+            "n_requests_with_feedback_loop_summary": 1,
+            "n_feedback_loop_summary_residual_goals": 2,
+            "n_feedback_loop_summary_replan_required": 1,
+            "n_feedback_loop_summary_needs_more_literature": 1,
+            "n_feedback_loop_summary_needs_more_library_grounding": 1,
+            "n_feedback_loop_summary_needs_more_proof_state_feedback": 1,
+        }
+    )
+    manifest_path.write_text(json.dumps(manifest_payload, indent=2), encoding="utf-8")
     out_dir = root / "bundle"
 
     payload = export_formalization_gap_planner_publication_bundle(
@@ -2776,6 +2791,12 @@ def test_publication_bundle_summarizes_llm_resource_feedback_readiness() -> None
     assert summary["n_requests_with_resource_feedback_readiness_summary"] == 1
     assert summary["n_request_resource_feedback_readiness_rows"] == 1
     assert summary["n_request_resource_feedback_reuse_ready_rows"] == 0
+    assert summary["n_requests_with_feedback_loop_summary"] == 1
+    assert summary["n_feedback_loop_summary_residual_goals"] == 2
+    assert summary["n_feedback_loop_summary_replan_required"] == 1
+    assert summary["n_feedback_loop_summary_needs_more_literature"] == 1
+    assert summary["n_feedback_loop_summary_needs_more_library_grounding"] == 1
+    assert summary["n_feedback_loop_summary_needs_more_proof_state_feedback"] == 1
     assert (
         summary[
             "n_request_model_tier_decision_resource_feedback_readiness_rows"

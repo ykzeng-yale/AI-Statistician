@@ -3910,6 +3910,10 @@ def test_llm_route_planner_stages_agentic_proof_strategy_plan() -> None:
     feedback_summary = context["feedback_loop_summary"]
     assert feedback_summary["replan_required"] is True
     assert feedback_summary["needs_more_library_grounding"] is True
+    assert payload["n_feedback_loop_summary_replan_required"] == 1
+    assert payload["n_feedback_loop_summary_needs_more_literature"] == 0
+    assert payload["n_feedback_loop_summary_needs_more_library_grounding"] == 1
+    assert payload["n_feedback_loop_summary_needs_more_proof_state_feedback"] == 0
     assert feedback_summary["agentic_proof_strategy_plan"] == strategy_summary
     assert any(
         action["source"] == "formal_verifier_agentic_proof_strategy_plan"

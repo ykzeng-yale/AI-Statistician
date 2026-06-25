@@ -2703,6 +2703,12 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_formal_attempt_feedback_contexts",
             "n_request_formal_attempt_feedback_residual_goals",
             "n_request_formal_attempt_feedback_failed_statuses",
+            "n_requests_with_feedback_loop_summary",
+            "n_feedback_loop_summary_residual_goals",
+            "n_feedback_loop_summary_replan_required",
+            "n_feedback_loop_summary_needs_more_literature",
+            "n_feedback_loop_summary_needs_more_library_grounding",
+            "n_feedback_loop_summary_needs_more_proof_state_feedback",
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces",
             "n_feedback_loop_summary_interactive_resource_requests",
@@ -2952,6 +2958,16 @@ def publication_bundle_manifest_json_schema() -> dict[str, object]:
             "n_request_formal_attempt_feedback_contexts": nonnegative_integer,
             "n_request_formal_attempt_feedback_residual_goals": nonnegative_integer,
             "n_request_formal_attempt_feedback_failed_statuses": nonnegative_integer,
+            "n_requests_with_feedback_loop_summary": nonnegative_integer,
+            "n_feedback_loop_summary_residual_goals": nonnegative_integer,
+            "n_feedback_loop_summary_replan_required": nonnegative_integer,
+            "n_feedback_loop_summary_needs_more_literature": nonnegative_integer,
+            "n_feedback_loop_summary_needs_more_library_grounding": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_needs_more_proof_state_feedback": (
+                nonnegative_integer
+            ),
             "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": (
                 nonnegative_integer
             ),
@@ -6807,6 +6823,12 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
         "n_request_formal_attempt_feedback_contexts": 0,
         "n_request_formal_attempt_feedback_residual_goals": 0,
         "n_request_formal_attempt_feedback_failed_statuses": 0,
+        "n_requests_with_feedback_loop_summary": 0,
+        "n_feedback_loop_summary_residual_goals": 0,
+        "n_feedback_loop_summary_replan_required": 0,
+        "n_feedback_loop_summary_needs_more_literature": 0,
+        "n_feedback_loop_summary_needs_more_library_grounding": 0,
+        "n_feedback_loop_summary_needs_more_proof_state_feedback": 0,
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_requests_with_feedback_loop_summary_prior_llm_route_planner_hook_traces": 0,
         "n_feedback_loop_summary_interactive_resource_requests": 0,
@@ -7611,6 +7633,26 @@ def _llm_route_planner_manifest_summary(source_dir: Path | None) -> dict[str, ob
                     for packet in request_packets
                 ),
             )
+            or 0
+        ),
+        "n_requests_with_feedback_loop_summary": int(
+            payload.get("n_requests_with_feedback_loop_summary", 0) or 0
+        ),
+        "n_feedback_loop_summary_residual_goals": int(
+            payload.get("n_feedback_loop_summary_residual_goals", 0) or 0
+        ),
+        "n_feedback_loop_summary_replan_required": int(
+            payload.get("n_feedback_loop_summary_replan_required", 0) or 0
+        ),
+        "n_feedback_loop_summary_needs_more_literature": int(
+            payload.get("n_feedback_loop_summary_needs_more_literature", 0) or 0
+        ),
+        "n_feedback_loop_summary_needs_more_library_grounding": int(
+            payload.get("n_feedback_loop_summary_needs_more_library_grounding", 0)
+            or 0
+        ),
+        "n_feedback_loop_summary_needs_more_proof_state_feedback": int(
+            payload.get("n_feedback_loop_summary_needs_more_proof_state_feedback", 0)
             or 0
         ),
         "n_feedback_loop_summary_prior_llm_route_planner_hook_traces": int(

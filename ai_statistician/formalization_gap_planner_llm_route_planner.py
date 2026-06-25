@@ -2595,6 +2595,36 @@ def export_formalization_gap_planner_llm_route_planner(
                 ).get("replan_required", False)
             )
         ),
+        "n_feedback_loop_summary_needs_more_literature": sum(
+            1
+            for packet in request_packets
+            if bool(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "feedback_loop_summary",
+                ).get("needs_more_literature", False)
+            )
+        ),
+        "n_feedback_loop_summary_needs_more_library_grounding": sum(
+            1
+            for packet in request_packets
+            if bool(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "feedback_loop_summary",
+                ).get("needs_more_library_grounding", False)
+            )
+        ),
+        "n_feedback_loop_summary_needs_more_proof_state_feedback": sum(
+            1
+            for packet in request_packets
+            if bool(
+                _dict_value(
+                    _dict_value(packet, "context_packet"),
+                    "feedback_loop_summary",
+                ).get("needs_more_proof_state_feedback", False)
+            )
+        ),
         "n_feedback_loop_summary_resource_request_playbooks": sum(
             int(
                 _dict_value(
@@ -5532,6 +5562,16 @@ def llm_route_planner_manifest_json_schema() -> dict[str, object]:
             "n_request_agentic_proof_strategy_plan_rows": nonnegative_integer,
             "n_request_agentic_proof_strategy_plan_ready": nonnegative_integer,
             "n_request_agentic_proof_strategy_plan_source_discovery_cache_items": (
+                nonnegative_integer
+            ),
+            "n_requests_with_feedback_loop_summary": nonnegative_integer,
+            "n_feedback_loop_summary_residual_goals": nonnegative_integer,
+            "n_feedback_loop_summary_replan_required": nonnegative_integer,
+            "n_feedback_loop_summary_needs_more_literature": nonnegative_integer,
+            "n_feedback_loop_summary_needs_more_library_grounding": (
+                nonnegative_integer
+            ),
+            "n_feedback_loop_summary_needs_more_proof_state_feedback": (
                 nonnegative_integer
             ),
             "n_feedback_loop_summary_interactive_resource_requests": (

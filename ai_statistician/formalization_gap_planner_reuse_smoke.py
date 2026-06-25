@@ -2998,6 +2998,62 @@ def run_formalization_gap_planner_reuse_smoke(
             )
             or 0
         ),
+        "n_combined_llm_route_planner_feedback_loop_replan_required": int(
+            llm_route_planner_payload.get(
+                "n_feedback_loop_summary_replan_required",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_feedback_loop_summary_replan_required",
+                0,
+            )
+            or 0
+        ),
+        "n_combined_llm_route_planner_feedback_loop_needs_more_literature": int(
+            llm_route_planner_payload.get(
+                "n_feedback_loop_summary_needs_more_literature",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_feedback_loop_summary_needs_more_literature",
+                0,
+            )
+            or 0
+        ),
+        "n_combined_llm_route_planner_feedback_loop_needs_more_library_grounding": int(
+            llm_route_planner_payload.get(
+                "n_feedback_loop_summary_needs_more_library_grounding",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_feedback_loop_summary_needs_more_library_grounding",
+                0,
+            )
+            or 0
+        ),
+        "n_combined_llm_route_planner_feedback_loop_needs_more_proof_state_feedback": int(
+            llm_route_planner_payload.get(
+                "n_feedback_loop_summary_needs_more_proof_state_feedback",
+                0,
+            )
+            or 0
+        )
+        + int(
+            feedback_llm_route_planner_payload.get(
+                "n_feedback_loop_summary_needs_more_proof_state_feedback",
+                0,
+            )
+            or 0
+        ),
         "n_combined_llm_route_planner_request_model_tier_decision_resource_feedback_readiness_rows": int(
             llm_route_planner_payload.get(
                 "n_request_model_tier_decision_resource_feedback_readiness_rows",
@@ -3106,6 +3162,62 @@ def run_formalization_gap_planner_reuse_smoke(
         + int(
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_request_resource_feedback_reuse_ready_rows",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_feedback_loop_replan_required": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_replan_required",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_replan_required",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_feedback_loop_needs_more_literature": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_needs_more_literature",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_needs_more_literature",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_feedback_loop_needs_more_library_grounding": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_needs_more_library_grounding",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_needs_more_library_grounding",
+                0,
+            )
+            or 0
+        ),
+        "n_publication_bundle_combined_llm_route_planner_summary_feedback_loop_needs_more_proof_state_feedback": int(
+            publication_bundle_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_needs_more_proof_state_feedback",
+                0,
+            )
+            or 0
+        )
+        + int(
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_needs_more_proof_state_feedback",
                 0,
             )
             or 0
@@ -3587,6 +3699,30 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_llm_route_planner_summary_request_resource_feedback_reuse_ready_rows": (
             publication_bundle_llm_route_planner_summary.get(
                 "n_request_resource_feedback_reuse_ready_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_feedback_loop_replan_required": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_replan_required",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_feedback_loop_needs_more_literature": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_needs_more_literature",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_feedback_loop_needs_more_library_grounding": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_needs_more_library_grounding",
+                0,
+            )
+        ),
+        "n_publication_bundle_llm_route_planner_summary_feedback_loop_needs_more_proof_state_feedback": (
+            publication_bundle_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_needs_more_proof_state_feedback",
                 0,
             )
         ),
@@ -4299,6 +4435,30 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_publication_bundle_feedback_llm_route_planner_summary_request_resource_feedback_reuse_ready_rows": (
             publication_bundle_feedback_llm_route_planner_summary.get(
                 "n_request_resource_feedback_reuse_ready_rows",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_feedback_loop_replan_required": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_replan_required",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_feedback_loop_needs_more_literature": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_needs_more_literature",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_feedback_loop_needs_more_library_grounding": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_needs_more_library_grounding",
+                0,
+            )
+        ),
+        "n_publication_bundle_feedback_llm_route_planner_summary_feedback_loop_needs_more_proof_state_feedback": (
+            publication_bundle_feedback_llm_route_planner_summary.get(
+                "n_feedback_loop_summary_needs_more_proof_state_feedback",
                 0,
             )
         ),
@@ -5096,6 +5256,30 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_llm_route_planner_feedback_summary_interactive_route_adoption_precondition_required_response_fields": llm_route_planner_payload.get(
             "n_feedback_loop_summary_interactive_route_adoption_precondition_required_response_fields",
             0,
+        ),
+        "n_llm_route_planner_feedback_loop_replan_required": (
+            llm_route_planner_payload.get(
+                "n_feedback_loop_summary_replan_required",
+                0,
+            )
+        ),
+        "n_llm_route_planner_feedback_loop_needs_more_literature": (
+            llm_route_planner_payload.get(
+                "n_feedback_loop_summary_needs_more_literature",
+                0,
+            )
+        ),
+        "n_llm_route_planner_feedback_loop_needs_more_library_grounding": (
+            llm_route_planner_payload.get(
+                "n_feedback_loop_summary_needs_more_library_grounding",
+                0,
+            )
+        ),
+        "n_llm_route_planner_feedback_loop_needs_more_proof_state_feedback": (
+            llm_route_planner_payload.get(
+                "n_feedback_loop_summary_needs_more_proof_state_feedback",
+                0,
+            )
         ),
         "n_llm_route_planner_rows_with_route_adoption_preconditions": llm_route_planner_payload.get(
             "n_rows_with_route_adoption_preconditions",
@@ -5989,6 +6173,30 @@ def run_formalization_gap_planner_reuse_smoke(
         "n_feedback_llm_route_planner_feedback_summary_interactive_route_adoption_precondition_required_response_fields": (
             feedback_llm_route_planner_payload.get(
                 "n_feedback_loop_summary_interactive_route_adoption_precondition_required_response_fields",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_feedback_loop_replan_required": (
+            feedback_llm_route_planner_payload.get(
+                "n_feedback_loop_summary_replan_required",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_feedback_loop_needs_more_literature": (
+            feedback_llm_route_planner_payload.get(
+                "n_feedback_loop_summary_needs_more_literature",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_feedback_loop_needs_more_library_grounding": (
+            feedback_llm_route_planner_payload.get(
+                "n_feedback_loop_summary_needs_more_library_grounding",
+                0,
+            )
+        ),
+        "n_feedback_llm_route_planner_feedback_loop_needs_more_proof_state_feedback": (
+            feedback_llm_route_planner_payload.get(
+                "n_feedback_loop_summary_needs_more_proof_state_feedback",
                 0,
             )
         ),
@@ -11689,6 +11897,25 @@ def _markdown_report(payload: dict[str, object]) -> str:
             f"bundle={payload.get('n_publication_bundle_combined_llm_route_planner_summary_requests_with_resource_feedback_readiness_summary')}/"
             f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_request_resource_feedback_readiness_rows')}/"
             f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_request_resource_feedback_reuse_ready_rows')}"
+        ),
+        (
+            f"- LLM route planner feedback-loop needs replan/literature/library/proof-state: "
+            f"primary={payload.get('n_llm_route_planner_feedback_loop_replan_required')}/"
+            f"{payload.get('n_llm_route_planner_feedback_loop_needs_more_literature')}/"
+            f"{payload.get('n_llm_route_planner_feedback_loop_needs_more_library_grounding')}/"
+            f"{payload.get('n_llm_route_planner_feedback_loop_needs_more_proof_state_feedback')} "
+            f"feedback={payload.get('n_feedback_llm_route_planner_feedback_loop_replan_required')}/"
+            f"{payload.get('n_feedback_llm_route_planner_feedback_loop_needs_more_literature')}/"
+            f"{payload.get('n_feedback_llm_route_planner_feedback_loop_needs_more_library_grounding')}/"
+            f"{payload.get('n_feedback_llm_route_planner_feedback_loop_needs_more_proof_state_feedback')} "
+            f"combined={payload.get('n_combined_llm_route_planner_feedback_loop_replan_required')}/"
+            f"{payload.get('n_combined_llm_route_planner_feedback_loop_needs_more_literature')}/"
+            f"{payload.get('n_combined_llm_route_planner_feedback_loop_needs_more_library_grounding')}/"
+            f"{payload.get('n_combined_llm_route_planner_feedback_loop_needs_more_proof_state_feedback')} "
+            f"bundle={payload.get('n_publication_bundle_combined_llm_route_planner_summary_feedback_loop_replan_required')}/"
+            f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_feedback_loop_needs_more_literature')}/"
+            f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_feedback_loop_needs_more_library_grounding')}/"
+            f"{payload.get('n_publication_bundle_combined_llm_route_planner_summary_feedback_loop_needs_more_proof_state_feedback')}"
         ),
         (
             f"- LLM route planner model-tier resource-feedback readiness rows/reuse-ready/sonnet-triggers: "
