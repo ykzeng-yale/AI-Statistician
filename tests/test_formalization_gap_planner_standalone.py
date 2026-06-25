@@ -340,6 +340,83 @@ def test_standalone_input_rejects_nested_kernel_proof_claims() -> None:
     )
 
 
+def test_standalone_input_rejects_adoptable_fallback_route_trace() -> None:
+    payload = {
+        "schema_version": 1,
+        "component_name": "formalization_gap_planner_standalone_input",
+        "target_prover_family": "lean4",
+        "library_snapshot_ref": "mathlib4:fallback-route-trace-fixture",
+        "routes": [
+            {
+                "route_id": "rank_route",
+                "display_name": "rank_route",
+                "theorem_statement": "Rank uniformity follows from exchangeability.",
+                "llm_route_planner_fallback_route": True,
+                "llm_route_planner_seed_route_source": "fallback_input_route",
+                "llm_route_planner_seed_selected": True,
+                "llm_route_planner_seed_adoptable_for_standalone_replay": False,
+                "llm_route_planner_seed_selection_rank": 1,
+                "llm_route_planner_seed_selection_reason": (
+                    "fallback route preserved for review only"
+                ),
+                "replan_metadata": {
+                    "target_prover_family": "lean4",
+                    "llm_route_planner_fallback_route": True,
+                    "llm_route_planner_seed_route_source": "fallback_input_route",
+                    "llm_route_planner_seed_selected": True,
+                    "llm_route_planner_seed_adoptable_for_standalone_replay": False,
+                    "llm_route_planner_seed_selection_rank": 1,
+                    "llm_route_planner_seed_selection_reason": (
+                        "fallback route preserved for review only"
+                    ),
+                },
+                "primitives": [
+                    {
+                        "primitive": "rank_uniformity",
+                        "coverage_status": "bridge_needed",
+                    }
+                ],
+            }
+        ],
+    }
+
+    assert validate_standalone_input_payload(payload) == []
+
+    adoptable_route_payload = deepcopy(payload)
+    adoptable_route_payload["routes"][0][
+        "llm_route_planner_seed_adoptable_for_standalone_replay"
+    ] = True
+    route_errors = validate_standalone_input_payload(adoptable_route_payload)
+    assert (
+        "routes[0].llm_route_planner_seed_adoptable_for_standalone_replay "
+        "must be false for fallback routes"
+        in route_errors
+    )
+
+    adoptable_metadata_payload = deepcopy(payload)
+    adoptable_metadata_payload["routes"][0]["replan_metadata"][
+        "llm_route_planner_seed_adoptable_for_standalone_replay"
+    ] = True
+    metadata_errors = validate_standalone_input_payload(adoptable_metadata_payload)
+    assert (
+        "routes[0].replan_metadata."
+        "llm_route_planner_seed_adoptable_for_standalone_replay must be false "
+        "for fallback routes"
+        in metadata_errors
+    )
+
+    mismatched_marker_payload = deepcopy(payload)
+    mismatched_marker_payload["routes"][0]["replan_metadata"][
+        "llm_route_planner_fallback_route"
+    ] = False
+    mismatch_errors = validate_standalone_input_payload(mismatched_marker_payload)
+    assert (
+        "routes[0].llm_route_planner_fallback_route must match "
+        "routes[0].replan_metadata.llm_route_planner_fallback_route"
+        in mismatch_errors
+    )
+
+
 def test_standalone_input_validates_route_option_selected_route_option_id() -> None:
     route_option_selection_brief = {
         "brief_kind": (

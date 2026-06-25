@@ -797,6 +797,13 @@ def validate_standalone_input_payload(payload: dict[str, Any]) -> list[str]:
             )
         )
         errors.extend(
+            _llm_seed_route_selection_trace_consistency_errors(
+                route,
+                metadata,
+                location=f"routes[{idx}]",
+            )
+        )
+        errors.extend(
             _llm_route_adoption_blocker_trace_errors(
                 metadata,
                 location=f"routes[{idx}].replan_metadata",
@@ -1399,6 +1406,18 @@ def _llm_seed_route_selection_trace_errors(
 ) -> list[str]:
     if not isinstance(payload, dict):
         return []
+    errors: list[str] = []
+    if "llm_route_planner_fallback_route" in payload and not isinstance(
+        payload.get("llm_route_planner_fallback_route"),
+        bool,
+    ):
+        errors.append(f"{location}.llm_route_planner_fallback_route must be boolean")
+    if payload.get("llm_route_planner_fallback_route") is True and payload.get(
+        "llm_route_planner_seed_adoptable_for_standalone_replay"
+    ) is True:
+        errors.append(
+            f"{location}.llm_route_planner_seed_adoptable_for_standalone_replay must be false for fallback routes"
+        )
     trace_fields = {
         "llm_route_planner_seed_selected",
         "llm_route_planner_seed_adoptable_for_standalone_replay",
@@ -1408,8 +1427,7 @@ def _llm_seed_route_selection_trace_errors(
         "llm_route_planner_seed_minimal_delta_selected_route_option_id",
     }
     if not trace_fields.intersection(payload):
-        return []
-    errors: list[str] = []
+        return errors
     if "llm_route_planner_seed_selected" in payload and not isinstance(
         payload.get("llm_route_planner_seed_selected"),
         bool,
@@ -1450,6 +1468,40 @@ def _llm_seed_route_selection_trace_errors(
         errors.append(
             f"{location}.llm_route_planner_seed_minimal_delta_selected_route_option_id must be string"
         )
+    return errors
+
+
+def _llm_seed_route_selection_trace_consistency_errors(
+    route: Mapping[str, Any],
+    metadata: Mapping[str, Any],
+    *,
+    location: str,
+) -> list[str]:
+    errors: list[str] = []
+    for field_name in (
+        "llm_route_planner_fallback_route",
+        "llm_route_planner_seed_adoptable_for_standalone_replay",
+        "llm_route_planner_seed_selected",
+    ):
+        if field_name in route and field_name in metadata and (
+            route.get(field_name) != metadata.get(field_name)
+        ):
+            errors.append(
+                f"{location}.{field_name} must match "
+                f"{location}.replan_metadata.{field_name}"
+            )
+    for field_name in (
+        "llm_route_planner_seed_route_source",
+        "llm_route_planner_fallback_reason",
+        "llm_route_planner_fallback_boundary",
+    ):
+        if field_name in route and field_name in metadata and (
+            str(route.get(field_name, "")) != str(metadata.get(field_name, ""))
+        ):
+            errors.append(
+                f"{location}.{field_name} must match "
+                f"{location}.replan_metadata.{field_name}"
+            )
     return errors
 
 
